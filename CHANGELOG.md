@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The tile palette counted an atlas differently than the tile ids did.** A
+  Tiled margin is a border on both sides of the atlas image — its own tilesets
+  measure exactly that — and the count behind the palette grid subtracted it
+  once, while the count behind the global tile-id spans subtracted it twice. On
+  a bordered atlas the palette therefore offered a column of cells that were
+  border pixels, and in a multi-tileset layer the ids past them belonged to the
+  next tileset: the brush painted a tile from somewhere else. There is one count
+  now (`atlasCells`), shared by the palette, the id spans and the renderer's
+  bounds check, with the C++ side stating the same cases.
+
 - **A tile the atlas does not hold drew a different tile.** Nothing bounded the
   cell a tile id names, so an id past the end of its tileset — a map that outgrew
   the atlas, a tileset swapped for a smaller one, a layer declaring more columns
