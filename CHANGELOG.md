@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A tile the atlas does not hold drew a different tile.** Nothing bounded the
+  cell a tile id names, so an id past the end of its tileset — a map that outgrew
+  the atlas, a tileset swapped for a smaller one, a layer declaring more columns
+  than the texture is wide — landed on a UV rect outside the texture, where the
+  sampler hands back a tile that does exist. The map read as one that loaded. How
+  many tiles an atlas holds is the texture's own answer at the layer's cell size,
+  and a cell it does not hold draws nothing now. `TilemapLayer.tilesetRows` goes
+  with it: that number was the only thing the field could have said, no reader
+  ever consulted it, and the multi-tileset path never carried it at all. A scene
+  that still stores the field loads unchanged, and it was the last field any
+  component declared without a reader.
+
 - **Every device rebuild left its shaders behind.** A lost GPU is recovered by
   re-running the render plugins' `init()`, and three of them compiled a shader
   there without releasing the one the dead context owned — so each recovery added
