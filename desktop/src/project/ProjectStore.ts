@@ -27,7 +27,8 @@ import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstanc
 import { discoverSceneAssets } from 'esengine';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, sourceById, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, meshPrefab, sourceById, type EntitySource } from '@/engine/entitySources';
+import { readMeshSummary } from '@/engine/meshSummary';
 import { setCanvasDesignSeed, setProjectCameraFit, setProjectPrefabSources, setProjectSortingLayerModes } from '@/engine/projectSeams';
 import { needsUIHost, hostPrefab, authoredEntities, type DocumentEntity } from '@/engine/prefabEnvironment';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
@@ -1230,6 +1231,23 @@ class ProjectStoreImpl {
    * and add a Transform + Sprite at the drop point. Returns the source id, or null if
    * the path isn't a tracked texture. One undoable step; the new entity is selected.
    */
+  /**
+   * Drop a `.esmesh` into the scene: a Transform + Mesh2D pointing at it, lit if
+   * the file carries normals. A mesh is a first-class asset — it has a slot, a
+   * thumbnail and an inspector — and this is the door the other four asset kinds
+   * already had.
+   */
+  async instantiateMeshFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
+    const ref = await AssetRegistry.assetRefForPath(path, 'mesh');
+    if (!ref) return null;
+    const summary = await readMeshSummary(path);
+    const name = (path.split('/').pop() ?? 'Mesh').replace(/\.[^.]+$/, '') || 'Mesh';
+    const id = SceneCommands.create(meshPrefab(name, ref, summary?.hasNormals ?? false),
+                                    { parent: null, position });
+    if (id != null) useSelection.getState().select(id);
+    return id;
+  }
+
   async instantiateSpriteFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
     const ref = await AssetRegistry.assetRefForPath(path, 'texture');
     if (!ref) return null;

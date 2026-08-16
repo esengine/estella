@@ -56,7 +56,7 @@ SDK 默认值为 2D 调好(正交、活动、`orthoSize` 540)。移动相机就�
 | `viewport` | Vec4 | `{0,0,1,1}` | 屏幕矩形 `x, y, w, h`(0–1,分屏/画中画)。 |
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | 渲染前清什么:`Nothing` / `Color` / `Depth` / `ColorAndDepth`。 |
 | `pixelPerfect` | boolean | `false` | 吸附到世界像素网格,让像素画清晰(正交)。 |
-| `showFrustum` | boolean | `false` | 仅编辑器:绘制相机的视锥 gizmo。 |
+| `showFrustum` | boolean | `false` | 仅编辑器：画出这台相机的整个视锥体(近面到远面)。关闭时 gizmo 只勾出它在内容平面上取景的范围——相机朝向别处时那里是空的。 |
 
 ## 缩放与投影
 

@@ -18,6 +18,8 @@ export interface MeshSummary {
   extent: string;
   /** The channels the file declares, in its own order: `position, uv, normal`. */
   channels: string;
+  /** Whether it carries normals — geometry authored to be shaded. */
+  hasNormals: boolean;
 }
 
 const CHANNEL_NAMES: Record<number, string> = {
@@ -50,6 +52,7 @@ export function summarizeMesh(bytes: Uint8Array): MeshSummary | null {
     channels: mesh.channels
       .map((c) => CHANNEL_NAMES[c.semantic] ?? `#${c.semantic}`)
       .join(', '),
+    hasNormals: mesh.channels.some((c) => c.semantic === MeshChannel.Normal),
   };
 }
 

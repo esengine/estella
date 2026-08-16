@@ -38,11 +38,15 @@ describe('summarizeMesh', () => {
       triangles: 2,
       extent: '200 × 100',   // flat: the depth is not a dimension worth a column
       channels: 'position, uv, color, normal',
+      hasNormals: true,
     });
   });
 
   it('says which channels are absent by not naming them', () => {
-    expect(summarizeMesh(quad(false))?.channels).toBe('position, uv, color');
+    const flat = summarizeMesh(quad(false));
+    expect(flat?.channels).toBe('position, uv, color');
+    // What a drop into the viewport reads to decide whether to light it.
+    expect(flat?.hasNormals).toBe(false);
   });
 
   it('reports depth when the geometry has some', () => {

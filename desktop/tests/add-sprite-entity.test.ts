@@ -12,7 +12,7 @@ import type { SceneData } from 'esengine';
 import { SceneModelImpl } from '@/engine/SceneModel';
 import { EditorHistoryImpl } from '@/engine/EditorHistory';
 import { SceneCommandsImpl } from '@/engine/SceneCommands';
-import { spritePrefab } from '@/engine/entitySources';
+import { spritePrefab, meshPrefab } from '@/engine/entitySources';
 
 const emptyScene = (): SceneData =>
   ({ version: '1.0', name: 't', entities: [] } as unknown as SceneData);
@@ -51,5 +51,34 @@ describe('sprite creation (spritePrefab + SceneCommands.create)', () => {
     history.undo();
     expect(model.entityBySource(id)).toBeUndefined();
     expect(history.canUndo()).toBe(false);
+  });
+});
+
+describe('mesh creation (meshPrefab + SceneCommands.create)', () => {
+  let model: SceneModelImpl;
+  let cmds: SceneCommandsImpl;
+
+  beforeEach(() => {
+    model = new SceneModelImpl();
+    cmds = new SceneCommandsImpl(model, new EditorHistoryImpl());
+    model.adopt(emptyScene(), new Map());
+  });
+
+  const mesh2d = (lit: boolean) => {
+    const id = cmds.create(meshPrefab('banner', '@uuid:m1', lit),
+                           { parent: null, position: { x: 10, y: 20 } })!;
+    return model.entityBySource(id)!.components.find((c) => c.type === 'Mesh2D')!.data as
+      Record<string, unknown>;
+  };
+
+  it('points a Mesh2D at the dropped file', () => {
+    expect(mesh2d(false).mesh).toBe('@uuid:m1');
+  });
+
+  it('lights geometry that carries normals, and leaves the rest alone', () => {
+    // The same call the model import makes: normals mean it was authored to be
+    // shaded, and geometry without them lands unlit.
+    expect(mesh2d(true).lit).toBe(true);
+    expect(mesh2d(false).lit).toBe(false);
   });
 });

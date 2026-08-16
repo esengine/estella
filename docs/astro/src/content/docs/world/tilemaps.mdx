@@ -133,7 +133,7 @@ renderer reads these live, so animating `tintColor` / `opacity` is lag-free.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `cellSize` | Vec2 | `{32, 32}` | Tile size in world units. |
-| `originOffset` | Vec2 | `{0, 0}` | Layer origin offset. |
+| `originOffset` | Vec2 | `{0, 0}` | Shifts the layer's grid, in world units. Applied per frame beside the layer's parallax, so dragging it moves the tiles at once and rebuilds no chunk. |
 | `tileset` | asset | none | Tileset texture (single-tileset layers). |
 | `tilesetColumns` | number | `1` | Columns in the tileset atlas. |
 | `tilesetRows` | number | `1` | Rows in the tileset atlas. |

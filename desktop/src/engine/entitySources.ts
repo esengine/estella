@@ -110,6 +110,15 @@ export function spritePrefab(name: string, textureRef: string, size: { x: number
 }
 
 /**
+ * A Transform + Mesh2D prefab referencing a `.esmesh`. `lit` follows the file:
+ * geometry carrying normals was authored to be shaded, which is the same call
+ * the model import makes when it writes a prefab of its own.
+ */
+export function meshPrefab(name: string, meshRef: string, lit: boolean): PrefabData {
+  return preset(name, [['Transform', {}], ['Mesh2D', { mesh: meshRef, lit }]]);
+}
+
+/**
  * A Transform + Sprite + SpriteAnimator prefab referencing a `.esanim` clip.
  * The Sprite is seeded with the clip's static pose (sheet texture + frame-0 UV
  * window + cell size) so the entity reads correctly in edit mode; Play hands the

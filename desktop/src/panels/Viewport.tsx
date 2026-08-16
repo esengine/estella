@@ -2234,6 +2234,9 @@ export function Viewport() {
     } else if (IMAGE_RE.test(path)) {
       e.preventDefault();
       void ProjectStore.instantiateSpriteFromPath(path, wp ?? { x: 0, y: 0 });
+    } else if (path.toLowerCase().endsWith('.esmesh')) {
+      e.preventDefault();
+      void ProjectStore.instantiateMeshFromPath(path, wp ?? { x: 0, y: 0 });
     } else if (path.toLowerCase().endsWith('.estileset')) {
       e.preventDefault();
       // A tileset spawns a paintable TilemapLayer, which wires its own placement + painter.

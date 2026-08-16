@@ -61,7 +61,7 @@ the camera by moving its entity's `Transform`.
 | `viewport` | Vec4 | `{0,0,1,1}` | Screen rect `x, y, w, h` in 0–1 (split-screen / PiP). |
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | What to clear first: `Nothing` / `Color` / `Depth` / `ColorAndDepth`. |
 | `pixelPerfect` | boolean | `false` | Snap to the world pixel grid for crisp pixel art (Orthographic). |
-| `showFrustum` | boolean | `false` | Editor-only: draw the camera's frustum gizmo. |
+| `showFrustum` | boolean | `false` | Editor-only: draw this camera's whole view volume, near face to far. Off, its gizmo outlines what it frames on the content plane — which is empty for a camera aimed away from it. |
 
 ## Zoom & projection
 

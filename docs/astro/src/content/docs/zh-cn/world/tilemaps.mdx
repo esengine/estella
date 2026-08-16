@@ -119,7 +119,7 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `cellSize` | Vec2 | `{32, 32}` | 瓦片尺寸(世界单位)。 |
-| `originOffset` | Vec2 | `{0, 0}` | 图层原点偏移。 |
+| `originOffset` | Vec2 | `{0, 0}` | 图层网格的偏移(世界单位)。与图层视差在同一处逐帧应用,所以拖动它当场移动 tile,且不会重建任何 chunk。 |
 | `tileset` | asset | 无 | 图集纹理(单图集图层)。 |
 | `tilesetColumns` | number | `1` | 图集图册的列数。 |
 | `tilesetRows` | number | `1` | 图集图册的行数。 |
