@@ -16,6 +16,8 @@ import type { SpineWasmModule } from '../spine/SpineModuleLoader';
 import { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from '../physics/PhysicsPlugin';
+import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
+import { Physics3DPlugin } from '../physics3d/Physics3DPlugin';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { SpinePlugin } from '../spine/SpinePlugin';
 import type { App } from '../app/app';
@@ -194,6 +196,8 @@ export interface LoadRuntimeSceneOptions {
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
     physicsEnabled?: boolean;
+    /** An already-resolved 3D physics module, for tests and headless hosts. */
+    physics3dModule?: Physics3DWasmModule;
     /** Project-declared UI theme (Project Settings → UI). Dark is the default;
      *  'light' switches the token set AND re-resolves already-instantiated
      *  ThemeStyle-tagged widgets (prefab instances carry dark baked values). */
@@ -209,6 +213,22 @@ const PHYSICS_COMPONENT_TYPES = new Set([
     'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
     'SegmentCollider', 'PolygonCollider', 'ChainCollider',
 ]);
+
+/** The same question for the 3D world, which is a different module entirely. */
+const PHYSICS3D_COMPONENT_TYPES = new Set([
+    'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
+    'CharacterController3D',
+]);
+
+/** True if any entity carries a 3D physics component. */
+export function sceneUses3DPhysics(sceneData: SceneData): boolean {
+    for (const entity of sceneData.entities ?? []) {
+        for (const comp of entity.components ?? []) {
+            if (PHYSICS3D_COMPONENT_TYPES.has(comp.type)) return true;
+        }
+    }
+    return false;
+}
 
 /** True if any Text binds its content to a localization key — the scene needs
  *  the Localization resource + the project's `.eslocale` tables to render as
@@ -374,6 +394,24 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             const mod = physicsModule;
             app.addPlugin(new PhysicsPlugin('', config, () => Promise.resolve(mod)));
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
+        }
+    }
+
+    // The 3D world gates itself the same way, on its own components and its own
+    // module: the two never share a solver, so a scene wanting one is not asking
+    // for the other.
+    if (sceneUses3DPhysics(sceneData) && !app.getPlugin(Physics3DPlugin)) {
+        const module3d = options.physics3dModule
+            ?? (app.sideModules
+                ? (await app.sideModules.acquire('physics3d')) as Physics3DWasmModule | null
+                : null);
+        if (!module3d) {
+            log.warn('physics3d', 'scene has 3D physics components but no module loaded —'
+                + ' this realm has no side-module host or physics3d.wasm failed to load');
+        } else {
+            const mod = module3d;
+            app.addPlugin(new Physics3DPlugin('', {}, () => Promise.resolve(mod)));
+            log.info('physics3d', 'installed');
         }
     }
 

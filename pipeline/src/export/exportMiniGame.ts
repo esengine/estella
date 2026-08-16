@@ -42,7 +42,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import {
-  sceneUsesPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
+  sceneUsesPhysics, sceneUses3DPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE,
 } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
@@ -123,6 +123,11 @@ async function scanSideModules(
   // would fail at the first spawn instead of at build time.
   if (physicsEnabled
     || sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
+  // Never implied by the 2D flag: that declares the solver 2D scenes use, and
+  // this is a different module.
+  if (sceneDatas.some((s) => s && sceneUses3DPhysics(s as Parameters<typeof sceneUses3DPhysics>[0]))) {
+    ids.add('physics3d');
+  }
   if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
   if (sceneDatas.some((s) => s && sceneUsesDragonBones(s as Parameters<typeof sceneUsesDragonBones>[0]))) ids.add('dragonbones');
   // Any staged .esv also needs the decoder: script-driven playback

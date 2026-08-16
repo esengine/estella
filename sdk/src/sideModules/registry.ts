@@ -20,7 +20,7 @@ export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
 
 /** The modules the engine itself builds and ships. */
 export type BuiltinSideModuleId =
-    'physics' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`;
+    'physics' | 'physics3d' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`;
 
 /**
  * Identifies an optional native module across every realm and transport.
@@ -53,6 +53,9 @@ export interface SideModuleDescriptor {
 
 export const SIDE_MODULES: Record<BuiltinSideModuleId, SideModuleDescriptor> = {
     physics: { file: 'physics' },
+    // The 3D world (Jolt). A separate module from the 2D one on purpose: the two
+    // never share a solver, and a 2D project should not carry a 3D one's weight.
+    physics3d: { file: 'physics3d', globalName: 'ESPhysics3DModule' },
     // Basis Universal KTX2 transcoder — compressed textures decode to a
     // GPU format on demand. MODULARIZE glue with a named EXPORT_NAME, like spine.
     basis: { file: 'basis', globalName: 'ESBasisModule' },

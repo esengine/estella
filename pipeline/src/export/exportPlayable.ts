@@ -31,7 +31,7 @@ import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from '../../../build-tools/utils/zip.js';
 import {
-  sceneUsesPhysics, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
+  sceneUsesPhysics, sceneUses3DPhysics, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
 } from '../bundle/sideModuleScan';
 
@@ -130,6 +130,11 @@ async function collectSideModules(
   // it spawns them from script, and the flag is worthless without the binary.
   if (physicsEnabled
     || (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
+  // The 3D world is never implied by the 2D flag: a project declaring `physics`
+  // is declaring the solver its 2D scenes use, and this module is a different one.
+  if (sceneData && sceneUses3DPhysics(sceneData as Parameters<typeof sceneUses3DPhysics>[0])) {
+    ids.add('physics3d');
+  }
   if (sceneData && sceneUsesDragonBones(sceneData as Parameters<typeof sceneUsesDragonBones>[0])) ids.add('dragonbones');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so we discriminate by extension (as the runtime does via

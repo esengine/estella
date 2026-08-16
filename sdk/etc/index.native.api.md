@@ -1358,7 +1358,7 @@ source: string
 
 ## BuiltinSideModuleId — type @experimental
 ```
-'physics' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`
+'physics' | 'physics3d' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`
 ```
 
 ## BundleMode — type @experimental
@@ -3929,6 +3929,7 @@ mouse: boolean | undefined
 ```
 app: App
 module: ESEngineModule | null
+physics3dModule: Physics3DWasmModule | undefined
 physicsConfig: PhysicsPluginConfig | undefined
 physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined

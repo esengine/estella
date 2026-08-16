@@ -770,20 +770,21 @@
           "key": "maxSlope",
           "type": "number",
           "default": "0.87",
-          "range": "0–1.5708"
+          "doc": "Steepest ground it can stand on",
+          "range": "0–1.5708, step 0.01"
         },
         {
           "key": "stepHeight",
           "type": "number",
           "default": "0.4",
-          "range": "≥ 0",
+          "range": "≥ 0, step 0.05",
           "advanced": true
         },
         {
           "key": "snapDown",
           "type": "number",
           "default": "0.5",
-          "range": "≥ 0",
+          "range": "≥ 0, step 0.05",
           "advanced": true
         },
         {
@@ -2593,18 +2594,21 @@
           "key": "linearDamping",
           "type": "number",
           "default": "0.05",
-          "range": "≥ 0"
+          "range": "≥ 0",
+          "advanced": true
         },
         {
           "key": "angularDamping",
           "type": "number",
           "default": "0.05",
-          "range": "≥ 0"
+          "range": "≥ 0",
+          "advanced": true
         },
         {
           "key": "fixedRotation",
           "type": "boolean",
-          "default": "false"
+          "default": "false",
+          "advanced": true
         },
         {
           "key": "enabled",

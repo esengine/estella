@@ -16,6 +16,11 @@ const PHYSICS_COMPONENT_TYPES = new Set([
   'SegmentCollider', 'PolygonCollider', 'ChainCollider',
 ]);
 
+const PHYSICS3D_COMPONENT_TYPES = new Set([
+  'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
+  'CharacterController3D',
+]);
+
 interface SceneLike {
   entities?: Array<{ components?: Array<{ type?: string; data?: unknown }> }>;
 }
@@ -30,6 +35,17 @@ export function sceneUsesPhysics(scene: SceneLike): boolean {
         const ids = (comp.data as Record<string, unknown> | undefined)?.collidableTileIds;
         if (Array.isArray(ids) && ids.length > 0) return true;
       }
+    }
+  }
+  return false;
+}
+
+/** The same question for the 3D world, which ships as its own module. Mirrors
+ *  runtimeLoader.sceneUses3DPhysics. */
+export function sceneUses3DPhysics(scene: SceneLike): boolean {
+  for (const entity of scene.entities ?? []) {
+    for (const comp of entity.components ?? []) {
+      if (comp.type && PHYSICS3D_COMPONENT_TYPES.has(comp.type)) return true;
     }
   }
   return false;

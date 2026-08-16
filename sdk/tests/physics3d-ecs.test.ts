@@ -19,6 +19,7 @@ import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physic
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
+import { sceneUses3DPhysics, sceneUsesPhysics } from '../src/runtime/runtimeLoader';
 
 /** A module that records what it was told, and can be made to answer a readback.
  *  The two readbacks are separate buffers, as they are in the module: sharing one
@@ -253,5 +254,25 @@ describe('the 3D world and the ECS', () => {
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(bodies.size).toBe(0);
+    });
+});
+
+describe('a scene asks for the world it needs', () => {
+    const sceneWith = (...types: string[]) => ({
+        entities: [{ components: types.map((type) => ({ type, data: {} })) }],
+    });
+
+    it('sees every 3D component as wanting the 3D world', () => {
+        for (const type of ['RigidBody3D', 'BoxCollider3D', 'SphereCollider3D',
+                            'CapsuleCollider3D', 'CharacterController3D']) {
+            expect(sceneUses3DPhysics(sceneWith(type) as never)).toBe(true);
+        }
+    });
+
+    it('does not confuse the two worlds', () => {
+        // A 2D scene must not drag in a 1.2MB module it has no use for, and a 3D
+        // scene must not be served the solver that cannot move it.
+        expect(sceneUses3DPhysics(sceneWith('RigidBody', 'BoxCollider') as never)).toBe(false);
+        expect(sceneUsesPhysics(sceneWith('RigidBody3D', 'BoxCollider3D') as never)).toBe(false);
     });
 });
