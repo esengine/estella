@@ -14,6 +14,21 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A rotation can be animated on all three axes.** `Transform.rotation` is a
+  quaternion, but the reflection metadata offered exactly one animatable channel
+  for it — `rotation.z` — and that channel was not the quaternion's z component:
+  it was the Z euler angle, and writing it rebuilt the whole rotation, so every
+  clip that turned something about Z flattened whatever pose it had. (The same
+  defect the inspector's rotation control and the play realm's turn-by each
+  needed fixing for; this was the third copy.) A quaternion now offers its four
+  components plus `rotation.angle`, the Z turn a 2D scene thinks in — and that
+  one composes, leaving the other two axes alone. Components written together
+  are normalized once the track has landed, which traces the arc a slerp would.
+  Documents written before this keep their meaning: `rotation.z` migrates to
+  `rotation.angle`, asserted by sampling the clip rather than by comparing names.
+
 ### Fixed
 
 - **The tile palette counted an atlas differently than the tile ids did.** A
