@@ -118,6 +118,16 @@ published separately; it ships inside the editor.
   F0 — at zero, Schlick's grazing-angle rim would otherwise survive and tint
   every existing sprite's edges.
 
+- **A metal reflects the environment it is in.** A metal has no diffuse term,
+  so the metallic parameter above would otherwise leave one black everywhere no
+  light happened to point at it — reflecting is all a metal does, and there was
+  nothing to reflect. The scene's ambient light is this engine's environment:
+  the same radiance from every direction, taken through the split-sum
+  environment term (an analytic fit for F0's scale and bias over a hemisphere,
+  which costs no texture unit). An `Ambient` `Light2D` is therefore what gives
+  metals something to show. Existing 2D content is untouched: the term carries
+  the same specular weight, which is zero for every surface that had none.
+
 - **A metal arrives as a metal.** `metallicFactor`, `roughnessFactor` and
   `metallicRoughnessTexture` were reported as not-imported on every import
   since the first one: the lighting model had no view direction, so a factor in
