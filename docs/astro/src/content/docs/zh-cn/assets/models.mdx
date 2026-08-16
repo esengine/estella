@@ -32,6 +32,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `robot_0_0.esmesh`、`robot_1_0.esmesh` | 每个 primitive 一个几何文件，命名 `<stem>_<mesh>_<primitive>`（只有一个时就是 `<stem>`）。 |
 | `robot_0.png` | 文件内嵌的图片。已经在磁盘上的图片只被引用，不会复制。 |
 | `robot_m0.esmaterial` | **仅当**源材质说了 `Mesh2D` 装不下的东西时才写 —— 见[材质](#材质)。 |
+| `robot_Walk.estimeline` | 源里每个动画一个，命名 `<stem>_<动画名>` —— 见[动画](#动画)。 |
 | `robot.esprefab` | 各部分怎么组装：节点层级，每个 `Mesh2D` 带上自己的 mesh、贴图、tint 和开关。 |
 
 把 **prefab** 拖进场景。单个 `.esmesh` 也是资源（`Mesh2D.mesh` 字段可以直接引用），
@@ -90,6 +91,24 @@ glTF 以**米**为单位。一个世界单位是一个**设计像素**。所以�
 材质还会把这次 draw 的混合、深度和剔除重述一遍 —— 因为材质会**替换**它们，
 这样一个被要求自我遮挡的模型，在有了材质之后仍然自我遮挡。
 
+## 动画
+
+源里的每个动画会在 mesh 旁边写出一个 `.estimeline`，prefab 的根挂一个 `TimelinePlayer`
+指向第一个，且 `playing` 是关的 —— 播哪一个是场景的决定。打开 `playing`，或调用 timeline
+API，它就开始播。
+
+一条 clip 驱动的是它当初针对的那些节点，按**名字路径**在 prefab 根之下寻址。同一父节点下
+重名的兄弟节点会在导入时被改成不同的名字，好让一条轨道不会驱动错对象；prefab 里显示的就是
+那个名字。
+
+`LINEAR`、`STEP`、`CUBICSPLINE` 都会带过来，含切线。
+
+<Aside type="caution" title="蒙皮角色不会变形">
+节点动画移动的是**节点** —— 对绑定好的模型来说就是骨骼在动，而绑在骨骼上的 mesh 不会跟着
+变形，因为蒙皮还没实现。遇到这种情况导入器会说出来。各部分本来就是独立节点的模型（机械、
+门、道具、相机运动）会完全按作者的意思动起来。
+</Aside>
+
 ## 压缩几何
 
 `EXT_meshopt_compression` 与 `KHR_draco_mesh_compression` 在导入时解码，所以压缩过的导出件
@@ -102,8 +121,8 @@ glTF 以**米**为单位。一个世界单位是一个**设计像素**。所以�
 | 不导入 | 为什么 |
 |---|---|
 | `metallicFactor`、`roughnessFactor`、`metallicRoughnessTexture` | 算金属高光要 view 方向，而这里的灯光是 2D 的。写进产物却没人读，那就是个会撒谎的旋钮。 |
-| 蒙皮（`JOINTS_0`/`WEIGHTS_0`）、skin | 绑定好的模型会以静态几何进来。 |
-| 动画、morph target | 不导入；几何就是绑定姿势。 |
+| 蒙皮（`JOINTS_0`/`WEIGHTS_0`）、skin | 绑定好的模型会以静态几何进来，驱动它骨骼的 clip 会说明这一点。 |
+| morph target、`weights` 动画通道 | 在多个形状之间混合需要那些 target 本身，而它们没有被带过来。 |
 | 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform` | UV 按作者写的原样使用。 |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
 | `normalTexture.scale` | 法线贴图按全强度应用。 |

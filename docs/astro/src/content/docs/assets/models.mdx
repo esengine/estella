@@ -35,6 +35,7 @@ For `robot.gltf` with two primitives and one image:
 | `robot_0_0.esmesh`, `robot_1_0.esmesh` | One per primitive — geometry, named `<stem>_<mesh>_<primitive>` (just `<stem>` for a single one). |
 | `robot_0.png` | Images the file carries inline. An image already on disk is referenced, never copied. |
 | `robot_m0.esmaterial` | Only when the source's material says something a `Mesh2D` cannot — see [Materials](#materials). |
+| `robot_Walk.estimeline` | One per animation in the source, named `<stem>_<animation>` — see [Animations](#animations). |
 | `robot.esprefab` | How the pieces go together: the node hierarchy, each `Mesh2D` with its mesh, texture, tint and flags. |
 
 Drag the **prefab** into a scene. The individual `.esmesh` files are assets too — a
@@ -96,6 +97,25 @@ component has no room for. Written only when the source uses one of them, on the
 The material also restates the draw's blending, depth and culling, because a material
 replaces them — a model told to occlude itself keeps doing so through its material.
 
+## Animations
+
+Each animation in the source becomes an `.estimeline` beside the meshes, and the prefab's
+root carries a `TimelinePlayer` pointing at the first one with `playing` off — what to play
+is the scene's decision. Set `playing`, or call the timeline API, to run it.
+
+A clip drives the nodes it was authored against, addressing each by its path of names under
+the prefab root. Two sibling nodes sharing a name are given distinct ones during the import
+so a track cannot drive the wrong one; that name is what the prefab shows.
+
+`LINEAR`, `STEP` and `CUBICSPLINE` all carry across, tangents included.
+
+<Aside type="caution" title="A skinned character will not deform">
+Node animation moves the nodes — which for a rigged model means the joints move and the
+mesh bound to them does not follow, because skinning is not implemented. The import says so
+when it happens. Models whose parts are separate nodes (machines, doors, props, camera
+moves) animate exactly as authored.
+</Aside>
+
 ## Compressed geometry
 
 `EXT_meshopt_compression` and `KHR_draco_mesh_compression` are decoded during import, so a
@@ -110,8 +130,8 @@ when it runs.
 | Not imported | Why |
 |---|---|
 | `metallicFactor`, `roughnessFactor`, `metallicRoughnessTexture` | Shading metal needs a view direction, and these lights are 2D. A factor nothing reads would be a knob that lies. |
-| Skinning (`JOINTS_0`/`WEIGHTS_0`), skins | A rigged model comes in as static geometry. |
-| Animations, morph targets | Not imported; the geometry is the bind pose. |
+| Skinning (`JOINTS_0`/`WEIGHTS_0`), skins | A rigged model comes in as static geometry, and a clip driving its joints says so. |
+| Morph targets, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
 | A second UV set (`TEXCOORD_1`), `KHR_texture_transform` | UVs are used as authored. |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
 | `normalTexture.scale` | The map is applied at full strength. |
