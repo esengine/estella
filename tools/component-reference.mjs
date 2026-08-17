@@ -207,11 +207,10 @@ function curatedTargets() {
   return out;
 }
 
-/** GitHub's heading-slug rule, which is what the site gives its headings:
- *  lowercase, drop everything that is not a letter, digit, `-` or `_`, and turn
- *  each surviving space into a hyphen — so "Text & code" is `text--code`, with
- *  two. Hand-written anchors get this wrong silently, and a Chinese heading
- *  slugs to its own characters, never to the English page's slug. */
+/** GitHub's heading-slug rule, which is what the site gives its headings: drop
+ *  all but letters, digits, `-` and `_`, then each surviving space becomes a
+ *  hyphen — "Text & code" is `text--code`, with two. A Chinese heading slugs to
+ *  its own characters, never to the English page's slug. */
 const slugOf = (heading) =>
   heading
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
