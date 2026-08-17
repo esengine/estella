@@ -40,6 +40,7 @@ const SDK_SRC = join(ROOT, 'sdk', 'src');
 const SDK_DIST = join(ROOT, 'sdk', 'dist', 'index.node.js');
 const SNAPSHOT = join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 const CURATED = join(ROOT, 'docs', 'astro', 'src', 'data', 'componentDocs.ts');
+const DOC_PAGES = join(ROOT, 'docs', 'astro', 'src', 'content', 'docs');
 // The editor's Details panel links each component header at its reference entry;
 // the address is derived here so the two can never point at different pages.
 const EDITOR_LINKS = join(ROOT, 'desktop', 'src', 'engine', 'componentDocs.generated.ts');
@@ -188,6 +189,57 @@ function curatedNames() {
   return [...src.matchAll(/^ {2}([A-Za-z0-9_]+): \{/gm)].map((m) => m[1]).sort();
 }
 
+/** Where each entry sends a reader: the guide, and the heading in each locale. */
+function curatedTargets() {
+  if (!existsSync(CURATED)) return [];
+  const src = readFileSync(CURATED, 'utf8');
+  const out = [];
+  for (const m of src.matchAll(/^ {2}([A-Za-z0-9_]+): \{(.*)$/gm)) {
+    const doc = /doc: '([^']+)'/.exec(m[2]);
+    if (!doc) continue;
+    out.push({
+      name: m[1],
+      doc: doc[1],
+      anchor: /anchor: '([^']*)'/.exec(m[2])?.[1],
+      anchorZh: /anchorZh: '([^']*)'/.exec(m[2])?.[1],
+    });
+  }
+  return out;
+}
+
+/** GitHub's heading-slug rule, which is what the site gives its headings:
+ *  lowercase, drop everything that is not a letter, digit, `-` or `_`, and turn
+ *  each surviving space into a hyphen — so "Text & code" is `text--code`, with
+ *  two. Hand-written anchors get this wrong silently, and a Chinese heading
+ *  slugs to its own characters, never to the English page's slug. */
+const slugOf = (heading) =>
+  heading
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[`*]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, '')
+    .trim()
+    .replace(/ /g, '-');
+
+const headingCache = new Map();
+/** The anchors one guide offers. Fenced blocks are skipped: a shell comment is
+ *  not a heading. */
+function headingSlugs(file) {
+  let slugs = headingCache.get(file);
+  if (slugs) return slugs;
+  slugs = new Set();
+  let fenced = false;
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    else if (!fenced) {
+      const h = /^#{2,6}\s+(.+?)\s*$/.exec(line);
+      if (h) slugs.add(slugOf(h[1]));
+    }
+  }
+  headingCache.set(file, slugs);
+  return slugs;
+}
+
 /** name -> category, read from the same curated table. */
 function curatedCategories() {
   const src = readFileSync(CURATED, 'utf8');
@@ -265,6 +317,25 @@ else {
   const dCur = diff(curated, snapNames);
   for (const n of dCur.missing) problems.push(`component "${n}" has no entry in componentDocs.ts (category + where it is explained)`);
   for (const n of dCur.extra) problems.push(`componentDocs.ts describes "${n}", which is not a component`);
+}
+
+// Where those entries send a reader. The built site's link check knows this too,
+// but it needs the site built and so only runs from the docs deploy — which a
+// release calls, making a dead anchor a failure at the moment of shipping.
+for (const t of curatedTargets()) {
+  for (const [locale, rel, anchor] of [
+    ['en', `${t.doc}.mdx`, t.anchor],
+    ['zh-cn', join('zh-cn', `${t.doc}.mdx`), t.anchorZh],
+  ]) {
+    const file = join(DOC_PAGES, rel);
+    if (!existsSync(file)) {
+      problems.push(`componentDocs.ts sends "${t.name}" to ${locale} ${t.doc}, which is not a page`);
+      continue;
+    }
+    if (anchor && !headingSlugs(file).has(anchor)) {
+      problems.push(`"${t.name}" links ${locale} ${t.doc}#${anchor}, which is not a heading there`);
+    }
+  }
 }
 
 const links = editorLinkNames();
