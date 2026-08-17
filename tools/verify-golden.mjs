@@ -84,27 +84,44 @@ function captureEditorFrame(id, out) {
   const panel = a.h >= a.w
     ? { width: Math.round((major * a.w) / a.h), height: major }
     : { width: major, height: Math.round((major * a.h) / a.w) };
-  const r = spawnSync('npx', ['electron', '.'], {
-    encoding: 'utf8',
-    cwd: DESKTOP,
-    env: {
-      ...process.env,
-      ESTELLA_SHOT: out,
-      ESTELLA_SHOT_PROJECT: projectDir(id),
-      // The scene the PACKAGE ships, named rather than inherited: opening a
-      // project reopens whatever was last open, which is untracked local state —
-      // so the two sides would differ by a developer's workspace file.
-      ...(manifestOf(id).defaultScene ? { ESTELLA_SHOT_SCENE: manifestOf(id).defaultScene } : {}),
-      ESTELLA_SHOT_PLAY: '1',
-      ESTELLA_SHOT_CROP: 'iframe[title="Game"]',
-      ESTELLA_SHOT_EVAL: `window.__estellaEditor.setPanelSize('viewport', ${JSON.stringify(panel)})`,
-      ESTELLA_WIN_W: '1500',
-      ESTELLA_WIN_H: '1040',
-    },
-  });
-  if (!existsSync(out)) return { ok: false, why: (r.stdout || r.stderr || '').trim().slice(-300) };
-  const png = readPNG(readFileSync(out));
-  return { ok: true, w: png.w, h: png.h };
+  const attempt = () => {
+    // A partial file from the attempt before would be read as this attempt's frame.
+    rmSync(out, { force: true });
+    const r = spawnSync('npx', ['electron', '.'], {
+      encoding: 'utf8',
+      cwd: DESKTOP,
+      env: {
+        ...process.env,
+        ESTELLA_SHOT: out,
+        ESTELLA_SHOT_PROJECT: projectDir(id),
+        // The scene the PACKAGE ships, named rather than inherited: opening a
+        // project reopens whatever was last open, which is untracked local state —
+        // so the two sides would differ by a developer's workspace file.
+        ...(manifestOf(id).defaultScene ? { ESTELLA_SHOT_SCENE: manifestOf(id).defaultScene } : {}),
+        ESTELLA_SHOT_PLAY: '1',
+        ESTELLA_SHOT_CROP: 'iframe[title="Game"]',
+        ESTELLA_SHOT_EVAL: `window.__estellaEditor.setPanelSize('viewport', ${JSON.stringify(panel)})`,
+        ESTELLA_WIN_W: '1500',
+        ESTELLA_WIN_H: '1040',
+      },
+    });
+    const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    if (!existsSync(out)) return { ok: false, output };
+    // A frame the editor was killed halfway through writing is not a frame, and
+    // decoding it throws where a verdict belongs: one project's dead GPU took
+    // the whole matrix's report with it.
+    try {
+      const png = readPNG(readFileSync(out));
+      return { ok: true, output, w: png.w, h: png.h };
+    } catch (e) {
+      return { ok: false, output: `${output}\nthe capture is not a whole PNG: ${e.message}` };
+    }
+  };
+  const run = retryOnDeadGpu(attempt, (died) => console.log(`↻ ${id} — ${died
+    ? 'the GPU process died before the editor drew'
+    : 'no editor frame after a GPU death'}; capturing again`));
+  if (!run.ok) return { ok: false, why: run.output.trim().slice(-300) };
+  return { ok: true, w: run.w, h: run.h };
 }
 
 /** Where a packaged run says the named entities are, or null if it never said. */
