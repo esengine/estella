@@ -774,6 +774,13 @@
           "range": "0–1.5708, step 0.01"
         },
         {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "range": "0–15, step 1",
+          "advanced": true
+        },
+        {
           "key": "stepHeight",
           "type": "number",
           "default": "0.4",
@@ -1536,6 +1543,13 @@
           "type": "Asset<mesh>",
           "default": "none",
           "doc": "Geometry (.esmesh) to collide against."
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "range": "0–15",
+          "advanced": true
         },
         {
           "key": "friction",
@@ -2612,6 +2626,13 @@
             "Kinematic",
             "Dynamic"
           ]
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "range": "0–15",
+          "advanced": true
         },
         {
           "key": "gravityScale",

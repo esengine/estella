@@ -382,6 +382,7 @@ export interface CharacterController3DPtrData {
     snapDown: number;
     mass: number;
     enabled: boolean;
+    layer: number;
     isOnFloor: boolean;
     floorNormal: Vec3;
     realVelocity: Vec3;
@@ -399,9 +400,10 @@ export function fillCharacterController3D(
     out.snapDown = f32[(ptr + 28) >> 2];
     out.mass = f32[(ptr + 32) >> 2];
     out.enabled = u8[ptr + 36] !== 0;
-    out.isOnFloor = u8[ptr + 37] !== 0;
-    const floorNormal_ = out.floorNormal; floorNormal_.x = f32[(ptr + 40) >> 2]; floorNormal_.y = f32[((ptr + 40) >> 2) + 1]; floorNormal_.z = f32[((ptr + 40) >> 2) + 2];
-    const realVelocity_ = out.realVelocity; realVelocity_.x = f32[(ptr + 52) >> 2]; realVelocity_.y = f32[((ptr + 52) >> 2) + 1]; realVelocity_.z = f32[((ptr + 52) >> 2) + 2];
+    out.layer = u32[(ptr + 40) >> 2];
+    out.isOnFloor = u8[ptr + 44] !== 0;
+    const floorNormal_ = out.floorNormal; floorNormal_.x = f32[(ptr + 48) >> 2]; floorNormal_.y = f32[((ptr + 48) >> 2) + 1]; floorNormal_.z = f32[((ptr + 48) >> 2) + 2];
+    const realVelocity_ = out.realVelocity; realVelocity_.x = f32[(ptr + 60) >> 2]; realVelocity_.y = f32[((ptr + 60) >> 2) + 1]; realVelocity_.z = f32[((ptr + 60) >> 2) + 2];
 }
 
 export function writeCharacterController3D(
@@ -416,9 +418,10 @@ export function writeCharacterController3D(
     f32[(ptr + 28) >> 2] = data.snapDown;
     f32[(ptr + 32) >> 2] = data.mass;
     u8[ptr + 36] = data.enabled ? 1 : 0;
-    u8[ptr + 37] = data.isOnFloor ? 1 : 0;
-    f32[(ptr + 40) >> 2] = data.floorNormal.x; f32[((ptr + 40) >> 2) + 1] = data.floorNormal.y; f32[((ptr + 40) >> 2) + 2] = data.floorNormal.z;
-    f32[(ptr + 52) >> 2] = data.realVelocity.x; f32[((ptr + 52) >> 2) + 1] = data.realVelocity.y; f32[((ptr + 52) >> 2) + 2] = data.realVelocity.z;
+    u32[(ptr + 40) >> 2] = data.layer;
+    u8[ptr + 44] = data.isOnFloor ? 1 : 0;
+    f32[(ptr + 48) >> 2] = data.floorNormal.x; f32[((ptr + 48) >> 2) + 1] = data.floorNormal.y; f32[((ptr + 48) >> 2) + 2] = data.floorNormal.z;
+    f32[(ptr + 60) >> 2] = data.realVelocity.x; f32[((ptr + 60) >> 2) + 1] = data.realVelocity.y; f32[((ptr + 60) >> 2) + 2] = data.realVelocity.z;
 }
 
 export function createCharacterController3DData(): CharacterController3DPtrData {
@@ -431,6 +434,7 @@ export function createCharacterController3DData(): CharacterController3DPtrData 
         snapDown: 0,
         mass: 0,
         enabled: false,
+        layer: 0,
         isOnFloor: false,
         floorNormal: { x: 0, y: 0, z: 0 },
         realVelocity: { x: 0, y: 0, z: 0 },
@@ -777,6 +781,7 @@ export interface MeshCollider3DPtrData {
     mesh: number;
     friction: number;
     restitution: number;
+    layer: number;
     enabled: boolean;
 }
 
@@ -787,7 +792,8 @@ export function fillMeshCollider3D(
     out.mesh = u32[ptr >> 2];
     out.friction = f32[(ptr + 4) >> 2];
     out.restitution = f32[(ptr + 8) >> 2];
-    out.enabled = u8[ptr + 12] !== 0;
+    out.layer = u32[(ptr + 12) >> 2];
+    out.enabled = u8[ptr + 16] !== 0;
 }
 
 export function writeMeshCollider3D(
@@ -797,7 +803,8 @@ export function writeMeshCollider3D(
     u32[ptr >> 2] = data.mesh;
     f32[(ptr + 4) >> 2] = data.friction;
     f32[(ptr + 8) >> 2] = data.restitution;
-    u8[ptr + 12] = data.enabled ? 1 : 0;
+    u32[(ptr + 12) >> 2] = data.layer;
+    u8[ptr + 16] = data.enabled ? 1 : 0;
 }
 
 export function createMeshCollider3DData(): MeshCollider3DPtrData {
@@ -805,6 +812,7 @@ export function createMeshCollider3DData(): MeshCollider3DPtrData {
         mesh: 0,
         friction: 0,
         restitution: 0,
+        layer: 0,
         enabled: false,
     };
 }
@@ -1159,6 +1167,7 @@ export interface RigidBody3DPtrData {
     linearDamping: number;
     angularDamping: number;
     fixedRotation: boolean;
+    layer: number;
     enabled: boolean;
 }
 
@@ -1171,7 +1180,8 @@ export function fillRigidBody3D(
     out.linearDamping = f32[(ptr + 8) >> 2];
     out.angularDamping = f32[(ptr + 12) >> 2];
     out.fixedRotation = u8[ptr + 16] !== 0;
-    out.enabled = u8[ptr + 17] !== 0;
+    out.layer = u32[(ptr + 20) >> 2];
+    out.enabled = u8[ptr + 24] !== 0;
 }
 
 export function writeRigidBody3D(
@@ -1183,7 +1193,8 @@ export function writeRigidBody3D(
     f32[(ptr + 8) >> 2] = data.linearDamping;
     f32[(ptr + 12) >> 2] = data.angularDamping;
     u8[ptr + 16] = data.fixedRotation ? 1 : 0;
-    u8[ptr + 17] = data.enabled ? 1 : 0;
+    u32[(ptr + 20) >> 2] = data.layer;
+    u8[ptr + 24] = data.enabled ? 1 : 0;
 }
 
 export function createRigidBody3DData(): RigidBody3DPtrData {
@@ -1193,6 +1204,7 @@ export function createRigidBody3DData(): RigidBody3DPtrData {
         linearDamping: 0,
         angularDamping: 0,
         fixedRotation: false,
+        layer: 0,
         enabled: false,
     };
 }

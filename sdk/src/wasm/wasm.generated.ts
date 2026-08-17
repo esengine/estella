@@ -305,6 +305,7 @@ export interface CharacterController3D {
     snapDown: number;
     mass: number;
     enabled: boolean;
+    layer: number;
     isOnFloor: boolean;
     floorNormal: Vec3;
     realVelocity: Vec3;
@@ -394,6 +395,7 @@ export interface MeshCollider3D {
     mesh: number;
     friction: number;
     restitution: number;
+    layer: number;
     enabled: boolean;
 }
 
@@ -491,6 +493,7 @@ export interface RigidBody3D {
     linearDamping: number;
     angularDamping: number;
     fixedRotation: boolean;
+    layer: number;
     enabled: boolean;
 }
 

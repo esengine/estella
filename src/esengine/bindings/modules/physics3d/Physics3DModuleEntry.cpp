@@ -38,6 +38,10 @@ Context& ctx() {
     static Context instance;
     return instance;
 }
+LayerMatrix& layerMatrix() {
+    static LayerMatrix instance;
+    return instance;
+}
 }  // namespace esengine::physics3d
 
 namespace {
@@ -61,8 +65,8 @@ EMotionType motionTypeOf(int value) {
     }
 }
 
-ObjectLayer layerOf(EMotionType motion) {
-    return motion == EMotionType::Static ? Layers::STATIC : Layers::MOVING;
+ObjectLayer layerOf(EMotionType motion, uint32_t layer) {
+    return esengine::physics3d::Layers::of(layer, motion != EMotionType::Static);
 }
 
 /// What a body is beyond its shape: how it answers to gravity, how it slows, and
@@ -74,6 +78,7 @@ struct BodyMotion {
     float linearDamping = 0.0f;
     float angularDamping = 0.0f;
     int fixedRotation = 0;
+    uint32_t layer = 0;
 };
 
 /// The entity a body speaks for, or 0 when nothing claims it.
@@ -148,7 +153,7 @@ uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, f
     if (!g().isValid()) return 0;
     const EMotionType motionType = motionTypeOf(how.motion);
     BodyCreationSettings settings(shape, RVec3(px, py, pz), Quat(qx, qy, qz, qw).Normalized(),
-                                  motionType, layerOf(motionType));
+                                  motionType, layerOf(motionType, how.layer));
     settings.mFriction = friction;
     settings.mRestitution = restitution;
     settings.mIsSensor = isSensor != 0;
@@ -222,6 +227,19 @@ void physics3d_shutdown() {
 EMSCRIPTEN_KEEPALIVE
 int physics3d_isReady() { return g().isValid() ? 1 : 0; }
 
+/**
+ * @brief Declares which layers layer `layer` collides with.
+ * @details Both sides must agree, so a body only meets another when each names
+ *          the other — one of them saying no is enough to keep them apart. Set
+ *          before bodies are registered: an ObjectLayer is fixed at creation.
+ */
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setLayerMask(uint32_t layer, uint32_t mask) {
+    if (layer < esengine::physics3d::Layers::COUNT) {
+        esengine::physics3d::layerMatrix().masks[layer] = mask;
+    }
+}
+
 /// Advance the world, then refill the transform buffer with every active body.
 EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {
@@ -271,10 +289,10 @@ uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float px, float py, float pz,
                           float qx, float qy, float qz, float qw,
                           int motion, float gravityScale, float linearDamping,
-                          float angularDamping, int fixedRotation,
+                          float angularDamping, int fixedRotation, uint32_t layer,
                           float friction, float restitution, int isSensor) {
     return addBody(entity, new BoxShape(Vec3(hx, hy, hz)), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
                    friction, restitution, isSensor);
 }
 
@@ -283,10 +301,10 @@ uint32_t physics3d_addSphere(uint32_t entity, float radius,
                              float px, float py, float pz,
                              float qx, float qy, float qz, float qw,
                              int motion, float gravityScale, float linearDamping,
-                             float angularDamping, int fixedRotation,
+                             float angularDamping, int fixedRotation, uint32_t layer,
                              float friction, float restitution, int isSensor) {
     return addBody(entity, new SphereShape(radius), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
                    friction, restitution, isSensor);
 }
 
@@ -297,10 +315,10 @@ uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float px, float py, float pz,
                               float qx, float qy, float qz, float qw,
                               int motion, float gravityScale, float linearDamping,
-                              float angularDamping, int fixedRotation,
+                              float angularDamping, int fixedRotation, uint32_t layer,
                               float friction, float restitution, int isSensor) {
     return addBody(entity, new CapsuleShape(halfHeight, radius), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
                    friction, restitution, isSensor);
 }
 
@@ -318,7 +336,7 @@ uint32_t physics3d_addMeshBody(uint32_t entity, uintptr_t vertexPtr, uint32_t ve
                                uintptr_t indexPtr, uint32_t indexCount,
                                float px, float py, float pz,
                                float qx, float qy, float qz, float qw,
-                               float friction, float restitution) {
+                               uint32_t layer, float friction, float restitution) {
     if (!g().isValid() || vertexCount == 0 || indexCount < 3 || indexCount % 3 != 0) return 0;
     const float* positions = reinterpret_cast<const float*>(vertexPtr);
     const uint32_t* indices = reinterpret_cast<const uint32_t*>(indexPtr);
@@ -344,7 +362,7 @@ uint32_t physics3d_addMeshBody(uint32_t entity, uintptr_t vertexPtr, uint32_t ve
     ShapeSettings::ShapeResult shape = settings.Create();
     if (shape.HasError()) return 0;
     return addBody(entity, shape.Get(), px, py, pz, qx, qy, qz, qw,
-                   {0, 1.0f, 0.0f, 0.0f, 0}, friction, restitution, 0);
+                   {0, 1.0f, 0.0f, 0.0f, 0, layer}, friction, restitution, 0);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -402,7 +420,8 @@ int physics3d_getBodyState(uint32_t bodyId) {
  */
 EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
-                                float px, float py, float pz, float maxSlope, float mass) {
+                                float px, float py, float pz, float maxSlope, float mass,
+                                uint32_t layer) {
     if (!g().isValid()) return 0;
     Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
     settings->mShape = new CapsuleShape(halfHeight, radius);
@@ -414,6 +433,7 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
     auto character = std::make_unique<CharacterVirtual>(
         settings, RVec3(px, py, pz), Quat::sIdentity(), g().system);
     const uint32_t id = g().nextCharacterId++;
+    g().characterLayers[id] = layer;
     g().characters[id] = std::move(character);
     g().entityOf[id | CHARACTER_ID_TAG] = entity;
     return id;
@@ -422,6 +442,7 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
 EMSCRIPTEN_KEEPALIVE
 void physics3d_removeCharacter(uint32_t characterId) {
     g().characters.erase(characterId);
+    g().characterLayers.erase(characterId);
     g().entityOf.erase(characterId | CHARACTER_ID_TAG);
 }
 
@@ -455,9 +476,11 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
     CharacterVirtual::ExtendedUpdateSettings settings;
     settings.mWalkStairsStepUp = Vec3(0, stepUp, 0);
     settings.mStickToFloorStepDown = Vec3(0, -stepDown, 0);
+    const ObjectLayer objectLayer = esengine::physics3d::Layers::of(
+        g().characterLayers.count(characterId) ? g().characterLayers[characterId] : 0, true);
     character.ExtendedUpdate(dt, g().system->GetGravity(), settings,
-                             g().system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
-                             g().system->GetDefaultLayerFilter(Layers::MOVING),
+                             g().system->GetDefaultBroadPhaseLayerFilter(objectLayer),
+                             g().system->GetDefaultLayerFilter(objectLayer),
                              {}, {}, *g().temp);
 
     const RVec3 position = character.GetPosition();

@@ -18,30 +18,31 @@ export interface Physics3DWasmModule {
     _physics3d_isReady(): number;
     _physics3d_step(dt: number, collisionSteps: number): void;
     _physics3d_optimize(): void;
+    _physics3d_setLayerMask(layer: number, mask: number): void;
 
     _physics3d_addBox(entity: number, hx: number, hy: number, hz: number,
                       px: number, py: number, pz: number,
                       qx: number, qy: number, qz: number, qw: number,
                       motion: number, gravityScale: number, linearDamping: number,
-                      angularDamping: number, fixedRotation: number,
+                      angularDamping: number, fixedRotation: number, layer: number,
                       friction: number, restitution: number, isSensor: number): number;
     _physics3d_addSphere(entity: number, radius: number,
                          px: number, py: number, pz: number,
                          qx: number, qy: number, qz: number, qw: number,
                          motion: number, gravityScale: number, linearDamping: number,
-                         angularDamping: number, fixedRotation: number,
+                         angularDamping: number, fixedRotation: number, layer: number,
                          friction: number, restitution: number, isSensor: number): number;
     _physics3d_addCapsule(entity: number, radius: number, halfHeight: number,
                           px: number, py: number, pz: number,
                           qx: number, qy: number, qz: number, qw: number,
                           motion: number, gravityScale: number, linearDamping: number,
-                          angularDamping: number, fixedRotation: number,
+                          angularDamping: number, fixedRotation: number, layer: number,
                           friction: number, restitution: number, isSensor: number): number;
     _physics3d_addMeshBody(entity: number, vertexPtr: number, vertexCount: number,
                            indexPtr: number, indexCount: number,
                            px: number, py: number, pz: number,
                            qx: number, qy: number, qz: number, qw: number,
-                           friction: number, restitution: number): number;
+                           layer: number, friction: number, restitution: number): number;
     _physics3d_removeBody(bodyId: number): void;
 
     _malloc(bytes: number): number;
@@ -53,7 +54,7 @@ export interface Physics3DWasmModule {
 
     _physics3d_addCharacter(entity: number, radius: number, halfHeight: number,
                             px: number, py: number, pz: number,
-                            maxSlope: number, mass: number): number;
+                            maxSlope: number, mass: number, layer: number): number;
     _physics3d_removeCharacter(characterId: number): void;
     _physics3d_moveCharacter(characterId: number, vx: number, vy: number, vz: number,
                              dt: number, stepUp: number, stepDown: number): void;

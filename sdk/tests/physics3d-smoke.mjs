@@ -20,9 +20,9 @@ const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 
 const STATIC = 0, KINEMATIC = 1, DYNAMIC = 2;
 const IDENTITY = [0, 0, 0, 1];
-// motion, gravityScale, linearDamping, angularDamping, fixedRotation — what a body
-// is beyond its shape.
-const FREE = (motion) => [motion, 1, 0, 0, 0];
+// motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer —
+// what a body is beyond its shape.
+const FREE = (motion, layer = 0) => [motion, 1, 0, 0, 0, layer];
 
 /** The position of `entity` in the step's transform readback, or null. */
 function bodyPos(entity) {
@@ -127,7 +127,7 @@ check('and on its own radius', side && side.entity === CAP && near(side.fraction
 // drops 4.9m in the same second.
 const FLOAT = 5;
 const floatId = m._physics3d_addSphere(FLOAT, 0.5, -3, 5, 0, ...IDENTITY,
-                                       DYNAMIC, 0, 0, 0, 0, 0.5, 0, 0);
+                                       DYNAMIC, 0, 0, 0, 0, 0, 0.5, 0, 0);
 step(60);
 check('gravityScale 0 leaves a body where it was', near(bodyState(floatId).y, 5, 0.01),
       `y=${bodyState(floatId).y.toFixed(4)} want 5`);
@@ -137,7 +137,7 @@ check('gravityScale 0 leaves a body where it was', near(bodyState(floatId).y, 5,
 // flat, so the tilt it KEEPS is what says the solver may not turn it.
 const UPRIGHT = 6;
 const uprightId = m._physics3d_addCapsule(UPRIGHT, 0.3, 0.5, -6, 3, 0,
-                                          0.3, 0, 0, 0.954, DYNAMIC, 1, 0, 0, 1, 0.5, 0, 0);
+                                          0.3, 0, 0, 0.954, DYNAMIC, 1, 0, 0, 1, 0, 0.5, 0, 0);
 step(180);
 const uprightBase = m._physics3d_getBodyState(uprightId) ? m._physics3d_queryResult() >> 2 : 0;
 const qx = m.HEAPF32[uprightBase + 3];
@@ -157,7 +157,7 @@ function moveCharacter(id, vx, vy, vz, steps = 1, stepUp = 0.4, stepDown = 0.5) 
 
 // Dropped from 3m onto the floor: a capsule of radius 0.3 + half-height 0.5
 // stands with its centre 0.8 up, and reports the ground it is on.
-const hero = m._physics3d_addCharacter(9, 0.3, 0.5, -20, 3, 0, 0.87, 70);
+const hero = m._physics3d_addCharacter(9, 0.3, 0.5, -20, 3, 0, 0.87, 70, 0);
 check('a character is handed back', hero !== 0, `id=${hero}`);
 const airborne = moveCharacter(hero, 0, 0, 0, 1);
 check('and starts in the air', airborne.ground === IN_AIR, `state=${airborne.ground}`);
@@ -293,7 +293,7 @@ const rampVerts = alloc(new Float32Array([
 // ONE-SIDED: reversed, a body falls through while a ray still reports a hit.
 const rampIndices = alloc(new Uint32Array([0, 2, 1, 2, 3, 1]), Uint32Array);
 const rampId = m._physics3d_addMeshBody(RAMP, rampVerts, 4, rampIndices, 6,
-                                        30, 3, 0, ...IDENTITY, 0.5, 0);
+                                        30, 3, 0, ...IDENTITY, 0, 0.5, 0);
 m._free(rampVerts);
 m._free(rampIndices);
 check('imported geometry becomes a body', rampId !== 0, `id=${rampId}`);
@@ -322,13 +322,45 @@ check('and a body rests on its triangles', crate && crate.y > 3.4,
 const badVerts = alloc(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), Float32Array);
 const badIndices = alloc(new Uint32Array([0, 1, 2, 0, 1, 99]), Uint32Array);
 check('an index past the vertices is refused',
-      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 6, 0, 0, 0, ...IDENTITY, 0.5, 0) === 0);
+      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 6, 0, 0, 0, ...IDENTITY, 0, 0.5, 0) === 0);
 check('and so is a non-triangle count',
-      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 5, 0, 0, 0, ...IDENTITY, 0.5, 0) === 0);
+      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 5, 0, 0, 0, ...IDENTITY, 0, 0.5, 0) === 0);
 m._free(badVerts);
 m._free(badIndices);
 
-// ── 9) A removed body is gone from both the sweep and the getter ────────────
+// ── 9) Layers decide who meets whom ────────────────────────────────────────
+// Layer 1 is the world, 2 is bullets, 3 is the team firing them: bullets pass
+// through their own team and stop on the world.
+m._physics3d_setLayerMask(2, ~(1 << 3) >>> 0);   // bullets ignore their team
+m._physics3d_setLayerMask(3, ~(1 << 2) >>> 0);   // and the team ignores bullets
+
+const TEAMMATE = 40, BULLET = 41, WALL = 42;
+m._physics3d_addBox(WALL, 5, 0.5, 5, 60, -0.5, 0, ...IDENTITY, ...FREE(STATIC, 1), 0.5, 0, 0);
+// Wide enough to cover both drop points: the second bullet has to fall past the
+// teammate too, and landing on the FIRST bullet would prove nothing about layers.
+m._physics3d_addBox(TEAMMATE, 5, 1, 5, 60, 1, 0, ...IDENTITY, ...FREE(STATIC, 3), 0.5, 0, 0);
+const bulletId = m._physics3d_addSphere(BULLET, 0.2, 60, 6, 0, ...IDENTITY,
+                                        ...FREE(DYNAMIC, 2), 0.5, 0, 0);
+m._physics3d_optimize();
+step(240);
+const bullet = bodyState(bulletId);
+// It fell past the teammate (whose top is at 2) and landed on the world at 0.2.
+check('a body passes through a layer it ignores', bullet && bullet.y < 1.5,
+      `y=${bullet?.y?.toFixed(4)} — it stopped on the teammate it should ignore`);
+check('and still lands on one it does not', bullet && near(bullet.y, 0.2, 0.1),
+      `y=${bullet?.y?.toFixed(4)} want 0.2 (resting on the world)`);
+
+// One side saying no is enough: the team never stopped naming bullets, but
+// bullets stopped naming the team, and they still pass.
+m._physics3d_setLayerMask(3, 0xFFFFFFFF);
+const SECOND = 43;
+const secondId = m._physics3d_addSphere(SECOND, 0.2, 63, 6, 0, ...IDENTITY,
+                                        ...FREE(DYNAMIC, 2), 0.5, 0, 0);
+step(240);
+check('one side refusing is enough', near(bodyState(secondId).y, 0.2, 0.1),
+      `y=${bodyState(secondId)?.y?.toFixed(4)} want 0.2`);
+
+// ── 10) A removed body is gone from both the sweep and the getter ───────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

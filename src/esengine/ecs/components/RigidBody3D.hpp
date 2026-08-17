@@ -53,6 +53,11 @@ struct RigidBody3D {
     ES_PROPERTY()
     bool fixedRotation{false};
 
+    /** @brief Which collision layer this body is in (0..15). ONE layer, unlike the
+     *         2D world's category bits: Jolt classifies a body by a single id. */
+    ES_PROPERTY(min=0, max=15, advanced)
+    u32 layer{0};
+
     /** @brief Disabled bodies are left out of the world entirely. */
     ES_PROPERTY()
     bool enabled{true};
@@ -144,6 +149,10 @@ struct MeshCollider3D {
     ES_PROPERTY(min=0, max=1)
     f32 restitution{0.0f};
 
+    /** @brief Which collision layer the geometry is in (0..15). */
+    ES_PROPERTY(min=0, max=15, advanced)
+    u32 layer{0};
+
     ES_PROPERTY()
     bool enabled{true};
 };
@@ -187,6 +196,10 @@ struct CharacterController3D {
 
     ES_PROPERTY()
     bool enabled{true};
+
+    /** @brief Which collision layer it is in (0..15). */
+    ES_PROPERTY(min=0, max=15, advanced)
+    u32 layer{0};
 
     /** @brief Output: standing on ground it can walk on. */
     ES_PROPERTY(advanced)

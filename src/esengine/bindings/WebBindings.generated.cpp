@@ -549,6 +549,7 @@ struct MeshCollider3DJS {
     u32 mesh;
     f32 friction;
     f32 restitution;
+    u32 layer;
     bool enabled;
 };
 
@@ -556,6 +557,7 @@ void meshcollider3dApplyJS(esengine::ecs::MeshCollider3D& c, const MeshCollider3
     c.mesh = resource::MeshHandle(js.mesh);
     c.friction = js.friction;
     c.restitution = js.restitution;
+    c.layer = js.layer;
     c.enabled = js.enabled;
 }
 
@@ -570,6 +572,7 @@ MeshCollider3DJS meshcollider3dToJS(const esengine::ecs::MeshCollider3D& c) {
     js.mesh = c.mesh.id();
     js.friction = c.friction;
     js.restitution = c.restitution;
+    js.layer = c.layer;
     js.enabled = c.enabled;
     return js;
 }
@@ -841,6 +844,7 @@ struct RigidBody3DJS {
     f32 linearDamping;
     f32 angularDamping;
     bool fixedRotation;
+    u32 layer;
     bool enabled;
 };
 
@@ -850,6 +854,7 @@ void rigidbody3dApplyJS(esengine::ecs::RigidBody3D& c, const RigidBody3DJS& js) 
     c.linearDamping = js.linearDamping;
     c.angularDamping = js.angularDamping;
     c.fixedRotation = js.fixedRotation;
+    c.layer = js.layer;
     c.enabled = js.enabled;
 }
 
@@ -866,6 +871,7 @@ RigidBody3DJS rigidbody3dToJS(const esengine::ecs::RigidBody3D& c) {
     js.linearDamping = c.linearDamping;
     js.angularDamping = c.angularDamping;
     js.fixedRotation = c.fixedRotation;
+    js.layer = c.layer;
     js.enabled = c.enabled;
     return js;
 }
@@ -1330,6 +1336,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("snapDown", &esengine::ecs::CharacterController3D::snapDown)
         .field("mass", &esengine::ecs::CharacterController3D::mass)
         .field("enabled", &esengine::ecs::CharacterController3D::enabled)
+        .field("layer", &esengine::ecs::CharacterController3D::layer)
         .field("isOnFloor", &esengine::ecs::CharacterController3D::isOnFloor)
         .field("floorNormal", &esengine::ecs::CharacterController3D::floorNormal)
         .field("realVelocity", &esengine::ecs::CharacterController3D::realVelocity);
@@ -1411,6 +1418,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("mesh", &MeshCollider3DJS::mesh)
         .field("friction", &MeshCollider3DJS::friction)
         .field("restitution", &MeshCollider3DJS::restitution)
+        .field("layer", &MeshCollider3DJS::layer)
         .field("enabled", &MeshCollider3DJS::enabled);
 
     value_object<MeshSkinJS>("MeshSkin")
@@ -1502,6 +1510,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("linearDamping", &RigidBody3DJS::linearDamping)
         .field("angularDamping", &RigidBody3DJS::angularDamping)
         .field("fixedRotation", &RigidBody3DJS::fixedRotation)
+        .field("layer", &RigidBody3DJS::layer)
         .field("enabled", &RigidBody3DJS::enabled);
 
     value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
@@ -2656,9 +2665,10 @@ static_assert(offsetof(esengine::ecs::CharacterController3D, stepHeight) == 24, 
 static_assert(offsetof(esengine::ecs::CharacterController3D, snapDown) == 28, "ABI offset drift: esengine::ecs::CharacterController3D.snapDown (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, mass) == 32, "ABI offset drift: esengine::ecs::CharacterController3D.mass (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, enabled) == 36, "ABI offset drift: esengine::ecs::CharacterController3D.enabled (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 37, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 37)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 40, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 52, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, layer) == 40, "ABI offset drift: esengine::ecs::CharacterController3D.layer (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 44, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 48, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 60, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 60)");
 static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
@@ -2716,7 +2726,8 @@ static_assert(offsetof(esengine::ecs::Mesh2D, mesh) == 48, "ABI offset drift: es
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::MeshCollider3D, enabled) == 12, "ABI offset drift: esengine::ecs::MeshCollider3D.enabled (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, layer) == 12, "ABI offset drift: esengine::ecs::MeshCollider3D.layer (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, enabled) == 16, "ABI offset drift: esengine::ecs::MeshCollider3D.enabled (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -2793,7 +2804,8 @@ static_assert(offsetof(esengine::ecs::RigidBody3D, gravityScale) == 4, "ABI offs
 static_assert(offsetof(esengine::ecs::RigidBody3D, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody3D.linearDamping (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, angularDamping) == 12, "ABI offset drift: esengine::ecs::RigidBody3D.angularDamping (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody3D.fixedRotation (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 17, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 17)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, layer) == 20, "ABI offset drift: esengine::ecs::RigidBody3D.layer (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider.point1 (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider.point2 (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider.density (EHT expected 16)");
@@ -2931,7 +2943,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "f3c3c0443ccbd99d";
+static const char* kEsAbiLayoutHash = "efd9284ec11052f6";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

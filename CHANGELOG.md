@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **3D collision layers.** Every body is in one of sixteen layers, and a project
+  says which layers hear from which — bullets that pass through their own team
+  and stop on the world, which two layers could not express. Both sides must
+  agree, so one of them refusing keeps two bodies apart and a rule only has to be
+  written once.
+
+  ONE layer per body rather than the 2D world's category bits: Jolt classifies a
+  body by a single id. A body's layer is fixed when it enters the world, so the
+  matrix is installed as the world is built.
+
 - **Imported geometry can be collided against.** A `MeshCollider3D` uses a
   mesh's own triangles — a terrain, a staircase, the inside of a room, none of
   which a box or a capsule can express. Always static: a triangle soup has no

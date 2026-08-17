@@ -81,6 +81,7 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_moveCharacter: record('moveCharacter'),
         _physics3d_setCharacterPosition: record('setCharacterPosition'),
         _physics3d_addMeshBody: record('addMeshBody'),
+        _physics3d_setLayerMask: record('setLayerMask'),
         // Distinct allocations, as a real heap gives: one address for everything
         // let the index write land on top of the vertex write.
         _malloc: (bytes: number) => { const at = scratchTop; scratchTop += bytes; return at; },
@@ -318,6 +319,19 @@ describe('the 3D world and the ECS', () => {
         // with no shape would put an invisible point in the world.
         expect(called('addMeshBody')).toHaveLength(0);
         expect(bodies.size).toBe(0);
+    });
+
+    it('sends a body\u2019s layer to the world', () => {
+        const e = spawn();
+        world.insert(e, SphereCollider3D);
+        (world.get(e, RigidBody3D) as { layer: number }).layer = 5;
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        // entity, radius, position(3), rotation(4), motion, gravity, damping(2),
+        // fixedRotation, then LAYER — a knob nothing forwards does nothing.
+        const [call] = called('addSphere');
+        expect(call!.args[14]).toBe(5);
     });
 
     it('leaves a disabled body out of the world', () => {

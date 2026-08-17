@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'f3c3c0443ccbd99d';
+export const ABI_LAYOUT_HASH = 'efd9284ec11052f6';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -252,6 +252,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             snapDown: 0.5,
             mass: 70,
             enabled: true,
+            layer: 0,
             isOnFloor: false,
             floorNormal: { x: 0, y: 0, z: 0 },
             realVelocity: { x: 0, y: 0, z: 0 },
@@ -267,6 +268,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             stepHeight: { min: 0, advanced: true },
             snapDown: { min: 0, advanced: true },
             mass: { min: 0, advanced: true },
+            layer: { min: 0, max: 15, advanced: true },
             isOnFloor: { advanced: true },
             floorNormal: { advanced: true },
             realVelocity: { advanced: true },
@@ -434,6 +436,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             mesh: 0,
             friction: 0.3,
             restitution: 0,
+            layer: 0,
             enabled: true,
         },
         assetFields: [{ field: 'mesh', type: 'mesh' as AssetFieldType }],
@@ -444,6 +447,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             mesh: { tooltip: "Geometry (.esmesh) to collide against." },
             friction: { min: 0 },
             restitution: { min: 0, max: 1 },
+            layer: { min: 0, max: 15, advanced: true },
         },
     },
     MeshSkin: {
@@ -639,6 +643,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             linearDamping: 0.05,
             angularDamping: 0.05,
             fixedRotation: false,
+            layer: 0,
             enabled: true,
         },
         assetFields: [],
@@ -650,6 +655,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             gravityScale: { min: 0 },
             linearDamping: { min: 0 },
             angularDamping: { min: 0 },
+            layer: { min: 0, max: 15, advanced: true },
         },
     },
     SegmentCollider: {
@@ -1098,6 +1104,7 @@ export interface CharacterController3DData {
     snapDown: number;
     mass: number;
     enabled: boolean;
+    layer: number;
     isOnFloor: boolean;
     floorNormal: Vec3;
     realVelocity: Vec3;
@@ -1193,6 +1200,7 @@ export interface MeshCollider3DData {
     mesh: number;
     friction: number;
     restitution: number;
+    layer: number;
     enabled: boolean;
 }
 
@@ -1296,6 +1304,7 @@ export interface RigidBody3DData {
     linearDamping: number;
     angularDamping: number;
     fixedRotation: boolean;
+    layer: number;
     enabled: boolean;
 }
 

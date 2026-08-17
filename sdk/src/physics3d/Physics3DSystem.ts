@@ -29,6 +29,9 @@ import { PHYSICS3D_TRANSFORM_STRIDE, drainPhysics3DEvents } from './Physics3DMod
 const MOTION = { Static: 0, Kinematic: 1, Dynamic: 2 } as const;
 
 export interface Physics3DConfig {
+    /** Layer i collides with layer j when bit j of `layerMasks[i]` is set AND bit
+     *  i of `layerMasks[j]` is. Absent leaves every layer colliding with all. */
+    layerMasks?: number[];
     gravity: { x: number; y: number; z: number };
     fixedTimestep: number;
     collisionSteps: number;
@@ -72,7 +75,8 @@ function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyM
             const p = t?.worldPosition ?? { x: 0, y: 0, z: 0 };
             id = module._physics3d_addCharacter(
                 entity as number, character.radius / ppu, character.halfHeight / ppu,
-                p.x / ppu, p.y / ppu, p.z / ppu, character.maxSlope, character.mass);
+                p.x / ppu, p.y / ppu, p.z / ppu, character.maxSlope, character.mass,
+                character.layer);
             if (id === 0) continue;
             characters.set(entity, id);
         }
@@ -127,7 +131,7 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     const px = p.x / ppu, py = p.y / ppu, pz = p.z / ppu;
     // How the body answers to the world, in the order the module reads it.
     const how = [motionOf(body), body.gravityScale, body.linearDamping,
-                 body.angularDamping, body.fixedRotation ? 1 : 0] as const;
+                 body.angularDamping, body.fixedRotation ? 1 : 0, body.layer] as const;
 
     const box = app.world.get(entity, BoxCollider3D) as BoxCollider3DData | undefined;
     if (box?.enabled) {
@@ -144,7 +148,7 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     }
     const meshCollider = app.world.get(entity, MeshCollider3D) as MeshCollider3DData | undefined;
     if (meshCollider?.enabled && meshCollider.mesh !== 0) {
-        return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu);
+        return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu, body.layer);
     }
     const capsule = app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData | undefined;
     if (capsule?.enabled) {
@@ -167,7 +171,8 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
 function addMeshBody(module: Physics3DWasmModule, entity: Entity,
                      collider: MeshCollider3DData,
                      px: number, py: number, pz: number,
-                     r: { x: number; y: number; z: number; w: number }, ppu: number): number {
+                     r: { x: number; y: number; z: number; w: number },
+                     ppu: number, layer: number): number {
     const geometry = getMeshCollision(collider.mesh);
     if (!geometry) return 0;
     const { positions, indices } = geometry;
@@ -179,7 +184,8 @@ function addMeshBody(module: Physics3DWasmModule, entity: Entity,
         module.HEAPU32.set(indices, indexPtr >> 2);
         return module._physics3d_addMeshBody(
             entity as number, vertexPtr, positions.length / 3, indexPtr, indices.length,
-            px, py, pz, r.x, r.y, r.z, r.w, collider.friction, collider.restitution);
+            px, py, pz, r.x, r.y, r.z, r.w, layer,
+            collider.friction, collider.restitution);
     } finally {
         module._free(vertexPtr);
         module._free(indexPtr);

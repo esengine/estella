@@ -42,9 +42,17 @@ namespace JPH { class CharacterVirtual; }
 namespace esengine::physics3d {
 
 namespace Layers {
-static constexpr JPH::ObjectLayer STATIC = 0;
-static constexpr JPH::ObjectLayer MOVING = 1;
-static constexpr JPH::ObjectLayer COUNT = 2;
+/// How many collision layers a project can name. Sixteen, like the 2D world's
+/// mask bits, so a project describes its layers once for both.
+static constexpr JPH::uint COUNT = 16;
+/// An ObjectLayer packs the layer index with whether the body moves: Jolt asks
+/// which broad-phase tree a layer belongs to, and a bare index cannot say.
+static constexpr JPH::ObjectLayer of(JPH::uint layer, bool moving) {
+    return static_cast<JPH::ObjectLayer>((layer << 1) | (moving ? 1u : 0u));
+}
+static constexpr JPH::uint indexOf(JPH::ObjectLayer layer) { return layer >> 1; }
+static constexpr bool isMoving(JPH::ObjectLayer layer) { return (layer & 1u) != 0; }
+static constexpr JPH::ObjectLayer OBJECT_LAYER_COUNT = COUNT * 2;
 }  // namespace Layers
 
 namespace BroadPhase {
@@ -53,37 +61,48 @@ static constexpr JPH::BroadPhaseLayer MOVING(1);
 static constexpr JPH::uint COUNT(2);
 }  // namespace BroadPhase
 
-/// Static bodies never test against each other; everything else tests everything.
+/// Per-layer masks: bit i of `masks[l]` means layer l wants to hear from layer i.
+/// Both sides must agree, so one of them saying no is enough — the same rule the
+/// 2D world's category/mask pair follows.
+struct LayerMatrix {
+    JPH::uint32 masks[Layers::COUNT];
+    LayerMatrix() { for (JPH::uint32& m : masks) m = 0xFFFFFFFFu; }
+    bool collide(JPH::uint a, JPH::uint b) const {
+        if (a >= Layers::COUNT || b >= Layers::COUNT) return false;
+        return (masks[a] & (1u << b)) != 0 && (masks[b] & (1u << a)) != 0;
+    }
+};
+
+LayerMatrix& layerMatrix();
+
+/// Two static bodies never test against each other whatever their layers say —
+/// neither can move, so a contact between them can never do anything.
 class ObjectLayerPairFilterImpl final : public JPH::ObjectLayerPairFilter {
 public:
     bool ShouldCollide(JPH::ObjectLayer a, JPH::ObjectLayer b) const override {
-        return a == Layers::STATIC ? b == Layers::MOVING : true;
+        if (!Layers::isMoving(a) && !Layers::isMoving(b)) return false;
+        return layerMatrix().collide(Layers::indexOf(a), Layers::indexOf(b));
     }
 };
 
 class BroadPhaseLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface {
 public:
-    BroadPhaseLayerInterfaceImpl() {
-        objectToBroadPhase_[Layers::STATIC] = BroadPhase::STATIC;
-        objectToBroadPhase_[Layers::MOVING] = BroadPhase::MOVING;
-    }
     JPH::uint GetNumBroadPhaseLayers() const override { return BroadPhase::COUNT; }
     JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer layer) const override {
-        return objectToBroadPhase_[layer];
+        return Layers::isMoving(layer) ? BroadPhase::MOVING : BroadPhase::STATIC;
     }
 #if defined(JPH_EXTERNAL_PROFILE) || defined(JPH_PROFILE_ENABLED)
     const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer layer) const override {
         return layer == BroadPhase::STATIC ? "static" : "moving";
     }
 #endif
-private:
-    JPH::BroadPhaseLayer objectToBroadPhase_[Layers::COUNT];
 };
 
 class ObjectVsBroadPhaseLayerFilterImpl final : public JPH::ObjectVsBroadPhaseLayerFilter {
 public:
     bool ShouldCollide(JPH::ObjectLayer a, JPH::BroadPhaseLayer b) const override {
-        return a == Layers::STATIC ? b == BroadPhase::MOVING : true;
+        // A static body only ever needs the moving tree; a moving one needs both.
+        return Layers::isMoving(a) || b == BroadPhase::MOVING;
     }
 };
 
@@ -122,6 +141,8 @@ struct Context {
     /// rather than solved in it, which is what lets it climb stairs and stay
     /// glued to a slope without inheriting momentum from whatever it stands on.
     std::unordered_map<uint32_t, std::unique_ptr<JPH::CharacterVirtual>> characters;
+    /// A character is not a body, so its layer is not stored in one.
+    std::unordered_map<uint32_t, uint32_t> characterLayers;
     uint32_t nextCharacterId = 1;
 
     bool isValid() const { return system != nullptr; }

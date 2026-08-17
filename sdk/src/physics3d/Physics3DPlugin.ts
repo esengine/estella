@@ -60,6 +60,11 @@ export class Physics3DPlugin implements Plugin {
             this.module_ = module;
             const { gravity, maxBodies } = this.config_;
             module._physics3d_init(gravity.x, gravity.y, gravity.z, maxBodies);
+            // Before any body: an ObjectLayer is fixed when a body is created, so a
+            // matrix installed later would not reach what is already in the world.
+            this.config_.layerMasks?.forEach((mask, layer) => {
+                module._physics3d_setLayerMask(layer, mask);
+            });
             runtime.module = module;
             app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,

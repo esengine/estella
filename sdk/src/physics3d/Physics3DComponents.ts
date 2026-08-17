@@ -20,6 +20,7 @@ export type {
 
 export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
     bodyType: 2,
+    layer: 0,
     gravityScale: 1.0,
     linearDamping: 0.05,
     angularDamping: 0.05,
@@ -66,6 +67,7 @@ export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCo
  */
 export const MeshCollider3D = defineBuiltin<MeshCollider3DData>('MeshCollider3D', {
     mesh: 0,
+    layer: 0,
     friction: 0.3,
     restitution: 0.0,
     enabled: true,
@@ -84,6 +86,7 @@ export const CharacterController3D = defineBuiltin<CharacterController3DData>(
         radius: 0.3,
         halfHeight: 0.5,
         maxSlope: 0.87,
+        layer: 0,
         stepHeight: 0.4,
         snapDown: 0.5,
         mass: 70,
@@ -98,6 +101,7 @@ export const CharacterController3D = defineBuiltin<CharacterController3DData>(
             stepHeight: { min: 0, step: 0.05, advanced: true },
             snapDown: { min: 0, step: 0.05, advanced: true },
             mass: { min: 0, advanced: true },
+            layer: { min: 0, max: 15, step: 1, advanced: true },
             isOnFloor: { advanced: true },
             floorNormal: { advanced: true },
             realVelocity: { advanced: true },

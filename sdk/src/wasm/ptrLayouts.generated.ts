@@ -129,9 +129,10 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'snapDown', type: 'f32', offset: 28 },
             { name: 'mass', type: 'f32', offset: 32 },
             { name: 'enabled', type: 'bool', offset: 36 },
-            { name: 'isOnFloor', type: 'bool', offset: 37 },
-            { name: 'floorNormal', type: 'vec3', offset: 40 },
-            { name: 'realVelocity', type: 'vec3', offset: 52 },
+            { name: 'layer', type: 'u32', offset: 40 },
+            { name: 'isOnFloor', type: 'bool', offset: 44 },
+            { name: 'floorNormal', type: 'vec3', offset: 48 },
+            { name: 'realVelocity', type: 'vec3', offset: 60 },
         ],
     },
     CircleCollider: {
@@ -224,7 +225,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'mesh', type: 'u32', offset: 0 },
             { name: 'friction', type: 'f32', offset: 4 },
             { name: 'restitution', type: 'f32', offset: 8 },
-            { name: 'enabled', type: 'bool', offset: 12 },
+            { name: 'layer', type: 'u32', offset: 12 },
+            { name: 'enabled', type: 'bool', offset: 16 },
         ],
     },
     ParticleEmitter: {
@@ -321,7 +323,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'linearDamping', type: 'f32', offset: 8 },
             { name: 'angularDamping', type: 'f32', offset: 12 },
             { name: 'fixedRotation', type: 'bool', offset: 16 },
-            { name: 'enabled', type: 'bool', offset: 17 },
+            { name: 'layer', type: 'u32', offset: 20 },
+            { name: 'enabled', type: 'bool', offset: 24 },
         ],
     },
     SegmentCollider: {
