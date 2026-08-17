@@ -133,6 +133,14 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     // A prior phase may have left another pipeline bound; force our pipeline to re-apply.
     device_.invalidatePipelineCache();
 
+    // Near-centre to far-centre through the inverse: one direction that works for
+    // both projections, where a perspective camera's own position does not.
+    const glm::mat4 inverseVP = glm::inverse(viewProjection);
+    const glm::vec4 nearPoint = inverseVP * glm::vec4(0.0f, 0.0f, -1.0f, 1.0f);
+    const glm::vec4 farPoint = inverseVP * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    const glm::vec3 forward = glm::vec3(farPoint) / farPoint.w - glm::vec3(nearPoint) / nearPoint.w;
+    if (glm::length(forward) > 0.0001f) viewForward_ = glm::normalize(forward);
+
     pool_.beginFrame();
     currentTexture_ = white_texture_id_;
     pendingGeometry_ = false;
@@ -252,6 +260,42 @@ void ImmediateDraw::line(const glm::vec2& from, const glm::vec2& to,
     f32 angle = std::atan2(dir.y, dir.x);
 
     emitQuad(center, glm::vec2(length, thickness), angle, color, white_texture_id_);
+    ++primitiveCount_;
+}
+
+void ImmediateDraw::line3D(const glm::vec3& from, const glm::vec3& to,
+                           const glm::vec4& color, f32 thickness) {
+    if (!inFrame_) return;
+
+    const glm::vec3 delta = to - from;
+    const f32 length = glm::length(delta);
+    if (length < 0.0001f) return;
+    const glm::vec3 dir = delta / length;
+
+    glm::vec3 side = glm::cross(dir, viewForward_);
+    f32 sideLength = glm::length(side);
+    if (sideLength < 0.0001f) {
+        // Looking straight down the line: any perpendicular reads the same.
+        side = glm::cross(dir, std::abs(dir.y) < 0.9f ? glm::vec3(0.0f, 1.0f, 0.0f)
+                                                      : glm::vec3(1.0f, 0.0f, 0.0f));
+        sideLength = glm::length(side);
+        if (sideLength < 0.0001f) return;
+    }
+    side *= (thickness * 0.5f) / sideLength;
+
+    useTexture(white_texture_id_);
+    const u32 packed = packColor(color);
+    const std::array<BatchVertex, 4> verts{
+        BatchVertex{ from - side, packed, {0.0f, 0.0f} },
+        BatchVertex{ from + side, packed, {1.0f, 0.0f} },
+        BatchVertex{ to + side, packed, {1.0f, 1.0f} },
+        BatchVertex{ to - side, packed, {0.0f, 1.0f} },
+    };
+    const u32 base =
+        pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+    const u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };
+    pool_.appendIndices(LayoutId::Batch, idx, 6);
+    pendingGeometry_ = true;
     ++primitiveCount_;
 }
 

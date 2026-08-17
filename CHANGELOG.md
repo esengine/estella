@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The running game can draw its own 3D shapes.** `Physics3DDebugDraw` outlines
+  every collider the solver built, in the game rather than in the editor — which
+  is the only place the question "why did the player get stuck there" can be
+  asked. The editor hides its own overlays in play, so what you see is the engine
+  answering.
+
+  `Draw.line3D` is what made it possible: the immediate-mode vertex has always
+  carried three components, and the ribbon is now widened across the view rather
+  than in the plane, so a line reads as a line from wherever the camera is.
+
 - **Imported geometry that moves.** A `ConvexCollider3D` collides against the
   convex hull of a mesh's vertices — a rock, a chamfered crate, a barrel that
   rolls. `MeshCollider3D` is scenery whatever its body says (Jolt cannot give a

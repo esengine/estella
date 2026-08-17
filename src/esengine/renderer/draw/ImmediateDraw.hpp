@@ -105,6 +105,16 @@ public:
     void line(const glm::vec2& from, const glm::vec2& to,
               const glm::vec4& color, f32 thickness = 1.0f);
 
+    /**
+     * @brief A line between two points in SPACE, widened across the view.
+     * @details Widened along `cross(direction, view forward)` rather than in a
+     *          plane, so it reads as a line from wherever the camera is.
+     *          Thickness is in WORLD units, so a distant line thins out with the
+     *          geometry beside it.
+     */
+    void line3D(const glm::vec3& from, const glm::vec3& to,
+                const glm::vec4& color, f32 thickness = 1.0f);
+
     void polyline(std::span<const glm::vec2> vertices, const glm::vec4& color,
                   f32 thickness = 1.0f, bool closed = false);
 
@@ -195,6 +205,10 @@ private:
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;
     bool pendingGeometry_ = false;
+
+    /// Where the camera looks, from the view-projection this frame began with —
+    /// what a 3D line is widened across.
+    glm::vec3 viewForward_{0.0f, 0.0f, -1.0f};
 
     i32 currentLayer_ = 0;
     f32 currentDepth_ = 0.0f;

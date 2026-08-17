@@ -8,7 +8,7 @@
  */
 
 import type { ESEngineModule } from '../wasm';
-import type { Vec2, Color } from '../types';
+import type { Vec2, Vec3, Color } from '../types';
 import type { GeometryHandle } from './geometry';
 import type { ShaderHandle, MaterialHandle } from './material';
 import { Material, isTextureRef, classifyUniformArity, type UniformValue, type TextureRef } from './material';
@@ -92,6 +92,15 @@ export interface DrawAPI {
      * @param thickness Line thickness in pixels (default: 1)
      */
     line(from: Vec2, to: Vec2, color: Color, thickness?: number): void;
+
+    /**
+     * Draws a line between two points in space.
+     *
+     * The ribbon is widened across the view, so it reads as a line from wherever
+     * the camera is. Thickness is in WORLD units rather than pixels — a distant
+     * line thins out the way the geometry beside it does.
+     */
+    line3D(from: Vec3, to: Vec3, color: Color, thickness?: number): void;
 
     /**
      * Draws a filled or outlined rectangle.
@@ -251,6 +260,19 @@ export const Draw: DrawAPI = {
             );
         } catch (e) {
             handleWasmError(e, 'Draw.line');
+        }
+    },
+
+    line3D(from: Vec3, to: Vec3, color: Color, thickness = 1): void {
+        try {
+            getModule().draw_line3D(
+                from.x, from.y, from.z,
+                to.x, to.y, to.z,
+                color.r, color.g, color.b, color.a,
+                thickness
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.line3D');
         }
     },
 

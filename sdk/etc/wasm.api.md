@@ -238,6 +238,7 @@ draw_circleOutline: (centerX: number, centerY: number, radius: number, r: number
 draw_end: () => void
 draw_getDrawCallCount: () => number
 draw_getPrimitiveCount: () => number
+draw_line3D: (fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number, r: number, g: number, b: number, a: number, thickness: number) => void
 draw_line: (fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number) => void
 draw_mesh: (geometryHandle: number, shaderHandle: number, transformPtr: number) => void
 draw_meshWithMaterial: (geometryHandle: number, materialId: number) => boolean

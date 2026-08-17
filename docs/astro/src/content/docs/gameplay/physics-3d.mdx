@@ -100,6 +100,31 @@ beside it, since a character is swept rather than solved.
   edges would bury it.
 </Aside>
 
+### While the game runs
+
+The editor's gizmos are hidden in play, so the running game draws its own. Turn
+the `Physics3DDebugDraw` resource on when you need to see why something got
+stuck where it did:
+
+```typescript
+app.getResource(Physics3DDebugDraw).enabled = true;
+```
+
+| Field | What it does |
+|---|---|
+| `enabled` | Off by default — an overlay costs a line per edge per frame. |
+| `showColliders` | The shape of every body the solver built. |
+| `showContacts` | A cross at each contact point reported this step. |
+
+<Aside>
+  Only what the solver actually built is drawn here. A disabled collider is
+  authoring state, and the editor is where you see it — the running game showing
+  it would be describing a collision that cannot happen.
+
+  The overlay ignores the depth buffer, so a shape inside a wall is still
+  visible. That is what a debug view is for.
+</Aside>
+
 ## Characters
 
 A `CharacterController3D` replaces a `RigidBody3D` rather than accompanying one: a

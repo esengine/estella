@@ -351,6 +351,9 @@ export interface ESEngineModule {
     draw_end(): void;
     draw_line(fromX: number, fromY: number, toX: number, toY: number,
               r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_line3D(fromX: number, fromY: number, fromZ: number,
+                toX: number, toY: number, toZ: number,
+                r: number, g: number, b: number, a: number, thickness: number): void;
     draw_rect(x: number, y: number, width: number, height: number,
               r: number, g: number, b: number, a: number, filled: boolean): void;
     draw_rectOutline(x: number, y: number, width: number, height: number,

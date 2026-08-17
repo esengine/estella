@@ -65,6 +65,18 @@ void draw_line(f32 fromX, f32 fromY, f32 toX, f32 toY,
     );
 }
 
+void draw_line3D(f32 fromX, f32 fromY, f32 fromZ, f32 toX, f32 toY, f32 toZ,
+                 f32 r, f32 g, f32 b, f32 a, f32 thickness) {
+    if (!g_immediateDraw || !g_immediateDrawActive) return;
+
+    g_immediateDraw->line3D(
+        glm::vec3(fromX, fromY, fromZ),
+        glm::vec3(toX, toY, toZ),
+        glm::vec4(r, g, b, a),
+        thickness
+    );
+}
+
 void draw_rect(f32 x, f32 y, f32 width, f32 height,
                f32 r, f32 g, f32 b, f32 a, bool filled) {
     if (!g_immediateDraw || !g_immediateDrawActive) return;

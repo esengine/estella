@@ -11,6 +11,8 @@ void draw_begin(uintptr_t matrixPtr);
 void draw_end();
 void draw_line(f32 fromX, f32 fromY, f32 toX, f32 toY,
                f32 r, f32 g, f32 b, f32 a, f32 thickness);
+void draw_line3D(f32 fromX, f32 fromY, f32 fromZ, f32 toX, f32 toY, f32 toZ,
+                 f32 r, f32 g, f32 b, f32 a, f32 thickness);
 void draw_rect(f32 x, f32 y, f32 width, f32 height,
                f32 r, f32 g, f32 b, f32 a, bool filled);
 void draw_rectOutline(f32 x, f32 y, f32 width, f32 height,

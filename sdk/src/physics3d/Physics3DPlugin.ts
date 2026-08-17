@@ -16,6 +16,7 @@ import {
     stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG, type Physics3DConfig,
 } from './Physics3DSystem';
 import { Physics3DQueries } from './Physics3DQueries';
+import { setupPhysics3DDebugDraw } from './Physics3DDebugDraw';
 import type { Joint3DMap } from './Physics3DJoints';
 
 /** Ask the 3D world what is where. Present once the module has loaded. */
@@ -81,6 +82,9 @@ export class Physics3DPlugin implements Plugin {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
                               runtime.characters, events, runtime.joints);
             }));
+            // Installed with the world, drawn only once a game turns the resource
+            // on — a scene that never asks for it pays a resource and nothing else.
+            setupPhysics3DDebugDraw(app, () => events.contactEnters);
             app.setFixedTimestep?.(this.config_.fixedTimestep);
             app.subsystems?.transition?.('physics3d', 'ready');
         });

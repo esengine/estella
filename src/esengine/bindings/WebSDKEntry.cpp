@@ -546,6 +546,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("draw_begin", &esengine::draw_begin);
     emscripten::function("draw_end", &esengine::draw_end);
     emscripten::function("draw_line", &esengine::draw_line);
+    emscripten::function("draw_line3D", &esengine::draw_line3D);
     emscripten::function("draw_rect", &esengine::draw_rect);
     emscripten::function("draw_rectOutline", &esengine::draw_rectOutline);
     emscripten::function("draw_circle", &esengine::draw_circle);

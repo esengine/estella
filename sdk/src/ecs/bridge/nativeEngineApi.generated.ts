@@ -30,6 +30,7 @@ export interface NativeEngineApi {
     draw_getDrawCallCount?(): number;
     draw_getPrimitiveCount?(): number;
     draw_line?(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_line3D?(fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number, r: number, g: number, b: number, a: number, thickness: number): void;
     draw_mesh?(geometryHandle: number, shaderHandle: number, transformPtr: number): void;
     draw_meshWithMaterial?(geometryHandle: number, materialId: number): boolean;
     draw_meshWithUniforms?(geometryHandle: number, shaderHandle: number, transformPtr: number, uniformsPtr: number, uniformCount: number): void;
@@ -282,6 +283,7 @@ export function createNativeEngineApi(
     bind('draw_getDrawCallCount', 'es_draw_getDrawCallCount', false);
     bind('draw_getPrimitiveCount', 'es_draw_getPrimitiveCount', false);
     bind('draw_line', 'es_draw_line', false);
+    bind('draw_line3D', 'es_draw_line3D', false);
     bind('draw_mesh', 'es_draw_mesh', false);
     bind('draw_meshWithMaterial', 'es_draw_meshWithMaterial', false);
     bind('draw_meshWithUniforms', 'es_draw_meshWithUniforms', false);

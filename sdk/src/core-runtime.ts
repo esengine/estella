@@ -218,6 +218,12 @@ export {
 } from './physics3d/Physics3DJoints';
 
 export {
+    Physics3DDebugDraw,
+    drawPhysics3DDebug,
+    type Physics3DDebugDrawConfig,
+} from './physics3d/Physics3DDebugDraw';
+
+export {
     readCollider3DShapes,
     collider3DWireframe,
     placeCollider3DWireframe,

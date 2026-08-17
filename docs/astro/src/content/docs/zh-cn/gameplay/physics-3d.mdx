@@ -90,6 +90,28 @@ cmds.spawn()
   这个网格,几千条投影出来的边只会把它埋掉。
 </Aside>
 
+### 游戏跑起来的时候
+
+编辑器的 gizmo 在 Play 时全部隐藏,所以由运行中的游戏画它自己的。
+需要弄清「它为什么卡在那儿」时,把 `Physics3DDebugDraw` 资源打开:
+
+```typescript
+app.getResource(Physics3DDebugDraw).enabled = true;
+```
+
+| 字段 | 作用 |
+|---|---|
+| `enabled` | 默认关闭——每帧每条边一根线,这是有代价的。 |
+| `showColliders` | 求解器真的建出来的每个刚体的形状。 |
+| `showContacts` | 这一步报告的每个接触点上画一个十字。 |
+
+<Aside>
+  这里只画**求解器真的建了的**那些。被禁用的碰撞体属于编辑态,该在编辑器里看——
+  运行中的游戏把它画出来就是在描述一场不可能发生的碰撞。
+
+  这层覆盖**不参与深度测试**,所以埋在墙里的形状照样看得见。调试视图就是要这样。
+</Aside>
+
 ## 角色
 
 `CharacterController3D` **取代** `RigidBody3D` 而不是与它并存:被求解器推的刚体
