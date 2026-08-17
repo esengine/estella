@@ -57,6 +57,13 @@ const BLOCK_BINDINGS = {
   TimeConstants: 3,
 };
 
+// The samplers the Lit-2D header declares, on the units it pins them to — the
+// same two mesh.esshader's hand-written twin names.
+const ENGINE_SAMPLERS = [
+  { name: 'u_shadowMap', unit: 2 },
+  { name: 'u_envMap', unit: 3 },
+];
+
 // Group-1 unit map — mirrors WebGPUMappings textureBindingForUnit/samplerBindingForUnit.
 const textureBindingForUnit = (u) => (u < 8 ? u : u + 8);
 const samplerBindingForUnit = (u) => (u < 8 ? u + 8 : u + 16);
@@ -127,8 +134,8 @@ function adaptGlsl(glsl, textures) {
   }
 
   // Reflected texture params (assembled as `uniform highp sampler2D <name>;`)
-  // at their reflected material units.
-  for (const { name, unit } of textures) {
+  // at their reflected material units, then the ones the injected header brings.
+  for (const { name, unit } of [...textures, ...ENGINE_SAMPLERS]) {
     const declRe = new RegExp(`uniform\\s+(?:highp\\s+)?sampler2D\\s+${name}\\s*;`);
     if (!declRe.test(out)) continue;
     out = out.replace(declRe, splitUniformDecl(name, unit));
