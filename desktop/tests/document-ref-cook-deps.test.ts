@@ -143,5 +143,34 @@ describe('assets named only inside another document are cooked', () => {
     const font = manifest.entries.find((e) => e.uuid === FNT)!;
     const stagedFnt = readFileSync(path.join(res.outDir, font.path), 'utf8');
     expect(stagedFnt).toContain('file="assets/fonts/tiny.png"');
+
+    // And the package is self-consistent: nothing it staged names a path it lacks.
+    expect(res.warnings.filter((w) => /does not carry/.test(w))).toEqual([]);
+  });
+
+  // The backstop for the type nobody has wired up yet: whatever the document is,
+  // a path it names that the package does not carry is a 404 waiting to happen.
+  it('reports a staged document that names an asset the package lacks', async () => {
+    const lone = mkdtempSync(path.join(tmpdir(), 'estella-dangling-'));
+    const prev = root;
+    root = lone;
+    try {
+      writeAsset('assets/env/gone.esenv', 'environment', ESENV, JSON.stringify({
+        version: 1, irradiance: new Array(27).fill(0), specular: 'nowhere.png',
+        faceSize: 8, mipCount: 1, maxRange: 8,
+      }));
+      writeAsset('assets/scenes/main.esscene', 'scene', SCENE, JSON.stringify({
+        version: '1.0', name: 'm',
+        entities: [{
+          id: 1, name: 'Sky', parent: null, children: [],
+          components: [{ type: 'Light2D', data: { type: 2, environment: 'assets/env/gone.esenv' } }],
+        }],
+      }));
+      const res = await cookAssets(lone, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
+      expect(res.warnings.some((w) => /gone\.esenv: names 'nowhere\.png'/.test(w))).toBe(true);
+    } finally {
+      root = prev;
+      rmSync(lone, { recursive: true, force: true });
+    }
   });
 });

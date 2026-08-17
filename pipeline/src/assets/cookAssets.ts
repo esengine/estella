@@ -29,7 +29,8 @@ import { readTextureCookSettings } from '../project/importSettings';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
-import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
+import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
+import { resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -255,6 +256,30 @@ function rewriteTilemapRefs(
     }
   }
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
+/**
+ * Asset paths a staged document names that the package does not carry. Three
+ * defects of this shape were each a different type, and each was found by a game
+ * drawing the wrong thing — a document's own references being the one place
+ * nothing checked. Only KNOWN asset extensions count, so ordinary strings do not.
+ */
+function unresolvedDocumentRefs(
+  docPath: string,
+  text: string,
+  shipped: ReadonlySet<string>,
+): string[] {
+  const missing = new Set<string>();
+  for (const [, ref] of text.matchAll(/"([^"\n]{3,200})"/g)) {
+    // By EXTENSION, not by looksLikeAssetPath: that one wants a directory in the
+    // string, and a document naming a sibling — the exact shape of every defect
+    // this is here for — has none.
+    if (ref.includes('://') || !/\.[A-Za-z0-9]+$/.test(ref) || !getAssetTypeEntry(ref)) continue;
+    // Resolved the way a loader will: refs travel in LOGICAL space, so a sibling
+    // is a sibling of the document's project path, not of where staging put it.
+    if (!shipped.has(resolveDocumentRef(docPath, ref))) missing.add(ref);
+  }
+  return [...missing];
 }
 
 export interface CookResult {
@@ -690,6 +715,22 @@ export async function cookAssets(
     }
   }
   manifestEntries.sort((a, b) => a.path.localeCompare(b.path));
+
+  // Is the package self-consistent? A document still naming a path the package
+  // lacks is a 404 the game shows as a missing texture or absent lighting rather
+  // than as an error — and the type it happens on need not be one anyone wired up.
+  const shipped = new Set(manifestEntries.map((e) => e.sourcePath));
+  for (const entry of manifestEntries) {
+    const type = getAssetTypeEntry(entry.sourcePath);
+    if (type?.contentType !== 'json' && type?.contentType !== 'text') continue;
+    let text: string;
+    try {
+      text = (await readFile(path.join(absOut, entry.path))).toString('utf8');
+    } catch { continue; }
+    for (const ref of unresolvedDocumentRefs(entry.sourcePath, text, shipped)) {
+      warnings.push(`${entry.sourcePath}: names '${ref}', which the package does not carry`);
+    }
+  }
 
   const manifestPath = path.join(absOut, MANIFEST);
   await writeFile(
