@@ -56,6 +56,11 @@ export const SCENES = [
     // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.
   { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
+
+  // The same question through a PERSPECTIVE camera, which is what a 3D scene uses:
+  // coverage derived from the camera's NDC z=0 slice is the whole view for the
+  // orthographic one above and a sliver near the near plane for this one.
+  { id: "mesh-shadow-perspective", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-perspective.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.86,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.10,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat
   // ambient term draws the halves identically, which is why the probes invert.

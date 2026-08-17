@@ -7,6 +7,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light2D.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
+#include "../../ecs/components/Mesh2D.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
@@ -766,6 +767,30 @@ static constexpr u32 kShadowMapSize = 1024;
 /// camera-sized area to stop shadowing itself, small enough not to detach contact.
 static constexpr f32 kShadowBias = 0.0015f;
 
+/// The world box every GPU-resident mesh occupies, or false when none does — what
+/// a shadow map has to cover, casters and receivers alike. Rotation is ignored,
+/// the same approximation MeshPlugin's own cull uses.
+bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax) {
+    auto meshes = registry.view<ecs::Transform, ecs::Mesh2D>();
+    bool any = false;
+    for (auto entity : meshes) {
+        const auto& mesh = meshes.get<ecs::Mesh2D>(entity);
+        if (!mesh.enabled || !mesh.mesh.isValid()) continue;
+        const Mesh* resident = resource_manager_.getMesh(mesh.mesh);
+        if (!resident) continue;
+        auto& transform = meshes.get<ecs::Transform>(entity);
+        transform.ensureDecomposed();
+        const glm::vec3 scale = transform.worldScale;
+        const glm::vec3 centre = transform.worldPosition
+                               + (resident->localMin + resident->localMax) * 0.5f * scale;
+        const glm::vec3 half = glm::abs((resident->localMax - resident->localMin) * 0.5f * scale);
+        outMin = any ? glm::min(outMin, centre - half) : centre - half;
+        outMax = any ? glm::max(outMax, centre + half) : centre + half;
+        any = true;
+    }
+    return any;
+}
+
 void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
     // Zeroed params first: a matrix that outlived its map would shadow the scene
@@ -780,15 +805,19 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     auto* rt = target_manager_.get(shadow_rt_);
     if (!rt) return;
 
-    // What the map has to cover: the camera's own view, unless the light asked for a
-    // fixed reach. A radius rather than the rect, so the coverage does not change as
-    // the light turns — a shadow that resized when the sun moved would crawl.
+    // What the map covers: the 3D geometry, unless the light asked for a fixed reach.
+    // A radius, so coverage does not change as the light turns. NOT the camera's
+    // world rect — that reprojects NDC z=0, the whole view only when orthographic.
+    glm::vec3 boundsMin(0.0f), boundsMax(0.0f);
+    const bool haveBounds = meshWorldBounds(registry, boundsMin, boundsMax);
     const CameraWorldRect view = computeCameraWorldRect(view_projection_);
-    const f32 fitted = 0.5f * glm::length(glm::vec2(view.right - view.left,
-                                                    view.top - view.bottom));
+    const f32 fitted = haveBounds
+        ? 0.5f * glm::length(boundsMax - boundsMin)
+        : 0.5f * glm::length(glm::vec2(view.right - view.left, view.top - view.bottom));
     const f32 radius = shadow_light_extent_ > 0.0f ? shadow_light_extent_
                                                    : std::max(fitted, 1.0f);
-    const glm::vec3 centre(view.center.x, view.center.y, 0.0f);
+    const glm::vec3 centre = haveBounds ? (boundsMin + boundsMax) * 0.5f
+                                        : glm::vec3(view.center.x, view.center.y, 0.0f);
 
     // The light's own direction, in the three dimensions the 2D field implies: the
     // shader lights a surface from normalize(-dir.xy, 1), so rays travel the other way.

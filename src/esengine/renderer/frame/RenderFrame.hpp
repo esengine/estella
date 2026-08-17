@@ -308,6 +308,10 @@ private:
      *          one: the map is one per frame, the receiving shader having one of each.
      */
     void renderShadowMap(ecs::Registry& registry);
+
+    /// The world box the resident meshes occupy — what a shadow map must cover.
+    /// False when nothing 3D is in the scene.
+    bool meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax);
     /// Opens the frame's own target with @p clear's load-op. Shared by begin() and the
     /// shadow pass, which re-opens it after drawing through a target of its own.
     void openPass(const PassClear& clear, RenderTargetManager::Handle target);
