@@ -16,6 +16,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **3D physics on a device.** The Jolt module is compiled into the native host
+  the way Box2D already is, so an iOS, Android or desktop build carries the 3D
+  world instead of failing to find a side module that has no story there. Its
+  entry points are declared once (`Physics3DBindings.hpp`) and both platforms
+  bind the same file — until now the SDK's TypeScript interface was the only
+  statement of that surface, which is exactly the drift the 2D module documented
+  when it grew the same header.
+
+- **A 3D physics example.** `examples/physics-3d`: a character walks, climbs two
+  steps, shoves crates and swings a hinged door, drawn by the debug overlay so
+  the project ships no art. Every check until now was a synthetic fixture; this
+  is the first project that uses the whole chain, and it found the gap above on
+  its first run.
+
 - **The running game can draw its own 3D shapes.** `Physics3DDebugDraw` outlines
   every collider the solver built, in the game rather than in the editor — which
   is the only place the question "why did the player get stuck there" can be

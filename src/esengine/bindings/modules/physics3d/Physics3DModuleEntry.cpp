@@ -687,7 +687,9 @@ int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz
 // Readback
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_transforms() { return g().transformBuffer.data(); }
+uintptr_t physics3d_transforms() {
+    return reinterpret_cast<uintptr_t>(g().transformBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() {
@@ -695,7 +697,9 @@ size_t physics3d_transformsBytes() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_contactEnters() { return g().contactEnterBuffer.data(); }
+uintptr_t physics3d_contactEnters() {
+    return reinterpret_cast<uintptr_t>(g().contactEnterBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_contactEntersBytes() {
@@ -703,7 +707,9 @@ size_t physics3d_contactEntersBytes() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_contactExits() { return g().contactExitBuffer.data(); }
+uintptr_t physics3d_contactExits() {
+    return reinterpret_cast<uintptr_t>(g().contactExitBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_contactExitsBytes() {
@@ -711,7 +717,9 @@ size_t physics3d_contactExitsBytes() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_sensorEnters() { return g().sensorEnterBuffer.data(); }
+uintptr_t physics3d_sensorEnters() {
+    return reinterpret_cast<uintptr_t>(g().sensorEnterBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_sensorEntersBytes() {
@@ -719,7 +727,9 @@ size_t physics3d_sensorEntersBytes() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_sensorExits() { return g().sensorExitBuffer.data(); }
+uintptr_t physics3d_sensorExits() {
+    return reinterpret_cast<uintptr_t>(g().sensorExitBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_sensorExitsBytes() {
@@ -727,7 +737,9 @@ size_t physics3d_sensorExitsBytes() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-const float* physics3d_queryResult() { return g().queryBuffer.data(); }
+uintptr_t physics3d_queryResult() {
+    return reinterpret_cast<uintptr_t>(g().queryBuffer.data());
+}
 
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_queryResultBytes() {

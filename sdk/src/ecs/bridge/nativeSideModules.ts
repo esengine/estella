@@ -48,6 +48,7 @@ const SPINE_PROBES = SPINE_VERSIONS.reduce<Partial<Record<SideModuleId, string>>
 
 export const NATIVE_SIDE_MODULE_PROBES: Partial<Record<SideModuleId, string>> = {
     physics: 'es_physics_init',
+    physics3d: 'es_physics3d_init',
     videodec: 'es_video_open',
     // One entry, not one per version: the DragonBones format is frozen, so unlike
     // Spine there is no "which runtime did this binary link" question to ask.

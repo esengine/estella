@@ -132,6 +132,17 @@ set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_VALIDATE OFF CACHE BOOL "" FORCE)   # release: no heavy internal assertions
 add_subdirectory("${TP}/box2d" "${CMAKE_BINARY_DIR}/box2d" EXCLUDE_FROM_ALL)
 
+# Jolt, on the same reasoning as Box2D above: the 3D world is a wasm side module
+# on the web and a linked-in library here. Its own sources, globbed — the vendored
+# tree carries no CMake of its own (see third_party/CMakeLists.txt, which builds
+# it the same way for the web).
+file(GLOB_RECURSE JOLT_SOURCES "${TP}/jolt/Jolt/*.cpp")
+add_library(jolt STATIC ${JOLT_SOURCES})
+target_include_directories(jolt PUBLIC "${TP}/jolt")
+target_compile_features(jolt PUBLIC cxx_std_17)
+target_compile_definitions(jolt PUBLIC JPH_USE_CPU_COMPUTE)
+es_silence_warnings(jolt)
+
 # The Spine runtime: the vendored release plus the module's entry points, compiled
 # into the host. Every runtime backend exports the same symbol names, so a binary
 # carries exactly ONE — which is why the web ships a module per version and a native
@@ -203,6 +214,13 @@ set(ESTELLA_PHYSICS_SOURCES
 add_library(estella_physics STATIC ${ESTELLA_PHYSICS_SOURCES})
 target_include_directories(estella_physics PUBLIC "${SRC}" "${TP}/box2d/include")
 target_link_libraries(estella_physics PUBLIC box2d)
+
+set(ESTELLA_PHYSICS3D_SOURCES
+    "${SRC}/esengine/bindings/modules/physics3d/Physics3DModuleEntry.cpp"
+    "${SRC}/esengine/bindings/modules/physics3d/Physics3DConstraints.cpp")
+add_library(estella_physics3d STATIC ${ESTELLA_PHYSICS3D_SOURCES})
+target_include_directories(estella_physics3d PUBLIC "${SRC}")
+target_link_libraries(estella_physics3d PUBLIC jolt)
 
 if(ANDROID)
     add_library(native_app_glue STATIC
@@ -326,7 +344,8 @@ if(ESTELLA_QUICKJS_DIR)
         set_source_files_properties(host/media/native_audio.cpp
         host/media/audio_spectrum.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
-        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
+        target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
+            estella_video estella_spine
             estella_dragonbones qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
@@ -337,6 +356,7 @@ if(ESTELLA_QUICKJS_DIR)
             COMMAND libtool -static -o "${CMAKE_BINARY_DIR}/libestella_ios.a"
                     $<TARGET_FILE:estella_js_host> $<TARGET_FILE:esengine>
                     $<TARGET_FILE:estella_physics> $<TARGET_FILE:box2d>
+                    $<TARGET_FILE:estella_physics3d> $<TARGET_FILE:jolt>
                     $<TARGET_FILE:estella_video>
                     $<TARGET_FILE:estella_spine> $<TARGET_FILE:spine_runtime>
                     $<TARGET_FILE:estella_dragonbones> $<TARGET_FILE:dragonbones_runtime>
@@ -360,8 +380,8 @@ if(ESTELLA_QUICKJS_DIR)
             ${DESKTOP_OS_SOURCES})
         set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
         target_compile_definitions(estella_js_host PRIVATE ESTELLA_DESKTOP)
-        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
-            estella_dragonbones qjs SDL3::SDL3)
+        target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
+            estella_video estella_spine estella_dragonbones qjs SDL3::SDL3)
         if(ESTELLA_WINDOWS)
             # Dawn's D3D12 backend, DirectWrite for the font match, WinHTTP for the
             # fetch. miniaudio reaches WASAPI through the COM headers it includes.
@@ -393,7 +413,8 @@ if(ESTELLA_QUICKJS_DIR)
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp)
-        target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine
+        target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
+            estella_video estella_spine
             estella_dragonbones qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()

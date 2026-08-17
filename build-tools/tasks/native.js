@@ -73,6 +73,7 @@ export const ENGINE_BINDING_HEADERS = [
 // together under modules/<name>/, so the entry is a path, not a bare filename.
 export const MODULE_BINDING_HEADERS = [
     'modules/physics/PhysicsBindings.hpp',
+    'modules/physics3d/Physics3DBindings.hpp',
     'modules/video/VideoBindings.hpp',
     'modules/spine/SpineBindings.hpp',
     'modules/dragonbones/DragonBonesBindings.hpp',
