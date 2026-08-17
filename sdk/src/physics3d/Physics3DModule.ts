@@ -5,6 +5,9 @@
  * @brief   The 3D physics wasm module's surface, and how it is loaded.
  */
 
+import { defineResource } from '../ecs/resource';
+import type { Entity } from '../types';
+
 /** What the module exports. Kept in step with Physics3DModuleEntry.cpp by
  *  {@link assertPhysics3DContract} — a TypeScript interface is gone at run time,
  *  and a module built before the JS that drives it installs happily and then
@@ -52,6 +55,15 @@ export interface Physics3DWasmModule {
     _physics3d_raycast(ox: number, oy: number, oz: number,
                        dx: number, dy: number, dz: number): number;
 
+    _physics3d_contactEnters(): number;
+    _physics3d_contactEntersBytes(): number;
+    _physics3d_contactExits(): number;
+    _physics3d_contactExitsBytes(): number;
+    _physics3d_sensorEnters(): number;
+    _physics3d_sensorEntersBytes(): number;
+    _physics3d_sensorExits(): number;
+    _physics3d_sensorExitsBytes(): number;
+
     _physics3d_transforms(): number;
     _physics3d_transformsBytes(): number;
     _physics3d_queryResult(): number;
@@ -73,6 +85,8 @@ const REQUIRED_EXPORTS = [
     '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
     '_physics3d_transforms', '_physics3d_transformsBytes',
     '_physics3d_addCharacter', '_physics3d_moveCharacter', '_physics3d_removeCharacter',
+    '_physics3d_contactEnters', '_physics3d_contactEntersBytes',
+    '_physics3d_sensorEnters', '_physics3d_sensorEntersBytes',
 ] as const;
 
 /** Throws naming what is missing, rather than letting the first frame do it. */
@@ -94,4 +108,79 @@ export async function loadPhysics3DModule(
     const module = await resolved();
     assertPhysics3DContract(module);
     return module;
+}
+
+// =============================================================================
+// Events
+// =============================================================================
+
+/** Two bodies met, and where. */
+export interface Contact3DEvent {
+    entityA: Entity;
+    entityB: Entity;
+    normalX: number;
+    normalY: number;
+    normalZ: number;
+    pointX: number;
+    pointY: number;
+    pointZ: number;
+}
+
+/** A sensor was entered or left. The SENSOR is always named first. */
+export interface Sensor3DEvent {
+    sensorEntity: Entity;
+    visitorEntity: Entity;
+}
+
+export interface Physics3DEventsData {
+    contactEnters: Contact3DEvent[];
+    /** Ends carry only the pair: at that moment the bodies are locked and one may
+     *  already be gone, so there is no geometry left to report. */
+    contactExits: Array<{ entityA: Entity; entityB: Entity }>;
+    sensorEnters: Sensor3DEvent[];
+    sensorExits: Sensor3DEvent[];
+}
+
+/**
+ * This step's 3D collision and trigger events. Drained per fixed step, so a
+ * system reading it must run inside one — a read from `Update` sees whatever the
+ * last step left.
+ *
+ * @beta
+ */
+export const Physics3DEvents = defineResource<Physics3DEventsData>({
+    contactEnters: [],
+    contactExits: [],
+    sensorEnters: [],
+    sensorExits: [],
+}, 'Physics3DEvents');
+
+/** Refill `events` from the module's four buffers. */
+export function drainPhysics3DEvents(module: Physics3DWasmModule,
+                                     events: Physics3DEventsData): void {
+    const f32 = module.HEAPF32;
+    const read = <T>(ptr: number, bytes: number, stride: number,
+                     make: (base: number) => T): T[] => {
+        const out: T[] = [];
+        const base = ptr >> 2;
+        for (let i = 0; i < bytes / 4; i += stride) out.push(make(base + i));
+        return out;
+    };
+
+    events.contactEnters = read(
+        module._physics3d_contactEnters(), module._physics3d_contactEntersBytes(), 8,
+        (o) => ({
+            entityA: f32[o] as Entity, entityB: f32[o + 1] as Entity,
+            normalX: f32[o + 2]!, normalY: f32[o + 3]!, normalZ: f32[o + 4]!,
+            pointX: f32[o + 5]!, pointY: f32[o + 6]!, pointZ: f32[o + 7]!,
+        }));
+    events.contactExits = read(
+        module._physics3d_contactExits(), module._physics3d_contactExitsBytes(), 2,
+        (o) => ({ entityA: f32[o] as Entity, entityB: f32[o + 1] as Entity }));
+    events.sensorEnters = read(
+        module._physics3d_sensorEnters(), module._physics3d_sensorEntersBytes(), 2,
+        (o) => ({ sensorEntity: f32[o] as Entity, visitorEntity: f32[o + 1] as Entity }));
+    events.sensorExits = read(
+        module._physics3d_sensorExits(), module._physics3d_sensorExitsBytes(), 2,
+        (o) => ({ sensorEntity: f32[o] as Entity, visitorEntity: f32[o + 1] as Entity }));
 }

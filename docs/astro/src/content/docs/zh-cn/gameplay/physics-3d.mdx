@@ -69,6 +69,37 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   而不是让每个调用者各自重新发现这件事。
 </Aside>
 
+## 碰撞事件
+
+每一步都会把「谁碰到了谁」发布到 `Physics3DEvents` 资源里。它按固定步长排空,
+所以读它的系统必须跑在固定步里——从 `Update` 里读只会看到上一步碰巧留下的东西。
+
+```typescript
+const events = app.getResource(Physics3DEvents);
+for (const hit of events.contactEnters) {
+  // 两个实体,以及它们相遇的位置
+  spawnSparks(hit.pointX, hit.pointY, hit.pointZ);
+}
+for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
+  if (sensorEntity === goalZone) score(visitorEntity);
+}
+```
+
+| 通道 | 带着什么 |
+|---|---|
+| `contactEnters` | 两个实体、接触法线和接触点。 |
+| `contactExits` | 只有这一对——原因见下。 |
+| `sensorEnters` / `sensorExits` | **传感器在前**,然后是访客。 |
+
+<Aside>
+  结束的接触不带几何:在那一刻求解器锁着两个刚体,其中一个甚至可能已经被销毁,
+  所以除了「这一对是谁」之外什么都报不出来。另外,接触也会在刚体**睡着**时结束,
+  而不只是在它移开时——请把 exit 理解成「这一对不再接触了」,而不是「有东西动了」。
+</Aside>
+
+带 `isSensor` 的碰撞体报告重叠但不拦任何东西:访客直接穿过去,并且出现在
+`sensorEnters` 而不是 `contactEnters` 里。
+
 ## 一个场景在哪个世界里
 
 没有东西阻止一个实体同时带两套组件,但也没有东西会把它们合并:两个世界互相看不见,

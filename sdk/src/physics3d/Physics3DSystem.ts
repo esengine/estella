@@ -20,8 +20,8 @@ import {
     type CapsuleCollider3DData, type CharacterController3DData,
 } from './Physics3DComponents';
 import type { Entity } from '../types';
-import type { Physics3DWasmModule } from './Physics3DModule';
-import { PHYSICS3D_TRANSFORM_STRIDE } from './Physics3DModule';
+import type { Physics3DWasmModule, Physics3DEventsData } from './Physics3DModule';
+import { PHYSICS3D_TRANSFORM_STRIDE, drainPhysics3DEvents } from './Physics3DModule';
 
 /** Body kinds, in the order the module reads them. */
 const MOTION = { Static: 0, Kinematic: 1, Dynamic: 2 } as const;
@@ -155,7 +155,8 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
 /** Bring the world's population in line with the ECS, then step and read back. */
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
                               bodies: BodyMap, config: Physics3DConfig,
-                              characters: BodyMap = new Map()): void {
+                              characters: BodyMap = new Map(),
+                              events?: Physics3DEventsData): void {
     const ppu = config.pixelsPerUnit;
     moveCharacters(app, module, characters, config);
 
@@ -176,6 +177,9 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     }
 
     module._physics3d_step(config.fixedTimestep, config.collisionSteps);
+    // Drained immediately after the step that produced them: the module's buffers
+    // hold one step's worth and the next step clears them.
+    if (events) drainPhysics3DEvents(module, events);
 
     // Only bodies the solver moved are in the buffer, so this is the frame's
     // moving population rather than every body in the world.

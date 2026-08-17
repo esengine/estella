@@ -23,6 +23,7 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/RegisterTypes.h>
 
 #include <cstddef>
@@ -74,6 +75,71 @@ struct BodyMotion {
     int fixedRotation = 0;
 };
 
+/// The entity a body speaks for, or 0 when nothing claims it.
+uint32_t entityOfBody(const BodyID& id) {
+    auto found = g().entityOf.find(id.GetIndexAndSequenceNumber());
+    return found == g().entityOf.end() ? 0u : found->second;
+}
+
+/**
+ * Records what touched what. Jolt calls this with every body locked, so it reads
+ * only its own tables and the geometry it is handed — never the world.
+ */
+class ContactRecorder final : public ContactListener {
+public:
+    void OnContactAdded(const Body& body1, const Body& body2, const ContactManifold& manifold,
+                        ContactSettings&) override {
+        const uint32_t a = body1.GetID().GetIndexAndSequenceNumber();
+        const uint32_t b = body2.GetID().GetIndexAndSequenceNumber();
+        const uint32_t entityA = entityOfBody(body1.GetID());
+        const uint32_t entityB = entityOfBody(body2.GetID());
+        if (entityA == 0 && entityB == 0) return;
+
+        const bool aIsSensor = g().sensorBodies.count(a) != 0;
+        const bool bIsSensor = g().sensorBodies.count(b) != 0;
+        if (aIsSensor || bIsSensor) {
+            // The sensor is named first, so a listener never has to work out
+            // which of the two it subscribed to.
+            g().sensorEnterBuffer.push_back(static_cast<float>(aIsSensor ? entityA : entityB));
+            g().sensorEnterBuffer.push_back(static_cast<float>(aIsSensor ? entityB : entityA));
+            return;
+        }
+        const RVec3 point = manifold.GetWorldSpaceContactPointOn1(0);
+        const Vec3 normal = manifold.mWorldSpaceNormal;
+        g().contactEnterBuffer.insert(g().contactEnterBuffer.end(), {
+            static_cast<float>(entityA), static_cast<float>(entityB),
+            normal.GetX(), normal.GetY(), normal.GetZ(),
+            static_cast<float>(point.GetX()), static_cast<float>(point.GetY()),
+            static_cast<float>(point.GetZ()),
+        });
+    }
+
+    void OnContactRemoved(const SubShapeIDPair& pair) override {
+        const uint32_t a = pair.GetBody1ID().GetIndexAndSequenceNumber();
+        const uint32_t b = pair.GetBody2ID().GetIndexAndSequenceNumber();
+        const uint32_t entityA = entityOfBody(pair.GetBody1ID());
+        const uint32_t entityB = entityOfBody(pair.GetBody2ID());
+        if (entityA == 0 && entityB == 0) return;
+
+        const bool aIsSensor = g().sensorBodies.count(a) != 0;
+        const bool bIsSensor = g().sensorBodies.count(b) != 0;
+        std::vector<float>& out = (aIsSensor || bIsSensor) ? g().sensorExitBuffer
+                                                           : g().contactExitBuffer;
+        if (aIsSensor || bIsSensor) {
+            out.push_back(static_cast<float>(aIsSensor ? entityA : entityB));
+            out.push_back(static_cast<float>(aIsSensor ? entityB : entityA));
+        } else {
+            out.push_back(static_cast<float>(entityA));
+            out.push_back(static_cast<float>(entityB));
+        }
+    }
+};
+
+ContactRecorder& recorder() {
+    static ContactRecorder instance;
+    return instance;
+}
+
 /// Register a shape as a body, and remember which entity it speaks for.
 uint32_t addBody(uint32_t entity, Shape* shape, float px, float py, float pz,
                  float qx, float qy, float qz, float qw, const BodyMotion& how,
@@ -99,6 +165,7 @@ uint32_t addBody(uint32_t entity, Shape* shape, float px, float py, float pz,
                                                     : EActivation::Activate);
     if (id.IsInvalid()) return 0;
     g().entityOf[id.GetIndexAndSequenceNumber()] = entity;
+    if (isSensor != 0) g().sensorBodies.insert(id.GetIndexAndSequenceNumber());
     return id.GetIndexAndSequenceNumber();
 }
 
@@ -126,6 +193,7 @@ void physics3d_init(float gx, float gy, float gz, uint32_t maxBodies) {
     g().system->Init(bodies, 0, bodies * 2, bodies * 2, g().broadPhaseLayers,
                      g().objectVsBroadPhase, g().objectPairs);
     g().system->SetGravity(Vec3(gx, gy, gz));
+    g().system->SetContactListener(&recorder());
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -138,6 +206,11 @@ void physics3d_shutdown() {
     g().jobs = nullptr;
     g().temp = nullptr;
     g().characters.clear();
+    g().sensorBodies.clear();
+    g().contactEnterBuffer.clear();
+    g().contactExitBuffer.clear();
+    g().sensorEnterBuffer.clear();
+    g().sensorExitBuffer.clear();
     g().entityOf.clear();
     g().transformBuffer.clear();
     g().queryBuffer.clear();
@@ -152,6 +225,12 @@ int physics3d_isReady() { return g().isValid() ? 1 : 0; }
 EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {
     if (!g().isValid() || dt <= 0.0f) return;
+    // Cleared before the step, not after: the listener fires DURING Update, and a
+    // buffer emptied afterwards would publish nothing.
+    g().contactEnterBuffer.clear();
+    g().contactExitBuffer.clear();
+    g().sensorEnterBuffer.clear();
+    g().sensorExitBuffer.clear();
     g().system->Update(dt, collisionSteps > 0 ? collisionSteps : 1, g().temp, g().jobs);
 
     BodyIDVector active;
@@ -232,6 +311,7 @@ void physics3d_removeBody(uint32_t bodyId) {
     bodies.RemoveBody(id);
     bodies.DestroyBody(id);
     g().entityOf.erase(bodyId);
+    g().sensorBodies.erase(bodyId);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -391,6 +471,38 @@ const float* physics3d_transforms() { return g().transformBuffer.data(); }
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() {
     return g().transformBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const float* physics3d_contactEnters() { return g().contactEnterBuffer.data(); }
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactEntersBytes() {
+    return g().contactEnterBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const float* physics3d_contactExits() { return g().contactExitBuffer.data(); }
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactExitsBytes() {
+    return g().contactExitBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const float* physics3d_sensorEnters() { return g().sensorEnterBuffer.data(); }
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_sensorEntersBytes() {
+    return g().sensorEnterBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const float* physics3d_sensorExits() { return g().sensorExitBuffer.data(); }
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_sensorExitsBytes() {
+    return g().sensorExitBuffer.size() * sizeof(float);
 }
 
 EMSCRIPTEN_KEEPALIVE

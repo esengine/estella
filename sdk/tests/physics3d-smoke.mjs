@@ -199,7 +199,85 @@ check('a removed character can no longer be moved',
       (m._physics3d_moveCharacter(hero, 1, 0, 0, 1 / 60, 0.4, 0.5),
        m._physics3d_queryResultBytes() === 0));
 
-// ── 7) A removed body is gone from both the sweep and the getter ────────────
+// ── 7) What touched what ───────────────────────────────────────────────────
+// Contact events name BOTH entities and where they met. A falling sphere landing
+// on a fresh floor is one enter; nothing leaves until it is moved away.
+const pairs = (ptr, bytes, stride) => {
+    const base = m[ptr]() >> 2;
+    const out = [];
+    for (let i = 0; i < m[bytes]() / 4; i += stride) {
+        out.push(Array.from({ length: stride }, (_, k) => m.HEAPF32[base + i + k]));
+    }
+    return out;
+};
+const contactEnters = () => pairs('_physics3d_contactEnters', '_physics3d_contactEntersBytes', 8);
+const contactExits = () => pairs('_physics3d_contactExits', '_physics3d_contactExitsBytes', 2);
+const sensorEnters = () => pairs('_physics3d_sensorEnters', '_physics3d_sensorEntersBytes', 2);
+const sensorExits = () => pairs('_physics3d_sensorExits', '_physics3d_sensorExitsBytes', 2);
+
+const PAD = 20, DROP = 21;
+m._physics3d_addBox(PAD, 2, 0.5, 2, 20, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+const dropId = m._physics3d_addSphere(DROP, 0.5, 20, 2, 0, ...IDENTITY,
+                                      ...FREE(DYNAMIC), 0.5, 0, 0);
+m._physics3d_optimize();
+let landing = null;
+for (let i = 0; i < 180 && !landing; i++) {
+    step(1);
+    landing = contactEnters().find((e) => e[1] === DROP || e[0] === DROP) ?? null;
+}
+check('a contact names both entities', landing != null
+      && (landing[0] === PAD || landing[1] === PAD), JSON.stringify(landing));
+check('and where they met', landing != null && near(landing[6], 0.0, 0.15),
+      `contact y=${landing?.[6]?.toFixed(4)} want the pad's top at 0`);
+// A buffer holds ONE step's events, so they are collected as the steps run —
+// reading after a run of steps catches only the last one's.
+const collect = (read, steps) => {
+    const seen = [];
+    for (let i = 0; i < steps; i++) { step(1); seen.push(...read()); }
+    return seen;
+};
+const settledEnters = [];
+const seenExits = [];
+for (let i = 0; i < 90; i++) {
+    step(1);
+    settledEnters.push(...contactEnters());
+    seenExits.push(...contactExits());
+}
+check('a contact does not fire again while it persists', settledEnters.length === 0,
+      `${settledEnters.length} re-fired`);
+
+// The contact ends on its own once the sphere settles and sleeps; moving it away
+// is the other way it ends. Either is the claim — that an ended contact is
+// REPORTED — so both windows count toward it.
+m._physics3d_setTransform(dropId, 40, 5, 0, ...IDENTITY);
+seenExits.push(...collect(contactExits, 30));
+check('an ended contact reports an exit', seenExits.some((e) => e.includes(DROP)),
+      JSON.stringify(seenExits));
+
+// A sensor reports the overlap without stopping anything, and names ITSELF first.
+// The visitor is registered first on purpose: Jolt orders a contact by body id, so
+// a sensor created first would lead on its own and prove nothing.
+const FIELD = 22, VISITOR = 23;
+const visitorId = m._physics3d_addSphere(VISITOR, 0.5, -20, 6, 0, ...IDENTITY,
+                                         ...FREE(DYNAMIC), 0.5, 0, 0);
+m._physics3d_addBox(FIELD, 2, 2, 2, -20, 0, 0, ...IDENTITY, ...FREE(STATIC), 0, 0, 1);
+m._physics3d_optimize();
+let entered = null;
+for (let i = 0; i < 240 && !entered; i++) {
+    step(1);
+    entered = sensorEnters().find((e) => e[0] === FIELD) ?? null;
+}
+check('a sensor reports its visitor', entered != null && entered[1] === VISITOR,
+      JSON.stringify(entered));
+// It carries on to the floor below (top at 0, so a 0.5 sphere rests at 0.5). A
+// sensor that stopped it would hold it on its own top face at 2.5 instead.
+const sensorLeft = collect(sensorExits, 180).find((e) => e[0] === FIELD) ?? null;
+check('and does not stop it', near(bodyState(visitorId).y, 0.5, 0.1),
+      `visitor y=${bodyState(visitorId)?.y?.toFixed(4)} want 0.5 (through it, onto the floor)`);
+check('and reports when it leaves', sensorLeft != null && sensorLeft[1] === VISITOR,
+      JSON.stringify(sensorLeft));
+
+// ── 8) A removed body is gone from both the sweep and the getter ────────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

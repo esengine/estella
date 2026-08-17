@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The 3D world says what touched what.** Contacts and sensor overlaps reach
+  the ECS through a `Physics3DEvents` resource, drained per fixed step: an enter
+  carries both entities, the normal and the point; a sensor names itself first,
+  so a listener never has to work out which of the two it subscribed to.
+
+  An ended contact carries only the pair. At that moment the solver holds both
+  bodies locked and one may already have been destroyed, so there is nothing left
+  to report — and a contact ends when a body falls ASLEEP as well as when it moves
+  away, which is what the gate had to be rewritten to see.
+
 - **A 3D character stands, walks and climbs a step.** `CharacterController3D`
   is swept against the world rather than solved in it, which is what lets it
   climb a 20cm step and stay glued to a slope without inheriting the momentum of

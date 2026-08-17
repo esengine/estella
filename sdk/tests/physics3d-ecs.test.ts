@@ -31,15 +31,17 @@ function fakeModule(): Physics3DWasmModule & {
 } {
     const calls: { name: string; args: number[] }[] = [];
     // One heap the module's two pointers index into, as wasm has.
-    const combined = new Float32Array(1088);
+    const combined = new Float32Array(2176);
     const heap = combined.subarray(0, 1024);
     const record = (name: string) => (...args: number[]): number => {
         calls.push({ name, args });
         return calls.length;  // a non-zero body id
     };
     const query = combined.subarray(1024);
+    const eventArea = combined.subarray(2048);
     let published = 0;
     let publishedQuery = 0;
+    let publishedEvents = 0;
     return {
         calls,
         publish(records: number[]) {
@@ -49,6 +51,10 @@ function fakeModule(): Physics3DWasmModule & {
         publishQuery(records: number[]) {
             query.set(records, 0);
             publishedQuery = records.length * 4;
+        },
+        publishContacts(records: number[]) {
+            eventArea.set(records, 0);
+            publishedEvents = records.length * 4;
         },
         HEAPF32: combined,
         HEAPU32: new Uint32Array(combined.buffer),
@@ -69,6 +75,14 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_removeCharacter: record('removeCharacter'),
         _physics3d_moveCharacter: record('moveCharacter'),
         _physics3d_setCharacterPosition: record('setCharacterPosition'),
+        _physics3d_contactEnters: () => 2048 * 4,
+        _physics3d_contactEntersBytes: () => publishedEvents,
+        _physics3d_contactExits: () => 0,
+        _physics3d_contactExitsBytes: () => 0,
+        _physics3d_sensorEnters: () => 0,
+        _physics3d_sensorEntersBytes: () => 0,
+        _physics3d_sensorExits: () => 0,
+        _physics3d_sensorExitsBytes: () => 0,
         _physics3d_transforms: () => 0,
         _physics3d_transformsBytes: () => published,
         // A byte offset past the transform buffer, so the two never alias.
@@ -78,6 +92,7 @@ function fakeModule(): Physics3DWasmModule & {
         calls: { name: string; args: number[] }[];
         publish(records: number[]): void;
         publishQuery(records: number[]): void;
+        publishContacts(records: number[]): void;
     };
 }
 
@@ -245,6 +260,24 @@ describe('the 3D world and the ECS', () => {
         expect(state.floorNormal.y).toBeCloseTo(1, 6);
         expect(state.realVelocity.x).toBeCloseTo(200, 4);
         expect((world.get(e, Transform) as TransformData).position.y).toBeCloseTo(200, 4);
+    });
+
+    it('hands this step\u2019s contacts to the events resource', () => {
+        const e = spawn();
+        world.insert(e, BoxCollider3D);
+        const events = {
+            contactEnters: [], contactExits: [], sensorEnters: [], sensorExits: [],
+        };
+        // (entityA, entityB, normal, point) — two bodies met head-on at 1m up.
+        module.publishContacts([7, 9, 0, 1, 0, 0, 1, 0]);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(), events);
+
+        expect(events.contactEnters).toHaveLength(1);
+        const [hit] = events.contactEnters as Array<Record<string, number>>;
+        expect(hit!.entityA).toBe(7);
+        expect(hit!.entityB).toBe(9);
+        expect(hit!.normalY).toBeCloseTo(1, 6);
+        expect(hit!.pointY).toBeCloseTo(1, 6);
     });
 
     it('leaves a disabled body out of the world', () => {

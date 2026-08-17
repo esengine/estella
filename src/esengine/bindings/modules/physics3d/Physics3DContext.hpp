@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace JPH { class CharacterVirtual; }
@@ -103,6 +104,19 @@ struct Context {
     std::vector<float> transformBuffer;
     /// The last query's hits, in the shape its getter documents.
     std::vector<float> queryBuffer;
+
+    /// Refilled every step by the contact listener. Enter carries the geometry
+    /// (entityA, entityB, nx,ny,nz, px,py,pz); exit only the pair, because at
+    /// that moment Jolt has both bodies locked and one of them may already be gone.
+    std::vector<float> contactEnterBuffer;
+    std::vector<float> contactExitBuffer;
+    std::vector<float> sensorEnterBuffer;
+    std::vector<float> sensorExitBuffer;
+
+    /// Which bodies are sensors, remembered at registration: OnContactRemoved
+    /// cannot ask a body anything, so a sensor that stopped overlapping would
+    /// otherwise be indistinguishable from a solid one.
+    std::unordered_set<uint32_t> sensorBodies;
 
     /// Characters are not bodies: a CharacterVirtual is swept against the world
     /// rather than solved in it, which is what lets it climb stairs and stay

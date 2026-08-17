@@ -75,6 +75,40 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   leaving every caller to rediscover it.
 </Aside>
 
+## Collision events
+
+Each step publishes what touched what into the `Physics3DEvents` resource. It is
+drained per fixed step, so a system reading it must run inside one — a read from
+`Update` sees whatever the last step happened to leave.
+
+```typescript
+const events = app.getResource(Physics3DEvents);
+for (const hit of events.contactEnters) {
+  // both entities, and where they met
+  spawnSparks(hit.pointX, hit.pointY, hit.pointZ);
+}
+for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
+  if (sensorEntity === goalZone) score(visitorEntity);
+}
+```
+
+| Channel | What it carries |
+|---|---|
+| `contactEnters` | Both entities, the contact normal and the point. |
+| `contactExits` | Only the pair — see below. |
+| `sensorEnters` / `sensorExits` | The **sensor first**, then the visitor. |
+
+<Aside>
+  An ended contact carries no geometry: at that moment the solver has both bodies
+  locked and one of them may already have been destroyed, so there is nothing left
+  to report but who the pair was. A contact also ends when a body falls asleep,
+  not only when it moves away — treat an exit as "this pair is no longer touching",
+  not as "something moved".
+</Aside>
+
+A collider with `isSensor` reports overlaps and stops nothing: the visitor passes
+straight through and shows up in `sensorEnters` instead of `contactEnters`.
+
 ## Which world a scene is in
 
 Nothing stops an entity carrying both sets, but nothing merges them either: the two
