@@ -56,6 +56,21 @@ published separately; it ships inside the editor.
   happened to sit at the centre shadowed itself instead. Coverage now comes from
   the world box the meshes occupy, which is the same answer for both cameras.
 
+- **A packaged game drew no bitmap text.** A `.fnt` names its page image as a
+  sibling, in text rather than JSON — so the dependency scan, which read neither
+  the document nor its type, culled the page; and the staged font still asked for
+  a sibling that content-addressed staging had moved away. Both halves are fixed,
+  and the rule for "is this ref already a project path" — which existed three
+  times privately and not at all in the font loader, which is why it joined a
+  sibling to a directory that no longer existed — is now one shared resolver.
+
+- **An import warned that skinning is not implemented.** It has been implemented
+  since it shipped, so a perfectly good model reported a limitation the engine
+  does not have. The case the warning was written for is real and different: a
+  channel aimed at a skinned mesh's own node moves nothing, because glTF requires
+  that node's transform to be ignored. It now says that, and says to animate the
+  joints instead.
+
 - **A component's Chinese reference link pointed at an English heading.** Five 3D
   physics entries carried the English slug, so the Chinese reference sent readers
   to headings that do not exist on a page whose headings are 刚体, 形状 and 角色.
