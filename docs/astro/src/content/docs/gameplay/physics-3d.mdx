@@ -95,6 +95,38 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   leaving every caller to rediscover it.
 </Aside>
 
+## Asking the world what is where
+
+The `Physics3D` resource answers spatial questions in world units.
+
+```typescript
+const q = app.getResource(Physics3D);
+
+// Is anything on this line?
+const hit = q.raycast(muzzle, { x: 0, y: 0, z: -2000 }, ENEMIES);
+
+// Can this thing GET there? A ray is infinitely thin and slips through gaps a
+// moving body would not fit — that is what a swept shape answers instead.
+const blocked = q.sphereCast(from, 30, travel, WORLD);
+
+// What is already here, before something is spawned into it?
+const occupants = q.overlapSphere(spawnPoint, 50);
+```
+
+| Query | Answers |
+|---|---|
+| `raycast` | The nearest body on a line. |
+| `sphereCast` | The first body a moving sphere would meet. |
+| `overlapSphere` / `overlapBox` | Every body already inside a volume. |
+
+<Aside>
+  A layer mask of `0` means EVERY layer, not none: a caller that did not ask to
+  filter is asking for everything, and the other reading would make the commonest
+  call return silently empty. Hit normals come back unscaled — they are
+  directions, and multiplying one by `pixelsPerUnit` leaves a unit vector 100
+  units long.
+</Aside>
+
 ## Collision layers
 
 Every body is in one of sixteen layers, and a project says which layers hear from

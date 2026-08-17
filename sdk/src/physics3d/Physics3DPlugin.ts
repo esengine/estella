@@ -15,6 +15,10 @@ import {
 import {
     stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG, type Physics3DConfig,
 } from './Physics3DSystem';
+import { Physics3DQueries } from './Physics3DQueries';
+
+/** Ask the 3D world what is where. Present once the module has loaded. */
+export const Physics3D = defineResource<Physics3DQueries | null>(null, 'Physics3D');
 
 /** The live module and the promise that resolves it, for a caller that must wait. */
 export interface Physics3DRuntime {
@@ -66,6 +70,8 @@ export class Physics3DPlugin implements Plugin {
                 module._physics3d_setLayerMask(layer, mask);
             });
             runtime.module = module;
+            app.insertResource(Physics3D, new Physics3DQueries(module,
+                                                              this.config_.pixelsPerUnit));
             app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
                               runtime.characters, events);

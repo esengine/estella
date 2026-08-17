@@ -62,7 +62,13 @@ export interface Physics3DWasmModule {
                                     pz: number): void;
 
     _physics3d_raycast(ox: number, oy: number, oz: number,
-                       dx: number, dy: number, dz: number): number;
+                       dx: number, dy: number, dz: number, layerMask: number): number;
+    _physics3d_sphereCast(px: number, py: number, pz: number, radius: number,
+                          dx: number, dy: number, dz: number, layerMask: number): number;
+    _physics3d_overlapSphere(px: number, py: number, pz: number, radius: number,
+                             layerMask: number): number;
+    _physics3d_overlapBox(px: number, py: number, pz: number,
+                          hx: number, hy: number, hz: number, layerMask: number): number;
 
     _physics3d_contactEnters(): number;
     _physics3d_contactEntersBytes(): number;
@@ -94,6 +100,7 @@ const REQUIRED_EXPORTS = [
     '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
     '_physics3d_transforms', '_physics3d_transformsBytes',
     '_physics3d_addCharacter', '_physics3d_moveCharacter', '_physics3d_removeCharacter',
+    '_physics3d_sphereCast', '_physics3d_overlapSphere', '_physics3d_overlapBox',
     '_physics3d_contactEnters', '_physics3d_contactEntersBytes',
     '_physics3d_sensorEnters', '_physics3d_sensorEntersBytes',
 ] as const;

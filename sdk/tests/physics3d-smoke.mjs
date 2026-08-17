@@ -45,8 +45,26 @@ function bodyState(id) {
     return { x: f(0), y: f(1), z: f(2), vx: f(7), vy: f(8), vz: f(9) };
 }
 
+function sphereCast(px, py, pz, radius, dx, dy, dz, mask = 0) {
+    if (!m._physics3d_sphereCast(px, py, pz, radius, dx, dy, dz, mask)) return null;
+    const base = m._physics3d_queryResult() >> 2;
+    const f = (i) => m.HEAPF32[base + i];
+    return { entity: f(0), fraction: f(1), x: f(2), y: f(3), z: f(4),
+             nx: f(5), ny: f(6), nz: f(7) };
+}
+
+const raycastMasked = (ox, oy, oz, dx, dy, dz, mask) =>
+    (m._physics3d_raycast(ox, oy, oz, dx, dy, dz, mask) ? readRay() : null);
+
+function readRay() {
+    const base = m._physics3d_queryResult() >> 2;
+    const f = (i) => m.HEAPF32[base + i];
+    return { entity: f(0), fraction: f(1), x: f(2), y: f(3), z: f(4),
+             nx: f(5), ny: f(6), nz: f(7) };
+}
+
 function raycast(ox, oy, oz, dx, dy, dz) {
-    if (!m._physics3d_raycast(ox, oy, oz, dx, dy, dz)) return null;
+    if (!m._physics3d_raycast(ox, oy, oz, dx, dy, dz, 0)) return null;
     const base = m._physics3d_queryResult() >> 2;
     const f = (i) => m.HEAPF32[base + i];
     return { entity: f(0), fraction: f(1), x: f(2), y: f(3), z: f(4),
@@ -360,7 +378,53 @@ step(240);
 check('one side refusing is enough', near(bodyState(secondId).y, 0.2, 0.1),
       `y=${bodyState(secondId)?.y?.toFixed(4)} want 0.2`);
 
-// ── 10) A removed body is gone from both the sweep and the getter ───────────
+// ── 10) Queries with a shape, not just a line ──────────────────────────────
+// Two pillars 0.8 apart on their own layer, so nothing else in this world can
+// answer for them.
+const PILLAR_LAYER = 7, MASK = 1 << PILLAR_LAYER;
+const LEFT = 50, RIGHT = 51;
+m._physics3d_addBox(LEFT, 0.25, 1, 0.25, 80, 1, -0.65, ...IDENTITY,
+                    ...FREE(STATIC, PILLAR_LAYER), 0.5, 0, 0);
+m._physics3d_addBox(RIGHT, 0.25, 1, 0.25, 80, 1, 0.65, ...IDENTITY,
+                    ...FREE(STATIC, PILLAR_LAYER), 0.5, 0, 0);
+m._physics3d_optimize();
+
+const overlaps = (count) => {
+    const base = m._physics3d_queryResult() >> 2;
+    return Array.from({ length: count }, (_, i) => ({
+        entity: m.HEAPF32[base + i * 4], x: m.HEAPF32[base + i * 4 + 1],
+    }));
+};
+
+// A sphere over the gap touches neither pillar; widened, it touches both.
+check('a small overlap finds nothing between them',
+      m._physics3d_overlapSphere(80, 1, 0, 0.3, MASK) === 0);
+const found = m._physics3d_overlapSphere(80, 1, 0, 0.6, MASK);
+check('a wider one finds both', found === 2, `found ${found}`);
+const names = overlaps(found).map((h) => h.entity).sort();
+check('and names them', names.length === 2 && names[0] === LEFT && names[1] === RIGHT,
+      JSON.stringify(names));
+
+// A box query answers the same question in the shape a room is.
+check('a box overlap finds them too',
+      m._physics3d_overlapBox(80, 1, 0, 0.4, 0.5, 1, MASK) === 2);
+
+// Layers narrow a query: nothing else lives on layer 6.
+check('a query only sees the layers it asked for',
+      m._physics3d_overlapSphere(80, 1, 0, 0.6, 1 << 6) === 0);
+
+// ★ What a ray cannot answer. The gap is 0.8 wide, so an infinitely thin ray
+// passes between the pillars while a 0.5-radius sphere — one metre across —
+// cannot. This is the whole reason a shape cast exists.
+check('a ray slips through the gap',
+      raycastMasked(78, 1, 0, 6, 0, 0, MASK) === null);
+const swept = sphereCast(78, 1, 0, 0.5, 6, 0, 0, MASK);
+check('a swept sphere does not', swept != null, JSON.stringify(swept));
+check('and stops at the pillars', swept != null && swept.fraction < 0.5
+      && (swept.entity === LEFT || swept.entity === RIGHT),
+      `entity=${swept?.entity} fraction=${swept?.fraction?.toFixed(4)}`);
+
+// ── 11) A removed body is gone from both the sweep and the getter ───────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

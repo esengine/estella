@@ -24,7 +24,10 @@
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/RegisterTypes.h>
 
 #include <cstddef>
@@ -503,15 +506,117 @@ void physics3d_setCharacterPosition(uint32_t characterId, float px, float py, fl
 
 // Queries
 
+namespace {
+
+/// Restricts a query to the layers a caller named. A zero mask means EVERY layer
+/// rather than none: a caller that did not ask to filter is asking for
+/// everything, and the other reading would silently return nothing.
+class MaskLayerFilter final : public ObjectLayerFilter {
+public:
+    explicit MaskLayerFilter(uint32_t mask) : mask_(mask == 0 ? 0xFFFFFFFFu : mask) {}
+    bool ShouldCollide(ObjectLayer layer) const override {
+        return (mask_ & (1u << esengine::physics3d::Layers::indexOf(layer))) != 0;
+    }
+private:
+    uint32_t mask_;
+};
+
+/// Appends one hit's (entity, px,py,pz) to the query buffer.
+void pushHit(const BodyID& id, RVec3Arg point) {
+    auto owner = g().entityOf.find(id.GetIndexAndSequenceNumber());
+    g().queryBuffer.push_back(owner == g().entityOf.end() ? 0.0f
+                                                         : static_cast<float>(owner->second));
+    g().queryBuffer.push_back(static_cast<float>(point.GetX()));
+    g().queryBuffer.push_back(static_cast<float>(point.GetY()));
+    g().queryBuffer.push_back(static_cast<float>(point.GetZ()));
+}
+
+/// Everything overlapping `shape` at `position`, into the query buffer.
+int collideShape(const Shape* shape, float px, float py, float pz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || shape == nullptr) return 0;
+    AllHitCollisionCollector<CollideShapeCollector> collector;
+    const CollideShapeSettings settings;
+    const RMat44 transform = RMat44::sTranslation(RVec3(px, py, pz));
+    const MaskLayerFilter filter(layerMask);
+    g().system->GetNarrowPhaseQuery().CollideShape(
+        shape, Vec3::sReplicate(1.0f), transform, settings, RVec3::sZero(), collector,
+        {}, filter);
+    for (const CollideShapeResult& hit : collector.mHits) {
+        pushHit(hit.mBodyID2, hit.mContactPointOn2);
+    }
+    return static_cast<int>(collector.mHits.size());
+}
+
+}  // namespace
+
+/**
+ * @brief Everything a sphere at this position overlaps.
+ * @details Writes (entity, px,py,pz) per hit into the query buffer and returns
+ *          how many — the question a spawn point asks before it spawns.
+ */
+EMSCRIPTEN_KEEPALIVE
+int physics3d_overlapSphere(float px, float py, float pz, float radius, uint32_t layerMask) {
+    if (radius <= 0.0f) { g().queryBuffer.clear(); return 0; }
+    const SphereShape shape(radius);
+    return collideShape(&shape, px, py, pz, layerMask);
+}
+
+/** @brief The same for a box, given its half-extents. */
+EMSCRIPTEN_KEEPALIVE
+int physics3d_overlapBox(float px, float py, float pz, float hx, float hy, float hz,
+                         uint32_t layerMask) {
+    if (hx <= 0.0f || hy <= 0.0f || hz <= 0.0f) { g().queryBuffer.clear(); return 0; }
+    const BoxShape shape(Vec3(hx, hy, hz));
+    return collideShape(&shape, px, py, pz, layerMask);
+}
+
+/**
+ * @brief Sweeps a sphere along a path and reports the first thing it meets.
+ * @details What a ray cannot answer: a ray is infinitely thin, so it slips through
+ *          the very gaps a moving body would not fit. Writes
+ *          (entity, fraction, px,py,pz, nx,ny,nz); returns 0 for a clear path.
+ */
+EMSCRIPTEN_KEEPALIVE
+int physics3d_sphereCast(float px, float py, float pz, float radius,
+                         float dx, float dy, float dz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || radius <= 0.0f) return 0;
+    const SphereShape shape(radius);
+    const RShapeCast cast(&shape, Vec3::sReplicate(1.0f),
+                          RMat44::sTranslation(RVec3(px, py, pz)), Vec3(dx, dy, dz));
+    ClosestHitCollisionCollector<CastShapeCollector> collector;
+    const ShapeCastSettings settings;
+    const MaskLayerFilter filter(layerMask);
+    g().system->GetNarrowPhaseQuery().CastShape(cast, settings, RVec3::sZero(), collector,
+                                                {}, filter);
+    if (!collector.HadHit()) return 0;
+
+    const ShapeCastResult& hit = collector.mHit;
+    auto owner = g().entityOf.find(hit.mBodyID2.GetIndexAndSequenceNumber());
+    const RVec3 point = hit.mContactPointOn2;
+    const Vec3 normal = -hit.mPenetrationAxis.Normalized();
+    g().queryBuffer = {
+        owner == g().entityOf.end() ? 0.0f : static_cast<float>(owner->second),
+        hit.mFraction,
+        static_cast<float>(point.GetX()), static_cast<float>(point.GetY()),
+        static_cast<float>(point.GetZ()),
+        normal.GetX(), normal.GetY(), normal.GetZ(),
+    };
+    return 1;
+}
+
 /// Nearest hit along the ray. Writes (entity, fraction, px,py,pz, nx,ny,nz) into the
 /// query buffer and returns 1; returns 0 and leaves it empty when nothing is hit.
 EMSCRIPTEN_KEEPALIVE
-int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz) {
+int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz,
+                      uint32_t layerMask) {
     g().queryBuffer.clear();
     if (!g().isValid()) return 0;
     const RRayCast ray{RVec3(ox, oy, oz), Vec3(dx, dy, dz)};
     RayCastResult hit;
-    if (!g().system->GetNarrowPhaseQuery().CastRay(ray, hit)) return 0;
+    const MaskLayerFilter filter(layerMask);
+    if (!g().system->GetNarrowPhaseQuery().CastRay(ray, hit, {}, filter)) return 0;
 
     const RVec3 point = ray.GetPointOnRay(hit.mFraction);
     const BodyLockRead lock(g().system->GetBodyLockInterface(), hit.mBodyID);

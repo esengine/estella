@@ -24,6 +24,7 @@ import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
 import { sceneUses3DPhysics, sceneUsesPhysics } from '../src/runtime/runtimeLoader';
+import { Physics3DQueries } from '../src/physics3d/Physics3DQueries';
 
 /** A module that records what it was told, and can be made to answer a readback.
  *  The two readbacks are separate buffers, as they are in the module: sharing one
@@ -382,5 +383,62 @@ describe('mesh collision geometry', () => {
         expect(extractPositions(new Uint8Array(8), 1, 8, [
             { semantic: 3, offset: 0, type: 0 },
         ])).toBeNull();
+    });
+});
+
+describe('3D spatial queries', () => {
+    /** A module that answers one canned result, so the units can be checked. */
+    function queryModule(result: number[], hits = 1) {
+        const heap = new Float32Array(64);
+        heap.set(result, 0);
+        const calls: number[][] = [];
+        return {
+            calls,
+            HEAPF32: heap,
+            _physics3d_queryResult: () => 0,
+            _physics3d_raycast: (...args: number[]) => { calls.push(args); return hits; },
+            _physics3d_sphereCast: (...args: number[]) => { calls.push(args); return hits; },
+            _physics3d_overlapSphere: (...args: number[]) => { calls.push(args); return hits; },
+            _physics3d_overlapBox: (...args: number[]) => { calls.push(args); return hits; },
+        } as unknown as Parameters<typeof Physics3DQueries.prototype.raycast> extends never
+            ? never : ConstructorParameters<typeof Physics3DQueries>[0] & { calls: number[][] };
+    }
+
+    it('asks in metres and answers in world units', () => {
+        // A hit 3m along, at 2m up, with an upward normal.
+        const module = queryModule([9, 0.5, 0, 2, 0, 0, 1, 0]);
+        const q = new Physics3DQueries(module, 100);
+        const hit = q.raycast({ x: 0, y: 500, z: 0 }, { x: 0, y: -600, z: 0 });
+
+        expect(module.calls[0]![1]).toBeCloseTo(5, 6);     // 500 units = 5m
+        expect(module.calls[0]![4]).toBeCloseTo(-6, 6);
+        expect(hit!.y).toBeCloseTo(200, 4);                // 2m = 200 units
+        // A normal is a direction: scaling it would leave a unit vector 100 long.
+        expect(hit!.normalY).toBeCloseTo(1, 6);
+        expect(hit!.entity).toBe(9);
+    });
+
+    it('scales a swept sphere’s radius too', () => {
+        const module = queryModule([1, 0.25, 0, 0, 0, 0, 1, 0]);
+        const q = new Physics3DQueries(module, 100);
+        q.sphereCast({ x: 0, y: 0, z: 0 }, 30, { x: 400, y: 0, z: 0 });
+        expect(module.calls[0]![3]).toBeCloseTo(0.3, 6);
+        expect(module.calls[0]![4]).toBeCloseTo(4, 6);
+    });
+
+    it('reads every overlap the world reported', () => {
+        const module = queryModule([7, 1, 2, 3, 8, 4, 5, 6], 2);
+        const q = new Physics3DQueries(module, 100);
+        const hits = q.overlapSphere({ x: 0, y: 0, z: 0 }, 50);
+        expect(hits).toHaveLength(2);
+        expect(hits[0]!.entity).toBe(7);
+        expect(hits[1]!.entity).toBe(8);
+        expect(hits[1]!.x).toBeCloseTo(400, 4);
+    });
+
+    it('answers an empty list rather than a phantom hit', () => {
+        const module = queryModule([7, 1, 2, 3], 0);
+        const q = new Physics3DQueries(module, 100);
+        expect(q.overlapBox({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })).toEqual([]);
     });
 });

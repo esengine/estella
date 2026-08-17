@@ -87,6 +87,36 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   而不是让每个调用者各自重新发现这件事。
 </Aside>
 
+## 问世界「那里有什么」
+
+`Physics3D` 资源用世界单位回答空间问题。
+
+```typescript
+const q = app.getResource(Physics3D);
+
+// 这条线上有东西吗?
+const hit = q.raycast(muzzle, { x: 0, y: 0, z: -2000 }, ENEMIES);
+
+// 这个东西「过得去」吗?射线是无限细的,会从一个运动刚体根本挤不过去的缝里穿过——
+// 这正是扫掠形状回答的那个不同的问题。
+const blocked = q.sphereCast(from, 30, travel, WORLD);
+
+// 在往这里放东西之前,这里已经有什么了?
+const occupants = q.overlapSphere(spawnPoint, 50);
+```
+
+| 查询 | 回答 |
+|---|---|
+| `raycast` | 一条线上最近的刚体。 |
+| `sphereCast` | 一个运动的球最先撞上的刚体。 |
+| `overlapSphere` / `overlapBox` | 已经在某个体积里的所有刚体。 |
+
+<Aside>
+  层掩码为 `0` 表示**所有层**,不是「一个都不要」:没有要求过滤的调用者是在要全部,
+  而另一种读法会让最常见的调用悄悄返回空。命中法线**不做单位换算**——它是方向,
+  乘上 `pixelsPerUnit` 只会得到一个长度 100 的单位向量。
+</Aside>
+
 ## 碰撞层
 
 每个刚体属于十六层中的一层,由项目声明哪些层之间能互相听见。**两边都得同意**——

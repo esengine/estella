@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Spatial queries with a shape, not just a line.** The `Physics3D` resource
+  answers `sphereCast`, `overlapSphere` and `overlapBox` alongside `raycast`, all
+  in world units and all narrowable by layer. A ray is infinitely thin and slips
+  through the very gaps a moving body would not fit, so "can this thing get
+  there" was a question the world could not be asked.
+
+  A layer mask of 0 means EVERY layer rather than none: a caller that did not ask
+  to filter is asking for everything, and the other reading would make the
+  commonest call return silently empty.
+
 - **3D collision layers.** Every body is in one of sixteen layers, and a project
   says which layers hear from which — bullets that pass through their own team
   and stop on the world, which two layers could not express. Both sides must
