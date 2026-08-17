@@ -33,6 +33,7 @@ import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
+import { mapEntityRefField } from './entityRef';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,
@@ -532,17 +533,16 @@ function captureEntityRefs(
     components: ComponentData[],
     idMap: Map<number, string>,
 ): ComponentData[] {
+    const one = (value: unknown): unknown => {
+        if (typeof value !== 'number') return value;
+        if (idMap.has(value)) return idMap.get(value)!;      // in-subtree → stable prefab-local id
+        return value !== INVALID_ENTITY ? INVALID_ENTITY : value; // external → cleared (never dangle)
+    };
     for (const comp of components) {
         const def = getComponent(comp.type);
         if (!def || def.entityFields.length === 0) continue;
         for (const field of def.entityFields) {
-            const value = comp.data[field];
-            if (typeof value !== 'number') continue;
-            if (idMap.has(value)) {
-                comp.data[field] = idMap.get(value)!; // in-subtree → stable prefab-local id
-            } else if (value !== INVALID_ENTITY) {
-                comp.data[field] = INVALID_ENTITY; // external → cleared (never dangle)
-            }
+            comp.data[field] = mapEntityRefField(comp.data[field], one);
         }
     }
     return components;

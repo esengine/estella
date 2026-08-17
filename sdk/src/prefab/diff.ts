@@ -8,6 +8,7 @@ import type {
     ProcessedEntity,
 } from './types';
 import { getComponent } from '../ecs/component';
+import { mapEntityRefField } from './entityRef';
 
 /**
  * An entity-typed field on an instance holds a numeric runtime id; the source
@@ -18,11 +19,13 @@ import { getComponent } from '../ecs/component';
  * that points outside the instance (unmapped) stays numeric, best-effort.
  */
 function normalizeEntityRef(value: unknown, runtimeToPrefabId: Map<number, PrefabEntityId>): unknown {
-    if (typeof value === 'number') {
-        const prefabId = runtimeToPrefabId.get(value);
-        if (prefabId !== undefined) return prefabId;
-    }
-    return value;
+    return mapEntityRefField(value, (ref) => {
+        if (typeof ref === 'number') {
+            const prefabId = runtimeToPrefabId.get(ref);
+            if (prefabId !== undefined) return prefabId;
+        }
+        return ref;
+    });
 }
 
 export interface DiffOptions {

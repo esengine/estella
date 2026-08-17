@@ -708,10 +708,9 @@ describe('migration visible to callers', () => {
 });
 
 describe('diffAgainstSource — entity-ref fields', () => {
-    // The real case is a USER component with a SCALAR entity ref (a script that
-    // targets another entity); builtins only have Children.entities (an ARRAY the
-    // structural parent/children path owns). Registered per-test — the setup
-    // clears user components between tests.
+    // A USER component with a SCALAR entity ref. The list-valued shape
+    // (MeshSkin.joints) is covered by prefab-entity-ref-list. Registered
+    // per-test — the setup clears user components between tests.
     const FOLLOW_META = { entityFields: ['target'] };
 
     function squad(): PrefabData {
