@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  releaseGate.mjs — what 0.49 has to be able to say, and what says it.
+ * @file  releaseGate.mjs — what a release has to be able to say, and what says it.
  *
  * "Do not open 0.50 until these hold" is only a rule if the list is somewhere a
  * machine reads. Written down anywhere else it decays the usual way: a criterion
@@ -15,7 +15,7 @@
  * This says the criteria are OWNED. Whether they PASS is what running them says.
  */
 
-export const RELEASE = '0.50';
+export const RELEASE = '0.54';
 
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files
@@ -52,6 +52,16 @@ export const CRITERIA = [
       'tools/verify-desktop-render.mjs',
       'tools/verify-native-boot.mjs',
     ],
+  },
+  {
+    id: '3d-runs-where-it-ships',
+    says: 'a game whose world is 3D packages, launches and answers input — on the web and on a device',
+    // Two ways for the solver to be absent — a side module fetched beside the
+    // engine, a library compiled into a native host — and both leave a game
+    // that starts and draws an empty room.
+    answeredBy: 'node tools/verify-golden.mjs --tier release'
+      + ' && node tools/verify-native-boot.mjs --platform android --examples all',
+    needs: ['examples/physics-3d/project.esproject', 'tools/verify-native-boot.mjs'],
   },
   {
     id: 'every-pixel-gate-runs',

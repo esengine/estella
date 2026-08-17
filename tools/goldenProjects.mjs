@@ -52,7 +52,8 @@ export const CAPABILITIES = [
   'ecs', 'particles', 'audio',
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
-  'model-import', 'model-animation',
+  'model-import', 'model-animation', 'model-skinning',
+  'physics-3d', 'mesh-shadow', 'environment',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -92,6 +93,10 @@ export const EVIDENCE = {
   'model-import': /\.esmesh\b/,
   // The clip the import wrote, referenced by the prefab the scene places.
   'model-animation': /\.estimeline\b/,
+  'model-skinning': /\bMeshSkin\b/,
+  'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
+  'mesh-shadow': /\bmeshShadows\b/,
+  environment: /\.esenv\b/,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
   'tile-collision': /\b(collision|Collider|tileCollision)\b/,
@@ -130,6 +135,12 @@ export const KNOWN_GAPS = {
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
+  // Three halves of the 3D stack that a pixel scene proves and no packaged game
+  // carries: what a scene draws is judged in the editor, and what a package draws
+  // is nobody's claim until a game ships one.
+  'model-skinning': 'the mesh-skin and mesh-skin-material pixel gates deform a bound mesh; model-import\'s robot has no skin, so no corpus project packages one',
+  'mesh-shadow': 'the mesh-shadow pixel gate casts one mesh onto another; no corpus project has a Directional light with meshShadows on',
+  environment: 'the mat-env and mat-env-mirror pixel gates light and reflect an .esenv; no corpus project ships one',
 };
 
 /**
@@ -184,6 +195,16 @@ export const GOLDEN = [
     // Nothing in it responds to input: the scene is a placed model, and the
     // chain it certifies is the import's — products, refs, prefab, package.
     interactGap: 'a placed model has nothing to drive; the import chain is what this certifies',
+  },
+  {
+    id: 'physics-3d',
+    certifies: ['physics-3d'],
+    targets: ['web'],
+    tier: 'nightly',
+    // The character walks on the key it declares, and the debug overlay it draws
+    // moves with it — the whole picture is the solver's, so a package that lost
+    // the 3D world draws an empty room rather than a still one.
+    interact: { keys: ['KeyW'], frames: 40 },
   },
   {
     id: 'ui-controls',
