@@ -2869,6 +2869,13 @@
           "advanced": true
         },
         {
+          "key": "continuousCollision",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Check the whole path a step covers — what a bullet needs",
+          "advanced": true
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

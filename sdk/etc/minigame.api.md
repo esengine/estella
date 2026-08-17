@@ -6456,6 +6456,7 @@ BuiltinComponentDef<RigidBody3DData>
 ```
 angularDamping: number
 bodyType: number
+continuousCollision: boolean
 enabled: boolean
 fixedRotation: boolean
 gravityScale: number

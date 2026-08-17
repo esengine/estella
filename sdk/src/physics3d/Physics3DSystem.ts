@@ -132,7 +132,8 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     const px = p.x / ppu, py = p.y / ppu, pz = p.z / ppu;
     // How the body answers to the world, in the order the module reads it.
     const how = [motionOf(body), body.gravityScale, body.linearDamping,
-                 body.angularDamping, body.fixedRotation ? 1 : 0, body.layer] as const;
+                 body.angularDamping, body.fixedRotation ? 1 : 0, body.layer,
+                 body.continuousCollision ? 1 : 0] as const;
 
     const box = app.world.get(entity, BoxCollider3D) as BoxCollider3DData | undefined;
     if (box?.enabled) {

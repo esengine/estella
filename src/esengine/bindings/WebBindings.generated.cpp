@@ -845,6 +845,7 @@ struct RigidBody3DJS {
     f32 angularDamping;
     bool fixedRotation;
     u32 layer;
+    bool continuousCollision;
     bool enabled;
 };
 
@@ -855,6 +856,7 @@ void rigidbody3dApplyJS(esengine::ecs::RigidBody3D& c, const RigidBody3DJS& js) 
     c.angularDamping = js.angularDamping;
     c.fixedRotation = js.fixedRotation;
     c.layer = js.layer;
+    c.continuousCollision = js.continuousCollision;
     c.enabled = js.enabled;
 }
 
@@ -872,6 +874,7 @@ RigidBody3DJS rigidbody3dToJS(const esengine::ecs::RigidBody3D& c) {
     js.angularDamping = c.angularDamping;
     js.fixedRotation = c.fixedRotation;
     js.layer = c.layer;
+    js.continuousCollision = c.continuousCollision;
     js.enabled = c.enabled;
     return js;
 }
@@ -1512,6 +1515,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("angularDamping", &RigidBody3DJS::angularDamping)
         .field("fixedRotation", &RigidBody3DJS::fixedRotation)
         .field("layer", &RigidBody3DJS::layer)
+        .field("continuousCollision", &RigidBody3DJS::continuousCollision)
         .field("enabled", &RigidBody3DJS::enabled);
 
     value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
@@ -2807,7 +2811,8 @@ static_assert(offsetof(esengine::ecs::RigidBody3D, linearDamping) == 8, "ABI off
 static_assert(offsetof(esengine::ecs::RigidBody3D, angularDamping) == 12, "ABI offset drift: esengine::ecs::RigidBody3D.angularDamping (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody3D.fixedRotation (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, layer) == 20, "ABI offset drift: esengine::ecs::RigidBody3D.layer (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, continuousCollision) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.continuousCollision (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 25, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 25)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider.point1 (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider.point2 (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::SegmentCollider, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider.density (EHT expected 16)");
@@ -2945,7 +2950,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "3ca8b8f014ab2cd1";
+static const char* kEsAbiLayoutHash = "0daf40a6f7ff1a3e";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -32,6 +32,7 @@ cmds.spawn()
 | `gravityScale` | This body's share of world gravity. `0` is weightlessness, not slow falling. |
 | `linearDamping` / `angularDamping` | How quickly motion bleeds off. |
 | `fixedRotation` | Freezes the orientation the body was given — what keeps a character from toppling. It does not right a body that starts tilted. |
+| `continuousCollision` | Checks the whole path a step covers rather than where the body ended up. What a bullet needs; off by default, since it costs more. |
 
 ## Shapes
 

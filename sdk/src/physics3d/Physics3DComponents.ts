@@ -25,12 +25,15 @@ export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
     linearDamping: 0.05,
     angularDamping: 0.05,
     fixedRotation: false,
+    continuousCollision: false,
     enabled: true,
 }, {
     fields: {
         linearDamping: { min: 0, advanced: true },
         angularDamping: { min: 0, advanced: true },
         fixedRotation: { advanced: true },
+        continuousCollision: { advanced: true,
+                               tooltip: 'Check the whole path a step covers — what a bullet needs' },
     },
 });
 

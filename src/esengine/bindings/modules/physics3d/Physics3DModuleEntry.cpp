@@ -82,6 +82,7 @@ struct BodyMotion {
     float angularDamping = 0.0f;
     int fixedRotation = 0;
     uint32_t layer = 0;
+    int continuous = 0;
 };
 
 /// The entity a body speaks for, or 0 when nothing claims it.
@@ -168,6 +169,10 @@ uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, f
         settings.mAllowedDOFs = EAllowedDOFs::TranslationX | EAllowedDOFs::TranslationY
                               | EAllowedDOFs::TranslationZ;
     }
+    // Discrete collision only asks where a body IS at the end of a step, so
+    // anything that crosses more than its own thickness in one step arrives on the
+    // far side of a wall having never touched it.
+    if (how.continuous != 0) settings.mMotionQuality = EMotionQuality::LinearCast;
     BodyInterface& bodies = g().system->GetBodyInterface();
     const BodyID id = bodies.CreateAndAddBody(
         settings, motionType == EMotionType::Static ? EActivation::DontActivate
@@ -293,9 +298,10 @@ uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float qx, float qy, float qz, float qw,
                           int motion, float gravityScale, float linearDamping,
                           float angularDamping, int fixedRotation, uint32_t layer,
-                          float friction, float restitution, int isSensor) {
+                          int continuous, float friction, float restitution, int isSensor) {
     return addBody(entity, new BoxShape(Vec3(hx, hy, hz)), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
+                    continuous},
                    friction, restitution, isSensor);
 }
 
@@ -305,9 +311,10 @@ uint32_t physics3d_addSphere(uint32_t entity, float radius,
                              float qx, float qy, float qz, float qw,
                              int motion, float gravityScale, float linearDamping,
                              float angularDamping, int fixedRotation, uint32_t layer,
-                             float friction, float restitution, int isSensor) {
+                             int continuous, float friction, float restitution, int isSensor) {
     return addBody(entity, new SphereShape(radius), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
+                    continuous},
                    friction, restitution, isSensor);
 }
 
@@ -319,9 +326,10 @@ uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float qx, float qy, float qz, float qw,
                               int motion, float gravityScale, float linearDamping,
                               float angularDamping, int fixedRotation, uint32_t layer,
-                              float friction, float restitution, int isSensor) {
+                              int continuous, float friction, float restitution, int isSensor) {
     return addBody(entity, new CapsuleShape(halfHeight, radius), px, py, pz, qx, qy, qz, qw,
-                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer},
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
+                    continuous},
                    friction, restitution, isSensor);
 }
 

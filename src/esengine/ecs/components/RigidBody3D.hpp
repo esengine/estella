@@ -58,6 +58,14 @@ struct RigidBody3D {
     ES_PROPERTY(min=0, max=15, advanced)
     u32 layer{0};
 
+    /** @brief Checks the whole path a step covers rather than where the body ended
+     *         up. What a bullet needs: discrete collision only asks where a body IS,
+     *         so anything crossing more than its own thickness in one step arrives
+     *         on the far side of a wall having never touched it. Costs more, which
+     *         is why it is off. */
+    ES_PROPERTY(advanced)
+    bool continuousCollision{false};
+
     /** @brief Disabled bodies are left out of the world entirely. */
     ES_PROPERTY()
     bool enabled{true};

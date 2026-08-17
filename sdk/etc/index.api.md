@@ -5,7 +5,7 @@ Symbols: 113 public · 65 beta · 1443 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"3ca8b8f014ab2cd1"
+"0daf40a6f7ff1a3e"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -6216,6 +6216,7 @@ BuiltinComponentDef<RigidBody3DData>
 ```
 angularDamping: number
 bodyType: number
+continuousCollision: boolean
 enabled: boolean
 fixedRotation: boolean
 gravityScale: number

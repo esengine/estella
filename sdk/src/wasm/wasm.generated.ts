@@ -495,6 +495,7 @@ export interface RigidBody3D {
     angularDamping: number;
     fixedRotation: boolean;
     layer: number;
+    continuousCollision: boolean;
     enabled: boolean;
 }
 

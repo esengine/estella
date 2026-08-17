@@ -337,6 +337,19 @@ describe('the 3D world and the ECS', () => {
         expect(bodies.size).toBe(0);
     });
 
+    it('sends the continuous-collision choice to the world', () => {
+        const e = spawn();
+        world.insert(e, SphereCollider3D);
+        (world.get(e, RigidBody3D) as { continuousCollision: boolean }).continuousCollision = true;
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        // entity, radius, position(3), rotation(4), motion, gravity, damping(2),
+        // fixedRotation, layer, then the motion quality \u2014 a flag nothing forwards
+        // leaves every bullet passing through every wall.
+        expect(called('addSphere')[0]!.args[15]).toBe(1);
+    });
+
     it('sends a body\u2019s layer to the world', () => {
         const e = spawn();
         world.insert(e, SphereCollider3D);

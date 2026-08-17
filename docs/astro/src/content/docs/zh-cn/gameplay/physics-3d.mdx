@@ -29,6 +29,7 @@ cmds.spawn()
 | `gravityScale` | 这个刚体分担的重力比例。`0` 是失重,不是「掉得慢」。 |
 | `linearDamping` / `angularDamping` | 运动衰减的快慢。 |
 | `fixedRotation` | 冻结刚体被给定的朝向——让角色不会倒下的那个开关。它不会把一个一开始就歪的刚体扶正。 |
+| `continuousCollision` | 检查这一步走过的整条路径,而不只是它最后停在哪。子弹需要它;默认关闭,因为它更贵。 |
 
 ## 形状
 

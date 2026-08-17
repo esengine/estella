@@ -16,6 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A fast 3D body stops at a thin wall.** `RigidBody3D.continuousCollision`
+  checks the whole path a step covers rather than only where the body ended up.
+  At any speed that crosses more than its own thickness in a step — a bullet, a
+  thrown object — discrete collision reports nothing, because the far side of the
+  wall is a perfectly valid place to be.
+
 - **A 3D character can shove what it walks into.** `CharacterController3D` gained
   `pushForce` — the force it may spend moving a dynamic body out of its way. A
   character is swept rather than solved, so nothing moved for it before: `mass`

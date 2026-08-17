@@ -22,7 +22,9 @@ const STATIC = 0, KINEMATIC = 1, DYNAMIC = 2;
 const IDENTITY = [0, 0, 0, 1];
 // motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer —
 // what a body is beyond its shape.
-const FREE = (motion, layer = 0) => [motion, 1, 0, 0, 0, layer];
+const FREE = (motion, layer = 0) => [motion, 1, 0, 0, 0, layer, 0];
+/** The same, with continuous collision on — the path, not the endpoint. */
+const SWEPT = (motion, layer = 0) => [motion, 1, 0, 0, 0, layer, 1];
 
 /** The position of `entity` in the step's transform readback, or null. */
 function bodyPos(entity) {
@@ -145,7 +147,7 @@ check('and on its own radius', side && side.entity === CAP && near(side.fraction
 // drops 4.9m in the same second.
 const FLOAT = 5;
 const floatId = m._physics3d_addSphere(FLOAT, 0.5, -3, 5, 0, ...IDENTITY,
-                                       DYNAMIC, 0, 0, 0, 0, 0, 0.5, 0, 0);
+                                       DYNAMIC, 0, 0, 0, 0, 0, 0, 0.5, 0, 0);
 step(60);
 check('gravityScale 0 leaves a body where it was', near(bodyState(floatId).y, 5, 0.01),
       `y=${bodyState(floatId).y.toFixed(4)} want 5`);
@@ -155,7 +157,7 @@ check('gravityScale 0 leaves a body where it was', near(bodyState(floatId).y, 5,
 // flat, so the tilt it KEEPS is what says the solver may not turn it.
 const UPRIGHT = 6;
 const uprightId = m._physics3d_addCapsule(UPRIGHT, 0.3, 0.5, -6, 3, 0,
-                                          0.3, 0, 0, 0.954, DYNAMIC, 1, 0, 0, 1, 0, 0.5, 0, 0);
+                                          0.3, 0, 0, 0.954, DYNAMIC, 1, 0, 0, 1, 0, 0, 0.5, 0, 0);
 step(180);
 const uprightBase = m._physics3d_getBodyState(uprightId) ? m._physics3d_queryResult() >> 2 : 0;
 const qx = m.HEAPF32[uprightBase + 3];
@@ -453,7 +455,7 @@ check('and stops at the pillars', swept != null && swept.fraction < 0.5
 // ── 11) Joints: what holds two bodies to each other ─────────────────────────
 // Each asserts a distance the geometry fixes, not "it moved": a joint that was
 // never installed leaves a body in free fall, which is motion too.
-const HELD = (motion, gravity = 1) => [motion, gravity, 0.4, 0.4, 0, 0];
+const HELD = (motion, gravity = 1) => [motion, gravity, 0.4, 0.4, 0, 0, 0];
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
 // A hinge holds an arm at arm's length and lets it swing down to hang.
@@ -566,7 +568,29 @@ step(120);
 const freed = bodyState(ropeBallId);
 check('a removed joint lets go', freed && freed.y < 15, `y=${freed?.y.toFixed(3)}`);
 
-// ── 12) A removed body is gone from both the sweep and the getter ───────────
+// ── 12) A fast body and a thin wall, twice ─────────────────────────────────
+// ★ 240 m/s lands the discrete body's endpoints at 598 then 602, never inside
+// the wall. At 200 m/s a 3.33m step lands one dead ON it and it stops by luck.
+const WALL_A = 90, WALL_B = 91, SLUG_A = 92, SLUG_B = 93;
+const SLUG = (continuous) => [DYNAMIC, 0, 0, 0, 0, 0, continuous];
+m._physics3d_addBox(WALL_A, 0.05, 2, 2, 600, 20, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+m._physics3d_addBox(WALL_B, 0.05, 2, 2, 600, 30, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+const discrete = m._physics3d_addSphere(SLUG_A, 0.05, 590, 20, 0, ...IDENTITY,
+                                        ...SLUG(0), 0.5, 0, 0);
+const sweptSlug = m._physics3d_addSphere(SLUG_B, 0.05, 590, 30, 0, ...IDENTITY,
+                                         ...SLUG(1), 0.5, 0, 0);
+m._physics3d_optimize();
+m._physics3d_setLinearVelocity(discrete, 240, 0, 0);
+m._physics3d_setLinearVelocity(sweptSlug, 240, 0, 0);
+step(10);
+const throughIt = bodyState(discrete);
+const stopped = bodyState(sweptSlug);
+check('a fast body passes through a thin wall when only its endpoints are checked',
+      throughIt && throughIt.x > 601, `x=${throughIt?.x.toFixed(3)} wall at 600`);
+check('and continuous collision stops it at the wall', stopped && stopped.x < 600,
+      `x=${stopped?.x.toFixed(3)} wall at 600`);
+
+// ── 13) A removed body is gone from both the sweep and the getter ───────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

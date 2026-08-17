@@ -325,7 +325,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'angularDamping', type: 'f32', offset: 12 },
             { name: 'fixedRotation', type: 'bool', offset: 16 },
             { name: 'layer', type: 'u32', offset: 20 },
-            { name: 'enabled', type: 'bool', offset: 24 },
+            { name: 'continuousCollision', type: 'bool', offset: 24 },
+            { name: 'enabled', type: 'bool', offset: 25 },
         ],
     },
     SegmentCollider: {
