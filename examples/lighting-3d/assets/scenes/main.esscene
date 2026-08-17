@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": 320
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 45,
+            "nearPlane": 10,
+            "farPlane": 2000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 0.97,
+              "b": 0.9,
+              "a": 1
+            },
+            "intensity": 0.85,
+            "direction": {
+              "x": 0.55,
+              "y": -0.1
+            },
+            "meshShadows": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 0.55,
+            "enabled": true,
+            "environment": "assets/env/sky.esenv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "parent": null,
+      "prefab": "assets/models/waver.esprefab",
+      "overrides": [
+        {
+          "prefabEntityId": "n2",
+          "type": "property",
+          "componentType": "Transform",
+          "propertyName": "rotation",
+          "value": {
+            "x": 0,
+            "y": 0,
+            "z": 0.190809,
+            "w": 0.981627
+          }
+        }
+      ],
+      "added": [],
+      "removed": []
+    }
+  ]
+}

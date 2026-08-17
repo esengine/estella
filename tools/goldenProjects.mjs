@@ -135,12 +135,6 @@ export const KNOWN_GAPS = {
   // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
   // the floor is the runtime, not the game, and no project reaches the 2MB cap.
   'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
-  // Three halves of the 3D stack that a pixel scene proves and no packaged game
-  // carries: what a scene draws is judged in the editor, and what a package draws
-  // is nobody's claim until a game ships one.
-  'model-skinning': 'the mesh-skin and mesh-skin-material pixel gates deform a bound mesh; model-import\'s robot has no skin, so no corpus project packages one',
-  'mesh-shadow': 'the mesh-shadow pixel gate casts one mesh onto another; no corpus project has a Directional light with meshShadows on',
-  environment: 'the mat-env and mat-env-mirror pixel gates light and reflect an .esenv; no corpus project ships one',
 };
 
 /**
@@ -195,6 +189,27 @@ export const GOLDEN = [
     // Nothing in it responds to input: the scene is a placed model, and the
     // chain it certifies is the import's — products, refs, prefab, package.
     interactGap: 'a placed model has nothing to drive; the import chain is what this certifies',
+  },
+  {
+    id: 'lighting-3d',
+    certifies: ['model-skinning', 'mesh-shadow', 'environment'],
+    targets: ['web'],
+    tier: 'pr',
+    // What a pixel scene proved and no packaged game carried: the model is skinned
+    // by its import's own products, the sun casts it onto the panel behind it, and
+    // the baked environment is what its metal reflects.
+    interactGap: 'a lighting showcase has nothing to drive; what it certifies is what reaches the frame',
+    // The pose is HELD rather than played, so a point means one thing rather than
+    // one moment. Measured on the package; each was checked by breaking the
+    // feature it is about and watching it, and only it, go.
+    webPixels: [
+      // Only the joints put the mesh here — with the skin gone it draws nowhere.
+      { what: 'the skin places the mesh', x: 0.245, y: 0.31, rgb: [63, 62, 66], tol: 22 },
+      { what: 'the mesh casts onto the panel', x: 0.37, y: 0.5, rgb: [64, 61, 61], tol: 22 },
+      // Panel the sun still reaches, lit by the sun AND the environment: it is
+      // this bright only because both are in the package.
+      { what: 'sun and environment light the panel', x: 0.8, y: 0.5, rgb: [206, 195, 181], tol: 14 },
+    ],
   },
   {
     id: 'physics-3d',
@@ -468,6 +483,16 @@ export function desktopPixels(g, host) {
   if (!g?.desktopPixels) return null;
   const hosts = g.desktopPixelsHosts;
   return !hosts || hosts.includes(host) ? g.desktopPixels : null;
+}
+
+/**
+ * Points a packaged WEB frame must contain, or null. Parity only says the package
+ * and the editor agree — a feature the PACKAGE lost that the editor never had
+ * either passes it, and a launch check passes anything that is not one flat
+ * colour. `x`/`y` are fractions of the surface, `y` from the top.
+ */
+export function webPixels(g) {
+  return g?.webPixels ?? null;
 }
 
 /** Why a project's points were skipped on this host, for the run to print. */

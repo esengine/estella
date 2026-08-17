@@ -38,6 +38,13 @@ the Spine asset above it is free to reuse, provided the copyright notice travels
 `audio-demo` uses short synthesized drum one-shots (`assets/audio/*.wav`) generated for
 this repo; they are dedicated to the public domain along with the rest of the examples.
 
+## 3D
+
+`lighting-3d` carries no art either. Its `waver.gltf` (a skinned bar and a panel)
+and `sky.hdr` (a gradient sky with one sun) were written by a generator for this
+repo, so the example ships a whole 3D lighting scene — model, skin, clip, baked
+environment — with nothing to credit and nothing to license.
+
 ## Replacing or adding art
 
 The pixel/vector PNGs are dropped in under each example's `assets/textures/`. To swap

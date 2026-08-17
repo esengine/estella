@@ -1,0 +1,167 @@
+{
+  "version": "2",
+  "name": "waver",
+  "rootEntityId": "root",
+  "entities": [
+    {
+      "prefabEntityId": "root",
+      "name": "waver",
+      "parent": null,
+      "children": [
+        "n0",
+        "n1",
+        "n4"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "TimelinePlayer",
+          "data": {
+            "timeline": "assets/models/waver_Wave.estimeline",
+            "playing": false
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0",
+      "name": "Waver",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "assets/models/waver_0_0.esmesh",
+            "lit": true,
+            "material": "assets/models/waver_m0.esmaterial",
+            "color": {
+              "r": 0.85,
+              "g": 0.87,
+              "b": 0.9,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n1",
+              "n2"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "Root",
+      "parent": "root",
+      "children": [
+        "n2"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -70,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "Elbow",
+      "parent": "n1",
+      "children": [
+        "n3"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n3",
+      "name": "Tip",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n4",
+      "name": "Panel",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 40,
+              "z": -160
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "assets/models/waver_1_0.esmesh",
+            "lit": true,
+            "material": "assets/models/waver_m1.esmaterial",
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.68,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}
