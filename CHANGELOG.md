@@ -12,6 +12,57 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **A 3D scene the release argument can point at.** `examples/lighting-3d`: a
+  skinned model held at a bend, a sun that casts it onto the panel behind it, and
+  a baked environment its metal reflects — the sky on top, the ground on its face.
+  It carries no art at all: the glTF and the `.hdr` were written by a generator,
+  so a whole 3D lighting scene is geometry and nine coefficients.
+
+  Skinning, mesh shadows and environments were each proved by a pixel scene and
+  carried by no packaged game, which the corpus said in the open as three declared
+  gaps. This closes all three, and found three defects doing it — every one of
+  them in the half nobody could see, between the editor and the package.
+
+### Fixed
+
+- **An asset named only inside another asset's document was culled from the
+  build.** A baked environment names its reflection atlas as a sibling of the
+  `.esenv`, and nothing else in the project mentions that file — so the
+  dependency scan, which never read `environment` documents, left it unreachable.
+  The game booted, asked for the atlas, got a 404, and lost every reflection it
+  was lit for; the editor showed none of it, because the editor serves the whole
+  project. An animator controller had the same hole to the clips its states play.
+
+  Shipping the file was only half of it: staging is content-addressed, so the
+  document no longer sits beside its sibling and has to name it by project path.
+
+- **A skinned model imported from a glTF never deformed once it was placed.**
+  `MeshSkin.joints` is a list of entities, and every translation of entity-ref
+  fields tested a single value — so the list went through untouched and its
+  prefab-local strings reached the World's numeric entity vector. The mesh drew in
+  its bind pose, which looks exactly like a model that does not animate. GPU
+  skinning has worked since it shipped; it had never worked through a prefab,
+  which is the only way an imported model reaches a scene.
+
+- **A 3D shadow never reached a scene viewed through a perspective camera.** The
+  shadow map's coverage came from reprojecting NDC z=0 — the whole view for an
+  orthographic camera, and a cross-section a few units wide near the near plane
+  for a perspective one. A 3D scene got a 1024² map covering about twelve world
+  units around the camera's centre: nothing cast onto anything, and geometry that
+  happened to sit at the centre shadowed itself instead. Coverage now comes from
+  the world box the meshes occupy, which is the same answer for both cameras.
+
+- **A component's Chinese reference link pointed at an English heading.** Five 3D
+  physics entries carried the English slug, so the Chinese reference sent readers
+  to headings that do not exist on a page whose headings are 刚体, 形状 and 角色.
+  The only check that resolves those anchors needs the site built, so it runs from
+  the docs deploy — which a release calls: v0.54.0 shipped its binaries and then
+  failed on three dead anchors, leaving the site describing 0.53.
+
 ## [0.54.0] - 2026-08-17
 
 ### Added
