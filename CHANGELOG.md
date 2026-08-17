@@ -16,6 +16,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Imported geometry can be collided against.** A `MeshCollider3D` uses a
+  mesh's own triangles — a terrain, a staircase, the inside of a room, none of
+  which a box or a capsule can express. Always static: a triangle soup has no
+  inertia tensor, so there is nothing for a solver to push.
+
+  The triangles are the ones the mesh decode already produced. Geometry went to
+  the GPU and its bytes were let go, which is right for drawing and useless for
+  colliding, so the asset layer now keeps the positions and indices under the
+  handle everything already references the mesh by — nothing else, since a
+  collider does not care what colour a vertex is.
+
 - **The 3D world says what touched what.** Contacts and sensor overlaps reach
   the ECS through a `Physics3DEvents` resource, drained per fixed step: an enter
   carries both entities, the normal and the point; a sensor names itself first,

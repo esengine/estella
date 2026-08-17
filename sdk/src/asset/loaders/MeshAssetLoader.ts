@@ -4,6 +4,7 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasm/wasmScratch';
 import { decodeMesh, encodeChannelTable } from '../meshFormat';
+import { extractPositions, registerMeshCollision, releaseMeshCollision } from '../meshCollision';
 
 /** A mesh uploaded to the GPU, named by the handle everything else references. */
 export interface MeshResult {
@@ -59,10 +60,16 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
         });
 
         if (!handle) throw new Error(`the engine rejected the geometry in ${path}`);
+        // The triangles the decode already produced, kept for whoever needs shape
+        // rather than pixels — a collider cannot ask the GPU what it uploaded.
+        const positions = extractPositions(mesh.vertices, mesh.vertexCount,
+                                           mesh.vertexStride, mesh.channels);
+        if (positions) registerMeshCollision(handle, { positions, indices: mesh.indices });
         return { handle };
     }
 
     unload(asset: MeshResult): void {
+        releaseMeshCollision(asset.handle);
         this.module_()?.mesh_release?.(asset.handle);
     }
 }

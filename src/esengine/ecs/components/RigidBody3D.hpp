@@ -125,6 +125,30 @@ struct CapsuleCollider3D {
 };
 
 /**
+ * @brief Imported geometry, used as it is, for a level to collide against.
+ *
+ * @details What a box or a capsule cannot say: a terrain, a staircase, a room.
+ *          ALWAYS STATIC whatever the RigidBody3D says — a triangle soup has no
+ *          inertia tensor, so there is nothing for a solver to push. Its triangles
+ *          are also ONE-SIDED: reversed winding stops nothing.
+ */
+ES_COMPONENT()
+struct MeshCollider3D {
+    /** @brief The geometry to collide against. Its triangles are used directly. */
+    ES_PROPERTY(asset = mesh, tooltip="Geometry (.esmesh) to collide against.")
+    resource::MeshHandle mesh;
+
+    ES_PROPERTY(min=0)
+    f32 friction{0.3f};
+
+    ES_PROPERTY(min=0, max=1)
+    f32 restitution{0.0f};
+
+    ES_PROPERTY()
+    bool enabled{true};
+};
+
+/**
  * @brief A kinematic mover for a 3D player or NPC.
  *
  * @details Swept against the world rather than solved in it, which is what lets it

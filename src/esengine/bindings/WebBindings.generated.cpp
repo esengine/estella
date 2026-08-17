@@ -545,6 +545,35 @@ Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
     return js;
 }
 
+struct MeshCollider3DJS {
+    u32 mesh;
+    f32 friction;
+    f32 restitution;
+    bool enabled;
+};
+
+void meshcollider3dApplyJS(esengine::ecs::MeshCollider3D& c, const MeshCollider3DJS& js) {
+    c.mesh = resource::MeshHandle(js.mesh);
+    c.friction = js.friction;
+    c.restitution = js.restitution;
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::MeshCollider3D meshcollider3dFromJS(const MeshCollider3DJS& js) {
+    esengine::ecs::MeshCollider3D c;
+    meshcollider3dApplyJS(c, js);
+    return c;
+}
+
+MeshCollider3DJS meshcollider3dToJS(const esengine::ecs::MeshCollider3D& c) {
+    MeshCollider3DJS js;
+    js.mesh = c.mesh.id();
+    js.friction = c.friction;
+    js.restitution = c.restitution;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct MeshSkinJS {
     std::vector<u32> joints;
 };
@@ -1378,6 +1407,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("enabled", &Mesh2DJS::enabled)
         .field("mesh", &Mesh2DJS::mesh);
 
+    value_object<MeshCollider3DJS>("MeshCollider3D")
+        .field("mesh", &MeshCollider3DJS::mesh)
+        .field("friction", &MeshCollider3DJS::friction)
+        .field("restitution", &MeshCollider3DJS::restitution)
+        .field("enabled", &MeshCollider3DJS::enabled);
+
     value_object<MeshSkinJS>("MeshSkin")
         .field("joints", &MeshSkinJS::joints);
 
@@ -1991,6 +2026,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Mesh2D>(entity);
         }))
 
+        // MeshCollider3D
+        .function("hasMeshCollider3D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::MeshCollider3D>(static_cast<Entity>(e));
+        }))
+        .function("getMeshCollider3D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshCollider3D>(entity)) return MeshCollider3DJS{};
+            return meshcollider3dToJS(r.get<esengine::ecs::MeshCollider3D>(entity));
+        }))
+        .function("addMeshCollider3D", optional_override([](Registry& r, u32 e, const MeshCollider3DJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::MeshCollider3D>(entity)) {
+                meshcollider3dApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::MeshCollider3D>(entity, meshcollider3dFromJS(js));
+        }))
+        .function("removeMeshCollider3D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshCollider3D>(entity)) return;
+            r.remove<esengine::ecs::MeshCollider3D>(entity);
+        }))
+
         // MeshSkin
         .function("hasMeshSkin", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::MeshSkin>(static_cast<Entity>(e));
@@ -2497,6 +2556,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("Light2D")));
     arr.set(i++, val(std::string("Mesh2D")));
+    arr.set(i++, val(std::string("MeshCollider3D")));
     arr.set(i++, val(std::string("MeshSkin")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
@@ -2653,6 +2713,10 @@ static_assert(offsetof(esengine::ecs::Mesh2D, parallax) == 32, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Mesh2D, material) == 40, "ABI offset drift: esengine::ecs::Mesh2D.material (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::Mesh2D, enabled) == 44, "ABI offset drift: esengine::ecs::Mesh2D.enabled (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::Mesh2D, mesh) == 48, "ABI offset drift: esengine::ecs::Mesh2D.mesh (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::MeshCollider3D, enabled) == 12, "ABI offset drift: esengine::ecs::MeshCollider3D.enabled (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -2867,7 +2931,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "95e303bc2d7c9fab";
+static const char* kEsAbiLayoutHash = "f3c3c0443ccbd99d";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

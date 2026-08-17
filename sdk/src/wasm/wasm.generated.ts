@@ -390,6 +390,13 @@ export interface Mesh2D {
     mesh: number;
 }
 
+export interface MeshCollider3D {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    enabled: boolean;
+}
+
 export interface MeshSkin {
     joints: VectorEntity;
 }
@@ -734,6 +741,10 @@ export interface Registry {
     getMesh2D(entity: Entity): Mesh2D;
     addMesh2D(entity: Entity, component: Mesh2D): void;
     removeMesh2D(entity: Entity): void;
+    hasMeshCollider3D(entity: Entity): boolean;
+    getMeshCollider3D(entity: Entity): MeshCollider3D;
+    addMeshCollider3D(entity: Entity, component: MeshCollider3D): void;
+    removeMeshCollider3D(entity: Entity): void;
     hasMeshSkin(entity: Entity): boolean;
     getMeshSkin(entity: Entity): MeshSkin;
     addMeshSkin(entity: Entity, component: MeshSkin): void;
@@ -847,6 +858,7 @@ export interface ESEngineModule {
     Interactable: new () => Interactable;
     Light2D: new () => Light2D;
     Mesh2D: new () => Mesh2D;
+    MeshCollider3D: new () => MeshCollider3D;
     MeshSkin: new () => MeshSkin;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;

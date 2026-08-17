@@ -37,7 +37,15 @@ export interface Physics3DWasmModule {
                           motion: number, gravityScale: number, linearDamping: number,
                           angularDamping: number, fixedRotation: number,
                           friction: number, restitution: number, isSensor: number): number;
+    _physics3d_addMeshBody(entity: number, vertexPtr: number, vertexCount: number,
+                           indexPtr: number, indexCount: number,
+                           px: number, py: number, pz: number,
+                           qx: number, qy: number, qz: number, qw: number,
+                           friction: number, restitution: number): number;
     _physics3d_removeBody(bodyId: number): void;
+
+    _malloc(bytes: number): number;
+    _free(ptr: number): void;
     _physics3d_setTransform(bodyId: number, px: number, py: number, pz: number,
                             qx: number, qy: number, qz: number, qw: number): void;
     _physics3d_setLinearVelocity(bodyId: number, vx: number, vy: number, vz: number): void;

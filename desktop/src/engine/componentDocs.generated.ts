@@ -35,6 +35,7 @@ export const COMPONENT_DOC_PATHS: Readonly<Record<string, string>> = {
   Light2D: 'reference/components/graphics/#light2d',
   Marker: 'reference/components/world/#marker',
   Mesh2D: 'reference/components/graphics/#mesh2d',
+  MeshCollider3D: 'reference/components/physics/#meshcollider3d',
   MeshSkin: 'reference/components/graphics/#meshskin',
   MotorJoint: 'reference/components/physics/#motorjoint',
   Name: 'reference/components/core/#name',

@@ -773,6 +773,42 @@ export function createMesh2DData(): Mesh2DPtrData {
     };
 }
 
+export interface MeshCollider3DPtrData {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    enabled: boolean;
+}
+
+export function fillMeshCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: MeshCollider3DPtrData,
+): void {
+    out.mesh = u32[ptr >> 2];
+    out.friction = f32[(ptr + 4) >> 2];
+    out.restitution = f32[(ptr + 8) >> 2];
+    out.enabled = u8[ptr + 12] !== 0;
+}
+
+export function writeMeshCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: MeshCollider3DPtrData,
+): void {
+    u32[ptr >> 2] = data.mesh;
+    f32[(ptr + 4) >> 2] = data.friction;
+    f32[(ptr + 8) >> 2] = data.restitution;
+    u8[ptr + 12] = data.enabled ? 1 : 0;
+}
+
+export function createMeshCollider3DData(): MeshCollider3DPtrData {
+    return {
+        mesh: 0,
+        friction: 0,
+        restitution: 0,
+        enabled: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -2006,6 +2042,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },
     Mesh2D: { fill: fillMesh2D, write: writeMesh2D, create: createMesh2DData },
+    MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },

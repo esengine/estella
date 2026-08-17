@@ -14,7 +14,11 @@ import { Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
+    MeshCollider3D,
 } from '../src/physics3d/Physics3DComponents';
+import {
+    registerMeshCollision, releaseMeshCollision, extractPositions,
+} from '../src/asset/meshCollision';
 import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physics3DSystem';
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
@@ -31,7 +35,7 @@ function fakeModule(): Physics3DWasmModule & {
 } {
     const calls: { name: string; args: number[] }[] = [];
     // One heap the module's two pointers index into, as wasm has.
-    const combined = new Float32Array(2176);
+    const combined = new Float32Array(4096);
     const heap = combined.subarray(0, 1024);
     const record = (name: string) => (...args: number[]): number => {
         calls.push({ name, args });
@@ -42,6 +46,7 @@ function fakeModule(): Physics3DWasmModule & {
     let published = 0;
     let publishedQuery = 0;
     let publishedEvents = 0;
+    let scratchTop = 4096;
     return {
         calls,
         publish(records: number[]) {
@@ -75,6 +80,11 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_removeCharacter: record('removeCharacter'),
         _physics3d_moveCharacter: record('moveCharacter'),
         _physics3d_setCharacterPosition: record('setCharacterPosition'),
+        _physics3d_addMeshBody: record('addMeshBody'),
+        // Distinct allocations, as a real heap gives: one address for everything
+        // let the index write land on top of the vertex write.
+        _malloc: (bytes: number) => { const at = scratchTop; scratchTop += bytes; return at; },
+        _free: () => {},
         _physics3d_contactEnters: () => 2048 * 4,
         _physics3d_contactEntersBytes: () => publishedEvents,
         _physics3d_contactExits: () => 0,
@@ -280,6 +290,36 @@ describe('the 3D world and the ECS', () => {
         expect(hit!.pointY).toBeCloseTo(1, 6);
     });
 
+    it('collides against a loaded mesh\u2019s own triangles', () => {
+        // Two triangles a metre across, as the loader would have kept them.
+        registerMeshCollision(77, {
+            positions: new Float32Array([0, 0, 0, 100, 0, 0, 0, 0, 100, 100, 0, 100]),
+            indices: new Uint32Array([0, 2, 1, 2, 3, 1]),
+        });
+        const e = spawn();
+        world.insert(e, MeshCollider3D, { mesh: 77 });
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        const [call] = called('addMeshBody');
+        expect(call).toBeDefined();
+        expect(call!.args[2]).toBe(4);   // four vertices
+        expect(call!.args[4]).toBe(6);   // six indices
+        // A 100-unit triangle is a metre in the solver.
+        expect(module.HEAPF32[(call!.args[1] >> 2) + 3]).toBeCloseTo(1, 6);
+        releaseMeshCollision(77);
+    });
+
+    it('registers nothing for a mesh collider whose geometry never loaded', () => {
+        const e = spawn();
+        world.insert(e, MeshCollider3D, { mesh: 999 });
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        // Handle 999 named a mesh nothing kept triangles for. Registering a body
+        // with no shape would put an invisible point in the world.
+        expect(called('addMeshBody')).toHaveLength(0);
+        expect(bodies.size).toBe(0);
+    });
+
     it('leaves a disabled body out of the world', () => {
         const e = spawn();
         world.insert(e, BoxCollider3D);
@@ -307,5 +347,26 @@ describe('a scene asks for the world it needs', () => {
         // scene must not be served the solver that cannot move it.
         expect(sceneUses3DPhysics(sceneWith('RigidBody', 'BoxCollider') as never)).toBe(false);
         expect(sceneUsesPhysics(sceneWith('RigidBody3D', 'BoxCollider3D') as never)).toBe(false);
+    });
+});
+
+describe('mesh collision geometry', () => {
+    it('pulls positions out of an interleaved buffer', () => {
+        // Two vertices, each 20 bytes: position (12) then a colour (8) it ignores.
+        const bytes = new Uint8Array(40);
+        const view = new DataView(bytes.buffer);
+        view.setFloat32(0, 1, true); view.setFloat32(4, 2, true); view.setFloat32(8, 3, true);
+        view.setFloat32(20, 4, true); view.setFloat32(24, 5, true); view.setFloat32(28, 6, true);
+        const out = extractPositions(bytes, 2, 20, [
+            { semantic: 0, offset: 0, type: 0 }, { semantic: 1, offset: 12, type: 0 },
+        ]);
+        expect(Array.from(out!)).toEqual([1, 2, 3, 4, 5, 6]);
+    });
+
+    it('answers null for geometry with no positions', () => {
+        // Nothing can collide against a mesh that never said where its vertices are.
+        expect(extractPositions(new Uint8Array(8), 1, 8, [
+            { semantic: 3, offset: 0, type: 0 },
+        ])).toBeNull();
     });
 });

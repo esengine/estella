@@ -10,12 +10,12 @@
 import { defineBuiltin } from '../ecs/component';
 import type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
-    CharacterController3DData,
+    CharacterController3DData, MeshCollider3DData,
 } from '../ecs/component.generated';
 
 export type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
-    CharacterController3DData,
+    CharacterController3DData, MeshCollider3DData,
 };
 
 export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
@@ -55,6 +55,19 @@ export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCo
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
+    enabled: true,
+});
+
+/**
+ * Imported geometry used as it is, for a level to collide against. Always static:
+ * a triangle soup has no inertia tensor, so there is nothing for a solver to push.
+ *
+ * @beta
+ */
+export const MeshCollider3D = defineBuiltin<MeshCollider3DData>('MeshCollider3D', {
+    mesh: 0,
+    friction: 0.3,
+    restitution: 0.0,
     enabled: true,
 });
 

@@ -44,6 +44,24 @@ cmds.spawn()
   不是可选项——它正是一个 60 单位宽的胶囊会像人一样倒下的原因。
 </Aside>
 
+### 用导入的几何做碰撞
+
+`MeshCollider3D` 直接拿网格自己的三角形做碰撞——地形、楼梯、房间内部,
+这些正是盒子和胶囊说不出来的东西。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, {})
+  .insert(RigidBody3D, { bodyType: BodyType.Static })
+  .insert(MeshCollider3D, { mesh: 'assets/models/level.esmesh' });
+```
+
+<Aside>
+  它永远是静态的,不管 `RigidBody3D` 怎么写:三角汤没有惯性张量,求解器没有东西可推。
+  而且三角形是**单面的**——一块绕序朝下的地板,射线照样报命中,刚体却会直接穿过去。
+  导入的几何拦不住任何东西时,先怀疑这个。
+</Aside>
+
 ## 角色
 
 `CharacterController3D` **取代** `RigidBody3D` 而不是与它并存:被求解器推的刚体

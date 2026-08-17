@@ -48,6 +48,26 @@ cmds.spawn()
   is not optional — it is why a capsule 60 units wide falls the way a person does.
 </Aside>
 
+### Colliding against imported geometry
+
+A `MeshCollider3D` collides against a mesh's own triangles — a terrain, a
+staircase, the inside of a room. It is what a box and a capsule cannot say.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, {})
+  .insert(RigidBody3D, { bodyType: BodyType.Static })
+  .insert(MeshCollider3D, { mesh: 'assets/models/level.esmesh' });
+```
+
+<Aside>
+  Always static, whatever its `RigidBody3D` says: a triangle soup has no inertia
+  tensor, so there is nothing for a solver to push. And the triangles are
+  ONE-SIDED — a floor whose winding faces down is one that rays still report and
+  bodies fall straight through. That is the failure to expect if imported geometry
+  stops nothing.
+</Aside>
+
 ## Characters
 
 A `CharacterController3D` replaces a `RigidBody3D` rather than accompanying one: a

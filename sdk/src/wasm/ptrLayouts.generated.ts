@@ -218,6 +218,15 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'mesh', type: 'u32', offset: 48 },
         ],
     },
+    MeshCollider3D: {
+        ptrFn: 'getMeshCollider3DPtr',
+        fields: [
+            { name: 'mesh', type: 'u32', offset: 0 },
+            { name: 'friction', type: 'f32', offset: 4 },
+            { name: 'restitution', type: 'f32', offset: 8 },
+            { name: 'enabled', type: 'bool', offset: 12 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [

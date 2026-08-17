@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '95e303bc2d7c9fab';
+export const ABI_LAYOUT_HASH = 'f3c3c0443ccbd99d';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -427,6 +427,23 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
+        },
+    },
+    MeshCollider3D: {
+        defaults: {
+            mesh: 0,
+            friction: 0.3,
+            restitution: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'mesh', type: 'mesh' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            mesh: { tooltip: "Geometry (.esmesh) to collide against." },
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
         },
     },
     MeshSkin: {
@@ -1170,6 +1187,13 @@ export interface Mesh2DData {
     material: number;
     enabled: boolean;
     mesh: number;
+}
+
+export interface MeshCollider3DData {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    enabled: boolean;
 }
 
 export interface MeshSkinData {

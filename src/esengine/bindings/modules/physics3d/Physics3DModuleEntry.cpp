@@ -21,6 +21,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
@@ -141,7 +142,7 @@ ContactRecorder& recorder() {
 }
 
 /// Register a shape as a body, and remember which entity it speaks for.
-uint32_t addBody(uint32_t entity, Shape* shape, float px, float py, float pz,
+uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, float pz,
                  float qx, float qy, float qz, float qw, const BodyMotion& how,
                  float friction, float restitution, int isSensor) {
     if (!g().isValid()) return 0;
@@ -301,6 +302,49 @@ uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
     return addBody(entity, new CapsuleShape(halfHeight, radius), px, py, pz, qx, qy, qz, qw,
                    {motion, gravityScale, linearDamping, angularDamping, fixedRotation},
                    friction, restitution, isSensor);
+}
+
+/**
+ * @brief Registers imported geometry as a collider.
+ * @details Triangles rather than a shape: the `.esmesh` format belongs to the
+ *          asset layer, which hands over positions it has already extracted and
+ *          scaled. A mesh collider is always STATIC — Jolt cannot give a triangle
+ *          soup an inertia tensor, so there is nothing for a solver to push.
+ * @param vertexPtr `vertexCount * 3` floats, in metres, in the body's own space.
+ * @param indexPtr `indexCount` uint32 indices; must be a triangle list.
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t physics3d_addMeshBody(uint32_t entity, uintptr_t vertexPtr, uint32_t vertexCount,
+                               uintptr_t indexPtr, uint32_t indexCount,
+                               float px, float py, float pz,
+                               float qx, float qy, float qz, float qw,
+                               float friction, float restitution) {
+    if (!g().isValid() || vertexCount == 0 || indexCount < 3 || indexCount % 3 != 0) return 0;
+    const float* positions = reinterpret_cast<const float*>(vertexPtr);
+    const uint32_t* indices = reinterpret_cast<const uint32_t*>(indexPtr);
+    if (positions == nullptr || indices == nullptr) return 0;
+
+    VertexList vertices;
+    vertices.reserve(vertexCount);
+    for (uint32_t i = 0; i < vertexCount; ++i) {
+        vertices.push_back(Float3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+    }
+    IndexedTriangleList triangles;
+    triangles.reserve(indexCount / 3);
+    for (uint32_t i = 0; i + 2 < indexCount; i += 3) {
+        if (indices[i] >= vertexCount || indices[i + 1] >= vertexCount
+            || indices[i + 2] >= vertexCount) {
+            return 0;  // an index past the vertices would read whatever follows them
+        }
+        triangles.push_back(IndexedTriangle(indices[i], indices[i + 1], indices[i + 2], 0));
+    }
+
+    MeshShapeSettings settings(std::move(vertices), std::move(triangles));
+    settings.SetEmbedded();
+    ShapeSettings::ShapeResult shape = settings.Create();
+    if (shape.HasError()) return 0;
+    return addBody(entity, shape.Get(), px, py, pz, qx, qy, qz, qw,
+                   {0, 1.0f, 0.0f, 0.0f, 0}, friction, restitution, 0);
 }
 
 EMSCRIPTEN_KEEPALIVE

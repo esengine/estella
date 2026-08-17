@@ -16,9 +16,11 @@ import { Transform } from '../ecs/component';
 import type { TransformData } from '../ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
+    MeshCollider3D,
     type RigidBody3DData, type BoxCollider3DData, type SphereCollider3DData,
-    type CapsuleCollider3DData, type CharacterController3DData,
+    type CapsuleCollider3DData, type CharacterController3DData, type MeshCollider3DData,
 } from './Physics3DComponents';
+import { getMeshCollision } from '../asset/meshCollision';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule, Physics3DEventsData } from './Physics3DModule';
 import { PHYSICS3D_TRANSFORM_STRIDE, drainPhysics3DEvents } from './Physics3DModule';
@@ -140,6 +142,10 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
             entity as number, sphere.radius / ppu, px, py, pz, r.x, r.y, r.z, r.w,
             ...how, sphere.friction, sphere.restitution, sphere.isSensor ? 1 : 0);
     }
+    const meshCollider = app.world.get(entity, MeshCollider3D) as MeshCollider3DData | undefined;
+    if (meshCollider?.enabled && meshCollider.mesh !== 0) {
+        return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu);
+    }
     const capsule = app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData | undefined;
     if (capsule?.enabled) {
         return module._physics3d_addCapsule(
@@ -150,6 +156,34 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     // A body with no shape has no extent to collide with, so it is not registered
     // at all — the alternative is an invisible point that falls forever.
     return 0;
+}
+
+/**
+ * Hand a loaded mesh's triangles to the module, scaled into metres.
+ *
+ * They cross through the module's own heap: the positions have to be scaled
+ * anyway, so a copy is made either way and this is the one the module can read.
+ */
+function addMeshBody(module: Physics3DWasmModule, entity: Entity,
+                     collider: MeshCollider3DData,
+                     px: number, py: number, pz: number,
+                     r: { x: number; y: number; z: number; w: number }, ppu: number): number {
+    const geometry = getMeshCollision(collider.mesh);
+    if (!geometry) return 0;
+    const { positions, indices } = geometry;
+    const vertexPtr = module._malloc(positions.length * 4);
+    const indexPtr = module._malloc(indices.length * 4);
+    try {
+        const heapF32 = module.HEAPF32;
+        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! / ppu;
+        module.HEAPU32.set(indices, indexPtr >> 2);
+        return module._physics3d_addMeshBody(
+            entity as number, vertexPtr, positions.length / 3, indexPtr, indices.length,
+            px, py, pz, r.x, r.y, r.z, r.w, collider.friction, collider.restitution);
+    } finally {
+        module._free(vertexPtr);
+        module._free(indexPtr);
+    }
 }
 
 /** Bring the world's population in line with the ECS, then step and read back. */

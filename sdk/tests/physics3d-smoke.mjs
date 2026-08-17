@@ -277,7 +277,58 @@ check('and does not stop it', near(bodyState(visitorId).y, 0.5, 0.1),
 check('and reports when it leaves', sensorLeft != null && sensorLeft[1] === VISITOR,
       JSON.stringify(sensorLeft));
 
-// ── 8) A removed body is gone from both the sweep and the getter ────────────
+// ── 8) Imported geometry as a collider ─────────────────────────────────────
+// A shallow ramp from two triangles, 4 wide and rising 1, at y=3 well clear of
+// the floor. Shallow on purpose: a steep one only proves that things slide.
+const alloc = (values, Ctor) => {
+    const ptr = m._malloc(values.length * 4);
+    new Ctor(m.HEAPU8.buffer, ptr, values.length).set(values);
+    return ptr;
+};
+const RAMP = 30;
+const rampVerts = alloc(new Float32Array([
+    0, 0, -2,   4, 1, -2,   0, 0, 2,   4, 1, 2,
+]), Float32Array);
+// Counter-clockwise from above, so the normals point UP. A mesh shape is
+// ONE-SIDED: reversed, a body falls through while a ray still reports a hit.
+const rampIndices = alloc(new Uint32Array([0, 2, 1, 2, 3, 1]), Uint32Array);
+const rampId = m._physics3d_addMeshBody(RAMP, rampVerts, 4, rampIndices, 6,
+                                        30, 3, 0, ...IDENTITY, 0.5, 0);
+m._free(rampVerts);
+m._free(rampIndices);
+check('imported geometry becomes a body', rampId !== 0, `id=${rampId}`);
+m._physics3d_optimize();
+
+// A ray finds it at the height the slope predicts: over x=31 the surface is at
+// 3.25, so the hit is 6.75 of the ray's 20 units.
+const onRamp = raycast(31, 10, 0, 0, -20, 0);
+check('a ray meets the ramp where it slopes', onRamp != null && onRamp.entity === RAMP
+      && near(onRamp.fraction, 0.3375, 0.02),
+      `entity=${onRamp?.entity} fraction=${onRamp?.fraction?.toFixed(4)} want 0.3375`);
+
+// Over x=32 the surface is at 3.5, so a half-metre box settles near 4; the floor
+// is at 0. A BOX, not a sphere — a sphere rolls off any slope, however shallow.
+const CRATE = 31;
+const crateId = m._physics3d_addBox(CRATE, 0.5, 0.5, 0.5, 32, 8, 0, ...IDENTITY,
+                                    ...FREE(DYNAMIC), 0.9, 0, 0);
+step(240);
+const crate = bodyState(crateId);
+check('and a body rests on its triangles', crate && crate.y > 3.4,
+      `y=${crate?.y?.toFixed(4)} want about 4 (ramp surface 3.5 + half-extent)`);
+
+// Degenerate input is REFUSED, not quietly trimmed — an out-of-range index would
+// read past the vertices. One good triangle and one bad, so silently dropping the
+// bad one would still build a body.
+const badVerts = alloc(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), Float32Array);
+const badIndices = alloc(new Uint32Array([0, 1, 2, 0, 1, 99]), Uint32Array);
+check('an index past the vertices is refused',
+      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 6, 0, 0, 0, ...IDENTITY, 0.5, 0) === 0);
+check('and so is a non-triangle count',
+      m._physics3d_addMeshBody(32, badVerts, 3, badIndices, 5, 0, 0, 0, ...IDENTITY, 0.5, 0) === 0);
+m._free(badVerts);
+m._free(badIndices);
+
+// ── 9) A removed body is gone from both the sweep and the getter ────────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);
