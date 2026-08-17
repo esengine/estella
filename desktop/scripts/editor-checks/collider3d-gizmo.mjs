@@ -50,12 +50,8 @@ export const describes = 'a 3D collider is drawn in the viewport, turned the way
  *  strongly green, and green far above both other channels. */
 function greenBox(png, minGreen) {
   let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;
-  // The viewport only — panels, the toolbar and the status bar have greens of
-  // their own, and a stray one would stretch the box across the window.
-  const x0 = Math.round(png.w * 0.04), x1 = Math.round(png.w * 0.62);
-  const y0 = Math.round(png.h * 0.12), y1 = Math.round(png.h * 0.88);
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  for (let y = 0; y < png.h; y++) {
+    for (let x = 0; x < png.w; x++) {
       const p = png.px(x, y);
       if (p[1] < minGreen || p[1] - p[0] < 60 || p[1] - p[2] < 25) continue;
       count++;
@@ -77,7 +73,7 @@ export async function run(ed) {
 
   await ed.open(root, 'assets/scenes/main.esscene');
   await ed.sleep(1200);
-  const drawn = await ed.screenshot('collider3d-on');
+  const drawn = await ed.screenshot('collider3d-on', { crop: 'game' });
 
   const box = greenBox(drawn, 110);
   if (!check(box != null, 'no collider wireframe anywhere in the viewport')) return check.failures;
@@ -85,6 +81,15 @@ export async function run(ed) {
   // something" is not the claim, "it drew this shape" is.
   if (!check(box.count > 40,
     `only ${box.count} wireframe pixels — nothing that could be a box outline`)) {
+    return check.failures;
+  }
+
+  // A ratio taken over a handful of pixels is quantisation, not a shape: at 14px
+  // wide one pixel of edge is 0.15 of the answer. Said outright, because the
+  // measurement that follows would otherwise report a made-up number.
+  if (!check(box.w >= 24,
+    `the wireframe is ${box.w}x${box.h} in a ${drawn.w}x${drawn.h} viewport — too few `
+    + 'pixels across to measure a shape')) {
     return check.failures;
   }
 
@@ -103,7 +108,7 @@ export async function run(ed) {
     entity: 1, component: 'RigidBody3D', key: 'enabled', type: 'bool', value: false,
   }, 30000);
   await ed.sleep(900);
-  const off = await ed.screenshot('collider3d-inactive');
+  const off = await ed.screenshot('collider3d-inactive', { crop: 'game' });
   const dim = greenBox(off, 110);
   const dimCount = dim?.count ?? 0;
   check(
