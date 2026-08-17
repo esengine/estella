@@ -17,7 +17,11 @@
 /** Did the renderer never get a GPU, whatever it then said about pixels? */
 export function gpuNeverCameUp(output) {
     return /Exiting GPU process due to errors during initialization/.test(output)
-        || (/GPU device lost/.test(output) && /Failed to create framebuffer/.test(output))
+        // A lost device, then resources it can no longer make — textures as well as
+        // framebuffers. The runner's outage said "Failed to create texture from
+        // spec", which only the line above caught, and that one fires on every launch.
+        || (/GPU device lost/.test(output)
+            && /Failed to create (framebuffer|texture)|createTexture failed/.test(output))
         || /WebGL2 is not available/.test(output);
 }
 
@@ -47,6 +51,13 @@ function backoff(attempt, stepMs) {
 }
 
 /**
+ * Measured on the runner: a GPU that goes takes about two minutes to come back,
+ * and six attempts two seconds apart spanned ninety seconds of it — every retry
+ * spent inside the same dead window. Five seconds a step covers it.
+ */
+const STEP_MS = 5000;
+
+/**
  * Run `attempt` (→ `{ ok, output }`) until it succeeds or fails with the GPU up.
  *
  * A failure ANYWHERE after a death in this chain is inconclusive: a restarted GPU
@@ -54,7 +65,7 @@ function backoff(attempt, stepMs) {
  * nothing about why. A game that truly draws nothing still fails on the first
  * attempt, since no attempt reports a death. `note(died)` announces each retry.
  */
-export function retryOnDeadGpu(attempt, note, stepMs = 2000) {
+export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
     let sawDeath = false;
     let last;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {

@@ -78,6 +78,17 @@ describe('retryOnDeadGpu', () => {
         expect(r.notes).toEqual([true, false]);
     });
 
+    it('reads a lost device that then fails to make TEXTURES', () => {
+        // Verbatim from the runner, the day the second clause was found to only
+        // know about framebuffers.
+        const real = [
+            '[ERROR] GPU device lost: context-lost [backend=WebGL2, vendor=Google Inc.]',
+            '[ERROR] Texture::initialize: createTexture failed for 70x70',
+            '[ERROR] Failed to create texture from spec',
+        ].join('\n');
+        expect(gpuNeverCameUp(real)).toBe(true);
+    });
+
     it('words the give-up once, for both runners', () => {
         // The two of them each had their own sentence for it, and one of them
         // blamed the game — the failure this file exists to keep apart.
