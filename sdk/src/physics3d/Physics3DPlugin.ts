@@ -16,6 +16,7 @@ import {
     stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG, type Physics3DConfig,
 } from './Physics3DSystem';
 import { Physics3DQueries } from './Physics3DQueries';
+import type { Joint3DMap } from './Physics3DJoints';
 
 /** Ask the 3D world what is where. Present once the module has loaded. */
 export const Physics3D = defineResource<Physics3DQueries | null>(null, 'Physics3D');
@@ -28,10 +29,13 @@ export interface Physics3DRuntime {
     bodies: Map<Entity, number>;
     /** Entity -> character id. Characters are not bodies and are kept apart. */
     characters: Map<Entity, number>;
+    /** Entity -> the joint it declared, with the bodies it was built between. */
+    joints: Joint3DMap;
 }
 
 export const Physics3DRuntime = defineResource<Physics3DRuntime>(
-    { module: null, initPromise: null, bodies: new Map(), characters: new Map() },
+    { module: null, initPromise: null, bodies: new Map(), characters: new Map(),
+      joints: new Map() },
     'Physics3DRuntime',
 );
 
@@ -52,6 +56,7 @@ export class Physics3DPlugin implements Plugin {
     build(app: App): void {
         const runtime: Physics3DRuntime = {
             module: null, initPromise: null, bodies: new Map(), characters: new Map(),
+            joints: new Map(),
         };
         const events: Physics3DEventsData = {
             contactEnters: [], contactExits: [], sensorEnters: [], sensorExits: [],
@@ -74,7 +79,7 @@ export class Physics3DPlugin implements Plugin {
                                                               this.config_.pixelsPerUnit));
             app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
-                              runtime.characters, events);
+                              runtime.characters, events, runtime.joints);
             }));
             app.setFixedTimestep?.(this.config_.fixedTimestep);
             app.subsystems?.transition?.('physics3d', 'ready');

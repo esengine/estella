@@ -114,6 +114,55 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   leaving every caller to rediscover it.
 </Aside>
 
+## Joints
+
+A door, a rope bridge, a lift, a ragdoll: none of them are one body and a shape.
+They are two bodies and a rule about how they may move relative to each other. A
+joint lives on the entity that declares it and names the other one.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(RigidBody3D, {})
+  .insert(BoxCollider3D, { halfExtents: { x: 50, y: 100, z: 5 } })
+  .insert(HingeJoint3D, {
+    connectedEntity: frame,
+    anchor: { x: -50, y: 0, z: 0 },   // the door's own edge
+    axis: { x: 0, y: 1, z: 0 },       // upright
+    enableLimit: true, lowerAngle: 0, upperAngle: Math.PI / 2,
+  });
+```
+
+| Component | Rule |
+|---|---|
+| `PointJoint3D` | A shared point, free to turn on all three axes. |
+| `HingeJoint3D` | One axis of rotation, with optional limits and a motor. |
+| `SliderJoint3D` | One axis of travel, with optional limits and a motor. |
+| `DistanceJoint3D` | A distance kept: a rope with `maxLength`, a rod when the lengths meet, a spring with `frequency`. |
+| `FixedJoint3D` | No freedom at all — the two move as one. |
+
+`anchor` and `axis` are written in the declaring entity's own local space, in
+world units, and are resolved against its transform when the joint is made. That
+pose is also the **zero** of every limit: a door placed closed has `angle` 0 and
+opens to `upperAngle`.
+
+Set `motorSpeed` from gameplay at any time — the world is re-driven when it
+changes. In the other direction, `HingeJoint3D.angle` and
+`SliderJoint3D.translation` are written back each step, so a game can ask how far
+the door swung without integrating the swing a second time.
+
+<Aside>
+  `collideConnected` is false by default, and it joins the two bodies into ONE
+  assembly rather than one pair: everything a chain of joints reaches stops
+  colliding with the rest of that chain. That is what a door needs (it must not
+  fight its own frame) and what a ragdoll needs. Turn it on when the two really
+  should meet.
+
+  One joint per entity — the world keys a constraint by the entity that declared
+  it. An entity that needs two joints carries a child for the second, which is
+  also how a scene says which is which.
+</Aside>
+
 ## Asking the world what is where
 
 The `Physics3D` resource answers spatial questions in world units.

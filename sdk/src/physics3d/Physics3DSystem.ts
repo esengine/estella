@@ -21,6 +21,7 @@ import {
     type CapsuleCollider3DData, type CharacterController3DData, type MeshCollider3DData,
 } from './Physics3DComponents';
 import { getMeshCollision } from '../asset/meshCollision';
+import { syncJoints3D, type Joint3DMap } from './Physics3DJoints';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule, Physics3DEventsData } from './Physics3DModule';
 import { PHYSICS3D_TRANSFORM_STRIDE, drainPhysics3DEvents } from './Physics3DModule';
@@ -196,7 +197,8 @@ function addMeshBody(module: Physics3DWasmModule, entity: Entity,
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
                               bodies: BodyMap, config: Physics3DConfig,
                               characters: BodyMap = new Map(),
-                              events?: Physics3DEventsData): void {
+                              events?: Physics3DEventsData,
+                              joints: Joint3DMap = new Map()): void {
     const ppu = config.pixelsPerUnit;
     moveCharacters(app, module, characters, config);
 
@@ -210,9 +212,16 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
             if (id !== 0) bodies.set(entity, id);
         }
     }
-    for (const [entity, id] of bodies) {
-        if (live.has(entity) && app.world.valid(entity)) continue;
-        module._physics3d_removeBody(id);
+    const doomed = new Set<Entity>();
+    for (const entity of bodies.keys()) {
+        if (!live.has(entity) || !app.world.valid(entity)) doomed.add(entity);
+    }
+    // Joints first, and told what is about to go: the module holds a constraint
+    // against two bodies, so removing a body under a live joint leaves the solver
+    // holding nothing.
+    syncJoints3D(app, module, bodies, joints, ppu, doomed);
+    for (const entity of doomed) {
+        module._physics3d_removeBody(bodies.get(entity)!);
         bodies.delete(entity);
     }
 

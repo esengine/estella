@@ -447,6 +447,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     if(ES_ENABLE_JOLT)
         set(ES_PHYSICS3D_SOURCES
             src/esengine/bindings/modules/physics3d/Physics3DModuleEntry.cpp
+            src/esengine/bindings/modules/physics3d/Physics3DConstraints.cpp
         )
         if(ES_PHYSICS_ESM)
             add_executable(physics3d_module_esm ${ES_PHYSICS3D_SOURCES})

@@ -103,6 +103,50 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   而不是让每个调用者各自重新发现这件事。
 </Aside>
 
+## 关节
+
+门、绳桥、升降台、布娃娃:它们都不是「一个刚体加一个形状」,
+而是**两个刚体**外加一条「它们之间可以怎么动」的规则。
+关节挂在声明它的那个实体上,并指名另一个实体。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(RigidBody3D, {})
+  .insert(BoxCollider3D, { halfExtents: { x: 50, y: 100, z: 5 } })
+  .insert(HingeJoint3D, {
+    connectedEntity: frame,
+    anchor: { x: -50, y: 0, z: 0 },   // 门自己的那条边
+    axis: { x: 0, y: 1, z: 0 },       // 竖直
+    enableLimit: true, lowerAngle: 0, upperAngle: Math.PI / 2,
+  });
+```
+
+| 组件 | 规则 |
+|---|---|
+| `PointJoint3D` | 共享一个点,三轴自由转动。 |
+| `HingeJoint3D` | 一根转轴,可选限位与马达。 |
+| `SliderJoint3D` | 一条滑轨,可选限位与马达。 |
+| `DistanceJoint3D` | 保持一段距离:只给 `maxLength` 就是绳,两个长度相等就是杆,给了 `frequency` 就是弹簧。 |
+| `FixedJoint3D` | 完全不给自由度——两者作为一个整体运动。 |
+
+`anchor` 与 `axis` 写在**声明关节的那个实体自己的局部空间**里,用世界单位,
+在关节建立的那一刻按它的变换解算成世界量。那个姿态同时也是所有限位的**零点**:
+一扇摆成关闭状态的门,`angle` 就是 0,开到 `upperAngle`。
+
+`motorSpeed` 随时可以由游戏逻辑改写——变了就会重新驱动世界。反方向上,
+`HingeJoint3D.angle` 与 `SliderJoint3D.translation` 每步写回,
+所以游戏可以直接问「门开了多少」,不必自己再积分一遍。
+
+<Aside>
+  `collideConnected` 默认关闭,而且它把两个刚体并进**同一个装配**而不是只对这一对生效:
+  一串关节所能连通到的所有刚体,彼此之间都不再碰撞。门需要这个(它不能和自己的门框打架),
+  布娃娃也需要。确实应该互相碰的时候再把它打开。
+
+  **一个实体只有一个关节**——世界按「声明它的实体」给约束建索引。
+  需要两个关节的实体就挂一个子实体给第二个,这也正好让场景说清楚哪个是哪个。
+</Aside>
+
 ## 问世界「那里有什么」
 
 `Physics3D` 资源用世界单位回答空间问题。

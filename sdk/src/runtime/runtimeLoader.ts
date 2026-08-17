@@ -217,7 +217,8 @@ const PHYSICS_COMPONENT_TYPES = new Set([
 /** The same question for the 3D world, which is a different module entirely. */
 const PHYSICS3D_COMPONENT_TYPES = new Set([
     'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
-    'CharacterController3D',
+    'MeshCollider3D', 'CharacterController3D',
+    'PointJoint3D', 'HingeJoint3D', 'SliderJoint3D', 'DistanceJoint3D', 'FixedJoint3D',
 ]);
 
 /** True if any entity carries a 3D physics component. */

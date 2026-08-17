@@ -70,6 +70,33 @@ export interface Physics3DWasmModule {
     _physics3d_overlapBox(px: number, py: number, pz: number,
                           hx: number, hy: number, hz: number, layerMask: number): number;
 
+    _physics3d_addPointJoint(entity: number, bodyA: number, bodyB: number,
+                             px: number, py: number, pz: number,
+                             collideConnected: number): number;
+    _physics3d_addHingeJoint(entity: number, bodyA: number, bodyB: number,
+                             px: number, py: number, pz: number,
+                             ax: number, ay: number, az: number,
+                             enableLimit: number, lower: number, upper: number,
+                             enableMotor: number, motorSpeed: number, maxTorque: number,
+                             collideConnected: number): number;
+    _physics3d_addSliderJoint(entity: number, bodyA: number, bodyB: number,
+                              px: number, py: number, pz: number,
+                              ax: number, ay: number, az: number,
+                              enableLimit: number, lower: number, upper: number,
+                              enableMotor: number, motorSpeed: number, maxForce: number,
+                              collideConnected: number): number;
+    _physics3d_addDistanceJoint(entity: number, bodyA: number, bodyB: number,
+                                ax: number, ay: number, az: number,
+                                bx: number, by: number, bz: number,
+                                minLength: number, maxLength: number,
+                                frequency: number, damping: number,
+                                collideConnected: number): number;
+    _physics3d_addFixedJoint(entity: number, bodyA: number, bodyB: number,
+                             collideConnected: number): number;
+    _physics3d_removeJoint(entity: number, bodyA: number, bodyB: number): void;
+    _physics3d_setJointMotor(entity: number, enable: number, speed: number): void;
+    _physics3d_jointValue(entity: number): number;
+
     _physics3d_contactEnters(): number;
     _physics3d_contactEntersBytes(): number;
     _physics3d_contactExits(): number;
@@ -103,6 +130,7 @@ const REQUIRED_EXPORTS = [
     '_physics3d_sphereCast', '_physics3d_overlapSphere', '_physics3d_overlapBox',
     '_physics3d_contactEnters', '_physics3d_contactEntersBytes',
     '_physics3d_sensorEnters', '_physics3d_sensorEntersBytes',
+    '_physics3d_addHingeJoint', '_physics3d_removeJoint',
 ] as const;
 
 /** Throws naming what is missing, rather than letting the first frame do it. */

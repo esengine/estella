@@ -16,6 +16,22 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Joints for the 3D world.** `PointJoint3D`, `HingeJoint3D`, `SliderJoint3D`,
+  `DistanceJoint3D` and `FixedJoint3D` — a shared point, an axis to turn about,
+  an axis to slide along, a distance to keep, and no freedom at all. A door, a
+  rope bridge, a lift and a ragdoll are all two bodies and a rule, and until now
+  the 3D world could only say "these two touch".
+
+  Anchors and axes are written in the declaring entity's local space and resolved
+  when the joint is made, which also sets the ZERO of every limit: a door placed
+  closed reads `angle` 0. `motorSpeed` can be changed from gameplay at any time,
+  and `angle` / `translation` come back each step.
+
+  `collideConnected` joins the two bodies into one assembly rather than one pair,
+  so everything a chain of joints reaches stops colliding with the rest of that
+  chain — what a door needs against its own frame, and what a ragdoll needs
+  against itself.
+
 - **3D colliders are visible while you author them.** The viewport draws a
   wireframe of every 3D collider — box, sphere, capsule, character, and the bounds
   of a mesh collider — turned the way its entity is. A 3D shape is nothing the

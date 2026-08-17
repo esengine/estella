@@ -20,6 +20,10 @@ import {
     registerMeshCollision, releaseMeshCollision, extractPositions,
 } from '../src/asset/meshCollision';
 import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physics3DSystem';
+import {
+    PointJoint3D, HingeJoint3D, SliderJoint3D, FixedJoint3D,
+    type Joint3DMap, type HingeJoint3DData, type SliderJoint3DData,
+} from '../src/physics3d/Physics3DJoints';
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
@@ -83,6 +87,14 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_setCharacterPosition: record('setCharacterPosition'),
         _physics3d_addMeshBody: record('addMeshBody'),
         _physics3d_setLayerMask: record('setLayerMask'),
+        _physics3d_addPointJoint: record('addPointJoint'),
+        _physics3d_addHingeJoint: record('addHingeJoint'),
+        _physics3d_addSliderJoint: record('addSliderJoint'),
+        _physics3d_addDistanceJoint: record('addDistanceJoint'),
+        _physics3d_addFixedJoint: record('addFixedJoint'),
+        _physics3d_removeJoint: record('removeJoint'),
+        _physics3d_setJointMotor: record('setJointMotor'),
+        _physics3d_jointValue: (entity: number) => { calls.push({ name: 'jointValue', args: [entity] }); return 0.25; },
         // Distinct allocations, as a real heap gives: one address for everything
         // let the index write land on top of the vertex write.
         _malloc: (bytes: number) => { const at = scratchTop; scratchTop += bytes; return at; },
@@ -342,6 +354,185 @@ describe('the 3D world and the ECS', () => {
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(bodies.size).toBe(0);
+    });
+
+    describe('joints', () => {
+        let joints: Joint3DMap;
+        beforeEach(() => { joints = new Map(); });
+
+        const stepJoints = () =>
+            stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(),
+                          undefined, joints);
+
+        /** A pair of bodies a joint can be hung between. */
+        const pair = (aPos = { x: 0, y: 0, z: 0 }, bPos = { x: 100, y: 0, z: 0 }) => {
+            const a = spawn(aPos);
+            world.insert(a, BoxCollider3D);
+            const b = spawn(bPos);
+            world.insert(b, BoxCollider3D);
+            return [a, b] as const;
+        };
+
+        it('hands the anchor over in metres, from where the entity is', () => {
+            const [a, b] = pair({ x: 200, y: 100, z: 0 });
+            world.insert(a, HingeJoint3D, { connectedEntity: b, anchor: { x: 50, y: 0, z: 0 } });
+
+            stepJoints();
+
+            const [call] = called('addHingeJoint');
+            expect(call).toBeDefined();
+            // (200 + 50, 100, 0) world units at 100 to the metre.
+            expect(call!.args.slice(3, 6)).toEqual([2.5, 1, 0]);
+        });
+
+        it('turns the anchor and the axis with the entity', () => {
+            const [a, b] = pair();
+            // A quarter turn about Z: +x becomes +y, and so does the hinge axis.
+            const half = Math.PI / 4;
+            const t = world.get(a, Transform) as TransformData;
+            t.worldRotation = { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+            world.insert(a, HingeJoint3D, {
+                connectedEntity: b, anchor: { x: 100, y: 0, z: 0 }, axis: { x: 1, y: 0, z: 0 },
+            });
+
+            stepJoints();
+
+            const [call] = called('addHingeJoint');
+            const [px, py, pz, ax, ay, az] = call!.args.slice(3, 9);
+            expect(px).toBeCloseTo(0, 5);
+            expect(py).toBeCloseTo(1, 5);
+            expect(pz).toBeCloseTo(0, 5);
+            expect(ax).toBeCloseTo(0, 5);
+            expect(ay).toBeCloseTo(1, 5);
+            expect(az).toBeCloseTo(0, 5);
+        });
+
+        it('scales travel but not force', () => {
+            const [a, b] = pair();
+            world.insert(a, SliderJoint3D, {
+                connectedEntity: b, enableLimit: true,
+                lowerTranslation: -200, upperTranslation: 300,
+                enableMotor: true, motorSpeed: 150, maxMotorForce: 400,
+            });
+
+            stepJoints();
+
+            const args = called('addSliderJoint')[0]!.args;
+            expect(args.slice(10, 12)).toEqual([-2, 3]);   // world units → metres
+            expect(args[13]).toBe(1.5);                    // speed is a length too
+            expect(args[14]).toBe(400);                    // force is not
+        });
+
+        it('waits for the body at the other end', () => {
+            const a = spawn();
+            world.insert(a, BoxCollider3D);
+            const b = world.spawn();   // no Transform, no body yet
+            world.insert(a, PointJoint3D, { connectedEntity: b });
+
+            stepJoints();
+            expect(called('addPointJoint')).toHaveLength(0);
+            expect(joints.size).toBe(0);
+
+            world.insert<TransformData>(b, Transform, {
+                position: { x: 100, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 },
+                scale: { x: 1, y: 1, z: 1 }, worldPosition: { x: 100, y: 0, z: 0 },
+                worldRotation: { x: 0, y: 0, z: 0, w: 1 }, worldScale: { x: 1, y: 1, z: 1 },
+            });
+            world.insert(b, RigidBody3D);
+            world.insert(b, BoxCollider3D);
+
+            stepJoints();
+            expect(called('addPointJoint')).toHaveLength(1);
+        });
+
+        it('builds one joint per entity, the one the module keys', () => {
+            const [a, b] = pair();
+            world.insert(a, FixedJoint3D, { connectedEntity: b });
+            world.insert(a, PointJoint3D, { connectedEntity: b });
+
+            stepJoints();
+
+            expect(called('addPointJoint')).toHaveLength(1);
+            expect(called('addFixedJoint')).toHaveLength(0);
+        });
+
+        it('makes each joint once, not once per step', () => {
+            const [a, b] = pair();
+            world.insert(a, PointJoint3D, { connectedEntity: b });
+            stepJoints();
+            stepJoints();
+            stepJoints();
+            expect(called('addPointJoint')).toHaveLength(1);
+        });
+
+        it('takes the joint back when its component goes', () => {
+            const [a, b] = pair();
+            world.insert(a, PointJoint3D, { connectedEntity: b });
+            stepJoints();
+            world.remove(a, PointJoint3D);
+            stepJoints();
+
+            expect(called('removeJoint')).toHaveLength(1);
+            expect(joints.size).toBe(0);
+        });
+
+        it('takes the joint out BEFORE the body it hangs on', () => {
+            // The module holds a constraint against two bodies. A body removed
+            // while a joint still names it leaves the solver holding nothing, and
+            // nothing in a later step can notice that.
+            const [a, b] = pair();
+            world.insert(a, PointJoint3D, { connectedEntity: b });
+            stepJoints();
+            module.calls.length = 0;
+            world.remove(b, RigidBody3D);
+            stepJoints();
+
+            const removeJoint = module.calls.findIndex((c) => c.name === 'removeJoint');
+            const removeBody = module.calls.findIndex((c) => c.name === 'removeBody');
+            expect(removeJoint).toBeGreaterThanOrEqual(0);
+            expect(removeBody).toBeGreaterThanOrEqual(0);
+            expect(removeJoint).toBeLessThan(removeBody);
+        });
+
+        it('leaves a disabled joint out of the world', () => {
+            const [a, b] = pair();
+            world.insert(a, PointJoint3D, { connectedEntity: b, enabled: false });
+            stepJoints();
+            expect(called('addPointJoint')).toHaveLength(0);
+        });
+
+        it('carries a new motor speed into a joint that already exists', () => {
+            // A joint is built once. Without this, writing motorSpeed from a script
+            // would set a field nothing reads — the door never opens.
+            const [a, b] = pair();
+            const hinge = world.insert<HingeJoint3DData>(a, HingeJoint3D, {
+                connectedEntity: b, enableMotor: true, motorSpeed: 1, maxMotorTorque: 100,
+            });
+            stepJoints();
+            expect(called('setJointMotor')).toHaveLength(0);   // built with it already
+
+            hinge.motorSpeed = 4;
+            stepJoints();
+            const [drive] = called('setJointMotor');
+            expect(drive!.args).toEqual([a as number, 1, 4]);
+
+            // ...and only when it changes: a call every step would fight the solver.
+            stepJoints();
+            expect(called('setJointMotor')).toHaveLength(1);
+        });
+
+        it('writes the joint state back where gameplay can read it', () => {
+            const [a, b] = pair();
+            world.insert(a, HingeJoint3D, { connectedEntity: b });
+            stepJoints();
+            expect((world.get(a, HingeJoint3D) as HingeJoint3DData).angle).toBe(0.25);
+
+            const [c, d] = pair({ x: 500, y: 0, z: 0 }, { x: 600, y: 0, z: 0 });
+            world.insert(c, SliderJoint3D, { connectedEntity: d });
+            stepJoints();
+            // An angle is an angle; travel is a length and comes back in world units.
+            expect((world.get(c, SliderJoint3D) as SliderJoint3DData).translation).toBe(25);
+        });
     });
 });
 

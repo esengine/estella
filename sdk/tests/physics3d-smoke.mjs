@@ -424,7 +424,123 @@ check('and stops at the pillars', swept != null && swept.fraction < 0.5
       && (swept.entity === LEFT || swept.entity === RIGHT),
       `entity=${swept?.entity} fraction=${swept?.fraction?.toFixed(4)}`);
 
-// ── 11) A removed body is gone from both the sweep and the getter ───────────
+// ── 11) Joints: what holds two bodies to each other ─────────────────────────
+// Each asserts a distance the geometry fixes, not "it moved": a joint that was
+// never installed leaves a body in free fall, which is motion too.
+const HELD = (motion, gravity = 1) => [motion, gravity, 0.4, 0.4, 0, 0];
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
+// A hinge holds an arm at arm's length and lets it swing down to hang.
+const HINGE_ANCHOR = 60, HINGE_ARM = 61, HINGE_JOINT = 62;
+const hingeAnchorId = m._physics3d_addBox(HINGE_ANCHOR, 0.1, 0.1, 0.1, 300, 10, 0,
+                                          ...IDENTITY, ...HELD(STATIC), 0.5, 0, 0);
+const hingeArmId = m._physics3d_addBox(HINGE_ARM, 1, 0.1, 0.1, 301, 10, 0,
+                                       ...IDENTITY, ...HELD(DYNAMIC), 0.5, 0, 0);
+check('a hinge is made when both bodies are in the world',
+      m._physics3d_addHingeJoint(HINGE_JOINT, hingeAnchorId, hingeArmId,
+                                 300, 10, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0) === 1);
+step(600);
+const arm = bodyState(hingeArmId);
+check('the arm stays one metre from the hinge', arm && near(dist(arm, { x: 300, y: 10, z: 0 }), 1, 0.05),
+      `r=${arm ? dist(arm, { x: 300, y: 10, z: 0 }).toFixed(4) : 'null'}`);
+// Hanging, not merely held: an arm the hinge failed to swing would still be at
+// x=301. The tolerance is where a damped swing goes to sleep, not a rounding.
+check('and hangs below it rather than beside it', arm && near(arm.y, 9, 0.2) && near(arm.x, 300, 0.2),
+      `y=${arm?.y.toFixed(3)} x=${arm?.x.toFixed(3)}`);
+
+// A distance joint is a rope: slack until it is not, then it holds.
+const ROPE_ANCHOR = 63, ROPE_BALL = 64, ROPE_JOINT = 65;
+const ropeAnchorId = m._physics3d_addBox(ROPE_ANCHOR, 0.1, 0.1, 0.1, 320, 20, 0,
+                                         ...IDENTITY, ...HELD(STATIC), 0.5, 0, 0);
+const ropeBallId = m._physics3d_addSphere(ROPE_BALL, 0.3, 320, 19, 0,
+                                          ...IDENTITY, ...HELD(DYNAMIC), 0.5, 0, 0);
+m._physics3d_addDistanceJoint(ROPE_JOINT, ropeAnchorId, ropeBallId,
+                              320, 20, 0, 320, 19, 0, 0, 3, 0, 0, 0);
+step(300);
+const ball = bodyState(ropeBallId);
+check('a rope stops the fall at its own length', ball && near(dist(ball, { x: 320, y: 20, z: 0 }), 3, 0.05),
+      `r=${ball ? dist(ball, { x: 320, y: 20, z: 0 }).toFixed(4) : 'null'}`);
+
+// A fixed joint: two bodies, one motion. Both fall, their offset does not change.
+const WELD_A = 66, WELD_B = 67, WELD_JOINT = 68;
+const weldAId = m._physics3d_addBox(WELD_A, 0.5, 0.5, 0.5, 340, 20, 0,
+                                    ...IDENTITY, ...HELD(DYNAMIC), 0.5, 0, 0);
+const weldBId = m._physics3d_addBox(WELD_B, 0.5, 0.5, 0.5, 342, 20, 0,
+                                    ...IDENTITY, ...HELD(DYNAMIC), 0.5, 0, 0);
+m._physics3d_addFixedJoint(WELD_JOINT, weldAId, weldBId, 0);
+step(60);
+const weldA = bodyState(weldAId);
+const weldB = bodyState(weldBId);
+check('a fixed joint keeps the offset it was made with',
+      weldA && weldB && near(weldB.x - weldA.x, 2, 0.05) && near(weldB.y - weldA.y, 0, 0.05),
+      `d=(${(weldB?.x - weldA?.x).toFixed(3)}, ${(weldB?.y - weldA?.y).toFixed(3)})`);
+check('and both of them fell', weldA && weldA.y < 19, `y=${weldA?.y.toFixed(3)}`);
+
+// A slider travels on one axis and stops at its limit.
+const RAIL = 69, CAR = 70, RAIL_JOINT = 71;
+const railId = m._physics3d_addBox(RAIL, 0.1, 0.1, 0.1, 360, 20, 0,
+                                   ...IDENTITY, ...HELD(STATIC), 0.5, 0, 0);
+const carId = m._physics3d_addBox(CAR, 0.5, 0.5, 0.5, 360, 19, 0,
+                                  ...IDENTITY, ...HELD(DYNAMIC), 0.5, 0, 0);
+m._physics3d_addSliderJoint(RAIL_JOINT, railId, carId, 360, 19, 0, 0, 1, 0,
+                            1, -2, 0, 0, 0, 0, 0);
+step(300);
+const car = bodyState(carId);
+check('a slider stops at its lower limit', car && near(car.y, 17, 0.05), `y=${car?.y.toFixed(3)}`);
+check('and does not leave its axis', car && near(car.x, 360, 0.02) && near(car.z, 0, 0.02),
+      `x=${car?.x.toFixed(3)} z=${car?.z.toFixed(3)}`);
+
+// ★ collideConnected, as two runs of the same setup. Both pairs overlap and are
+// joined by a rope far longer than the gap, so the rope pulls on neither: the
+// ONLY thing that can push them apart is contact between them.
+const KEEP_A = 72, KEEP_B = 73, KEEP_JOINT = 74;
+const PUSH_A = 75, PUSH_B = 76, PUSH_JOINT = 77;
+const keepAId = m._physics3d_addSphere(KEEP_A, 0.5, 380, 30, 0, ...IDENTITY, ...HELD(DYNAMIC, 0), 0.5, 0, 0);
+const keepBId = m._physics3d_addSphere(KEEP_B, 0.5, 380.2, 30, 0, ...IDENTITY, ...HELD(DYNAMIC, 0), 0.5, 0, 0);
+m._physics3d_addDistanceJoint(KEEP_JOINT, keepAId, keepBId,
+                              380, 30, 0, 380.2, 30, 0, 0, 5, 0, 0, 0);
+const pushAId = m._physics3d_addSphere(PUSH_A, 0.5, 390, 30, 0, ...IDENTITY, ...HELD(DYNAMIC, 0), 0.5, 0, 0);
+const pushBId = m._physics3d_addSphere(PUSH_B, 0.5, 390.2, 30, 0, ...IDENTITY, ...HELD(DYNAMIC, 0), 0.5, 0, 0);
+m._physics3d_addDistanceJoint(PUSH_JOINT, pushAId, pushBId,
+                              390, 30, 0, 390.2, 30, 0, 0, 5, 1, 0, 1);
+step(120);
+const keepGap = dist(bodyState(keepAId), bodyState(keepBId));
+const pushGap = dist(bodyState(pushAId), bodyState(pushBId));
+check('joined bodies pass through each other when the joint says so',
+      near(keepGap, 0.2, 0.05), `gap=${keepGap.toFixed(4)}`);
+check('and collide when it does not', pushGap > 0.9, `gap=${pushGap.toFixed(4)}`);
+
+// A motor drives the joint, and the joint says where it got to.
+const MOTOR_ANCHOR = 78, MOTOR_ARM = 79, MOTOR_JOINT = 80;
+const motorAnchorId = m._physics3d_addBox(MOTOR_ANCHOR, 0.1, 0.1, 0.1, 400, 10, 0,
+                                          ...IDENTITY, ...HELD(STATIC), 0.5, 0, 0);
+const motorArmId = m._physics3d_addBox(MOTOR_ARM, 1, 0.1, 0.1, 401, 10, 0,
+                                       ...IDENTITY, ...HELD(DYNAMIC, 0), 0.5, 0, 0);
+m._physics3d_addHingeJoint(MOTOR_JOINT, motorAnchorId, motorArmId, 400, 10, 0, 0, 0, 1,
+                           0, 0, 0, 1, 2, 1e7, 0);
+check('a joint with nothing turned yet reads zero', near(m._physics3d_jointValue(MOTOR_JOINT), 0, 0.02),
+      `angle=${m._physics3d_jointValue(MOTOR_JOINT).toFixed(4)}`);
+step(30);
+const driven = m._physics3d_jointValue(MOTOR_JOINT);
+// Half a second at 2 rad/s, less whatever the motor spent getting there.
+check('a motor turns the hinge at the speed it was given', driven > 0.6 && driven < 1.3,
+      `angle=${driven.toFixed(4)}`);
+// Driven the other way rather than switched off: a motor that stopped answering
+// would leave the arm coasting on the momentum it already has, which reads the
+// same as "the new speed was applied" until the sign changes.
+m._physics3d_setJointMotor(MOTOR_JOINT, 1, -2);
+step(45);
+const reversed = m._physics3d_jointValue(MOTOR_JOINT);
+check('and a new speed reaches a joint that already exists', reversed < 0.4,
+      `angle=${reversed.toFixed(4)} was=${driven.toFixed(4)}`);
+
+// Removing the joint gives the body back to gravity.
+m._physics3d_removeJoint(ROPE_JOINT, ropeAnchorId, ropeBallId);
+step(120);
+const freed = bodyState(ropeBallId);
+check('a removed joint lets go', freed && freed.y < 15, `y=${freed?.y.toFixed(3)}`);
+
+// ── 12) A removed body is gone from both the sweep and the getter ───────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

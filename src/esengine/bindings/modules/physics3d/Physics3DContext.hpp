@@ -24,6 +24,7 @@
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
 
 #include <cstdint>
 #include <memory>
@@ -136,6 +137,19 @@ struct Context {
     /// cannot ask a body anything, so a sensor that stopped overlapping would
     /// otherwise be indistinguishable from a solid one.
     std::unordered_set<uint32_t> sensorBodies;
+
+    /// Joints, keyed by the entity whose component authored them — one per entity,
+    /// the same ownership the 2D world uses.
+    std::unordered_map<uint32_t, JPH::Ref<JPH::TwoBodyConstraint>> constraints;
+    /// Bodies a joint asked not to collide, in groups: Jolt filters per body, not
+    /// per constraint, so the only way to say it is "these bodies are one
+    /// assembly" — and joining two assemblies has to merge their members.
+    std::unordered_map<uint32_t, uint32_t> jointGroupOf;
+    std::unordered_map<uint32_t, std::vector<uint32_t>> jointGroupMembers;
+    /// How many joints hold each body in its assembly, so a body leaves the group
+    /// when the last joint holding it goes and can collide with its siblings again.
+    std::unordered_map<uint32_t, uint32_t> jointHolds;
+    uint32_t nextJointGroup = 1;
 
     /// Characters are not bodies: a CharacterVirtual is swept against the world
     /// rather than solved in it, which is what lets it climb stairs and stay

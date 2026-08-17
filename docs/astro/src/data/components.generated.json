@@ -992,6 +992,70 @@
       ]
     },
     {
+      "name": "DistanceJoint3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchor",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "connectedAnchor",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "minLength",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxLength",
+          "type": "number",
+          "default": "100"
+        },
+        {
+          "key": "frequency",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchor.x",
+        "anchor.y",
+        "anchor.z",
+        "connectedAnchor.x",
+        "connectedAnchor.y",
+        "connectedAnchor.z",
+        "minLength",
+        "maxLength",
+        "frequency",
+        "damping"
+      ]
+    },
+    {
       "name": "DragState",
       "source": "ts",
       "fields": [
@@ -1176,6 +1240,30 @@
       ]
     },
     {
+      "name": "FixedJoint3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity"
+      ]
+    },
+    {
       "name": "FlexContainer",
       "source": "cpp",
       "fields": [
@@ -1303,6 +1391,86 @@
         "offsetY",
         "deadzone",
         "damping"
+      ]
+    },
+    {
+      "name": "HingeJoint3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchor",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "axis",
+          "type": "Vec3",
+          "default": "(0, 1, 0)"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerAngle",
+          "type": "number",
+          "default": "-1.5708"
+        },
+        {
+          "key": "upperAngle",
+          "type": "number",
+          "default": "1.5708"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxMotorTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "angle",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchor.x",
+        "anchor.y",
+        "anchor.z",
+        "axis.x",
+        "axis.y",
+        "axis.z",
+        "lowerAngle",
+        "upperAngle",
+        "motorSpeed",
+        "maxMotorTorque",
+        "angle"
       ]
     },
     {
@@ -2265,6 +2433,38 @@
       "tag": true
     },
     {
+      "name": "PointJoint3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchor",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchor.x",
+        "anchor.y",
+        "anchor.z"
+      ]
+    },
+    {
       "name": "PolygonCollider",
       "source": "ts",
       "fields": [
@@ -2838,6 +3038,86 @@
           "type": "boolean",
           "default": "true"
         }
+      ]
+    },
+    {
+      "name": "SliderJoint3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchor",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "axis",
+          "type": "Vec3",
+          "default": "(0, 1, 0)"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerTranslation",
+          "type": "number",
+          "default": "-100"
+        },
+        {
+          "key": "upperTranslation",
+          "type": "number",
+          "default": "100"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxMotorForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "translation",
+          "type": "number",
+          "default": "0"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchor.x",
+        "anchor.y",
+        "anchor.z",
+        "axis.x",
+        "axis.y",
+        "axis.z",
+        "lowerTranslation",
+        "upperTranslation",
+        "motorSpeed",
+        "maxMotorForce",
+        "translation"
       ]
     },
     {

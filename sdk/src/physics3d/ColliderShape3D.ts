@@ -58,7 +58,8 @@ export interface Collider3DInstance {
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
 
-function rotateByQuat(q: Quat, v: Vec3): Vec3 {
+/** @internal Shared with the joint wiring, which turns anchors and axes the same way. */
+export function rotateVec3ByQuat(q: Quat, v: Vec3): Vec3 {
     // t = 2 * (q.xyz × v); v' = v + q.w * t + q.xyz × t
     const tx = 2 * (q.y * v.z - q.z * v.y);
     const ty = 2 * (q.z * v.x - q.x * v.z);
@@ -265,7 +266,7 @@ export function collider3DWireframe(shape: Collider3DShape, segments = COLLIDER3
  */
 export function placeCollider3DWireframe(lines: Vec3[][], position: Vec3, rotation: Quat): Vec3[][] {
     return lines.map((line) => line.map((p) => {
-        const r = rotateByQuat(rotation, p);
+        const r = rotateVec3ByQuat(rotation, p);
         return { x: position.x + r.x, y: position.y + r.y, z: position.z + r.z };
     }));
 }
