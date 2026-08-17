@@ -28,7 +28,7 @@ function walkDocuments(dir, out) {
         let st;
         try { st = statSync(full); } catch { continue; }
         if (st.isDirectory()) {
-            if (SKIP_DIRS.has(entry)) continue;
+            if (SKIP_DIRS.has(entry) || entry.startsWith('dist-')) continue;
             walkDocuments(full, out);
         } else if (EXTENSIONS.some((ext) => entry.endsWith(ext))) {
             out.push(full);
