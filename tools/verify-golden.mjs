@@ -21,7 +21,7 @@ import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
-import { retryOnDeadGpu } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -124,7 +124,7 @@ function captureEditorFrame(id, out) {
     return {
       ok: false,
       why: run.gpuDied
-        ? `the GPU process never came up for the editor, on every attempt — no frame to compare against (${run.output.trim().slice(-200)})`
+        ? `${deadGpuVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
         : run.output.trim().slice(-300),
     };
   }
@@ -270,7 +270,7 @@ for (const { id, target } of pairs) {
   const line = (launch.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
   if (launch.status !== 0) {
     const why = launch.gpuDied
-      ? `the GPU process never came up, on every attempt — this says nothing about the game (${line || 'no frame'})`
+      ? `${deadGpuVerdict('the game')} (${line || 'no frame'})`
       : line || 'launch failed';
     results.push({ id, target, stage: 'launch', ok: false, why });
     console.log(`✗ ${id} ${target} — ${why}`);

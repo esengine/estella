@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { retryOnDeadGpu, gpuNeverCameUp } from '../../tools/lib/deadGpu.mjs';
+import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict } from '../../tools/lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
 const BLANK = 'painted=true live=false errors=0';
@@ -76,6 +76,13 @@ describe('retryOnDeadGpu', () => {
         expect(r.ok).toBe(true);
         expect(r.attempts).toBe(3);
         expect(r.notes).toEqual([true, false]);
+    });
+
+    it('words the give-up once, for both runners', () => {
+        // The two of them each had their own sentence for it, and one of them
+        // blamed the game — the failure this file exists to keep apart.
+        expect(deadGpuVerdict('the game')).toContain('says nothing about the game');
+        expect(deadGpuVerdict('the scene')).toContain('never came up');
     });
 
     it('gives up at the cap and says the GPU is why', () => {

@@ -21,6 +21,15 @@ export function gpuNeverCameUp(output) {
         || /WebGL2 is not available/.test(output);
 }
 
+/**
+ * What to report when a measurement never happened because the GPU never came up.
+ * Shared for the same reason the detection is: the two runners described the same
+ * failure differently, and one of them described it as the game's fault.
+ */
+export function deadGpuVerdict(subject) {
+    return `the GPU process never came up, on every attempt — this says nothing about ${subject}`;
+}
+
 /** Attempts one measurement is allowed, counting the first. Six, not four: four
  *  was measured when the first project needed three retries to draw, and a tier
  *  with one more pair in it spent them all on a game that was fine. */

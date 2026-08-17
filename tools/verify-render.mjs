@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
-import { retryOnDeadGpu } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -121,7 +121,8 @@ for (const scene of scenes) {
     run = attempt;
   }
   if (!run.ok) failed.push(scene.id);
-  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${run.verdict}`);
+  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} `
+    + `${run.gpuDied ? deadGpuVerdict('the scene') : run.verdict}`);
   if (!run.ok) {
     for (const l of run.out.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
   }
