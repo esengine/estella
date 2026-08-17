@@ -245,10 +245,14 @@ try {
   console.log('prefab mode OK — edit_prefab → set_field → save wrote the asset → exit_prefab_mode');
 
   // Apply rewrites the shared asset for every instance, so it refuses until the
-  // caller states the intent (a person is shown a diff dialog instead).
-  let refused = false;
-  try { await call('apply_prefab', { entity: instance, confirm: false }); } catch { refused = true; }
-  if (!refused) await fail('apply_prefab committed without confirm');
+  // caller states the intent (a person is shown a diff dialog instead). The REASON
+  // is asserted: every identity tool also refuses an entity that is no longer an
+  // instance, so a bare "it threw" passes on an id gone stale across Prefab Mode.
+  let refusal = null;
+  try { await call('apply_prefab', { entity: instance, confirm: false }); }
+  catch (e) { refusal = String(e?.message ?? e); }
+  if (refusal === null) await fail('apply_prefab committed without confirm');
+  if (!/confirm/.test(refusal)) await fail(`apply_prefab refused for the wrong reason: ${refusal}`);
   console.log('apply_prefab OK — refuses without confirm');
 
   // A UI prefab is opened inside an editing-environment Canvas so its percentage
@@ -277,6 +281,11 @@ try {
   // unpack cuts the link for good.
   const reverted = Number((await call('revert_prefab', { entity: instance }, 60_000)).text);
   if (!Number.isFinite(reverted)) await fail('revert_prefab returned no fresh instance root');
+  // The id revert hands back is an instance root the very next call may act on. It
+  // exists only in the model, so a scene rebuild between the two calls takes it with
+  // it — asked here, a red names revert's broken contract and not unpack's.
+  if (!JSON.parse((await call('get_entity', { id: reverted })).text)?.prefab?.ref)
+    await fail(`revert_prefab returned ${reverted}, which get_entity does not report as an instance`);
   await call('unpack_prefab', { entity: reverted });
   if (JSON.parse((await call('get_entity', { id: reverted })).text)?.prefab)
     await fail('unpack_prefab left the prefab link in place');
