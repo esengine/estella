@@ -656,7 +656,7 @@ describe('glTF animation import', () => {
     expect((result.animations[0]!.document as any).tracks[0].childPath).toBe('Arm_2');
   });
 
-  it('says a skinned node moves joints the mesh will not follow', async () => {
+  it('says a channel aimed at a skinned mesh node moves nothing', async () => {
     const result = await importGltfMeshes(animatedGltf({
       times: [0, 1], components: 4, values: [0, 0, 0, 1, 0, HALF, 0, HALF],
       skins: [{ joints: [1] }],
@@ -664,7 +664,7 @@ describe('glTF animation import', () => {
     }), 'robot');
 
     expect(result.animations).toHaveLength(1);
-    expect(result.warnings.some(w => /joints move/.test(w))).toBe(true);
+    expect(result.warnings.some(w => /moves nothing/.test(w))).toBe(true);
   });
 
   it('reports a morph-weight channel rather than dropping it', async () => {

@@ -922,9 +922,12 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
             warnings.push(`${name}: no channel targets a node this import produced`);
             continue;
         }
+        // Not "skinning is missing" — it is here. A skinned mesh is placed by its
+        // JOINTS, and glTF requires the mesh node's own transform to be ignored, so
+        // a channel aimed at that node moves nothing at all.
         if (drivesSkin) {
-            warnings.push(`${name}: drives skinned nodes — the joints move, but the mesh bound to`
-                + ' them does not deform (skinning is not implemented)');
+            warnings.push(`${name}: animates a node that carries a skin, whose own transform is`
+                + ' ignored (glTF requires it) — this channel moves nothing. Animate its joints.');
         }
         out.push({
             // A source's animation name is whatever the tool wrote (spaces, dots,
