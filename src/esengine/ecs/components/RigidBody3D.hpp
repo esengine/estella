@@ -194,6 +194,14 @@ struct CharacterController3D {
     ES_PROPERTY(min=0, advanced)
     f32 mass{70.0f};
 
+    /** @brief How hard it can shove what it walks into, in newtons. A character is
+     *         swept rather than solved, so nothing moves out of its way unless it
+     *         is given the strength to move it — and the force a solver needs to
+     *         get a crate going is well above the one that would hold it there.
+     *         0 pushes nothing at all. */
+    ES_PROPERTY(min=0, advanced)
+    f32 pushForce{5000.0f};
+
     ES_PROPERTY()
     bool enabled{true};
 

@@ -175,7 +175,7 @@ function moveCharacter(id, vx, vy, vz, steps = 1, stepUp = 0.4, stepDown = 0.5) 
 
 // Dropped from 3m onto the floor: a capsule of radius 0.3 + half-height 0.5
 // stands with its centre 0.8 up, and reports the ground it is on.
-const hero = m._physics3d_addCharacter(9, 0.3, 0.5, -20, 3, 0, 0.87, 70, 0);
+const hero = m._physics3d_addCharacter(9, 0.3, 0.5, -20, 3, 0, 0.87, 70, 0, 5000);
 check('a character is handed back', hero !== 0, `id=${hero}`);
 const airborne = moveCharacter(hero, 0, 0, 0, 1);
 check('and starts in the air', airborne.ground === IN_AIR, `state=${airborne.ground}`);
@@ -211,6 +211,32 @@ check('a wall stops a character', blocked.x < wallX - 0.2,
       `x=${blocked.x.toFixed(4)} wall at ${wallX.toFixed(4)}`);
 check('and it did not climb the wall', blocked.y < climbed.y + 0.3,
       `y=${blocked.y.toFixed(4)}`);
+
+// ★ Pushing a crate, as two runs of the same setup. A swept character does not
+// solve against the world, so nothing moves out of its way unless it is given
+// the strength to move it — and `mass` alone never was that.
+const CRATE_STRONG = 12, CRATE_WEAK = 13;
+const strongCrate = m._physics3d_addBox(CRATE_STRONG, 0.2, 0.2, 0.2, -38.5, 0.2, 10,
+                                        ...IDENTITY, ...FREE(DYNAMIC), 0.2, 0, 0);
+const weakCrate = m._physics3d_addBox(CRATE_WEAK, 0.2, 0.2, 0.2, -38.5, 0.2, 20,
+                                      ...IDENTITY, ...FREE(DYNAMIC), 0.2, 0, 0);
+const strongHero = m._physics3d_addCharacter(14, 0.3, 0.5, -40, 0.8, 10, 0.87, 70, 0, 6000);
+const weakHero = m._physics3d_addCharacter(15, 0.3, 0.5, -40, 0.8, 20, 0.87, 70, 0, 0);
+m._physics3d_optimize();
+for (let i = 0; i < 150; i++) {
+    m._physics3d_moveCharacter(strongHero, 2, 0, 0, 1 / 60, 0.4, 0.5);
+    m._physics3d_moveCharacter(weakHero, 2, 0, 0, 1 / 60, 0.4, 0.5);
+    m._physics3d_step(1 / 60, 1);
+}
+const shoved = bodyState(strongCrate);
+const unmoved = bodyState(weakCrate);
+check('a character shoves a crate out of its way', shoved && shoved.x > -38.0,
+      `x=${shoved?.x.toFixed(3)} from -38.5`);
+check('and one with no push force does not', unmoved && unmoved.x < -38.35,
+      `x=${unmoved?.x.toFixed(3)} from -38.5`);
+
+m._physics3d_removeCharacter(strongHero);
+m._physics3d_removeCharacter(weakHero);
 
 m._physics3d_removeCharacter(hero);
 check('a removed character can no longer be moved',

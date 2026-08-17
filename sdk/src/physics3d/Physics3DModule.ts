@@ -54,7 +54,8 @@ export interface Physics3DWasmModule {
 
     _physics3d_addCharacter(entity: number, radius: number, halfHeight: number,
                             px: number, py: number, pz: number,
-                            maxSlope: number, mass: number, layer: number): number;
+                            maxSlope: number, mass: number, layer: number,
+                            pushForce: number): number;
     _physics3d_removeCharacter(characterId: number): void;
     _physics3d_moveCharacter(characterId: number, vx: number, vy: number, vz: number,
                              dt: number, stepUp: number, stepDown: number): void;

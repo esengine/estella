@@ -1335,6 +1335,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("stepHeight", &esengine::ecs::CharacterController3D::stepHeight)
         .field("snapDown", &esengine::ecs::CharacterController3D::snapDown)
         .field("mass", &esengine::ecs::CharacterController3D::mass)
+        .field("pushForce", &esengine::ecs::CharacterController3D::pushForce)
         .field("enabled", &esengine::ecs::CharacterController3D::enabled)
         .field("layer", &esengine::ecs::CharacterController3D::layer)
         .field("isOnFloor", &esengine::ecs::CharacterController3D::isOnFloor)
@@ -2664,11 +2665,12 @@ static_assert(offsetof(esengine::ecs::CharacterController3D, maxSlope) == 20, "A
 static_assert(offsetof(esengine::ecs::CharacterController3D, stepHeight) == 24, "ABI offset drift: esengine::ecs::CharacterController3D.stepHeight (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, snapDown) == 28, "ABI offset drift: esengine::ecs::CharacterController3D.snapDown (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, mass) == 32, "ABI offset drift: esengine::ecs::CharacterController3D.mass (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, enabled) == 36, "ABI offset drift: esengine::ecs::CharacterController3D.enabled (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, layer) == 40, "ABI offset drift: esengine::ecs::CharacterController3D.layer (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 44, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 48, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 60, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, pushForce) == 36, "ABI offset drift: esengine::ecs::CharacterController3D.pushForce (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, enabled) == 40, "ABI offset drift: esengine::ecs::CharacterController3D.enabled (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, layer) == 44, "ABI offset drift: esengine::ecs::CharacterController3D.layer (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 48, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 52, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 64, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 64)");
 static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
@@ -2943,7 +2945,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "efd9284ec11052f6";
+static const char* kEsAbiLayoutHash = "3ca8b8f014ab2cd1";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

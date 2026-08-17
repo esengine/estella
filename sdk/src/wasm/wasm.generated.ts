@@ -304,6 +304,7 @@ export interface CharacterController3D {
     stepHeight: number;
     snapDown: number;
     mass: number;
+    pushForce: number;
     enabled: boolean;
     layer: number;
     isOnFloor: boolean;

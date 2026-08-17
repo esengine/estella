@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'efd9284ec11052f6';
+export const ABI_LAYOUT_HASH = '3ca8b8f014ab2cd1';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -251,6 +251,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             stepHeight: 0.4,
             snapDown: 0.5,
             mass: 70,
+            pushForce: 5000,
             enabled: true,
             layer: 0,
             isOnFloor: false,
@@ -268,6 +269,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             stepHeight: { min: 0, advanced: true },
             snapDown: { min: 0, advanced: true },
             mass: { min: 0, advanced: true },
+            pushForce: { min: 0, advanced: true },
             layer: { min: 0, max: 15, advanced: true },
             isOnFloor: { advanced: true },
             floorNormal: { advanced: true },
@@ -1103,6 +1105,7 @@ export interface CharacterController3DData {
     stepHeight: number;
     snapDown: number;
     mass: number;
+    pushForce: number;
     enabled: boolean;
     layer: number;
     isOnFloor: boolean;

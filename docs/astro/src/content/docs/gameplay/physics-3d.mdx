@@ -105,6 +105,7 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
 | `stepHeight` | Tallest step it climbs instead of stopping at. `0` climbs nothing. |
 | `snapDown` | How far it reaches down to stay on the floor over a crest. `0` is off. |
 | `maxSlope` | Steepest ground it can stand on; beyond this it slides. |
+| `pushForce` | How hard it shoves dynamic bodies it walks into. `0` moves nothing. |
 | `isOnFloor` / `floorNormal` / `realVelocity` | Outputs, read after the step. |
 
 <Aside>
@@ -112,6 +113,11 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   "hang in the air". A character does not fall on its own in Jolt — the vertical
   speed belongs to the caller — so the module integrates gravity rather than
   leaving every caller to rediscover it.
+
+  A character is SWEPT rather than solved, so nothing moves out of its way on its
+  own: `pushForce` is the force it may spend shoving what it walks into. The
+  default gets a crate of its own size going; something heavier wants more, and
+  `0` walks into everything as if it were a wall.
 </Aside>
 
 ## Joints

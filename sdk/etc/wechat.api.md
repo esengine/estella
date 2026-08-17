@@ -1865,6 +1865,7 @@ isOnFloor: boolean
 layer: number
 mass: number
 maxSlope: number
+pushForce: number
 radius: number
 realVelocity: Vec3
 snapDown: number

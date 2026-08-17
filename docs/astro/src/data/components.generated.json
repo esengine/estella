@@ -802,6 +802,14 @@
           "advanced": true
         },
         {
+          "key": "pushForce",
+          "type": "number",
+          "default": "5000",
+          "doc": "How hard it can shove what it walks into",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

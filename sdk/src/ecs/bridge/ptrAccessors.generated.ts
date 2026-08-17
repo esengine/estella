@@ -381,6 +381,7 @@ export interface CharacterController3DPtrData {
     stepHeight: number;
     snapDown: number;
     mass: number;
+    pushForce: number;
     enabled: boolean;
     layer: number;
     isOnFloor: boolean;
@@ -399,11 +400,12 @@ export function fillCharacterController3D(
     out.stepHeight = f32[(ptr + 24) >> 2];
     out.snapDown = f32[(ptr + 28) >> 2];
     out.mass = f32[(ptr + 32) >> 2];
-    out.enabled = u8[ptr + 36] !== 0;
-    out.layer = u32[(ptr + 40) >> 2];
-    out.isOnFloor = u8[ptr + 44] !== 0;
-    const floorNormal_ = out.floorNormal; floorNormal_.x = f32[(ptr + 48) >> 2]; floorNormal_.y = f32[((ptr + 48) >> 2) + 1]; floorNormal_.z = f32[((ptr + 48) >> 2) + 2];
-    const realVelocity_ = out.realVelocity; realVelocity_.x = f32[(ptr + 60) >> 2]; realVelocity_.y = f32[((ptr + 60) >> 2) + 1]; realVelocity_.z = f32[((ptr + 60) >> 2) + 2];
+    out.pushForce = f32[(ptr + 36) >> 2];
+    out.enabled = u8[ptr + 40] !== 0;
+    out.layer = u32[(ptr + 44) >> 2];
+    out.isOnFloor = u8[ptr + 48] !== 0;
+    const floorNormal_ = out.floorNormal; floorNormal_.x = f32[(ptr + 52) >> 2]; floorNormal_.y = f32[((ptr + 52) >> 2) + 1]; floorNormal_.z = f32[((ptr + 52) >> 2) + 2];
+    const realVelocity_ = out.realVelocity; realVelocity_.x = f32[(ptr + 64) >> 2]; realVelocity_.y = f32[((ptr + 64) >> 2) + 1]; realVelocity_.z = f32[((ptr + 64) >> 2) + 2];
 }
 
 export function writeCharacterController3D(
@@ -417,11 +419,12 @@ export function writeCharacterController3D(
     f32[(ptr + 24) >> 2] = data.stepHeight;
     f32[(ptr + 28) >> 2] = data.snapDown;
     f32[(ptr + 32) >> 2] = data.mass;
-    u8[ptr + 36] = data.enabled ? 1 : 0;
-    u32[(ptr + 40) >> 2] = data.layer;
-    u8[ptr + 44] = data.isOnFloor ? 1 : 0;
-    f32[(ptr + 48) >> 2] = data.floorNormal.x; f32[((ptr + 48) >> 2) + 1] = data.floorNormal.y; f32[((ptr + 48) >> 2) + 2] = data.floorNormal.z;
-    f32[(ptr + 60) >> 2] = data.realVelocity.x; f32[((ptr + 60) >> 2) + 1] = data.realVelocity.y; f32[((ptr + 60) >> 2) + 2] = data.realVelocity.z;
+    f32[(ptr + 36) >> 2] = data.pushForce;
+    u8[ptr + 40] = data.enabled ? 1 : 0;
+    u32[(ptr + 44) >> 2] = data.layer;
+    u8[ptr + 48] = data.isOnFloor ? 1 : 0;
+    f32[(ptr + 52) >> 2] = data.floorNormal.x; f32[((ptr + 52) >> 2) + 1] = data.floorNormal.y; f32[((ptr + 52) >> 2) + 2] = data.floorNormal.z;
+    f32[(ptr + 64) >> 2] = data.realVelocity.x; f32[((ptr + 64) >> 2) + 1] = data.realVelocity.y; f32[((ptr + 64) >> 2) + 2] = data.realVelocity.z;
 }
 
 export function createCharacterController3DData(): CharacterController3DPtrData {
@@ -433,6 +436,7 @@ export function createCharacterController3DData(): CharacterController3DPtrData 
         stepHeight: 0,
         snapDown: 0,
         mass: 0,
+        pushForce: 0,
         enabled: false,
         layer: 0,
         isOnFloor: false,

@@ -16,6 +16,11 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A 3D character can shove what it walks into.** `CharacterController3D` gained
+  `pushForce` — the force it may spend moving a dynamic body out of its way. A
+  character is swept rather than solved, so nothing moved for it before: `mass`
+  was carried into the solver and had no effect anyone could see.
+
 - **Joints for the 3D world.** `PointJoint3D`, `HingeJoint3D`, `SliderJoint3D`,
   `DistanceJoint3D` and `FixedJoint3D` — a shared point, an axis to turn about,
   an axis to slide along, a distance to keep, and no freedom at all. A door, a

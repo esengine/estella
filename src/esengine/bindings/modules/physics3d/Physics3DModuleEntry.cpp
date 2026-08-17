@@ -424,12 +424,15 @@ int physics3d_getBodyState(uint32_t bodyId) {
 EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
                                 float px, float py, float pz, float maxSlope, float mass,
-                                uint32_t layer) {
+                                uint32_t layer, float pushForce) {
     if (!g().isValid()) return 0;
     Ref<CharacterVirtualSettings> settings = new CharacterVirtualSettings();
     settings->mShape = new CapsuleShape(halfHeight, radius);
     settings->mMaxSlopeAngle = maxSlope;
     settings->mMass = mass;
+    // Nothing gets out of a swept character's way on its own: this is the force
+    // it may spend shoving what it walks into.
+    settings->mMaxStrength = pushForce;
     // The plane below which contacts do not hold the character up. Without it a
     // contact anywhere on the capsule — including the top — reads as ground.
     settings->mSupportingVolume = Plane(Vec3::sAxisY(), -radius);

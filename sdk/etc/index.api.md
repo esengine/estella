@@ -5,7 +5,7 @@ Symbols: 113 public · 65 beta · 1443 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"efd9284ec11052f6"
+"3ca8b8f014ab2cd1"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1870,6 +1870,7 @@ isOnFloor: boolean
 layer: number
 mass: number
 maxSlope: number
+pushForce: number
 radius: number
 realVelocity: Vec3
 snapDown: number

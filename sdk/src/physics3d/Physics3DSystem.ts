@@ -77,7 +77,7 @@ function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyM
             id = module._physics3d_addCharacter(
                 entity as number, character.radius / ppu, character.halfHeight / ppu,
                 p.x / ppu, p.y / ppu, p.z / ppu, character.maxSlope, character.mass,
-                character.layer);
+                character.layer, character.pushForce);
             if (id === 0) continue;
             characters.set(entity, id);
         }

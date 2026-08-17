@@ -270,6 +270,9 @@ describe('the 3D world and the ECS', () => {
         expect(added!.args[1]).toBeCloseTo(0.3, 6);   // 30 world units = 0.3m
         expect(added!.args[2]).toBeCloseTo(0.5, 6);
         expect(added!.args[4]).toBeCloseTo(5, 6);     // standing 5m up
+        // Push force is a force, not a length: it crosses unscaled, and a character
+        // that never forwarded it walks through crates without moving them.
+        expect(added!.args[9]).toBe(5000);
         const [moved] = called('moveCharacter');
         expect(moved!.args[1]).toBeCloseTo(2, 6);     // 200 units/s = 2 m/s
         expect(characters.size).toBe(1);
