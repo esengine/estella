@@ -214,9 +214,15 @@ export {
 } from './physics3d/Physics3DJoints';
 
 export {
+    readJoint3D,
+    type Joint3DShape,
+} from './physics3d/Physics3DJoints';
+
+export {
     readCollider3DShapes,
     collider3DWireframe,
     placeCollider3DWireframe,
+    rotateVec3ByQuat,
     COLLIDER3D_RING_SEGMENTS,
     type Collider3DShape,
     type Collider3DInstance,

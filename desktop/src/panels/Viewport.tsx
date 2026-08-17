@@ -1019,6 +1019,13 @@ export function Viewport() {
     () => (engine.status === 'ready' && showColliders ? ViewportController.collider3DIds() : []),
     [structRev, worldRev, engine.status, showColliders],
   );
+  // 3D joints: which body is held to which, and about what axis — the half of a
+  // joint no position can show. On the physics switch, like the 2D joint gizmos.
+  const joint3DRefs = useRef(new Map<number, SVGSVGElement | null>());
+  const joint3DIds = useMemo(
+    () => (engine.status === 'ready' && showColliders ? ViewportController.joint3DIds() : []),
+    [structRev, worldRev, engine.status, showColliders],
+  );
   // Tile-collision overlay: the selected TilemapLayer's per-tile collision, drawn into
   // ONE SVG (not one per tile). Its world-space outlines are (re)built into a ref by the
   // effect below whenever the layer / its content changes; the rAF projects them each
@@ -1755,6 +1762,27 @@ export function Viewport() {
                                 ['.c3-outline-inactive', cg?.outlineInactive]] as const) {
           (svg.querySelector(sel) as SVGPathElement | null)?.setAttribute('d', d ?? '');
         }
+      }
+
+      // 3D joints: anchor → connected body, plus the hinge/slider axis.
+      for (const [jid, svg] of joint3DRefs.current) {
+        if (!svg) continue;
+        const jg = camsOn ? ViewportController.getJoint3DGizmo(jid) : null;
+        svg.style.opacity = jg ? (jg.on ? '1' : '0.4') : '0';
+        if (!jg) continue;
+        const link = svg.querySelector('.j3-link') as SVGLineElement | null;
+        if (link) {
+          link.setAttribute('x1', String(jg.ax));
+          link.setAttribute('y1', String(jg.ay));
+          link.setAttribute('x2', String(jg.bx));
+          link.setAttribute('y2', String(jg.by));
+        }
+        const anchor = svg.querySelector('.j3-anchor') as SVGCircleElement | null;
+        if (anchor) {
+          anchor.setAttribute('cx', String(jg.ax));
+          anchor.setAttribute('cy', String(jg.ay));
+        }
+        (svg.querySelector('.j3-axis') as SVGPathElement | null)?.setAttribute('d', jg.axis);
       }
 
       // Tile-collision overlay — the selected layer's per-tile collision, all in one SVG.
@@ -2643,6 +2671,25 @@ export function Viewport() {
           <path className="c3-outline-inactive" d="" />
           <path className="c3-outline-sensor" d="" />
           <path className="c3-outline" d="" />
+        </svg>
+      ))}
+
+      {/* 3D joint gizmos: the link to the body it holds, the anchor it holds at,
+          and the axis a hinge or slider is free along. */}
+      {joint3DIds.map((id) => (
+        <svg
+          key={id}
+          ref={(el) => {
+            if (el) joint3DRefs.current.set(id, el);
+            else joint3DRefs.current.delete(id);
+          }}
+          className="viewport__joint3d-gizmo"
+          data-src={SceneModel.sourceFor(id)}
+          aria-hidden="true"
+        >
+          <line className="j3-link" x1="0" y1="0" x2="0" y2="0" />
+          <path className="j3-axis" d="" />
+          <circle className="j3-anchor" cx="0" cy="0" r="4" />
         </svg>
       ))}
 

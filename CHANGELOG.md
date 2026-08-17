@@ -32,6 +32,11 @@ published separately; it ships inside the editor.
   chain — what a door needs against its own frame, and what a ragdoll needs
   against itself.
 
+- **A 3D joint shows what it holds.** The viewport draws the link from a joint's
+  anchor to the body it names, and — for a hinge or a slider — the axis it is
+  free about. A joint has no shape to see: which body and which axis live only in
+  the numbers, and the axis is the half no position on screen can imply.
+
 - **3D colliders are visible while you author them.** The viewport draws a
   wireframe of every 3D collider — box, sphere, capsule, character, and the bounds
   of a mesh collider — turned the way its entity is. A 3D shape is nothing the

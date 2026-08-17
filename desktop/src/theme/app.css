@@ -722,6 +722,36 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   stroke-width: 1.5;
   stroke-dasharray: 5 4;
 }
+/* 3D joints share the joint colour: the concept is the same, and a scene is in
+   one world or the other, so the two sets never crowd each other. */
+.viewport__joint3d-gizmo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+  transition: opacity var(--t-fast);
+}
+.viewport__joint3d-gizmo .j3-link {
+  stroke: var(--gizmo-joint);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+/* The free axis, solid against the dashed link — a hinge turns about it, a
+   slider travels along it, and nothing else in the picture says which. */
+.viewport__joint3d-gizmo .j3-axis {
+  fill: none;
+  stroke: var(--gizmo-joint);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.viewport__joint3d-gizmo .j3-anchor {
+  fill: var(--gizmo-joint);
+  stroke: var(--srf-2);
+  stroke-width: 1.25;
+}
 .viewport__joint-gizmo .jt-a,
 .viewport__joint-gizmo .jt-b {
   fill: var(--gizmo-joint);

@@ -58,7 +58,8 @@ export interface Collider3DInstance {
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
 
-/** @internal Shared with the joint wiring, which turns anchors and axes the same way. */
+/** Turn a vector by a rotation — what places an anchor, an axis or a wireframe
+ *  vertex in the world, and the one piece of 3D maths every visualizer needs. */
 export function rotateVec3ByQuat(q: Quat, v: Vec3): Vec3 {
     // t = 2 * (q.xyz × v); v' = v + q.w * t + q.xyz × t
     const tx = 2 * (q.y * v.z - q.z * v.y);

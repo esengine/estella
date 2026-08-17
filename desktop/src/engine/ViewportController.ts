@@ -13,6 +13,7 @@ import {
   readColliderShapes, colliderShapeOutline, shapeCenter,
   BoxCollider3D, SphereCollider3D, CapsuleCollider3D, MeshCollider3D, CharacterController3D,
   readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,
+  readJoint3D, rotateVec3ByQuat,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
@@ -37,6 +38,9 @@ import {
   type PickCandidate,
 } from './viewportMath';
 
+// Half-length of a 3D joint's axis marker, in world units — long enough to read
+// against a body, short enough not to look like the link itself.
+const JOINT3D_AXIS_WORLD_HALF = 60;
 // World half-size of the pick/outline box for entities without renderable bounds
 // (cameras, lights, empties) — so they're click-selectable like any sprite.
 const ICON_WORLD_HALF = 24;
@@ -1167,6 +1171,65 @@ export const ViewportController = {
       else outline += d;
     }
     return { outline, outlineSensor, outlineInactive };
+  },
+
+  /** Ids of entities declaring a 3D joint — the 3D joint-gizmo set. */
+  joint3DIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Transform)) continue;
+      if (readJoint3D(world as unknown as Parameters<typeof readJoint3D>[0], e)) out.push(e);
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space gizmo for a 3D joint: the link from its anchor to the body it
+   * names, the anchor itself, and — for a hinge or slider — the axis it is free
+   * about, which is the half no position can show. Null when the joint names
+   * nothing that exists, since a link to the origin would read as a joint.
+   */
+  getJoint3DGizmo(id: EntityId): { ax: number; ay: number; bx: number; by: number; axis: string; on: boolean } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    const joint = readJoint3D(world as unknown as Parameters<typeof readJoint3D>[0], id);
+    if (!joint) return null;
+    const other = joint.connectedEntity as EntityId;
+    if (!world.valid(other) || !world.has(other, Transform)) return null;
+
+    const place = (entity: EntityId, local: { x: number; y: number; z: number } | null) => {
+      const t = world.get(entity, Transform);
+      const p = t.worldPosition as { x: number; y: number; z: number };
+      if (!local) return p;
+      const r = rotateVec3ByQuat(t.worldRotation as { x: number; y: number; z: number; w: number }, local);
+      return { x: p.x + r.x, y: p.y + r.y, z: p.z + r.z };
+    };
+
+    const near = place(id, joint.anchor);
+    const far = place(other, joint.connectedAnchor);
+    const a = this.worldToClient(near.x, near.y, near.z);
+    const b = this.worldToClient(far.x, far.y, far.z);
+    if (!a || !b) return null;
+
+    let axis = '';
+    if (joint.axis) {
+      const t = world.get(id, Transform);
+      const dir = rotateVec3ByQuat(t.worldRotation as { x: number; y: number; z: number; w: number }, joint.axis);
+      const len = Math.hypot(dir.x, dir.y, dir.z);
+      if (len > 1e-6) {
+        const s = JOINT3D_AXIS_WORLD_HALF / len;
+        const ends = [1, -1].map((sign) =>
+          this.worldToClient(near.x + dir.x * s * sign, near.y + dir.y * s * sign,
+                             near.z + dir.z * s * sign));
+        if (ends[0] && ends[1]) {
+          axis = `M${ends[0].x.toFixed(1)},${ends[0].y.toFixed(1)}`
+               + `L${ends[1].x.toFixed(1)},${ends[1].y.toFixed(1)}`;
+        }
+      }
+    }
+    return { ax: a.x, ay: a.y, bx: b.x, by: b.y, axis, on: joint.enabled };
   },
 
   /**

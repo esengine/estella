@@ -16,6 +16,7 @@
 import { defineComponent, Transform } from '../ecs/component';
 import type { TransformData } from '../ecs/component.generated';
 import type { App } from '../app/app';
+import type { World } from '../ecs/world';
 import type { Entity, Vec3 } from '../types';
 import type { Physics3DWasmModule } from './Physics3DModule';
 import { rotateVec3ByQuat } from './ColliderShape3D';
@@ -193,6 +194,41 @@ function jointOn(app: App, entity: Entity): { def: Joint3DDef; data: AnyJoint } 
         if (app.world.has(entity, def)) {
             return { def, data: app.world.get(entity, def) as unknown as AnyJoint };
         }
+    }
+    return null;
+}
+
+/** One joint as a visualizer needs it: which rule, what it connects, and the
+ *  local geometry that positions it. Anchors and axes are in the declaring
+ *  entity's own space, in world units. */
+export interface Joint3DShape {
+    type: string;
+    connectedEntity: number;
+    /** Null for a fixed joint, which has no anchor — the pose is the joint. */
+    anchor: Vec3 | null;
+    /** The far anchor, on the connected entity. Distance joints only. */
+    connectedAnchor: Vec3 | null;
+    /** The axis a hinge turns about or a slider travels along. */
+    axis: Vec3 | null;
+    enabled: boolean;
+}
+
+/**
+ * The joint an entity declares, in the shape a gizmo draws — the SAME first-wins
+ * choice the world makes, so an editor never draws a joint the solver ignored.
+ */
+export function readJoint3D(world: World, entity: number): Joint3DShape | null {
+    for (const def of JOINT3D_TYPES) {
+        if (!world.has(entity, def)) continue;
+        const d = world.get(entity, def) as unknown as Record<string, unknown>;
+        return {
+            type: def._name,
+            connectedEntity: d.connectedEntity as number,
+            anchor: (d.anchor as Vec3 | undefined) ?? null,
+            connectedAnchor: (d.connectedAnchor as Vec3 | undefined) ?? null,
+            axis: (d.axis as Vec3 | undefined) ?? null,
+            enabled: d.enabled !== false,
+        };
     }
     return null;
 }
