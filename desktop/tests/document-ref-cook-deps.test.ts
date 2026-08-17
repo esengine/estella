@@ -26,6 +26,8 @@ const ESENV = '22222222-2222-4222-8222-222222222222';
 const CLIP = '33333333-3333-4333-8333-333333333333';
 const CONTROLLER = '44444444-4444-4444-8444-444444444444';
 const FRAME = '55555555-5555-4555-8555-555555555555';
+const FNT = '66666666-6666-4666-8666-666666666666';
+const FNT_PAGE = '77777777-7777-4777-8777-777777777777';
 const SCENE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = ''): void {
@@ -47,6 +49,17 @@ const controller = JSON.stringify({
   states: [{ name: 'Idle', clip: 'assets/anim/idle.esanim', loop: true, transitions: [] }],
 });
 
+// A bitmap font is TEXT, and names its page image the way a spine atlas does:
+// as a sibling, resolved against the .fnt's own directory at load.
+const fnt = [
+  'info face="tiny" size=8',
+  'common lineHeight=8 base=8 scaleW=16 scaleH=8 pages=1',
+  'page id=0 file="tiny.png"',
+  'chars count=1',
+  'char id=65 x=0 y=0 width=8 height=8 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15',
+  '',
+].join('\n');
+
 const clip = JSON.stringify({
   version: '1.2', name: 'idle', fps: 8,
   frames: [{ texture: 'assets/anim/frame0.png', duration: 1 }],
@@ -64,6 +77,10 @@ const scene = JSON.stringify({
       id: 2, name: 'Actor', parent: null, children: [],
       components: [{ type: 'UIController', data: { controller: 'assets/anim/player.esanimator' } }],
     },
+    {
+      id: 3, name: 'Label', parent: null, children: [],
+      components: [{ type: 'BitmapText', data: { text: 'A', font: 'assets/fonts/tiny.fnt' } }],
+    },
   ],
 });
 
@@ -74,6 +91,8 @@ beforeAll(() => {
   writeAsset('assets/anim/frame0.png', 'texture', FRAME, 'PNG');
   writeAsset('assets/anim/idle.esanim', 'animclip', CLIP, clip);
   writeAsset('assets/anim/player.esanimator', 'animatorcontroller', CONTROLLER, controller);
+  writeAsset('assets/fonts/tiny.png', 'texture', FNT_PAGE, 'PNG');
+  writeAsset('assets/fonts/tiny.fnt', 'bitmapFont', FNT, fnt);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
 });
 
@@ -87,6 +106,11 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[ESENV]).toContain(SPECULAR);
   });
 
+  it('links a bitmap font → the page image it names', async () => {
+    const { index } = await scanAssetDatabase(root, { write: false });
+    expect(index.deps[FNT]).toContain(FNT_PAGE);
+  });
+
   it('links animator controller → the clip its state plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(CLIP);
@@ -95,7 +119,7 @@ describe('assets named only inside another document are cooked', () => {
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, FRAME]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, FRAME, FNT, FNT_PAGE]));
     expect(res.unused).toEqual([]);
   });
 
@@ -114,5 +138,10 @@ describe('assets named only inside another document are cooked', () => {
     const staged = JSON.parse(readFileSync(path.join(res.outDir, env.path), 'utf8')) as { specular: string };
     expect(staged.specular).toBe('assets/env/sky_env.png');
     expect(manifest.entries.some((e) => e.sourcePath === staged.specular)).toBe(true);
+
+    // The bitmap font says the same thing in text rather than JSON.
+    const font = manifest.entries.find((e) => e.uuid === FNT)!;
+    const stagedFnt = readFileSync(path.join(res.outDir, font.path), 'utf8');
+    expect(stagedFnt).toContain('file="assets/fonts/tiny.png"');
   });
 });

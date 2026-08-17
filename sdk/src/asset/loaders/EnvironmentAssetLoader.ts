@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext } from '../AssetLoader';
+import { resolveDocumentRef } from '../documentRef';
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasm/wasmScratch';
 import { log } from '../../util/logger';
@@ -55,7 +56,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         let specularHandle = 0;
         let specularPath: string | undefined;
         if (data.specular) {
-            const resolved = resolvePath(path, data.specular);
+            const resolved = resolveDocumentRef(path, data.specular);
             try {
                 // flipY false: the atlas' rows are a layout, not a picture. Row 0
                 // is mip 0, and a load that turned it over would put the mip
@@ -88,8 +89,4 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
 }
 
 /** Resolve the atlas ref relative to the `.esenv`; rooted refs pass through. */
-function resolvePath(fromPath: string, ref: string): string {
-    if (ref.startsWith('/') || ref.startsWith('http') || ref.startsWith('assets/')) return ref;
-    const dir = fromPath.substring(0, fromPath.lastIndexOf('/'));
-    return dir ? `${dir}/${ref}` : ref;
-}
+

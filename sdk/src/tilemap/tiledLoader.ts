@@ -44,7 +44,7 @@ import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../util/logger';
-import { resolveRelativePath, resolveTiledRef, isLogicalAssetRef } from './tiledPath';
+import { resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef } from '../asset/documentRef';
 
 export interface TiledChunkData {
     x: number;
@@ -600,10 +600,9 @@ export async function parseTmjWithExternals(
     return parseTmjJson(json);
 }
 
-// resolveRelativePath now lives in ./tiledPath (a dependency-free leaf) so the editor's
-// asset-dependency scan / cook can share the exact resolution the runtime loads with,
-// without pulling the loader's engine deps. Re-exported here for existing importers.
-export { resolveRelativePath, resolveTiledRef, isLogicalAssetRef };
+// The resolution lives in ../asset/documentRef (a dependency-free leaf) so the
+// cook and every loader share it. Re-exported for existing importers.
+export { resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef };
 
 export interface CollectionGridTile {
     /** Local tile id — also the grid slot, so gid → cell stays the identity

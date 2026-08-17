@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, FontResult } from '../AssetLoader';
+import { resolveDocumentRef } from '../documentRef';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';
 import { getPlatform } from '../../platform/base';
@@ -79,9 +80,7 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
             throw new Error(`No page texture found in .fnt file: ${path}`);
         }
 
-        const texName = pageMatch[1];
-        const dir = path.substring(0, path.lastIndexOf('/'));
-        const texPath = dir ? `${dir}/${texName}` : texName;
+        const texPath = resolveDocumentRef(path, pageMatch[1]);
 
         const texResult = await ctx.loadTexture(texPath, false);
         const rm = requireResourceManager();

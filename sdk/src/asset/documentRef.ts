@@ -33,12 +33,17 @@ export function isLogicalAssetRef(ref: string): boolean {
 }
 
 /**
- * Resolve a ref a Tiled document carries: a logical project path stands as it is,
- * anything else is relative to the document.
+ * Resolve a ref one document carries about another asset: a logical project path
+ * stands as it is, anything else is relative to the document. Every loader whose
+ * document names a sibling resolves through this, because the cook rewrites all
+ * of those refs to the same logical shape.
  */
-export function resolveTiledRef(documentPath: string, ref: string): string {
+export function resolveDocumentRef(documentPath: string, ref: string): string {
     return isLogicalAssetRef(ref) ? ref : resolveRelativePath(documentPath, ref);
 }
+
+/** @deprecated Name it for the question, not for Tiled: {@link resolveDocumentRef}. */
+export const resolveTiledRef = resolveDocumentRef;
 
 export function resolveRelativePath(basePath: string, relativePath: string): string {
     // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")

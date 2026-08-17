@@ -29,7 +29,7 @@ import { readTextureCookSettings } from '../project/importSettings';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
-import { resolveRelativePath } from '../../../sdk/src/tilemap/tiledPath';
+import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -191,6 +191,25 @@ function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntr
   // Passthrough-safe spelling: bare when the runtime treats it as absolute,
   // "/"-rooted otherwise (both registered by the cooked host's maps).
   return proj.startsWith('assets/') ? proj : `/${proj}`;
+}
+
+/**
+ * A bitmap font names its page image as a sibling, in TEXT rather than JSON — the
+ * same staging problem, and the same fix: the staged copy names the project path.
+ */
+function rewriteFontRefs(
+  bytes: Uint8Array,
+  fntPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const text = Buffer.from(bytes).toString('utf8');
+  return new TextEncoder().encode(text.replace(
+    /(\bpage\b[^\n]*\bfile=")([^"]+)(")/g,
+    (whole, head: string, ref: string, tail: string) => {
+      const logical = logicalRef(ref, fntPath, byPath);
+      return typeof logical === 'string' ? `${head}${logical}${tail}` : whole;
+    },
+  ));
 }
 
 /**
@@ -568,6 +587,14 @@ export async function cookAssets(
           data = rewriteMaterialRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: material ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Bitmap fonts: the sibling page image → its logical project path.
+      if (ext.toLowerCase() === '.fnt') {
+        try {
+          data = rewriteFontRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: font ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Environments: the sibling reflection atlas → its logical project path.

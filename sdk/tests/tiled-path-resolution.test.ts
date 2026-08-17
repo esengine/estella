@@ -14,7 +14,7 @@
 // the same map by its cooked FILE path: every tile went invisible on the device with
 // "assets/assets/textures/tileset.png" not found.
 import { describe, it, expect } from 'vitest';
-import { resolveRelativePath, resolveTiledRef, isLogicalAssetRef } from '../src/tilemap/tiledPath';
+import { resolveRelativePath, resolveTiledRef, isLogicalAssetRef } from '../src/asset/documentRef';
 
 describe('isLogicalAssetRef', () => {
     it('recognizes the shape the cook emits', () => {

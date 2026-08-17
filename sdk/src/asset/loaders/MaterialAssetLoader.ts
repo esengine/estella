@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
+import { resolveDocumentRef } from '../documentRef';
 import type { MaterialAssetData, ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { builtinShaderTemplate } from '../../render/builtinShaders';
@@ -31,7 +32,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         // parent first, then build the instance from the asset's diffs. Parent shader resolution
         // and uniforms come from the parent material, so no shader is loaded here.
         if (data.instanceOf) {
-            const parentPath = resolveRelativePath(path, data.instanceOf);
+            const parentPath = resolveDocumentRef(path, data.instanceOf);
             const parent = await this.load(parentPath, ctx);
             const handle = Material.createFromAsset(data, 0, parent.handle);
             const texturePaths = await this.applyTextureProps(handle, data, path, ctx);
@@ -64,7 +65,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         const bound: string[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
-            const texPath = resolveRelativePath(matPath, value);
+            const texPath = resolveDocumentRef(matPath, value);
             try {
                 const tex = await ctx.loadTexture(texPath);
                 Material.setUniform(handle, name, Material.tex(tex.handle));
@@ -95,7 +96,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     // permutations, so the cache key folds the sorted features in.
     private async loadShader(matPath: string, ref: string, features: string[], ctx: LoadContext): Promise<ShaderHandle> {
         const isBuiltin = ref.startsWith(BUILTIN_SHADER_PREFIX);
-        const key = isBuiltin ? ref : resolveRelativePath(matPath, ref);
+        const key = isBuiltin ? ref : resolveDocumentRef(matPath, ref);
         const cacheKey = features.length ? `${key}#${features.join('|')}` : key;
         const cached = this.shaderCache_.get(cacheKey);
         if (cached !== undefined) return cached;
@@ -129,12 +130,4 @@ function enabledSwitches(switches: Record<string, boolean> | undefined): string[
     return Object.entries(switches).filter(([, on]) => on).map(([name]) => name).sort();
 }
 
-// Resolve a ref (shader or parent material) relative to the referencing material's directory;
-// absolute / http / assets-rooted refs pass through unchanged.
-function resolveRelativePath(fromPath: string, ref: string): string {
-    if (ref.startsWith('/') || ref.startsWith('http') || ref.startsWith('assets/')) {
-        return ref;
-    }
-    const dir = fromPath.substring(0, fromPath.lastIndexOf('/'));
-    return dir ? `${dir}/${ref}` : ref;
-}
+

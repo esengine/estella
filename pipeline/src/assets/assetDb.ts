@@ -27,7 +27,7 @@ import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './conte
 import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { resolveRelativePath } from '../../../sdk/src/tilemap/tiledPath';
+import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
@@ -214,6 +214,10 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Pro
 // so the cook keeps the textures instead of shipping an atlas that 404s them.
 const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
 
+// A bitmap font is the same shape one step over: TEXT, naming its page image as a
+// sibling, and nothing else in the project names that image either.
+const FNT_PAGE = /(?:^|\n)\s*page\b[^\n]*\bfile="([^"]+)"/g;
+
 // 'json' is a game's own data table. It is scanned like the rest because a
 // data-driven game names assets FROM its data — a spawn table holding `@uuid:`
 // refs is the ordinary way to do that — and an unscanned table means the cook
@@ -318,7 +322,8 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
-    (e) => JSON_REF_TYPES.has(e.type) || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === 'bitmapFont'
+      || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
   const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
@@ -329,9 +334,16 @@ async function computeDeps(
     // Spine's atlas is a TEXT manifest and needs its own parser; DragonBones'
     // is JSON, so the generic walk below already finds its `imagePath`.
     const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
+    const isBitmapFont = entry.type === 'bitmapFont';
     try {
       const refs = new Set<string>();
-      if (isSpineAtlas) {
+      if (isBitmapFont) {
+        const content = await readTextInRoot(path.join(root, entry.path));
+        for (const m of content.matchAll(FNT_PAGE)) {
+          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, m[1])));
+          if (dep) refs.add(dep.uuid);
+        }
+      } else if (isSpineAtlas) {
         const content = await readTextInRoot(path.join(root, entry.path));
         for (const page of parseSpineAtlasPages(content)) {
           const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
