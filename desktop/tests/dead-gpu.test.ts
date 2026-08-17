@@ -81,7 +81,7 @@ describe('retryOnDeadGpu', () => {
     it('gives up at the cap and says the GPU is why', () => {
         const r = run([DEAD]);
         expect(r.ok).toBe(false);
-        expect(r.attempts).toBe(4);
+        expect(r.attempts).toBe(6);
         expect(r.gpuDied).toBe(true);
     });
 });

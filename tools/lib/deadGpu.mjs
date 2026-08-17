@@ -21,8 +21,10 @@ export function gpuNeverCameUp(output) {
         || /WebGL2 is not available/.test(output);
 }
 
-/** Attempts one measurement is allowed, counting the first. */
-const MAX_ATTEMPTS = 4;
+/** Attempts one measurement is allowed, counting the first. Six, not four: four
+ *  was measured when the first project needed three retries to draw, and a tier
+ *  with one more pair in it spent them all on a game that was fine. */
+const MAX_ATTEMPTS = 6;
 
 /**
  * Wait before relaunching, growing with each try. The retries were immediate,

@@ -120,7 +120,14 @@ function captureEditorFrame(id, out) {
   const run = retryOnDeadGpu(attempt, (died) => console.log(`↻ ${id} — ${died
     ? 'the GPU process died before the editor drew'
     : 'no editor frame after a GPU death'}; capturing again`));
-  if (!run.ok) return { ok: false, why: run.output.trim().slice(-300) };
+  if (!run.ok) {
+    return {
+      ok: false,
+      why: run.gpuDied
+        ? `the GPU process never came up for the editor, on every attempt — no frame to compare against (${run.output.trim().slice(-200)})`
+        : run.output.trim().slice(-300),
+    };
+  }
   return { ok: true, w: run.w, h: run.h };
 }
 
@@ -174,7 +181,10 @@ function launchPackage(id, target, args) {
       ? 'the GPU process died before it drew'
       : 'a blank frame on the launch after a GPU death'}; launching again`),
   );
-  return run.r;
+  // gpuDied travels with the result: without it a runner whose GPU never came up
+  // is reported as a game that draws nothing, which is the one confusion this
+  // whole retry exists to prevent.
+  return { ...run.r, gpuDied: Boolean(run.gpuDied) };
 }
 
 const results = [];
@@ -259,8 +269,11 @@ for (const { id, target } of pairs) {
 
   const line = (launch.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
   if (launch.status !== 0) {
-    results.push({ id, target, stage: 'launch', ok: false, why: line || 'launch failed' });
-    console.log(`✗ ${id} ${target} — ${line || 'launch failed'}`);
+    const why = launch.gpuDied
+      ? `the GPU process never came up, on every attempt — this says nothing about the game (${line || 'no frame'})`
+      : line || 'launch failed';
+    results.push({ id, target, stage: 'launch', ok: false, why });
+    console.log(`✗ ${id} ${target} — ${why}`);
     for (const l of (launch.stdout || '').split('\n').slice(-6)) if (l.trim()) console.log(`    ${l}`);
     continue;
   }
