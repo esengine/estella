@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu } from './lib/deadGpu.mjs';
 
@@ -122,6 +122,27 @@ function captureEditorFrame(id, out) {
     : 'no editor frame after a GPU death'}; capturing again`));
   if (!run.ok) return { ok: false, why: run.output.trim().slice(-300) };
   return { ok: true, w: run.w, h: run.h };
+}
+
+/** Points the package's own frame failed to draw, as messages. Empty = all held. */
+function probePackagePixels(png, points) {
+  let frame;
+  try {
+    frame = readPNG(readFileSync(png));
+  } catch (e) {
+    return [`the package capture is not a whole PNG: ${e.message}`];
+  }
+  const missed = [];
+  for (const pt of points) {
+    const x = Math.min(frame.w - 1, Math.max(0, Math.round(pt.x * (frame.w - 1))));
+    const y = Math.min(frame.h - 1, Math.max(0, Math.round(pt.y * (frame.h - 1))));
+    const got = frame.px(x, y);
+    const tol = pt.tol ?? 30;
+    if (!got.every((c, k) => Math.abs(c - pt.rgb[k]) <= tol)) {
+      missed.push(`${pt.what ?? `${pt.x}x${pt.y}`}: want [${pt.rgb}] ±${tol}, got [${got}]`);
+    }
+  }
+  return missed;
 }
 
 /** Where a packaged run says the named entities are, or null if it never said. */
@@ -244,9 +265,23 @@ for (const { id, target } of pairs) {
     continue;
   }
 
+  // What the PACKAGE drew, before comparing it to anything. Parity is an A/B, so
+  // a capability the package lost and the editor never had passes it; the launch
+  // check passes any frame that is not one flat colour.
+  const wanted = target === 'web' ? webPixels(golden) : null;
+  if (wanted) {
+    const missed = probePackagePixels(packagePng, wanted);
+    if (missed.length > 0) {
+      results.push({ id, target, stage: 'pixels', ok: false, why: missed.join('; ') });
+      console.log(`✗ ${id} ${target} — the package did not draw what it claims`);
+      for (const m of missed) console.log(`    ${m}`);
+      continue;
+    }
+  }
+
   if (tolerance == null) {
     results.push({ id, target, stage: 'launch', ok: true });
-    console.log(`✓ ${id} ${target}`);
+    console.log(`✓ ${id} ${target}${wanted ? ` — ${wanted.length} point(s) drawn` : ''}`);
     continue;
   }
 
@@ -271,7 +306,8 @@ for (const { id, target } of pairs) {
   const input = interactFor(golden);
   if (!input) {
     results.push({ id, target, stage: 'parity', ok: true });
-    console.log(`✓ ${id} ${target} — parity ${distance.toFixed(4)}`);
+    console.log(`✓ ${id} ${target} — parity ${distance.toFixed(4)}`
+      + (wanted ? `, ${wanted.length} point(s) drawn` : ''));
     continue;
   }
 
