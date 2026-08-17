@@ -11,6 +11,8 @@ import {
   TilemapLayer, TilemapAPI, decodeTilemapChunks, CHUNK_SIZE, tileCollisionOutlines,
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
+  BoxCollider3D, SphereCollider3D, CapsuleCollider3D, MeshCollider3D, CharacterController3D,
+  readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
@@ -1107,6 +1109,64 @@ export const ViewportController = {
       }
     }
     return { outline: solid, outlineSensor: sensor, oneWay, sizeHandle, radiusHandle, points };
+  },
+
+  /** Ids of entities carrying any 3D collider — the 3D collider-gizmo set. Separate
+   *  from {@link colliderIds} because the two worlds are separate: a scene uses one
+   *  or the other, and their shapes project differently (three axes, not a plane). */
+  collider3DIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Transform)) continue;
+      if (world.has(e, BoxCollider3D) || world.has(e, SphereCollider3D)
+        || world.has(e, CapsuleCollider3D) || world.has(e, MeshCollider3D)
+        || world.has(e, CharacterController3D)) {
+        out.push(e);
+      }
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space wireframe of every 3D collider on `id` (SVG path data, CSS px), split
+   * into solid / sensor / inactive — drawn like the others, a shape the world does not
+   * build would promise collisions that never happen. Points project through their own
+   * z, since one entity plane would flatten a shape that spans depth.
+   */
+  getCollider3DGizmo(id: EntityId): { outline: string; outlineSensor: string; outlineInactive: string } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const instances = readCollider3DShapes(
+      world as unknown as Parameters<typeof readCollider3DShapes>[0], id);
+    if (instances.length === 0) return null;
+
+    const pos = t.worldPosition as { x: number; y: number; z: number };
+    const rot = t.worldRotation as { x: number; y: number; z: number; w: number };
+    let outline = '';
+    let outlineSensor = '';
+    let outlineInactive = '';
+
+    for (const inst of instances) {
+      const lines = placeCollider3DWireframe(collider3DWireframe(inst.shape), pos, rot);
+      let d = '';
+      for (const line of lines) {
+        let pen = false;
+        for (const p of line) {
+          const s = this.worldToClient(p.x, p.y, p.z);
+          if (!s) { pen = false; continue; }
+          d += `${pen ? 'L' : 'M'}${s.x.toFixed(1)},${s.y.toFixed(1)}`;
+          pen = true;
+        }
+        d += ' ';
+      }
+      if (!inst.active) outlineInactive += d;
+      else if (inst.isSensor) outlineSensor += d;
+      else outline += d;
+    }
+    return { outline, outlineSensor, outlineInactive };
   },
 
   /**

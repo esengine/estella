@@ -68,6 +68,25 @@ cmds.spawn()
   stops nothing.
 </Aside>
 
+## Seeing a shape
+
+The viewport draws every 3D collider as a wireframe, turned the way its entity is —
+nothing else on screen says how big the box around a model is. It is on the same
+switch as the 2D collider gizmos.
+
+An entity gets ONE body shape, chosen in the order `BoxCollider3D`,
+`SphereCollider3D`, `MeshCollider3D`, `CapsuleCollider3D`. Whatever loses — a
+disabled collider, one shadowed by that order, or any collider on an entity with no
+enabled `RigidBody3D` — is drawn dimmed and dashed: still there to author, visibly
+not what the world will collide with. A `CharacterController3D` capsule is drawn
+beside it, since a character is swept rather than solved.
+
+<Aside>
+  A mesh collider draws the BOUNDS of its triangles rather than every edge — the
+  triangles are the mesh you are already looking at, and a few thousand projected
+  edges would bury it.
+</Aside>
+
 ## Characters
 
 A `CharacterController3D` replaces a `RigidBody3D` rather than accompanying one: a

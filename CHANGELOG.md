@@ -16,6 +16,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **3D colliders are visible while you author them.** The viewport draws a
+  wireframe of every 3D collider — box, sphere, capsule, character, and the bounds
+  of a mesh collider — turned the way its entity is. A 3D shape is nothing the
+  renderer draws, so until now the only way to learn whether a box was the right
+  size was to press Play and watch what happened.
+
+  A shape the running world would NOT build is drawn dimmed and dashed: the solver
+  gives an entity one body shape, and a disabled collider, one shadowed by a
+  higher-priority shape, or one on an entity with no rigid body would otherwise
+  promise a collision that never happens.
+
 - **Spatial queries with a shape, not just a line.** The `Physics3D` resource
   answers `sphereCast`, `overlapSphere` and `overlapBox` alongside `raycast`, all
   in world units and all narrowable by layer. A ray is infinitely thin and slips

@@ -1011,6 +1011,14 @@ export function Viewport() {
     () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
     [structRev, worldRev, engine.status, showColliders],
   );
+  // The 3D world's shapes, on the same switch: they are even less visible than the
+  // 2D ones (a box around a model is nothing the renderer draws), and they project
+  // as wireframes through three axes rather than outlines on a plane.
+  const collider3DRefs = useRef(new Map<number, SVGSVGElement | null>());
+  const collider3DIds = useMemo(
+    () => (engine.status === 'ready' && showColliders ? ViewportController.collider3DIds() : []),
+    [structRev, worldRev, engine.status, showColliders],
+  );
   // Tile-collision overlay: the selected TilemapLayer's per-tile collision, drawn into
   // ONE SVG (not one per tile). Its world-space outlines are (re)built into a ref by the
   // effect below whenever the layer / its content changes; the rAF projects them each
@@ -1734,6 +1742,18 @@ export function Viewport() {
         } else {
           if (owLine) owLine.style.opacity = '0';
           if (owHead) owHead.style.opacity = '0';
+        }
+      }
+
+      // 3D collider wireframes — solid / sensor / inactive, the three the projection
+      // splits every shape on the entity into.
+      for (const [cid, svg] of collider3DRefs.current) {
+        if (!svg) continue;
+        const cg = camsOn ? ViewportController.getCollider3DGizmo(cid) : null;
+        for (const [sel, d] of [['.c3-outline', cg?.outline],
+                                ['.c3-outline-sensor', cg?.outlineSensor],
+                                ['.c3-outline-inactive', cg?.outlineInactive]] as const) {
+          (svg.querySelector(sel) as SVGPathElement | null)?.setAttribute('d', d ?? '');
         }
       }
 
@@ -2600,6 +2620,29 @@ export function Viewport() {
               rAF since their count varies with the shape; each binds its own native
               pointerdown (see syncColliderPoints). */}
           <g className="cl-points" />
+        </svg>
+      ))}
+
+      {/* 3D collider wireframes: one SVG per entity, three paths — the shape the
+          solver builds, the one it builds as a trigger, and the authored-but-absent
+          one (disabled / shadowed / bodyless). */}
+      {collider3DIds.map((id) => (
+        <svg
+          key={id}
+          ref={(el) => {
+            if (el) collider3DRefs.current.set(id, el);
+            else collider3DRefs.current.delete(id);
+          }}
+          className={
+            'viewport__collider3d-gizmo'
+            + (selectedIds.has(SceneModel.sourceFor(id) ?? -1) ? ' is-live' : '')
+          }
+          data-src={SceneModel.sourceFor(id)}
+          aria-hidden="true"
+        >
+          <path className="c3-outline-inactive" d="" />
+          <path className="c3-outline-sensor" d="" />
+          <path className="c3-outline" d="" />
         </svg>
       ))}
 

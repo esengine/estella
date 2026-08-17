@@ -185,6 +185,31 @@ export {
     type ColliderOutline,
 } from './physics/ColliderShape';
 
+export {
+    RigidBody3D,
+    BoxCollider3D,
+    SphereCollider3D,
+    CapsuleCollider3D,
+    MeshCollider3D,
+    CharacterController3D,
+    type RigidBody3DData,
+    type BoxCollider3DData,
+    type SphereCollider3DData,
+    type CapsuleCollider3DData,
+    type MeshCollider3DData,
+    type CharacterController3DData,
+} from './physics3d/Physics3DComponents';
+
+export {
+    readCollider3DShapes,
+    collider3DWireframe,
+    placeCollider3DWireframe,
+    COLLIDER3D_RING_SEGMENTS,
+    type Collider3DShape,
+    type Collider3DInstance,
+    type Collider3DComponent,
+} from './physics3d/ColliderShape3D';
+
 // =============================================================================
 // Resources
 // =============================================================================
