@@ -51,10 +51,8 @@ export const describes = 'a 3D joint is drawn in the viewport, link and free axi
  *  blue both well above green — nothing else in the viewport is. */
 function jointBox(png) {
   let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;
-  const x0 = Math.round(png.w * 0.04), x1 = Math.round(png.w * 0.62);
-  const y0 = Math.round(png.h * 0.12), y1 = Math.round(png.h * 0.88);
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  for (let y = 0; y < png.h; y++) {
+    for (let x = 0; x < png.w; x++) {
       const p = png.px(x, y);
       if (p[2] < 120 || p[0] < 80 || p[2] - p[1] < 40 || p[0] - p[1] < 20) continue;
       count++;
@@ -75,10 +73,16 @@ export async function run(ed) {
   const check = checker();
 
   await ed.open(root, 'assets/scenes/main.esscene');
-  await ed.sleep(1200);
-  const shot = await ed.screenshot('joint3d-on');
+  // Waited for rather than slept past: a loaded runner reaches its first drawn
+  // frame later than any fixed sleep guesses, and this asks about the picture.
+  let shot = null;
+  let box = null;
+  for (let i = 0; i < 12 && box == null; i++) {
+    await ed.sleep(500);
+    shot = await ed.screenshot('joint3d-on', { crop: 'game' });
+    box = jointBox(shot);
+  }
 
-  const box = jointBox(shot);
   if (!check(box != null, 'no joint gizmo anywhere in the viewport')) return check.failures;
   if (!check(box.count > 60, `only ${box.count} joint pixels — nothing that could be a link`)) {
     return check.failures;
@@ -98,8 +102,11 @@ export async function run(ed) {
   await ed.call('set_field', {
     entity: 2, component: 'HingeJoint3D', key: 'connectedEntity', type: 'entity', value: -1,
   }, 30000);
-  await ed.sleep(900);
-  const gone = jointBox(await ed.screenshot('joint3d-off'));
+  let gone = box;
+  for (let i = 0; i < 10 && (gone?.count ?? 0) >= box.count * 0.25; i++) {
+    await ed.sleep(500);
+    gone = jointBox(await ed.screenshot('joint3d-off', { crop: 'game' }));
+  }
   check(
     (gone?.count ?? 0) < box.count * 0.25,
     `a joint connected to nothing still drew ${gone?.count ?? 0} of ${box.count} pixels — the `
