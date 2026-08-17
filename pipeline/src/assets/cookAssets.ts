@@ -166,24 +166,45 @@ function rewriteMaterialRefs(
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  const dir = matPath.includes('/') ? matPath.slice(0, matPath.lastIndexOf('/')) : '';
-  const rewrite = (ref: unknown): unknown => {
-    // `builtin:<id>` shaders compile from in-code templates (no file); pass through like @uuid/URLs.
-    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.startsWith('builtin:') || ref.includes('://')) return ref;
-    const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
-    if (byPath.has(norm)) return ref;  // already a logical project path
-    const joined = dir ? `${dir}/${norm}` : norm;
-    if (!byPath.has(joined)) return ref;  // not an asset ref (or missing) — leave it
-    // Passthrough-safe spelling: bare when the runtime treats it as absolute,
-    // "/"-rooted otherwise (both registered by the cooked host's maps).
-    return joined.startsWith('assets/') ? joined : `/${joined}`;
-  };
+  const rewrite = (ref: unknown): unknown => logicalRef(ref, matPath, byPath);
   if (typeof json.shader === 'string') json.shader = rewrite(json.shader);
   if (typeof json.instanceOf === 'string') json.instanceOf = rewrite(json.instanceOf);
   if (json.properties && typeof json.properties === 'object') {
     const props = json.properties as Record<string, unknown>;
     for (const key of Object.keys(props)) props[key] = rewrite(props[key]);
   }
+  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
+/**
+ * One document-relative ref as the logical project path a staged copy must carry:
+ * staging is content-addressed, so the directory a relative ref resolves against
+ * does not survive it. `@uuid:` / `builtin:` / URLs / already-logical refs and
+ * anything naming no asset pass through.
+ */
+function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown {
+  if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.startsWith('builtin:') || ref.includes('://')) return ref;
+  const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
+  if (byPath.has(norm)) return ref;
+  const proj = resolveRelativePath(docPath, ref);  // collapses ./ and ../
+  if (!byPath.has(proj)) return ref;
+  // Passthrough-safe spelling: bare when the runtime treats it as absolute,
+  // "/"-rooted otherwise (both registered by the cooked host's maps).
+  return proj.startsWith('assets/') ? proj : `/${proj}`;
+}
+
+/**
+ * A baked environment names its reflection atlas as a SIBLING file, which staging
+ * moves out from under it — the runtime then asks for `assets/sky_env.png` and gets
+ * a 404, and the frame silently loses every reflection the game was lit for.
+ */
+function rewriteEnvironmentRefs(
+  bytes: Uint8Array,
+  envPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  if (typeof json.specular === 'string') json.specular = logicalRef(json.specular, envPath, byPath);
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 
@@ -202,12 +223,7 @@ function rewriteTilemapRefs(
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  const rewrite = (ref: unknown): unknown => {
-    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.includes('://')) return ref;
-    const proj = resolveRelativePath(tmjPath, ref);  // collapses ./ and ../
-    if (!byPath.has(proj)) return ref;  // not an asset ref (or missing) — leave it
-    return proj.startsWith('assets/') ? proj : `/${proj}`;
-  };
+  const rewrite = (ref: unknown): unknown => logicalRef(ref, tmjPath, byPath);
   const tilesets = Array.isArray(json.tilesets) ? (json.tilesets as Record<string, unknown>[]) : [];
   for (const ts of tilesets) {
     if (typeof ts.image === 'string') ts.image = rewrite(ts.image);    // inline tileset image
@@ -552,6 +568,14 @@ export async function cookAssets(
           data = rewriteMaterialRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: material ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Environments: the sibling reflection atlas → its logical project path.
+      if (ext.toLowerCase() === '.esenv') {
+        try {
+          data = rewriteEnvironmentRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: environment ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Tilemaps: relative tileset image/source refs → logical project paths, so the

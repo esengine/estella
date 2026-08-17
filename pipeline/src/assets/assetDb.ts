@@ -219,8 +219,12 @@ const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
 // refs is the ordinary way to do that — and an unscanned table means the cook
 // culls what only it points at, which surfaces as a missing asset in the build
 // and nowhere else.
+// 'environment' names its reflection atlas and 'animatorcontroller' the clips its
+// states play — both the skeletal-atlas shape, where the only reference lives
+// inside a document, so an unscanned type 404s what the document needs.
 const JSON_REF_TYPES = new Set([
   'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
+  'environment', 'animatorcontroller',
   'json',
 ]);
 
