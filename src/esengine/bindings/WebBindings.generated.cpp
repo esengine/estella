@@ -401,6 +401,38 @@ ChildrenJS childrenToJS(const esengine::ecs::Children& c) {
     return js;
 }
 
+struct ConvexCollider3DJS {
+    u32 mesh;
+    f32 friction;
+    f32 restitution;
+    bool isSensor;
+    bool enabled;
+};
+
+void convexcollider3dApplyJS(esengine::ecs::ConvexCollider3D& c, const ConvexCollider3DJS& js) {
+    c.mesh = resource::MeshHandle(js.mesh);
+    c.friction = js.friction;
+    c.restitution = js.restitution;
+    c.isSensor = js.isSensor;
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::ConvexCollider3D convexcollider3dFromJS(const ConvexCollider3DJS& js) {
+    esengine::ecs::ConvexCollider3D c;
+    convexcollider3dApplyJS(c, js);
+    return c;
+}
+
+ConvexCollider3DJS convexcollider3dToJS(const esengine::ecs::ConvexCollider3D& c) {
+    ConvexCollider3DJS js;
+    js.mesh = c.mesh.id();
+    js.friction = c.friction;
+    js.restitution = c.restitution;
+    js.isSensor = c.isSensor;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct FlexContainerJS {
     i32 direction;
     i32 wrap;
@@ -1359,6 +1391,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
         .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
 
+    value_object<ConvexCollider3DJS>("ConvexCollider3D")
+        .field("mesh", &ConvexCollider3DJS::mesh)
+        .field("friction", &ConvexCollider3DJS::friction)
+        .field("restitution", &ConvexCollider3DJS::restitution)
+        .field("isSensor", &ConvexCollider3DJS::isSensor)
+        .field("enabled", &ConvexCollider3DJS::enabled);
+
     value_object<esengine::ecs::DragonBonesAnimation>("DragonBonesAnimation")
         .field("skeletonPath", &esengine::ecs::DragonBonesAnimation::skeletonPath)
         .field("atlasPath", &esengine::ecs::DragonBonesAnimation::atlasPath)
@@ -1924,6 +1963,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
             r.remove<esengine::ecs::CircleCollider>(entity);
+        }))
+
+        // ConvexCollider3D
+        .function("hasConvexCollider3D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ConvexCollider3D>(static_cast<Entity>(e));
+        }))
+        .function("getConvexCollider3D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ConvexCollider3D>(entity)) return ConvexCollider3DJS{};
+            return convexcollider3dToJS(r.get<esengine::ecs::ConvexCollider3D>(entity));
+        }))
+        .function("addConvexCollider3D", optional_override([](Registry& r, u32 e, const ConvexCollider3DJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::ConvexCollider3D>(entity)) {
+                convexcollider3dApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::ConvexCollider3D>(entity, convexcollider3dFromJS(js));
+        }))
+        .function("removeConvexCollider3D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ConvexCollider3D>(entity)) return;
+            r.remove<esengine::ecs::ConvexCollider3D>(entity);
         }))
 
         // DragonBonesAnimation
@@ -2565,6 +2628,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("CharacterController3D")));
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider")));
+    arr.set(i++, val(std::string("ConvexCollider3D")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
@@ -2684,6 +2748,11 @@ static_assert(offsetof(esengine::ecs::CircleCollider, isSensor) == 24, "ABI offs
 static_assert(offsetof(esengine::ecs::CircleCollider, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider.enabled (EHT expected 25)");
 static_assert(offsetof(esengine::ecs::CircleCollider, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider.categoryBits (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::CircleCollider, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider.maskBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::ConvexCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::ConvexCollider3D.mesh (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ConvexCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::ConvexCollider3D.friction (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::ConvexCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::ConvexCollider3D.restitution (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::ConvexCollider3D, isSensor) == 12, "ABI offset drift: esengine::ecs::ConvexCollider3D.isSensor (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::ConvexCollider3D, enabled) == 13, "ABI offset drift: esengine::ecs::ConvexCollider3D.enabled (EHT expected 13)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::DragonBonesAnimation.timeScale (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, loop) == 52, "ABI offset drift: esengine::ecs::DragonBonesAnimation.loop (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, playing) == 53, "ABI offset drift: esengine::ecs::DragonBonesAnimation.playing (EHT expected 53)");
@@ -2950,7 +3019,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "0daf40a6f7ff1a3e";
+static const char* kEsAbiLayoutHash = "7087d13f8df10c56";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

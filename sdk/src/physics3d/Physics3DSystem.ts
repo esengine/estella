@@ -16,9 +16,10 @@ import { Transform } from '../ecs/component';
 import type { TransformData } from '../ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
-    MeshCollider3D,
+    MeshCollider3D, ConvexCollider3D,
     type RigidBody3DData, type BoxCollider3DData, type SphereCollider3DData,
     type CapsuleCollider3DData, type CharacterController3DData, type MeshCollider3DData,
+    type ConvexCollider3DData,
 } from './Physics3DComponents';
 import { getMeshCollision } from '../asset/meshCollision';
 import { syncJoints3D, type Joint3DMap } from './Physics3DJoints';
@@ -152,6 +153,10 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     if (meshCollider?.enabled && meshCollider.mesh !== 0) {
         return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu, body.layer);
     }
+    const hull = app.world.get(entity, ConvexCollider3D) as ConvexCollider3DData | undefined;
+    if (hull?.enabled && hull.mesh !== 0) {
+        return addConvexBody(module, entity, hull, px, py, pz, r, ppu, how);
+    }
     const capsule = app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData | undefined;
     if (capsule?.enabled) {
         return module._physics3d_addCapsule(
@@ -191,6 +196,34 @@ function addMeshBody(module: Physics3DWasmModule, entity: Entity,
     } finally {
         module._free(vertexPtr);
         module._free(indexPtr);
+    }
+}
+
+/**
+ * Hand a mesh's vertices over as a convex hull.
+ *
+ * Only the positions cross: Jolt builds the hull itself, so the triangles that
+ * a mesh collider needs would be a copy nothing reads.
+ */
+function addConvexBody(module: Physics3DWasmModule, entity: Entity,
+                       collider: ConvexCollider3DData, px: number, py: number, pz: number,
+                       r: { x: number; y: number; z: number; w: number },
+                       ppu: number,
+                       how: readonly [number, number, number, number, number, number, number],
+): number {
+    const geometry = getMeshCollision(collider.mesh);
+    if (!geometry) return 0;
+    const { positions } = geometry;
+    const vertexPtr = module._malloc(positions.length * 4);
+    try {
+        const heapF32 = module.HEAPF32;
+        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! / ppu;
+        return module._physics3d_addConvexBody(
+            entity as number, vertexPtr, positions.length / 3,
+            px, py, pz, r.x, r.y, r.z, r.w, ...how,
+            collider.friction, collider.restitution, collider.isSensor ? 1 : 0);
+    } finally {
+        module._free(vertexPtr);
     }
 }
 

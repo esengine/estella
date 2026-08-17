@@ -590,7 +590,31 @@ check('a fast body passes through a thin wall when only its endpoints are checke
 check('and continuous collision stops it at the wall', stopped && stopped.x < 600,
       `x=${stopped?.x.toFixed(3)} wall at 600`);
 
-// ── 13) A removed body is gone from both the sweep and the getter ───────────
+// ── 13) A convex hull of imported geometry, which a mesh collider cannot be ──
+// Eight corners handed over as points: the hull rests at its own half-height,
+// and it is DYNAMIC, which a mesh collider of the same geometry never is.
+const HULL = 95;
+const corners = [];
+for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) {
+    corners.push(sx, sy, sz);
+}
+const hullPtr = m._malloc(corners.length * 4);
+m.HEAPF32.set(corners, hullPtr >> 2);
+const hullId = m._physics3d_addConvexBody(HULL, hullPtr, 8, 0, 5, 30, ...IDENTITY,
+                                          ...FREE(DYNAMIC), 0.5, 0, 0);
+check('a convex hull is handed back', hullId !== 0, `id=${hullId}`);
+// Three points are a triangle: no volume, and a body with no shape falls forever.
+check('and a degenerate one is refused',
+      m._physics3d_addConvexBody(96, hullPtr, 3, 0, 5, 35, ...IDENTITY,
+                                 ...FREE(DYNAMIC), 0.5, 0, 0) === 0);
+m._free(hullPtr);
+m._physics3d_optimize();
+step(240);
+const hull = bodyState(hullId);
+check('a hull rests on its own half-extent', hull && near(hull.y, 0.5, 0.06),
+      `y=${hull?.y.toFixed(4)} want 0.5`);
+
+// ── 14) A removed body is gone from both the sweep and the getter ───────────
 m._physics3d_removeBody(capId);
 step(1);
 check('a removed body leaves the readback', bodyPos(CAP) === null);

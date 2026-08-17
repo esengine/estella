@@ -23,11 +23,11 @@ import type { Vec3, Quat } from '../types';
 import type { World } from '../ecs/world';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D,
-    MeshCollider3D, CharacterController3D,
+    MeshCollider3D, ConvexCollider3D, CharacterController3D,
 } from './Physics3DComponents';
 import type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
-    MeshCollider3DData, CharacterController3DData,
+    MeshCollider3DData, ConvexCollider3DData, CharacterController3DData,
 } from './Physics3DComponents';
 import { getMeshCollision } from '../asset/meshCollision';
 
@@ -43,7 +43,7 @@ export type Collider3DShape =
 /** Which component authored a shape — the Inspector target behind a gizmo. */
 export type Collider3DComponent =
     | 'BoxCollider3D' | 'SphereCollider3D' | 'CapsuleCollider3D'
-    | 'MeshCollider3D' | 'CharacterController3D';
+    | 'MeshCollider3D' | 'ConvexCollider3D' | 'CharacterController3D';
 
 export interface Collider3DInstance {
     component: Collider3DComponent;
@@ -94,8 +94,8 @@ function meshBounds(handle: number): { center: Vec3; halfExtents: Vec3 } | null 
 /**
  * Every 3D collider on `entity`, each marked with whether it is the one the solver
  * ends up building. The order mirrors `createBody` in Physics3DSystem — box, sphere,
- * mesh, capsule — and must keep mirroring it: a visualizer drawing a different shape
- * than the world collides with is worse than none.
+ * mesh, hull, capsule — and must keep mirroring it: a visualizer drawing a different
+ * shape than the world collides with is worse than none.
  */
 export function readCollider3DShapes(world: World, entity: number): Collider3DInstance[] {
     const out: Collider3DInstance[] = [];
@@ -144,6 +144,22 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
                 component: 'MeshCollider3D',
                 shape: { kind: 'box', halfExtents: bounds.halfExtents, center: bounds.center },
                 isSensor: false,
+                active: chosen && bodyLive,
+            });
+        }
+    }
+
+    const hull = world.has(entity, ConvexCollider3D)
+        ? world.get(entity, ConvexCollider3D) as ConvexCollider3DData : null;
+    if (hull) {
+        const chosen = !taken && on(hull) && hull.mesh !== 0;
+        if (chosen) taken = true;
+        const bounds = meshBounds(hull.mesh);
+        if (bounds) {
+            out.push({
+                component: 'ConvexCollider3D',
+                shape: { kind: 'box', halfExtents: bounds.halfExtents, center: bounds.center },
+                isSensor: hull.isSensor === true,
                 active: chosen && bodyLive,
             });
         }

@@ -21,6 +21,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
@@ -374,6 +375,43 @@ uint32_t physics3d_addMeshBody(uint32_t entity, uintptr_t vertexPtr, uint32_t ve
     if (shape.HasError()) return 0;
     return addBody(entity, shape.Get(), px, py, pz, qx, qy, qz, qw,
                    {0, 1.0f, 0.0f, 0.0f, 0, layer}, friction, restitution, 0);
+}
+
+/**
+ * @brief Registers the convex hull of imported geometry as a collider.
+ * @details The hull is what makes imported geometry usable as a DYNAMIC body:
+ *          Jolt cannot give a triangle soup an inertia tensor, so a mesh collider
+ *          is scenery whatever its RigidBody3D says.
+ * @param vertexPtr `vertexCount * 3` floats, in metres, in the body's own space.
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t physics3d_addConvexBody(uint32_t entity, uintptr_t vertexPtr, uint32_t vertexCount,
+                                 float px, float py, float pz,
+                                 float qx, float qy, float qz, float qw,
+                                 int motion, float gravityScale, float linearDamping,
+                                 float angularDamping, int fixedRotation, uint32_t layer,
+                                 int continuous, float friction, float restitution,
+                                 int isSensor) {
+    // Three points are a triangle and enclose nothing; a hull needs a volume.
+    if (!g().isValid() || vertexCount < 4) return 0;
+    const float* positions = reinterpret_cast<const float*>(vertexPtr);
+    if (positions == nullptr) return 0;
+
+    Array<Vec3> points;
+    points.reserve(vertexCount);
+    for (uint32_t i = 0; i < vertexCount; ++i) {
+        points.push_back(Vec3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+    }
+    ConvexHullShapeSettings settings(points);
+    settings.SetEmbedded();
+    ShapeSettings::ShapeResult shape = settings.Create();
+    // Degenerate input — every point on a plane, or all of them the same — has no
+    // hull, and a body with no shape is an invisible point that falls forever.
+    if (shape.HasError()) return 0;
+    return addBody(entity, shape.Get(), px, py, pz, qx, qy, qz, qw,
+                   {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
+                    continuous},
+                   friction, restitution, isSensor);
 }
 
 EMSCRIPTEN_KEEPALIVE

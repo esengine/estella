@@ -46,6 +46,13 @@ export interface Physics3DWasmModule {
                            px: number, py: number, pz: number,
                            qx: number, qy: number, qz: number, qw: number,
                            layer: number, friction: number, restitution: number): number;
+    _physics3d_addConvexBody(entity: number, vertexPtr: number, vertexCount: number,
+                             px: number, py: number, pz: number,
+                             qx: number, qy: number, qz: number, qw: number,
+                             motion: number, gravityScale: number, linearDamping: number,
+                             angularDamping: number, fixedRotation: number, layer: number,
+                             continuous: number, friction: number, restitution: number,
+                             isSensor: number): number;
     _physics3d_removeBody(bodyId: number): void;
 
     _malloc(bytes: number): number;

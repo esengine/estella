@@ -150,6 +150,16 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 32 },
         ],
     },
+    ConvexCollider3D: {
+        ptrFn: 'getConvexCollider3DPtr',
+        fields: [
+            { name: 'mesh', type: 'u32', offset: 0 },
+            { name: 'friction', type: 'f32', offset: 4 },
+            { name: 'restitution', type: 'f32', offset: 8 },
+            { name: 'isSensor', type: 'bool', offset: 12 },
+            { name: 'enabled', type: 'bool', offset: 13 },
+        ],
+    },
     DragonBonesAnimation: {
         ptrFn: 'getDragonBonesAnimationPtr',
         fields: [

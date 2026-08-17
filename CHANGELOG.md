@@ -16,6 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Imported geometry that moves.** A `ConvexCollider3D` collides against the
+  convex hull of a mesh's vertices — a rock, a chamfered crate, a barrel that
+  rolls. `MeshCollider3D` is scenery whatever its body says (Jolt cannot give a
+  triangle soup an inertia tensor); a hull is a volume a solver pushes as readily
+  as a box.
+
 - **A fast 3D body stops at a thin wall.** `RigidBody3D.continuousCollision`
   checks the whole path a step covers rather than only where the body ended up.
   At any speed that crosses more than its own thickness in a step — a bullet, a

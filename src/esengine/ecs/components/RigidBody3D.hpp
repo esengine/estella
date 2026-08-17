@@ -166,6 +166,33 @@ struct MeshCollider3D {
 };
 
 /**
+ * @brief The convex hull of imported geometry — a shape a solver can push.
+ *
+ * @details What MeshCollider3D cannot be: a triangle soup has no inertia tensor,
+ *          so it can only ever be scenery. A hull is the tightest convex volume
+ *          around the same vertices, which a rigid-body solver handles as easily
+ *          as a box — a rock, a crate with a chamfer, a barrel that rolls.
+ */
+ES_COMPONENT()
+struct ConvexCollider3D {
+    /** @brief Geometry whose hull is the shape. Its concave detail is filled in. */
+    ES_PROPERTY(asset = mesh, tooltip="Geometry (.esmesh) whose convex hull collides.")
+    resource::MeshHandle mesh;
+
+    ES_PROPERTY(min=0)
+    f32 friction{0.3f};
+
+    ES_PROPERTY(min=0, max=1)
+    f32 restitution{0.0f};
+
+    ES_PROPERTY()
+    bool isSensor{false};
+
+    ES_PROPERTY()
+    bool enabled{true};
+};
+
+/**
  * @brief A kinematic mover for a 3D player or NPC.
  *
  * @details Swept against the world rather than solved in it, which is what lets it

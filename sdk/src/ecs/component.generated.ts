@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '0daf40a6f7ff1a3e';
+export const ABI_LAYOUT_HASH = '7087d13f8df10c56';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -301,6 +301,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    ConvexCollider3D: {
+        defaults: {
+            mesh: 0,
+            friction: 0.3,
+            restitution: 0,
+            isSensor: false,
+            enabled: true,
+        },
+        assetFields: [{ field: 'mesh', type: 'mesh' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            mesh: { tooltip: "Geometry (.esmesh) whose convex hull collides." },
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
+        },
     },
     DragonBonesAnimation: {
         defaults: {
@@ -1135,6 +1153,14 @@ export interface CircleColliderData {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+export interface ConvexCollider3DData {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
 }
 
 export interface DragonBonesAnimationData {

@@ -191,12 +191,14 @@ export {
     SphereCollider3D,
     CapsuleCollider3D,
     MeshCollider3D,
+    ConvexCollider3D,
     CharacterController3D,
     type RigidBody3DData,
     type BoxCollider3DData,
     type SphereCollider3DData,
     type CapsuleCollider3DData,
     type MeshCollider3DData,
+    type ConvexCollider3DData,
     type CharacterController3DData,
 } from './physics3d/Physics3DComponents';
 
@@ -211,9 +213,6 @@ export {
     type SliderJoint3DData,
     type DistanceJoint3DData,
     type FixedJoint3DData,
-} from './physics3d/Physics3DJoints';
-
-export {
     readJoint3D,
     type Joint3DShape,
 } from './physics3d/Physics3DJoints';

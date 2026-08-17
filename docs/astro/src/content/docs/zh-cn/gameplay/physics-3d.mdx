@@ -63,13 +63,24 @@ cmds.spawn()
   导入的几何拦不住任何东西时,先怀疑这个。
 </Aside>
 
+需要**会动**的导入几何,就用 `ConvexCollider3D`:它拿同一批顶点最紧的那个凸体去碰撞,
+而凸体对求解器来说和盒子一样容易。一块石头、一个倒角的箱子、一只会滚的木桶——
+凡是凹陷细节不需要被摸出来的东西。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
+```
+
 ## 看见形状
 
 视口把每个 3D 碰撞体画成线框,并跟着实体一起转——屏幕上没有任何别的东西
 能说出「模型外面那个盒子有多大」。它和 2D 碰撞体 gizmo 共用同一个开关。
 
 一个实体只会拿到**一个**刚体形状,按 `BoxCollider3D`、`SphereCollider3D`、
-`MeshCollider3D`、`CapsuleCollider3D` 的顺序挑。落选的那些——被禁用的、
+`MeshCollider3D`、`ConvexCollider3D`、`CapsuleCollider3D` 的顺序挑。落选的那些——被禁用的、
 被这个顺序盖住的、以及所有挂在没有启用 `RigidBody3D` 的实体上的——画成暗淡虚线:
 仍然摆得动,但一眼就看得出世界不会拿它去碰撞。`CharacterController3D` 的胶囊
 画在它旁边,因为角色是被扫掠的而不是被求解的。

@@ -10,12 +10,12 @@
 import { defineBuiltin } from '../ecs/component';
 import type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
-    CharacterController3DData, MeshCollider3DData,
+    CharacterController3DData, MeshCollider3DData, ConvexCollider3DData,
 } from '../ecs/component.generated';
 
 export type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
-    CharacterController3DData, MeshCollider3DData,
+    CharacterController3DData, MeshCollider3DData, ConvexCollider3DData,
 };
 
 export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
@@ -73,6 +73,21 @@ export const MeshCollider3D = defineBuiltin<MeshCollider3DData>('MeshCollider3D'
     layer: 0,
     friction: 0.3,
     restitution: 0.0,
+    enabled: true,
+});
+
+/**
+ * The convex hull of imported geometry — what a `MeshCollider3D` cannot be. A
+ * triangle soup has no inertia tensor and is scenery whatever its body says; a
+ * hull is a volume a solver pushes as readily as a box.
+ *
+ * @beta
+ */
+export const ConvexCollider3D = defineBuiltin<ConvexCollider3DData>('ConvexCollider3D', {
+    mesh: 0,
+    friction: 0.3,
+    restitution: 0.0,
+    isSensor: false,
     enabled: true,
 });
 

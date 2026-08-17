@@ -14,7 +14,7 @@ import { Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
-    MeshCollider3D,
+    MeshCollider3D, ConvexCollider3D,
 } from '../src/physics3d/Physics3DComponents';
 import {
     registerMeshCollision, releaseMeshCollision, extractPositions,
@@ -86,6 +86,7 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_moveCharacter: record('moveCharacter'),
         _physics3d_setCharacterPosition: record('setCharacterPosition'),
         _physics3d_addMeshBody: record('addMeshBody'),
+        _physics3d_addConvexBody: record('addConvexBody'),
         _physics3d_setLayerMask: record('setLayerMask'),
         _physics3d_addPointJoint: record('addPointJoint'),
         _physics3d_addHingeJoint: record('addHingeJoint'),
@@ -325,6 +326,40 @@ describe('the 3D world and the ECS', () => {
         // A 100-unit triangle is a metre in the solver.
         expect(module.HEAPF32[(call!.args[1] >> 2) + 3]).toBeCloseTo(1, 6);
         releaseMeshCollision(77);
+    });
+
+    it('hands a convex collider its mesh\u2019s points, scaled, and no triangles', () => {
+        registerMeshCollision(78, {
+            positions: new Float32Array([0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100]),
+            indices: new Uint32Array([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]),
+        });
+        const e = spawn();
+        world.insert(e, ConvexCollider3D, { mesh: 78 });
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        const [call] = called('addConvexBody');
+        expect(call).toBeDefined();
+        expect(call!.args[2]).toBe(4);                                  // four points
+        expect(module.HEAPF32[(call!.args[1] >> 2) + 3]).toBeCloseTo(1, 6);  // 100 units = 1m
+        releaseMeshCollision(78);
+    });
+
+    it('lets a mesh collider win over a hull on the same entity', () => {
+        registerMeshCollision(79, {
+            positions: new Float32Array([0, 0, 0, 100, 0, 0, 0, 0, 100, 100, 0, 100]),
+            indices: new Uint32Array([0, 2, 1, 2, 3, 1]),
+        });
+        const e = spawn();
+        world.insert(e, ConvexCollider3D, { mesh: 79 });
+        world.insert(e, MeshCollider3D, { mesh: 79 });
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        // One body per entity, and the order is the one readCollider3DShapes draws.
+        expect(called('addMeshBody')).toHaveLength(1);
+        expect(called('addConvexBody')).toHaveLength(0);
+        releaseMeshCollision(79);
     });
 
     it('registers nothing for a mesh collider whose geometry never loaded', () => {

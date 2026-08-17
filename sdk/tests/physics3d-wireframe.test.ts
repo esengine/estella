@@ -15,7 +15,7 @@ import { Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
-    MeshCollider3D,
+    MeshCollider3D, ConvexCollider3D,
 } from '../src/physics3d/Physics3DComponents';
 import {
     readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,
@@ -47,6 +47,7 @@ function fakeModule(): Physics3DWasmModule & { calls: string[] } {
         _physics3d_addSphere: record('addSphere'),
         _physics3d_addCapsule: record('addCapsule'),
         _physics3d_addMeshBody: record('addMeshBody'),
+        _physics3d_addConvexBody: record('addConvexBody'),
         _physics3d_removeBody: record('removeBody'),
         _physics3d_addCharacter: record('addCharacter'),
         _physics3d_moveCharacter: record('moveCharacter'),
@@ -94,6 +95,7 @@ const CALL_FOR: Record<string, string> = {
     SphereCollider3D: 'addSphere',
     CapsuleCollider3D: 'addCapsule',
     MeshCollider3D: 'addMeshBody',
+    ConvexCollider3D: 'addConvexBody',
 };
 
 function bounds(lines: Vec3[][]): { min: Vec3; max: Vec3 } {
@@ -184,6 +186,23 @@ describe('what a 3D collider looks like', () => {
             expect(active.map((i) => i.component)).toEqual(['MeshCollider3D']);
             expect(built()).toBe('addMeshBody');
             releaseMeshCollision(4242);
+        });
+
+        it('draws a convex hull as the shape the world builds from it', () => {
+            registerMeshCollision(555, {
+                positions: new Float32Array([-2, 0, -2, 2, 0, -2, 0, 6, 0, 0, 0, 4]),
+                indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+            });
+            const e = spawn();
+            world.insert(e, ConvexCollider3D, { mesh: 555 });
+
+            const [inst] = read(e);
+            expect(inst!.component).toBe('ConvexCollider3D');
+            expect(inst!.active).toBe(true);
+            expect(CALL_FOR[inst!.component]).toBe(built());
+            if (inst!.shape.kind !== 'box') throw new Error('unreachable');
+            expect(inst!.shape.halfExtents).toEqual({ x: 2, y: 3, z: 3 });
+            releaseMeshCollision(555);
         });
 
         it('reports no active shape without a rigid body, and the world builds none', () => {

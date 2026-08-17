@@ -22,6 +22,7 @@ export const COMPONENT_DOC_PATHS: Readonly<Record<string, string>> = {
   CharacterController3D: 'reference/components/physics/#charactercontroller3d',
   Children: 'reference/components/core/#children',
   CircleCollider: 'reference/components/physics/#circlecollider',
+  ConvexCollider3D: 'reference/components/physics/#convexcollider3d',
   Disabled: 'reference/components/core/#disabled',
   DistanceJoint: 'reference/components/physics/#distancejoint',
   DistanceJoint3D: 'reference/components/physics/#distancejoint3d',

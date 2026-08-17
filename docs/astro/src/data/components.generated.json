@@ -899,6 +899,40 @@
       ]
     },
     {
+      "name": "ConvexCollider3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "mesh",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "Geometry (.esmesh) whose convex hull collides."
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "Disabled",
       "source": "ts",
       "fields": [],

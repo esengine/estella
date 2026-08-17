@@ -328,6 +328,14 @@ export interface CircleCollider {
     maskBits: number;
 }
 
+export interface ConvexCollider3D {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
 export interface DragonBonesAnimation {
     skeletonPath: string;
     atlasPath: string;
@@ -726,6 +734,10 @@ export interface Registry {
     getCircleCollider(entity: Entity): CircleCollider;
     addCircleCollider(entity: Entity, component: CircleCollider): void;
     removeCircleCollider(entity: Entity): void;
+    hasConvexCollider3D(entity: Entity): boolean;
+    getConvexCollider3D(entity: Entity): ConvexCollider3D;
+    addConvexCollider3D(entity: Entity, component: ConvexCollider3D): void;
+    removeConvexCollider3D(entity: Entity): void;
     hasDragonBonesAnimation(entity: Entity): boolean;
     getDragonBonesAnimation(entity: Entity): DragonBonesAnimation;
     addDragonBonesAnimation(entity: Entity, component: DragonBonesAnimation): void;
@@ -858,6 +870,7 @@ export interface ESEngineModule {
     CharacterController3D: new () => CharacterController3D;
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
+    ConvexCollider3D: new () => ConvexCollider3D;
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;

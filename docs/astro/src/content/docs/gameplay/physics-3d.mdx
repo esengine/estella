@@ -69,6 +69,18 @@ cmds.spawn()
   stops nothing.
 </Aside>
 
+For imported geometry that has to MOVE, use a `ConvexCollider3D`: it collides
+against the tightest convex volume around the same vertices, which a solver
+handles as readily as a box. A rock, a chamfered crate, a barrel that rolls —
+anything whose concave detail does not need to be felt.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
+```
+
 ## Seeing a shape
 
 The viewport draws every 3D collider as a wireframe, turned the way its entity is —
@@ -76,7 +88,7 @@ nothing else on screen says how big the box around a model is. It is on the same
 switch as the 2D collider gizmos.
 
 An entity gets ONE body shape, chosen in the order `BoxCollider3D`,
-`SphereCollider3D`, `MeshCollider3D`, `CapsuleCollider3D`. Whatever loses — a
+`SphereCollider3D`, `MeshCollider3D`, `ConvexCollider3D`, `CapsuleCollider3D`. Whatever loses — a
 disabled collider, one shadowed by that order, or any collider on an entity with no
 enabled `RigidBody3D` — is drawn dimmed and dashed: still there to author, visibly
 not what the world will collide with. A `CharacterController3D` capsule is drawn

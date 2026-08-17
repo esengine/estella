@@ -501,6 +501,46 @@ export function createCircleColliderData(): CircleColliderPtrData {
     };
 }
 
+export interface ConvexCollider3DPtrData {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    isSensor: boolean;
+    enabled: boolean;
+}
+
+export function fillConvexCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ConvexCollider3DPtrData,
+): void {
+    out.mesh = u32[ptr >> 2];
+    out.friction = f32[(ptr + 4) >> 2];
+    out.restitution = f32[(ptr + 8) >> 2];
+    out.isSensor = u8[ptr + 12] !== 0;
+    out.enabled = u8[ptr + 13] !== 0;
+}
+
+export function writeConvexCollider3D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ConvexCollider3DPtrData,
+): void {
+    u32[ptr >> 2] = data.mesh;
+    f32[(ptr + 4) >> 2] = data.friction;
+    f32[(ptr + 8) >> 2] = data.restitution;
+    u8[ptr + 12] = data.isSensor ? 1 : 0;
+    u8[ptr + 13] = data.enabled ? 1 : 0;
+}
+
+export function createConvexCollider3DData(): ConvexCollider3DPtrData {
+    return {
+        mesh: 0,
+        friction: 0,
+        restitution: 0,
+        isSensor: false,
+        enabled: false,
+    };
+}
+
 export interface DragonBonesAnimationPtrData {
     timeScale: number;
     loop: boolean;
@@ -2057,6 +2097,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CapsuleCollider3D: { fill: fillCapsuleCollider3D, write: writeCapsuleCollider3D, create: createCapsuleCollider3DData },
     CharacterController3D: { fill: fillCharacterController3D, write: writeCharacterController3D, create: createCharacterController3DData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
+    ConvexCollider3D: { fill: fillConvexCollider3D, write: writeConvexCollider3D, create: createConvexCollider3DData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
