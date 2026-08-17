@@ -177,8 +177,8 @@ export async function withEditor(body, opts = {}) {
       return readPNG(png);
     },
     /** The composited window (the only way to see gizmo overlays or the play realm). */
-    screenshot: async (label) => {
-      const block = await call('screenshot', {}, 60000);
+    screenshot: async (label, args = {}) => {
+      const block = await call('screenshot', args, 60000);
       const png = Buffer.from(block.data ?? '', 'base64');
       if (out) await writeFile(path.join(out, `${label}.png`), png);
       return readPNG(png);

@@ -595,8 +595,12 @@ const ATOMS = [
   { name: 'screenshot',
     description: 'Capture the composited editor window — the only capture that includes the play realm, so this is how you SEE gameplay (capture_viewport sees the edit viewport only). '
       + "`format: 'grid'` returns the same picture as TEXT instead of a PNG: a coarse colour grid, cropped to the running game (or the edit viewport when nothing is playing), one letter per cell from a fixed 16-colour palette. "
-      + 'That is the form to ask for if you cannot receive images — it still answers the questions no amount of reading fields back can (did anything draw at all, is it on camera, what colour did it come out, did the picture change after that input). `cols`/`rows` set the resolution (default 64x32).',
-    schema: obj({ format: { type: 'string' }, cols: { type: 'number' }, rows: { type: 'number' } }),
+      + 'That is the form to ask for if you cannot receive images — it still answers the questions no amount of reading fields back can (did anything draw at all, is it on camera, what colour did it come out, did the picture change after that input). `cols`/`rows` set the resolution (default 64x32). '
+      + "`crop: 'game'` gives the PNG that same crop, so a measurement of what the game drew is not at the mercy of where the panels are.",
+    schema: obj({
+      format: { type: 'string' }, cols: { type: 'number' }, rows: { type: 'number' },
+      crop: { type: 'string' },
+    }),
     op: 'screenshot', image: (i) => i.format !== 'grid' },
   // — The editor's OWN agent, for a driver that wants to run it: an eval harness,
   //   a dogfood session, a regression over its behaviour. `driverOnly` keeps these

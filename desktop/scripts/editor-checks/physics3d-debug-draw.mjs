@@ -49,12 +49,8 @@ export const describes = 'a running 3D game draws its own collider shapes when a
  *  other channels. Nothing else in a play viewport of an empty scene is. */
 function shapeBox(png) {
   let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;
-  // The viewport only: the content browser below it has blue folder icons, and a
-  // window-wide sweep counts those as a wireframe.
-  const x0 = Math.round(png.w * 0.04), x1 = Math.round(png.w * 0.72);
-  const y0 = Math.round(png.h * 0.12), y1 = Math.round(png.h * 0.62);
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  for (let y = 0; y < png.h; y++) {
+    for (let x = 0; x < png.w; x++) {
       const p = png.px(x, y);
       if (p[2] < 140 || p[2] - p[0] < 90 || p[2] - p[1] < 60) continue;
       count++;
@@ -99,7 +95,7 @@ export async function run(ed) {
 
   await ed.call('play_probe', { code: 'await step(3); return true;' }, 60000);
   await ed.sleep(600);
-  const before = shapeBox(await ed.screenshot('debug3d-off'));
+  const before = shapeBox(await ed.screenshot('debug3d-off', { crop: 'game' }));
   if (!check((before?.count ?? 0) < 40,
     `${before?.count} shape-coloured pixels before anything asked for them — the overlay `
     + 'is drawing itself, or an editor gizmo is still on screen in play')) {
@@ -116,7 +112,7 @@ export async function run(ed) {
   }
   await ed.sleep(600);
 
-  const shot = await ed.screenshot('debug3d-on');
+  const shot = await ed.screenshot('debug3d-on', { crop: 'game' });
   const box = shapeBox(shot);
   if (!check(box != null && box.count > 100,
     `only ${box?.count ?? 0} wireframe pixels after turning the overlay on`)) {

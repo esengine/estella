@@ -121,26 +121,29 @@ function nearestInk(r: number, g: number, b: number): string {
   return best;
 }
 
+/** The capture, reduced to the game surface the rect names — or whole, when there
+ *  is no usable rect. */
+function cropToGame(image: Electron.NativeImage, rect: GameRect | null): Electron.NativeImage {
+  const full = image.getSize();
+  if (!rect || !(rect.windowWidth > 0)) return image;
+  // capturePage is in device pixels and the rect is in CSS pixels.
+  const scale = full.width / rect.windowWidth;
+  const crop = {
+    x: Math.max(0, Math.round(rect.x * scale)),
+    y: Math.max(0, Math.round(rect.y * scale)),
+    width: Math.min(full.width, Math.round(rect.width * scale)),
+    height: Math.min(full.height, Math.round(rect.height * scale)),
+  };
+  return crop.width > 8 && crop.height > 8 ? image.crop(crop) : image;
+}
+
 function colorGrid(image: Electron.NativeImage, rect: GameRect | null, cols: number, rows: number): string {
   const w = Math.max(8, Math.min(160, Math.round(cols)));
   const h = Math.max(4, Math.min(90, Math.round(rows)));
-  const full = image.getSize();
-  let shot = image;
-  let what = 'the whole editor window';
-  if (rect && rect.windowWidth > 0) {
-    // capturePage is in device pixels and the rect is in CSS pixels.
-    const scale = full.width / rect.windowWidth;
-    const crop = {
-      x: Math.max(0, Math.round(rect.x * scale)),
-      y: Math.max(0, Math.round(rect.y * scale)),
-      width: Math.min(full.width, Math.round(rect.width * scale)),
-      height: Math.min(full.height, Math.round(rect.height * scale)),
-    };
-    if (crop.width > 8 && crop.height > 8) {
-      shot = image.crop(crop);
-      what = rect.playing ? 'the RUNNING GAME' : 'the edit viewport';
-    }
-  }
+  const shot = cropToGame(image, rect);
+  const what = shot === image
+    ? 'the whole editor window'
+    : (rect?.playing ? 'the RUNNING GAME' : 'the edit viewport');
   // BGRA, row-major. Electron 42's own typings declare this `void`; it returns the
   // buffer the docs promise, so the cast is over their declaration, not over reality.
   const src = shot.getSize();
@@ -292,10 +295,15 @@ export function createSurfaceDriver(
         // The composited window, not the viewport canvas: this is the only way to
         // see the play realm, which renders in its own frame.
         const image = await requireWin().webContents.capturePage();
-        if (input.format !== 'grid') return image.toPNG().toString('base64');
+        const cropped = input.format === 'grid' || input.crop === 'game';
+        const rect = cropped
+          ? await exec('window.__estellaEditor.gameRect()') as GameRect | null
+          : null;
         // The same picture, in the only form a caller without vision can read.
-        const rect = await exec('window.__estellaEditor.gameRect()') as GameRect | null;
-        return colorGrid(image, rect, Number(input.cols ?? 64), Number(input.rows ?? 32));
+        if (input.format === 'grid') {
+          return colorGrid(image, rect, Number(input.cols ?? 64), Number(input.rows ?? 32));
+        }
+        return cropToGame(image, rect).toPNG().toString('base64');
       }
       case 'play_probe': {
         return unwrap(await playFrame(input).executeJavaScript(
