@@ -51,8 +51,9 @@ program
             }
 
             const isDebug = options.debug && !options.release;
+            // Every module the config declares, rather than a second list of them.
             const targets = options.target === 'all'
-                ? ['web', 'wechat', 'spine', 'spine21', 'spine38', 'spine41', 'spine43', 'dragonbones', 'physics', 'physics-wechat', 'spine-wechat', 'dragonbones-wechat', 'basis', 'basis-wechat', 'videodec', 'videodec-wechat']
+                ? Object.keys(config.wasm)
                 : [options.target];
 
             if (options.clean) {
