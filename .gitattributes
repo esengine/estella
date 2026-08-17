@@ -9,3 +9,8 @@ sdk/etc/*.api.md text eol=lf
 # the generator just wrote and git reports ten modified files with no diff in
 # them — for as long as anyone runs the tests.
 sdk/src/ui/widgets/prefabs/* text eol=lf
+
+# A generated WGSL twin stores a hash of the GLSL above it, taken over the bytes
+# on disk. A CRLF checkout changes those bytes, so every twin reads as stale and
+# regenerating writes a hash no Linux runner can reproduce.
+*.esshader text eol=lf
