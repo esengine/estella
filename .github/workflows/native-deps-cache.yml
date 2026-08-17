@@ -46,6 +46,14 @@ on:
 permissions:
   contents: read
 
+# Every step here is written in shell, and the windows runner's default is
+# PowerShell: `>> "$GITHUB_OUTPUT"` there appends to a file named by an undefined
+# variable, so the pin step reported nothing and the cache restore failed asking
+# for a key it was never given.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   warm:
     name: Dawn for ${{ matrix.target }}

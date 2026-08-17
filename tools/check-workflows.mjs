@@ -94,11 +94,43 @@ function setupAt(jobLines) {
     return -1;
 }
 
+/** True if a `defaults:` block in these lines names a shell. */
+const declaresShell = (lines) => {
+    const at = lines.findIndex((l) => /^\s*defaults:\s*$/.test(l));
+    return at >= 0 && lines.slice(at + 1, at + 6).some((l) => /^\s+shell:\s*\S/.test(l));
+};
+
+/** True if the job this run script belongs to may run on a windows runner. */
+function onWindows(jobLines) {
+    const runsOn = jobLines.find((l) => /^\s+runs-on:/.test(l)) ?? '';
+    if (/windows/.test(runsOn)) return true;
+    // A matrix runner: the strategy decides, so any windows entry counts.
+    return /\$\{\{/.test(runsOn) && jobLines.some((l) => /windows-(latest|\d)/.test(l));
+}
+
+/** True if the step containing the run script at `at` declares its own shell. */
+function stepDeclaresShell(jobLines, at) {
+    let start = at;
+    while (start > 0 && !/^\s*-\s/.test(jobLines[start])) start -= 1;
+    const indent = /^\s*/.exec(jobLines[start])[0].length;
+    let end = start + 1;
+    while (end < jobLines.length && !(new RegExp(`^\\s{${indent}}-\\s`).test(jobLines[end]))) end += 1;
+    return jobLines.slice(start, end).some((l) => /^\s+shell:\s*\S/.test(l));
+}
+
+// POSIX-only spellings. PowerShell — the windows default — writes an environment
+// variable as `$env:NAME`, so a bare `$NAME` there reads an undefined variable and
+// the step neither fails nor does what it says; `[` it does not have at all.
+const POSIX_ENV = /(?<!\$\{\{[^}]*)\$[A-Z][A-Z0-9_]{2,}|^\s*(if|elif|while)\s+\[|\[\[\s/m;
+
 const violations = [];
+const shellViolations = [];
 
 for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
     const lines = readFileSync(path.join(WORKFLOWS, file), 'utf8').split('\n');
     const found = jobs(lines);
+    const jobsAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));
+    const workflowShell = declaresShell(lines.slice(0, jobsAt < 0 ? lines.length : jobsAt));
     // A workflow with no jobs is not a workflow — it means the scan above stopped
     // understanding the file, and a checker that reads nothing passes everything.
     if (found.length === 0) {
@@ -107,7 +139,18 @@ for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
     }
     for (const job of found) {
         const installed = setupAt(job.lines);
+        const shellSettled = workflowShell || declaresShell(job.lines);
+        const windows = onWindows(job.lines);
         for (const script of runScripts(job.lines)) {
+            if (windows && !shellSettled && POSIX_ENV.test(script.text)
+                && !stepDeclaresShell(job.lines, script.line - 1)) {
+                shellViolations.push({
+                    file,
+                    line: job.line + script.line - 1,
+                    job: job.id,
+                    what: (script.text.split('\n').find((l) => POSIX_ENV.test(l)) ?? script.text).trim(),
+                });
+            }
             const cmd = NEEDS_INSTALL.find((re) => re.test(script.text));
             if (!cmd) continue;
             if (installed >= 0 && installed < script.line - 1) continue;
@@ -150,6 +193,18 @@ if (gateProblems.length > 0) {
     process.exit(1);
 }
 
+if (shellViolations.length > 0) {
+    console.error(`\n✗ ${shellViolations.length} step(s) that can run on windows use POSIX shell without saying so:\n`);
+    for (const v of shellViolations) {
+        console.error(`  ${path.join('.github/workflows', v.file)}:${v.line}  ${v.what}`);
+        console.error(`    job "${v.job}" can run on windows, where the default shell is PowerShell\n`);
+    }
+    console.error('Add `shell: bash` to the step, or a `defaults: run: shell: bash` block.');
+    console.error('It already cost a release pipeline once: the pin step wrote nothing and');
+    console.error('the cache restore failed asking for a key it was never given.\n');
+    process.exit(1);
+}
+
 if (violations.length > 0) {
     console.error(`\n✗ ${violations.length} workflow step(s) run workspace tooling with no install:\n`);
     for (const v of violations) {
@@ -162,4 +217,5 @@ if (violations.length > 0) {
 }
 
 console.log('✓ every workflow step that runs workspace tooling installs it first');
+console.log('✓ every windows-capable step that speaks POSIX shell says which shell it wants');
 console.log(`✓ ${GATES.length} static gate(s) in one list; CI runs it through run-gates.mjs`);
