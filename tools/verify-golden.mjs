@@ -19,7 +19,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, ROOT } from './goldenProjects.mjs';
+import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 
@@ -262,9 +262,11 @@ for (const { id, target } of pairs) {
   }
 
   const packagePng = SHOTS ? path.join(SHOTS, `${id}-${target}.png`) : path.join(WORK, `${id}-${target}.png`);
+  const timeoutMs = launchTimeoutFor(golden);
   const launch = launchPackage(id, target, [
     '--dir', out, '--out', packagePng,
     ...(editor ? ['--w', String(editor.w), '--h', String(editor.h)] : []),
+    ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
   ]);
 
   const line = (launch.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
@@ -274,7 +276,9 @@ for (const { id, target } of pairs) {
       : line || 'launch failed';
     results.push({ id, target, stage: 'launch', ok: false, why });
     console.log(`✗ ${id} ${target} — ${why}`);
-    for (const l of (launch.stdout || '').split('\n').slice(-6)) if (l.trim()) console.log(`    ${l}`);
+    // Deep enough to carry the launcher's own diagnosis of a package that never
+    // drew — six lines cut it off at the headline.
+    for (const l of (launch.stdout || '').split('\n').slice(-20)) if (l.trim()) console.log(`    ${l}`);
     continue;
   }
 

@@ -199,6 +199,10 @@ export const GOLDEN = [
     // by its import's own products, the sun casts it onto the panel behind it, and
     // the baked environment is what its metal reflects.
     interactGap: 'a lighting showcase has nothing to drive; what it certifies is what reaches the frame',
+    // The only pr-tier project with a shadow pass, and a runner with no GPU
+    // rasterises that 1024² map in software: its frames cost about a second each,
+    // so the settle window has to be minutes rather than the 2D default.
+    launchTimeoutMs: 180_000,
     // The pose is HELD rather than played, so a point means one thing rather than
     // one moment. Measured on the package; each was checked by breaking the
     // feature it is about and watching it, and only it, go.
@@ -493,6 +497,16 @@ export function desktopPixels(g, host) {
  */
 export function webPixels(g) {
   return g?.webPixels ?? null;
+}
+
+/**
+ * How long a package gets to reach a settled frame, when the default is not
+ * enough. The default was measured on 2D games; a scene with a shadow pass costs
+ * a second a frame on the software rasteriser a runner without a GPU falls back
+ * to, and thirty settle frames do not fit in thirty seconds.
+ */
+export function launchTimeoutFor(g) {
+  return g?.launchTimeoutMs ?? null;
 }
 
 /** Why a project's points were skipped on this host, for the run to print. */

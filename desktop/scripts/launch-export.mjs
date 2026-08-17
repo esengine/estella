@@ -150,7 +150,12 @@ async function main() {
   await win.webContents.session.clearCache();
 
   const errors = [];
+  // Every line, not just the angry ones: when a package never draws, what it got
+  // through before stopping is the whole diagnosis, and none of it says "error".
+  const recent = [];
   const stop = onRendererConsole(win.webContents, (msg) => {
+    recent.push(msg.slice(0, 200));
+    if (recent.length > 12) recent.shift();
     if (/error|uncaught|failed/i.test(msg)) errors.push(msg.slice(0, 300));
     if (msg.startsWith('[engine]') || logRe?.test(msg)) console.log(`  ${msg}`);
   });
@@ -160,20 +165,21 @@ async function main() {
 
   // Wait for a real frame rather than a wall-clock guess: the engine paints when
   // its wasm and assets are in, which is exactly the part a package can get wrong.
-  const painted = await win.webContents.executeJavaScript(`
+  const paint = await win.webContents.executeJavaScript(`
     new Promise((resolve) => {
       const deadline = Date.now() + ${TIMEOUT};
       let frames = 0;
       const tick = () => {
         const c = document.querySelector('canvas');
         if (c && c.width > 0 && c.height > 0) frames++;
-        if (frames >= ${SETTLE}) return resolve(true);
-        if (Date.now() > deadline) return resolve(false);
+        if (frames >= ${SETTLE}) return resolve({ ok: true, frames });
+        if (Date.now() > deadline) return resolve({ ok: false, frames });
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     })
-  `).catch((e) => { errors.push(String(e)); return false; });
+  `).catch((e) => { errors.push(String(e)); return { ok: false, frames: -1 }; });
+  const painted = paint.ok;
 
   // Drive the game, then let it run on.
   if (painted && INPUT) {
@@ -200,7 +206,18 @@ async function main() {
   const ok = painted && live && errors.length === 0;
   console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} — painted=${painted} live=${live} errors=${errors.length}`);
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
-  if (!painted) console.log('    no canvas ever sized — the package did not start');
+  if (!painted) {
+    // How far it got, rather than "it did not start": a package drawing one slow
+    // frame a second on a software rasteriser reaches neither, and only one of
+    // those two sentences sends you looking in the right place.
+    console.log(`    ${paint.frames} of ${SETTLE} settled frames within ${TIMEOUT}ms`);
+    const diag = await win.webContents.executeJavaScript(`(() => {
+      const c = document.querySelector('canvas');
+      return JSON.stringify({ ready: document.readyState, canvas: !!c, w: c ? c.width : 0, h: c ? c.height : 0 });
+    })()`).catch((e) => `unreadable: ${e}`);
+    console.log(`    ${diag}`);
+    for (const l of recent) console.log(`    · ${l}`);
+  }
   if (painted && !live && !has('allow-flat')) console.log('    one flat colour — it started and drew nothing');
   app.exit(ok || (live === false && has('allow-flat') && painted && !errors.length) ? 0 : 1);
 }
