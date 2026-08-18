@@ -86,6 +86,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.vertex_byte_offset = vertexByteOffset;
     cmd.vertex_count = vertexCount;
     cmd.instance_count = key.instanceCount;
+    cmd.instance_stride = key.instanceStride;
     cmd.vertex_buffer = key.vertexBuffer;
     cmd.index_buffer = key.indexBuffer;
     cmd.vertex_layout = key.vertexLayout;

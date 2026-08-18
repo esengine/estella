@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "name": "MeshInstanced",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 300
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 150,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Cube1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -75,
+              "y": 75,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Cube2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 75,
+              "y": 75,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Cube3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -75,
+              "y": -75,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Cube4",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 75,
+              "y": -75,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

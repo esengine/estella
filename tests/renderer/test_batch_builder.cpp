@@ -15,6 +15,10 @@
 #include "esengine/renderer/store/MaterialStore.hpp"
 #include "esengine/renderer/rhi/TransientBufferPool.hpp"
 
+#include <functional>
+#include <utility>
+#include <vector>
+
 using namespace esengine;
 
 namespace {
@@ -171,6 +175,206 @@ TEST_CASE("finalize: different streams never coalesce; instanced draws stay one 
     h.list.finalize(h.pool);
     // Batch quad + shape + two instanced draws: nothing merges across these.
     CHECK(h.list.mergedDrawCallCount() == 4);
+}
+
+/**
+ * A resident-mesh draw as MeshPlugin submits one: the mesh's own buffers, one
+ * per-object record in the frame's stream, opaque so its order does not matter.
+ * `z` goes into the record so a test can see WHICH instances a merged draw holds.
+ */
+BatchDrawKey meshKey(u32 meshBuffer, u32 textureId = 0) {
+    BatchDrawKey key{};
+    key.stage = RenderStage::Opaque;
+    key.shaderId = 11;
+    key.blend = BlendMode::None;
+    key.depthTest = true;
+    key.depthWrite = true;
+    key.textureId = textureId;
+    key.type = RenderType::Mesh;
+    key.layoutId = LayoutId::MeshInstance;
+    key.instanceCount = 1;
+    key.instanceStride = 68;
+    key.vertexBuffer = BufferHandle{meshBuffer};
+    key.indexBuffer = BufferHandle{meshBuffer + 100};
+    // ONE layout for every mesh with these channels, which is what the resource
+    // layer hands out: two meshes differ by their buffers, not by their shape.
+    // A fixture giving each its own would let a missing buffer check pass.
+    key.vertexLayout = VertexLayoutHandle{200};
+    return key;
+}
+
+/** Submits one instance of `key`'s mesh, tagging its record with `mark`. */
+u32 pushMeshInstance(Harness& h, const BatchDrawKey& key, f32 mark, f32 depth = 0.0f) {
+    const u32 at = h.pool.allocVertices(LayoutId::MeshInstance, key.instanceStride);
+    auto* rec = reinterpret_cast<f32*>(h.pool.vertexData(LayoutId::MeshInstance) + at);
+    *rec = mark;
+    BatchDrawKey k = key;
+    k.depth = depth;
+    pushBatchDraw(h.list, h.clips, at, 0, 0, 36, k);
+    return at;
+}
+
+/** The mark each instance of a merged draw carries, read back from the stream. */
+std::vector<f32> instanceMarks(Harness& h, const DrawCommand& cmd) {
+    std::vector<f32> out;
+    const u8* base = h.pool.vertexData(LayoutId::MeshInstance) + cmd.vertex_byte_offset;
+    for (u32 i = 0; i < cmd.instance_count; ++i) {
+        out.push_back(*reinterpret_cast<const f32*>(base + i * cmd.instance_stride));
+    }
+    return out;
+}
+
+TEST_CASE("finalize: the same mesh drawn three times is one instanced draw") {
+    Harness h;
+    BatchDrawKey key = meshKey(5);
+    // Depths chosen so the sort REORDERS them: written 1,2,3 and drawn nearest
+    // first (opaque is front-to-back), so the run is z=30,20,10 — marks 2,3,1,
+    // with no two records adjacent in the pool. Relocation is why this merges.
+    pushMeshInstance(h, key, 1.0f, 10.0f);
+    pushMeshInstance(h, key, 2.0f, 30.0f);
+    pushMeshInstance(h, key, 3.0f, 20.0f);
+
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 1);
+    const DrawCommand& cmd = h.list.command(0);
+    CHECK(cmd.instance_count == 3);
+    CHECK(cmd.index_count == 36);  // one mesh's indices, not three meshes' worth
+    CHECK(cmd.entity_count == 3);
+    // Every instance is present, in the order the draw will read them.
+    CHECK(instanceMarks(h, cmd) == std::vector<f32>{2.0f, 3.0f, 1.0f});
+}
+
+/** Two mesh draws, the second differing only as `vary` says. How many draws survive. */
+u32 drawsAfterMerge(const std::function<void(BatchDrawKey&, u32&)>& vary) {
+    Harness h;
+    const BatchDrawKey base = meshKey(5);
+    BatchDrawKey second = base;
+    u32 indexOffset = 0;
+    vary(second, indexOffset);
+
+    for (const auto& [key, at] : { std::pair{base, 0u}, std::pair{second, indexOffset} }) {
+        const u32 rec = h.pool.allocVertices(LayoutId::MeshInstance, key.instanceStride);
+        pushBatchDraw(h.list, h.clips, rec, 0, at, 36, key);
+    }
+    h.list.finalize(h.pool);
+    return h.list.mergedDrawCallCount();
+}
+
+TEST_CASE("finalize: two mesh draws alike but for one thing stay two draws") {
+    // Each case varies ONE thing and leaves the pair adjacent in the sort, so
+    // the check under test is the only thing that can separate them. A fixture
+    // where something else also differs would pass with the check deleted.
+    CHECK(drawsAfterMerge([](BatchDrawKey&, u32&) {}) == 1);  // the control
+
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.vertexBuffer = BufferHandle{6};                     // another mesh
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.indexBuffer = BufferHandle{106};
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey&, u32& indexOffset) {
+        indexOffset = 36;                                     // another range of it
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.textureId = 42;                                     // samplers are per draw
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.materialId = 9;
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.cull = 1;
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.shaderId = 12;
+    }) == 2);
+
+    // Order-dependence, one property at a time. Each of these alone makes the
+    // second draw one whose result depends on when it happens, and the head is
+    // the opaque one — so a check that asks only about ITSELF passes them all.
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.blend = BlendMode::Normal;
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.depthTest = false;
+    }) == 2);
+    CHECK(drawsAfterMerge([](BatchDrawKey& k, u32&) {
+        k.depthWrite = false;
+    }) == 2);
+}
+
+TEST_CASE("finalize: the HEAD's own order-dependence stops a merge too") {
+    // A material can say `blend: none, depthWrite: false`: nothing reads what
+    // is behind and nothing records what is in front, so the last draw wins.
+    // Submitted first it is the head, which only a check on ITS state refuses.
+    Harness h;
+    BatchDrawKey unordered = meshKey(5);
+    unordered.depthWrite = false;
+    pushMeshInstance(h, unordered, 1.0f, 20.0f);
+    pushMeshInstance(h, meshKey(5), 2.0f, 20.0f);
+
+    h.list.finalize(h.pool);
+    CHECK(h.list.mergedDrawCallCount() == 2);
+}
+
+TEST_CASE("finalize: a blended mesh keeps its own draw, because its order is the result") {
+    Harness h;
+    BatchDrawKey key = meshKey(5);
+    key.stage = RenderStage::Transparent;
+    key.blend = BlendMode::Normal;
+    key.depthWrite = false;
+    pushMeshInstance(h, key, 1.0f, 10.0f);
+    pushMeshInstance(h, key, 2.0f, 20.0f);
+
+    h.list.finalize(h.pool);
+    CHECK(h.list.mergedDrawCallCount() == 2);
+}
+
+TEST_CASE("finalize: an opaque head does not swallow a blended draw of the same mesh") {
+    // The asymmetric case, and the one a pixel gate caught: asking only whether
+    // THIS draw is opaque lets an opaque head absorb a blended sibling and paint
+    // it with the head's own state — the blended one then hides what is behind it.
+    Harness h;
+    pushMeshInstance(h, meshKey(5), 1.0f, 20.0f);
+
+    // Same stage on purpose — what MeshPlugin submits when one of two meshes
+    // has `opaque` off, and what puts the pair next to each other. Giving the
+    // blended one its own stage would sort them apart and prove nothing.
+    BatchDrawKey blended = meshKey(5);
+    blended.blend = BlendMode::Normal;
+    blended.depthTest = false;
+    pushMeshInstance(h, blended, 2.0f, 10.0f);
+
+    h.list.finalize(h.pool);
+    CHECK(h.list.mergedDrawCallCount() == 2);
+}
+
+TEST_CASE("finalize: a skinned mesh keeps its own draw, because a pose is per draw") {
+    Harness h;
+    BatchDrawKey key = meshKey(5);
+    key.instanceStride = 4;
+    key.skinCount = 2;
+    key.skinOffset = 0;
+    pushMeshInstance(h, key, 1.0f);
+    pushMeshInstance(h, key, 2.0f);
+
+    h.list.finalize(h.pool);
+    CHECK(h.list.mergedDrawCallCount() == 2);
+}
+
+TEST_CASE("execute: a merged mesh draw asks the device for its instances in one call") {
+    Harness h;
+    BatchDrawKey key = meshKey(5);
+    for (int i = 0; i < 4; ++i) pushMeshInstance(h, key, static_cast<f32>(i));
+
+    h.list.finalize(h.pool);
+    h.pool.upload();
+    MaterialStore materials;
+    h.list.execute(h.device, h.pool, materials, 1);
+
+    CHECK(h.device.drawElementsInstancedCalls == 1);
+    CHECK(h.device.lastDrawInstanceCount == 4);
+    CHECK(h.device.lastDrawIndexCount == 36);
 }
 
 TEST_CASE("clip state is stamped onto commands from every stream") {

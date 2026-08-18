@@ -103,11 +103,16 @@ struct DrawCommand {
     RenderStage stage = RenderStage::Transparent;
     i32 layer = 0;
     u32 entity_count = 1;
-    bool merged = false;
+    /// This draw's instance records have been moved to the end of the stream,
+    /// where the run it heads is growing. Set by the merge, read by it alone.
+    bool instances_relocated = false;
 
     // > 0 selects an instanced draw: index_count indices drawn instance_count times,
     // with per-instance attributes based at vertex_byte_offset (see LayoutId::ParticleInstance).
     u32 instance_count = 0;
+    // Bytes one of those records occupies; 0 = the stream's own stride, which the
+    // merge would have to guess. Set by whoever wrote them.
+    u32 instance_stride = 0;
 
     // Geometry on the GPU rather than in this frame's pool. Set together or not
     // at all; index_offset/index_count then index INTO these. Sorting, material and
@@ -232,11 +237,61 @@ struct DrawCommand {
      * some number of draw calls, and the only actionable thing about that number
      * is what kept them apart. canMergeWith is this, read as a bool.
      */
+    /**
+     * Whether this draw's result is the same wherever it happens among its
+     * peers: it replaces what it covers rather than reading it, and depth
+     * decides what covers what. Only such draws can be merged into one — a
+     * merge is exactly the loss of their relative order.
+     */
+    bool orderIndependent() const {
+        return blend_mode == BlendMode::None && depth_test && depth_write;
+    }
+
+    /**
+     * Whether two instanced draws are the same geometry drawn again — what a
+     * second instance record answers, rather than a second draw. Both must be
+     * order-independent, since merging is the loss of their relative order; a
+     * skinned draw is out because one draw can only be in one pose.
+     */
+    bool sameInstancedGeometry(const DrawCommand& next) const {
+        if (!hasPersistentGeometry() || !next.hasPersistentGeometry()) return false;
+        if (instance_stride == 0 || instance_stride != next.instance_stride) return false;
+        if (skin_count != 0 || next.skin_count != 0) return false;
+        // BOTH, not just this one: an opaque head asked about a draw whose
+        // result depends on when it happens would otherwise swallow it and
+        // paint it with the head's own state.
+        if (!orderIndependent() || !next.orderIndependent()) return false;
+        if (vertex_buffer != next.vertex_buffer || index_buffer != next.index_buffer) return false;
+        if (vertex_layout != next.vertex_layout) return false;
+        // The same range of the same buffer: a draw is one instance of THIS.
+        if (index_offset != next.index_offset || index_count != next.index_count) return false;
+        // Textures are per draw here, not selected per vertex the way the Batch
+        // stream selects them, so instances sharing one draw share its samplers.
+        if (texture_count != next.texture_count) return false;
+        for (u8 s = 0; s < texture_count; ++s) {
+            if (texture_ids[s] != next.texture_ids[s]) return false;
+        }
+        return true;
+    }
+
     BatchBreak mergeBlocker(const DrawCommand& next) const {
-        // Instanced draws are one command per emitter — never coalesce them. This
-        // covers resident meshes too: their per-object transform IS the instance
-        // stream, so every such draw carries a count.
-        if (instance_count != 0 || next.instance_count != 0) return BatchBreak::Instanced;
+        // An instanced draw is one command per emitter, except where a second
+        // command is the same geometry again — see sameInstancedGeometry, which
+        // the merge answers by relocating the records rather than by a draw.
+        if (instance_count != 0 || next.instance_count != 0) {
+            if (!sameInstancedGeometry(next)) return BatchBreak::Instanced;
+            if (shader_id != next.shader_id) return BatchBreak::Shader;
+            if (material_id != next.material_id) return BatchBreak::Material;
+            if (cull != next.cull) return BatchBreak::Cull;
+            if (state_flags != next.state_flags) return BatchBreak::State;
+            if (state_flags & CMD_STATE_SCISSOR) {
+                if (scissor != next.scissor) return BatchBreak::Scissor;
+            }
+            if (state_flags & (CMD_STATE_STENCIL_WRITE | CMD_STATE_STENCIL_TEST)) {
+                if (stencil_ref != next.stencil_ref) return BatchBreak::Stencil;
+            }
+            return BatchBreak::None;
+        }
         if (shader_id != next.shader_id) return BatchBreak::Shader;
         if (blend_mode != next.blend_mode) return BatchBreak::Blend;
         if (layout_id != next.layout_id) return BatchBreak::Layout;

@@ -144,7 +144,7 @@ function finish(result, server) {
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    deviceLossOk && meshOk && pickOk;
+    (result.draws?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {
@@ -468,6 +468,12 @@ app.whenReady().then(async () => {
       return { w, h, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
     `);
     const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
+    // What the frame COST, which no pixel shows: the same geometry drawn N times
+    // is one instanced call, and the picture is identical either way. Asserted as
+    // an exact number so a regression in EITHER direction is a failure.
+    const wantDrawCalls = process.env.ESTELLA_VERIFY_DRAW_CALLS;
+    const draws = wantDrawCalls === undefined ? null
+      : { want: Number(wantDrawCalls), got: drawCalls, ok: drawCalls === Number(wantDrawCalls) };
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of
     // { x, y, rgb:[r,g,b], tol? } where x,y are normalized [0,1] from the TOP-LEFT.
     // This is the guard the all-textures-upside-down upload bug would have tripped
@@ -597,7 +603,7 @@ app.whenReady().then(async () => {
         return { differingPixels: differing, ok: differing > 300 };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -72,6 +72,7 @@ export const SCENES = [
   // Geometry with no file under it. Sun 22.5° off the view axis: the cube's two faces
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
   // reads 155 at -25 against 236 at its middle, which a flat quad could not.
+  { id: "mesh-instanced", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_DRAW_CALLS: "1", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.25,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.25,\"y\":0.75,\"rgb\":[0,0,255],\"tol\":20},{\"x\":0.75,\"y\":0.75,\"rgb\":[255,255,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   { id: "mesh-builtin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-builtin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.1333,\"y\":0.5,\"rgb\":[98,98,98],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat

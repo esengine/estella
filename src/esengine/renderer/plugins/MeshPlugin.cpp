@@ -330,6 +330,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.shaderId = materialProgram != 0 ? materialProgram : residentShader;
                 key.layoutId = LayoutId::MeshInstance;
                 key.instanceCount = 1;
+                key.instanceStride = stride;
                 key.vertexBuffer = resident->vertexBuffer;
                 key.indexBuffer = resident->indexBuffer;
                 key.vertexLayout = resident->layout;

@@ -16,6 +16,26 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The same mesh drawn again is one more instance, not one more draw call.**
+  Every resident mesh took its own draw: a hundred crates were a hundred calls,
+  a hundred pipeline resolves and a hundred buffer rebinds, for one cube's worth
+  of geometry. The per-object record was already an instance stream — the shape
+  the particle emitter draws thousands from — and nothing consumed it that way,
+  because the merge pass refused every instanced command outright.
+
+  Draws of the same geometry now coalesce into one instanced call. They rarely
+  sit next to each other in the frame's pool (the sort reorders them by depth
+  long after the records were written), so merging relocates the records to the
+  end of the stream, where the run being built is growing — cheap next to the
+  draw call it removes, and in the same window the multi-texture merge already
+  rewrites staged vertices in.
+
+  Only where the order cannot matter: an opaque draw replaces what it covers and
+  depth decides what covers what, so which of them happens first is not the
+  result. A blended draw's order **is** its result, and a skinned draw carries a
+  pose written per draw — both keep their own call. Four cubes in a scene are one
+  call where they were four; all 60 pixel gates on both backends are unchanged.
+
 - **The transform gizmo is built from the view's own basis.** Rotate already read
   where the world axes point on screen and drew a ring per axis. Move and scale
   did not: their arrows were two written-down screen directions, `+X is right` and

@@ -7,10 +7,14 @@
 
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <cstring>
 
 namespace esengine {
 
 namespace {
+/// relocateInstance: the first record of a run lands wherever the pool has room.
+constexpr u32 NO_EXPECTED_OFFSET = 0xFFFFFFFFu;
+
 // Stamp a merged sampler slot onto every vertex of a Batch-layout command. The vertices
 // are still in CPU staging at finalize time (finalize runs before upload), so the shader
 // later samples u_textures[texIndex]. Only the Batch layout carries a texIndex attribute.
@@ -18,6 +22,22 @@ void rewriteTexIndex(TransientBufferPool& pool, const DrawCommand& cmd, i32 slot
     auto* verts = reinterpret_cast<BatchVertex*>(pool.vertexData(LayoutId::Batch) + cmd.vertex_byte_offset);
     f32 fslot = static_cast<f32>(slot);
     for (u32 k = 0; k < cmd.vertex_count; ++k) verts[k].texIndex = fslot;
+}
+
+/**
+ * Move one instance record to the end of its stream, where the run being built
+ * is growing — the sort reordered the draws, so a run adjacent after it is
+ * almost never adjacent here. False when the allocation did not land where the
+ * run needs it: the caller leaves the draws apart rather than draw stray bytes.
+ */
+bool relocateInstance(TransientBufferPool& pool, DrawCommand& cmd, u32 expectedAt) {
+    const u32 at = pool.allocVertices(LayoutId::MeshInstance, cmd.instance_stride);
+    if (expectedAt != NO_EXPECTED_OFFSET && at != expectedAt) return false;
+    // After the alloc: growing the staging can move it.
+    u8* base = pool.vertexData(LayoutId::MeshInstance);
+    std::memmove(base + at, base + cmd.vertex_byte_offset, cmd.instance_stride);
+    cmd.vertex_byte_offset = at;
+    return true;
 }
 }  // namespace
 
@@ -76,7 +96,25 @@ void DrawList::finalize(TransientBufferPool& pool) {
         if (writeIdx > 0) {
             DrawCommand& head = commands_[writeIdx - 1];
             blocker = head.mergeBlocker(commands_[i]);
-            if (blocker == BatchBreak::None) {
+            if (blocker == BatchBreak::None && head.instance_count != 0) {
+                // One more instance of geometry already being drawn. The head's
+                // own record moves first, so the run has somewhere to grow.
+                const u32 stride = head.instance_stride;
+                bool ok = head.instances_relocated
+                       || relocateInstance(pool, head, NO_EXPECTED_OFFSET);
+                if (ok) {
+                    ok = relocateInstance(pool, commands_[i],
+                                          head.vertex_byte_offset + head.instance_count * stride);
+                }
+                if (ok) {
+                    head.instances_relocated = true;
+                    head.instance_count += commands_[i].instance_count;
+                    head.entity_count += commands_[i].entity_count;
+                    didMerge = true;
+                } else {
+                    blocker = BatchBreak::Instanced;
+                }
+            } else if (blocker == BatchBreak::None) {
                 if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
                     // Multi-texture: give this command's texture a slot in the head's set
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
