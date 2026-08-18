@@ -1,13 +1,16 @@
 ---
 title: Models
-description: Importing glTF/GLB — what the import writes, how a model reaches a scene, the Scale setting, re-importing, which material channels become an .esmaterial, Draco and meshopt, and what is reported rather than imported.
+description: Importing glTF/GLB and FBX — what the import writes, how a model reaches a scene, the Scale setting, re-importing, which material channels become an .esmaterial, Draco and meshopt, and what is reported rather than imported.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The engine draws meshes, and it loads exactly one mesh format: `.esmesh`. A `.gltf` or
-`.glb` is a **source**, not an asset — bringing one into a project runs an import that
-writes the assets a scene can actually reference.
+The engine draws meshes, and it loads exactly one mesh format: `.esmesh`. A `.gltf`,
+`.glb` or `.fbx` is a **source**, not an asset — bringing one into a project runs an import
+that writes the assets a scene can actually reference.
+
+Both formats produce the same products and go through the same settings; where FBX differs
+is its [own section](#fbx) below.
 
 That import is the subject of this page. For the component that draws the result see
 [the component reference](/docs/reference/components/graphics/); for materials in general see
@@ -19,9 +22,9 @@ Three doors, one import:
 
 | How | What happens |
 |---|---|
-| Drag a `.gltf`/`.glb` onto the Content Browser | The source is copied in (with the files it points at) and imported. |
+| Drag a `.gltf`/`.glb`/`.fbx` onto the Content Browser | The source is copied in (with the files it points at) and imported. |
 | Put one in the project folder | The editor notices and imports it — a `git checkout`, a copy in Finder, a re-export from Blender. |
-| `estella import-gltf <file> [outDir] --project <dir>` | The same import, on the command line. `--scale <n>` sizes it. |
+| `estella import-model <file> [outDir] --project <dir>` | The same import, on the command line. `--scale <n>` sizes it. |
 
 Products land **beside the source**, not in whatever folder the browser is showing:
 re-importing has to overwrite the same files.
@@ -48,11 +51,12 @@ place an instance in a scene and edit that instead.
 
 ## Scale
 
-A glTF is authored in **metres**. A world unit is a **design pixel**. A 1.7 m character
+Models are authored in **metres** — an FBX authored in centimetres is converted on the way
+in. A world unit is a **design pixel**. A 1.7 m character
 therefore arrives 1.7 units tall — a couple of pixels — unless you say otherwise.
 
 The import does not guess a factor. It tells you when a model came in small, and the
-number that fixes it is `Scale` in the source's Import Settings (select the `.gltf` in the
+number that fixes it is `Scale` in the source's Import Settings (select the source in the
 Content Browser). Saving it re-imports the model.
 
 `Scale` lands on the prefab root's `Transform`, never baked into the geometry — the
@@ -129,7 +133,38 @@ joints.
 | 64 joints per mesh | The pose is a uniform block, which is 4KB at that size — inside what a WebGL2 block is guaranteed. A mesh wanting more draws undeformed. |
 | Joint count must match the bind pose | A mesh whose `MeshSkin` names a different number of joints draws undeformed rather than with vertices resolved against the wrong matrices. |
 
-## Compressed geometry
+## FBX
+
+FBX is read by [ufbx](https://github.com/ufbx/ufbx), built into the editor — no Autodesk
+FBX SDK, nothing to install. Binary and ASCII, and every version from the 5000-series up,
+go through the same reader.
+
+What the format needs that glTF does not, the import settles before anything downstream
+sees it:
+
+| FBX says | What arrives |
+|---|---|
+| Its own up axis and unit (centimetres, Z-up, …) | Converted to the engine's: +Y up, one unit is one metre. |
+| Polygons of any size | Triangles. |
+| Geometry offset from its node with no node to hold it | A child entity holding that offset, named `GeometryTransform`. |
+| A mesh split across several materials | One `.esmesh` per material run — the same split glTF calls a primitive. |
+| Rotations as Euler angles around pivots, with pre- and post-rotation | Baked into position/rotation/scale keyframes (resampled at 30 fps where the curves are not already linear). |
+
+Materials are read through ufbx's own mapping, so Phong, Lambert, Maya's Standard Surface,
+3ds Max's Physical and Blender's Principled all arrive as the same parameters listed under
+[Materials](#materials) — a Phong material's roughness is derived from its specular
+exponent, and it reports **no** metalness rather than a made-up zero-metal surface.
+
+Two things about FBX materials are worth knowing before you author for it:
+
+- **Metalness and roughness maps are only carried when they are one image**, packed the way
+  glTF packs them (roughness in green, metal in blue) — which is what the engine's Model
+  shader samples. Exporters normally write two separate images; when they do, the import
+  says so and the constants are used. Pack them into one image, or set the map by hand on
+  the `.esmaterial`.
+- **An opacity map is not carried.** Alpha comes from the base colour image's own channel.
+
+## Compressed geometry (glTF)
 
 `EXT_meshopt_compression` and `KHR_draco_mesh_compression` are decoded during import, so a
 compressed export produces the same `.esmesh` as an uncompressed one. Nothing about the
@@ -142,10 +177,12 @@ when it runs.
 
 | Not imported | Why |
 |---|---|
-| Morph targets, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
-| A second UV set (`TEXCOORD_1`), `KHR_texture_transform` | UVs are used as authored. |
+| Morph targets / blend shapes, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
+| A second UV set (`TEXCOORD_1`), `KHR_texture_transform`, an FBX uv transform | UVs are used as authored. |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
 | `normalTexture.scale` | The map is applied at full strength. |
+| Cameras and lights in an FBX | A scene's camera and lighting are the scene's, not the model's. |
+| Separate FBX metalness/roughness maps, an FBX opacity map | See [FBX](#fbx). |
 
 ## Limits worth knowing
 

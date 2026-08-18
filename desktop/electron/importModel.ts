@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Model import: a `.gltf`/`.glb` in the project produces the assets a
- *        scene can actually reference.
+ * @file  Model import: a `.gltf`/`.glb`/`.fbx` in the project produces the assets
+ *        a scene can actually reference.
  *
  * The engine loads none of the source formats — a Mesh2D reads `.esmesh` — so a
  * model that is only copied in leaves the user with a file nothing can draw.
@@ -16,8 +16,9 @@ import { resolveInRoot, META_EXT } from './projectFs';
 import { capture } from './fileJournal';
 import { adoptOrphan } from '../../pipeline/src/assets/assetMeta';
 import {
-  importGltfMeshes, encodeImportedMesh, assembleGltfPrefab, materialProducts,
-} from '../../pipeline/src/assets/gltfImport';
+  encodeImportedMesh, assembleModelPrefab, materialProducts,
+} from '../../pipeline/src/assets/modelImport';
+import { modelStem, readModelSource } from '../../pipeline/src/assets/readModelSource';
 
 export interface ModelImportResult {
   /** Project-relative paths of everything written, in the order it was produced. */
@@ -26,11 +27,7 @@ export interface ModelImportResult {
   warnings: string[];
 }
 
-export const MODEL_EXTENSIONS = ['.gltf', '.glb'];
-
-export function isModelSource(file: string): boolean {
-  return MODEL_EXTENSIONS.includes(path.extname(file).toLowerCase());
-}
+export { MODEL_EXTENSIONS, isModelSource } from '../../pipeline/src/assets/readModelSource';
 
 /**
  * Import `absSource` (already inside the project) into `destDir`, writing the
@@ -45,15 +42,18 @@ export async function importModel(root: string, destDir: string, absSource: stri
   const absDir = resolveInRoot(root, destDir);
   await mkdir(absDir, { recursive: true });
   const sourceDir = originDir ?? path.dirname(absSource);
-  const stem = path.basename(absSource).replace(/\.(gltf|glb)$/i, '');
+  const stem = modelStem(absSource);
   const projectRef = (abs: string): string =>
     path.relative(path.resolve(root), abs).split(path.sep).join('/');
 
-  const { meshes, textures, nodes, animations, externalFiles, warnings } = await importGltfMeshes(
+  const { meshes, textures, nodes, animations, externalFiles, warnings } = await readModelSource(
     new Uint8Array(readFileSync(absSource)), stem,
-    (uri) => {
-      const abs = path.join(sourceDir, decodeURIComponent(uri));
-      return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
+    {
+      filename: absSource,
+      externalBuffers: (uri) => {
+        const abs = path.join(sourceDir, decodeURIComponent(uri));
+        return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
+      },
     },
   );
 
@@ -125,11 +125,11 @@ export async function importModel(root: string, destDir: string, absSource: stri
     firstClip ??= rel;
   }
   if (meshes.length > 0) {
-    const prefab = assembleGltfPrefab(stem, meshes, { refs, nodes, scale, timeline: firstClip });
+    const prefab = assembleModelPrefab(stem, meshes, { refs, nodes, scale, timeline: firstClip });
     await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
-    // A glTF is in metres and a world unit is a design pixel, so a real-world
-    // model arrives a few pixels across. Said, not guessed at: the scale is the
-    // user's, and this is where they find out they have one.
+    // Models are authored in metres and a world unit is a design pixel, so a
+    // real-world model arrives a few pixels across. Said, not guessed at: the
+    // scale is the user's, and this is where they find out they have one.
     const extent = Math.max(...meshes.flatMap(
       (m) => m.data.aabbMax.map((v, i) => v - (m.data.aabbMin[i] ?? 0))));
     if (scale === 1 && extent < 8) {

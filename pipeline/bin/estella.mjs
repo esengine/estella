@@ -13,7 +13,7 @@ const PIPELINE = path.join(HERE, '..');
 const REPO = path.join(PIPELINE, '..');
 
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
-       node pipeline/bin/estella.mjs import-gltf <file.gltf|file.glb> [outDir]
+       node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
 
@@ -35,9 +35,9 @@ against the limits in force. The size report rides the result rather than being 
 second file — \`result.size\` carries the verdicts the build dialog draws, so CI
 and the editor cannot disagree about whether a build fits.
 
-import-gltf writes one \`.esmesh\` per triangle primitive next to the source (or
+import-model writes one \`.esmesh\` per triangle primitive next to the source (or
 into outDir), the images the file carries inline, and one \`.esprefab\` placing
-each piece where the source's node tree puts it, with its image and tint. A glTF
+each piece where the source's node tree puts it, with its image and tint. A model
 holds many primitives, so it is a source that PRODUCES assets rather than one the
 engine loads — the products are what a scene references. Asset refs are
 project-relative, so the project is found above the source unless --project says
@@ -58,7 +58,7 @@ function parseArgs(argv) {
     console.log(USAGE);
     process.exit(0);
   }
-  if (command === 'import-gltf' || command === 'import-hdr') {
+  if (command === 'import-model' || command === 'import-gltf' || command === 'import-hdr') {
     if (!projectDir) {
       console.error(USAGE);
       process.exit(2);
@@ -119,7 +119,8 @@ async function loadPipeline(entry, outName) {
     format: 'esm',
     platform: 'node',
     target: 'node20',
-    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf', '../../../build-tools/basis/encoder.mjs'],
+    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf',
+      '../../../build-tools/basis/encoder.mjs', '../../../build-tools/ufbx/reader.mjs'],
     logLevel: 'error',
     banner: {
       js: "import { createRequire as __esCreateRequire } from 'node:module';\n"
@@ -170,9 +171,13 @@ function engineRuntimeDir(platform) {
 
 const opts = parseArgs(process.argv.slice(2));
 
-if (opts.command === 'import-gltf') {
+// `import-gltf` is the name this command shipped under; it reads any of the
+// model sources now, and the old spelling keeps working.
+if (opts.command === 'import-model' || opts.command === 'import-gltf') {
+  const { mod: reader, cleanup: cleanupReader } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'readModelSource.ts'), 'readModelSource.mjs');
   const { mod: importer, cleanup } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'gltfImport.ts'), 'gltfImport.mjs');
+    path.join(PIPELINE, 'src', 'assets', 'modelImport.ts'), 'modelImport.mjs');
   // The products are project assets, so they get their `.meta` here rather than
   // waiting for a scan — which is also the only moment the source's own import
   // settings (a sampler's filter and wrap) are still in hand.
@@ -182,7 +187,7 @@ if (opts.command === 'import-gltf') {
   try {
     const sourceDir = path.dirname(opts.source);
     const dir = opts.out ?? sourceDir;
-    const stem = path.basename(opts.source).replace(/\.(gltf|glb)$/i, '');
+    const stem = reader.modelStem(opts.source);
     // A component's asset ref is project-relative, so the products can only be
     // named once the project root is known; without one they are bare names.
     const root = opts.project ?? findProjectRoot(sourceDir);
@@ -192,11 +197,14 @@ if (opts.command === 'import-gltf') {
           external: (uri) => projectRef(path.resolve(sourceDir, uri)) }
       : {};
 
-    const { meshes, textures, nodes, animations, warnings } = await importer.importGltfMeshes(
+    const { meshes, textures, nodes, animations, warnings } = await reader.readModelSource(
       new Uint8Array(readFileSync(opts.source)), stem,
-      (uri) => {
-        const abs = path.join(sourceDir, uri);
-        return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
+      {
+        filename: opts.source,
+        externalBuffers: (uri) => {
+          const abs = path.join(sourceDir, uri);
+          return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
+        },
       },
     );
     for (const w of warnings) console.warn(`  ! ${w}`);
@@ -245,7 +253,7 @@ if (opts.command === 'import-gltf') {
     }
     if (meshes.length > 0) {
       const outFile = path.join(dir, `${stem}.esprefab`);
-      const prefab = importer.assembleGltfPrefab(
+      const prefab = importer.assembleModelPrefab(
         stem, meshes, { refs, nodes, scale: opts.scale, timeline: firstClip });
       writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
       await adopt(outFile);
@@ -256,12 +264,13 @@ if (opts.command === 'import-gltf') {
       const extent = Math.max(...meshes.flatMap(
         (m) => m.data.aabbMax.map((v, i) => v - m.data.aabbMin[i])));
       if (opts.scale === 1 && extent < 8) {
-        console.warn(`  ! the model is ${extent.toFixed(2)} units across — a glTF is in metres`
-          + ' and a world unit is a design pixel; pass --scale if it should be bigger');
+        console.warn(`  ! the model is ${extent.toFixed(2)} units across — models are authored`
+          + ' in metres and a world unit is a design pixel; pass --scale if it should be bigger');
       }
     }
     imported = meshes.length;
   } finally {
+    cleanupReader();
     cleanup();
     cleanupMeta();
   }

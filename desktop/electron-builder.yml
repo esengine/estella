@@ -51,6 +51,11 @@ asarUnpack:
 extraResources:
   - from: ../build-tools/basis
     to: build-tools/basis
+  # The FBX reader, shipped for the same reason and by the same rule: the model
+  # import loads build-tools/ufbx/reader.mjs, which finds its own .wasm beside
+  # itself — inside the asar it would find nothing.
+  - from: ../build-tools/ufbx
+    to: build-tools/ufbx
   # The SDK's TypeScript declarations, shipped as a real resource so a project's
   # `.esengine/sdk` types mirror can be staged on open (see electron/main.ts →
   # syncSdkTypes). electron-builder strips *.d.ts from node_modules by default

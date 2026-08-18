@@ -16,6 +16,27 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **FBX import.** A `.fbx` is a model source like a `.gltf` is: drop one in and it
+  writes the same products — `.esmesh` per material run, the images it embeds, an
+  `.esmaterial`, an `.estimeline` per take, and the `.esprefab` that assembles
+  them. Parsing is [ufbx](https://github.com/ufbx/ufbx), vendored and built to
+  wasm, so nothing needs the Autodesk FBX SDK; binary and ASCII, every version
+  from the 5000-series up.
+
+  What FBX needs that glTF does not is settled before the products are written:
+  axes and units converted to the engine's, polygons triangulated, geometry
+  transforms turned into real entities, and Euler curves — with their pivots and
+  pre-rotations — baked into the TRS keyframes a track can hold. Rigged models
+  arrive rigged, bind pose and all.
+
+  Two things it reports rather than carries: separate metalness/roughness maps
+  (the engine samples one image packed as glTF packs it) and opacity maps.
+
+  The import's two doors are now one reader — the editor and
+  `estella import-model` (was `import-gltf`, still accepted) share it, along with
+  everything downstream of a format, which is what keeps a second source format
+  from being a second set of rules for what a model is.
+
 - **A 3D scene the release argument can point at.** `examples/lighting-3d`: a
   skinned model held at a bend, a sun that casts it onto the panel behind it, and
   a baked environment its metal reflects — the sky on top, the ground on its face.

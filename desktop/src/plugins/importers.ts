@@ -66,7 +66,7 @@ export async function runImporters(paths: readonly string[]): Promise<void> {
 // like any other and are registered rather than special-cased — Reimport and the
 // source watcher reach them by the one rule.
 for (const [id, extensions] of [
-  ['core:model', ['gltf', 'glb']],
+  ['core:model', ['gltf', 'glb', 'fbx']],
   ['core:panorama', ['hdr']],
 ] as const) {
   importerRegistry.register('core', {

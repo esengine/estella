@@ -75,7 +75,7 @@ export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   // The model a mesh was imported FROM. Its own type, because the engine loads
   // none of these — offering one where a mesh is asked for is offering a ref
   // that cannot resolve.
-  model: { extensions: ['gltf', 'glb'], badge: 'MDL', icon: Boxes, tint: '#8fa9b5' },
+  model: { extensions: ['gltf', 'glb', 'fbx'], badge: 'MDL', icon: Boxes, tint: '#8fa9b5' },
   // A baked environment (.esenv) and, in the same relation as model/mesh, the
   // panorama it was baked from — which the engine also cannot load.
   environment: { extensions: ['esenv'], badge: 'ENV', icon: Globe, tint: '#8fb5b0' },

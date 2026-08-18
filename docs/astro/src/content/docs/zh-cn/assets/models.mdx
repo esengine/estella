@@ -1,12 +1,14 @@
 ---
 title: 模型
-description: glTF/GLB 导入 —— 导入写出什么、模型怎么进场景、Scale 设置、重新导入、哪些材质通道会变成 .esmaterial、Draco 与 meshopt、以及哪些东西只报告不导入。
+description: glTF/GLB 与 FBX 导入 —— 导入写出什么、模型怎么进场景、Scale 设置、重新导入、哪些材质通道会变成 .esmaterial、Draco 与 meshopt、以及哪些东西只报告不导入。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-引擎画 mesh，而它只加载一种 mesh 格式：`.esmesh`。`.gltf` / `.glb` 是**源文件**，不是资源
-——把它带进项目会跑一次导入，写出场景真正能引用的那些资源。
+引擎画 mesh，而它只加载一种 mesh 格式：`.esmesh`。`.gltf` / `.glb` / `.fbx` 是**源文件**，
+不是资源——把它带进项目会跑一次导入，写出场景真正能引用的那些资源。
+
+两种格式产出同样的产物、走同样的设置；FBX 独有的部分在下面[单独一节](#fbx)。
 
 本页讲的就是这次导入。画出结果的那个组件见[组件参考](/docs/zh-cn/reference/components/graphics/)；
 材质整体见[材质](/docs/zh-cn/graphics/materials/)。
@@ -17,9 +19,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 | 方式 | 会发生什么 |
 |---|---|
-| 把 `.gltf`/`.glb` 拖进内容浏览器 | 源文件（连同它引用的文件）被拷进项目并导入。 |
+| 把 `.gltf`/`.glb`/`.fbx` 拖进内容浏览器 | 源文件（连同它引用的文件）被拷进项目并导入。 |
 | 直接放进项目目录 | 编辑器会发现并导入它 —— `git checkout`、访达里拷贝、Blender 重新导出，都算。 |
-| `estella import-gltf <file> [outDir] --project <dir>` | 命令行里的同一次导入。`--scale <n>` 决定大小。 |
+| `estella import-model <file> [outDir] --project <dir>` | 命令行里的同一次导入。`--scale <n>` 决定大小。 |
 
 产物落在**源文件旁边**，而不是内容浏览器当前显示的目录：重新导入必须覆盖同一批文件。
 
@@ -44,11 +46,12 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Scale
 
-glTF 以**米**为单位。一个世界单位是一个**设计像素**。所以一个 1.7 米高的角色进来只有
+模型以**米**为单位——以厘米创作的 FBX 会在进来的路上换算好。一个世界单位是一个**设计像素**。
+所以一个 1.7 米高的角色进来只有
 1.7 个单位高 —— 几个像素 —— 除非你另行指定。
 
 导入器不猜这个系数。模型进来很小的时候它会说出来，而修正它的那个数字就是源文件导入设置里的
-`Scale`（在内容浏览器里选中 `.gltf`）。保存它会重新导入这个模型。
+`Scale`（在内容浏览器里选中源文件）。保存它会重新导入这个模型。
 
 `Scale` 落在 prefab 根节点的 `Transform` 上，**不会烘进几何** —— `.esmesh` 保持与源一致，
 而那个数字始终看得见、改得动。
@@ -121,7 +124,33 @@ mesh 就会变形。
 | 每个 mesh 最多 64 根骨骼 | 姿态走 uniform 块，64 根是 4KB —— 在 WebGL2 对一个块的保证范围内。超过的 mesh 按不变形绘制。 |
 | 骨骼数必须与绑定姿态一致 | `MeshSkin` 列出的骨骼数对不上时按不变形绘制，而不是让顶点去解析错误的矩阵。 |
 
-## 压缩几何
+## FBX
+
+FBX 由编译进编辑器的 [ufbx](https://github.com/ufbx/ufbx) 读取——不需要 Autodesk FBX
+SDK，也没有任何东西要装。二进制与 ASCII、从 5000 系列往上的每个版本，都走同一个读取器。
+
+FBX 需要而 glTF 不需要的那些事，导入在下游看到之前就已经了结：
+
+| FBX 说 | 进来的是 |
+|---|---|
+| 它自己的 up 轴与单位（厘米、Z 朝上……） | 换算成引擎的：+Y 朝上，一个单位一米。 |
+| 任意边数的多边形 | 三角形。 |
+| 几何相对节点有偏移，却没有节点承载它 | 一个承载该偏移的子实体，名叫 `GeometryTransform`。 |
+| 一个 mesh 分给多个材质 | 每段材质一个 `.esmesh`——正是 glTF 叫做 primitive 的那种切分。 |
+| 旋转是绕 pivot 的欧拉角，还带 pre/post rotation | 烘焙成位置/旋转/缩放关键帧（曲线本来就不是线性的地方按 30 fps 重采样）。 |
+
+材质走 ufbx 自己的映射，所以 Phong、Lambert、Maya 的 Standard Surface、3ds Max 的
+Physical、Blender 的 Principled 最终都落到[材质](#材质)那一节列的同一组参数上——Phong
+材质的粗糙度由它的高光指数换算而来，而它的金属度会被报告为**没有**，而不是编一个非金属表面出来。
+
+为 FBX 创作之前，有两件关于它材质的事值得先知道：
+
+- **金属度与粗糙度贴图只有在是同一张图时才带得过来**，且要按 glTF 的方式打包（粗糙度在绿
+  通道、金属度在蓝通道）——引擎的 Model shader 采样的就是这一张。导出器通常写成两张独立的
+  图；那种情况导入会说出来，并改用常量。要么把它们打包成一张，要么在 `.esmaterial` 上手工指定。
+- **不透明度贴图不会带过来。** alpha 来自 base color 图自己的通道。
+
+## 压缩几何（glTF）
 
 `EXT_meshopt_compression` 与 `KHR_draco_mesh_compression` 在导入时解码，所以压缩过的导出件
 产出与未压缩件相同的 `.esmesh`。运行时什么都不变：压缩是源文件的属性，不是产物的属性。
@@ -132,10 +161,12 @@ mesh 就会变形。
 
 | 不导入 | 为什么 |
 |---|---|
-| morph target、`weights` 动画通道 | 在多个形状之间混合需要那些 target 本身，而它们没有被带过来。 |
-| 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform` | UV 按作者写的原样使用。 |
+| morph target / blend shape、`weights` 动画通道 | 在多个形状之间混合需要那些 target 本身，而它们没有被带过来。 |
+| 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform`、FBX 的 uv transform | UV 按作者写的原样使用。 |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
 | `normalTexture.scale` | 法线贴图按全强度应用。 |
+| FBX 里的相机与灯光 | 场景的相机与灯光属于场景，不属于模型。 |
+| FBX 分离的金属度/粗糙度贴图、FBX 的不透明度贴图 | 见 [FBX](#fbx)。 |
 
 ## 值得知道的限制
 

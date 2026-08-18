@@ -8,10 +8,11 @@
  * already on disk, a node given as a matrix, a file with no node tree at all.
  */
 import { describe, it, expect } from 'vitest';
+import { importGltfMeshes } from '../../pipeline/src/assets/gltfImport';
 import {
-  importGltfMeshes, assembleGltfPrefab, materialProducts,
+  assembleModelPrefab, materialProducts,
   type ImportedMesh, type PrefabAssembly, type ProductRefs,
-} from '../../pipeline/src/assets/gltfImport';
+} from '../../pipeline/src/assets/modelImport';
 import { BlendMode, CullMode, MeshChannel } from 'esengine';
 import { plainTriangle, meshoptTriangle, dracoTriangle } from '../scripts/lib/gltfFixtures.mjs';
 
@@ -362,7 +363,7 @@ describe('glTF material products', () => {
       shaded({ normalTexture: { index: 0 }, emissiveFactor: [1, 1, 1] }),
       { prefix: 'assets/models/' });
     expect(products[0]!.data.properties.u_normalMap).toBe('model_0.png');
-    const prefab = assembleGltfPrefab('model', meshes, { refs: { prefix: 'assets/models/' } });
+    const prefab = assembleModelPrefab('model', meshes, { refs: { prefix: 'assets/models/' } });
     const mesh2d = prefab.entities[1]!.components[1]!.data;
     expect(mesh2d.material).toBe('assets/models/model_m0.esmaterial');
     expect(mesh2d.normalMap).toBeUndefined();
@@ -391,7 +392,7 @@ describe('glTF material products', () => {
     ]), 'model');
     const refs = { prefix: 'assets/models/' };
     expect(materialProducts(meshes, 'model', refs)).toHaveLength(1);
-    const prefab = assembleGltfPrefab('model', meshes, { refs });
+    const prefab = assembleModelPrefab('model', meshes, { refs });
     const refsUsed = prefab.entities.flatMap(e => e.components
       .filter(c => c.type === 'Mesh2D').map(c => c.data.material));
     expect(refsUsed).toEqual(['assets/models/model_m0.esmaterial',
@@ -417,7 +418,7 @@ describe('glTF material products', () => {
 describe('glTF prefab assembly', () => {
   const assemble = async (bytes: Uint8Array, options: Partial<PrefabAssembly> = {}) => {
     const { meshes, nodes } = await importGltfMeshes(bytes, 'model');
-    return assembleGltfPrefab('model', meshes, { nodes, ...options });
+    return assembleModelPrefab('model', meshes, { nodes, ...options });
   };
   const oneNode = { nodes: [{ mesh: 0 }], scenes: [{ nodes: [0] }], scene: 0 };
 
@@ -777,7 +778,7 @@ describe('glTF skinning import', () => {
 
   it('names the joint entities the prefab gives those nodes', async () => {
     const { meshes, nodes } = await importGltfMeshes(skinnedGltf(), 'rig');
-    const prefab = assembleGltfPrefab('rig', meshes, { nodes });
+    const prefab = assembleModelPrefab('rig', meshes, { nodes });
     const body = prefab.entities.find((e) => e.name === 'Body')!;
     const skin = body.components.find((c) => c.type === 'MeshSkin');
     expect(skin?.data).toEqual({ joints: ['n1', 'n2'] });

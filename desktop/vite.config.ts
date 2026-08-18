@@ -104,7 +104,8 @@ export default defineConfig({
         vite: {
           build: {
             rolldownOptions: {
-              external: ['esbuild', 'typescript', 'ffmpeg-static', 'draco3dgltf', 'electron-updater', /[\\/]build-tools[\\/]basis[\\/]/],
+              external: ['esbuild', 'typescript', 'ffmpeg-static', 'draco3dgltf', 'electron-updater',
+                        /[\\/]build-tools[\\/](basis|ufbx)[\\/]/],
             },
           } as never,
         },

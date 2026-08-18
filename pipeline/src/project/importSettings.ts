@@ -132,7 +132,7 @@ const MODEL: ImporterFieldSpec[] = [
   {
     key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0.0001, step: 0.1,
     category: 'Import',
-    tooltip: 'Uniform scale on the imported prefab\u0027s root. A glTF is authored in metres '
+    tooltip: 'Uniform scale on the imported prefab\u0027s root. A model is authored in metres '
       + 'and a world unit is a design pixel, so a real-world model arrives a few pixels across.',
   },
 ];

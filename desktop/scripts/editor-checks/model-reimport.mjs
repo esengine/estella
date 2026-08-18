@@ -10,12 +10,17 @@
  * ordinary importer is what connects the watcher, the Reimport row and the
  * settings to it — none of which a unit test can exercise, because every one of
  * them lives on the other side of the editor's own file plumbing.
+ *
+ * The `.fbx` half is here for one more reason: its reader is a wasm module
+ * loaded from disk beside the app, which only the real, bundled editor can
+ * prove it can still find.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { cp } from 'node:fs/promises';
 import path from 'node:path';
 import { makeProject, checker, DESKTOP } from '../lib/editorDriver.mjs';
+import { skinnedBar } from '../lib/fbxFixtures.mjs';
 
 const EXAMPLE = path.resolve(DESKTOP, '..', 'examples', 'sprite-rendering');
 
@@ -93,6 +98,20 @@ export async function run(ed) {
   if (!check(await until(ed, meta, (m) => m.importer?.scale === 1),
              'the source has no `scale` import setting, so its size cannot be authored')) {
     return check.failures;
+  }
+
+  // An FBX arrives the same way and through the same importer; what it proves
+  // that the glTF cannot is that the bundled editor still reaches its reader.
+  const fbx = path.join(root, 'assets/models/rig.fbx');
+  await writeFile(fbx, skinnedBar());
+  const rig = path.join(root, 'assets/models/rig.esprefab');
+  if (check(await until(ed, rig, (p) => p.entities?.length > 0),
+            'an .fbx written into the project produced no prefab — its reader never ran')) {
+    check(existsSync(path.join(root, 'assets/models/rig.esmesh')),
+          'the .fbx prefab exists but the mesh it references does not');
+    const clip = path.join(root, 'assets/models/rig_Take_001.estimeline');
+    check(await until(ed, clip, (c) => c.tracks?.length > 0),
+          'the .fbx animation produced no clip — its curves were never baked');
   }
 
   // Set the way the inspector sets it — the setting decides a product, so
