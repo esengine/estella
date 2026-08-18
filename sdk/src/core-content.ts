@@ -288,6 +288,8 @@ export {
     createRuntimeSceneConfig,
     initRuntime,
     sceneUsesI18n,
+    sceneUsesPhysics,
+    sceneUses3DPhysics,
     type RuntimeAssetSource,
     type LoadRuntimeSceneOptions,
     type RuntimeInitConfig,

@@ -30,10 +30,7 @@ import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnos
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from '../../../build-tools/utils/zip.js';
-import {
-  sceneUsesPhysics, sceneUses3DPhysics, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
-  spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
-} from '../bundle/sideModuleScan';
+import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -112,52 +109,27 @@ function indexHtml(
 }
 
 /**
- * The export-time mirror of the runtime's physics/spine self-gating: scan the
- * scene for needed modules and inline their glue+wasm as base64 (single-file, no
- * fetch). A needed module absent from `wasmDir` is pushed as a HARD error — the
- * playable would otherwise ship silently broken (the bug this whole path fixes).
+ * Inline the glue+wasm of exactly the modules the shipped content can ask for
+ * (single-file, no fetch). A needed module absent from `wasmDir` is pushed as a
+ * HARD error — the playable would otherwise ship silently broken.
  */
 async function collectSideModules(
-  sceneData: unknown,
+  root: string,
+  includedPaths: readonly string[],
   manifestEntries: CookManifest['entries'],
   cookDir: string,
   wasmDir: string,
   errors: string[],
   physicsEnabled: boolean,
 ): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
-  const ids = new Set<string>();
-  // A declared physics project counts as a use even with no bodies in the scene:
-  // it spawns them from script, and the flag is worthless without the binary.
-  if (physicsEnabled
-    || (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
-  // The 3D world is never implied by the 2D flag: a project declaring `physics`
-  // is declaring the solver its 2D scenes use, and this module is a different one.
-  if (sceneData && sceneUses3DPhysics(sceneData as Parameters<typeof sceneUses3DPhysics>[0])) {
-    ids.add('physics3d');
-  }
-  if (sceneData && sceneUsesDragonBones(sceneData as Parameters<typeof sceneUsesDragonBones>[0])) ids.add('dragonbones');
-  // Spine: the skeleton carries the version. Skeleton + atlas share the authored
-  // meta type `spine`, so we discriminate by extension (as the runtime does via
-  // the asset-type registry's contentType) — `.skel` is a binary skeleton, `.json`
-  // a JSON one; the `.atlas` sibling is not a skeleton and is skipped.
-  for (const e of manifestEntries) {
-    if (e.type !== 'spine') continue;
-    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
-    try {
-      let v: SpineVersion | null = null;
-      if (ext === '.skel') {
-        v = detectSpineVersion(new Uint8Array(await readFile(path.join(cookDir, e.path))));
-      } else if (ext === '.json') {
-        v = detectSpineVersionJson(await readFile(path.join(cookDir, e.path), 'utf8'));
-      }
-      if (v) ids.add(spineModuleId(v));
-    } catch { /* unreadable cook entry — cookAssets already warned; skip */ }
-  }
+  const ids = await scanSideModuleIds({
+    root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, physicsEnabled,
+  });
+  const { files, unknown } = sideModuleFiles(ids);
+  for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
 
   const registry: Record<string, { glueBase64: string; wasmBase64: string }> = {};
-  for (const id of ids) {
-    const file = SIDE_MODULE_FILE[id];
-    if (!file) { errors.push(`internal: no artifact mapping for side module "${id}"`); continue; }
+  for (const { id, file } of files) {
     const gluePath = path.join(wasmDir, `${file}.js`);
     const wasmPath = path.join(wasmDir, `${file}.wasm`);
     if (!existsSync(gluePath) || !existsSync(wasmPath)) {
@@ -308,12 +280,12 @@ export async function exportPlayable(opts: {
   }
 
   // 5b. Side modules (physics / spine): run the runtime's gating scan, then inline
-  //     exactly the modules the scene needs (playables are single-file + size-capped).
+  //     exactly the modules the content needs (playables are single-file + size-capped).
   //     A needed module missing from wasmDir is a HARD error — better a failed
   //     export than a playable that silently ships without physics.
   progress({ phase: 'Embedding modules' });
   const sideModules = await collectSideModules(
-    scenes[0]?.data, manifestEntries, cookDir, opts.wasmDir, errors,
+    opts.root, cook.includedPaths, manifestEntries, cookDir, opts.wasmDir, errors,
     opts.runtime?.physicsEnabled ?? false,
   );
 

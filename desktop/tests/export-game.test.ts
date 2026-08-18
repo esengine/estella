@@ -71,6 +71,10 @@ beforeAll(async () => {
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'wasmbytes');
+  // A KTX2 texture is decoded by the Basis transcoder, so the compressing export
+  // below needs it present the same way a real wasm dir has it.
+  writeFileSync(path.join(root, '_wasm', 'basis.js'), 'export default () => {};');
+  writeFileSync(path.join(root, '_wasm', 'basis.wasm'), 'basisbytes');
 
   out = path.join(root, 'dist-game');
 }, 60_000);
@@ -226,6 +230,10 @@ describe('exportGame', () => {
     // The scene keeps its logical name and the whole build still assembled.
     expect(existsSync(path.join(out2, 'scenes/main.esscene'))).toBe(true);
     expect(existsSync(path.join(out2, 'game.js'))).toBe(true);
+    // Compressing to KTX2 is what puts the transcoder in the package; the
+    // uncompressed export above ships the same wasm dir without it.
+    expect(existsSync(path.join(out2, 'wasm/basis.wasm'))).toBe(true);
+    expect(existsSync(path.join(out, 'wasm/basis.wasm'))).toBe(false);
   }, 60_000);
 
   it('ships every scene in the scenes dir, listed in game.config.json', async () => {

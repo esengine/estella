@@ -93,6 +93,12 @@ export interface CookManifestEntry extends AssetEntry {
   };
 }
 
+/** `assets.manifest.json` as the cook writes it — what the package carries. */
+export interface CookManifest {
+  version: string;
+  entries: CookManifestEntry[];
+}
+
 /**
  * Load the project's asset-delivery config (`.esengine/asset-groups.json`) — the
  * single authored source for which folders ship as remote (CDN) / subpackage

@@ -50,6 +50,33 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A web package carried every optional module the engine builds.** The export
+  copied the engine's wasm directory wholesale, so a 2D game shipped the 3D
+  solver, all five Spine runtimes, the DragonBones player, the video decoder and
+  the Basis transcoder — about 3.9 MB of binaries nothing in it could ask for.
+  A package now carries what its content can reach: `hello-world`'s runtime went
+  from 6.0 MB to 1.7 MB, `physics-playground` takes the 2D solver and not the 3D
+  one, and `spine-demo` takes the two Spine runtimes its skeletons report rather
+  than all five.
+
+  The mini-game and playable exports already answered this question — a playable
+  is size-capped, so it had to. What they answered it with was a private copy of
+  the runtime's component tables, and the copies had drifted: neither knew about
+  `MeshCollider3D`, `ConvexCollider3D` or any of the five 3D joints, so a scene
+  held together by a hinge was a scene those exports believed needed no solver.
+  One of them also had no entry for `physics3d` at all, which is why exporting a
+  3D scene as a playable failed on an artifact called `undefined.js`. There is
+  one scan now, and it calls the runtime's own predicates rather than a
+  reproduction of them.
+
+  Two rules it gained on the way. It reads prefabs, not only scenes: the runtime
+  expands prefabs *before* it asks whether a scene needs physics, so a body that
+  arrives only through a prefab is one the package has to carry, and a project
+  that spawned its bodies that way had been shipping without a solver everywhere
+  the scan was load-bearing. And a module the content needs that the wasm
+  directory does not hold now fails the export, where the web path used to ship
+  it by accident and had no opinion.
+
 - **An asset named only inside another asset's document was culled from the
   build.** A baked environment names its reflection atlas as a sibling of the
   `.esenv`, and nothing else in the project mentions that file — so the

@@ -41,10 +41,7 @@ import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
-import {
-  sceneUsesPhysics, sceneUses3DPhysics, sceneUsesVideo, sceneUsesDragonBones, detectSpineVersion, detectSpineVersionJson,
-  spineModuleId, SIDE_MODULE_FILE,
-} from '../bundle/sideModuleScan';
+import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
@@ -103,61 +100,34 @@ function packIncludeSuffixes(entries: CookManifest['entries'], nativeSuffixes: R
   return [...suffixes].sort();
 }
 
-/** The export-time mirror of the runtime's physics/spine self-gating: which
- *  optional modules ANY shipped scene needs (a dynamically switched scene must
- *  find its modules present). A needed module absent from the vendor wasm dir
- *  is a HARD error — the package would otherwise ship silently broken (same
- *  contract as the playable exporter's collectSideModules). */
+/** A needed module absent from the vendor wasm dir is a HARD error — the package
+ *  would otherwise ship silently broken (same contract as the playable
+ *  exporter's collectSideModules). */
 async function scanSideModules(
   profile: MiniGameExportProfile,
-  sceneDatas: unknown[],
+  root: string,
+  includedPaths: readonly string[],
   cookEntries: CookManifest['entries'],
   absOut: string,
   wasmDir: string,
   errors: string[],
   physicsEnabled: boolean,
 ): Promise<Array<{ id: string; file: string }>> {
-  const ids = new Set<string>();
-  // The project's own declaration counts as a use: a game that spawns bodies from
-  // script has none in the scene, and shipping the enable flag without the binary
-  // would fail at the first spawn instead of at build time.
-  if (physicsEnabled
-    || sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
-  // Never implied by the 2D flag: that declares the solver 2D scenes use, and
-  // this is a different module.
-  if (sceneDatas.some((s) => s && sceneUses3DPhysics(s as Parameters<typeof sceneUses3DPhysics>[0]))) {
-    ids.add('physics3d');
-  }
-  if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
-  if (sceneDatas.some((s) => s && sceneUsesDragonBones(s as Parameters<typeof sceneUsesDragonBones>[0]))) ids.add('dragonbones');
-  // Any staged .esv also needs the decoder: script-driven playback
-  // (VideoPlayer.play) references cooked videos no scene component names.
-  if (cookEntries.some((e) => /\.esv(\.bin)?$/.test(e.path.toLowerCase()))) ids.add('videodec');
-  // Spine: the skeleton carries the version. Skeleton + atlas share the authored
-  // meta type `spine`, so discriminate by extension — `.skel` is a binary
-  // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.
-  for (const e of cookEntries) {
-    // Any staged KTX2 texture (compressTextures cook, or an authored .ktx2 —
-    // staged as .ktx2.bin for the suffix whitelist) needs the Basis transcoder
-    // at runtime. Mirrors sdk isKtx2Path.
-    if (/\.ktx2(\.bin)?$/.test(e.path.toLowerCase())) ids.add('basis');
-    if (e.type !== 'spine') continue;
-    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
-    try {
-      let v: ReturnType<typeof detectSpineVersionJson> = null;
-      if (ext === '.skel') {
-        v = detectSpineVersion(new Uint8Array(await readFile(path.join(absOut, e.path))));
-      } else if (ext === '.json') {
-        v = detectSpineVersionJson(await readFile(path.join(absOut, e.path), 'utf8'));
-      }
-      if (v) ids.add(spineModuleId(v));
-    } catch { /* unreadable cook entry — cookAssets already warned; skip */ }
-  }
+  const ids = await scanSideModuleIds({
+    root, includedPaths, cookEntries, stagedDir: absOut, physicsEnabled,
+  });
+  const { files, unknown } = sideModuleFiles(ids);
+  for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
+
   const present: Array<{ id: string; file: string }> = [];
-  for (const id of ids) {
-    const file = SIDE_MODULE_FILE[id];
-    if (file && existsSync(path.join(wasmDir, `${file}.js`))) present.push({ id, file });
-    else errors.push(`scene needs "${id}" but ${file}.js is not in the ${profile.id} wasm dir — build it with \`node build-tools/cli.js build -t ${profile.sideModuleBuildTargets[id] ?? id}\` and re-export.`);
+  for (const { id, file } of files) {
+    if (existsSync(path.join(wasmDir, `${file}.js`))) { present.push({ id, file }); continue; }
+    const target = profile.sideModuleBuildTargets[id];
+    // No target means the vendor has no build of this module at all, and naming
+    // one that does not exist sends the reader to build the web artifact instead.
+    errors.push(target
+      ? `content needs "${id}" but ${file}.js is not in the ${profile.id} wasm dir — build it with \`node build-tools/cli.js build -t ${target}\` and re-export.`
+      : `content needs "${id}", which has no ${profile.id} build — the module is not available on this platform.`);
   }
   return present;
 }
@@ -279,12 +249,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     errors.push(`scene transform: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // 1b. Scan every scene for the optional modules it needs (physics/spine), so
-  //     the generated entry requires exactly those — the export-time half of
-  //     the runtime's self-gating. A dynamically switched scene must find its
-  //     modules present, so the union over ALL shipped scenes counts.
+  // 1b. Scan the shipped content for the optional modules it needs (physics/spine),
+  //     so the generated entry requires exactly those — the export-time half of
+  //     the runtime's self-gating.
   const engineSideModules = await scanSideModules(
-    profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors,
+    profile, opts.root, cook.includedPaths, cookEntries, absOut, opts.wasmDir, errors,
     opts.runtime?.physicsEnabled ?? false,
   );
   // …plus the ones the PROJECT supplies. They are not scanned for: a project put

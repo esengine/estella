@@ -1,86 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  sideModuleScan.ts — the export-time half of side-module gating. The
- *        runtime self-gates physics/spine off a scene scan (runtimeLoader +
- *        SpineManager); for the INLINED targets (playable single-file) the
- *        exporter must run the SAME scan so it embeds exactly the modules the
- *        scene needs and no more (playables are size-capped). The constant lists
- *        below mirror the SDK's so the two halves agree; keep them in sync.
+ * @file  sideModuleScan.ts — which optional modules the content a package ships
+ *        can ask for. Every rule here is the export-time half of a runtime
+ *        gate, and calls the runtime's own predicate where one exists.
  */
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import {
+  SIDE_MODULES, spineModuleId, getEditorType,
+  sceneUsesPhysics, sceneUses3DPhysics,
+  type SideModuleId, type SpineVersion,
+} from 'esengine';
 
-/** Component types whose presence means the scene needs physics.
- *  Mirrors sdk/src/runtimeLoader.ts PHYSICS_COMPONENT_TYPES. */
-const PHYSICS_COMPONENT_TYPES = new Set([
-  'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
-  'SegmentCollider', 'PolygonCollider', 'ChainCollider',
-]);
+export type { SpineVersion };
+export { SIDE_MODULES, spineModuleId };
 
-const PHYSICS3D_COMPONENT_TYPES = new Set([
-  'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
-  'CharacterController3D',
-]);
+/** id → the `build-tools/cli.js build -t <target>` producing its WeChat artifacts. */
+export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
+  physics: 'physics-wechat',
+  basis: 'basis-wechat',
+  videodec: 'videodec-wechat',
+  dragonbones: 'dragonbones-wechat',
+  'spine:2.1': 'spine-wechat',
+  'spine:3.8': 'spine-wechat',
+  'spine:4.1': 'spine-wechat',
+  'spine:4.2': 'spine-wechat',
+  'spine:4.3': 'spine-wechat',
+};
 
-interface SceneLike {
-  entities?: Array<{ components?: Array<{ type?: string; data?: unknown }> }>;
+interface CookEntryLike {
+  path: string;
+  sourcePath?: string;
+  type?: string;
 }
 
-/** True if any entity carries a physics component, or a TilemapLayer that bakes
- *  collidable tiles (which spawn colliders at runtime). Mirrors runtimeLoader.sceneUsesPhysics. */
-export function sceneUsesPhysics(scene: SceneLike): boolean {
-  for (const entity of scene.entities ?? []) {
-    for (const comp of entity.components ?? []) {
-      if (comp.type && PHYSICS_COMPONENT_TYPES.has(comp.type)) return true;
-      if (comp.type === 'TilemapLayer') {
-        const ids = (comp.data as Record<string, unknown> | undefined)?.collidableTileIds;
-        if (Array.isArray(ids) && ids.length > 0) return true;
-      }
-    }
-  }
-  return false;
+export interface SideModuleScanInput {
+  /** Project root — the authored documents are read from here. */
+  root: string;
+  /** Project-relative paths the cook reached; scenes and prefabs are scanned. */
+  includedPaths: readonly string[];
+  /** Entries the cook staged, naming what the package physically carries. */
+  cookEntries: readonly CookEntryLike[];
+  /** Absolute dir `cookEntries[].path` resolve against. */
+  stagedDir: string;
+  /** Project Settings → Physics enabled. */
+  physicsEnabled: boolean;
 }
 
-/** The same question for the 3D world, which ships as its own module. Mirrors
- *  runtimeLoader.sceneUses3DPhysics. */
-export function sceneUses3DPhysics(scene: SceneLike): boolean {
-  for (const entity of scene.entities ?? []) {
-    for (const comp of entity.components ?? []) {
-      if (comp.type && PHYSICS3D_COMPONENT_TYPES.has(comp.type)) return true;
-    }
-  }
-  return false;
-}
-
-/** True if any entity carries a DragonBonesAnimation. Unlike Spine there is no
- *  version to detect: the format is frozen and one module reads all of it, so the
- *  presence of the component IS the answer. */
-export function sceneUsesDragonBones(scene: SceneLike): boolean {
-  for (const entity of scene.entities ?? []) {
-    for (const comp of entity.components ?? []) {
-      if (comp.type === 'DragonBonesAnimation') return true;
-    }
-  }
-  return false;
-}
-
-/** True if any entity carries a Video component — the wasm video decoder is
- *  WeChat's only video path, so any Video means the module must ship. */
-export function sceneUsesVideo(scene: SceneLike): boolean {
-  for (const entity of scene.entities ?? []) {
-    for (const comp of entity.components ?? []) {
-      if (comp.type === 'Video') return true;
-    }
-  }
-  return false;
-}
-
-export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
-
-/**
- * Which runtime reads a skeleton's reported version, newest prefix first — the same
- * table SpineManager keeps, because a cook that ships one module and a runtime that
- * asks for another is the one mismatch nothing downstream can recover from.
- */
 const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
   ['4.3', '4.3'],
   ['4.2', '4.2'],
@@ -95,38 +62,6 @@ function runtimeFor(reported: string): SpineVersion | null {
   }
   return null;
 }
-
-/** id → artifact base name. Mirrors sdk/src/sideModules/registry.ts SIDE_MODULES. */
-export const SIDE_MODULE_FILE: Record<string, string> = {
-  physics: 'physics',
-  basis: 'basis',
-  videodec: 'videodec',
-  dragonbones: 'dragonbones',
-  'spine:2.1': 'spine21',
-  'spine:3.8': 'spine38',
-  'spine:4.1': 'spine41',
-  'spine:4.2': 'spine42',
-  'spine:4.3': 'spine43',
-};
-
-/** id → the `build-tools/cli.js build -t <target>` that produces its WeChat artifacts. */
-export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
-  physics: 'physics-wechat',
-  basis: 'basis-wechat',
-  videodec: 'videodec-wechat',
-  dragonbones: 'dragonbones-wechat',
-  'spine:2.1': 'spine-wechat',
-  'spine:3.8': 'spine-wechat',
-  'spine:4.1': 'spine-wechat',
-  'spine:4.2': 'spine-wechat',
-  'spine:4.3': 'spine-wechat',
-};
-
-export function spineModuleId(version: SpineVersion): string {
-  return `spine:${version}`;
-}
-
-// --- Spine skeleton version detection (mirrors SpineManager.detectVersion[Json]) ---
 
 export function detectSpineVersionJson(json: string): SpineVersion | null {
   const m = json.match(/"spine"\s*:\s*"(\d+\.\d+)/);
@@ -170,4 +105,96 @@ function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
   if (verLen <= 1 || pos + verLen - 1 > data.length) return null;
   const ver = new TextDecoder().decode(data.subarray(pos, pos + verLen - 1));
   return (ver.startsWith('3.') || ver.startsWith('2.')) ? runtimeFor(ver) : null;
+}
+
+async function readDocuments(root: string, includedPaths: readonly string[]): Promise<unknown[]> {
+  const docs: unknown[] = [];
+  for (const rel of includedPaths) {
+    const ext = path.extname(rel).toLowerCase();
+    if (ext !== '.esscene' && ext !== '.esprefab') continue;
+    try {
+      docs.push(JSON.parse(await readFile(path.join(root, rel), 'utf8')));
+    } catch { /* unreadable or not JSON — the cook already warned */ }
+  }
+  return docs;
+}
+
+/**
+ * The union of optional modules any shipped document can ask for. A dynamically
+ * switched scene and a prefab spawned from script both have to find their module
+ * present, so this is a union over everything the package carries, not over the
+ * entry scene.
+ */
+export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set<SideModuleId>> {
+  const ids = new Set<SideModuleId>();
+  const docs = await readDocuments(input.root, input.includedPaths);
+
+  // The project's own declaration counts as a use: a game that spawns bodies from
+  // script has none in any document, and shipping the flag without the binary
+  // fails at the first spawn instead of at build time.
+  if (input.physicsEnabled || docs.some((d) => sceneUsesPhysics(d as never))) ids.add('physics');
+  // Never implied by the 2D flag — that declares the solver 2D scenes use, and
+  // this is a different module.
+  if (docs.some((d) => sceneUses3DPhysics(d as never))) ids.add('physics3d');
+
+  for (const e of input.cookEntries) {
+    const lower = e.path.toLowerCase();
+    if (/\.ktx2(\.bin)?$/.test(lower)) ids.add('basis');
+    // Script-driven playback references cooked videos no component names.
+    if (/\.esv(\.bin)?$/.test(lower)) ids.add('videodec');
+    const editorType = getEditorType(e.sourcePath ?? e.path);
+    if (editorType === 'dragonbones-skeleton' || editorType === 'dragonbones-atlas') ids.add('dragonbones');
+    if (e.type !== 'spine') continue;
+    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
+    try {
+      let v: SpineVersion | null = null;
+      if (ext === '.skel') {
+        v = detectSpineVersion(new Uint8Array(await readFile(path.join(input.stagedDir, e.path))));
+      } else if (ext === '.json') {
+        v = detectSpineVersionJson(await readFile(path.join(input.stagedDir, e.path), 'utf8'));
+      }
+      if (v) ids.add(spineModuleId(v));
+    } catch { /* unreadable cook entry — cookAssets already warned */ }
+  }
+  return ids;
+}
+
+/**
+ * A `cp` filter over the engine's wasm dir keeping only the side modules in
+ * `needed`. Anything that is not a known side-module artifact ships untouched:
+ * the only files this can prove unnecessary are the ones the scan answered for.
+ */
+export function shipsSideModule(needed: readonly string[]): (src: string) => boolean {
+  const keep = new Set(needed);
+  const droppable = new Set<string>();
+  for (const descriptor of Object.values(SIDE_MODULES)) {
+    if (!keep.has(descriptor.file)) droppable.add(descriptor.file);
+  }
+  return (src: string) => {
+    const base = path.basename(src);
+    const dot = base.indexOf('.');
+    if (dot < 0) return true;
+    const stem = base.slice(0, dot);
+    const ext = base.slice(dot).toLowerCase();
+    if (ext !== '.js' && ext !== '.wasm') return true;
+    return !droppable.has(stem);
+  };
+}
+
+/**
+ * The artifact base names `ids` resolve to. An id with no entry in the engine's
+ * table is reported rather than skipped: a module the scan asks for and the
+ * package does not carry is a 404 the moment the content needs it.
+ */
+export function sideModuleFiles(
+  ids: Iterable<SideModuleId>,
+): { files: Array<{ id: SideModuleId; file: string }>; unknown: SideModuleId[] } {
+  const files: Array<{ id: SideModuleId; file: string }> = [];
+  const unknown: SideModuleId[] = [];
+  for (const id of ids) {
+    const descriptor = SIDE_MODULES[id as keyof typeof SIDE_MODULES];
+    if (descriptor) files.push({ id, file: descriptor.file });
+    else unknown.push(id);
+  }
+  return { files, unknown };
 }

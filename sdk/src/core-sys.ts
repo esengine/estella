@@ -308,6 +308,7 @@ export {
     type SideModuleId,
     type BuiltinSideModuleId,
     type SideModuleDescriptor,
+    type SpineVersion,
     type EmbeddedSideModuleEntry,
     type EmbeddedSideModuleRegistry,
     type WeChatSideModuleFactories,

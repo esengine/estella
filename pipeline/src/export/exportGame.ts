@@ -24,7 +24,7 @@ import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets, loadAssetGroups } from '../assets/cookAssets';
+import { cookAssets, loadAssetGroups, type CookManifest } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
@@ -55,6 +55,7 @@ import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
+import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
 export type { ExportPlatform };
 
 /**
@@ -599,6 +600,18 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   warnings.push(...await unsupportedContentWarnings(opts.root, cook.includedPaths, platform));
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
+  // What the cook physically staged, read before the flat manifest is dropped
+  // below: the side-module scan asks it what the package carries, and a texture
+  // compressed to KTX2 or a video transcoded to .esv is only nameable here.
+  let cookEntries: CookManifest['entries'] = [];
+  try {
+    cookEntries = (JSON.parse(
+      await readFile(path.join(payloadDir, 'assets.manifest.json'), 'utf8'),
+    ) as CookManifest).entries;
+  } catch (err) {
+    errors.push(`cook manifest: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   // Also emit the AddressableManifest (v2.0) beside the flat one — the SAME
   // model every target now shares, so `loadGroup` / remote-group / hot-update
   // work on web + desktop too (not just mini-games). Additive: the eager boot
@@ -658,8 +671,22 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (existsSync(opts.sdkDistDir)) {
       await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true, filter: shipsToBrowser });
     } else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
-    if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
-    else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
+    if (existsSync(opts.wasmDir)) {
+      const ids = await scanSideModuleIds({
+        root: opts.root, includedPaths: cook.includedPaths, cookEntries,
+        stagedDir: payloadDir, physicsEnabled: runtime.physicsEnabled,
+      });
+      const { files, unknown } = sideModuleFiles(ids);
+      for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
+      for (const { id, file } of files) {
+        if (!existsSync(path.join(opts.wasmDir, `${file}.js`))) {
+          errors.push(`content needs "${id}" but ${file}.js is not in ${opts.wasmDir} — build the target that produces it (build-tools/build.config.js maps artifacts to targets) and re-export.`);
+        }
+      }
+      await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), {
+        recursive: true, filter: shipsSideModule(files.map((f) => f.file)),
+      });
+    } else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
   }
 
   // The project's own modules go beside the engine's, so every transport finds
