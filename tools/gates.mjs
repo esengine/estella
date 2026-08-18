@@ -95,6 +95,7 @@ export const GATES = [
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
+  { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
   {
     id: 'physics3d',
