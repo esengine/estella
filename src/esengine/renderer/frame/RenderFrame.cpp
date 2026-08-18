@@ -653,7 +653,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
     // whichever happened to come last in iteration order. Ambient lights sum without a cap.
-    std::vector<GpuLight2D>& collected = light_scratch_;
+    std::vector<CollectedLight>& collected = light_scratch_;
     collected.clear();
 
     // A light's Transform need is type-dependent: Ambient (a flat scene-wide term) and
@@ -679,6 +679,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         }
 
         GpuLight2D gpu;
+        bool castsMeshShadow = false;
         gpu.color = glm::vec4(rgb, light.intensity);
         // shadow.x = penumbra softness (all types); shadow.y = directional march distance (only the
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
@@ -689,10 +690,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // component, which only a directional light has a use for — point and spot spend
             // that slot on their falloff radius.
             gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, aimZ(light));
-            // Marked here and read back after the cap sort, so the slot recorded is the
-            // slot the shader will index. shadow.z is cleared before it reaches the GPU.
             if (light.meshShadows && shadow_light_slot_ < 0) {
-                gpu.shadow.z = 1.0f;
+                castsMeshShadow = true;
                 shadow_light_dir_ = glm::vec3(light.direction, aimZ(light));
                 shadow_light_extent_ = std::max(light.shadowExtent, 0.0f);
             }
@@ -703,31 +702,36 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             const glm::vec3 p = transform->worldPosition;
             const f32 typeId = (type == ecs::Light2DType::Spot) ? 2.0f : 0.0f;
             gpu.posDir = glm::vec4(p.x, p.y, typeId, light.radius);
+            // The height a surface with real geometry measures against. A sprite has no
+            // depth of its own and keeps the plane's convention, so this reaches only the
+            // MESH_NORMALS half of the lighting loop.
+            gpu.shadow.z = p.z;
             if (type == ecs::Light2DType::Spot) {
+                // The cone axis unnormalized, so the two halves can each normalize the
+                // vector they need: the plane's xy, and the whole of it in three.
                 glm::vec2 aim = light.direction;
-                aim = (glm::dot(aim, aim) > 1e-8f) ? glm::normalize(aim) : glm::vec2(0.0f, -1.0f);
+                if (glm::dot(aim, aim) <= 1e-8f) aim = glm::vec2(0.0f, -1.0f);
                 gpu.spot = glm::vec4(aim.x, aim.y,
                                      std::cos(glm::radians(light.innerAngle * 0.5f)),
                                      std::cos(glm::radians(light.outerAngle * 0.5f)));
+                gpu.shadow.w = light.directionZ;
             }
         }
-        collected.push_back(gpu);
+        collected.push_back({gpu, castsMeshShadow});
     }
 
     if (collected.size() > MAX_LIGHTS_2D) {
         std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS_2D, collected.end(),
-                          [](const GpuLight2D& a, const GpuLight2D& b) { return a.color.a > b.color.a; });
+                          [](const CollectedLight& a, const CollectedLight& b) {
+                              return a.gpu.color.a > b.gpu.color.a;
+                          });
         ES_LOG_WARN("collectLights: {} lights exceed the {}-light cap; keeping the brightest",
                     collected.size(), MAX_LIGHTS_2D);
         collected.resize(MAX_LIGHTS_2D);
     }
     for (u32 slot = 0; slot < collected.size(); ++slot) {
-        GpuLight2D& gpu = collected[slot];
-        if (gpu.shadow.z > 0.5f) {
-            shadow_light_slot_ = static_cast<i32>(slot);
-            gpu.shadow.z = 0.0f;  // a mark for this loop, not a field the shader reads
-        }
-        lights.addLight(gpu);
+        if (collected[slot].castsMeshShadow) shadow_light_slot_ = static_cast<i32>(slot);
+        lights.addLight(collected[slot].gpu);
     }
 
     // Shadow occluders: each enabled ShadowCaster2D becomes a world-space AABB (centered on its

@@ -25,10 +25,28 @@ published separately; it ships inside the editor.
   constant did.
 
   It defaults to -1, which is the direction a 2D scene's light has always come
-  from — every existing scene renders the same bytes, and all 87 pixel gates agree
-  on both backends. Point and spot lights still synthesize their depth from the
-  falloff radius; that is what gives a flat scene its shading, and giving them real
-  positions is a separate change with a compatibility story of its own.
+  from — every existing scene renders the same bytes, and all 88 pixel gates agree
+  on both backends.
+
+- **A point or spot light has a height, where the surface has the geometry to
+  measure it.** Its depth was the falloff radius, so a lamp lit a mesh the same
+  whether it sat on the floor or above the ceiling: `radius` doubled as "how far
+  above" because a 2D light had nowhere to keep a third coordinate. On a mesh it
+  is now the light's own world position — distance, falloff and the angle of
+  incidence all come from where the light actually is, and a spot's cone points
+  in three dimensions.
+
+  A sprite keeps the plane's convention, and that is the whole compatibility
+  story: it has no depth of its own to measure against, so a positional light goes
+  on hovering its radius above it. The two are not a branch the frame takes — they
+  are which definition of "where is the light" a shader compiles with, chosen by
+  the same flag that already says whether a draw brought real normals and a real
+  world position. One lighting model, one BRDF, and the surface saying what
+  geometry it has.
+
+  A light lying exactly on the surface used to be unreachable and now is not, so it
+  is answered rather than left to produce a NaN: it lights along the surface's own
+  normal, the limit that approaches from every side.
 
 - **FBX import.** A `.fbx` is a model source like a `.gltf` is: drop one in and it
   writes the same products — `.esmesh` per material run, the images it embeds, an

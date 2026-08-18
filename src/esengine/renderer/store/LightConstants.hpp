@@ -64,7 +64,9 @@ inline constexpr u32 MAX_OCCLUDERS_2D = 8;
  *          LightConstants::ambient instead of occupying a slot.
  *          shadow: x = penumbra softness (light-source half-extent in world units; 0 = hard,
  *          backward-compatible); y = directional shadow march distance (world units; 0 = a
- *          directional light casts no shadow). zw reserved (0). Read by shadowFactor2D.
+ *          directional light casts no shadow); z = a point/spot light's world height, which
+ *          only a surface with real geometry measures against (MESH_NORMALS); w = a spot's
+ *          cone-axis third component. Read by shadowFactor2D and lightVector/spotCone.
  */
 struct GpuLight2D {
     glm::vec4 posDir{0.0f};

@@ -895,6 +895,33 @@ fn envRadiance(R : vec3f, roughness : f32) -> vec3f {
     let b = envSampleMip(R, min(lo + 1.0, lc.u_envParams.z));
     return lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb;
 }
+#ifdef MESH_NORMALS
+fn lightVector(pd : vec4f, sh : vec4f, worldPos : vec3f) -> vec3f {
+    return vec3f(pd.xy, sh.z) - worldPos;
+}
+fn lightDistance(toLight : vec3f) -> f32 { return length(toLight); }
+fn spotCone(sp : vec4f, sh : vec4f, toLight : vec3f, dist : f32) -> f32 {
+    let axis = normalize(vec3f(sp.xy, sh.w));
+    var toFrag = axis;
+    if (dist > 0.0001) { toFrag = -toLight / dist; }
+    return smoothstep(sp.w, sp.z, dot(axis, toFrag));
+}
+#else
+fn lightVector(pd : vec4f, sh : vec4f, worldPos : vec3f) -> vec3f {
+    return vec3f(pd.xy - worldPos.xy, max(pd.w, 1.0));
+}
+fn lightDistance(toLight : vec3f) -> f32 { return length(toLight.xy); }
+fn spotCone(sp : vec4f, sh : vec4f, toLight : vec3f, dist : f32) -> f32 {
+    let axis = normalize(sp.xy);
+    var toFrag = axis;
+    if (dist > 0.0001) { toFrag = -toLight.xy / dist; }
+    return smoothstep(sp.w, sp.z, dot(axis, toFrag));
+}
+#endif
+fn towardLight(toLight : vec3f, N : vec3f) -> vec3f {
+    if (dot(toLight, toLight) > 1e-8) { return normalize(toLight); }
+    return N;
+}
 fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
     let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
@@ -911,10 +938,10 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         var aim = pd.xy;
         var castShadow = true;
         if (pd.z < 0.5) {
-            let d = pd.xy - worldPos.xy;
-            let dist = length(d);
+            let toL = lightVector(pd, sh, worldPos);
+            let dist = lightDistance(toL);
             atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
-            L = normalize(vec3f(d, max(pd.w, 1.0)));
+            L = towardLight(toL, N);
         } else if (pd.z < 1.5) {
             atten = 1.0;
             L = normalize(-vec3f(pd.xy, pd.w));
@@ -924,13 +951,11 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
             aim = worldPos.xy + toLight * sh.y;
         } else {
             let sp = lc.u_lights[i].spot;
-            let d = pd.xy - worldPos.xy;
-            let dist = length(d);
+            let toL = lightVector(pd, sh, worldPos);
+            let dist = lightDistance(toL);
             atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
-            L = normalize(vec3f(d, max(pd.w, 1.0)));
-            var toFrag = sp.xy;
-            if (dist > 0.0001) { toFrag = -d / dist; }
-            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));
+            L = towardLight(toL, N);
+            atten *= spotCone(sp, sh, toL, dist);
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
             atten *= shadowFactor2D(worldPos.xy, aim, sh.x);
@@ -1467,6 +1492,38 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec3 b = envSampleMip(R, min(lo + 1.0, u_envParams.z));\n"
             "    return u_ambient.rgb + mix(a, b, lod - lo) * u_envTint.rgb;\n"
             "}\n"
+            // Where a positional light is, from here, and how far. Real geometry measures
+            // against the light's own world height; a sprite has no depth of its own and
+            // keeps the plane's convention of one hovering its falloff radius above it.
+            "#ifdef MESH_NORMALS\n"
+            "highp vec3 lightVector(in highp vec4 pd, in highp vec4 sh, in highp vec3 worldPos) {\n"
+            "    return vec3(pd.xy, sh.z) - worldPos;\n"
+            "}\n"
+            "highp float lightDistance(in highp vec3 toLight) { return length(toLight); }\n"
+            "highp float spotCone(in highp vec4 sp, in highp vec4 sh, in highp vec3 toLight,\n"
+            "                     in highp float dist) {\n"
+            "    highp vec3 axis = normalize(vec3(sp.xy, sh.w));\n"
+            "    highp vec3 toFrag = (dist > 0.0001) ? -toLight / dist : axis;\n"
+            "    return smoothstep(sp.w, sp.z, dot(axis, toFrag));\n"
+            "}\n"
+            "#else\n"
+            "highp vec3 lightVector(in highp vec4 pd, in highp vec4 sh, in highp vec3 worldPos) {\n"
+            "    return vec3(pd.xy - worldPos.xy, max(pd.w, 1.0));\n"
+            "}\n"
+            "highp float lightDistance(in highp vec3 toLight) { return length(toLight.xy); }\n"
+            "highp float spotCone(in highp vec4 sp, in highp vec4 sh, in highp vec3 toLight,\n"
+            "                     in highp float dist) {\n"
+            "    highp vec2 axis = normalize(sp.xy);\n"
+            "    highp vec2 toFrag = (dist > 0.0001) ? -toLight.xy / dist : axis;\n"
+            "    return smoothstep(sp.w, sp.z, dot(axis, toFrag));\n"
+            "}\n"
+            "#endif\n"
+            // A light sitting exactly on the surface has no direction to give; the plane's
+            // convention could never produce one, real positions can. Lighting it along its
+            // own normal is the limit that approaches from every side.
+            "highp vec3 towardLight(in highp vec3 toLight, in highp vec3 N) {\n"
+            "    return dot(toLight, toLight) > 1e-8 ? normalize(toLight) : N;\n"
+            "}\n"
             // The lighting model in its general form; a lit 2D surface is its zero
             // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
             // what this engine has always drawn), so there is one model and not two.
@@ -1494,10 +1551,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp vec2 target = pd.xy;\n"           // shadow-ray aim point (light position by default)
             "        bool castShadow = true;\n"
             "        if (pd.z < 0.5) {\n"
-            "            highp vec2 d = pd.xy - worldPos.xy;\n"
-            "            highp float dist = length(d);\n"
+            "            highp vec3 toL = lightVector(pd, sh, worldPos);\n"
+            "            highp float dist = lightDistance(toL);\n"
             "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
-            "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
+            "            L = towardLight(toL, N);\n"
             "        } else if (pd.z < 1.5) {\n"
             "            atten = 1.0;\n"
             // pd.w is the aim's third component here; point/spot spend that slot on radius.
@@ -1509,12 +1566,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            target = worldPos.xy + toLight * sh.y;\n"
             "        } else {\n"
             "            highp vec4 sp = u_lights[i].spot;\n"
-            "            highp vec2 d = pd.xy - worldPos.xy;\n"
-            "            highp float dist = length(d);\n"
+            "            highp vec3 toL = lightVector(pd, sh, worldPos);\n"
+            "            highp float dist = lightDistance(toL);\n"
             "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
-            "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
-            "            highp vec2 toFrag = (dist > 0.0001) ? (-d / dist) : sp.xy;\n"
-            "            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));\n"
+            "            L = towardLight(toL, N);\n"
+            "            atten *= spotCone(sp, sh, toL, dist);\n"
             "        }\n"
             // Only pay for the shadow test when the light actually reaches this fragment (skips the
             // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).

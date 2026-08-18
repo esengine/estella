@@ -318,7 +318,14 @@ private:
     u32 initBatchShader();
     resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
 
-    std::vector<GpuLight2D> light_scratch_;  // reused across frames; collectLights only
+    /// A collected light and whether it casts the frame's mesh shadow. Paired rather
+    /// than flagged inside the GPU struct, because the cap sort reorders these and the
+    /// answer has to travel with the light.
+    struct CollectedLight {
+        GpuLight2D gpu;
+        bool castsMeshShadow;
+    };
+    std::vector<CollectedLight> light_scratch_;  // reused across frames; collectLights only
     /// Which light slot casts the map, and the direction + coverage it asked for.
     /// Written by collectLights, read by renderShadowMap; -1 = nobody asked.
     i32 shadow_light_slot_ = -1;
