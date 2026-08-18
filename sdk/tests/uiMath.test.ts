@@ -10,6 +10,8 @@ import {
     worldToScreen,
     createInvVPCache,
     pointInOBB,
+    screenRay,
+    rayPlaneHit,
 } from '../src/ui/util/math';
 import type { ScreenRect } from '../src/ui/util/math';
 
@@ -667,5 +669,62 @@ describe('an orthographic 2D camera fits by height', () => {
         // A tenth of the way in: off by more than half a 80-unit board square.
         const near = screenToWorld(w * 0.1, h / 2, inv, 0, 0, w, h).x;
         expect(Math.abs(near - designX(w * 0.1))).toBeGreaterThan(40);
+    });
+});
+
+// =============================================================================
+// The ray itself, and screenToWorld as its z-plane case
+// =============================================================================
+
+describe('screenRay', () => {
+    // What a screen point actually names. `screenToWorld` answers for ONE plane —
+    // the one 2D content sits on — and a caller that needs a different one (an
+    // editor dragging along an axis) could not ask before this existed.
+    it('is a unit ray leaving the near plane', () => {
+        const inv = invertMatrix4(perspective4(Math.PI / 2, 1, 0.1, 1000))!;
+        const ray = screenRay(320, 240, inv, 0, 0, 640, 480);
+        const len = Math.hypot(ray.dir.x, ray.dir.y, ray.dir.z);
+        expect(len).toBeCloseTo(1, 6);
+        // Down the centre of a camera at the origin looking along -z.
+        expect(ray.dir.z).toBeCloseTo(-1, 6);
+        expect(ray.origin.z).toBeCloseTo(-0.1, 3);
+    });
+
+    // The plane no z-keyed call can express: the GROUND, which is where 3D content
+    // stands. A 45° ray meets y = -10 at z = -10 — that is the whole point of
+    // handing the plane in rather than assuming it.
+    it('meets a tilted plane where the geometry says', () => {
+        const inv = invertMatrix4(perspective4(Math.PI / 2, 1, 0.1, 1000))!;
+        const ray = screenRay(320, 0, inv, 0, 0, 640, 480);
+        const hit = rayPlaneHit(ray, { x: 0, y: -10, z: 0 }, { x: 0, y: 1, z: 0 })!;
+        expect(hit).not.toBeNull();
+        expect(hit.y).toBeCloseTo(-10, 3);
+        expect(hit.z).toBeCloseTo(-10, 3);
+        expect(hit.x).toBeCloseTo(0, 3);
+    });
+
+    it('has no answer for a plane it runs along', () => {
+        const inv = invertMatrix4(perspective4(Math.PI / 2, 1, 0.1, 1000))!;
+        const ray = screenRay(320, 240, inv, 0, 0, 640, 480);
+        expect(rayPlaneHit(ray, { x: 0, y: 0, z: -5 }, { x: 1, y: 0, z: 0 })).toBeNull();
+    });
+
+    // The refactor's contract: the old entry point is the new one with the plane
+    // 2D content lives on, so no 2D caller can drift from the ray.
+    it('is what screenToWorld intersects, for every plane and projection', () => {
+        for (const vp of [ortho4(160, 120, 1000), perspective4(Math.PI / 2, 4 / 3, 0.1, 1000)]) {
+            const inv = invertMatrix4(vp)!;
+            for (const [sx, sy] of [[0, 0], [320, 240], [637, 11], [500, 200]]) {
+                for (const planeZ of [0, -10, 37, -400]) {
+                    const viaPlane = screenToWorld(sx, sy, inv, 0, 0, 640, 480, planeZ);
+                    const ray = screenRay(sx, sy, inv, 0, 0, 640, 480);
+                    const hit = rayPlaneHit(ray, { x: 0, y: 0, z: planeZ }, { x: 0, y: 0, z: 1 });
+                    expect(hit).not.toBeNull();
+                    expect(viaPlane.x).toBeCloseTo(hit!.x, 4);
+                    expect(viaPlane.y).toBeCloseTo(hit!.y, 4);
+                    expect(hit!.z).toBeCloseTo(planeZ, 4);
+                }
+            }
+        }
     });
 });

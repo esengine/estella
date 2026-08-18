@@ -331,12 +331,15 @@ export {
     intersectRects,
     invertMatrix4,
     screenToWorld,
+    screenRay,
+    rayPlaneHit,
     pointInWorldRect,
     pointInOBB,
     quaternionToAngle2D,
     worldToScreen,
     createInvVPCache,
     type ScreenRect,
+    type WorldRay,
 } from './util/math';
 
 // ─── Plugins (composed UI pipeline + the concept plugins it builds) ─────────

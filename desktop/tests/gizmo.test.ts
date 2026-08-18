@@ -8,8 +8,13 @@ import { describe, it, expect } from 'vitest';
 import {
   GIZMO,
   colliderHandleClass,
+  HEAD_ON,
   hitTestGizmo,
-  constrainWorldDelta,
+  constrainDelta,
+  axisHandles,
+  faceOnPlane,
+  dragPlane,
+  planeNormal,
   groupPivot,
   rotateAround,
   scaleAround,
@@ -24,38 +29,94 @@ import {
 
 const pivot = { x: 100, y: 100 };
 
+// A quarter turn about world Y: X now points into the screen and Z out of it.
+const TURNED = {
+  x: { dx: 0, dy: 0 }, y: { dx: 0, dy: -1 }, z: { dx: 1, dy: 0 },
+};
+
 describe('hitTestGizmo — move', () => {
-  it('center hits the XY plane', () => {
-    expect(hitTestGizmo('move', pivot, pivot)?.id).toBe('move.xy');
+  it('center hits the plane facing the eye, which head-on is XY', () => {
+    expect(hitTestGizmo('move', HEAD_ON, pivot, pivot)?.id).toBe('move.xy');
   });
   it('along +X hits the X axis (screen right)', () => {
-    const h = hitTestGizmo('move', pivot, { x: pivot.x + GIZMO.axisLen - 6, y: pivot.y });
+    const h = hitTestGizmo('move', HEAD_ON, pivot, { x: pivot.x + GIZMO.axisLen - 6, y: pivot.y });
     expect(h?.id).toBe('move.x');
     expect(h?.axis).toBe('x');
   });
   it('along −screenY (up) hits the Y axis', () => {
-    const h = hitTestGizmo('move', pivot, { x: pivot.x, y: pivot.y - GIZMO.axisLen + 6 });
+    const h = hitTestGizmo('move', HEAD_ON, pivot, { x: pivot.x, y: pivot.y - GIZMO.axisLen + 6 });
     expect(h?.id).toBe('move.y');
     expect(h?.axis).toBe('y');
   });
   it('empty space misses', () => {
-    expect(hitTestGizmo('move', pivot, { x: pivot.x + 200, y: pivot.y + 200 })).toBeNull();
+    expect(hitTestGizmo('move', HEAD_ON, pivot, { x: pivot.x + 200, y: pivot.y + 200 })).toBeNull();
+  });
+  // The defect the basis fixes: the arrow pointing screen-right is whichever axis
+  // the eye puts there, not always X.
+  it('aims at the axis the VIEW puts under the cursor, not at a fixed direction', () => {
+    const right = { x: pivot.x + GIZMO.axisLen - 6, y: pivot.y };
+    expect(hitTestGizmo('move', HEAD_ON, pivot, right)?.axis).toBe('x');
+    expect(hitTestGizmo('move', TURNED, pivot, right)?.axis).toBe('z');
   });
 });
 
 describe('hitTestGizmo — scale', () => {
   it('center hits the uniform box', () => {
-    expect(hitTestGizmo('scale', pivot, pivot)?.id).toBe('scale.xy');
+    expect(hitTestGizmo('scale', HEAD_ON, pivot, pivot)?.id).toBe('scale.xy');
   });
   it('the X end box hits scale.x', () => {
-    expect(hitTestGizmo('scale', pivot, { x: pivot.x + GIZMO.axisLen, y: pivot.y })?.id).toBe('scale.x');
+    expect(hitTestGizmo('scale', HEAD_ON, pivot, { x: pivot.x + GIZMO.axisLen, y: pivot.y })?.id).toBe('scale.x');
   });
 });
 
-describe('constrainWorldDelta', () => {
-  it('x axis keeps only dx', () => expect(constrainWorldDelta('x', 5, 9)).toEqual([5, 0]));
-  it('y axis keeps only dy', () => expect(constrainWorldDelta('y', 5, 9)).toEqual([0, 9]));
-  it('xy keeps both', () => expect(constrainWorldDelta('xy', 5, 9)).toEqual([5, 9]));
+describe('axisHandles', () => {
+  // The same rule that leaves a head-on rotate gizmo one ring: an axis pointing at
+  // the eye projects to nothing, and a dot names no drag.
+  it('drops the axis pointing at the eye, so a head-on gizmo keeps its two arrows', () => {
+    expect(axisHandles(HEAD_ON).map((h) => h.axis)).toEqual(['x', 'y']);
+  });
+  it('offers all three once the eye is off-axis', () => {
+    const axes = { x: { dx: 0.7, dy: 0.3 }, y: { dx: 0, dy: -1 }, z: { dx: -0.7, dy: 0.3 } };
+    expect(axisHandles(axes).map((h) => h.axis)).toEqual(['x', 'y', 'z']);
+  });
+  // Local space is a rotation of the axes, not an angle applied to the screen —
+  // which is the only form that can express a turn about X or Y.
+  it('turns the arrows into the entity frame', () => {
+    const quarterZ = { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 };
+    const x = axisHandles(HEAD_ON, quarterZ).find((h) => h.axis === 'x')!;
+    expect(x.dir.x).toBeCloseTo(0, 6);
+    expect(x.dir.y).toBeCloseTo(-1, 6); // world +Y is screen up
+  });
+});
+
+describe('constrainDelta', () => {
+  const d = { x: 5, y: 9, z: 4 };
+  it('x axis keeps only dx', () => expect(constrainDelta('x', d)).toEqual({ x: 5, y: 0, z: 0 }));
+  it('y axis keeps only dy', () => expect(constrainDelta('y', d)).toEqual({ x: 0, y: 9, z: 0 }));
+  it('z axis keeps only dz', () => expect(constrainDelta('z', d)).toEqual({ x: 0, y: 0, z: 4 }));
+  // A plane handle measured the delta ON its plane, so there is nothing to project.
+  it('a plane handle keeps the delta it was given', () => expect(constrainDelta('xy', d)).toEqual(d));
+});
+
+describe('the plane a drag is measured on', () => {
+  // Head-on, an X or Y drag happens on the z plane it always did.
+  it('is the z plane for X and Y head-on', () => {
+    expect(dragPlane('x', HEAD_ON)).toBe('xy');
+    expect(dragPlane('y', HEAD_ON)).toBe('xy');
+    expect(planeNormal('xy')).toEqual({ x: 0, y: 0, z: 1 });
+  });
+  // And never an edge-on one, where a pixel of cursor travel is an unbounded
+  // world distance. Turned about Y, the XY plane is edge-on for a Z drag.
+  it('avoids the plane the eye sees edge-on', () => {
+    expect(dragPlane('z', TURNED)).toBe('yz');
+  });
+  it('is the plane itself for a plane handle', () => {
+    expect(dragPlane('yz', HEAD_ON)).toBe('yz');
+  });
+  it('faces the eye for the centre handle', () => {
+    expect(faceOnPlane(HEAD_ON)).toBe('xy');
+    expect(faceOnPlane(TURNED)).toBe('yz');
+  });
 });
 
 describe('groupPivot', () => {

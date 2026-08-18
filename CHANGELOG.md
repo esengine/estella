@@ -14,6 +14,29 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The transform gizmo is built from the view's own basis.** Rotate already read
+  where the world axes point on screen and drew a ring per axis. Move and scale
+  did not: their arrows were two written-down screen directions, `+X is right` and
+  `+Y is up`, true only of a head-on orthographic view. Turn the eye and the arrow
+  you grabbed was no longer the axis that moved.
+
+  Now one basis feeds everything — the arrows, the rings, and the aim, from the
+  same call, so what is drawn is what is hit. There is a **Z axis**, the vocabulary
+  says plane where it means plane (`xy`/`yz`/`zx`, not an `xy` that meant
+  "whatever is free"), and local space is the entity's rotation applied to the
+  axes rather than a CSS turn of the whole gizmo — which is the only form that can
+  express a frame turned about X or Y.
+
+  A drag is measured on the plane its handle implies, found by intersecting the
+  cursor's world ray with it. `screenToWorld` was already building that ray and
+  throwing it away on a fixed z plane; it is now the ray's z-plane case, and
+  `CameraView.screenRay` hands the ray to anyone who needs a different one. Every
+  head-on expectation in the gizmo tests is unchanged, which is the compatibility
+  argument: a 2D scene keeps the two arrows, one ring and one free-move square it
+  always had, because world Z projects to nothing there.
+
 ### Fixed
 
 - **The 3D view button turns the eye.** It swapped the editor camera's projection

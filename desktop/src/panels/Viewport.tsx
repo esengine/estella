@@ -50,8 +50,8 @@ import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
-import { GIZMO, colliderHandleClass, pivotDrag, rotateRings, ringPoint, type GizmoAxis, type RotateRing } from '@/tools/gizmo';
-import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
+import { GIZMO, HEAD_ON, axisHandles, colliderHandleClass, pivotDrag, rotateRings, ringPoint, type GizmoAxis, type Quat, type RotateRing } from '@/tools/gizmo';
+import { selectionPivot, gizmoFrame } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { TilePaintPreview } from '@/tools/tilePreview';
 
@@ -425,12 +425,6 @@ const gizmoViewBox = `${-GIZMO_SVG / 2} ${-GIZMO_SVG / 2} ${GIZMO_SVG} ${GIZMO_S
 // and thrash layout at N divs/frame. Below it the per-entity path is untouched.
 const SELECTION_OUTLINE_MERGE_THRESHOLD = 200;
 
-// Head-on world axes, for the moment before the engine can answer: +X right,
-// +Y up (screen y is down), +Z straight at the eye.
-const HEAD_ON_AXES = {
-  x: { dx: 1, dy: 0, depth: 0 }, y: { dx: 0, dy: -1, depth: 0 }, z: { dx: 0, dy: 0, depth: 1 },
-};
-
 /** A ring as an SVG path, sampled around its own parameter. */
 function ringPath(ring: RotateRing, radius: number): string {
   const steps = 48;
@@ -442,64 +436,73 @@ function ringPath(ring: RotateRing, radius: number): string {
   return `${d}Z`;
 }
 
-function GizmoOverlay({ tool, active, axes }: {
+function GizmoOverlay({ tool, active, axes, rotation }: {
   tool: ToolMode;
   active: GizmoAxis | null;
   axes: { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } | null;
+  rotation: Quat | undefined;
 }) {
   const L = GIZMO.axisLen;
   const B = GIZMO.boxSize;
   const P = GIZMO.planeSize;
+  // Drawn from the SAME basis the tool aims through (gizmo.ts), so the arrow you
+  // grab is the axis that moves. Edge-on handles are dropped there, which is what
+  // leaves a head-on gizmo the two arrows and the single ring it always had.
+  const basis = axes ?? HEAD_ON;
   // The grabbed handle reads "hot": a thicker stroke + full-opacity fill, so the
-  // drag has the visual confirmation UE/Unity give. Axes light independently; the
-  // center plane lights on the 'xy' (uniform) handle.
-  const onX = active === 'x';
-  const onY = active === 'y';
-  const onXY = active === 'xy';
+  // drag has the visual confirmation UE/Unity give.
   const axW = (on: boolean) => (on ? 4 : 2.5);
   const planeOp = (on: boolean) => (on ? 1 : 0.85);
   if (tool === 'rotate') {
     // One ring per world axis, drawn where that axis's plane actually projects —
-    // an ellipse once the eye is off-axis. Edge-on rings are dropped by
-    // rotateRings, which is what leaves a head-on gizmo the single Z circle.
-    const rings = rotateRings(axes ?? HEAD_ON_AXES);
-    const hot: Record<string, boolean> = { x: active === 'x', y: active === 'y', z: active === 'xy' };
+    // an ellipse once the eye is off-axis.
     return (
       <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
-        {rings.map((ring) => (
+        {rotateRings(basis, rotation).map((ring) => (
           <path
             key={ring.axis}
             className={`gz-ring gz-${ring.axis}`}
             d={ringPath(ring, GIZMO.ringRadius)}
             fill="none"
-            strokeWidth={hot[ring.axis] ? 3.5 : 2}
+            strokeWidth={active === ring.axis ? 3.5 : 2}
           />
         ))}
         <circle cx="0" cy="0" r="2.5" fill="var(--star)" />
       </svg>
     );
   }
-  if (tool === 'scale') {
-    return (
-      <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
-        <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
-        <rect x={L - B / 2} y={-B / 2} width={B} height={B} fill="var(--error)" opacity={onX ? 1 : 0.95} />
-        <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
-        <rect x={-B / 2} y={-L - B / 2} width={B} height={B} fill="var(--run)" opacity={onY ? 1 : 0.95} />
-        <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity={planeOp(onXY)} />
-      </svg>
-    );
-  }
-  // move (and any other) → axis arrows + a center plane square
+  const handles = axisHandles(basis, rotation);
   return (
     <svg className="gizmo-svg" width={GIZMO_SVG} height={GIZMO_SVG} viewBox={gizmoViewBox}>
-      <line x1="0" y1="0" x2={L} y2="0" stroke="var(--error)" strokeWidth={axW(onX)} />
-      <path d={`M${L} 0 L${L - 9} -4 L${L - 9} 4 Z`} fill="var(--error)" opacity={onX ? 1 : 0.95} />
-      <line x1="0" y1="0" x2="0" y2={-L} stroke="var(--run)" strokeWidth={axW(onY)} />
-      <path d={`M0 ${-L} L-4 ${-L + 9} L4 ${-L + 9} Z`} fill="var(--run)" opacity={onY ? 1 : 0.95} />
-      <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)" opacity={planeOp(onXY)} />
+      {handles.map((h) => {
+        const on = active === h.axis;
+        const ex = h.dir.x * L;
+        const ey = h.dir.y * L;
+        return (
+          <g key={h.axis} className={`gz-${h.axis}`}>
+            <line x1="0" y1="0" x2={ex} y2={ey} stroke="currentColor" strokeWidth={axW(on)} />
+            {tool === 'scale'
+              ? <rect x={ex - B / 2} y={ey - B / 2} width={B} height={B} fill="currentColor" opacity={on ? 1 : 0.95} />
+              : <path d={arrowHead(h.dir, L)} fill="currentColor" opacity={on ? 1 : 0.95} />}
+          </g>
+        );
+      })}
+      <rect x={-P / 2} y={-P / 2} width={P} height={P} fill="var(--star)"
+            opacity={planeOp(active !== null && active.length === 2)} />
     </svg>
   );
+}
+
+/** The triangle at an axis arrow's tip, pointing the way the axis projects. */
+function arrowHead(dir: { x: number; y: number }, len: number): string {
+  const tx = dir.x * len;
+  const ty = dir.y * len;
+  const bx = dir.x * (len - 9);
+  const by = dir.y * (len - 9);
+  const nx = -dir.y * 4;
+  const ny = dir.x * 4;
+  return `M${tx.toFixed(2)} ${ty.toFixed(2)} L${(bx - nx).toFixed(2)} ${(by - ny).toFixed(2)} `
+       + `L${(bx + nx).toFixed(2)} ${(by + ny).toFixed(2)} Z`;
 }
 
 const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] = [
@@ -956,11 +959,14 @@ export function Viewport() {
     release: (id) => stageRef.current?.releasePointerCapture(id),
   }), []);
   const [zoomPct, setZoomPct] = useState(100);
-  // Where the world axes project, for the rotate gizmo's rings. Polled (like the
-  // zoom readout) rather than mirrored, and only while that tool is up: it changes
-  // when the eye turns, and re-rendering the viewport per orbit frame is not free.
+  // Where the world axes project — the basis EVERY handle is drawn from. Polled
+  // rather than mirrored, and only while a transform tool is up: re-rendering the
+  // viewport once per orbit frame is not free.
   const [viewAxes, setViewAxes] = useState<{ x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } | null>(null);
   const viewAxesKey = useRef('');
+  // The frame the handles stand in (local space = the active entity's rotation),
+  // polled with the axes so one key drives both halves of the gizmo's basis.
+  const [gizmoRotation, setGizmoRotation] = useState<Quat | undefined>(undefined);
   // Last-published zoom %, so the rAF only re-renders the HUD when it actually changes.
   const zoomPctRef = useRef(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
@@ -1223,10 +1229,12 @@ export function Viewport() {
         // that drifts. The setter no-ops on an unchanged value, so this costs a call.
         useEditorStore.getState().setViewOrbited(ViewportController.isOrbited());
 
-        if (toolMode === 'rotate') {
+        if (toolMode !== 'select') {
           const a = ViewportController.viewAxes();
-          const k = a ? [a.x, a.y, a.z].map((v) => `${v.dx.toFixed(3)},${v.dy.toFixed(3)}`).join('|') : '';
-          if (k !== viewAxesKey.current) { viewAxesKey.current = k; setViewAxes(a); }
+          const f = gizmoFrame([...useSelection.getState().selectedIds]);
+          const k = (a ? [a.x, a.y, a.z].map((v) => `${v.dx.toFixed(3)},${v.dy.toFixed(3)}`).join('|') : '')
+            + (f ? `|${f.x.toFixed(3)},${f.y.toFixed(3)},${f.z.toFixed(3)},${f.w.toFixed(3)}` : '');
+          if (k !== viewAxesKey.current) { viewAxesKey.current = k; setViewAxes(a); setGizmoRotation(f); }
         }
       }
 
@@ -1454,8 +1462,9 @@ export function Viewport() {
       const pivotWorld = drawPivot ? selectionPivot(selIds) : null;
       const pivot = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
       if (pivot) {
-        const angDeg = (gizmoScreenAngleRad(selIds) * 180) / Math.PI;
-        g.style.transform = `translate(${pivot.x}px, ${pivot.y}px) rotate(${angDeg}deg)`;
+        // No screen rotation: local space is baked into each handle's own
+        // direction (gizmo.ts), which a CSS rotate could only ever express in 2D.
+        g.style.transform = `translate(${pivot.x}px, ${pivot.y}px)`;
         g.style.opacity = '1';
       } else {
         g.style.opacity = '0';
@@ -2927,7 +2936,7 @@ export function Viewport() {
         ))}
       </div>
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
-        <GizmoOverlay tool={tool} active={activeGizmoAxis} axes={viewAxes} />
+        <GizmoOverlay tool={tool} active={activeGizmoAxis} axes={viewAxes} rotation={gizmoRotation} />
       </div>
 
       {engine.status !== 'ready' && (

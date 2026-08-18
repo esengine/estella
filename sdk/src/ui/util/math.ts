@@ -5,6 +5,7 @@
 // for it.
 import { invertMatrix4 } from '../../math/mat4';
 import { q } from '../../math/quat';
+import type { Vec3 } from '../../types';
 
 export { invertMatrix4 };
 
@@ -42,6 +43,55 @@ function unproject(
 }
 
 /**
+ * The world-space ray a screen point names.
+ *
+ * @details Every plane it could land on gives a different answer, so the ray is
+ *          what exists and a position is what a chosen plane yields. `dir` is a
+ *          unit vector; `origin` sits on the near plane.
+ */
+export interface WorldRay {
+    origin: Vec3;
+    dir: Vec3;
+}
+
+export function screenRay(
+    screenX: number, screenY: number,
+    inverseVP: Float32Array,
+    vpX: number, vpY: number, vpW: number, vpH: number,
+): WorldRay {
+    const ndcX = ((screenX - vpX) / vpW) * 2 - 1;
+    const ndcY = ((screenY - vpY) / vpH) * 2 - 1;
+    const near = unproject(ndcX, ndcY, -1, inverseVP);
+    const far = unproject(ndcX, ndcY, 1, inverseVP);
+    const dx = far.x - near.x;
+    const dy = far.y - near.y;
+    const dz = far.z - near.z;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    return { origin: near, dir: { x: dx / len, y: dy / len, z: dz / len } };
+}
+
+/**
+ * Where @p ray meets the plane through @p point with normal @p normal, or null
+ * when the two are parallel — a plane the ray never reaches has no point on it,
+ * and a number would be a position the caller did not ask about.
+ */
+export function rayPlaneHit(ray: WorldRay, point: Vec3, normal: Vec3): Vec3 | null {
+    const denom = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
+    if (Math.abs(denom) <= 1e-9) return null;
+    const t = ((point.x - ray.origin.x) * normal.x
+             + (point.y - ray.origin.y) * normal.y
+             + (point.z - ray.origin.z) * normal.z) / denom;
+    return {
+        x: ray.origin.x + ray.dir.x * t,
+        y: ray.origin.y + ray.dir.y * t,
+        z: ray.origin.z + ray.dir.z * t,
+    };
+}
+
+/** The plane 2D content lives on, and the one a caller with no depth in mind means. */
+const Z_NORMAL: Vec3 = { x: 0, y: 0, z: 1 };
+
+/**
  * Where a screen point lands on the world plane at @p planeZ.
  *
  * @details A screen point is a RAY, not a position. Orthographically the ray's
@@ -62,20 +112,12 @@ export function screenToWorld(
     vpX: number, vpY: number, vpW: number, vpH: number,
     planeZ = 0,
 ): { x: number; y: number } {
-    const ndcX = ((screenX - vpX) / vpW) * 2 - 1;
-    const ndcY = ((screenY - vpY) / vpH) * 2 - 1;
-
-    const near = unproject(ndcX, ndcY, -1, inverseVP);
-    const far = unproject(ndcX, ndcY, 1, inverseVP);
-
-    const dz = far.z - near.z;
+    const ray = screenRay(screenX, screenY, inverseVP, vpX, vpY, vpW, vpH);
     // A ray parallel to the plane it is being intersected with has no answer;
     // the near point is the closest thing to one, and it is what the
     // orthographic path returned before this existed.
-    if (dz === 0) return { x: near.x, y: near.y };
-
-    const t = (planeZ - near.z) / dz;
-    return { x: near.x + (far.x - near.x) * t, y: near.y + (far.y - near.y) * t };
+    const hit = rayPlaneHit(ray, { x: 0, y: 0, z: planeZ }, Z_NORMAL);
+    return hit ? { x: hit.x, y: hit.y } : { x: ray.origin.x, y: ray.origin.y };
 }
 
 export function pointInWorldRect(

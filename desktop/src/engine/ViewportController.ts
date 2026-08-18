@@ -18,6 +18,7 @@ import {
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
+  rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -80,6 +81,7 @@ function jointConnectedRuntime(j: JointGizmoData): EntityId | null {
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
   screenToWorld(x: number, y: number, planeZ?: number): { x: number; y: number } | null;
+  screenRay(x: number, y: number): WorldRay | null;
   worldToScreen(x: number, y: number, worldZ?: number): { x: number; y: number } | null;
 }
 
@@ -197,6 +199,21 @@ export const ViewportController = {
     const s = clientToScreen(clientX, clientY);
     if (!cv || !s) return null;
     return cv.screenToWorld(s.sx, s.sy, planeZ);
+  },
+
+  /**
+   * Where the cursor meets an arbitrary world plane — {@link canvasToWorld} with
+   * the plane spelled out instead of assumed. A drag along a world axis happens on
+   * a plane containing that axis, which is not a z plane for two axes out of three.
+   */
+  canvasToWorldOnPlane(
+    clientX: number, clientY: number, point: Vec3, normal: Vec3,
+  ): Vec3 | null {
+    const cv = cameraView();
+    const s = clientToScreen(clientX, clientY);
+    if (!cv || !s) return null;
+    const ray = cv.screenRay(s.sx, s.sy);
+    return ray ? rayPlaneHit(ray, point, normal) : null;
   },
 
   /** The world z an entity sits on — the plane its picking and dragging happen on. */
@@ -397,6 +414,15 @@ export const ViewportController = {
     if (!world || !world.valid(id) || !world.has(id, Transform)) return 0;
     const t = world.get(id, Transform);
     return quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+  },
+
+  /** An entity's full world rotation — what a local-space handle turns the axes by.
+   *  Identity for anything without one, which is the world-aligned gizmo. */
+  getEntityWorldQuat(id: EntityId): { x: number; y: number; z: number; w: number } {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return { x: 0, y: 0, z: 0, w: 1 };
+    const q = world.get(id, Transform).worldRotation as { w: number; x: number; y: number; z: number };
+    return { x: q.x, y: q.y, z: q.z, w: q.w };
   },
 
   /**

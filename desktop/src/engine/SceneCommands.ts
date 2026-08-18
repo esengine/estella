@@ -552,19 +552,19 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Move an entity to a world position (keeps local Z). Undoable like any field
-   * edit. `Transform.position` is parent-local, so a parented entity's world
-   * target is re-expressed in its parent's live world frame before the write —
-   * viewport tools speak world space; the model invariant stays local.
+   * Move an entity to a world position. `Transform.position` is parent-local, so a
+   * parented entity's world target is re-expressed in its parent's live frame:
+   * viewport tools speak world space, the model invariant stays local. `z` is the
+   * LOCAL depth (as a rotate writes it); omitting it keeps what the entity has.
    */
-  setEntityXY(sourceId: EntityId, x: number, y: number): void {
+  setEntityXY(sourceId: EntityId, x: number, y: number, z?: number): void {
     if (this.setUINodeXY_(sourceId, x, y)) return;
     const entity = this.model.entityBySource(sourceId);
     const pos = this.modelFieldValue(sourceId, 'Transform', 'position') as { z?: number } | undefined;
     if (pos === undefined && !entity) return;
     const parentRt = entity?.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
     const local = ViewportController.worldToParentLocalXY(parentRt, x, y);
-    this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, pos?.z ?? 0]);
+    this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, z ?? pos?.z ?? 0]);
   }
 
   /**

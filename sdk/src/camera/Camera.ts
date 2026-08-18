@@ -3,7 +3,7 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { screenToWorld, worldToScreen, createInvVPCache } from '../ui/util/math';
+import { screenToWorld, worldToScreen, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -39,6 +39,20 @@ export class CameraViewAPI {
         this.invVPCache.update(cam.viewProjection);
         const invVP = this.invVPCache.getInverse(cam.viewProjection);
         return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH, planeZ);
+    }
+
+    /**
+     * The world ray a screen point names — what `screenToWorld` intersects with
+     * the z plane. Callers that drag along an arbitrary plane (an editor moving
+     * along a world axis, a pick against the ground) need the ray itself: a
+     * z-keyed answer cannot express a plane that is not z-keyed.
+     */
+    screenRay(screenX: number, screenY: number): WorldRay | null {
+        const cam = this.cam();
+        if (!cam) return null;
+        this.invVPCache.update(cam.viewProjection);
+        const invVP = this.invVPCache.getInverse(cam.viewProjection);
+        return screenRay(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
     }
 
     /**

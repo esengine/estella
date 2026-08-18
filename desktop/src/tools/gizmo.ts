@@ -6,11 +6,12 @@
  *        axis constraint, group pivot. No engine / DOM coupling, so it unit-tests
  *        in isolation; transformTools.ts is the imperative shell that drives it.
  *
- * Coordinate model: the gizmo lives at a screen-space (CSS px) pivot. Its axes map
- * to world axes through the editor's ortho 2D camera, where world +X = screen +X
- * and world +Y = screen −Y (screen y is down). So hit-testing is done in client
- * space against fixed screen directions, while the actual transform (in the tool)
- * applies the world-space delta the cursor traveled, constrained to the axis.
+ * Coordinate model: the gizmo lives at a screen-space (CSS px) pivot, and every
+ * handle is built from ONE input — where the world axes point on screen for the
+ * current view ({@link ViewAxes}, read off the camera's own basis). A second copy
+ * of that basis is exactly how a gizmo comes to disagree with what is rendered,
+ * so no direction here is written down: {@link screenDir} projects a world
+ * direction, and the arrows and the rings are both made of it.
  */
 
 import { axisQuat, quatMul, type Quat } from '@/engine/viewportMath';
@@ -18,8 +19,54 @@ import { axisQuat, quatMul, type Quat } from '@/engine/viewportMath';
 export { axisQuat, quatMul, type Quat };
 
 export type GizmoMode = 'move' | 'rotate' | 'scale';
-/** Which world axes a handle drag affects. */
-export type GizmoAxis = 'x' | 'y' | 'xy';
+/** What a handle constrains motion to: one world axis, or the plane of two. */
+export type GizmoAxis = 'x' | 'y' | 'z' | 'xy' | 'yz' | 'zx';
+
+/** A direction in world space. */
+export interface Vec3 { x: number; y: number; z: number }
+
+/** Where each world axis points on screen — see `editorViewAxes`. */
+export interface ViewAxes {
+  x: { dx: number; dy: number };
+  y: { dx: number; dy: number };
+  z: { dx: number; dy: number };
+}
+
+/** The head-on 2D view: +X right, +Y up, Z straight at the eye. */
+export const HEAD_ON: ViewAxes = { x: { dx: 1, dy: 0 }, y: { dx: 0, dy: -1 }, z: { dx: 0, dy: 0 } };
+
+/**
+ * Where a world direction points on screen, in the view's own basis.
+ *
+ * The projection of a direction is linear in that basis, so every handle — an
+ * arrow, a ring's two spanning vectors, a local axis turned by the entity's own
+ * rotation — is this one function applied to a unit vector.
+ */
+export function screenDir(axes: ViewAxes, v: Vec3): Pt {
+  return {
+    x: v.x * axes.x.dx + v.y * axes.y.dx + v.z * axes.z.dx,
+    y: v.x * axes.x.dy + v.y * axes.y.dy + v.z * axes.z.dy,
+  };
+}
+
+/** The world axis a single-axis handle constrains to. */
+export const AXIS_VECTOR: Record<'x' | 'y' | 'z', Vec3> = {
+  x: { x: 1, y: 0, z: 0 },
+  y: { x: 0, y: 1, z: 0 },
+  z: { x: 0, y: 0, z: 1 },
+};
+
+/** The two world axes a plane handle spans, in right-handed order. */
+export const PLANE_AXES: Record<'xy' | 'yz' | 'zx', ['x' | 'y' | 'z', 'x' | 'y' | 'z']> = {
+  xy: ['x', 'y'],
+  yz: ['y', 'z'],
+  zx: ['z', 'x'],
+};
+
+/** Whether a handle names a plane rather than a single axis. */
+export function isPlaneAxis(axis: GizmoAxis): axis is 'xy' | 'yz' | 'zx' {
+  return axis.length === 2;
+}
 
 export interface GizmoHandle {
   id: string;
@@ -41,9 +88,43 @@ export const GIZMO = {
   hitTol: 7, // px tolerance for line / ring proximity
 } as const;
 
-// Screen-space unit directions of the world axes (ortho 2D camera): +X right, +Y up.
-const X_DIR: Pt = { x: 1, y: 0 };
-const Y_DIR: Pt = { x: 0, y: -1 };
+/**
+ * How short an axis may project and still be worth drawing or aiming at. Below it
+ * the arrow points at the eye — a dot, where a drag names no distance. It is also
+ * what leaves a head-on gizmo the two arrows it always had, world Z projecting to
+ * nothing there, the way {@link RING_MIN_DET} leaves it the single Z ring.
+ */
+const AXIS_MIN_PROJ = 0.12;
+
+/** One axis arrow, as it projects: the axis it constrains to, and where it points. */
+export interface AxisHandle {
+  axis: 'x' | 'y' | 'z';
+  dir: Pt;
+}
+
+/**
+ * The move/scale gizmo's arrows, from the same basis the rotate rings are built
+ * from. `rotation`, when given, turns the axes into the entity's own frame — local
+ * space is a rotation of the world axes, not an angle applied to the screen.
+ */
+export function axisHandles(axes: ViewAxes, rotation?: Quat): AxisHandle[] {
+  return (['x', 'y', 'z'] as const)
+    .map((axis) => ({
+      axis,
+      dir: screenDir(axes, rotation ? rotateVec(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis]),
+    }))
+    .filter((h) => Math.hypot(h.dir.x, h.dir.y) >= AXIS_MIN_PROJ);
+}
+
+/** A world direction turned by a quaternion — how a local axis reaches world space. */
+export function rotateVec(v: Vec3, q: Quat): Vec3 {
+  const t = { x: 2 * (q.y * v.z - q.z * v.y), y: 2 * (q.z * v.x - q.x * v.z), z: 2 * (q.x * v.y - q.y * v.x) };
+  return {
+    x: v.x + q.w * t.x + q.y * t.z - q.z * t.y,
+    y: v.y + q.w * t.y + q.z * t.x - q.x * t.z,
+    z: v.z + q.w * t.z + q.x * t.y - q.y * t.x,
+  };
+}
 
 /** Distance from point `p` to the segment a→b (used for axis-arrow hit zones). */
 export function distToSegment(p: Pt, a: Pt, b: Pt): number {
@@ -59,64 +140,83 @@ export function distToSegment(p: Pt, a: Pt, b: Pt): number {
 const within = (p: Pt, c: Pt, half: number): boolean => Math.abs(p.x - c.x) <= half && Math.abs(p.y - c.y) <= half;
 const along = (pivot: Pt, dir: Pt, d: number): Pt => ({ x: pivot.x + dir.x * d, y: pivot.y + dir.y * d });
 
-/** Rotate a screen-space direction by `a` radians (screen frame). */
-function rotDir(dir: Pt, a: number): Pt {
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  return { x: dir.x * c - dir.y * s, y: dir.x * s + dir.y * c };
-}
-
 /**
  * The handle under `cursor` for the active gizmo at `pivot` (all CSS px), or null.
- * Central handles (plane / uniform box / nothing) are tested before the axes so the
- * smaller, foreground targets win. `axisAngleRad` rotates the axis arrows to the
- * gizmo's on-screen orientation (0 = world-aligned; non-zero in local space, and it
- * must match the gizmo's render rotation so the handle you aim at is the one hit).
+ * The centre handle is tested before the axes so the smaller, foreground target
+ * wins. `rotation` puts the arrows in the entity's own frame (local space).
  */
-export function hitTestGizmo(mode: 'move' | 'scale', pivot: Pt, cursor: Pt, axisAngleRad = 0): GizmoHandle | null {
-  const xEnd = along(pivot, rotDir(X_DIR, axisAngleRad), GIZMO.axisLen);
-  const yEnd = along(pivot, rotDir(Y_DIR, axisAngleRad), GIZMO.axisLen);
-
-  if (mode === 'move') {
-    if (within(cursor, pivot, GIZMO.planeSize / 2)) return { id: 'move.xy', mode, axis: 'xy' };
-    if (distToSegment(cursor, pivot, xEnd) <= GIZMO.hitTol) return { id: 'move.x', mode, axis: 'x' };
-    if (distToSegment(cursor, pivot, yEnd) <= GIZMO.hitTol) return { id: 'move.y', mode, axis: 'y' };
-    return null;
+export function hitTestGizmo(
+  mode: 'move' | 'scale', axes: ViewAxes, pivot: Pt, cursor: Pt, rotation?: Quat,
+): GizmoHandle | null {
+  if (within(cursor, pivot, GIZMO.planeSize / 2)) {
+    const axis = faceOnPlane(axes);
+    return { id: `${mode}.${axis}`, mode, axis };
   }
-  if (mode === 'scale') {
-    if (within(cursor, pivot, GIZMO.planeSize / 2)) return { id: 'scale.xy', mode, axis: 'xy' };
-    if (within(cursor, xEnd, GIZMO.boxSize) || distToSegment(cursor, pivot, xEnd) <= GIZMO.hitTol)
-      return { id: 'scale.x', mode, axis: 'x' };
-    if (within(cursor, yEnd, GIZMO.boxSize) || distToSegment(cursor, pivot, yEnd) <= GIZMO.hitTol)
-      return { id: 'scale.y', mode, axis: 'y' };
-    return null;
+  for (const h of axisHandles(axes, rotation)) {
+    const end = along(pivot, h.dir, GIZMO.axisLen);
+    const onEnd = mode === 'scale' && within(cursor, end, GIZMO.boxSize);
+    if (onEnd || distToSegment(cursor, pivot, end) <= GIZMO.hitTol) {
+      return { id: `${mode}.${h.axis}`, mode, axis: h.axis };
+    }
   }
-  // rotate aims at rings, which need the view's axes — see hitTestRings.
   return null;
 }
 
-/** Constrain a world-space delta to a handle's axis (world-aligned axes). */
-export function constrainWorldDelta(axis: GizmoAxis, dx: number, dy: number): [number, number] {
-  if (axis === 'x') return [dx, 0];
-  if (axis === 'y') return [0, dy];
-  return [dx, dy];
+/**
+ * The world plane most facing the eye — what the centre square means. Head-on that
+ * is XY, which is the free-move handle a 2D gizmo has always had; turned, it is
+ * whichever plane the cursor can actually slide along without racing off to the
+ * horizon.
+ */
+export function faceOnPlane(axes: ViewAxes): 'xy' | 'yz' | 'zx' {
+  let best: 'xy' | 'yz' | 'zx' = 'xy';
+  let bestArea = -1;
+  for (const plane of ['xy', 'yz', 'zx'] as const) {
+    const [a, b] = PLANE_AXES[plane];
+    const u = axes[a];
+    const v = axes[b];
+    const area = Math.abs(u.dx * v.dy - u.dy * v.dx);
+    if (area > bestArea) { bestArea = area; best = plane; }
+  }
+  return best;
 }
 
 /**
- * Constrain a world-space delta to a handle's axis rotated into the object's local
- * frame by `angleRad` (the entity's world rotation, +Y up). The delta is projected
- * onto the local axis so a single-axis drag slides along the object's own X/Y.
- * `xy` is unconstrained. With `angleRad === 0` this equals {@link constrainWorldDelta}.
+ * The world plane a handle's drag is measured on. A plane handle IS one; an axis
+ * handle takes whichever of the two planes containing it the eye sees most of,
+ * because a plane seen edge-on turns a pixel of cursor travel into an unbounded
+ * world distance.
  */
-export function constrainLocalDelta(axis: GizmoAxis, dx: number, dy: number, angleRad: number): [number, number] {
-  if (axis === 'xy') return [dx, dy];
-  const c = Math.cos(angleRad);
-  const s = Math.sin(angleRad);
-  // Local X = (cosθ, sinθ); local Y = (−sinθ, cosθ) in world space (+Y up).
-  const ax = axis === 'x' ? c : -s;
-  const ay = axis === 'x' ? s : c;
-  const k = dx * ax + dy * ay; // project the delta onto the chosen local axis
-  return [k * ax, k * ay];
+export function dragPlane(axis: GizmoAxis, axes: ViewAxes): 'xy' | 'yz' | 'zx' {
+  if (isPlaneAxis(axis)) return axis;
+  const candidates = (['xy', 'yz', 'zx'] as const).filter((p) => PLANE_AXES[p].includes(axis));
+  let best = candidates[0]!;
+  let bestArea = -1;
+  for (const p of candidates) {
+    const [a, b] = PLANE_AXES[p];
+    const area = Math.abs(axes[a].dx * axes[b].dy - axes[a].dy * axes[b].dx);
+    if (area > bestArea) { bestArea = area; best = p; }
+  }
+  return best;
+}
+
+/** The world normal of a plane the gizmo names — the axis it does not span. */
+export function planeNormal(plane: 'xy' | 'yz' | 'zx'): Vec3 {
+  const spans = PLANE_AXES[plane];
+  const axis = (['x', 'y', 'z'] as const).find((a) => !spans.includes(a))!;
+  return AXIS_VECTOR[axis];
+}
+
+/**
+ * Constrain a world-space delta to what a handle allows: a plane handle keeps the
+ * delta (it was measured ON that plane), an axis handle projects onto that axis.
+ * `rotation` puts the axis in the entity's own frame — a local-space drag.
+ */
+export function constrainDelta(axis: GizmoAxis, delta: Vec3, rotation?: Quat): Vec3 {
+  if (isPlaneAxis(axis)) return delta;
+  const a = rotation ? rotateVec(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis];
+  const k = delta.x * a.x + delta.y * a.y + delta.z * a.z;
+  return { x: a.x * k, y: a.y * k, z: a.z * k };
 }
 
 /** What a pivot drag is measured against, snapshotted when the handle is grabbed.
@@ -209,15 +309,16 @@ const RING_MIN_DET = 0.12;
  * order (Y×Z = X, Z×X = Y, X×Y = Z) — so a drag from `u` toward `v` is a POSITIVE
  * turn about the axis, and the sign needs no separate table.
  */
-export function rotateRings(axes: {
-  x: { dx: number; dy: number }; y: { dx: number; dy: number }; z: { dx: number; dy: number };
-}): RotateRing[] {
-  const pt = (a: { dx: number; dy: number }): Pt => ({ x: a.dx, y: a.dy });
-  return ([
-    { axis: 'x', u: pt(axes.y), v: pt(axes.z) },
-    { axis: 'y', u: pt(axes.z), v: pt(axes.x) },
-    { axis: 'z', u: pt(axes.x), v: pt(axes.y) },
-  ] as const).filter((r) => Math.abs(r.u.x * r.v.y - r.u.y * r.v.x) >= RING_MIN_DET);
+export function rotateRings(axes: ViewAxes, rotation?: Quat): RotateRing[] {
+  const dir = (a: 'x' | 'y' | 'z'): Pt =>
+    screenDir(axes, rotation ? rotateVec(AXIS_VECTOR[a], rotation) : AXIS_VECTOR[a]);
+  return (['yz', 'zx', 'xy'] as const)
+    .map((plane) => {
+      const [a, b] = PLANE_AXES[plane];
+      const normal = (['x', 'y', 'z'] as const).find((n) => !PLANE_AXES[plane].includes(n))!;
+      return { axis: normal, u: dir(a), v: dir(b) };
+    })
+    .filter((r) => Math.abs(r.u.x * r.v.y - r.u.y * r.v.x) >= RING_MIN_DET);
 }
 
 /** A point on `ring` at parameter `t`, in screen offsets from the pivot. */

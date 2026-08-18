@@ -28,7 +28,13 @@ import {
   type Pt,
   GIZMO,
   hitTestGizmo,
-  constrainLocalDelta,
+  constrainDelta,
+  dragPlane,
+  planeNormal,
+  faceOnPlane,
+  HEAD_ON,
+  type Vec3,
+  type ViewAxes,
   groupPivot,
   rotateRings,
   ringAngleAt,
@@ -64,16 +70,14 @@ interface Drag {
   pivotWorld: Pt;
   pivotClient: Pt; // canvas-relative
   /**
-   * The world plane this drag happens on — the active target's z.
-   *
-   * A drag converts screen motion into world motion, and under a perspective
-   * view that conversion depends on depth: the same pixels are a larger world
-   * distance further away. Measuring on the 2D plane would make anything with a
-   * z drift away from the cursor. Orthographically the plane is irrelevant and
-   * this changes nothing.
+   * The world plane this drag is measured on: through the active target, with the
+   * normal the grabbed handle implies. Screen motion becomes world motion only on
+   * some plane, and along an axis that is not X or Y no z plane contains it.
+   * Head-on with an X or Y handle this is the z plane the drag always used.
    */
-  planeZ: number;
-  downWorld: Pt;
+  planePoint: Vec3;
+  planeNormal: Vec3;
+  downWorld: Vec3;
   /** Where the press landed, in window-client px — what the slop is measured from. */
   downClient: Pt;
   /** rotate: where the press landed — the ring's own parameter, or the screen
@@ -82,8 +86,8 @@ interface Drag {
   /** rotate: which ring was grabbed. Absent = the 2D screen-angle drag. */
   ring: RotateRing | null;
   startDist: number; // scale: cursor screen-distance from the pivot
-  /** Local-frame angle (world radians) for axis-constrained move; 0 = world axes. */
-  angleRad: number;
+  /** The entity's world rotation for a local-space drag; absent = world axes. */
+  localRotation?: Quat;
   targets: Target[];
   /**
    * Whether this drag may write yet.
@@ -243,10 +247,11 @@ function primaryOf(ids: readonly EntityId[]): EntityId | null {
 
 /** The active entity's world rotation in radians (drives the local-axis frame —
  *  the on-screen orientation is the parent-composed rotation, not the local one). */
-function primaryRotationRad(ids: readonly EntityId[]): number {
+/** The primary's world rotation — what a local-space handle turns the axes by. */
+function primaryRotationQuat(ids: readonly EntityId[]): Quat | undefined {
   const id = primaryOf(ids);
   const rt = id != null ? SceneModel.runtimeFor(id) : null;
-  return rt != null ? ViewportController.getEntityWorldAngleRad(rt) : 0;
+  return rt != null ? ViewportController.getEntityWorldQuat(rt) : undefined;
 }
 
 /**
@@ -268,12 +273,13 @@ export function selectionPivot(ids: readonly EntityId[]): Pt | null {
   return pivotOf(editable);
 }
 
-/** The gizmo's on-screen rotation (radians): the negated active rotation in local
- *  space (screen y is down), else 0. Shared with the viewport's gizmo render. */
-export function gizmoScreenAngleRad(ids: readonly EntityId[]): number {
+/** The frame the gizmo's handles stand in: the active entity's world rotation in
+ *  local space, else undefined for the world axes. Shared with the viewport's
+ *  render, so the handles it draws are the handles this aims through. */
+export function gizmoFrame(ids: readonly EntityId[]): Quat | undefined {
   return useEditorStore.getState().coordSpace === 'local'
-    ? -primaryRotationRad(transformableIds(ids))
-    : 0;
+    ? primaryRotationQuat(transformableIds(ids))
+    : undefined;
 }
 
 /**
@@ -309,17 +315,20 @@ function beginDrag(
   pivotClient: Pt,
   p: PointerInput,
   cur: Pt,
-  angleRad = 0,
+  axes: ViewAxes,
+  localRotation: Quat | undefined = undefined,
   armed = true,
   ring: RotateRing | null = null,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
-  // The active target is the one the gizmo sits on, so it is the plane the user
-  // is reaching for; a mixed-depth selection still moves rigidly with it.
-  const planeZ = targets.length
+  // The active target is the one the gizmo sits on, so its position is the point
+  // the plane passes through; a mixed-depth selection still moves rigidly with it.
+  const planePoint = { x: pivotWorld.x, y: pivotWorld.y, z: targets.length
     ? ViewportController.entityPlaneZ(targets[targets.length - 1].sourceId)
-    : 0;
-  const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY, planeZ) ?? { x: 0, y: 0 };
+    : 0 };
+  const normal = planeNormal(dragPlane(axis, axes));
+  const downWorld = ViewportController.canvasToWorldOnPlane(
+    p.clientX, p.clientY, planePoint, normal) ?? { x: 0, y: 0, z: planePoint.z };
   // Freeze React panel re-renders (Details/Outliner) for the drag — the model
   // mutates every frame while the viewport stays live via the Reconciler. Resumed
   // on commit (onPointerUp) or abort (cancel), flushing one final bump.
@@ -330,7 +339,8 @@ function beginDrag(
     axis,
     pivotWorld,
     pivotClient,
-    planeZ,
+    planePoint,
+    planeNormal: normal,
     downWorld,
     downClient: { x: p.clientX, y: p.clientY },
     ring,
@@ -343,27 +353,36 @@ function beginDrag(
     // this (not a ratio), so it needs no floor and can't blow up when you grab near
     // the pivot (the center box / an entity's body).
     startDist: Math.hypot(cur.x - pivotClient.x, cur.y - pivotClient.y),
-    angleRad,
+    localRotation,
     targets,
     armed,
   };
 }
 
-function applyMove(d: Drag, curWorld: Pt): void {
-  let dx = curWorld.x - d.downWorld.x;
-  let dy = curWorld.y - d.downWorld.y;
-  // angleRad is 0 for world axes (→ identical to constrainWorldDelta) and the
-  // entity's rotation for local axes, so the drag slides along the object's own X/Y.
-  [dx, dy] = constrainLocalDelta(d.axis, dx, dy, d.angleRad);
+function applyMove(d: Drag, curWorld: Vec3): void {
+  // The delta was measured ON the handle's plane, so constraining it is a
+  // projection onto the axis — for a plane handle there is nothing left to do.
+  const delta = constrainDelta(d.axis, {
+    x: curWorld.x - d.downWorld.x,
+    y: curWorld.y - d.downWorld.y,
+    z: curWorld.z - d.downWorld.z,
+  }, d.localRotation);
+  let { x: dx, y: dy, z: dz } = delta;
   const ed = useEditorStore.getState();
   if (ed.snapping && d.targets.length) {
     // Snap the primary's resulting position to the grid, apply that delta to all,
-    // so the group keeps its relative layout.
+    // so the group keeps its relative layout. An axis the handle does not move
+    // has a zero delta, and snapping it would drag the whole group onto the grid.
     const p0 = d.targets[0].start;
-    if (d.axis !== 'y') dx = snapTo(p0.x + dx, ed.snapStep) - p0.x;
-    if (d.axis !== 'x') dy = snapTo(p0.y + dy, ed.snapStep) - p0.y;
+    if (dx !== 0) dx = snapTo(p0.x + dx, ed.snapStep) - p0.x;
+    if (dy !== 0) dy = snapTo(p0.y + dy, ed.snapStep) - p0.y;
+    if (dz !== 0) dz = snapTo(p0.z + dz, ed.snapStep) - p0.z;
   }
-  for (const t of d.targets) SceneCommands.setEntityXY(t.sourceId, t.start.x + dx, t.start.y + dy);
+  // Through the one door a viewport move goes through: it routes a UINode to its
+  // layout, and re-expresses a parented entity's world target in its parent's frame.
+  for (const t of d.targets) {
+    SceneCommands.setEntityXY(t.sourceId, t.start.x + dx, t.start.y + dy, t.start.z + dz);
+  }
 }
 
 function applyRotate(d: Drag, cur: Pt): void {
@@ -499,16 +518,17 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         const pivotWorld = selectionPivot(ids);
         const pc = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
         if (pivotWorld && pc) {
-          const localAngle = ed.coordSpace === 'local' ? primaryRotationRad(ids) : 0;
-          // Rotate aims at rings, which are where the world axes actually project;
-          // a head-on view leaves only the Z one, so a 2D aim is unchanged.
-          const axes = ViewportController.viewAxes();
-          const ring = mode === 'rotate' && axes ? hitTestRings(rotateRings(axes), pc, cur) : null;
+          // Aimed through the SAME basis the handles are drawn from, so the arrow
+          // you grab is the axis that moves. Head-on, world Z projects to nothing —
+          // which is what leaves a 2D gizmo its two arrows and single ring.
+          const axes = ViewportController.viewAxes() ?? HEAD_ON;
+          const localRotation = ed.coordSpace === 'local' ? primaryRotationQuat(ids) : undefined;
+          const ring = mode === 'rotate' ? hitTestRings(rotateRings(axes), pc, cur) : null;
           const handle = mode === 'rotate'
-            ? (ring && { id: `rotate.${ring.axis}`, mode, axis: (ring.axis === 'z' ? 'xy' : ring.axis) as GizmoAxis })
-            : hitTestGizmo(mode as 'move' | 'scale', pc, cur, -localAngle);
+            ? (ring && { id: `rotate.${ring.axis}`, mode, axis: ring.axis as GizmoAxis })
+            : hitTestGizmo(mode as 'move' | 'scale', axes, pc, cur, localRotation);
           if (handle) {
-            drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, localAngle, true, ring);
+            drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, axes, localRotation, true, ring);
             ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
             // Alt-duplicate rides the handle too, now that the body no longer
             // transforms — otherwise Alt+drag would have nowhere to happen in the
@@ -559,7 +579,10 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         altPending = p.alt ? ids : null;
         if (!targets.length || !pivotWorld) return false;
         const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) ?? cur;
-        drag = beginDrag(kind, 'xy', targets, pivotWorld, pc, p, cur, 0, false);
+        // Dragging the body itself slides it on the plane facing the eye, which
+        // head-on is the XY plane this always used.
+        const bodyAxes = ViewportController.viewAxes() ?? HEAD_ON;
+        drag = beginDrag(kind, faceOnPlane(bodyAxes), targets, pivotWorld, pc, p, cur, bodyAxes, undefined, false);
         ctx.capture(p.pointerId);
         return true;
       }
@@ -601,7 +624,8 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           ? { x: p.clientX - origin.left, y: p.clientY - origin.top }
           : { x: p.clientX, y: p.clientY };
         if (drag.kind === 'move') {
-          const w = ViewportController.canvasToWorld(p.clientX, p.clientY, drag.planeZ);
+          const w = ViewportController.canvasToWorldOnPlane(
+            p.clientX, p.clientY, drag.planePoint, drag.planeNormal);
           if (w) applyMove(drag, w);
         } else if (drag.kind === 'rotate') {
           applyRotate(drag, cur);

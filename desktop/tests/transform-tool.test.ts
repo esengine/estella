@@ -23,14 +23,19 @@ vi.mock('@/engine/EngineHost', () => ({
 vi.mock('@/engine/ViewportController', () => ({
   ViewportController: {
     canvasToWorld: (x: number, y: number) => ({ x, y }), // identity: world == client px
-    // Head-on: the rings the rotate tool aims at reduce to the single Z one.
+    // Head-on: the rings the rotate tool aims at reduce to the single Z one, and
+    // the arrows to X and Y — world Z projects to nothing.
     viewAxes: () => ({ x: { dx: 1, dy: 0, depth: 0 }, y: { dx: 0, dy: -1, depth: 0 }, z: { dx: 0, dy: 0, depth: 1 } }),
     // Flat scene: every plane is z = 0, which is what the orthographic editor
     // answers anyway — the drag plane must not change these expectations.
     entityPlaneZ: () => 0,
+    // The identity above, on the plane the handle chose: head-on that is the z
+    // plane, so a drag reads the same world units it always did.
+    canvasToWorldOnPlane: (x: number, y: number) => ({ x, y, z: 0 }),
     worldToClient: (x: number, y: number) => ({ x, y }),
     getEntityWorldXY: (rt: number) => h.pos.get(rt) ?? { x: 0, y: 0 },
     getEntityWorldAngleRad: () => 0,
+    getEntityWorldQuat: () => ({ x: 0, y: 0, z: 0, w: 1 }),
     pickEntity: () => h.pick.entity,
     pickEntitiesAt: () => (h.pick.stack ?? (h.pick.entity != null ? [h.pick.entity] : [])),
     pickInRect: () => h.pick.rect,
