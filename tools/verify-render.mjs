@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
+import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -73,6 +74,7 @@ const scenes = selected.map((s) => ({
     }
     : s.env,
 }));
+requireCurrentEngine(ROOT, path.join(DESKTOP, 'public', 'wasm'));
 console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`);
 
 if (!NO_BUILD) {

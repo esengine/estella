@@ -23,6 +23,7 @@ import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeA
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
+import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -45,6 +46,7 @@ const LAUNCHER = (target) => (target === 'wechat' ? 'launch-minigame.mjs' : 'lau
 const COMPARABLE = OWNED;
 
 const DESKTOP = path.join(ROOT, 'desktop');
+requireCurrentEngine(ROOT, path.join(DESKTOP, 'public', 'wasm'));
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
