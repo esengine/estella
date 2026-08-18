@@ -21,13 +21,37 @@ export interface WebGPUBootResult {
     device: unknown | null;
     /** Why WebGPU was not used, for a host that wants to say so. */
     reason?: string;
+    /**
+     * Which adapter served the device. An unrecognized `--use-webgpu-adapter` is
+     * ignored in silence, so this is the only thing that says whether hardware or
+     * a software rasterizer drew the frame.
+     */
+    adapter?: string;
+}
+
+interface AdapterInfo {
+    vendor?: string;
+    architecture?: string;
+    device?: string;
+    description?: string;
 }
 
 interface GpuLike {
     requestAdapter(): Promise<{
         features?: { has(name: string): boolean };
+        info?: AdapterInfo;
+        isFallbackAdapter?: boolean;
         requestDevice(descriptor?: { requiredFeatures?: string[] }): Promise<unknown>;
     } | null>;
+}
+
+function describeAdapter(adapter: {
+    info?: AdapterInfo; isFallbackAdapter?: boolean;
+}): string {
+    const info = adapter.info ?? {};
+    const named = [info.vendor, info.architecture, info.device].filter(Boolean).join(' ');
+    const kind = adapter.isFallbackAdapter ? 'fallback' : 'default';
+    return `${named || info.description || 'unnamed adapter'} (${kind})`;
 }
 
 const gpuOf = (): GpuLike | undefined =>
@@ -63,7 +87,7 @@ export async function acquireWebGPUDevice(
                     onError(`[webgpu] uncaptured error: ${msg ?? String(e)}`);
                 });
         }
-        return { device };
+        return { device, adapter: describeAdapter(adapter) };
     } catch (e) {
         return { device: null, reason: `WebGPU device request failed: ${String(e)}` };
     }

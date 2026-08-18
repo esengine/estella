@@ -171,7 +171,9 @@ app.whenReady().then(async () => {
       webPreferences: { offscreen: false },
     });
     onRendererConsole(win.webContents, (msg) => {
-      if (/error|fail|unwind|exception|webgl|recovery|placeholder/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
+      // `webgpu` spelled out: "webgl" does not match it, so the second backend's
+      // boot — including which adapter served it — was the one thing never shown.
+      if (/error|fail|unwind|exception|webgl|webgpu|adapter|recovery|placeholder/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
     });
     await win.loadURL(url);
 

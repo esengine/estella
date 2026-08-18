@@ -608,6 +608,7 @@ class EngineHostImpl {
       // it in silence, which reads as a black pass with nothing wrong.
       const gpu = await acquireWebGPUDevice('webgpu', (m) => console.error(m));
       if (!gpu.device) throw new Error(`WebGPU is not available: ${gpu.reason}`);
+      console.info(`[engine] webgpu adapter: ${gpu.adapter ?? 'unreported'}`);
       moduleArg.preinitializedWebGPUDevice = gpu.device;
       // The swapchain glue resolves the canvas by document.querySelector, so
       // it must be connected (the headless host never attaches it to a view).

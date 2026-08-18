@@ -8942,6 +8942,7 @@ features: { has(name: string): boolean; } | undefined
 
 ## WebGPUBootResult — interface @experimental
 ```
+adapter: string | undefined
 device: unknown
 reason: string | undefined
 ```

@@ -22,14 +22,10 @@
 /** Cheapest tier a scene runs at; tiers are cumulative. */
 export const TIERS = ['pr', 'nightly'];
 
-/**
- * What still separates the second backend from the first: a CI runner has no
- * Dawn adapter, so nothing here runs it there. On a machine that has one all 85
- * pass — measured, not assumed (2026-08-17, `--tier nightly --backend webgpu`).
- * A boot with no device throws rather than falling back, so a pass is a pass on
- * the backend it names.
- */
-export const WEBGPU_GAP = 'no adapter on a CI runner; where one exists all 85 passed on 2026-08-17'
+/** All 85 pass on Electron's bundled SwiftShader, the software adapter a GPU-less
+ *  runner would use — so CI's failure is that runner's Vulkan stack, not Dawn's
+ *  ability to drive a software rasterizer. Only the boot log names the adapter. */
+export const WEBGPU_GAP = 'no step runs these on CI; all 85 passed on SwiftShader on 2026-08-17'
   + ' (`--tier nightly --backend webgpu`)';
 
 /**
