@@ -78,6 +78,10 @@ desktop/.hotupdate-verify/
 # provenance: build-tools/shader-twins/README.md.
 !build-tools/shader-twins/naga-spv2wgsl.wasm
 !build-tools/shader-twins/glslang-compile.wasm
+# Exception: the vendored FBX reader is committed so importing an .fbx needs no
+# emsdk and no FBX SDK. Source: tools/ufbx-wasm (third_party/ufbx);
+# provenance: build-tools/ufbx/README.md.
+!build-tools/ufbx/ufbx-load.wasm
 
 # emsdk discovery cache (per-machine path written by build-tools auto-discovery)
 .emsdk-path
