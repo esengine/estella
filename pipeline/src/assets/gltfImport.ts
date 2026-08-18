@@ -11,7 +11,7 @@
  *        the cook then ships them as the engine format they already are.
  */
 /// <reference path="./draco3dgltf.d.ts" />
-import { MeshChannel, MeshChannelType, packChannels } from 'esengine';
+import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import {
     ANIMATED_PATHS, alignQuaternionSigns, animationProductName, disambiguateNodes,
@@ -903,10 +903,17 @@ export async function importGltfMeshes(
                 // no bone to apply. A skin is what says which bind pose they mean.
                 const skinIndex = meshSkin.get(meshIndex);
                 const skin = skinIndex !== undefined ? json.skins?.[skinIndex] : undefined;
-                const joints = skin ? attribute('JOINTS_0', prim.attributes.JOINTS_0) : null;
-                const weights = skin ? attribute('WEIGHTS_0', prim.attributes.WEIGHTS_0) : null;
+                // Joints past the pose block index a matrix nothing uploads, so
+                // those vertices land somewhere arbitrary. Static is the honest
+                // read, and the one JOINTS_0-without-WEIGHTS_0 already takes.
+                const overBudget = (skin?.joints?.length ?? 0) > MESH_MAX_BONES;
+                const joints = skin && !overBudget ? attribute('JOINTS_0', prim.attributes.JOINTS_0) : null;
+                const weights = skin && !overBudget ? attribute('WEIGHTS_0', prim.attributes.WEIGHTS_0) : null;
                 const skinned = !!(skin?.joints?.length && joints && weights);
-                if (prim.attributes.JOINTS_0 !== undefined && !skinned) {
+                if (overBudget) {
+                    warnings.push(`${label}: the skin binds ${skin!.joints.length} joints and one`
+                        + ` draw can be posed by ${MESH_MAX_BONES} — imported static`);
+                } else if (prim.attributes.JOINTS_0 !== undefined && !skinned) {
                     warnings.push(`${label}: JOINTS_0 without ${!skin?.joints?.length
                         ? 'a skin naming joints on any node drawing it' : 'WEIGHTS_0'}`
                         + ' — imported static');

@@ -39,6 +39,7 @@ private:
     u32 meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped,
                     bool skinned, bool depthOnly = false, bool envMapped = false);
     bool warned_material_ = false;  ///< A material on resident geometry is said once.
+    bool warned_bones_ = false;     ///< A skin over the pose budget is said once.
 };
 
 }  // namespace esengine

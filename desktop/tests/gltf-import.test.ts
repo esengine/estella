@@ -13,7 +13,7 @@ import {
   assembleModelPrefab, materialProducts,
   type ImportedMesh, type PrefabAssembly, type ProductRefs,
 } from '../../pipeline/src/assets/modelImport';
-import { BlendMode, CullMode, MeshChannel } from 'esengine';
+import { BlendMode, CullMode, MESH_MAX_BONES, MeshChannel } from 'esengine';
 import { plainTriangle, meshoptTriangle, dracoTriangle } from '../scripts/lib/gltfFixtures.mjs';
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -682,7 +682,9 @@ describe('glTF animation import', () => {
  * The triangle bound to two joints. Accessors 3/4 are JOINTS_0 (u16) and
  * WEIGHTS_0; 5 is the skin's inverse bind matrices unless the caller drops it.
  */
-function skinnedGltf(opts: { noBindMatrices?: boolean; skinOnNode?: boolean; weights?: boolean } = {}): Uint8Array {
+function skinnedGltf(opts: {
+  noBindMatrices?: boolean; skinOnNode?: boolean; weights?: boolean; extraJoints?: number;
+} = {}): Uint8Array {
   const geo = geometryBuffer();
   const geoBytes = Buffer.from(geo.uri.split(',')[1]!, 'base64');
   const pad = Buffer.alloc((4 - (geoBytes.length % 4)) % 4);
@@ -703,6 +705,7 @@ function skinnedGltf(opts: { noBindMatrices?: boolean; skinOnNode?: boolean; wei
     at += p.length;
   }
 
+  const extra = Array.from({ length: opts.extraJoints ?? 0 });
   const doc: Record<string, unknown> = {
     asset: { version: '2.0' },
     buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
@@ -724,16 +727,19 @@ function skinnedGltf(opts: { noBindMatrices?: boolean; skinOnNode?: boolean; wei
       }],
     }],
     nodes: [
-      { name: 'Rig', children: [1, 2, 3] },
+      { name: 'Rig', children: [1, 2, 3, ...extra.map((_, i) => 4 + i)] },
       { name: 'Hip' },
       { name: 'Knee', translation: [30, 0, 0] },
       { name: 'Body', mesh: 0, ...(opts.skinOnNode === false ? {} : { skin: 0 }) },
+      ...extra.map((_, i) => ({ name: `Spare${i}` })),
     ],
     scenes: [{ nodes: [0] }],
     scene: 0,
     skins: [{
-      joints: [1, 2],
-      ...(opts.noBindMatrices ? {} : { inverseBindMatrices: 5 }),
+      joints: [1, 2, ...extra.map((_, i) => 4 + i)],
+      // A longer joint list than the accessor has matrices for is its own
+      // (already covered) warning, so drop the accessor when the list grows.
+      ...(opts.noBindMatrices || extra.length > 0 ? {} : { inverseBindMatrices: 5 }),
     }],
   };
   return new TextEncoder().encode(JSON.stringify(doc));
@@ -774,6 +780,29 @@ describe('glTF skinning import', () => {
       expect(meshes[0]!.skinJoints).toBeUndefined();
       expect(warnings.some((w) => /JOINTS_0 without/.test(w))).toBe(true);
     }
+  });
+
+  it('imports static, and says the budget, when a skin binds more joints than a draw can pose', async () => {
+    // The joint indices in the vertices index the SKIN's list, so a list longer
+    // than the pose block means indices no uploaded matrix answers to. Drawn
+    // wrong, the vertices go somewhere arbitrary; this is the file saying so.
+    const over = MESH_MAX_BONES + 1;
+    const { meshes, warnings } = await importGltfMeshes(
+      skinnedGltf({ extraJoints: over - 2 }), 'rig');
+    expect(meshes[0]!.data.channels.some((c) => c.semantic === MeshChannel.Joints)).toBe(false);
+    expect(meshes[0]!.data.inverseBindMatrices).toBeUndefined();
+    expect(meshes[0]!.skinJoints).toBeUndefined();
+    expect(warnings.some((w) => w.includes(`binds ${over} joints`)
+      && w.includes(`${MESH_MAX_BONES}`) && /imported static/.test(w))).toBe(true);
+  });
+
+  it('poses a skin that fills the budget exactly', async () => {
+    // The boundary itself, so the check cannot be an off-by-one that quietly
+    // costs a rig its last bone.
+    const { meshes, warnings } = await importGltfMeshes(
+      skinnedGltf({ extraJoints: MESH_MAX_BONES - 2 }), 'rig');
+    expect(meshes[0]!.skinJoints).toHaveLength(MESH_MAX_BONES);
+    expect(warnings.some((w) => /imported static/.test(w))).toBe(false);
   });
 
   it('names the joint entities the prefab gives those nodes', async () => {

@@ -125,6 +125,18 @@ enum class MeshChannel : u8 {
     Weights   = 6,
 };
 
+/**
+ * @brief How a channel's components are stored, as the file spells it.
+ * @details The asset layer's vocabulary rather than the device's: these are the
+ *          codes written into a .esmesh, and one of them (UInt16) exists because
+ *          a joint index is neither a float nor a byte. Append only — serialized.
+ */
+enum class MeshChannelType : u8 {
+    Float32 = 0,
+    UNorm8  = 1,
+    UInt16  = 2,
+};
+
 // =============================================================================
 // Data Type (vertex attributes, index type, pixel data type)
 // =============================================================================

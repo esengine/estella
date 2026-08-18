@@ -39,6 +39,25 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A rig too big to pose says so, instead of coming apart.** A draw is posed by
+  a uniform block of 64 bone matrices; a skin binding more joints than that had
+  its extra ones indexing a matrix nobody uploaded, and the vertices they move
+  went somewhere arbitrary. Nothing said a word — not the importer, which wrote
+  the joint channel whatever the count, and not the renderer, which posed the
+  first 64 and drew the rest wrong. A rig with fingers passes 64 easily.
+
+  Both importers now read an over-budget skin the way they already read
+  `JOINTS_0` with no weights: **imported static, and it says why and by how
+  much**. The renderer takes the same answer for a file it did not write — the
+  bind pose, once, in the log — because a joint index answered by no uploaded
+  matrix is the wrong-matrix read it already refuses elsewhere.
+
+  `MESH_MAX_BONES` is now one number both halves read, alongside the channel
+  vocabulary they already shared by hand: `MeshChannelType` is a real enum on
+  the C++ side rather than a switch with a comment, and `check-mesh-vocabulary`
+  holds the eleven values together — a `.esmesh` cannot be written with one
+  meaning and drawn with another.
+
 - **The 3D view button turns the eye.** It swapped the editor camera's projection
   and nothing else, and swapping projection is invisible: looked at head-on, a
   perspective picture of the z = 0 plane is the orthographic one, pixel for pixel.

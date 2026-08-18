@@ -13,7 +13,7 @@
  * arrays — rather than a heap this side would walk. @ref tools/ufbx-wasm/bridge.c
  * is the other half of that contract.
  */
-import { MeshChannel, MeshChannelType, packChannels } from 'esengine';
+import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels } from 'esengine';
 import {
     alignQuaternionSigns, animationProductName, ANIMATED_PATHS, disambiguateNodes,
     nodeChildPaths, nodeNameFor, samplerKeyframes, timelineDocument,
@@ -396,7 +396,7 @@ function buildNodes(scene: FbxScene, meshIndexOf: Map<string, number[]>): Import
 
 /** One material run of one FBX mesh as the `.esmesh` payload it becomes. */
 function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
-                   material: ImportedMaterial | undefined): ImportedMesh {
+                   material: ImportedMaterial | undefined, warnings: string[]): ImportedMesh {
     const positions = floats(payload, part.positions);
     const normals = part.normals ? floats(payload, part.normals) : null;
     const uvs = part.uvs ? floats(payload, part.uvs) : null;
@@ -405,7 +405,15 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
     const weights = part.weights ? floats(payload, part.weights) : null;
     const indices = uints(payload, part.indices);
     const vertexCount = part.vertexCount;
-    const skinned = !!(joints && weights && part.skinJoints?.length);
+    // A pose the renderer cannot hold is not a pose — see the same read in the
+    // glTF importer. Static, and it says why, rather than joints indexing a
+    // matrix that was never uploaded.
+    const bones = part.skinJoints?.length ?? 0;
+    if (bones > MESH_MAX_BONES) {
+        warnings.push(`${name}: the skin binds ${bones} joints and one draw can be posed by`
+            + ` ${MESH_MAX_BONES} — imported static`);
+    }
+    const skinned = !!(joints && weights && bones > 0 && bones <= MESH_MAX_BONES);
 
     const { channels, vertexStride } = packChannels([
         { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
@@ -566,7 +574,7 @@ export async function importFbxMeshes(bytes: Uint8Array, stem: string,
         // so the product falls back to the source's own stem the way a glTF's
         // single primitive does.
         const name = single ? stem : `${stem}_${part.mesh}_${part.part}`;
-        return buildMesh(part, name, payload, materialFor(part.material));
+        return buildMesh(part, name, payload, materialFor(part.material), warnings);
     });
 
     if (meshes.length === 0 && warnings.length === 0) {

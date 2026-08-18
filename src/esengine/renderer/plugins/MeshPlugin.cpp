@@ -42,11 +42,22 @@ u32 mulColor(u32 a, u32 b) {
  * the vertex somewhere arbitrary.
  */
 u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
-             std::vector<glm::mat4>& out) {
+             std::vector<glm::mat4>& out, bool& warnedBones) {
     if (!mesh.isSkinned()) return 0;
     const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
     if (!skin || skin->joints.size() != mesh.inverseBind.size()) return 0;
-    const u32 count = static_cast<u32>(std::min<usize>(skin->joints.size(), MESH_MAX_BONES));
+    // Posing the first MESH_MAX_BONES leaves the rest indexing a matrix this
+    // draw never uploads — the wrong-matrix read the count check above already
+    // rejects, so it takes the same answer. For files no importer here wrote.
+    if (skin->joints.size() > MESH_MAX_BONES) {
+        if (!warnedBones) {
+            warnedBones = true;
+            ES_LOG_WARN("MeshSkin: {} joints exceeds the {} one draw can be posed by; drawing the"
+                        " bind pose", skin->joints.size(), MESH_MAX_BONES);
+        }
+        return 0;
+    }
+    const u32 count = static_cast<u32>(skin->joints.size());
 
     out.resize(count);
     for (u32 i = 0; i < count; ++i) {
@@ -262,7 +273,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // The pose, when this entity says what moves it. The bones are
             // world-space, so the entity's own transform is not read — which is
             // what glTF requires of a skinned mesh.
-            const u32 poseSize = skinPose(registry, entity, *resident, pose_scratch_);
+            const u32 poseSize = skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
             const bool skinned = poseSize > 0;
 
             // `lit` is the draw's own word and is honoured either way: geometry

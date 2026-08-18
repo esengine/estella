@@ -286,13 +286,13 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
         }
     }
 
-    // The file's channel TYPE code (0 float, 1 unorm8, 2 uint16), in the asset
-    // layer's vocabulary — the boundary the format crosses as bytes.
+    // The file's channel type, which is the asset layer's vocabulary, into the
+    // device's — the boundary the format crosses as bytes.
     auto channelType = [](u8 code) {
-        switch (code) {
-        case 1:  return GfxDataType::UnsignedByte;
-        case 2:  return GfxDataType::UnsignedShort;
-        default: return GfxDataType::Float;
+        switch (static_cast<MeshChannelType>(code)) {
+        case MeshChannelType::UNorm8: return GfxDataType::UnsignedByte;
+        case MeshChannelType::UInt16: return GfxDataType::UnsignedShort;
+        default:                      return GfxDataType::Float;
         }
     };
 

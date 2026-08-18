@@ -114,8 +114,8 @@ export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStat
  * @beta
  */
 export {
-    MeshChannel, MeshChannelType, packChannels, encodeMesh, decodeMesh, encodeChannelTable,
-    type MeshChannelDesc, type MeshData,
+    MeshChannel, MeshChannelType, MESH_MAX_BONES, packChannels, encodeMesh, decodeMesh,
+    encodeChannelTable, type MeshChannelDesc, type MeshData,
 } from './asset/meshFormat';
 export type { MeshResult } from './asset/loaders/MeshAssetLoader';
 /**
