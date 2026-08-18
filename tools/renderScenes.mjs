@@ -24,10 +24,13 @@ export const TIERS = ['pr', 'nightly'];
 
 /**
  * What still separates the second backend from the first: a CI runner has no
- * Dawn adapter, so nothing here runs it. Where an adapter exists every scene
- * passes — both backends read the frame the same way, off the engine's buffer.
+ * Dawn adapter, so nothing here runs it there. On a machine that has one all 85
+ * pass — measured, not assumed (2026-08-17, `--tier nightly --backend webgpu`).
+ * A boot with no device throws rather than falling back, so a pass is a pass on
+ * the backend it names.
  */
-export const WEBGPU_GAP = 'no adapter on a CI runner; with one they all pass (`--backend webgpu`)';
+export const WEBGPU_GAP = 'no adapter on a CI runner; where one exists all 85 passed on 2026-08-17'
+  + ' (`--tier nightly --backend webgpu`)';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
