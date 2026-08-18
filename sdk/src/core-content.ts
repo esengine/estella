@@ -118,6 +118,16 @@ export {
     type MeshChannelDesc, type MeshData,
 } from './asset/meshFormat';
 export type { MeshResult } from './asset/loaders/MeshAssetLoader';
+/**
+ * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's
+ * pickers and Create menu are built from this list. `@beta`.
+ *
+ * @beta
+ */
+export {
+    BUILTIN_MESH_TEMPLATES, builtinMeshTemplate, isBuiltinMeshRef,
+    type BuiltinMeshTemplate,
+} from './asset/builtinMeshes';
 export { createCanvasTexture, type CanvasTexture } from './asset/canvasTexture';
 export type { GlImageSource } from './asset/glTextureUpload';
 

@@ -16,6 +16,30 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Geometry you can make without a modelling package.** The engine drew meshes
+  and loaded exactly one way to get one: import a glTF or an FBX. There was no cube.
+  `examples/physics-3d` is the evidence — a scene of stacked crates, stairs and a
+  swinging door with **not one mesh in it**, showing its own collision wireframe,
+  because putting a box on screen meant leaving the editor to go author one.
+
+  Seven primitives now answer to a `builtin:` mesh ref — cube, sphere, capsule,
+  cylinder, cone, plane, quad — each built in code at load time. **Create → Cube**
+  makes one, and the same seven head the picker on any `Mesh2D.mesh` field. They
+  cost no bytes in a package and add no dependency to a scene that uses one; a
+  capsule is the shape `CapsuleCollider3D` describes, and all seven are the size a
+  new `ShapeRenderer` is, so one is visible where it lands.
+
+  Closed shapes are created opaque and back-face culled, which is what lets meshes
+  occlude each other; `plane` and `quad` stay two-sided. **Create → Sun** joins
+  them: `Create → Light` gives a Point light at the entity's position, which lights
+  a mesh from inside it, and nothing in the picker offered the directional key light
+  shaded geometry actually wants.
+
+  `builtin:` was already the way a material names a stock shader and a tilemap layer
+  names the collision palette, spelled out separately in four places. It is now one
+  predicate the ref resolver, the loaders and the cook share — a built-in ref names
+  code, so it has to be recognized *before* anything tries to turn it into a path.
+
 - **A sun can be aimed out of the plane.** A directional light's aim had two
   components and a third the shader supplied as a constant, so every scene the
   engine could express was lit from in front: the sun's elevation followed from

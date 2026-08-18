@@ -148,6 +148,38 @@ describe('assets named only inside another document are cooked', () => {
     expect(res.warnings.filter((w) => /does not carry/.test(w))).toEqual([]);
   });
 
+  // The mirror image: a `builtin:` ref names code, so the package is right not to
+  // carry it. It has to reach the runtime spelled as authored — rewritten toward a
+  // path, it would resolve to a file nothing ever staged.
+  it('leaves a built-in mesh ref alone rather than calling it dangling', async () => {
+    const lone = mkdtempSync(path.join(tmpdir(), 'estella-builtin-'));
+    const prev = root;
+    root = lone;
+    try {
+      writeAsset('assets/scenes/main.esscene', 'scene', SCENE, JSON.stringify({
+        version: '1.0', name: 'm',
+        entities: [{
+          id: 1, name: 'Cube', parent: null, children: [],
+          components: [{ type: 'Mesh2D', data: { mesh: 'builtin:cube', lit: true } }],
+        }],
+      }));
+      const res = await cookAssets(lone, {
+        entryScenes: ['assets/scenes/main.esscene'], outDir: 'build', contentAddressed: true,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.warnings.filter((w) => /does not carry/.test(w))).toEqual([]);
+      const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as {
+        entries: Array<{ uuid: string; path: string }>;
+      };
+      const staged = readFileSync(
+        path.join(res.outDir, manifest.entries.find((e) => e.uuid === SCENE)!.path), 'utf8');
+      expect(staged).toContain('builtin:cube');
+    } finally {
+      root = prev;
+      rmSync(lone, { recursive: true, force: true });
+    }
+  });
+
   // The backstop for the type nobody has wired up yet: whatever the document is,
   // a path it names that the package does not carry is a 404 waiting to happen.
   it('reports a staged document that names an asset the package lacks', async () => {

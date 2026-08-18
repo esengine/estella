@@ -1,6 +1,6 @@
 ---
 title: 模型
-description: glTF/GLB 与 FBX 导入 —— 导入写出什么、模型怎么进场景、Scale 设置、重新导入、哪些材质通道会变成 .esmaterial、Draco 与 meshopt、以及哪些东西只报告不导入。
+description: 内置图元、glTF/GLB 与 FBX 导入 —— 导入写出什么、模型怎么进场景、Scale 设置、重新导入、哪些材质通道会变成 .esmaterial、Draco 与 meshopt、以及哪些东西只报告不导入。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -12,6 +12,38 @@ import { Aside } from '@astrojs/starlight/components';
 
 本页讲的就是这次导入。画出结果的那个组件见[组件参考](/docs/zh-cn/reference/components/graphics/)；
 材质整体见[材质](/docs/zh-cn/graphics/materials/)。
+
+## 内置图元
+
+有七个形状不需要导入、也不需要文件。**Create → Cube**（以及 Sphere、Capsule、Cylinder、
+Cone、Plane、Quad）建出的实体，其 `Mesh2D.mesh` 里放的是一个 `builtin:` 引用；同样这七个
+也排在任何 `Mesh2D.mesh` 字段选择器的最前面。
+
+| 引用 | 形状 |
+|---|---|
+| `builtin:cube` | 100 单位的正方体，每个面一个平法线 |
+| `builtin:sphere` | 100 单位的球，平滑法线 |
+| `builtin:capsule` | 高 100 单位 —— 半径 25、两端胶囊之间 50 的圆柱，正是 `CapsuleCollider3D` 描述的形状 |
+| `builtin:cylinder` | 100 单位的竖直圆柱，平顶平底 |
+| `builtin:cone` | 100 单位的圆锥，立在底面上 |
+| `builtin:plane` | XZ 平面上 100 单位的方块，朝上 —— 一块地面 |
+| `builtin:quad` | XY 平面上 100 单位的方块，正对相机 —— 一块背板 |
+
+它们在加载时由代码生成，所以在包里不占任何字节，引用了它的场景也不因此多出依赖。七个都
+和新建的 `ShapeRenderer` 一样大，所以往场景里放一个不用先缩放就看得见；要多大，通过
+Transform 给，和导入的模型一样。
+
+五个封闭形状建出来时是**不透明 + 背面剔除**的——这才让它们互相遮挡，而不是按提交顺序混合；
+`plane` 和 `quad` 是平的，所以保持双面，从背后看也还在。
+
+<Aside type="caution" title="被照亮的 mesh 需要一盏灯">
+图元建出来时是 `lit` 的，和带法线的导入几何一样。光照是乘性的、从零起算，所以场景里没有
+`Light2D` 时它们画出来是黑的 —— **Create → Sun** 会加上一盏有阴影场景想要的平行主光。
+把 `lit` 关掉则得到不受光的平涂外观。
+</Aside>
+
+图元不只是宽 100 单位，**厚**也是 100 单位，而按平面内容摆的相机离得不够远：沿用 2D 的默认
+位置，每个实体的前半截都落在近平面之前。像 3D 示例那样，把场景相机放到几百单位之外。
 
 ## 导入一个模型
 

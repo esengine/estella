@@ -69,6 +69,10 @@ export const SCENES = [
   // Hand-derived, 255·NdotL·atten: 224 under it and 101 at world +200, where the
   // plane's convention reads 255 and 200.
   { id: "mesh-point-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-point-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[224,224,224],\"tol\":20},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":20}]" } },
+  // Geometry with no file under it. Sun 22.5° off the view axis: the cube's two faces
+  // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
+  // reads 155 at -25 against 236 at its middle, which a flat quad could not.
+  { id: "mesh-builtin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-builtin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.1333,\"y\":0.5,\"rgb\":[98,98,98],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat
   // ambient term draws the halves identically, which is why the probes invert.

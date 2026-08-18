@@ -4,6 +4,7 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasm/wasmScratch';
 import { decodeMesh, encodeChannelTable } from '../meshFormat';
+import { builtinMeshTemplate, isBuiltinMeshRef } from '../builtinMeshes';
 import { extractPositions, registerMeshCollision, releaseMeshCollision } from '../meshCollision';
 
 /** A mesh uploaded to the GPU, named by the handle everything else references. */
@@ -17,6 +18,9 @@ export interface MeshResult {
  * The file describes its own channels, and that table crosses to the engine in
  * the file's own byte layout: this layer owns the format, the engine owns the
  * vertex layout it becomes, and neither restates the other.
+ *
+ * A `builtin:<id>` ref is the same geometry with no file under it — built here,
+ * in the layout the model import writes, and uploaded down the identical path.
  */
 export class MeshAssetLoader implements AssetLoader<MeshResult> {
     readonly type = 'mesh';
@@ -26,8 +30,10 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
     constructor(private readonly module_: () => ESEngineModule | null) {}
 
     async load(path: string, ctx: LoadContext): Promise<MeshResult> {
-        const bytes = new Uint8Array(await ctx.loadBinary(ctx.catalog.getBuildPath(path)));
-        const mesh = decodeMesh(bytes);
+        const builtin = isBuiltinMeshRef(path) ? builtinMeshTemplate(path) : undefined;
+        const mesh = builtin
+            ? builtin.build()
+            : decodeMesh(new Uint8Array(await ctx.loadBinary(ctx.catalog.getBuildPath(path))));
         const table = encodeChannelTable(mesh.channels);
         const m = this.module_();
         if (!m?.mesh_createFromChannels) {

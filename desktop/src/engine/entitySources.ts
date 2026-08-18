@@ -16,12 +16,12 @@
  */
 import { projectPrefabSources, projectDesignSeed } from './projectSeams';
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan } from 'lucide-react';
-import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan, Sun } from 'lucide-react';
+import { BUILTIN_MESH_TEMPLATES, BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { ContributionRegistry } from '@/contrib/ContributionRegistry';
 import { componentByName, componentDefaults, readonlyFieldsFor, prettyLabel, componentCategory, userComponentNames } from './schema';
-import { componentGlyph } from '@/components/icons';
+import { componentGlyph, primitiveGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 import { EngineHost } from './EngineHost';
 
@@ -244,6 +244,24 @@ const ANCHOR_SPECS: { comp: string; label: string; comps: CompSpec[] }[] = [
   { comp: 'AudioSource', label: 'Audio', comps: ['Transform', 'AudioSource'] },
 ];
 
+/**
+ * One Create source per built-in mesh. Whether the geometry is closed decides depth
+ * and back-face culling, and the template says which it is; `lit` follows the model
+ * import, where geometry carrying normals was authored to be shaded.
+ */
+function primitiveSources(): EntitySource[] {
+  return BUILTIN_MESH_TEMPLATES.map((tpl) => ({
+    id: `mesh:${tpl.id}`,
+    label: tpl.label,
+    category: componentCategory('Mesh2D'),
+    icon: primitiveGlyph(tpl.id),
+    keywords: ['3d', 'mesh', 'primitive', tpl.id],
+    build: () => preset(tpl.label, [['Transform', {}], ['Mesh2D', {
+      mesh: tpl.ref, lit: true, opaque: tpl.closed, cullBackfaces: tpl.closed,
+    }]]),
+  }));
+}
+
 /** Auto-generate one source per anchor component; category + icon come from the
  *  component-metadata authority so a new anchor needs only a row in ANCHOR_SPECS. */
 function anchorSources(): EntitySource[] {
@@ -260,6 +278,12 @@ function anchorSources(): EntitySource[] {
 export const ENTITY_SOURCES: EntitySource[] = [
   presetSource('empty', 'Empty', 'Basic', CircleDot, ['Transform']),
   ...anchorSources(),
+  ...primitiveSources(),
+  // A Light is a Point light at the entity's position, which is the 2D default and
+  // lights a mesh from inside it. A key light aimed into the screen is what shaded
+  // geometry needs, and nothing else in the picker offers one.
+  presetSource('sun', 'Sun', componentCategory('Light2D'), Sun,
+    [['Transform', {}], ['Light2D', { type: 1, direction: { x: 0.3, y: -0.5 }, directionZ: -0.8 }]]),
   // Tilemap is asset-driven (it needs a tileset + orientation), so it can't build
   // synchronously like an anchor — picking it opens the New-Tilemap dialog. Listed here
   // anyway so the Create picker stays the one place every entity is born.

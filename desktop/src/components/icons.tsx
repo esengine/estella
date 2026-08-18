@@ -18,6 +18,11 @@ import {
   Hexagon,
   Link2,
   MapPin,
+  Globe,
+  Pill,
+  Cylinder,
+  Cone,
+  Frame,
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
@@ -81,4 +86,19 @@ export function componentGlyph(name: string): LucideIcon {
 export function ComponentIcon({ name, size = 14 }: { name: string; size?: number }) {
   const Glyph = componentGlyph(name);
   return <Glyph size={size} strokeWidth={1.75} />;
+}
+
+// Built-in mesh id → glyph, for the Create picker and the mesh asset slot.
+const PRIMITIVE_ICON: Record<string, LucideIcon> = {
+  cube: Box,
+  sphere: Globe,
+  capsule: Pill,
+  cylinder: Cylinder,
+  cone: Cone,
+  plane: Square,
+  quad: Frame,
+};
+
+export function primitiveGlyph(id: string): LucideIcon {
+  return PRIMITIVE_ICON[id] ?? Box;
 }

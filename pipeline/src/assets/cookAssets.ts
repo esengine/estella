@@ -30,7 +30,7 @@ import { readTextureCookSettings } from '../project/importSettings';
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
-import { resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -190,7 +190,7 @@ function rewriteMaterialRefs(
  * anything naming no asset pass through.
  */
 function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown {
-  if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.startsWith('builtin:') || ref.includes('://')) return ref;
+  if (typeof ref !== 'string' || ref.startsWith('@uuid:') || isBuiltinAssetRef(ref) || ref.includes('://')) return ref;
   const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
   if (byPath.has(norm)) return ref;
   const proj = resolveRelativePath(docPath, ref);  // collapses ./ and ../

@@ -23,6 +23,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneStore } from '@/engine/SceneStore';
 import { prettyLabel, hexToRgba, coerceEnumInput } from '@/engine/schema';
 import { AssetRegistry } from '@/project/AssetRegistry';
+import { builtinAssetOption, builtinAssetOptions } from '@/project/builtinAssets';
 import { revealAsset } from '@/project/assetReveal';
 import { Toasts } from '@/store/Toasts';
 import type { FieldUnit } from '@/store/fieldUnits';
@@ -1011,7 +1012,11 @@ export function AssetControl({
   const box = useRef<HTMLDivElement>(null);
   const pop = usePopover();
   const [q, setQ] = useState('');
+  // A built-in binds like an asset but is not one: no file to reveal, and `assetInfo`
+  // answers about files, so a `builtin:` ref read as "None" without asking here too.
+  const builtin = builtinAssetOption(assetType, value);
   const info = AssetRegistry.assetInfo(value);
+  const shownName = builtin?.label ?? info?.name ?? null;
   // Handle-valued slots clear to 0; path-valued slots (spine skeleton/atlas)
   // are string component fields, so "no asset" is the empty string.
   const empty = assetType === 'spine-skeleton' || assetType === 'spine-atlas' ? '' : 0;
@@ -1051,15 +1056,15 @@ export function AssetControl({
     close();
   };
   const ql = q.trim().toLowerCase();
-  const assets = pop.isOpen
-    ? AssetRegistry.listAssets(assetType).filter((a) => !ql || a.name.toLowerCase().includes(ql))
-    : [];
+  const matches = (name: string): boolean => !ql || name.toLowerCase().includes(ql);
+  const builtins = pop.isOpen ? builtinAssetOptions(assetType).filter((o) => matches(o.label)) : [];
+  const assets = pop.isOpen ? AssetRegistry.listAssets(assetType).filter((a) => matches(a.name)) : [];
 
   return (
     <div
       ref={box}
       className={`assetref${over ? ' is-over' : ''}`}
-      title={info?.path}
+      title={builtin?.description ?? info?.path}
       onDragOver={(e) => {
         e.preventDefault();
         if (!over) setOver(true);
@@ -1083,14 +1088,14 @@ export function AssetControl({
           )}
         </span>
         {/* Multi-select disagreement: "—", not the first entity's asset. */}
-        <span className={`an${mixed ? ' dd-none' : ''}`}>{mixed ? '—' : info ? info.name : t('det.none')}</span>
+        <span className={`an${mixed ? ' dd-none' : ''}`}>{mixed ? '—' : shownName ?? t('det.none')}</span>
       </button>
       {!readOnly && (
         <button type="button" className="pk" title={t('det.pickAsset')} onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
           <Search size={11} strokeWidth={2} />
         </button>
       )}
-      {!readOnly && info && (
+      {!readOnly && shownName && (
         <button
           type="button"
           className="pk"
@@ -1108,12 +1113,20 @@ export function AssetControl({
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 240)} onClose={close}>
           <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('det.searchAssets')} value={q} onChange={setQ} />
           <div className="asset-grid">
-            <button type="button" className={`asset-opt${!info ? ' on' : ''}`} onClick={() => pick(empty)}>
+            <button type="button" className={`asset-opt${!shownName ? ' on' : ''}`} onClick={() => pick(empty)}>
               <span className="th">
                 <X size={13} strokeWidth={2} />
               </span>
               <span className="an">{t('det.none')}</span>
             </button>
+            {builtins.map((o) => (
+              <button key={o.ref} type="button" className={`asset-opt${o.ref === value ? ' on' : ''}`} title={o.description} onClick={() => pick(o.ref)}>
+                <span className="th">
+                  <o.icon size={18} strokeWidth={1.5} />
+                </span>
+                <span className="an">{o.label}</span>
+              </button>
+            ))}
             {assets.map((a) => (
               <button key={a.ref} type="button" className={`asset-opt${a.ref === value ? ' on' : ''}`} title={a.path} onClick={() => pick(a.ref)}>
                 <span className="th">
@@ -1126,7 +1139,8 @@ export function AssetControl({
                 <span className="an">{a.name}</span>
               </button>
             ))}
-            {assets.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatchingAssets')}</div>}
+            {assets.length === 0 && builtins.length === 0
+              && <div className="empty-line empty-line--sm">{t('det.noMatchingAssets')}</div>}
           </div>
         </Popover>
       )}

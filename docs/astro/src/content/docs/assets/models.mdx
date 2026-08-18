@@ -1,6 +1,6 @@
 ---
 title: Models
-description: Importing glTF/GLB and FBX — what the import writes, how a model reaches a scene, the Scale setting, re-importing, which material channels become an .esmaterial, Draco and meshopt, and what is reported rather than imported.
+description: Built-in primitives, importing glTF/GLB and FBX — what the import writes, how a model reaches a scene, the Scale setting, re-importing, which material channels become an .esmaterial, Draco and meshopt, and what is reported rather than imported.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -15,6 +15,43 @@ is its [own section](#fbx) below.
 That import is the subject of this page. For the component that draws the result see
 [the component reference](/docs/reference/components/graphics/); for materials in general see
 [Materials](/docs/graphics/materials/).
+
+## Built-in primitives
+
+Seven shapes need no import and no file. **Create → Cube** (or Sphere, Capsule, Cylinder,
+Cone, Plane, Quad) makes an entity whose `Mesh2D.mesh` holds a `builtin:` ref, and the
+same seven appear at the top of the picker on any `Mesh2D.mesh` field.
+
+| Ref | Shape |
+|---|---|
+| `builtin:cube` | 100-unit box, one flat normal per face |
+| `builtin:sphere` | 100-unit sphere, smooth normals |
+| `builtin:capsule` | 100 units tall — radius 25, 50 of cylinder between the caps, the shape `CapsuleCollider3D` describes |
+| `builtin:cylinder` | 100-unit upright cylinder, flat caps |
+| `builtin:cone` | 100-unit cone standing on its base |
+| `builtin:plane` | 100-unit square in XZ, facing up — a ground |
+| `builtin:quad` | 100-unit square in XY, facing the camera — a backdrop |
+
+They are built in code at load time, so they cost no bytes in a package and a scene that
+references one carries no dependency. All seven are the same size as a new `ShapeRenderer`,
+so one dropped into a scene is visible without being scaled first; give it the size you
+want through the Transform, the way an imported model gets one.
+
+The five closed shapes are created **opaque and back-face culled**, which is what lets them
+hide each other instead of blending in submission order; `plane` and `quad` are flat, so
+they stay two-sided and are still there when seen from behind.
+
+<Aside type="caution" title="A lit mesh needs a light">
+Primitives are created `lit`, like imported geometry carrying normals. Lighting is
+multiplicative and starts at zero, so a scene with no `Light2D` in it draws them black —
+**Create → Sun** adds the directional key light a shaded scene wants. Clearing `lit` gives
+the flat, unshaded look instead.
+</Aside>
+
+A primitive is 100 units **deep** as well as wide, which a camera placed for flat content
+is not far enough back for: leave it at the 2D default and the near half of every solid
+falls in front of the near plane. Put the scene camera a few hundred units away, as the
+3D examples do.
 
 ## Importing a model
 

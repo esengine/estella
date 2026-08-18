@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
-import { resolveDocumentRef } from '../documentRef';
+import { BUILTIN_REF_PREFIX, isBuiltinAssetRef, resolveDocumentRef } from '../documentRef';
 import type { MaterialAssetData, ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { builtinShaderTemplate } from '../../render/builtinShaders';
 import { AsyncCache } from '../AsyncCache';
 import { log } from '../../util/logger';
-
-// A `builtin:<id>` shader ref names a stock template compiled from its in-code source (no file);
-// anything else is a path to a project `.esshader`. Kept a literal (not a shared export) so it
-// stays out of the public API surface — the editor mirrors it.
-const BUILTIN_SHADER_PREFIX = 'builtin:';
 
 export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     readonly type = 'material';
@@ -95,7 +90,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     // compiled program per (resolved key, enabled-switch set) — distinct switch sets are distinct
     // permutations, so the cache key folds the sorted features in.
     private async loadShader(matPath: string, ref: string, features: string[], ctx: LoadContext): Promise<ShaderHandle> {
-        const isBuiltin = ref.startsWith(BUILTIN_SHADER_PREFIX);
+        const isBuiltin = isBuiltinAssetRef(ref);
         const key = isBuiltin ? ref : resolveDocumentRef(matPath, ref);
         const cacheKey = features.length ? `${key}#${features.join('|')}` : key;
         const cached = this.shaderCache_.get(cacheKey);
@@ -104,7 +99,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         return this.shaderCache_.getOrLoad(cacheKey, async () => {
             let content: string;
             if (isBuiltin) {
-                const template = builtinShaderTemplate(ref.slice(BUILTIN_SHADER_PREFIX.length));
+                const template = builtinShaderTemplate(ref.slice(BUILTIN_REF_PREFIX.length));
                 if (!template) {
                     throw new Error(`Unknown built-in shader: ${ref}`);
                 }

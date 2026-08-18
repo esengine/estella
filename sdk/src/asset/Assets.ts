@@ -22,6 +22,7 @@ import { AssetRefLedger } from './AssetRefLedger';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
+import { isBuiltinMeshRef } from './builtinMeshes';
 import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
@@ -1636,6 +1637,7 @@ export class Assets {
      * unchanged — legacy path-only scenes keep working.
      */
     resolveRef(ref: string): string | null {
+        if (isBuiltinMeshRef(ref)) return ref;
         if (this.assetRefResolver_) return this.assetRefResolver_(ref);
         return ref;
     }
@@ -1665,6 +1667,10 @@ export class Assets {
      * time — textures silently rendered white. This helper closes that gap.
      */
     private resolveLoadPath_(ref: string): string {
+        // Built-in geometry names code, not a file. Every realm's resolver turns a
+        // non-URL ref into one (the play realm prefixes an origin), so a ref that
+        // has nothing to resolve has to say so before resolution, not after.
+        if (isBuiltinMeshRef(ref)) return ref;
         // A `remote`-group asset (per the active addressable manifest) resolves to
         // its CDN url — so a scene @uuid ref to a remote asset loads from, and
         // hot-updates with, the CDN, not just loadGroup'd DLC assets. Gated on a

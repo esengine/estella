@@ -9,7 +9,7 @@
  * belong to ProjectStore, which feeds results in through {@link rebuild}. The
  * dependency runs one way, so a query never reaches back for a project.
  */
-import { Assets, getEditorType, textureImportSettingsFrom, setTextureParams, setTextureSliceBorder, TextureFilter, TextureWrap } from 'esengine';
+import { Assets, getEditorType, isBuiltinMeshRef, textureImportSettingsFrom, setTextureParams, setTextureSliceBorder, TextureFilter, TextureWrap } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { assetTypeOf } from '@/project/assetMeta';
 import { ASSET_TYPES, assetTypeDef } from '@/project/assetTypes';
@@ -252,6 +252,7 @@ class AssetRegistryImpl {
    *  from "registered but its load failed", which a caller cannot tell apart from
    *  a null path. */
   assetRefProblem(ref: string): string | null {
+    if (isBuiltinMeshRef(ref)) return null;
     const uuid = refUuid(ref);
     const path = uuid !== null ? (this.uuidToPath.get(uuid) ?? null) : ref;
     if (path === null) return 'unresolved: no asset with this uuid in the registry';

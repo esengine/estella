@@ -33,6 +33,27 @@ export function isLogicalAssetRef(ref: string): boolean {
 }
 
 /**
+ * Prefix of a ref the engine answers in CODE — a stock shader, stock geometry, the
+ * tilemap collision palette. Such a ref names no file, so every stage that turns a
+ * ref into a path (resolution, the cook's rewrite, a dependency walk) has to
+ * recognize it BEFORE resolving, and they have to recognize the same thing.
+ */
+export const BUILTIN_REF_PREFIX = 'builtin:';
+
+/** Whether `ref` names something built in rather than a file. */
+export function isBuiltinAssetRef(ref: string): boolean {
+    return ref.startsWith(BUILTIN_REF_PREFIX);
+}
+
+/** The id a built-in ref names, minus any `?query` it carries, or null. */
+export function builtinRefId(ref: string): string | null {
+    if (!isBuiltinAssetRef(ref)) return null;
+    const body = ref.slice(BUILTIN_REF_PREFIX.length);
+    const query = body.indexOf('?');
+    return query < 0 ? body : body.slice(0, query);
+}
+
+/**
  * Resolve a ref one document carries about another asset: a logical project path
  * stands as it is, anything else is relative to the document. Every loader whose
  * document names a sibling resolves through this, because the cook rewrites all

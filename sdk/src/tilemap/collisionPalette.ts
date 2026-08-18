@@ -20,12 +20,13 @@
  * id → shape mapping is a serialization contract. Only APPEND brushes; never renumber or
  * repurpose an existing id, or existing collision maps silently change shape.
  */
+import { BUILTIN_REF_PREFIX } from '../asset/documentRef';
 import type { ResolvedTileCollision, TilesetModel } from './tilesetResolve';
 
 /** The sentinel tileset ref that turns a TilemapLayer into a collision (obstacle) layer.
- *  Mirrors the `builtin:<id>` shader convention — resolved in code, never a project asset.
- *  A per-layer physics material rides as a query string: `builtin:collision?friction=0.1`. */
-export const COLLISION_PALETTE_REF = 'builtin:collision';
+ *  One of the `builtin:<id>` refs — resolved in code, never a project asset. A per-layer
+ *  physics material rides as a query string: `builtin:collision?friction=0.1`. */
+export const COLLISION_PALETTE_REF = `${BUILTIN_REF_PREFIX}collision`;
 
 /** A collision layer's whole-layer physics material (absent = engine default). */
 export interface CollisionMaterial {
