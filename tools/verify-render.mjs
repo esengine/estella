@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
+import { runTool } from './lib/runTool.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -75,7 +76,7 @@ const scenes = selected.map((s) => ({
 console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`);
 
 if (!NO_BUILD) {
-  const built = spawnSync('pnpm', ['exec', 'vite', 'build'], { cwd: DESKTOP, encoding: 'utf8' });
+  const built = runTool('pnpm', ['exec', 'vite', 'build'], { cwd: DESKTOP, encoding: 'utf8' });
   if (built.status !== 0) {
     console.error(`verify-render: vite build failed\n${(built.stderr || built.stdout || '').slice(-800)}`);
     process.exit(1);
@@ -86,7 +87,7 @@ function runScene(scene) {
   const args = XVFB
     ? ['-a', 'pnpm', 'exec', 'electron', 'scripts/headless-verify.mjs']
     : ['exec', 'electron', 'scripts/headless-verify.mjs'];
-  const r = spawnSync(XVFB ? 'xvfb-run' : 'pnpm', args, {
+  const r = runTool(XVFB ? 'xvfb-run' : 'pnpm', args, {
     cwd: DESKTOP,
     encoding: 'utf8',
     env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ...scene.env },

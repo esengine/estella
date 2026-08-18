@@ -70,6 +70,7 @@ export const GATES = [
   { id: 'system-access', run: 'node tools/check-system-access.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
+  { id: 'tool-spawn', run: 'node tools/check-tool-spawn.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs' },
   { id: 'capabilities', run: 'node tools/check-capabilities.mjs' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs' },

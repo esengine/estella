@@ -23,6 +23,7 @@ import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, readdirSync }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { legacyAtTier, ROOT } from './goldenProjects.mjs';
+import { runTool } from './lib/runTool.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -108,7 +109,7 @@ for (const { tag, id } of cases) {
       }
       return JSON.stringify(shape);
     })()`;
-    const run = spawnSync('npx', ['electron', '.'], {
+    const run = runTool('npx', ['electron', '.'], {
       encoding: 'utf8',
       cwd: DESKTOP,
       env: {

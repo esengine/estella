@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runTool } from './lib/runTool.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -58,7 +59,7 @@ if (exported.status !== 0) {
   process.exit(1);
 }
 
-const played = spawnSync('npx', [
+const played = runTool('npx', [
   'electron', path.join('scripts', 'play-through.mjs'),
   '--dir', out, '--route', ROUTE,
   '--out', path.join(WORK, `${PROJECT}.png`),

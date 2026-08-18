@@ -28,7 +28,7 @@
 import { existsSync, readFileSync, rmSync, appendFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { runTool } from './lib/runTool.mjs';
 
 import { generateStressProject, countAssets } from './stress-project.mjs';
 
@@ -60,7 +60,7 @@ if (corpus.assets !== countAssets(1)) {
 // before writing anything.
 rmSync(REPORT, { force: true });
 
-const run = spawnSync('pnpm', ['exec', 'vitest', 'run', '--config', 'vitest.scale.config.ts'], {
+const run = runTool('pnpm', ['exec', 'vitest', 'run', '--config', 'vitest.scale.config.ts'], {
     cwd: join(ROOT, 'desktop'),
     stdio: 'inherit',
     env: { ...process.env, ESTELLA_STRESS_PROJECT: corpus.dir },

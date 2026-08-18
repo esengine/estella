@@ -22,6 +22,7 @@ import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
+import { runTool } from './lib/runTool.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -87,7 +88,7 @@ function captureEditorFrame(id, out) {
   const attempt = () => {
     // A partial file from the attempt before would be read as this attempt's frame.
     rmSync(out, { force: true });
-    const r = spawnSync('npx', ['electron', '.'], {
+    const r = runTool('npx', ['electron', '.'], {
       encoding: 'utf8',
       cwd: DESKTOP,
       env: {
@@ -173,7 +174,7 @@ function probePositions(target, dir, w, h, names, extra = []) {
 function launchPackage(id, target, args) {
   const run = retryOnDeadGpu(
     () => {
-      const r = spawnSync('npx', ['electron', path.join('scripts', LAUNCHER(target)), ...args],
+      const r = runTool('npx', ['electron', path.join('scripts', LAUNCHER(target)), ...args],
         { encoding: 'utf8', cwd: DESKTOP });
       return { ok: r.status === 0, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, r };
     },

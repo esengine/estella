@@ -50,7 +50,7 @@ import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'no
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { runTool } from './lib/runTool.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = join(ROOT, 'sdk');
@@ -113,7 +113,7 @@ if (mode !== '--check' && mode !== '--update') {
 const tmp = mkdtempSync(join(tmpdir(), 'estella-perf-'));
 const out = join(tmp, 'bench.json');
 try {
-    const run = spawnSync('npx', ['vitest', 'bench', '--run', '--outputJson', out], {
+    const run = runTool('npx', ['vitest', 'bench', '--run', '--outputJson', out], {
         cwd: SDK, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
     });
     if (!existsSync(out)) {
