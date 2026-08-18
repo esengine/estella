@@ -691,6 +691,7 @@ export interface Light2DPtrData {
     intensity: number;
     radius: number;
     direction: Vec2;
+    directionZ: number;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;
@@ -710,14 +711,15 @@ export function fillLight2D(
     out.intensity = f32[(ptr + 20) >> 2];
     out.radius = f32[(ptr + 24) >> 2];
     const direction_ = out.direction; direction_.x = f32[(ptr + 28) >> 2]; direction_.y = f32[((ptr + 28) >> 2) + 1];
-    out.innerAngle = f32[(ptr + 36) >> 2];
-    out.outerAngle = f32[(ptr + 40) >> 2];
-    out.shadowSoftness = f32[(ptr + 44) >> 2];
-    out.shadowDistance = f32[(ptr + 48) >> 2];
-    out.meshShadows = u8[ptr + 52] !== 0;
-    out.shadowExtent = f32[(ptr + 56) >> 2];
-    out.environment = u32[(ptr + 60) >> 2];
-    out.enabled = u8[ptr + 64] !== 0;
+    out.directionZ = f32[(ptr + 36) >> 2];
+    out.innerAngle = f32[(ptr + 40) >> 2];
+    out.outerAngle = f32[(ptr + 44) >> 2];
+    out.shadowSoftness = f32[(ptr + 48) >> 2];
+    out.shadowDistance = f32[(ptr + 52) >> 2];
+    out.meshShadows = u8[ptr + 56] !== 0;
+    out.shadowExtent = f32[(ptr + 60) >> 2];
+    out.environment = u32[(ptr + 64) >> 2];
+    out.enabled = u8[ptr + 68] !== 0;
 }
 
 export function writeLight2D(
@@ -729,14 +731,15 @@ export function writeLight2D(
     f32[(ptr + 20) >> 2] = data.intensity;
     f32[(ptr + 24) >> 2] = data.radius;
     f32[(ptr + 28) >> 2] = data.direction.x; f32[((ptr + 28) >> 2) + 1] = data.direction.y;
-    f32[(ptr + 36) >> 2] = data.innerAngle;
-    f32[(ptr + 40) >> 2] = data.outerAngle;
-    f32[(ptr + 44) >> 2] = data.shadowSoftness;
-    f32[(ptr + 48) >> 2] = data.shadowDistance;
-    u8[ptr + 52] = data.meshShadows ? 1 : 0;
-    f32[(ptr + 56) >> 2] = data.shadowExtent;
-    u32[(ptr + 60) >> 2] = data.environment;
-    u8[ptr + 64] = data.enabled ? 1 : 0;
+    f32[(ptr + 36) >> 2] = data.directionZ;
+    f32[(ptr + 40) >> 2] = data.innerAngle;
+    f32[(ptr + 44) >> 2] = data.outerAngle;
+    f32[(ptr + 48) >> 2] = data.shadowSoftness;
+    f32[(ptr + 52) >> 2] = data.shadowDistance;
+    u8[ptr + 56] = data.meshShadows ? 1 : 0;
+    f32[(ptr + 60) >> 2] = data.shadowExtent;
+    u32[(ptr + 64) >> 2] = data.environment;
+    u8[ptr + 68] = data.enabled ? 1 : 0;
 }
 
 export function createLight2DData(): Light2DPtrData {
@@ -746,6 +749,7 @@ export function createLight2DData(): Light2DPtrData {
         intensity: 0,
         radius: 0,
         direction: { x: 0, y: 0 },
+        directionZ: 0,
         innerAngle: 0,
         outerAngle: 0,
         shadowSoftness: 0,

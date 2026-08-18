@@ -322,7 +322,7 @@ private:
     /// Which light slot casts the map, and the direction + coverage it asked for.
     /// Written by collectLights, read by renderShadowMap; -1 = nobody asked.
     i32 shadow_light_slot_ = -1;
-    glm::vec2 shadow_light_dir_{0.0f};
+    glm::vec3 shadow_light_dir_{0.0f, 0.0f, -1.0f};
     f32 shadow_light_extent_ = 0.0f;
     RenderTargetManager::Handle shadow_rt_ = 0;
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.

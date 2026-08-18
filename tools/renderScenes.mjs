@@ -60,6 +60,10 @@ export const SCENES = [
   // coverage derived from the camera's NDC z=0 slice is the whole view for the
   // orthographic one above and a sliver near the near plane for this one.
   { id: "mesh-shadow-perspective", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-perspective.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.86,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.10,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
+  // A sun aimed OUT of the plane: 0.25 in x and 0.25 in depth throws the blocker's
+  // shadow to world +200, where a depth of -1 puts it at +50. Measured: the probe
+  // at 0.833 reads 247 at depth -1 and 0 at this one.
+  { id: "mesh-shadow-aimed", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-aimed.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.833,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[180,180,180],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[180,180,180],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat
   // ambient term draws the halves identically, which is why the probes invert.

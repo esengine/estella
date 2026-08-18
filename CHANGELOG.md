@@ -16,6 +16,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sun can be aimed out of the plane.** A directional light's aim had two
+  components and a third the shader supplied as a constant, so every scene the
+  engine could express was lit from in front: the sun's elevation followed from
+  how far it was tilted within the plane, and nothing could put it low, behind, or
+  overhead. `Light2D.directionZ` is that third component, and the shadow map reads
+  the same aim, so the shadow goes where the light says rather than where the
+  constant did.
+
+  It defaults to -1, which is the direction a 2D scene's light has always come
+  from — every existing scene renders the same bytes, and all 87 pixel gates agree
+  on both backends. Point and spot lights still synthesize their depth from the
+  falloff radius; that is what gives a flat scene its shading, and giving them real
+  positions is a separate change with a compatibility story of its own.
+
 - **FBX import.** A `.fbx` is a model source like a `.gltf` is: drop one in and it
   writes the same products — `.esmesh` per material run, the images it embeds, an
   `.esmaterial`, an `.estimeline` per take, and the `.esprefab` that assembles

@@ -54,8 +54,10 @@ inline constexpr u32 MAX_OCCLUDERS_2D = 8;
 
 /**
  * @brief One 2D light, std140-packed (four vec4s, 64 bytes, 16-aligned).
- * @details posDir: xy = world position (point/spot) or direction (directional); z = type
- *          (0 = point, 1 = directional, 2 = spot); w = falloff radius (point/spot, world units).
+ * @details posDir: xy = world position (point/spot) or aim direction (directional); z = type
+ *          (0 = point, 1 = directional, 2 = spot); w = falloff radius in world units for
+ *          point/spot, and the aim's third component for directional — the two never share
+ *          a use for it, which is what lets a sun be aimed out of the plane.
  *          color: rgb = light color, a = intensity.
  *          spot: xy = normalized cone axis, z = cos(innerHalfAngle), w = cos(outerHalfAngle)
  *          (spot only; zero for other types). Ambient lights are folded into

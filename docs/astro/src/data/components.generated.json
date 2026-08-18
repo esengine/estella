@@ -1579,6 +1579,13 @@
           "advanced": true
         },
         {
+          "key": "directionZ",
+          "type": "number",
+          "default": "-1",
+          "doc": "Aim depth (Directional): -1 shines into the screen.",
+          "advanced": true
+        },
+        {
           "key": "innerAngle",
           "type": "number",
           "default": "30",
@@ -1640,6 +1647,7 @@
         "color.a",
         "intensity",
         "radius",
+        "directionZ",
         "innerAngle",
         "outerAngle",
         "shadowSoftness",

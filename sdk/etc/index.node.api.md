@@ -3960,6 +3960,7 @@ BuiltinComponentDef<Light2DData>
 ```
 color: Color
 direction: Vec2
+directionZ: number
 enabled: boolean
 environment: number
 innerAngle: number

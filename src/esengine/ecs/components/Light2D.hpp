@@ -73,6 +73,12 @@ struct Light2D {
     ES_PROPERTY(advanced, tooltip="Aim direction (Directional / Spot).")
     glm::vec2 direction{0.0f, 0.0f};
 
+    /** @brief The third component of a Directional light's aim, so a sun can be placed in a
+     *         3D scene rather than only tilted within the plane. -1 shines into the screen,
+     *         which is where a 2D scene's light has always come from. */
+    ES_PROPERTY(animatable, advanced, tooltip="Aim depth (Directional): -1 shines into the screen.")
+    f32 directionZ{-1.0f};
+
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
     f32 innerAngle{30.0f};

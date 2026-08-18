@@ -637,6 +637,13 @@ RenderFrameContext RenderFrame::makeContext() {
     };
 }
 
+/// A directional light's aim depth. An aim of zero in all three has no direction to
+/// give, so it keeps the one a 2D scene has always had rather than dividing by zero.
+static f32 aimZ(const ecs::Light2D& light) {
+    const glm::vec3 aim(light.direction, light.directionZ);
+    return glm::dot(aim, aim) > 1e-8f ? light.directionZ : -1.0f;
+}
+
 void RenderFrame::collectLights(ecs::Registry& registry) {
     LightStore& lights = context_.lights();
     lights.clear();
@@ -678,13 +685,15 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
                                std::max(light.shadowDistance, 0.0f), 0.0f, 0.0f);
         if (type == ecs::Light2DType::Directional) {
-            // Direction in the 2D plane; z=1 flags directional (no attenuation) in the shader.
-            gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, 0.0f);
+            // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
+            // component, which only a directional light has a use for — point and spot spend
+            // that slot on their falloff radius.
+            gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, aimZ(light));
             // Marked here and read back after the cap sort, so the slot recorded is the
             // slot the shader will index. shadow.z is cleared before it reaches the GPU.
             if (light.meshShadows && shadow_light_slot_ < 0) {
                 gpu.shadow.z = 1.0f;
-                shadow_light_dir_ = light.direction;
+                shadow_light_dir_ = glm::vec3(light.direction, aimZ(light));
                 shadow_light_extent_ = std::max(light.shadowExtent, 0.0f);
             }
         } else {  // Point / Spot — world position from the Transform, w=falloff radius.
@@ -819,9 +828,8 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     const glm::vec3 centre = haveBounds ? (boundsMin + boundsMax) * 0.5f
                                         : glm::vec3(view.center.x, view.center.y, 0.0f);
 
-    // The light's own direction, in the three dimensions the 2D field implies: the
-    // shader lights a surface from normalize(-dir.xy, 1), so rays travel the other way.
-    glm::vec3 toLight = glm::normalize(glm::vec3(-shadow_light_dir_.x, -shadow_light_dir_.y, 1.0f));
+    // The shader lights a surface from normalize(-aim), so rays travel the other way.
+    glm::vec3 toLight = glm::normalize(-shadow_light_dir_);
     // An up that cannot be parallel to it, whichever way the light points.
     const glm::vec3 up = std::abs(toLight.z) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f)
                                                      : glm::vec3(0.0f, 0.0f, 1.0f);

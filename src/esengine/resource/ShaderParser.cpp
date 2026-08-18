@@ -917,7 +917,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
             L = normalize(vec3f(d, max(pd.w, 1.0)));
         } else if (pd.z < 1.5) {
             atten = 1.0;
-            L = normalize(vec3f(-pd.xy, 1.0));
+            L = normalize(-vec3f(pd.xy, pd.w));
             var toLight = vec2f(0.0, 0.0);
             if (dot(pd.xy, pd.xy) > 1e-8) { toLight = normalize(-pd.xy); }
             castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;
@@ -1500,7 +1500,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            L = normalize(vec3(d, max(pd.w, 1.0)));\n"
             "        } else if (pd.z < 1.5) {\n"
             "            atten = 1.0;\n"
-            "            L = normalize(vec3(-pd.xy, 1.0));\n"
+            // pd.w is the aim's third component here; point/spot spend that slot on radius.
+            "            L = normalize(-vec3(pd.xy, pd.w));\n"
             // Directional rays are parallel: aim at a far point toward the light source, opt in via
             // a positive march distance, and require a real direction (a zeroed one casts nothing).
             "            highp vec2 toLight = (dot(pd.xy, pd.xy) > 1e-8) ? normalize(-pd.xy) : vec2(0.0);\n"

@@ -376,6 +376,7 @@ export interface Light2D {
     intensity: number;
     radius: number;
     direction: Vec2;
+    directionZ: number;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;
