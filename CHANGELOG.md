@@ -14,6 +14,27 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A gate holds the two shader languages together.** The engine's uniform
+  blocks are written three times — the C++ struct that fills one, the GLSL
+  declaration injected into a shader, and the WGSL twin injected into the other
+  backend's — and the lighting helpers around them twice. Blocks are read by
+  OFFSET, so a field added to two of the three is an error nowhere: every later
+  field is simply read from the wrong bytes, on one backend, and the picture is
+  merely wrong. That is how an RGBM decode lost a multiply and a mesh twin never
+  declared its third texture; both were found by asking why a pixel was 255.
+
+  `check-shader-blocks` compares what a name can carry across all three: field
+  order, array lengths, the set of helpers, and how many arguments each
+  definition takes — including the ones defined once per feature branch, where
+  keeping only the last would hide a branch that drifted. It cannot prove two
+  expressions compute the same thing; it does catch the drift that is a missing
+  or misplaced name, which is what every one found so far has been. Two
+  differences are declared with their reasons: `u_projection` names the block's
+  `viewProjection` (`.esshader` is a format users write), and `sampleNormal`
+  takes a texture and its sampler apart on WGSL, which GLSL has no way to spell.
+
 ### Changed
 
 - **The same mesh drawn again is one more instance, not one more draw call.**
