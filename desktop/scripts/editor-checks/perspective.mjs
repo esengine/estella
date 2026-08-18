@@ -13,6 +13,12 @@
  * "Different pixels" is necessary and not sufficient — a hidden panel would also
  * change them — so it also asks what only a projection can do: content off the
  * z = 0 plane moves, and content ON it does not, in the same frame.
+ *
+ * Both captures are taken head-on. The button also turns the eye — entering 3D
+ * from a three-quarter view is what makes depth visible to a person — and that
+ * turn moves everything, on the plane or not. Which angle the button parks the
+ * eye at is `view-orbit`'s claim; this one is about the projection, and can
+ * only see it with the angle held still.
  */
 import { cp } from 'node:fs/promises';
 import path from 'node:path';
@@ -74,6 +80,7 @@ export async function run(ed) {
   const check = checker();
   await ed.open(root, 'assets/scenes/main.esscene');
 
+  await ed.call('run_editor_command', { id: 'view.resetOrbit' }, 30000);
   const ortho = await ed.capture('perspective-ortho');
   const orthoOn = centroidX(ortho, [255, 0, 0]);
   const orthoBehind = centroidX(ortho, [0, 255, 0]);
@@ -82,6 +89,7 @@ export async function run(ed) {
   }
 
   await ed.call('run_editor_command', { id: 'view.toggleViewPerspective' }, 30000);
+  await ed.call('run_editor_command', { id: 'view.resetOrbit' }, 30000);
   await ed.sleep(800);
   const persp = await ed.capture('perspective-3d');
   const perspOn = centroidX(persp, [255, 0, 0]);
