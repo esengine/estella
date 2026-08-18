@@ -70,7 +70,9 @@ const scenes = selected.map((s) => ({
       ...s.env,
       ...(typeof s.webgpu === 'object' ? s.webgpu : {}),
       ESTELLA_VERIFY_BACKEND: 'webgpu',
-      ESTELLA_VERIFY_WEBGPU_ADAPTER: 'swiftshader',
+      // Empty lets the Vulkan loader choose from the ICDs installed; a name it
+      // does not recognize is ignored in silence. The boot log says which it got.
+      ESTELLA_VERIFY_WEBGPU_ADAPTER: process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER ?? 'swiftshader',
     }
     : s.env,
 }));
