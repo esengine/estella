@@ -323,23 +323,11 @@ jobs:
       # --no-build: the renderer bundle is already built two steps up.
       run: node tools/verify-render.mjs --tier pr --no-build
 
-    # Dawn reaches a GPU-less runner through Vulkan, and needs a loader to reach
-    # any driver at all — which this job installed none of, so the WebGPU step
-    # removed in e5485f8a7 was asking Dawn to find an adapter with nothing to
-    # find. Same two packages the Linux desktop job has always used for the same
-    # reason. No adapter is named: the loader picks from what is installed, and
-    # the boot log says which it picked.
-    - name: Install the Vulkan loader and its software driver
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
-
-    - name: Run headless verify scenes on the second backend
-      env:
-        ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
-      run: |
-        ls -l /usr/share/vulkan/icd.d/ || true
-        xvfb-run -a node tools/verify-render.mjs --tier pr --backend webgpu --no-build
+    # No WebGPU step, and the reason has moved on from e5485f8a7's. Installing
+    # `libvulkan1` + `mesa-vulkan-drivers` does put eight ICDs on the runner,
+    # lavapipe's among them, and Dawn then comes up — the failure is no longer no
+    # adapter but the GPU process dying before any scene draws, on every retry.
+    # WEBGPU_GAP carries what a next attempt starts from.
 
     - name: Run MCP end-to-end
       working-directory: desktop

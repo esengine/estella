@@ -23,8 +23,9 @@
 export const TIERS = ['pr', 'nightly'];
 
 /** All 85 pass on Electron's bundled SwiftShader, the software adapter a GPU-less
- *  runner would use — so CI's failure is that runner's Vulkan stack, not Dawn's
- *  ability to drive a software rasterizer. Only the boot log names the adapter. */
+ *  runner would use. On a runner given `libvulkan1` + `mesa-vulkan-drivers` Dawn
+ *  finds an adapter and the GPU process then dies before drawing — the sandbox is
+ *  the next thing to try. Only the boot log names the adapter. */
 export const WEBGPU_GAP = 'no step runs these on CI; all 85 passed on SwiftShader on 2026-08-17'
   + ' (`--tier nightly --backend webgpu`)';
 
