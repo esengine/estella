@@ -22,6 +22,9 @@ function newestSource(root) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) { walk(full); continue; }
+      // A generated header is an output of the build, not an input to it: its
+      // mtime says when the build last ran, which would make every build stale.
+      if (entry.name.includes('.generated.')) continue;
       if (!/\.(c|cc|cpp|h|hpp|inl|esshader|wgsl)$/.test(entry.name)) continue;
       const at = statSync(full).mtimeMs;
       if (at > newest.at) newest = { at, file: path.relative(root, full).split(path.sep).join('/') };
