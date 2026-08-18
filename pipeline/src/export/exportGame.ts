@@ -137,7 +137,9 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 const OTHER_PLATFORM_ENTRIES = /^index\.(node|wechat|wechat\.cjs|minigame|native|native\.bundled|bundled)\.js(\.map)?$/;
 
 /**
- * Whether a file under sdk/dist belongs in a browser package.
+ * Whether a file under sdk/dist belongs in a browser package built with
+ * `sourceMaps` on or off — the same answer the export's own bundles get, since
+ * the maps a package carries are one decision and not one per producer.
  *
  * Directories always pass — the per-file test decides what lands inside them,
  * and refusing a directory would drop the shared chunks the entry imports.
@@ -148,10 +150,29 @@ const OTHER_PLATFORM_ENTRIES = /^index\.(node|wechat|wechat\.cjs|minigame|native
  * would be exact but silent when it is wrong, and a bundle this drops that
  * something did want is a 404 the moment the page loads, not a subtle bug.
  */
-export function shipsToBrowser(src: string): boolean {
-  const base = path.basename(src);
-  if (base.endsWith('.d.ts')) return false;
-  return !OTHER_PLATFORM_ENTRIES.test(base);
+export function shipsToBrowser(sourceMaps: boolean): (src: string) => boolean {
+  return (src: string) => {
+    const base = path.basename(src);
+    if (base.endsWith('.d.ts')) return false;
+    if (!sourceMaps && base.endsWith('.map')) return false;
+    return !OTHER_PLATFORM_ENTRIES.test(base);
+  };
+}
+
+/**
+ * Strip the `sourceMappingURL` line from every script under `dir`. A package
+ * built without maps still carries scripts that name one, and the browser asks
+ * for it the moment anyone opens devtools on the shipped game.
+ */
+async function dropSourceMapRefs(dir: string): Promise<void> {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) { await dropSourceMapRefs(full); continue; }
+    if (!/\.(js|mjs|cjs)$/.test(entry.name)) continue;
+    const text = await readFile(full, 'utf8');
+    const stripped = text.replace(/\r?\n?[ \t]*\/\/# sourceMappingURL=.*/g, '');
+    if (stripped !== text) await writeFile(full, stripped);
+  }
 }
 
 /**
@@ -567,6 +588,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   /** Desktop, Steam channel: the per-build checklist written beside the scripts. */
   let steamChecklist: string | undefined;
   await mkdir(payloadDir, { recursive: true });
+  // One answer for the whole package: the bundles esbuild writes here and the
+  // SDK tree copied in beside them.
+  const sourceMaps = opts.sourcemap ?? false;
   const common: BuildOptions = {
     bundle: true,
     format: 'esm',
@@ -574,7 +598,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     target: 'es2020',
     external: ESENGINE_EXTERNAL,
     minify: opts.minify ?? false,
-    sourcemap: opts.sourcemap ?? false,
+    sourcemap: sourceMaps,
     write: true,
     logLevel: 'silent',
   };
@@ -669,7 +693,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   if (!nativeContent) {
     progress({ phase: 'Copying SDK + runtime' });
     if (existsSync(opts.sdkDistDir)) {
-      await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true, filter: shipsToBrowser });
+      await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), {
+        recursive: true, filter: shipsToBrowser(sourceMaps),
+      });
+      if (!sourceMaps) await dropSourceMapRefs(path.join(payloadDir, 'sdk'));
     } else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
     if (existsSync(opts.wasmDir)) {
       const ids = await scanSideModuleIds({

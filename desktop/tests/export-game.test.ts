@@ -111,11 +111,10 @@ describe('exportGame', () => {
     expect(has('game.js')).toBe(true);
     expect(has('scripts.mjs')).toBe(true);
     expect(has('sdk/index.js')).toBe(true);
-    // The import map's target ships with its chunks and its map; the OTHER
-    // platforms' builds and the type declarations do not. Copying sdk/dist
-    // wholesale put the Node, WeChat, mini-game and native SDKs — each with a
-    // multi-megabyte source map — into a package for a browser.
-    expect(has('sdk/index.js.map')).toBe(true);
+    // The import map's target ships with its chunks; the other platforms' builds
+    // and the type declarations do not. Maps follow the export's own sourcemap
+    // answer, which is off by default.
+    expect(has('sdk/index.js.map')).toBe(false);
     expect(has('sdk/shared/resource.js')).toBe(true);
     expect(has('sdk/index.d.ts')).toBe(false);
     for (const dead of [

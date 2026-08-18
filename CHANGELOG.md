@@ -50,6 +50,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A web package carried the SDK's source maps whatever the build asked for.**
+  "Source maps" is a build option, off by default, and it reached only the two
+  bundles the export writes itself — the SDK tree copied in beside them brought
+  its maps along regardless. They were most of the package: `hello-world` shipped
+  4.96 MB of them in 8.0 MB. The option now covers both halves, which is what it
+  reads as, and a build without maps also drops the `sourceMappingURL` line from
+  the scripts it copies — a package that names a map it does not carry 404s the
+  moment anyone opens devtools on the shipped game.
+
+  With the module scan below, `hello-world` goes from 8.0 MB to 3.0 MB.
+
 - **A web package carried every optional module the engine builds.** The export
   copied the engine's wasm directory wholesale, so a 2D game shipped the 3D
   solver, all five Spine runtimes, the DragonBones player, the video decoder and
