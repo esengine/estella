@@ -34,6 +34,30 @@ import type { ReadonlyWorldT, WorldT } from './schema';
 const DEFAULT_SCENE_URL = '/scenes/sprite-rendering.esscene';
 const DEFAULT_TEXTURES_URL = '/scenes/sprite-rendering.textures.json';
 
+/** Where the eye stands the first time the 3D view is entered from head-on. */
+const DEFAULT_3D_ORBIT = { yaw: 30, pitch: 25 };
+
+/** An eye angle in degrees, and the angle each projection is parked at. */
+export interface EyeAngle { yaw: number; pitch: number }
+export interface ParkedEye { ortho: EyeAngle | null; perspective: EyeAngle | null }
+
+export const NO_PARKED_EYE: ParkedEye = { ortho: null, perspective: null };
+
+/**
+ * Where the eye should stand after a projection toggle, and what each projection
+ * is left parked at. Swapping projection alone is INVISIBLE — head-on, a
+ * perspective picture of the z = 0 plane is the orthographic one — so a toggle
+ * parks the angle it leaves and restores the one it enters.
+ */
+export function eyeAcrossProjection(
+  toPerspective: boolean, from: EyeAngle, parked: ParkedEye,
+): EyeAngle & { parked: ParkedEye } {
+  const here = { yaw: from.yaw, pitch: from.pitch };
+  const eye = parked[toPerspective ? 'perspective' : 'ortho']
+    ?? (toPerspective ? DEFAULT_3D_ORBIT : here);
+  return { ...eye, parked: { ...parked, [toPerspective ? 'ortho' : 'perspective']: here } };
+}
+
 export type EngineStatus = 'idle' | 'booting' | 'ready' | 'error';
 
 export interface EngineSnapshot {
@@ -77,6 +101,8 @@ class EngineHostImpl {
   // Play-state isolation: Stop rebuilds the World from the untouched edit model
   // (model-authoritative), so no snapshot is needed — the model IS the truth.
   private playing_ = false;
+  /** Where each projection was last looked from, so a toggle round trip is one. */
+  private parkedEye_: ParkedEye = NO_PARKED_EYE;
 
   // What to load once the engine is ready. Set by ProjectStore when a project
   // is opened from the launcher; absent → the in-repo placeholder scene (dev).
@@ -383,6 +409,11 @@ class EngineHostImpl {
     const seen = editorViewHalfHeight(view);
     view.perspective = on;
     setEditorViewHalfHeight(view, seen);
+
+    const turn = eyeAcrossProjection(on, view, this.parkedEye_);
+    view.yaw = turn.yaw;
+    view.pitch = turn.pitch;
+    this.parkedEye_ = turn.parked;
   }
 
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */

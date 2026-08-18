@@ -14,6 +14,20 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The 3D view button turns the eye.** It swapped the editor camera's projection
+  and nothing else, and swapping projection is invisible: looked at head-on, a
+  perspective picture of the z = 0 plane is the orthographic one, pixel for pixel.
+  So on exactly the scenes people press it on, a button labelled 3D appeared to do
+  nothing — depth was only ever visible after finding Alt-drag, which turns the eye
+  in either projection anyway.
+
+  Each projection now remembers the angle it was last looked at from; the toggle
+  parks one and restores the other, entering 3D from head-on for the first time
+  with a three-quarter view. A turned orthographic view — the isometric one — is a
+  working mode, and it survives the round trip unchanged.
+
 ### Added
 
 - **Geometry you can make without a modelling package.** The engine drew meshes
