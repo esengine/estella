@@ -70,6 +70,7 @@ export const SCENES = [
   // A lamp 120 units ABOVE a panel, a height only real geometry measures against.
   // Hand-derived, 255·NdotL·atten: 224 under it and 101 at world +200, where the
   // plane's convention reads 255 and 200.
+  { id: "mesh-flat-point-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-flat-point-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.7,\"y\":0.5,\"rgb\":[149,149,149],\"tol\":20},{\"x\":0.7,\"y\":0.6,\"rgb\":[139,139,139],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":10}]" } },
   { id: "mesh-point-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-point-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[224,224,224],\"tol\":20},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":20}]" } },
   // Geometry with no file under it. Sun 22.5° off the view axis: the cube's two faces
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere

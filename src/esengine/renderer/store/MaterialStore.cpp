@@ -77,6 +77,9 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     // is why these ride the mesh path.
     features.push_back("ES_RECEIVE_SHADOW");
     if (envMapped) features.push_back("ES_ENV_MAP");
+    // As above: this vertex source gives the fragment a real world position, so a
+    // positional light is read from where it is rather than from the plane.
+    features.push_back("ES_SURFACE_3D");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);

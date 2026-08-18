@@ -917,7 +917,10 @@ fn envRadiance(R : vec3f, roughness : f32) -> vec3f {
     let b = envSampleMip(R, min(lo + 1.0, lc.u_envParams.z));
     return lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb;
 }
-#ifdef MESH_NORMALS
+// Which definition of "where is the light" this surface is shaded with. One with a
+// real third coordinate measures against the light's own; a sprite has no depth to
+// measure against, so a positional light goes on hovering its radius above it.
+#ifdef ES_SURFACE_3D
 fn lightVector(pd : vec4f, sh : vec4f, worldPos : vec3f) -> vec3f {
     return vec3f(pd.xy, sh.z) - worldPos;
 }
@@ -1536,7 +1539,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Where a positional light is, from here, and how far. Real geometry measures
             // against the light's own world height; a sprite has no depth of its own and
             // keeps the plane's convention of one hovering its falloff radius above it.
-            "#ifdef MESH_NORMALS\n"
+            // Which definition of "where is the light" this surface is shaded with.
+            // One with a real third coordinate measures against the light's own; a
+            // sprite has none, so a light goes on hovering its radius above it.
+            "#ifdef ES_SURFACE_3D\n"
             "highp vec3 lightVector(in highp vec4 pd, in highp vec4 sh, in highp vec3 worldPos) {\n"
             "    return vec3(pd.xy, sh.z) - worldPos;\n"
             "}\n"

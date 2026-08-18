@@ -14,6 +14,24 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Whether a surface has normals no longer decides where its light is.** Two
+  facts had one switch: `MESH_NORMALS` said "this geometry carries a normal
+  channel", and the injected lighting read it as "so measure the light in three
+  dimensions". A mesh's fragment gets its real world position either way — the
+  channel is about the surface's *orientation* — so geometry imported without
+  normals was lit by a lamp hovering its own falloff radius above the plane while
+  standing 120 units above it, and the two lit the same surface differently for a
+  reason that had nothing to do with lighting.
+
+  `ES_SURFACE_3D` is now that second fact, set by the vertex sources that give a
+  fragment a real world position. A sprite still does not: it has no depth of its
+  own to measure against, which is the whole compatibility story and unchanged.
+  **Flat-shaded 3D geometry near a point or spot light does change appearance** —
+  the new gate measures the difference at 74 colour levels, and the old behaviour
+  flattened three probes that should differ to within four.
+
 ### Added
 
 - **A directional shadow spends its texels on what is near.** One 1024 map covered

@@ -126,6 +126,10 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     else if (lit) {
         features.emplace_back("ES_RECEIVE_SHADOW");
         if (envMapped) features.emplace_back("ES_ENV_MAP");
+        // Resident geometry's world position is the real one whether or not it
+        // carries normals: two separate facts, and reading a light's distance in
+        // the plane on a surface that HAS depth is the 2D convention misapplied.
+        features.emplace_back("ES_SURFACE_3D");
     }
 
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
