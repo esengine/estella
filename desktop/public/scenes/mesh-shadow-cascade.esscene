@@ -1,0 +1,190 @@
+{
+  "version": 1,
+  "name": "MeshShadowCascade",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 500
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 45,
+            "nearPlane": 10,
+            "farPlane": 4000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -1000
+            },
+            "scale": {
+              "x": 3000,
+              "y": 3000,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Blocker",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": 300
+            },
+            "scale": {
+              "x": 60,
+              "y": 60,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "FarScenery",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -60000
+            },
+            "scale": {
+              "x": 2000,
+              "y": 2000,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "direction": {
+              "x": 0.15,
+              "y": 0
+            },
+            "meshShadows": true
+          }
+        }
+      ]
+    }
+  ]
+}

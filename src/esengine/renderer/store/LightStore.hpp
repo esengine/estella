@@ -69,12 +69,16 @@ public:
         dirty_ = true;
     }
 
-    /// Hands over the shadow map a frame rendered: the world -> map matrix, and the
-    /// params whose x is the master switch. Called with a zeroed `params` when no
-    /// light cast one, so a stale matrix cannot outlive the map it belonged to.
-    void setShadow(const glm::mat4& matrix, const glm::vec4& params) {
-        data_.shadowMatrix = matrix;
+    /// Hands over the shadow map a frame rendered: one world -> clip matrix per
+    /// cascade, the bias each needs, and the params whose x is the master switch.
+    /// Zeroed `params` when no light cast one, so no matrix outlives its map.
+    void setShadow(const glm::mat4* matrices, u32 count, const glm::vec4& params,
+                   const glm::vec4& bias) {
+        for (u32 i = 0; i < MAX_SHADOW_CASCADES; ++i) {
+            data_.shadowMatrix[i] = i < count ? matrices[i] : glm::mat4(1.0f);
+        }
         data_.shadowParams = params;
+        data_.shadowBias = bias;
         dirty_ = true;
     }
 

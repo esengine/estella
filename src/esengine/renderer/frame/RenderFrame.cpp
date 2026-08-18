@@ -771,10 +771,14 @@ bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3&
     return true;
 }
 
-/// Side length of a shadow map. One size for every scene: the coverage adapts to the
+/// Side length of ONE cascade. One size for every scene: the coverage adapts to the
 /// camera instead, so the texel density a scene gets is a property of how far it asked
 /// the light to reach rather than of a knob nobody can calibrate.
 static constexpr u32 kShadowMapSize = 1024;
+
+/// The atlas holding them, 2x2. The RHI has no array textures — the same reason the
+/// environment reflection is an atlas — so a cascade is a quadrant of one texture.
+static constexpr u32 kShadowAtlasSize = kShadowMapSize * 2;
 
 /// Depth bias in the map's own [0,1] units. Large enough for a 1024 map over a
 /// camera-sized area to stop shadowing itself, small enough not to detach contact.
@@ -804,97 +808,198 @@ bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, gl
     return any;
 }
 
+/// The camera frustum's eight world corners, near plane first (GL clip z in [-1,1],
+/// which both backends' shared projection helpers write).
+static void frustumCorners(const glm::mat4& invVP, glm::vec3 out[8]) {
+    u32 at = 0;
+    for (f32 z : {-1.0f, 1.0f}) {
+        for (f32 y : {-1.0f, 1.0f}) {
+            for (f32 x : {-1.0f, 1.0f}) {
+                const glm::vec4 p = invVP * glm::vec4(x, y, z, 1.0f);
+                out[at++] = glm::vec3(p) / p.w;
+            }
+        }
+    }
+}
+
+/// Where cascade boundary @p i falls along near..far, as a fraction. Logarithmic is
+/// the split that gives every cascade equal texel density, uniform keeps the near one
+/// from collapsing when near is small; 0.75 is the standard mix of the two.
+static f32 splitFraction(u32 i, u32 count, f32 nearDist, f32 farDist) {
+    const f32 t = static_cast<f32>(i) / static_cast<f32>(count);
+    const f32 logSplit = nearDist * std::pow(farDist / nearDist, t);
+    const f32 uniform = nearDist + (farDist - nearDist) * t;
+    const f32 d = uniform + 0.75f * (logSplit - uniform);
+    return (d - nearDist) / std::max(farDist - nearDist, 1e-6f);
+}
+
 void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
     // Zeroed params first: a matrix that outlived its map would shadow the scene
     // against geometry from a frame that no longer exists.
-    context_.lights().setShadow(glm::mat4(1.0f), glm::vec4(0.0f));
+    context_.lights().setShadow(nullptr, 0, glm::vec4(0.0f), glm::vec4(0.0f));
     if (!in_frame_ || shadow_light_slot_ < 0 || !device_.isDeviceUsable()) return;
 
     if (shadow_rt_ == 0) {
-        shadow_rt_ = target_manager_.create(kShadowMapSize, kShadowMapSize,
+        shadow_rt_ = target_manager_.create(kShadowAtlasSize, kShadowAtlasSize,
                                             /*depth=*/true, /*linearFilter=*/false);
     }
     auto* rt = target_manager_.get(shadow_rt_);
     if (!rt) return;
 
-    // What the map covers: the 3D geometry, unless the light asked for a fixed reach.
-    // A radius, so coverage does not change as the light turns. NOT the camera's
-    // world rect — that reprojects NDC z=0, the whole view only when orthographic.
+    const glm::mat4 invVP = glm::inverse(view_projection_);
+    // Clip's z axis back in world: w != 0 is an eye point, w == 0 says the projection
+    // is orthographic and there is none. Cascades only pay off under perspective —
+    // an orthographic view already spends its texels evenly over what it can see.
+    const glm::vec4 eye = invVP * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+    const bool perspective = std::abs(eye.w) > 1e-6f;
+    // A fixed reach is the author saying what the map covers; splitting it would
+    // hand three quarters of the atlas to slices they never asked for.
+    const u32 cascades = (perspective && shadow_light_extent_ <= 0.0f) ? MAX_SHADOW_CASCADES : 1;
+
+    glm::vec3 corners[8];
+    frustumCorners(invVP, corners);
     glm::vec3 boundsMin(0.0f), boundsMax(0.0f);
     const bool haveBounds = meshWorldBounds(registry, boundsMin, boundsMax);
-    const CameraWorldRect view = computeCameraWorldRect(view_projection_);
-    const f32 fitted = haveBounds
-        ? 0.5f * glm::length(boundsMax - boundsMin)
-        : 0.5f * glm::length(glm::vec2(view.right - view.left, view.top - view.bottom));
-    const f32 radius = shadow_light_extent_ > 0.0f ? shadow_light_extent_
-                                                   : std::max(fitted, 1.0f);
-    const glm::vec3 centre = haveBounds ? (boundsMin + boundsMax) * 0.5f
-                                        : glm::vec3(view.center.x, view.center.y, 0.0f);
+
+    f32 nearDist = 0.0f, farDist = 1.0f;
+    if (perspective) {
+        const glm::vec3 eyePos = glm::vec3(eye) / eye.w;
+        nearDist = glm::length((corners[0] + corners[3]) * 0.5f - eyePos);
+        farDist = glm::length((corners[4] + corners[7]) * 0.5f - eyePos);
+        // A near plane at zero would make the logarithmic split infinite, and one far
+        // behind the far plane is a camera nothing can be seen through.
+        nearDist = std::max(nearDist, 1e-3f);
+        farDist = std::max(farDist, nearDist * 1.001f);
+    }
 
     // The shader lights a surface from normalize(-aim), so rays travel the other way.
-    glm::vec3 toLight = glm::normalize(-shadow_light_dir_);
+    const glm::vec3 toLight = glm::normalize(-shadow_light_dir_);
     // An up that cannot be parallel to it, whichever way the light points.
     const glm::vec3 up = std::abs(toLight.z) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f)
                                                      : glm::vec3(0.0f, 0.0f, 1.0f);
-    const glm::mat4 lightView = glm::lookAt(centre + toLight * (radius * 2.0f), centre, up);
+    // Rotation only, for snapping a centre to the map's grid in the light's own axes.
+    const glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), -toLight, up);
+    const glm::mat4 lightRotInv = glm::inverse(lightRot);
 
-    // Zero-to-one depth on purpose: the engine's shared ortho() is the GL convention
-    // (z in [-1,1]) and WebGPU clips everything below 0 of it. Written out here rather
-    // than reused, because this matrix is the one place the choice is free.
-    glm::mat4 lightProj(1.0f);
-    const f32 range = radius * 4.0f;
-    lightProj[0][0] = 1.0f / radius;
-    lightProj[1][1] = 1.0f / radius;
-    lightProj[2][2] = -1.0f / range;
-    lightProj[3][2] = 0.0f;
-    const glm::mat4 lightVP = lightProj * lightView;
-
-    // A self-contained pass, in the shape renderToTarget uses: swap what the frame is
-    // looking through, collect only what casts, draw, and hand the target back.
     const glm::mat4 sceneVP = view_projection_;
-    RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/true};
-    // Depth too: the map keeps the NEAREST occluder, which is the depth buffer's job,
-    // and last frame's contents would reject this frame's geometry outright.
-    pass.clearDepth = true;
-    // White is depth 1 unpacked — "nothing here", so an untouched texel never shadows.
-    pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
-    pass.clearColorValue[3] = 1.0f;
-    // The frame's own viewport, taken back at the end: a split-screen camera owns
-    // part of the target, so it cannot be recomputed from the frame's size — and a
-    // pass that left 1024x1024 behind magnified the whole scene four times.
     const GfxDevice::Viewport sceneViewport = device_.viewport();
-    device_.beginRenderPass(pass);
-    device_.setViewport(0, 0, kShadowMapSize, kShadowMapSize);
+    glm::mat4 matrices[MAX_SHADOW_CASCADES];
+    glm::vec4 bias(0.0f);
 
-    view_projection_ = lightVP;
-    frustum_.extractFromMatrix(lightVP);
-    pool_.beginFrame();
-    draw_list_.clear();
+    for (u32 c = 0; c < cascades; ++c) {
+        glm::vec3 centre(0.0f);
+        f32 radius = 1.0f;
+        if (cascades == 1) {
+            // What the map covers: the 3D geometry, unless the light asked for a fixed
+            // reach. A radius, so coverage does not change as the light turns.
+            const CameraWorldRect view = computeCameraWorldRect(sceneVP);
+            const f32 fitted = haveBounds
+                ? 0.5f * glm::length(boundsMax - boundsMin)
+                : 0.5f * glm::length(glm::vec2(view.right - view.left, view.top - view.bottom));
+            radius = shadow_light_extent_ > 0.0f ? shadow_light_extent_ : std::max(fitted, 1.0f);
+            centre = haveBounds ? (boundsMin + boundsMax) * 0.5f
+                                : glm::vec3(view.center.x, view.center.y, 0.0f);
+        } else {
+            // This slice of the view, as a sphere: a box would grow and shrink as the
+            // light turns, and the texel density with it.
+            const f32 t0 = splitFraction(c, cascades, nearDist, farDist);
+            const f32 t1 = splitFraction(c + 1, cascades, nearDist, farDist);
+            glm::vec3 slice[8];
+            for (u32 i = 0; i < 4; ++i) {
+                const glm::vec3 ray = corners[i + 4] - corners[i];
+                slice[i] = corners[i] + ray * t0;
+                slice[i + 4] = corners[i] + ray * t1;
+            }
+            for (const glm::vec3& p : slice) centre += p;
+            centre *= 0.125f;
+            for (const glm::vec3& p : slice) radius = std::max(radius, glm::length(p - centre));
+            // Snap to the map's own texel grid, in the light's axes: without it the
+            // cascade slides continuously with the camera and every shadow edge
+            // crawls along the geometry a texel at a time.
+            const f32 texel = (radius * 2.0f) / static_cast<f32>(kShadowMapSize);
+            glm::vec3 inLight = glm::vec3(lightRot * glm::vec4(centre, 1.0f));
+            inLight.x = std::floor(inLight.x / texel) * texel;
+            inLight.y = std::floor(inLight.y / texel) * texel;
+            centre = glm::vec3(lightRotInv * glm::vec4(inLight, 1.0f));
+        }
 
-    auto ctx = makeContext();
-    ctx.shadow_pass = true;
-    RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
-                                    computeCameraWorldRect(lightVP)};
-    for (auto& plugin : plugins_) plugin->collect(collectCtx);
+        // ★ How far back the near plane goes. A cascade covers a slice of the VIEW,
+        // but what shadows it can stand anywhere between the slice and the light —
+        // clip at the slice and the caster is not drawn, and nothing says why.
+        f32 castDistance = radius * 2.0f;
+        if (haveBounds) {
+            for (u32 i = 0; i < 8; ++i) {
+                const glm::vec3 corner((i & 1) ? boundsMax.x : boundsMin.x,
+                                       (i & 2) ? boundsMax.y : boundsMin.y,
+                                       (i & 4) ? boundsMax.z : boundsMin.z);
+                castDistance = std::max(castDistance, glm::dot(corner - centre, toLight));
+            }
+        }
+        const glm::mat4 lightView = glm::lookAt(centre + toLight * castDistance, centre, up);
+        // Zero-to-one depth on purpose: the engine's shared ortho() is the GL convention
+        // (z in [-1,1]) and WebGPU clips everything below 0 of it. Written out here rather
+        // than reused, because this matrix is the one place the choice is free.
+        glm::mat4 lightProj(1.0f);
+        const f32 range = castDistance + radius * 2.0f;
+        lightProj[0][0] = 1.0f / radius;
+        lightProj[1][1] = 1.0f / radius;
+        lightProj[2][2] = -1.0f / range;
+        lightProj[3][2] = 0.0f;
+        matrices[c] = lightProj * lightView;
+        // Scaled by what a texel is worth AND by what a unit of packed depth spans:
+        // the number stopping the near cascade shadowing itself would let a coarser
+        // one detach from whatever casts into it.
+        bias[static_cast<int>(c)] = kShadowBias * std::max(radius, 1.0f)
+                                  / (0.5f * static_cast<f32>(kShadowMapSize))
+                                  * (4.0f * std::max(radius, 1.0f) / std::max(range, 1.0f));
 
-    draw_list_.finalize(pool_);
-    pool_.upload();
-    context_.updateFrameConstants(lightVP);
-    // The depth variant is still a Lit2D shader and still declares the light block,
-    // and a draw whose declared UBO is unbound is undefined behaviour that draws
-    // nothing — the whole pass came back empty for exactly this.
-    context_.lights().uploadAndBind();
-    draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       nullptr, context_.skinUbo());
+        // A self-contained pass, in the shape renderToTarget uses: swap what the frame is
+        // looking through, collect only what casts, draw, and hand the target back.
+        RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/c == 0};
+        // Depth too: the map keeps the NEAREST occluder, which is the depth buffer's job,
+        // and last frame's contents would reject this frame's geometry outright.
+        pass.clearDepth = true;
+        // White is depth 1 unpacked — "nothing here", so an untouched texel never shadows.
+        pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
+        pass.clearColorValue[3] = 1.0f;
+        device_.beginRenderPass(pass);
+        // This cascade's quadrant, in the order cascadeOrigin() reads them back: 0
+        // lower-left, 1 lower-right, 2 upper-left, 3 upper-right.
+        device_.setViewport((c % 2) * kShadowMapSize, (c / 2) * kShadowMapSize,
+                            kShadowMapSize, kShadowMapSize);
+
+        view_projection_ = matrices[c];
+        frustum_.extractFromMatrix(matrices[c]);
+        pool_.beginFrame();
+        draw_list_.clear();
+
+        auto ctx = makeContext();
+        ctx.shadow_pass = true;
+        RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
+                                        computeCameraWorldRect(matrices[c])};
+        for (auto& plugin : plugins_) plugin->collect(collectCtx);
+
+        draw_list_.finalize(pool_);
+        pool_.upload();
+        context_.updateFrameConstants(matrices[c]);
+        // The depth variant is still a Lit2D shader and still declares the light block,
+        // and a draw whose declared UBO is unbound is undefined behaviour that draws
+        // nothing — the whole pass came back empty for exactly this.
+        context_.lights().uploadAndBind();
+        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
+                           nullptr, context_.skinUbo());
+    }
 
     rt->unbind();
     device_.invalidatePipelineCache();
 
     shadow_texture_id_ = static_cast<u32>(rt->getColorTexture());
     context_.lights().setShadow(
-        lightVP, glm::vec4(1.0f, kShadowBias, 1.0f / static_cast<f32>(kShadowMapSize),
-                           static_cast<f32>(shadow_light_slot_)));
+        matrices, cascades,
+        glm::vec4(1.0f, static_cast<f32>(cascades), 1.0f / static_cast<f32>(kShadowAtlasSize),
+                  static_cast<f32>(shadow_light_slot_)),
+        bias);
 
     // Back to the frame's own target and camera. The scene has drawn nothing yet, so
     // re-opening the pass costs a load rather than the frame's contents.

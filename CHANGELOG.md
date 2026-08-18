@@ -16,6 +16,37 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A directional shadow spends its texels on what is near.** One 1024 map covered
+  every mesh in the scene, so its resolution was a property of the whole scene
+  rather than of what anyone was looking at: put a piece of distant scenery in a
+  level — behind the far plane, where the camera cannot even see it — and the
+  shadow under a character 200 units away covered a fraction of a texel and
+  disappeared. That is now a gate.
+
+  A perspective view splits into four cascades laid out in one atlas (the RHI has
+  no array textures, the same reason the environment reflection is an atlas), each
+  covering a slice of the view on the standard practical split. The near slice is
+  small, so its texels are small: the same 1024 that could not hold that character's
+  shadow now holds it twenty times over. Each cascade carries its own depth bias,
+  because the number that stops the near one shadowing itself lets a coarser one
+  detach from what casts into it, and each is snapped to its own texel grid, or the
+  cascade slides with the camera and every shadow edge crawls.
+
+  **An orthographic view still renders one map**: its texels are already spread
+  evenly over what it can see, so splitting it would buy nothing and cost three
+  quarters of the atlas. A light with an explicit `shadowExtent` also keeps one —
+  that number is the author saying what the map covers.
+
+### Fixed
+
+- **The shadow map was upside down on WebGPU.** A texture's `v = 0` is its bottom
+  under GL and its top under WebGPU, while a viewport rect arrives in GL's terms and
+  is flipped inside the device — so both backends wrote the same place and one of
+  them read the other end of it. Writing and reading a whole map cancels the two
+  flips, which is why nothing caught it: every shadow gate was symmetric about y, and
+  a map turned over is a map unchanged. The new cascade gates are not symmetric, and
+  the first one to place a caster off-centre failed on the second backend.
+
 - **A gate holds the two shader languages together.** The engine's uniform
   blocks are written three times — the C++ struct that fills one, the GLSL
   declaration injected into a shader, and the WGSL twin injected into the other
