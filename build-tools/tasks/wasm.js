@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
-import { mkdir, cp, rm, stat } from 'fs/promises';
+import { mkdir, cp, rm, stat, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -100,6 +100,19 @@ export async function buildWasm(target, options = {}) {
     }
 }
 
+/**
+ * The generator a build directory was already configured with, or null for a fresh
+ * one. CMake refuses a reconfigure that names a different generator, and `emcmake`
+ * appends one of its own choosing when the caller names none — which on Windows is
+ * MinGW Makefiles, so a tree configured with Ninja could never be rebuilt again.
+ */
+async function configuredGenerator(buildDir) {
+    const cache = path.join(buildDir, 'CMakeCache.txt');
+    if (!existsSync(cache)) return null;
+    const line = /^CMAKE_GENERATOR:INTERNAL=(.+)$/m.exec(await readFile(cache, 'utf8'));
+    return line ? line[1].trim() : null;
+}
+
 async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, rootDir, outputDir }) {
     await generateShaderEmbeds();
 
@@ -126,6 +139,11 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
         cmakeArgs.push(`-DCMAKE_C_FLAGS=${optConfig.cmakeOpt}`);
         cmakeArgs.push(`-DCMAKE_CXX_FLAGS=${optConfig.cmakeOpt}`);
         cmakeArgs.push('-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON');
+    }
+
+    const generator = await configuredGenerator(buildDir);
+    if (generator) {
+        cmakeArgs.push('-G', generator);
     }
 
     cmakeArgs.push(rootDir);
