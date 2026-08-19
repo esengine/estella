@@ -113,7 +113,6 @@ export interface NativeEngineApi {
     registry_batchSyncPhysicsTransforms?(registry: unknown, bufferPtr: number, count: number, ppu: number): void;
     registry_getCanvasEntity?(registry: unknown): number;
     registry_getGeneration?(registry: unknown, entity: number): number;
-    renderFrame?(registry: unknown, viewportWidth: number, viewportHeight: number): void;
     renderFrameWithMatrix?(registry: unknown, viewportWidth: number, viewportHeight: number, matrixPtr: number): void;
     renderer_begin?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_beginFrame?(elapsedSec: number): void;
@@ -366,7 +365,6 @@ export function createNativeEngineApi(
     bind('registry_batchSyncPhysicsTransforms', 'es_registry_batchSyncPhysicsTransforms', true);
     bind('registry_getCanvasEntity', 'es_registry_getCanvasEntity', true);
     bind('registry_getGeneration', 'es_registry_getGeneration', true);
-    bind('renderFrame', 'es_renderFrame', true);
     bind('renderFrameWithMatrix', 'es_renderFrameWithMatrix', true);
     bind('renderer_begin', 'es_renderer_begin', false);
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);

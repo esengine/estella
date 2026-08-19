@@ -469,7 +469,6 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     // and returns false, so the JS surface never drifts across variants.
     emscripten::function("initRendererWebGPU", &esengine::initRendererWebGPU);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
-    emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);

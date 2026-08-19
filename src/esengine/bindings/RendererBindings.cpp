@@ -432,65 +432,6 @@ void mesh2d_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle) {
     mesh->mesh = resource::MeshHandle(meshHandle);
 }
 
-void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {
-    if (!g_initialized || !g_renderFrame) return;
-
-    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
-        rm->update();
-        const auto st = rm->getStats();
-        ES_PROFILE_COUNTER("res.textures", st.textureCount);
-        ES_PROFILE_COUNTER("res.cacheHits", st.cacheHits);
-        ES_PROFILE_COUNTER("res.cacheMisses", st.cacheMisses);
-    }
-
-    if (g_transformSystem) {
-        esengine::World w{registry, ctx().services(), 0.0f};
-        g_transformSystem->update(w);
-    }
-
-    ctx().state().viewport_width = static_cast<u32>(viewportWidth);
-    ctx().state().viewport_height = static_cast<u32>(viewportHeight);
-    g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
-
-    g_device->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-
-    glm::mat4 viewProjection = glm::mat4(1.0f);
-
-    auto cameraView = registry.view<ecs::Camera, ecs::Transform>();
-
-    for (auto entity : cameraView) {
-        auto& camera = registry.get<ecs::Camera>(entity);
-        if (!camera.isActive) continue;
-
-        auto& transform = registry.get<ecs::Transform>(entity);
-        glm::mat4 view = glm::inverse(glm::translate(glm::mat4(1.0f), transform.position));
-
-        glm::mat4 projection;
-        f32 aspect = static_cast<f32>(viewportWidth) / static_cast<f32>(viewportHeight);
-
-        if (camera.projectionType == ecs::ProjectionType::Orthographic) {
-            f32 halfHeight = camera.orthoSize;
-            f32 halfWidth = halfHeight * aspect;
-            projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight,
-                                    camera.nearPlane, camera.farPlane);
-        } else {
-            projection = glm::perspective(
-                glm::radians(camera.fov),
-                static_cast<f32>(viewportWidth) / static_cast<f32>(viewportHeight),
-                camera.nearPlane, camera.farPlane
-            );
-        }
-
-        viewProjection = projection * view;
-        break;
-    }
-
-    const auto& cc = ctx().state().clear_color;
-    g_renderFrame->begin(viewProjection, 0, RenderFrame::PassClear{true, true, cc});
-    g_renderFrame->collectAll(registry);
-    g_renderFrame->end();
-}
-
 void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
                            uintptr_t matrixPtr) {
     if (!g_initialized || !g_renderFrame) return;

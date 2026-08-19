@@ -21,7 +21,6 @@ namespace ecs {
     class Registry;
 }
 
-void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight);
 void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
                             uintptr_t matrixPtr);
 

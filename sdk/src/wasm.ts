@@ -194,7 +194,6 @@ export interface ESEngineModule {
         /** Emscripten-internal: texture object pool keyed by handle id. */
         textures: Record<number, WebGLTexture>;
     };
-    renderFrame(registry: CppRegistry, width: number, height: number): void;
     renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
     /**

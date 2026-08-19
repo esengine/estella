@@ -146,7 +146,6 @@ export interface ESEngineModule {
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
     shutdownRenderer(): void;
-    renderFrame(registry: Registry, width: number, height: number): void;
     renderFrameWithMatrix(registry: Registry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): ResourceManager;
 

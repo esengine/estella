@@ -344,7 +344,6 @@ registry_getCameraEntities: (registry: CppRegistry) => number[]
 registry_getCanvasEntities: ((registry: CppRegistry) => number[]) | undefined
 registry_getCanvasEntity: (registry: CppRegistry) => number
 registry_getGeneration: (registry: CppRegistry, entity: number) => number
-renderFrame: (registry: CppRegistry, width: number, height: number) => void
 renderFrameWithMatrix: (registry: CppRegistry, width: number, height: number, matrixPtr: number) => void
 renderer_begin: (matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number) => void
 renderer_beginFrame: (elapsedSec: number) => void
