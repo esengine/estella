@@ -78,6 +78,7 @@ export const GATES = [
   { id: 'shader-conditionals', run: 'node tools/check-shader-conditionals.mjs' },
   { id: 'mesh-vocabulary', run: 'node tools/check-mesh-vocabulary.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },
+  { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },

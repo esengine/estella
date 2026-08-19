@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A gate on what a WGSL twin has to declare for itself.** A fragment-only twin
+  is assembled with its domain's canonical vertex stage, and the engine injects
+  the matching `VSOut` and the eight batch texture bindings with it. A twin that
+  writes its own vertex stage gets neither — nothing can know what interface that
+  stage produces — so it has to declare the varying struct and every texture it
+  reaches, including the ones the injected lighting helpers sample through it.
+
+  Miss one and nothing says so: the stage is not an error to the parser, and what
+  reaches whoever runs the second backend is `Invalid RenderPipeline` with no
+  mention of a shader anywhere in the log. That has now happened four times — a
+  mesh twin without `t3`, a shadow map the same, an environment atlas nobody
+  declared, and a sky twin naming the `VSOut` from its own vertex block.
+  `check-wgsl-twin` follows the injected helpers a stage calls, transitively, to
+  the textures they sample, and each of those four is red under it.
+
 - **An environment can be seen, not only reflected.** A baked `.esenv` gave a
   scene its irradiance and a prefiltered reflection, so a metal ball had a sky in
   it — and behind the ball was a flat clear colour. The same panorama was half
