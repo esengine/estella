@@ -256,6 +256,9 @@ std::string readProgramInfoLog(GLuint program) {
 
 void GLDevice::init() {
     glEnable(GL_DEPTH_TEST);
+    // GL's own default, stated because the second backend states it too: a rule
+    // one backend declares and the other inherits can drift with neither saying so.
+    glDepthFunc(GL_LESS);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     captureDeviceIdentity();
