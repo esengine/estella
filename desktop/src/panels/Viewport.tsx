@@ -243,20 +243,26 @@ function syncColliderPoints(g: SVGGElement, points: ColliderPointHandle[]): void
   }
 }
 
-// A world-space rect on the 2D plane → a CSS-px screen rect, from two opposite
-// corners. Exact head-on, which is where the 2D frames it draws mean anything;
-// turned, it is the AABB of a quad. Null if off-camera / no view.
-function worldRectToScreen(
-  cx: number,
-  cy: number,
-  halfW: number,
-  halfH: number,
-): { x: number; y: number; w: number; h: number } | null {
-  const a = ViewportController.worldToClient(cx - halfW, cy + halfH);
-  const b = ViewportController.worldToClient(cx + halfW, cy - halfH);
-  if (!a || !b) return null;
-  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+/** A world rect on the 2D plane, as the four screen points it projects to (CSS px,
+ *  clockwise from the top-left corner). Null when any corner is off-camera. */
+type Quad = [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }];
+
+function worldRectToQuad(cx: number, cy: number, halfW: number, halfH: number): Quad | null {
+  const pts = ([[-1, 1], [1, 1], [1, -1], [-1, -1]] as const).map(
+    ([sx, sy]) => ViewportController.worldToClient(cx + sx * halfW, cy + sy * halfH));
+  return pts.some((p) => !p) ? null : (pts as Quad);
 }
+
+/** A quad as an SVG `points` list. */
+const quadPoints = (q: Quad): string => q.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+/** Shape an SVG polygon to a quad. */
+function setPoints(el: Element | null, q: Quad): void {
+  el?.setAttribute('points', quadPoints(q));
+}
+
+/** A quad as one closed SVG subpath. */
+const quadPath = (q: Quad): string => `M${q.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
 
 /**
  * Shape one outline polygon to the entity's projected hull, or hide it. `sid` null
@@ -1353,94 +1359,98 @@ export function Viewport() {
         // Show the design/device overlay in UI mode (design frame always) OR in any mode
         // once a real device is picked — reading the project design resolution when the
         // scene has no Canvas, so a gameplay scene previews on devices without a UI layer.
-        // Not from a turned eye: it is all screen rects on the 2D plane, and only a
-        // head-on view projects that plane to a rect — perspective head-on still does,
-        // so what this asks about is the eye and not the projection.
         const ms0 = useEditorMode.getState();
-        const ci = ready && showG && !ViewportController.isOrbited()
-          && (activeModeOverlays().designFrame || ms0.device !== 'design')
+        const ci = ready && showG && (activeModeOverlays().designFrame || ms0.device !== 'design')
           ? ViewportController.screenInfo()
           : null;
-        // The design frame lives in the UI world scale: 1 unit = 1 design px (the invariant
-        // CameraPlugin's uiLayoutRect / buildCameraInfo use). pixelsPerUnit is physics-only
-        // and must NOT scale it, or the frame renders 100× off from where UI lays out.
-        const des = ci
-          ? worldRectToScreen(ci.cx, ci.cy, ci.designResolution.x / 2, ci.designResolution.y / 2)
+        const ms = useEditorMode.getState();
+        // The oriented device size (null for 'design'), from the SAME source App.tsx
+        // feeds to uiLayoutRect — so this frame and the UI layout cannot drift apart.
+        const dd = ci ? deviceDims(ms.device, ms.orientation, ProjectStore.getSnapshot()?.screenPresets) : null;
+        // Every frame here is a rect on the 2D plane, kept in WORLD half-extents and
+        // projected corner by corner — a quad from any eye, a rect only head-on. Its
+        // scale is 1 unit = 1 design px (uiLayoutRect's invariant), never pixelsPerUnit.
+        const desHalf = ci
+          ? { w: ci.designResolution.x / 2, h: ci.designResolution.y / 2 }
           : null;
-        if (ci && des) {
+        const devHalf = ci && desHalf && dd
+          ? (() => {
+              const deviceAspect = dd.w / dd.h;
+              const h = computeEffectiveOrthoSize(
+                desHalf.h, ci.designResolution.x / ci.designResolution.y,
+                deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
+              );
+              return { w: h * deviceAspect, h };
+            })()
+          : desHalf;
+        const des = ci && desHalf ? worldRectToQuad(ci.cx, ci.cy, desHalf.w, desHalf.h) : null;
+        const dev = ci && devHalf ? worldRectToQuad(ci.cx, ci.cy, devHalf.w, devHalf.h) : des;
+        if (ci && desHalf && devHalf && des && dev) {
           dsvg.style.opacity = '1';
-          const ms = useEditorMode.getState();
           const preset = screenPresetById(ms.device, ProjectStore.getSnapshot()?.screenPresets);
-          // Device visible frame: the design resolution fit into the simulated device's
-          // aspect per the Canvas scaleMode. `dd` is the oriented device size (null for the
-          // 'design' sentinel) — the SAME source App.tsx feeds to uiLayoutRect, so this
-          // frame and the actual UI layout share one aspect and can't drift.
-          const dd = deviceDims(ms.device, ms.orientation, ProjectStore.getSnapshot()?.screenPresets);
-          let dev = des;
-          if (dd) {
-            const deviceAspect = dd.w / dd.h;
-            const designAspect = ci.designResolution.x / ci.designResolution.y;
-            const halfH = computeEffectiveOrthoSize(
-              ci.designResolution.y / 2, designAspect, deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
-            );
-            dev = worldRectToScreen(ci.cx, ci.cy, halfH * deviceAspect, halfH) ?? des;
-          }
-          setRectAttrs(dsvg.querySelector('.df-design'), des);
-          setRectAttrs(dsvg.querySelector('.df-device'), dev);
+          setPoints(dsvg.querySelector('.df-design'), des);
+          setPoints(dsvg.querySelector('.df-device'), dev);
           // Everything-outside-the-screen shading, drawn as one even-odd path (an outer
-          // rect with the design rect punched out). Two cases share the geometry:
+          // region with the design frame punched out). Two cases share the geometry:
           //  • a simulated device that CONTAINS the design → the device's letterbox bars,
           //    tinted the canvas background (how the game bars would look on that screen);
           //  • the 'design' device (no simulation) → the design frame IS the screen, so
           //    dim the rest of the free scene view with a neutral scrim. Without this the
           //    authored resolution is only a thin outline and reads as "still landscape".
-          // A device that CROPS the design (dev smaller) shows no bars.
+          // A device that CROPS the design (dev smaller) shows no bars — measured in
+          // world units, where the comparison is what it says rather than a projection.
           const lb = dsvg.querySelector('.df-letterbox') as SVGPathElement | null;
           if (lb) {
-            const punch = (o: { x: number; y: number; w: number; h: number }): string =>
-              `M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}Z M${des.x},${des.y}h${des.w}v${des.h}h${-des.w}Z`;
             const hasDevice = dd != null;
-            const deviceContains =
-              dev.w >= des.w - 0.5 && dev.h >= des.h - 0.5 && (dev.w > des.w + 0.5 || dev.h > des.h + 0.5);
+            const grew = (a: number, b: number): boolean => a >= b - 0.5;
+            const deviceContains = grew(devHalf.w, desHalf.w) && grew(devHalf.h, desHalf.h)
+              && (devHalf.w > desHalf.w + 0.5 || devHalf.h > desHalf.h + 0.5);
             if (hasDevice && deviceContains) {
-              lb.setAttribute('d', punch(dev));
+              lb.setAttribute('d', quadPath(dev) + quadPath(des));
               const bg = ci.backgroundColor;
               lb.style.fill = `rgba(${Math.round(bg.r * 255)},${Math.round(bg.g * 255)},${Math.round(bg.b * 255)},0.55)`;
               lb.style.opacity = '1';
             } else if (!hasDevice) {
-              lb.setAttribute('d', punch({ x: 0, y: 0, w: dsvg.clientWidth, h: dsvg.clientHeight }));
+              const w = dsvg.clientWidth;
+              const h = dsvg.clientHeight;
+              lb.setAttribute('d', `M0,0h${w}v${h}h${-w}Z${quadPath(des)}`);
               lb.style.fill = 'rgba(0,0,0,0.32)';
               lb.style.opacity = '1';
             } else {
               lb.style.opacity = '0';
             }
           }
-          // Safe-area inset within the device frame (device px → screen px by the frame ratio).
-          const safe = dsvg.querySelector('.df-safe') as SVGRectElement | null;
+          // Safe-area inset within the device frame. The insets are device px; one
+          // world unit per device px converts them, so the inset rect is a world rect
+          // like every other frame here rather than a screen-space shrink.
+          const safe = dsvg.querySelector('.df-safe') as SVGPolygonElement | null;
           if (safe) {
-            if (ms.showSafeArea && preset.safe && dd) {
-              const sx = dev.w / dd.w;
-              const sy = dev.h / dd.h;
-              setRectAttrs(safe, {
-                x: dev.x + preset.safe.left * sx,
-                y: dev.y + preset.safe.top * sy,
-                w: dev.w - (preset.safe.left + preset.safe.right) * sx,
-                h: dev.h - (preset.safe.top + preset.safe.bottom) * sy,
-              });
-              safe.style.opacity = '1';
-            } else {
-              safe.style.opacity = '0';
-            }
+            const q = ms.showSafeArea && preset.safe && dd
+              ? (() => {
+                  const sx = (devHalf.w * 2) / dd.w;
+                  const sy = (devHalf.h * 2) / dd.h;
+                  const left = ci.cx - devHalf.w + preset.safe.left * sx;
+                  const right = ci.cx + devHalf.w - preset.safe.right * sx;
+                  // Layout space is y-down: the `top` inset comes off the high edge.
+                  const top = ci.cy + devHalf.h - preset.safe.top * sy;
+                  const bottom = ci.cy - devHalf.h + preset.safe.bottom * sy;
+                  return worldRectToQuad((left + right) / 2, (top + bottom) / 2,
+                                         (right - left) / 2, (top - bottom) / 2);
+                })()
+              : null;
+            if (q) { setPoints(safe, q); safe.style.opacity = '1'; } else { safe.style.opacity = '0'; }
           }
-          // The authored resolution, pinned to the frame's top-left corner but clamped
-          // into the viewport — when the frame corner pans off-screen the label sticks
-          // to the nearest edge instead of getting clipped away.
+          // The authored resolution, pinned to the frame's near corner but clamped into
+          // the viewport — when that corner pans off-screen the label sticks to the
+          // nearest edge instead of getting clipped away.
           const dlabel = designLabelRef.current;
           if (dlabel) {
             dlabel.textContent = `${ci.designResolution.x} × ${ci.designResolution.y}`;
+            const anchorX = Math.min(...des.map((p) => p.x));
+            const anchorY = Math.min(...des.map((p) => p.y));
             // Top clamp (48) clears the docked scene toolbar (38px) at the viewport top.
-            const lx = Math.min(Math.max(des.x + 4, 4), Math.max(dsvg.clientWidth - dlabel.offsetWidth - 4, 4));
-            const ly = Math.min(Math.max(des.y + 4, 48), Math.max(dsvg.clientHeight - dlabel.offsetHeight - 4, 48));
+            const lx = Math.min(Math.max(anchorX + 4, 4), Math.max(dsvg.clientWidth - dlabel.offsetWidth - 4, 4));
+            const ly = Math.min(Math.max(anchorY + 4, 48), Math.max(dsvg.clientHeight - dlabel.offsetHeight - 4, 48));
             dlabel.style.transform = `translate(${lx}px, ${ly}px)`;
             dlabel.style.opacity = '1';
           }
@@ -2239,8 +2249,9 @@ export function Viewport() {
       const comps = src != null ? SceneModel.entityBySource(src)?.components : undefined;
       if (src != null && comps && !comps.some((c) => c.type === 'Canvas')) {
         const rt = SceneModel.runtimeFor(src);
-        const obb = rt != null ? ViewportController.uiEntityWorldOBB(rt) : null;
-        if (obb) r = worldRectToScreen(obb.cx, obb.cy, obb.hw, obb.hh);
+        // The same rect the container's selection outline uses, which for a UINode
+        // goes through the UI camera the layout box is actually in.
+        if (rt != null) r = ViewportController.getEntityScreenRect(rt);
       }
     }
     if (r) {
@@ -2929,9 +2940,9 @@ export function Viewport() {
 
       <svg ref={designSvgRef} className="viewport__design-svg" style={{ opacity: 0 }} aria-hidden="true">
         <path className="df-letterbox" fillRule="evenodd" />
-        <rect className="df-device" />
-        <rect className="df-safe" />
-        <rect className="df-design" />
+        <polygon className="df-device" />
+        <polygon className="df-safe" />
+        <polygon className="df-design" />
       </svg>
       <div ref={designLabelRef} className="viewport__design-label" style={{ opacity: 0 }} aria-hidden="true" />
 
