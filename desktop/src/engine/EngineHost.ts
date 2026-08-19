@@ -342,6 +342,9 @@ class EngineHostImpl {
     if (cam) {
       view.x = cam.x;
       view.y = cam.y;
+      // Not the camera's z: that is where its EYE stands, and adopting it as a
+      // focus would put everything the camera frames behind the editor's own.
+      view.z = 0;
       // The scene camera's framing, as an extent the editor view SEES — under a
       // perspective eye that is a distance, not an orthoSize.
       setEditorViewHalfHeight(view, cam.orthoSize);
@@ -354,18 +357,21 @@ class EngineHostImpl {
    *  exact scene view they left (syncEditorViewToScene would otherwise reframe).
    *  The seen extent rather than the raw field, so a view saved in perspective and
    *  restored in either projection comes back to the same framing. */
-  editorViewState(): { x: number; y: number; orthoSize: number } | null {
+  editorViewState(): { x: number; y: number; z: number; orthoSize: number } | null {
     const view = this.getResource(EditorView);
-    return view ? { x: view.x, y: view.y, orthoSize: editorViewHalfHeight(view) } : null;
+    return view
+      ? { x: view.x, y: view.y, z: view.z ?? 0, orthoSize: editorViewHalfHeight(view) }
+      : null;
   }
 
   /** Restore the editor camera to a saved center + zoom (the inverse read of
    *  {@link editorViewState}). No-op pre-boot. */
-  setEditorView(v: { x: number; y: number; orthoSize: number }): void {
+  setEditorView(v: { x: number; y: number; z?: number; orthoSize: number }): void {
     const view = this.getResource(EditorView);
     if (!view) return;
     view.x = v.x;
     view.y = v.y;
+    view.z = v.z ?? 0;
     setEditorViewHalfHeight(view, v.orthoSize);
   }
 

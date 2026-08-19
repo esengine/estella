@@ -301,15 +301,17 @@ app.whenReady().then(async () => {
       })()`);
     }
 
-    // ESTELLA_VERIFY_ORBIT="<yaw>,<pitch>" turns the editor's eye before the frame
-    // is read — the 3D navigation, driven the way Alt-drag drives it.
-    if (process.env.ESTELLA_VERIFY_ORBIT) {
-      const [yaw, pitch] = process.env.ESTELLA_VERIFY_ORBIT.split(',').map(Number);
+    // ESTELLA_VERIFY_PERSPECTIVE=1 looks at the scene as a 3D one and
+    // ESTELLA_VERIFY_ORBIT="<yaw>,<pitch>" turns the eye. Perspective first: it
+    // parks the eye at an angle of its own, which the orbit then overrides.
+    if (process.env.ESTELLA_VERIFY_PERSPECTIVE || process.env.ESTELLA_VERIFY_ORBIT) {
+      const [yaw, pitch] = (process.env.ESTELLA_VERIFY_ORBIT ?? '0,0').split(',').map(Number);
       await exec(`(async () => {
         const api = window.__estellaHeadless.api;
-        // The orbit belongs to the editor's eye, so the frame has to be drawn
-        // through it rather than through the scene's own camera.
+        // The eye belongs to the editor, so the frame has to be drawn through it
+        // rather than through the scene's own camera.
         api.useEditorView(true);
+        ${process.env.ESTELLA_VERIFY_PERSPECTIVE ? 'api.setViewPerspective(true);' : ''}
         api.setViewOrbit(${yaw || 0}, ${pitch || 0});
         await api.step(2, 1 / 60);
       })()`);
@@ -599,12 +601,20 @@ app.whenReady().then(async () => {
       await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
       grid = await readFrame(`
         const on = window.__estellaGridOn;
+        const quadrants = [0, 0, 0, 0];
         let differing = 0;
-        for (let i = 0; i < on.length; i += 4) {
-          const d = Math.abs(on[i] - px[i]) + Math.abs(on[i + 1] - px[i + 1]) + Math.abs(on[i + 2] - px[i + 2]);
-          if (d > 12) differing++;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            const d = Math.abs(on[i] - px[i]) + Math.abs(on[i + 1] - px[i + 1]) + Math.abs(on[i + 2] - px[i + 2]);
+            if (d <= 12) continue;
+            differing++;
+            quadrants[(y < h / 2 ? 0 : 2) + (x < w / 2 ? 0 : 1)]++;
+          }
         }
-        return { differingPixels: differing, ok: differing > 300 };
+        // A grid is there everywhere you look, so every quarter of the frame has
+        // some of it. A plane seen edge-on lights one band and passes a total.
+        return { differingPixels: differing, quadrants, ok: differing > 300 && quadrants.every((q) => q > 20) };
       `);
     }
     finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);

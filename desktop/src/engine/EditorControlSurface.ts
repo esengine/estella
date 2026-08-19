@@ -859,6 +859,15 @@ export class EditorControlSurfaceImpl {
     return ViewportController.orbitAngles();
   }
 
+  /**
+   * Look at the scene as a 3D one: a perspective eye, and the ground for a work
+   * plane. Turning it on parks the eye at an angle, so a driver that wants a
+   * specific one calls {@link setViewOrbit} after this rather than before.
+   */
+  setViewPerspective(on: boolean): void {
+    EngineHost.setViewPerspective(on);
+  }
+
   /** Render (and hit-test) through the editor's own eye rather than the scene
    *  camera — what edit mode does, as one call a driver can make. */
   useEditorView(on: boolean): void {

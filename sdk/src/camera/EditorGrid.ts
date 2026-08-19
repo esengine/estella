@@ -13,9 +13,9 @@
  * exactly like a UE5 / Unity scene grid.
  *
  * Colors are straight-alpha RGBA in 0..1. `spacing` is the minor line spacing in
- * world units; every `majorEvery`-th line is a heavier major line. The world
- * x=0 / y=0 axis lines use the axis colors (red X / green Y) so the origin reads
- * at a glance.
+ * world units; every `majorEvery`-th line is a heavier major line. The two world
+ * axes that run in the plane are drawn in their own colors, so the origin and
+ * which way the axes point read at a glance.
  */
 import { defineResource } from '../ecs/resource';
 
@@ -32,10 +32,9 @@ export interface EditorGridData {
   color: GridColor;
   /** Major line color. */
   majorColor: GridColor;
-  /** World y=0 (horizontal) X-axis line color. */
-  axisX: GridColor;
-  /** World x=0 (vertical) Y-axis line color. */
-  axisY: GridColor;
+  /** One color per world axis, indexed the way a WorldAxis is: x, y, z. Which two
+   *  get drawn is the work plane's answer, not this resource's. */
+  axisColors: [GridColor, GridColor, GridColor];
 }
 
 export const DEFAULT_EDITOR_GRID: EditorGridData = {
@@ -44,8 +43,11 @@ export const DEFAULT_EDITOR_GRID: EditorGridData = {
   majorEvery: 10,
   color: [1, 1, 1, 0.05],
   majorColor: [1, 1, 1, 0.1],
-  axisX: [0.812, 0.357, 0.325, 0.55], // --ax-x #cf5b53
-  axisY: [0.502, 0.725, 0.29, 0.55], // --ax-y #80b94a
+  axisColors: [
+    [0.812, 0.357, 0.325, 0.55], // --ax-x #cf5b53
+    [0.502, 0.725, 0.29, 0.55], // --ax-y #80b94a
+    [0.290, 0.561, 0.839, 0.55], // --ax-z #4a8fd6
+  ],
 };
 
 export const EditorGrid = defineResource<EditorGridData>({ ...DEFAULT_EDITOR_GRID }, 'EditorGrid');

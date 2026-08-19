@@ -18,13 +18,17 @@
  */
 import { defineResource } from '../ecs/resource';
 import { invertViewOrbit } from '../math/mat4';
+import type { Vec3 } from '../types';
 
 export interface EditorViewData {
   /** When true, the framebuffer + screen<->world use this view, not scene cameras. */
   active: boolean;
-  /** World-space camera center. */
+  /** World-space point the view looks at and turns around. */
   x: number;
   y: number;
+  /** Depth of that point. Zero is the 2D plane, where a project that never
+   *  leaves it stays. */
+  z: number;
   /** Half-height of the view in world units (zoom; smaller = more zoomed in). */
   orthoSize: number;
   /**
@@ -66,7 +70,7 @@ export interface EditorViewData {
 }
 
 export const DEFAULT_EDITOR_VIEW: EditorViewData = {
-  active: false, x: 0, y: 0, orthoSize: 360, uiPreviewAspect: 0,
+  active: false, x: 0, y: 0, z: 0, orthoSize: 360, uiPreviewAspect: 0,
   // Off by default: an existing project opens on exactly the view it always had.
   perspective: false, fov: 60, distance: 1000, yaw: 0, pitch: 0,
 };
@@ -134,11 +138,114 @@ export interface ScreenAxis {
  * rendered — a second copy of the rotation is exactly how those two drift apart.
  */
 export function editorViewAxes(view: EditorViewData): { x: ScreenAxis; y: ScreenAxis; z: ScreenAxis } {
-  const rad = Math.PI / 180;
-  const m = invertViewOrbit(0, 0, 0, (view.yaw ?? 0) * rad, (view.pitch ?? 0) * rad, 0);
+  const m = orbitMatrix(view);
   // Column c of the view matrix is a world axis expressed in view space.
   const axis = (c: number): ScreenAxis => ({ dx: m[c], dy: -m[c + 1], depth: m[c + 2] });
   return { x: axis(0), y: axis(4), z: axis(8) };
+}
+
+// The one place yaw/pitch become a basis; everything below reads its rows.
+function orbitMatrix(view: EditorViewData): Float32Array {
+  const rad = Math.PI / 180;
+  return invertViewOrbit(0, 0, 0, (view.yaw ?? 0) * rad, (view.pitch ?? 0) * rad, 0);
+}
+
+/** The view's own axes as world directions — unit, and right-handed with forward. */
+export interface EditorViewBasis {
+  right: Vec3;
+  up: Vec3;
+  forward: Vec3;
+}
+
+/**
+ * Where the view's right / up / forward point in the world.
+ *
+ * A drag is a screen direction, and this is what it means in world terms. Read
+ * off the very matrix the camera is built from, so navigation cannot move along
+ * axes the picture was not drawn with.
+ */
+export function editorViewBasis(view: EditorViewData): EditorViewBasis {
+  const m = orbitMatrix(view);
+  return {
+    right: { x: m[0], y: m[4], z: m[8] },
+    up: { x: m[1], y: m[5], z: m[9] },
+    forward: { x: -m[2], y: -m[6], z: -m[10] },
+  };
+}
+
+/**
+ * How far the eye stands off the focus. A perspective eye has to stand
+ * somewhere, and so does an orbited orthographic one; head-on 2D does not.
+ */
+export function editorViewStandoff(view: EditorViewData): number {
+  return view.perspective || editorViewIsOrbited(view) ? view.distance : 0;
+}
+
+/** Where the eye stands in world space. */
+export function editorViewEye(view: EditorViewData): Vec3 {
+  const m = orbitMatrix(view);
+  const d = editorViewStandoff(view);
+  return {
+    x: view.x + m[2] * d,
+    y: view.y + m[6] * d,
+    z: (view.z ?? 0) + m[10] * d,
+  };
+}
+
+/**
+ * Move the focus by an offset in the view's OWN axes, in world units.
+ *
+ * Every navigation that is not a turn is this: a drag, a zoom about the cursor,
+ * a dolly. Expressing them here is what keeps them from each picking a world
+ * plane of their own, which is only the same answer while the eye is head-on.
+ */
+export function moveEditorViewFocus(
+  view: EditorViewData, right: number, up: number, forward = 0,
+): void {
+  const b = editorViewBasis(view);
+  view.x += b.right.x * right + b.up.x * up + b.forward.x * forward;
+  view.y += b.right.y * right + b.up.y * up + b.forward.y * forward;
+  view.z = (view.z ?? 0) + b.right.z * right + b.up.z * up + b.forward.z * forward;
+}
+
+/**
+ * How much of the screen's two axes an axis-aligned box of half-size @p half
+ * covers, in world units — what "fit this in the frame" has to measure.
+ */
+export function editorViewBoxExtent(
+  view: EditorViewData, half: Vec3,
+): { right: number; up: number } {
+  const b = editorViewBasis(view);
+  const along = (a: Vec3): number =>
+    Math.abs(a.x) * half.x + Math.abs(a.y) * half.y + Math.abs(a.z) * half.z;
+  return { right: along(b.right), up: along(b.up) };
+}
+
+/** A world axis, as an index into (x, y, z). */
+export type WorldAxis = 0 | 1 | 2;
+
+/** The world plane a view works on, through the origin: the two axes that run in
+ *  it, and the one it is normal to. */
+export interface EditorWorkPlane {
+  u: WorldAxis;
+  v: WorldAxis;
+  normal: WorldAxis;
+}
+
+/**
+ * Which plane that is.
+ *
+ * The perspective toggle is the editor's word for "this view is looking at a 3D
+ * scene", and a 3D scene stands on the ground (y = 0). Orthographic is the 2D
+ * editor, whose plane is the one 2D content lives on.
+ */
+export function editorViewWorkPlane(view: EditorViewData): EditorWorkPlane {
+  return view.perspective ? { u: 0, v: 2, normal: 1 } : { u: 0, v: 1, normal: 2 };
+}
+
+/** A world axis as a unit vector. */
+export function worldAxisVector(axis: WorldAxis): Vec3 {
+  return { x: axis === 0 ? 1 : 0, y: axis === 1 ? 1 : 0, z: axis === 2 ? 1 : 0 };
 }
 
 /**

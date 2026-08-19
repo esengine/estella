@@ -102,7 +102,7 @@ export const viewportMessages = defineMessages({
     },
     'vp.pivot.pivot': { en: 'Pivot', zh: '轴心' },
     'vp.pivot.center': { en: 'Center', zh: '中心' },
-    'vp.projectionTitle': { en: 'The editor eye: 3D looks at the scene in perspective, from an angle. Alt-drag turns it further; each mode keeps the angle you left it at. Does not change the game camera.', zh: '编辑器视角：3D 用透视、从一个角度看场景。Alt+拖拽可继续转动；两种模式各自记住你离开时的角度。不影响游戏相机。' },
+    'vp.projectionTitle': { en: 'The editor eye: 3D looks at the scene in perspective, from an angle, and stands the grid on the ground. 2D keeps the flat view and the grid on the plane 2D content lives on. Alt-drag turns the eye further; each mode keeps the angle you left it at. Does not change the game camera.', zh: '编辑器视角：3D 用透视、从一个角度看场景，网格铺在地面上。2D 保持正面平视，网格在 2D 内容所在的平面上。Alt+拖拽可继续转动；两种模式各自记住你离开时的角度。不影响游戏相机。' },
     'vp.proj.ortho': { en: '2D', zh: '2D' },
     'vp.proj.perspective': { en: '3D', zh: '3D' },
     'vp.resetOrbitTitle': {

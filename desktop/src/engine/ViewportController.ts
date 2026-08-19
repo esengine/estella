@@ -17,6 +17,7 @@ import {
   layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
+  moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -118,6 +119,27 @@ function setZoomAmount(view: EditorViewData, value: number): void {
   setEditorViewHalfHeight(view, Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, value)));
 }
 
+/** World units per CSS pixel at the focus — the scale every navigation drag is in. */
+function worldPerPixel(view: EditorViewData): number | null {
+  const canvas = EngineHost.canvas;
+  if (!canvas) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const h = canvas.height / dpr;
+  return h > 0 ? (2 * zoomAmount(view)) / h : null;
+}
+
+/** A client point in normalized device coordinates (-1..1, y up). */
+function clientToNdc(clientX: number, clientY: number): { nx: number; ny: number } | null {
+  const canvas = EngineHost.canvas;
+  if (!canvas) return null;
+  const r = canvas.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return null;
+  return {
+    nx: ((clientX - r.left) / r.width) * 2 - 1,
+    ny: 1 - ((clientY - r.top) / r.height) * 2,
+  };
+}
+
 /** DOM pointer position → engine screen space (buffer px, y-up). */
 function clientToScreen(clientX: number, clientY: number): { sx: number; sy: number } | null {
   const canvas = EngineHost.canvas;
@@ -191,8 +213,8 @@ export const ViewportController = {
    * The default plane is the 2D one, which is the whole answer under an
    * orthographic view — a screen point's world x/y do not change with depth
    * there. In a perspective view they do, so anything that hits or drags a
-   * specific entity should pass that entity's z; navigation (pan, zoom, framing)
-   * keeps the 2D plane, which is the plane it is navigating over.
+   * specific entity should pass that entity's z. Navigation asks nothing here:
+   * it moves the focus along the view's own axes.
    */
   canvasToWorld(clientX: number, clientY: number, planeZ = 0): { x: number; y: number } | null {
     const cv = cameraView();
@@ -481,15 +503,20 @@ export const ViewportController = {
     return screenAABB(obbCorners(b).map(([wx, wy]) => toClient(wx, wy)));
   },
 
-  /** Pan the editor view by a CSS-pixel drag (prev→cur). Moves only the editor camera. */
+  /**
+   * Pan the editor view by a CSS-pixel drag (prev→cur). Moves only the editor camera.
+   *
+   * The focus slides along the view's OWN right and up, so a drag moves the world
+   * across the screen from any angle. Against a fixed world plane it would slide
+   * along that plane instead, which from a top-down eye is a plane seen edge-on.
+   */
   panByClient(prevX: number, prevY: number, curX: number, curY: number): void {
     const view = editorView();
     if (!view) return;
-    const a = this.canvasToWorld(prevX, prevY);
-    const b = this.canvasToWorld(curX, curY);
-    if (!a || !b) return;
-    view.x += a.x - b.x;
-    view.y += a.y - b.y;
+    const wpp = worldPerPixel(view);
+    if (wpp == null) return;
+    // Screen y is down, so a drag downward moves the focus up.
+    moveEditorViewFocus(view, -(curX - prevX) * wpp, (curY - prevY) * wpp);
   },
 
   /**
@@ -532,11 +559,9 @@ export const ViewportController = {
    */
   zoomScale(): number | null {
     const view = editorView();
-    const canvas = EngineHost.canvas;
-    if (!view || !canvas) return null;
-    const seen = zoomAmount(view) * 2;
-    const dpr = window.devicePixelRatio || 1;
-    return seen > 0 ? canvas.height / dpr / seen : null;
+    if (!view) return null;
+    const wpp = worldPerPixel(view);
+    return wpp != null && wpp > 0 ? 1 / wpp : null;
   },
 
   /** Where the eye stands, in degrees (0/0 = head-on). */
@@ -569,22 +594,25 @@ export const ViewportController = {
     setZoomAmount(view, zoomAmount(view) * factor);
   },
 
-  /** Zoom about the cursor: the world point under (clientX, clientY) stays put, so
-   *  you zoom INTO what you're looking at (Figma/Blender/Godot). Analytic — no
-   *  post-zoom re-project (the engine camera only updates next frame): for an ortho
-   *  camera the world offset from center scales with orthoSize, so the new center is
-   *  `view + (W − view)·(1 − factor)`. */
+  /**
+   * Zoom about the cursor: the world point under it stays put (Figma/Blender).
+   *
+   * Analytic rather than a re-project (the engine camera updates next frame):
+   * what the view sees at the focus scales about it, so the focus moves by the
+   * same fraction along the offset the cursor names in the view's own axes.
+   */
   zoomAtClient(clientX: number, clientY: number, factor: number): void {
     const view = editorView();
+    const canvas = EngineHost.canvas;
+    const n = clientToNdc(clientX, clientY);
     if (!view) return;
-    const w = this.canvasToWorld(clientX, clientY); // current matrices — read BEFORE zoom
     const before = zoomAmount(view);
     setZoomAmount(view, before * factor);
     const applied = zoomAmount(view) / before; // clamped factor
-    if (w) {
-      view.x += (w.x - view.x) * (1 - applied);
-      view.y += (w.y - view.y) * (1 - applied);
-    }
+    if (!n || !canvas) return;
+    const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
+    const k = 1 - applied;
+    moveEditorViewFocus(view, n.nx * before * aspect * k, n.ny * before * k);
   },
 
   /**
@@ -595,12 +623,15 @@ export const ViewportController = {
   frameSelection(ids: readonly EntityId[]): void {
     const view = editorView();
     const canvas = EngineHost.canvas;
+    const world = EngineHost.world;
     if (!view || ids.length === 0) return;
 
     let minX = Infinity;
     let minY = Infinity;
+    let minZ = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
+    let maxZ = -Infinity;
     for (const id of ids) {
       const b = this.entityBounds(id) ?? this.uiEntityWorldOBB(id);
       if (!b) continue;
@@ -610,18 +641,28 @@ export const ViewportController = {
         maxX = Math.max(maxX, wx);
         maxY = Math.max(maxY, wy);
       }
+      // Depth comes from the entity until a box carries one of its own; without
+      // it Frame centres on the 2D plane whatever it was asked to look at.
+      const z = world?.has(id, Transform) ? world.get(id, Transform).worldPosition.z : 0;
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
     }
     if (!Number.isFinite(minX)) return;
     view.x = (minX + maxX) / 2;
     view.y = (minY + maxY) / 2;
+    view.z = (minZ + maxZ) / 2;
 
-    const spanX = maxX - minX;
-    const spanY = maxY - minY;
+    // Fit the box as the EYE sees it. Head-on that is the box's own width and
+    // height; from any other angle it is what the box covers on screen.
+    const span = editorViewBoxExtent(view, {
+      x: (maxX - minX) / 2, y: (maxY - minY) / 2, z: (maxZ - minZ) / 2,
+    });
+    const spanR = span.right;
+    const spanU = span.up;
     const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
-    // Fit whichever axis is the binding constraint, in SEEN half-height — which
-    // the perspective view reaches by moving the camera, not by writing orthoSize
-    // (a field it does not render through: framing simply did nothing there).
-    const halfH = Math.max(spanY / 2, aspect > 0 ? spanX / 2 / aspect : spanX / 2) * 1.2;
+    // In SEEN half-height, which the perspective view reaches by moving the camera
+    // rather than by writing orthoSize — a field it does not render through.
+    const halfH = Math.max(spanU, aspect > 0 ? spanR / aspect : spanR) * 1.2;
     if (halfH > 1) setZoomAmount(view, halfH);
   },
 
@@ -648,6 +689,7 @@ export const ViewportController = {
     if (desHalfW <= 0 || desHalfH <= 0) return;
     view.x = ci.cx;
     view.y = ci.cy;
+    view.z = 0; // the design frame is the 2D plane's, and so is the view of it
     const aspect = panel && panel.height > 0 ? panel.width / panel.height : 1;
     const halfH = Math.max(desHalfH, aspect > 0 ? desHalfW / aspect : desHalfW) * 1.1;
     setZoomAmount(view, halfH);

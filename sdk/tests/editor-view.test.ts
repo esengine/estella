@@ -64,7 +64,15 @@ import {
   editorViewHalfExtent,
   editorViewHalfHeight,
   setEditorViewHalfHeight,
+  editorViewAxes,
+  editorViewBasis,
+  editorViewBoxExtent,
+  editorViewEye,
+  editorViewWorkPlane,
+  moveEditorViewFocus,
+  worldAxisVector,
 } from '../src/camera/EditorView';
+import type { Vec3 } from '../src/types';
 
 const view = (over: Partial<typeof DEFAULT_EDITOR_VIEW>) =>
   ({ ...DEFAULT_EDITOR_VIEW, active: true, ...over });
@@ -180,5 +188,125 @@ describe('editorViewHalfHeight', () => {
     setEditorViewHalfHeight(o, 500);
     expect(o.orthoSize).toBe(500);
     expect(o.distance).toBe(1000);
+  });
+});
+
+// =============================================================================
+// The view's own basis, the plane it works on, and moving the focus through
+// both. A 2D editor can assume the world plane is the screen plane; a view that
+// turns cannot, and every navigation that assumed it moved somewhere else.
+// =============================================================================
+
+const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+const len = (a: Vec3): number => Math.sqrt(dot(a, a));
+
+describe('the editor view basis', () => {
+  it('is the 2D one head-on: right +x, up +y, forward -z', () => {
+    const b = editorViewBasis(view({}));
+    expect(b.right.x).toBeCloseTo(1, 6);
+    expect(b.up.y).toBeCloseTo(1, 6);
+    expect(b.forward.z).toBeCloseTo(-1, 6);
+  });
+
+  it('stays orthonormal at every angle, poles included', () => {
+    for (const [yaw, pitch] of [[0, 0], [30, 25], [-115, 60], [0, 90], [180, -45]]) {
+      const b = editorViewBasis(view({ yaw, pitch }));
+      for (const a of [b.right, b.up, b.forward]) expect(len(a)).toBeCloseTo(1, 6);
+      expect(dot(b.right, b.up)).toBeCloseTo(0, 6);
+      expect(dot(b.right, b.forward)).toBeCloseTo(0, 6);
+      expect(dot(b.up, b.forward)).toBeCloseTo(0, 6);
+    }
+  });
+
+  // Two readings of one rotation. A second copy is how the axis ball and the
+  // thing it claims to describe drift apart.
+  it('agrees with the axis indicator', () => {
+    const v = view({ yaw: 37, pitch: 21 });
+    const b = editorViewBasis(v);
+    const axes = editorViewAxes(v);
+    expect(axes.x.dx).toBeCloseTo(b.right.x, 6);
+    expect(axes.x.dy).toBeCloseTo(-b.up.x, 6);
+    expect(axes.y.dx).toBeCloseTo(b.right.y, 6);
+    expect(axes.z.depth).toBeCloseTo(-b.forward.z, 6);
+  });
+
+  it('stands the eye off the focus by the distance, in every direction', () => {
+    const flat = editorViewEye(view({ x: 3, y: 4 }));
+    expect(flat.z).toBeCloseTo(0, 6); // head-on 2D: nothing depends on where it stands
+
+    expect(editorViewEye(view({ perspective: true, distance: 1000 })).z).toBeCloseTo(1000, 4);
+
+    const focus = { x: 10, y: 20, z: 30 };
+    const e = editorViewEye(view({ ...focus, yaw: 47, pitch: 33, distance: 500 }));
+    expect(Math.hypot(e.x - focus.x, e.y - focus.y, e.z - focus.z)).toBeCloseTo(500, 4);
+  });
+});
+
+describe('the work plane', () => {
+  it('is the plane 2D content lives on while the view is the 2D one', () => {
+    const p = editorViewWorkPlane(view({}));
+    expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 0, z: 1 });
+  });
+
+  it('is the ground once the view is a 3D one', () => {
+    const p = editorViewWorkPlane(view({ perspective: true }));
+    expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 1, z: 0 });
+    expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
+  });
+});
+
+describe('moving the focus', () => {
+  it('is world x / y head-on, which is the 2D editor exactly as it was', () => {
+    const v = view({ x: 5, y: 7 });
+    moveEditorViewFocus(v, 10, 20);
+    expect(v.x).toBeCloseTo(15, 6);
+    expect(v.y).toBeCloseTo(27, 6);
+    expect(v.z).toBeCloseTo(0, 6);
+  });
+
+  // Looking straight down, the screen's up runs along the floor. A pan that took
+  // the world y axis instead would fly the focus up out of the scene.
+  it('walks over the ground from a top-down eye, not through it', () => {
+    const v = view({ perspective: true, distance: 1000, pitch: 90 });
+    moveEditorViewFocus(v, 0, 100);
+    expect(v.y).toBeCloseTo(0, 6);
+    expect(Math.hypot(v.x, v.z)).toBeCloseTo(100, 6);
+  });
+
+  it('dollies along forward, which is the only way depth moves head-on', () => {
+    const v = view({});
+    moveEditorViewFocus(v, 0, 0, 250);
+    expect(v.z).toBeCloseTo(-250, 6);
+  });
+});
+
+describe('fitting a box in the frame', () => {
+  it('costs nothing for the depth an eye is looking along', () => {
+    const e = editorViewBoxExtent(view({}), { x: 30, y: 40, z: 500 });
+    expect(e.right).toBeCloseTo(30, 6);
+    expect(e.up).toBeCloseTo(40, 6);
+  });
+
+  it('turns depth into screen width once the eye is turned onto it', () => {
+    const e = editorViewBoxExtent(view({ yaw: 90 }), { x: 0, y: 0, z: 500 });
+    expect(e.right).toBeCloseTo(500, 4);
+    expect(e.up).toBeCloseTo(0, 6);
+  });
+});
+
+describe('the focus the view turns around', () => {
+  // The focus is the centre of the frame by definition. It was pinned to z = 0,
+  // so an orbit of a 3D scene swung around a plane the content was not on.
+  it('is the centre of the frame at any depth', () => {
+    const v = view({ x: 100, y: 50, z: -400, perspective: true, distance: 1000, yaw: 30, pitch: 25 });
+    const cam = editorCameraInfo(v, 800, 600, []);
+
+    const focus = ndc3(cam.viewProjection, 100, 50, -400);
+    expect(focus.x).toBeCloseTo(0, 5);
+    expect(focus.y).toBeCloseTo(0, 5);
+
+    // ...and the same x/y on the 2D plane is not, or the depth reached nothing.
+    const onPlane = ndc3(cam.viewProjection, 100, 50, 0);
+    expect(Math.abs(onPlane.x) + Math.abs(onPlane.y)).toBeGreaterThan(0.05);
   });
 });

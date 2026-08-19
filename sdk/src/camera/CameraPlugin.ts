@@ -18,7 +18,7 @@ import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
-import { EditorView, DEFAULT_EDITOR_VIEW, editorViewIsOrbited, type EditorViewData } from './EditorView';
+import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, type EditorViewData } from './EditorView';
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../render/renderPipeline';
@@ -159,9 +159,10 @@ export interface CameraPOV {
      * scalar above already says — so turning this on cannot move a 2D scene.
      */
     tilt?: { x: number; y: number; z: number; w: number };
-    /** Orbit about (x, y, z) in radians — an eye that stands off the -Z axis.
-     *  Absent (the 2D case) keeps the rotation-about-Z view exactly as it was. */
-    orbit?: { yaw: number; pitch: number };
+    /** Orbit in radians about the focus (x, y, focusZ) — an eye that stands off
+     *  the -Z axis. Absent (the 2D case) keeps the rotation-about-Z view exactly
+     *  as it was; `z` is then the eye's own depth rather than a standoff. */
+    orbit?: { yaw: number; pitch: number; focusZ: number };
     projection: number; // ProjectionType
     orthoSize: number; // authored ortho half-height
     fov: number;
@@ -302,7 +303,7 @@ export function buildCameraInfo(
     // (editor navigation), a tilt is the camera's own transform inverted (a scene
     // camera on 3D content), and 2D is the rotation-about-Z, untouched.
     const view = pov.orbit
-        ? invertViewOrbit(camX, camY, 0, pov.orbit.yaw, pov.orbit.pitch, pov.z)
+        ? invertViewOrbit(camX, camY, pov.orbit.focusZ, pov.orbit.yaw, pov.orbit.pitch, pov.z)
         : pov.tilt
             ? invertViewQuat(camX, camY, pov.z, pov.tilt.x, pov.tilt.y, pov.tilt.z, pov.tilt.w)
             : invertViewZ(camX, camY, pov.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
@@ -423,16 +424,17 @@ export function editorCameraInfo(
         isActive: true,
         x: view.x,
         y: view.y,
-        // Perspective needs the camera to stand somewhere: it is the distance that
-        // makes content near or far, where orthographically nothing depends on z.
-        // Orthographically nothing depends on z — except where the eye stands,
-        // which is what an orbit turns; so an orbited ortho view needs one too.
-        z: view.perspective || editorViewIsOrbited(view) ? view.distance : 0,
+        // How far back the eye stands, which is what a perspective projection
+        // needs and what an orbit swings around.
+        z: editorViewStandoff(view),
         rotation: 0,
-        ...(editorViewIsOrbited(view)
-            ? { orbit: { yaw: (view.yaw ?? 0) * Math.PI / 180,
-                         pitch: (view.pitch ?? 0) * Math.PI / 180 } }
-            : {}),
+        // Always an orbit: at yaw = pitch = 0 invertViewOrbit IS the head-on 2D
+        // view, so the editor has one way to stand rather than two.
+        orbit: {
+            yaw: (view.yaw ?? 0) * Math.PI / 180,
+            pitch: (view.pitch ?? 0) * Math.PI / 180,
+            focusZ: view.z ?? 0,
+        },
         projection: view.perspective ? ProjectionType.Perspective : ProjectionType.Orthographic,
         orthoSize: view.orthoSize,
         fov: view.fov,

@@ -16,6 +16,32 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The editor's view has a focus in space, and a plane it works on.** The editor
+  eye could turn, and everything else about it was still pinned to z = 0: it
+  orbited a point on that plane, panned across it, framed on it, and drew its grid
+  there. A 3D scene stands on the ground (y = 0), so what the grid drew was a wall
+  you turned around, and a pan from a top-down eye slid along a plane seen edge-on.
+
+  `EditorView` gains a `z`, so its focus is a point rather than a place on the 2D
+  plane, and `editorViewBasis` reads the view's own right / up / forward off the
+  matrix the camera is built from. Pan, zoom-about-cursor and Frame move that focus
+  through the basis (`moveEditorViewFocus`) and fit against it
+  (`editorViewBoxExtent`) instead of intersecting a fixed plane; head-on they are
+  the 2D navigation to the bit.
+
+  `editorViewWorkPlane` names the plane the view authors on — the ground under a
+  perspective eye, the plane 2D content lives on under an orthographic one — and
+  the grid draws that. The grid is a per-pixel ray against the plane now, not a
+  quad sized to a visible rect, with `fwidth` of the plane coordinate deciding line
+  width and where lines fade; so a ground plane recedes to its own horizon instead
+  of ending at a quad edge. Its axis lines are coloured by which world axes run in
+  the plane, which is why `EditorGrid` carries one colour per axis.
+
+  Gate `editor-grid-3d`, both backends: the grid from straight above a perspective
+  view has to reach all four quarters of the frame. Pinned back to the 2D plane it
+  lights the lower half and nothing else. The headless host can enter 3D now
+  (`ESTELLA_VERIFY_PERSPECTIVE`), which is what let a gate see any of this.
+
 - **A twin written in a template literal is still a twin.** `check-wgsl-twin` read
   `.esshader` files, and the SDK writes some of its dual-language shaders into
   template literals instead — the editor grid, the post-process effects, the seven
