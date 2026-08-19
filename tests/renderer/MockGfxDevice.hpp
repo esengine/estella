@@ -18,6 +18,10 @@ struct MockGfxDevice final : GfxDevice {
     using GfxDevice::markDeviceLost;
     using GfxDevice::setDeviceIdentity;
 
+    // Which clip volume this stand-in keeps; settable so one harness can drive
+    // both conventions rather than only the one the host happens to run.
+    ClipDepthRange clipRange = ClipDepthRange::MinusOneToOne;
+
     // Stands in for a backend that can (or cannot) get its device back.
     bool recreateSucceeds = true;
     int recreateCalls = 0;
@@ -107,6 +111,8 @@ struct MockGfxDevice final : GfxDevice {
     u32 lastDrawIndexCount = 0;
     u32 lastDrawIndexByteOffset = 0;
     u32 lastDrawInstanceCount = 0;
+
+    ClipDepthRange clipDepthRange() const override { return clipRange; }
 
     void init() override {}
     void shutdown() override {}

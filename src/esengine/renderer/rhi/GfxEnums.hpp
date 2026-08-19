@@ -442,6 +442,19 @@ enum class GfxDeviceLostReason : u8 {
  *          Its own type because a device has an identity for its whole life,
  *          while a loss report exists only after one.
  */
+/**
+ * @brief What a device's clip volume does with depth.
+ *
+ * @details The engine builds every projection for [-1, 1], which its frustum
+ *          extraction and its published frustum-corner API also speak. A device
+ *          keeping [0, 1] is handed the same projection in its own terms by
+ *          RenderContext::updateCameraConstants, the only place that happens.
+ */
+enum class ClipDepthRange : u8 {
+    MinusOneToOne,  ///< OpenGL / OpenGL ES / WebGL.
+    ZeroToOne,      ///< WebGPU, and every native API behind it.
+};
+
 struct GfxDeviceIdentity {
     std::string backend;   ///< "WebGL2", "WebGPU".
     std::string vendor;

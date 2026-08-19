@@ -158,6 +158,20 @@ public:
      *          The camera's own placement rides along, recovered from the matrix — every
      *          path in hands over exactly one view-projection and nothing else.
      */
+    /**
+     * @brief Point the frame at what a CAMERA sees.
+     * @details Keeps the projection in the engine's convention and uploads it in
+     *          the device's. This is the one place that conversion happens.
+     */
+    void updateCameraConstants(const glm::mat4& viewProjection);
+
+    /**
+     * @brief Point the frame at a pass whose projection already suits the device.
+     * @details The shadow cascades: theirs spans exactly the occluders it draws,
+     *          so it lands inside either clip volume untouched, and converting it
+     *          would move the depths it writes away from the copy of the matrix
+     *          the receiving shader compares against.
+     */
     void updateFrameConstants(const glm::mat4& viewProjection);
 
     /** @brief Uploads the frame clock + canvas size into the injected TimeConstants UBO. */
@@ -185,6 +199,8 @@ private:
     void initDefaultTextures();
     TextureHandle make1x1Texture(u32 rgba);
     void initFrameUbo();
+
+    void uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine);
 
     glm::mat4 viewProjection_{1.0f};
     RenderContextStats stats_;

@@ -64,6 +64,8 @@ public:
                           WGPUAdapter adapter = nullptr);
     ~WebGPUDevice() override;
 
+    ClipDepthRange clipDepthRange() const override { return ClipDepthRange::ZeroToOne; }
+
     void init() override;
     void shutdown() override;
 

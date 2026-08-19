@@ -16,26 +16,39 @@ published separately; it ships inside the editor.
 
 ### Changed
 
-- **The two backends disagree about what is behind an orthographic camera, and a
-  scene now says so.** `mat4.ts` builds every camera projection in the GL convention,
-  where clip z runs `[-1, 1]`; WebGPU clips everything below 0 of it. So an
-  orthographic camera's box is symmetric on WebGL2 and one-sided on WebGPU, and a
-  renderable between the camera plane and `+farPlane` draws on one backend and not
-  the other. `RenderFrame.cpp:954` already hand-builds the shadow projection to dodge
-  exactly this, "because this matrix is the one place the choice is free" — a camera's
-  is not, so it kept the divergence.
+- **A device is asked what its clip volume is, instead of being assumed to be GL.**
+  Every projection in the engine is built for clip z in `[-1, 1]` and was handed to
+  both backends unchanged. WebGPU keeps `[0, 1]` and discards the rest, so an
+  orthographic camera's box was symmetric on WebGL2 and one-sided on WebGPU: anything
+  between the camera plane and `+farPlane` drew on one backend and vanished on the
+  other. `RenderFrame.cpp` had hand-built the shadow projection around this years-old
+  fact, "because this matrix is the one place the choice is free" — a camera's was not,
+  so it kept the divergence.
 
-  Nothing caught it because no fixture had content there: the whole scene corpus
-  stands its cameras back, and the parity host puts every entity at z = 0.
-  `celestial-heights` does have content there — `spire.esscene` has `HealthBar_Fill`
-  at world z = +1 under a camera at z = 0 — which is a Dawn build drawing the game
-  without part of its HUD.
+  Nothing caught it because no fixture had content there: the corpus stands its cameras
+  back and the parity host puts every entity at z = 0. `celestial-heights` does —
+  `spire.esscene` has `HealthBar_Fill` at world z = +1 under a camera at z = 0 — so a
+  Dawn build drew the game without that part of its HUD.
 
-  Gate `ortho-clip-behind-camera` is that geometry, and it is **red on WebGPU on
-  purpose**: it holds the divergence open rather than describing it. Whichever way the
-  conventions are reconciled, that scene is what says they were. The fix is not in this
-  change — it moves a convention that `Frustum::extractFromMatrix`, `cameraFrustumCorners`
-  (@beta) and a numeric assertion in `mat4.test.ts` all depend on.
+  `GfxDevice::clipDepthRange()` is that fact, declared by each backend rather than read
+  off the display name in its identity, and pure so a backend added later cannot inherit
+  someone else's convention in silence. `RenderContext::updateCameraConstants` is the
+  one place a camera's projection is converted, and it converts only what it uploads:
+  the engine keeps `[-1, 1]` everywhere else, so `Frustum::extractFromMatrix`, the
+  published `cameraFrustumCorners`, `ImmediateDraw`'s own unprojection and every
+  numeric assertion in `mat4.test.ts` are untouched, and a WebGL2 build is unchanged to
+  the bit. No shader was edited; the eye in `FrameConstants` is invariant under the
+  conversion, so nothing had to be ordered around it.
+
+  The shadow cascades keep going through the unconverted path, and that is now stated
+  rather than implied: their projection spans exactly the occluders it draws, so it
+  already sits inside either clip volume, and converting it would move the depths it
+  writes away from the copy of the matrix the receiving shader compares against — while
+  a bias derived from the range it spans went on meaning the old one.
+
+  Gate `ortho-clip-behind-camera` is that geometry. It was landed red on WebGPU on
+  purpose one commit earlier, to hold the divergence open; it is green on both now, as
+  is every other scene in the tier on both backends.
 
 - **A turned sprite is culled by a box that turned with it.** The same bound the mesh
   path just gained, for the three plane renderables that also draw a turned quad: a

@@ -36,6 +36,8 @@ public:
     GLDevice() = default;
     ~GLDevice() override = default;
 
+    ClipDepthRange clipDepthRange() const override { return ClipDepthRange::MinusOneToOne; }
+
     void init() override;
     void shutdown() override;
 

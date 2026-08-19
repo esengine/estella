@@ -340,7 +340,7 @@ void RenderFrame::flush() {
         pool_.upload();
     }
 
-    context_.updateFrameConstants(view_projection_);
+    context_.updateCameraConstants(view_projection_);
     context_.lights().uploadAndBind();
 
     gpu_timer_.poll(device_);
@@ -463,7 +463,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
-    context_.updateFrameConstants(view_projection_);
+    context_.updateCameraConstants(view_projection_);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
                        &frame_capture_, context_.skinUbo());
@@ -519,7 +519,7 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
 
     draw_list_.finalize(pool_);
     pool_.upload();
-    context_.updateFrameConstants(viewProjection);
+    context_.updateCameraConstants(viewProjection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
                        &frame_capture_, context_.skinUbo());
@@ -995,6 +995,9 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
 
         draw_list_.finalize(pool_);
         pool_.upload();
+        // Not a camera's: this projection spans exactly the occluders it draws, so
+        // it sits inside either clip volume as built, and the depths it writes are
+        // compared against the copy of it the receiving shader holds.
         context_.updateFrameConstants(matrices[c]);
         // The depth variant is still a Lit2D shader and still declares the light block,
         // and a draw whose declared UBO is unbound is undefined behaviour that draws

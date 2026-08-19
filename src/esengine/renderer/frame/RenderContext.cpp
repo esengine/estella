@@ -155,9 +155,30 @@ void RenderContext::initFrameUbo() {
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
 
+// The same projection with its clip z mapped from [-1, 1] onto [0, 1]: row 2
+// becomes the average of rows 2 and 3, which is that map written as a matrix.
+static glm::mat4 toZeroToOneDepth(const glm::mat4& p) {
+    glm::mat4 out = p;
+    for (int col = 0; col < 4; ++col) out[col][2] = (p[col][2] + p[col][3]) * 0.5f;
+    return out;
+}
+
+void RenderContext::updateCameraConstants(const glm::mat4& viewProjection) {
+    const bool zeroToOne = device_.clipDepthRange() == ClipDepthRange::ZeroToOne;
+    uploadFrameConstants(zeroToOne ? toZeroToOneDepth(viewProjection) : viewProjection,
+                         viewProjection);
+}
+
 void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
-    viewProjection_ = viewProjection;
-    const FrameConstants frame{viewProjection, cameraFromViewProjection(viewProjection)};
+    uploadFrameConstants(viewProjection, viewProjection);
+}
+
+// `engine` is the projection in the engine's own convention, which is what the
+// viewpoint is read from: the two agree on it, but only one of them is the answer
+// to "where is the eye" that the rest of the engine also holds.
+void RenderContext::uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine) {
+    viewProjection_ = engine;
+    const FrameConstants frame{upload, cameraFromViewProjection(engine)};
     device_.updateBuffer(frameUbo_, 0, &frame, sizeof(FrameConstants));
     // Re-arm the params fallback for this pass: a post-process or custom-draw
     // commit from the previous pass left its own (differently sized) buffer on

@@ -120,6 +120,15 @@ public:
     const GfxDeviceIdentity& deviceIdentity() const { return identity_; }
 
     /**
+     * @brief The clip volume this device keeps along z.
+     * @details Pure: a backend that does not state this is a backend whose
+     *          projections silently mean something else, which is the bug this
+     *          exists to make impossible. It is not read off `deviceIdentity`,
+     *          whose backend name is a label rather than a capability.
+     */
+    virtual ClipDepthRange clipDepthRange() const = 0;
+
+    /**
      * @brief Declares the device lost from outside the backend.
      * @details The host observes losses the backend cannot: a browser firing
      *          `webglcontextlost`, a shell told by the OS that the adapter is

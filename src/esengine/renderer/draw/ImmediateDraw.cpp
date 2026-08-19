@@ -128,8 +128,9 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     if (!initialized_) return;
 
     // The batch shader reads u_projection from the shared FrameConstants UBO; update it
-    // for this pass rather than uploading a loose uniform per flush.
-    context_.updateFrameConstants(viewProjection);
+    // for this pass rather than uploading a loose uniform per flush. A camera's, so it
+    // is converted for the device — Draw.line3D places geometry in the world.
+    context_.updateCameraConstants(viewProjection);
     // A prior phase may have left another pipeline bound; force our pipeline to re-apply.
     device_.invalidatePipelineCache();
 
