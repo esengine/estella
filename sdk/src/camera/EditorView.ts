@@ -237,12 +237,26 @@ export interface EditorWorkPlane {
  * Which plane that is.
  *
  * The perspective toggle is the editor's word for "this view is looking at a 3D
- * scene", and a 3D scene stands on the ground (y = 0). Orthographic is the 2D
- * editor, whose plane is the one 2D content lives on.
+ * scene", and a 3D scene stands on the ground (y = 0); orthographic is the 2D
+ * editor, whose plane is the one 2D content lives on. A plane the eye looks ALONG
+ * offers nothing to work on, so there the plane the eye most faces answers instead
+ * — which is how a perspective view held head-on is the 2D one again.
  */
 export function editorViewWorkPlane(view: EditorViewData): EditorWorkPlane {
-  return view.perspective ? { u: 0, v: 2, normal: 1 } : { u: 0, v: 1, normal: 2 };
+  const nominal: EditorWorkPlane = view.perspective
+    ? { u: 0, v: 2, normal: 1 }
+    : { u: 0, v: 1, normal: 2 };
+  const screen = editorViewAxes(view);
+  const depth = (a: WorldAxis): number =>
+    Math.abs((a === 0 ? screen.x : a === 1 ? screen.y : screen.z).depth);
+  if (depth(nominal.normal) >= PLANE_SEEN_MIN) return nominal;
+  const normal = ([0, 1, 2] as WorldAxis[]).reduce((best, a) => (depth(a) > depth(best) ? a : best), 0);
+  const [u, v] = ([0, 1, 2] as WorldAxis[]).filter((a) => a !== normal);
+  return { u: u!, v: v!, normal };
 }
+
+/** How square-on a plane must be to be the one worked on — about 6° off edge-on. */
+const PLANE_SEEN_MIN = 0.1;
 
 /**
  * The work-plane axis a screen direction names, with the sign pointing that way —
@@ -255,6 +269,7 @@ export function screenNudgeAxes(
   const plane = editorViewWorkPlane(view);
   const screen = editorViewAxes(view);
   const of = (a: WorldAxis): ScreenAxis => (a === 0 ? screen.x : a === 1 ? screen.y : screen.z);
+  const candidates: WorldAxis[] = [plane.u, plane.v];
   // Screen y runs down, so pointing up the screen is a negative dy.
   const score = (a: WorldAxis, sign: number, dir: 'right' | 'up'): number =>
     sign * (dir === 'right' ? of(a).dx : -of(a).dy);
@@ -269,8 +284,8 @@ export function screenNudgeAxes(
     }
     return out;
   };
-  const right = best([plane.u, plane.v], 'right');
-  const up = best([plane.u, plane.v].filter((a) => a !== right.axis), 'up');
+  const right = best(candidates, 'right');
+  const up = best(candidates.filter((a) => a !== right.axis), 'up');
   return { right, up };
 }
 

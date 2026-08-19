@@ -131,7 +131,7 @@ describe('the plane the view authors on', () => {
   // A 3D scene stands on the ground, and that is the surface a dropped thing
   // belongs on — not the wall at z = 0 the cursor happens to cross.
   it('perspective is the ground, and says so in the axes it names', () => {
-    host.view = perspectiveView({});
+    host.view = perspectiveView({ pitch: 40 });
     host.ray = downAndBack;
     const p = ViewportController.canvasToWorkPlane(400, 300);
     expect(p).not.toBeNull();
@@ -144,12 +144,16 @@ describe('the plane the view authors on', () => {
   // A perspective eye held head-on looks ALONG the ground: every ray meets it
   // where nobody pointed. The plane through the focus facing the eye is what a
   // screen point means there — and head-on that is the 2D plane, unchanged.
-  it('falls back to the focus plane when the work plane is edge-on', () => {
-    host.view = perspectiveView({ z: -25 });
-    host.ray = { origin: { x: 3, y: 4, z: 900 }, dir: { x: 0, y: 0.001, z: -1 } };
+  // A ray can lie along a plane the VIEW is square enough on: half a wide fov at
+  // the frame's edge is a long way off the view axis.
+  it('falls back to the focus plane when the ray itself lies in the plane', () => {
+    host.view = perspectiveView({ pitch: 8, z: -25 });
+    host.ray = { origin: { x: 3, y: 4, z: 900 }, dir: { x: 0, y: 0.0005, z: -1 } };
     const p = ViewportController.canvasToWorkPlane(400, 300);
     expect(p).not.toBeNull();
-    expect(p!.z).toBeCloseTo(-25, 4);
+    // Near the focus, on the plane facing the eye — not the thousands of units
+    // away the ground would have answered.
+    expect(Math.abs(p!.z + 25)).toBeLessThan(5);
     expect(p!.x).toBeCloseTo(3, 4);
   });
 });
@@ -171,6 +175,16 @@ describe('the arrow-key nudge', () => {
     expect(d.y).toBeCloseTo(0, 6);
     expect(d.x).toBeCloseTo(10, 6);
     expect(d.z).toBeCloseTo(-4, 6);
+  });
+
+  // A perspective eye that has not been turned yet looks ALONG the ground, whose
+  // second axis then points into the picture. The 2D pair is what the keys name.
+  it('is the 2D nudge again when the ground is edge-on', () => {
+    host.view = perspectiveView({});  // head-on: the eye looks ALONG the ground
+    const d = ViewportController.nudgeVector(10, 4);
+    expect(d.x).toBeCloseTo(10, 6);
+    expect(d.y).toBeCloseTo(4, 6);
+    expect(d.z).toBeCloseTo(0, 6);
   });
 
   // Turned a quarter turn about Y, screen-right is world Z and the ground's other
@@ -200,7 +214,7 @@ describe('the minimap plots the plane the view works on', () => {
   // Looking down at the ground, +Z runs AWAY from the eye — down the map, the way
   // a plan drawn from above reads. Plotting it as +y up would mirror the scene.
   it('is the ground under a 3D eye, drawn as looking down reads', () => {
-    const v = perspectiveView({ x: 5, y: 1, z: 7 });
+    const v = perspectiveView({ x: 5, y: 1, z: 7, pitch: 40 });
     host.view = v;
     const r = ViewportController.editorViewRect()!;
     expect(r.cx).toBeCloseTo(5, 6);
