@@ -10,13 +10,10 @@ namespace esengine {
 /**
  * @brief One vertex of the shared batch stream.
  *
- * @details `position.z` must be the same world z the draw reports as its sort depth
- *          (`BatchDrawKey::depth`). The two answer different questions — the key decides
- *          draw ORDER, the vertex feeds projection and the depth test — and a draw whose
- *          answers disagree is one the painter's order and the depth buffer would place
- *          differently. Under an orthographic camera with the depth test off (today's 2D
- *          default) that disagreement is invisible, which is exactly why it has to be an
- *          invariant rather than a habit.
+ * @details `position.z` is world z: what the projection and the depth test consume.
+ *          `BatchDrawKey::depth` is that same point measured from the viewer instead —
+ *          one is geometry, the other decides draw ORDER. They must agree on which of
+ *          two draws is nearer, or painter's order and the depth buffer place them apart.
  */
 struct BatchVertex {
     glm::vec3 position;
