@@ -129,7 +129,8 @@ export interface CanvasPoint {
 
 /** An entity's drawn box, as the realm's own camera projects it. */
 export interface PlayOverlayBox {
-  /** The four corners, counter-clockwise from the box's local -x,-y. */
+  /** The outline the box draws on screen, counter-clockwise: four points while
+   *  it is flat, more once it has depth to turn. */
   corners: CanvasPoint[];
   /** The transform origin — where a move gizmo is anchored. Absent for a box a
    *  drag cannot move: a UI node is placed by layout, not by a position field. */

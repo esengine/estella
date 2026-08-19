@@ -14,9 +14,9 @@ import {
   BoxCollider3D, SphereCollider3D, CapsuleCollider3D, MeshCollider3D, CharacterController3D,
   readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,
   readJoint3D, rotateVec3ByQuat,
-  layerOrderOf,
   editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
-  entityWorldBox, uiNodeWorldBox, meshWorldBox, editorViewIsOrbited,
+  entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, type EntityBox,
+  pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
   rayPlaneHit, type WorldRay, type Vec3,
@@ -27,17 +27,13 @@ import { EngineHost } from './EngineHost';
 import { projectDesignSeed, projectCameraFit, projectSortingLayerModes } from './projectSeams';
 import { SceneModel } from './SceneModel';
 import {
-  type OBB,
   type ClientRect,
   frustumPlaneCrossings,
   quatAngleZ,
   obbCorners,
-  pointInOBB,
   rectsIntersect,
   screenAABB,
   worldToLocal2D,
-  rankPickCandidates,
-  type PickCandidate,
 } from './viewportMath';
 
 // Half-length of a 3D joint's axis marker, in world units — long enough to read
@@ -48,9 +44,6 @@ const JOINT3D_AXIS_WORLD_HALF = 60;
 const ICON_WORLD_HALF = 24;
 // Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
 const ORBIT_DEG_PER_PX = 0.4;
-// Pick priority for icon-only entities: above any real sprite layer, so a small
-// foreground gizmo (camera/light) wins a tie against a big sprite beneath it.
-const ICON_PICK_LAYER = 1e6;
 
 // The scene-authored joint components, each drawn as an anchor-to-anchor link gizmo.
 // (The mouse/drag joint is imperative runtime API only — no component, nothing to draw.)
@@ -283,7 +276,7 @@ export const ViewportController = {
    * (= transform position). Reads the parent-composed world transform — the same
    * fields the renderer draws from — so parented entities pick where they render.
    */
-  entityBounds(id: EntityId): OBB | null {
+  entityBounds(id: EntityId): EntityBox | null {
     const world = EngineHost.world;
     if (!world) return null;
     // A mesh's extent is in its vertices, so it is asked for before the icon
@@ -362,39 +355,31 @@ export const ViewportController = {
     const out: EntityId[] = [...this.pickUIEntities(clientX, clientY)];
 
     const world = EngineHost.world;
-    if (world) {
+    const ray = this.canvasRay(clientX, clientY);
+    if (world && ray) {
       const masks = projectSortingLayerModes();
-      const hits: PickCandidate<EntityId>[] = [];
-      // The cursor is tested against each candidate ON ITS OWN PLANE. One shared
-      // world point would be the 2D projection of the cursor, which under a
-      // perspective view is where a sprite's shadow falls rather than where the
-      // sprite is — so anything off the z = 0 plane would be unclickable at the
-      // place it is drawn. Orthographically every plane gives the same point, so
-      // this costs an unproject per candidate and changes no answer.
-      for (const e of world.getAllEntities()) {
-        if (!world.has(e, Transform)) continue;
+      for (const e of pickEntitiesByRay(world, ray, {
+        iconHalf: ICON_WORLD_HALF,
         // Locked / editor-hidden / environment entities aren't click-selectable.
-        const src = SceneModel.sourceFor(e);
-        if (src != null && !SceneModel.isPickable(src)) continue;
-        const wp = this.canvasToWorld(clientX, clientY, this.entityPlaneZ(e));
-        const b = this.entityBounds(e);
-        if (!wp || !b || !pointInOBB(wp.x, wp.y, b)) continue;
-        const layer = world.has(e, Sprite) ? world.get(e, Sprite).layer : ICON_PICK_LAYER;
-        const t = world.get(e, Transform);
-        hits.push({
-          entity: e,
-          index: hits.length,
-          rank: {
-            layer,
-            order: layerOrderOf(layer, masks.ySort, masks.depth),
-            worldY: t.worldPosition.y,
-            worldZ: t.worldPosition.z,
-          },
-        });
+        pickable: (e) => {
+          const src = SceneModel.sourceFor(e as EntityId);
+          return src == null || SceneModel.isPickable(src);
+        },
+        ySortLayers: masks.ySort,
+        depthLayers: masks.depth,
+      })) {
+        out.push(e as EntityId);
       }
-      for (const e of rankPickCandidates(hits)) out.push(e);
     }
     return out;
+  },
+
+  /** The world ray a canvas point names — what a click actually is. */
+  canvasRay(clientX: number, clientY: number): WorldRay | null {
+    const cv = cameraView();
+    const s = clientToScreen(clientX, clientY);
+    if (!cv || !s) return null;
+    return cv.screenRay(s.sx, s.sy);
   },
 
   /** Topmost entity under the pointer — UI (screen-space) first, then a world OBB. */
@@ -478,7 +463,7 @@ export const ViewportController = {
 
   /** World OBB of a UI node's resolved layout box (Yoga size × worldScale,
    *  pivot-centered on the world transform). */
-  uiEntityWorldOBB(id: EntityId): OBB | null {
+  uiEntityWorldOBB(id: EntityId): EntityBox | null {
     const world = EngineHost.world;
     return world ? uiNodeWorldBox(world, id) : null;
   },
@@ -491,7 +476,7 @@ export const ViewportController = {
     const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
     const obb = this.uiEntityWorldOBB(id);
     if (!cam?.valid || !obb) return null;
-    return screenAABB(obbCorners(obb).map(([wx, wy]) => this.uiWorldToClient(cam, wx, wy)));
+    return screenAABB(entityBoxCorners(obb).map((c) => this.uiWorldToClient(cam, c.x, c.y)));
   },
 
   /** Screen-space bounding rect (CSS px rel. canvas) of an entity, for the selection outline. */
@@ -499,8 +484,9 @@ export const ViewportController = {
     if (EngineHost.world?.has(id, UINode)) return this.uiEntityScreenRect(id);
     const b = this.entityBounds(id);
     if (!b) return null;
-    const toClient = this.projectorFor(id);
-    return screenAABB(obbCorners(b).map(([wx, wy]) => toClient(wx, wy)));
+    // Every corner through its OWN depth: a box with any thickness has corners on
+    // different planes, and one shared plane would draw the outline of its shadow.
+    return screenAABB(entityBoxCorners(b).map((c) => this.worldToClient(c.x, c.y, c.z)));
   },
 
   /**
@@ -623,7 +609,6 @@ export const ViewportController = {
   frameSelection(ids: readonly EntityId[]): void {
     const view = editorView();
     const canvas = EngineHost.canvas;
-    const world = EngineHost.world;
     if (!view || ids.length === 0) return;
 
     let minX = Infinity;
@@ -635,17 +620,14 @@ export const ViewportController = {
     for (const id of ids) {
       const b = this.entityBounds(id) ?? this.uiEntityWorldOBB(id);
       if (!b) continue;
-      for (const [wx, wy] of obbCorners(b)) {
-        minX = Math.min(minX, wx);
-        minY = Math.min(minY, wy);
-        maxX = Math.max(maxX, wx);
-        maxY = Math.max(maxY, wy);
+      for (const c of entityBoxCorners(b)) {
+        minX = Math.min(minX, c.x);
+        minY = Math.min(minY, c.y);
+        minZ = Math.min(minZ, c.z);
+        maxX = Math.max(maxX, c.x);
+        maxY = Math.max(maxY, c.y);
+        maxZ = Math.max(maxZ, c.z);
       }
-      // Depth comes from the entity until a box carries one of its own; without
-      // it Frame centres on the 2D plane whatever it was asked to look at.
-      const z = world?.has(id, Transform) ? world.get(id, Transform).worldPosition.z : 0;
-      minZ = Math.min(minZ, z);
-      maxZ = Math.max(maxZ, z);
     }
     if (!Number.isFinite(minX)) return;
     view.x = (minX + maxX) / 2;
@@ -765,9 +747,9 @@ export const ViewportController = {
         const b = this.entityBounds(e);
         if (!b) continue;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        for (const [wx, wy] of obbCorners(b)) {
-          x0 = Math.min(x0, wx); y0 = Math.min(y0, wy);
-          x1 = Math.max(x1, wx); y1 = Math.max(y1, wy);
+        for (const c of entityBoxCorners(b)) {
+          x0 = Math.min(x0, c.x); y0 = Math.min(y0, c.y);
+          x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y);
         }
         add(e, x0, y0, x1, y1, world.has(e, Sprite) ? 'sprite' : 'icon');
       }

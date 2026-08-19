@@ -14,7 +14,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { useSelection } from '@/store/selectionStore';
-import { obbCorners } from '@/engine/viewportMath';
+import { entityBoxCorners } from 'esengine';
 import { pruneDescendants, isFlowUINode, isOrphanUINode } from './transformTools';
 import { alignTargets, distributeTargets, type AlignBox, type AlignOp, type DistributeAxis } from './alignMath';
 import type { EntityId } from '@/types';
@@ -32,9 +32,9 @@ function collectBoxes(): Array<{ sid: EntityId; box: AlignBox }> {
     if (rt == null) continue;
     const obb = ViewportController.entityBounds(rt) ?? ViewportController.uiEntityWorldOBB(rt);
     if (!obb) continue;
-    const corners = obbCorners(obb);
-    const xs = corners.map((c) => c[0]);
-    const ys = corners.map((c) => c[1]);
+    const corners = entityBoxCorners(obb);
+    const xs = corners.map((c) => c.x);
+    const ys = corners.map((c) => c.y);
     out.push({
       sid,
       box: { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys), cx: obb.cx, cy: obb.cy },

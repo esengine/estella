@@ -64,7 +64,7 @@ describe.skipIf(!HAS_WASM)('a mesh world box (WASM integration)', () => {
             app.tick(1 / 60);
 
             expect(meshWorldBox(app.world, e))
-                .toEqual({ cx: 10, cy: 20, hw: 100, hh: 30, rot: 0 });
+                .toEqual({ cx: 10, cy: 20, cz: 0, hw: 100, hh: 30, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
         } finally {
             dispose(app, registry);
         }

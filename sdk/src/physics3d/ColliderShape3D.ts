@@ -20,6 +20,7 @@
  * pixels-per-unit on its way into the solver), so nothing here scales.
  */
 import type { Vec3, Quat } from '../types';
+import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D,
@@ -59,17 +60,9 @@ export interface Collider3DInstance {
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
 
 /** Turn a vector by a rotation — what places an anchor, an axis or a wireframe
- *  vertex in the world, and the one piece of 3D maths every visualizer needs. */
-export function rotateVec3ByQuat(q: Quat, v: Vec3): Vec3 {
-    // t = 2 * (q.xyz × v); v' = v + q.w * t + q.xyz × t
-    const tx = 2 * (q.y * v.z - q.z * v.y);
-    const ty = 2 * (q.z * v.x - q.x * v.z);
-    const tz = 2 * (q.x * v.y - q.y * v.x);
-    return {
-        x: v.x + q.w * tx + q.y * tz - q.z * ty,
-        y: v.y + q.w * ty + q.z * tx - q.x * tz,
-        z: v.z + q.w * tz + q.x * ty - q.y * tx,
-    };
+ *  vertex in the world. The maths is the math module's; this is its name here. */
+export function rotateVec3ByQuat(rot: Quat, v: Vec3): Vec3 {
+    return q.rotate(rot, v);
 }
 
 /** Local AABB of a loaded mesh's collision triangles, or null when nothing loaded them. */

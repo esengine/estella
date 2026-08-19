@@ -225,7 +225,9 @@ export {
     layerOrderOf,
     layerFrontness,
     compareDrawRank,
+    rankPickCandidates,
     type DrawRank,
+    type PickCandidate,
 } from './render/layerOrder';
 
 export {

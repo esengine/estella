@@ -16,6 +16,35 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **An entity's box has a third dimension, and one hit test uses it.** `EntityBox`
+  was `{cx, cy, hw, hh, rot}` with `rot` the Z angle of a quaternion, and the
+  engine answered a mesh's extent with its XY bounds. So a model turned about X or
+  Y had a box that did not turn with it, and a click was the cursor unprojected
+  onto that entity's own z plane and tested against a rect — an answer that is
+  right only while the eye is head-on.
+
+  The box is an oriented box now: a centre, half-extents on its own three axes,
+  and the rotation the renderer draws it with. A sprite and a UI node are flat
+  (`hd` zero), which is what they are; an icon is a cube, so a camera or a light
+  reads and clicks the same from wherever the view has been turned to. A click is
+  a ray, and `entityBoxRayHit` is the slab test against it — where a flat box is
+  not a degenerate case but a quad, met by a ray in its own plane, which is what a
+  2D editor asking "is the cursor on this sprite" has always meant.
+
+  The editor and a running game asked that question twice, and the two had
+  drifted: the play realm boxed a model by its transform alone, so a click
+  anywhere on an imported mesh landed on whatever was behind it. There is one
+  `pickEntitiesByRay` now; each realm passes its own camera, its own refusals, and
+  whether it draws gizmos to aim at. The ray decides what is hit and the layer
+  rules still decide which hit is on top, because that is what the renderer
+  stacked them by.
+
+  Outlines follow: every corner projects through its own depth rather than one
+  shared plane, and a box's screen outline is the convex hull of those corners —
+  four points while it is flat, more once it has depth to turn. `q.rotate` and
+  `q.conjugate` join the math module, where the one copy of turning a vector by a
+  rotation now lives.
+
 - **The editor's view has a focus in space, and a plane it works on.** The editor
   eye could turn, and everything else about it was still pinned to z = 0: it
   orbited a point on that plane, panned across it, framed on it, and drew its grid

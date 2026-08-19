@@ -77,3 +77,23 @@ export function compareDrawRank(a: DrawRank, b: DrawRank): number {
     if (a.layer !== b.layer) return a.layer - b.layer;
     return layerFrontness(a.order, a.worldY, a.worldZ) - layerFrontness(b.order, b.worldY, b.worldZ);
 }
+
+/** One entity under the pointer, with everything its rank depends on. */
+export interface PickCandidate<T> {
+    entity: T;
+    /** Where the frame put it: layer, that layer's rule, and the world coords it uses. */
+    rank: DrawRank;
+    /** Position in the World's iteration order: the paint order for equal depth. */
+    index: number;
+}
+
+/**
+ * Candidates ranked topmost-first, the way the RENDERER stacked them — the layer
+ * rules via {@link compareDrawRank}, then later-drawn winning ties. Backwards
+ * means a click selects what is hidden behind what the person aimed at.
+ */
+export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>>): T[] {
+    return [...candidates]
+        .sort((a, b) => compareDrawRank(b.rank, a.rank) || b.index - a.index)
+        .map((c) => c.entity);
+}

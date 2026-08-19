@@ -743,23 +743,27 @@ emscripten::val mesh2d_localBounds(ecs::Registry& registry, u32 entity) {
     const auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
     if (!mesh) return emscripten::val::null();
 
-    glm::vec2 mn = mesh->localMin;
-    glm::vec2 mx = mesh->localMax;
+    // The inline payload is authored as 2D positions and has no third dimension;
+    // resident geometry carries the one it was imported with.
+    glm::vec3 mn(mesh->localMin, 0.0f);
+    glm::vec3 mx(mesh->localMax, 0.0f);
     if (mesh->mesh.isValid()) {
         if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
             if (const Mesh* res = rm->getMesh(mesh->mesh)) {
-                mn = glm::vec2(res->localMin);
-                mx = glm::vec2(res->localMax);
+                mn = res->localMin;
+                mx = res->localMax;
             }
         }
     }
-    if (!(mx.x > mn.x) && !(mx.y > mn.y)) return emscripten::val::null();
+    if (!(mx.x > mn.x) && !(mx.y > mn.y) && !(mx.z > mn.z)) return emscripten::val::null();
 
     auto out = emscripten::val::object();
     out.set("minX", mn.x);
     out.set("minY", mn.y);
+    out.set("minZ", mn.z);
     out.set("maxX", mx.x);
     out.set("maxY", mx.y);
+    out.set("maxZ", mx.z);
     return out;
 }
 

@@ -8,9 +8,11 @@
  *        The one import is the SDK's pure mirror of the renderer's layer rules,
  *        which picking has to rank by rather than restate.
  */
-import { compareDrawRank, type DrawRank, type ScreenAxis } from 'esengine';
+import type { ScreenAxis } from 'esengine';
 
-/** Oriented bounding box in world space: center, half-extents, Z rotation (radians). */
+/** A flat rect in the XY plane: center, half-extents, Z rotation (radians). What a
+ *  2D authoring shape is — a particle emitter's spawn box, a tile cell. An entity's
+ *  extent is not one of these; it is an `EntityBox`, which has a third dimension. */
 export interface OBB {
   cx: number;
   cy: number;
@@ -41,15 +43,28 @@ export function obbCorners(b: OBB): Array<[number, number]> {
   );
 }
 
-/** Whether a world point lies inside an OBB (transform the point into the box's local frame). */
-export function pointInOBB(px: number, py: number, b: OBB): boolean {
-  const dx = px - b.cx;
-  const dy = py - b.cy;
-  const c = Math.cos(-b.rot);
-  const s = Math.sin(-b.rot);
-  const lx = dx * c - dy * s;
-  const ly = dx * s + dy * c;
-  return Math.abs(lx) <= b.hw && Math.abs(ly) <= b.hh;
+/**
+ * The outline of a set of projected points: their convex hull, counter-clockwise
+ * (Andrew's monotone chain). A box's eight corners are a quadrilateral on screen
+ * while it is flat and a hexagon once it has depth, and an outline drawn through
+ * them in any fixed order crosses itself.
+ */
+export function screenHull(points: ReadonlyArray<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y)
+    .filter((p, i, all) => i === 0 || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
+  if (pts.length < 3) return pts;
+  const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (source: typeof pts): typeof pts => {
+    const out: typeof pts = [];
+    for (const p of source) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(pts), ...half([...pts].reverse())];
 }
 
 /** A 2D world frame: translation, Z rotation (radians), per-axis scale. */
@@ -96,30 +111,6 @@ export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo,
 
 /** Round to the nearest multiple of `step` (snap). `step <= 0` returns `v` unchanged. */
 export const snapTo = (v: number, step: number): number => (step > 0 ? Math.round(v / step) * step : v);
-
-/** One entity under the pointer, with everything its rank depends on. */
-export interface PickCandidate<T> {
-  entity: T;
-  /** Where the frame put it: layer, that layer's rule, and the world coords it uses. */
-  rank: DrawRank;
-  /** Position in the World's iteration order: the paint order for equal depth. */
-  index: number;
-}
-
-/**
- * Candidates ranked topmost-first, the way the RENDERER stacked them — the layer
- * rules via {@link compareDrawRank}, then later-drawn winning ties.
- *
- * Split out as a pure function because it is the part that can be wrong while
- * every hit test is right — and it ranks what a person SEES, so getting it
- * backwards means the click selects the thing hidden behind the thing they
- * aimed at.
- */
-export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>>): T[] {
-  return [...candidates]
-    .sort((a, b) => compareDrawRank(b.rank, a.rank) || b.index - a.index)
-    .map((c) => c.entity);
-}
 
 export interface Quat { x: number; y: number; z: number; w: number }
 

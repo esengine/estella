@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, CameraView, layerOrderOf, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
+import { uiPickWorld, uiWorldToScreen, screenToUiWorld, uiNodeWorldBox, createWebApp, setEditorMode, setPlayMode, enableSceneOrigins, sceneOriginOf, entityWorldBox, entityBoxCorners, meshWorldBox, pickEntitiesByRay, CameraView, quaternionToAngle2D, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets, Ads, createMockAdProvider, registerPackagedSideModules, Input, inputEventCallbacks, isEntityVisible, setEntityVisible, hasVisibility, takeCensus } from 'esengine';
 import type { App, SceneData, InputState, UICameraData } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { extendPlatform } from 'esengine';
@@ -22,7 +22,7 @@ import { rehearseOpenData, type OpenDataRehearsal } from './engine/openDataRehea
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound, LiveVisibility, CanvasPoint, PlayOverlayBox } from './engine/playProtocol';
 import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
-import { pointInOBB, rankPickCandidates, worldToLocal2D, turnQuat2D, scaleVecBy, snapTo, type PickCandidate } from '@/engine/viewportMath';
+import { screenHull, worldToLocal2D, turnQuat2D, scaleVecBy, snapTo } from '@/engine/viewportMath';
 import {
   inspectEntity, findEntities, readResources, readSystems,
   type Realm, type EntityFilter,
@@ -223,10 +223,8 @@ function uiOverlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | n
   const cam = uiCamera();
   const box = cam ? uiNodeWorldBox(world, entity as never) : null;
   if (!cam || !box) return null;
-  const corners = entityBoxCorners(box).map((c) => {
-    const s = uiWorldToScreen(cam, c.x, c.y);
-    return normalizePoint(s.x, s.y);
-  });
+  const corners = screenHull(entityBoxCorners(box).map((c) => uiWorldToScreen(cam, c.x, c.y)))
+    .map((p) => normalizePoint(p.x, p.y));
   return { corners };
 }
 
@@ -246,14 +244,17 @@ function overlayBoxOf(world: App['world'], entity: number): PlayOverlayBox | nul
   if (!originScreen) return null;
   // No box is not no overlay: an empty or a camera still has an origin to put a
   // move gizmo on, it just has no outline to draw.
-  const box = entityWorldBox(world, entity as never);
-  const corners = box
+  // A mesh's extent is in its vertices; anything else is boxed by what it draws.
+  const box = meshWorldBox(world, entity as never) ?? entityWorldBox(world, entity as never);
+  const projected = box
     ? entityBoxCorners(box)
-        .map((c) => view.worldToScreen(c.x, c.y, z))
+        .map((c) => view.worldToScreen(c.x, c.y, c.z))
         .filter((p): p is { x: number; y: number } => p !== null)
-        .map((p) => normalizePoint(p.x, p.y))
     : [];
-  return { corners: corners.length === 4 ? corners : [], origin: normalizePoint(originScreen.x, originScreen.y) };
+  const corners = projected.length === 8
+    ? screenHull(projected).map((p) => normalizePoint(p.x, p.y))
+    : [];
+  return { corners, origin: normalizePoint(originScreen.x, originScreen.y) };
 }
 
 /** The topmost entity at a canvas point, ranked the way the frame stacked it.
@@ -267,33 +268,16 @@ function pickAt(world: App['world'], nx: number, ny: number): number | null {
     if (hit !== null) return hit as never as number;
   }
   const view = app?.getResource(CameraView);
-  const transformDef = getComponent('Transform');
-  const spriteDef = getComponent('Sprite');
-  if (!view || !transformDef) return null;
-  const hits: PickCandidate<number>[] = [];
-  for (const e of world.getAllEntities()) {
-    const id = e as never as number;
-    const t = world.tryGet(e, transformDef) as { worldPosition?: { x: number; y: number; z?: number } } | null;
-    if (!t?.worldPosition) continue;
-    // Each candidate is tested on ITS OWN plane: under a perspective camera one
-    // shared world point is where a sprite's shadow falls, not where it is drawn.
-    const wp = view.screenToWorld(gl.x, gl.y, t.worldPosition.z ?? 0);
-    const box = entityWorldBox(world, e);
-    if (!wp || !box || !pointInOBB(wp.x, wp.y, box)) continue;
-    const sprite = spriteDef ? (world.tryGet(e, spriteDef) as { layer?: number } | null) : null;
-    const layer = sprite?.layer ?? 0;
-    hits.push({
-      entity: id,
-      index: hits.length,
-      rank: {
-        layer,
-        order: layerOrderOf(layer, lastInit?.ySortLayers ?? 0, lastInit?.depthLayers ?? 0),
-        worldY: t.worldPosition.y,
-        worldZ: t.worldPosition.z ?? 0,
-      },
-    });
-  }
-  return rankPickCandidates(hits)[0] ?? null;
+  const ray = view?.screenRay(gl.x, gl.y);
+  if (!ray) return null;
+  // The same door the editor's viewport picks through, so a running game and the
+  // scene it came from cannot answer the same click differently. No icons here:
+  // a camera or a light draws nothing to aim at.
+  const hit = pickEntitiesByRay(world, ray, {
+    ySortLayers: lastInit?.ySortLayers ?? 0,
+    depthLayers: lastInit?.depthLayers ?? 0,
+  })[0];
+  return hit === undefined ? null : (hit as never as number);
 }
 
 /** Turn / resize a running entity by a relative amount, composed onto what it

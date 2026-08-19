@@ -13,7 +13,7 @@
  * here is what lets those entries compose instead of overwrite.
  */
 
-import type { Quat } from '../types';
+import type { Quat, Vec3 } from '../types';
 
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
@@ -59,6 +59,22 @@ export const q = {
     /** Negated. `-q` and `q` are the same rotation; which one is stored decides
      *  whether a component-wise interpolation takes the short arc or the long one. */
     neg(a: Quat): Quat { return { w: -a.w, x: -a.x, y: -a.y, z: -a.z }; },
+
+    /** The opposite turn. For a unit quaternion — which every stored rotation is
+     *  — this is the inverse, and a world direction taken into a local frame by it. */
+    conjugate(a: Quat): Quat { return { w: a.w, x: -a.x, y: -a.y, z: -a.z }; },
+
+    /** A vector turned by this rotation (q·v·q⁻¹, expanded). */
+    rotate(a: Quat, v: Vec3): Vec3 {
+        const tx = 2 * (a.y * v.z - a.z * v.y);
+        const ty = 2 * (a.z * v.x - a.x * v.z);
+        const tz = 2 * (a.x * v.y - a.y * v.x);
+        return {
+            x: v.x + a.w * tx + a.y * tz - a.z * ty,
+            y: v.y + a.w * ty + a.z * tx - a.x * tz,
+            z: v.z + a.w * tz + a.x * ty - a.y * tx,
+        };
+    },
 
     /**
      * A rotation as three degrees, applied X then Y then Z about fixed axes —

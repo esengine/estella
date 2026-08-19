@@ -10,18 +10,15 @@ import {
   type OBB,
   quatAngleZ,
   obbCorners,
-  pointInOBB,
   rectsIntersect,
   screenAABB,
   snapTo,
   clamp,
   worldToLocal2D,
-  rankPickCandidates,
   axisIndicatorEnds,
   frustumPlaneCrossings,
-  type PickCandidate,
 } from '@/engine/viewportMath';
-import { LayerOrder, layerOrderOf } from 'esengine';
+import { LayerOrder, layerOrderOf, rankPickCandidates, type PickCandidate } from 'esengine';
 
 const box = (cx: number, cy: number, hw: number, hh: number, rot = 0): OBB => ({ cx, cy, hw, hh, rot });
 
@@ -33,25 +30,6 @@ describe('quatAngleZ', () => {
   });
   it('identity quat is zero', () => {
     expect(quatAngleZ({ w: 1, x: 0, y: 0, z: 0 })).toBeCloseTo(0, 6);
-  });
-});
-
-describe('pointInOBB', () => {
-  it('hits inside an axis-aligned box and misses outside', () => {
-    const b = box(0, 0, 10, 5);
-    expect(pointInOBB(0, 0, b)).toBe(true);
-    expect(pointInOBB(9, 4, b)).toBe(true);
-    expect(pointInOBB(11, 0, b)).toBe(false);
-    expect(pointInOBB(0, 6, b)).toBe(false);
-  });
-
-  it('respects rotation — a 45° box rejects a point the AABB would accept', () => {
-    const b = box(0, 0, 10, 10, Math.PI / 4);
-    // The unrotated corner (10,10) is outside the rotated box (its corners reach ±14.1 on the axes).
-    expect(pointInOBB(10, 10, b)).toBe(false);
-    // A point along the rotated local-x axis at distance 10 is on the edge → inside.
-    const c = Math.cos(Math.PI / 4);
-    expect(pointInOBB(10 * c, 10 * c, b)).toBe(true);
   });
 });
 

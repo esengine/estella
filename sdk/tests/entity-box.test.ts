@@ -8,7 +8,7 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it } from 'vitest';
-import { entityWorldBox, entityBoxCorners, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
+import { entityWorldBox, entityBoxCorners, entityBoxRayHit, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
 import { Transform, Sprite, Mesh2D } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
@@ -32,7 +32,7 @@ const T = (x: number, y: number, sx = 1, sy = 1, angle = 0) => ({
 });
 
 /** The engine side of a mesh box: the bounds of whichever geometry is live. */
-const meshBounds = (b: { minX: number; minY: number; maxX: number; maxY: number } | null) => ({
+const meshBounds = (b: { minX: number; minY: number; maxX: number; maxY: number; minZ?: number; maxZ?: number } | null) => ({
     getCppRegistry: () => ({}),
     getWasmModule: () => ({ mesh2d_localBounds: () => b }),
 });
@@ -45,6 +45,15 @@ const layout = (w: number, h: number) => ({
 
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
 const ent = (n: number) => n as unknown as Entity;
+const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
+
+/** A turn of `rad` about one world axis, as a rotation. */
+const turn = (axis: 'x' | 'y' | 'z', rad: number) => ({
+    x: axis === 'x' ? Math.sin(rad / 2) : 0,
+    y: axis === 'y' ? Math.sin(rad / 2) : 0,
+    z: axis === 'z' ? Math.sin(rad / 2) : 0,
+    w: Math.cos(rad / 2),
+});
 
 describe('an entity world box', () => {
     it('is the sprite size taken through the WORLD scale', () => {
@@ -54,7 +63,7 @@ describe('an entity world box', () => {
             1: { [name(Transform)]: T(10, 20, 2, 3), [name(Sprite)]: { size: { x: 100, y: 50 }, pivot: { x: 0.5, y: 0.5 } } },
         });
         const box = entityWorldBox(world, ent(1));
-        expect(box).toEqual({ cx: 10, cy: 20, hw: 100, hh: 75, rot: 0 });
+        expect(box).toEqual({ cx: 10, cy: 20, cz: 0, hw: 100, hh: 75, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
     it('puts the centre off the transform when the pivot is off-centre', () => {
@@ -86,7 +95,10 @@ describe('an entity world box', () => {
     it('reports nothing for an entity that draws nothing, unless given an icon size', () => {
         const world = fakeWorld({ 1: { [name(Transform)]: T(5, 5) } });
         expect(entityWorldBox(world, ent(1))).toBeNull();
-        expect(entityWorldBox(world, ent(1), { iconHalf: 24 })).toEqual({ cx: 5, cy: 5, hw: 24, hh: 24, rot: 0 });
+        // A cube, not a card: an icon is a marker in space and reads the same from
+        // wherever the view has been turned to.
+        expect(entityWorldBox(world, ent(1), { iconHalf: 24 }))
+            .toEqual({ cx: 5, cy: 5, cz: 0, hw: 24, hh: 24, hd: 24, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
     it('has no box for an entity that is not there', () => {
@@ -99,7 +111,7 @@ describe('an entity world box', () => {
         expect(entityWorldBox(world, ent(1))).toBeNull();
         // Scaled like any other box, centred on the transform: layout gives size,
         // the transform gives place.
-        expect(uiNodeWorldBox(world, ent(1))).toEqual({ cx: 0, cy: 0, hw: 120, hh: 20, rot: 0 });
+        expect(uiNodeWorldBox(world, ent(1))).toEqual({ cx: 0, cy: 0, cz: 0, hw: 120, hh: 20, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
     it('has no UI box for something that is not a laid-out UI node', () => {
@@ -110,14 +122,14 @@ describe('an entity world box', () => {
         expect(uiNodeWorldBox({ ...fakeWorld(node) as object, ...layout(0, 0) } as never, ent(1))).toBeNull();
     });
 
-    it('walks its corners counter-clockwise from the local -x,-y', () => {
-        const corners = entityBoxCorners({ cx: 0, cy: 0, hw: 2, hh: 1, rot: 0 });
-        expect(corners).toEqual([
-            { x: -2, y: -1 },
-            { x: 2, y: -1 },
-            { x: 2, y: 1 },
-            { x: -2, y: 1 },
-        ]);
+    it('has eight corners, which for a flat box are its four twice over', () => {
+        const flat = entityBoxCorners({ cx: 0, cy: 0, cz: 0, hw: 2, hh: 1, hd: 0, rot: IDENTITY });
+        expect(flat).toHaveLength(8);
+        expect(new Set(flat.map((c) => `${c.x},${c.y},${c.z}`)).size).toBe(4);
+
+        const solid = entityBoxCorners({ cx: 0, cy: 0, cz: 0, hw: 2, hh: 1, hd: 3, rot: IDENTITY });
+        expect(new Set(solid.map((c) => `${c.x},${c.y},${c.z}`)).size).toBe(8);
+        expect(Math.min(...solid.map((c) => c.z))).toBe(-3);
     });
 });
 
@@ -129,7 +141,7 @@ describe('a mesh world box', () => {
             ...fakeWorld({ 1: { [name(Transform)]: T(10, 20, 2, 3), [name(Mesh2D)]: {} } }),
             ...meshBounds({ minX: -50, minY: -10, maxX: 50, maxY: 10 }),
         } as never;
-        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 10, cy: 20, hw: 100, hh: 30, rot: 0 });
+        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 10, cy: 20, cz: 0, hw: 100, hh: 30, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
     it('follows geometry authored off the origin', () => {
@@ -137,7 +149,7 @@ describe('a mesh world box', () => {
             ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
             ...meshBounds({ minX: 100, minY: 0, maxX: 300, maxY: 40 }),
         } as never;
-        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 200, cy: 20, hw: 100, hh: 20, rot: 0 });
+        expect(meshWorldBox(world, ent(1))).toEqual({ cx: 200, cy: 20, cz: 0, hw: 100, hh: 20, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
     it('has none when the mesh draws nothing, and none for a non-mesh', () => {
@@ -151,5 +163,68 @@ describe('a mesh world box', () => {
             ...meshBounds({ minX: -1, minY: -1, maxX: 1, maxY: 1 }),
         } as never;
         expect(meshWorldBox(sprite, ent(1))).toBeNull();
+    });
+});
+
+// =============================================================================
+// Hit testing. A box was a rect with a Z angle, and a click was a point on the
+// entity's own z plane — which answers correctly only while the eye is head-on
+// and the entity is turned about nothing but z.
+// =============================================================================
+
+const ray = (origin: { x: number; y: number; z: number }, dir: { x: number; y: number; z: number }) => {
+    const len = Math.hypot(dir.x, dir.y, dir.z);
+    return { origin, dir: { x: dir.x / len, y: dir.y / len, z: dir.z / len } };
+};
+
+const FLAT = { cx: 0, cy: 0, cz: 0, hw: 50, hh: 20, hd: 0, rot: IDENTITY };
+const DOWN_Z = { x: 0, y: 0, z: -1 };
+
+describe('a ray against an entity box', () => {
+    it('hits a flat box through its face and misses beside it', () => {
+        expect(entityBoxRayHit(FLAT, { x: 0, y: 0, z: 100 }, DOWN_Z)).toBeCloseTo(100, 6);
+        expect(entityBoxRayHit(FLAT, { x: 49, y: 19, z: 100 }, DOWN_Z)).toBeCloseTo(100, 6);
+        expect(entityBoxRayHit(FLAT, { x: 51, y: 0, z: 100 }, DOWN_Z)).toBeNull();
+        expect(entityBoxRayHit(FLAT, { x: 0, y: 21, z: 100 }, DOWN_Z)).toBeNull();
+    });
+
+    // The whole reason the box carries a rotation rather than an angle: turned
+    // about y, a wide sprite is edge-on, and a hit test that only knew its z turn
+    // would still report the width it no longer covers.
+    it('turns with a rotation about x or y, which an angle could not express', () => {
+        const edgeOn = { ...FLAT, rot: turn('y', Math.PI / 2) };
+        expect(entityBoxRayHit(edgeOn, { x: 40, y: 0, z: 100 }, DOWN_Z)).toBeNull();
+        // Straight down the middle it is met at z = +50, where its width went.
+        expect(entityBoxRayHit(edgeOn, { x: 0, y: 0, z: 100 }, DOWN_Z)).toBeCloseTo(50, 6);
+        // ...and it is now 100 units deep where it was 100 units wide.
+        expect(entityBoxRayHit(edgeOn, { x: -400, y: 0, z: 40 }, { x: 1, y: 0, z: 0 })).toBeCloseTo(400, 6);
+    });
+
+    it('is the distance to the near face, and zero from inside', () => {
+        const solid = { ...FLAT, hd: 10 };
+        expect(entityBoxRayHit(solid, { x: 0, y: 0, z: 60 }, DOWN_Z)).toBeCloseTo(50, 6);
+        expect(entityBoxRayHit(solid, { x: 0, y: 0, z: 0 }, DOWN_Z)).toBe(0);
+    });
+
+    it('misses what is entirely behind the ray', () => {
+        expect(entityBoxRayHit(FLAT, { x: 0, y: 0, z: 100 }, { x: 0, y: 0, z: 1 })).toBeNull();
+    });
+
+    // A quad has no thickness, so a ray in its plane is in it — which is what a
+    // 2D editor asking "is the cursor on this sprite" has always meant.
+    it('meets a flat box from within its own plane', () => {
+        expect(entityBoxRayHit(FLAT, { x: -100, y: 0, z: 0 }, { x: 1, y: 0, z: 0 })).toBeCloseTo(50, 6);
+        expect(entityBoxRayHit(FLAT, { x: -100, y: 0, z: 1 }, { x: 1, y: 0, z: 0 })).toBeNull();
+    });
+
+    it('takes the depth a mesh reports, so a model is not a card', () => {
+        const world = {
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...meshBounds({ minX: -50, minY: -50, maxX: 50, maxY: 50, minZ: -50, maxZ: 50 }),
+        } as never;
+        const box = meshWorldBox(world, ent(1))!;
+        expect(box.hd).toBe(50);
+        // Side-on: nothing a box built from x and y alone could be hit by.
+        expect(entityBoxRayHit(box, { x: 500, y: 0, z: 0 }, { x: -1, y: 0, z: 0 })).toBeCloseTo(450, 6);
     });
 });

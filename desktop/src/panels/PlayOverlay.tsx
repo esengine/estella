@@ -48,7 +48,7 @@ function grabbed(box: PlayOverlayBox, origin: CanvasPoint, p: CanvasPoint, size:
   const [ox, oy] = toPx(origin, size.w, size.h);
   const [px, py] = toPx(p, size.w, size.h);
   if (Math.hypot(px - ox, py - oy) <= HANDLE * 2) return true;
-  if (box.corners.length !== 4) return false;
+  if (box.corners.length < 3) return false;
   const poly = box.corners.map((c) => toPx(c, size.w, size.h));
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -197,7 +197,7 @@ export function PlayOverlay({ interactive }: Props) {
 
   const box = overlay && size.w > 0 ? overlay : null;
   const origin = box?.origin ? toPx(box.origin, size.w, size.h) : null;
-  const outline = box && box.corners.length === 4
+  const outline = box && box.corners.length >= 3
     ? box.corners.map((c) => toPx(c, size.w, size.h).join(',')).join(' ')
     : null;
 
