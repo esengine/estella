@@ -129,22 +129,35 @@ export async function run(ed) {
   // The editor's OWN door: assigning the `.esenv` to a light has to resolve it to
   // a handle and reach the viewport. A flat ambient draws the wall white; the sky
   // draws it in its own colour, which has no green in it at all.
-  await ed.sleep(600);
   const viewport = async () => {
     const block = await ed.call('capture_viewport', {}, 60000);
     return readPNG(Buffer.from(block.data ?? '', 'base64'));
   };
-  const flat = await viewport();
+  const at = (shot) => shot.px(Math.round(shot.w * 0.5), Math.round(shot.h * 0.5));
+  // How long a sky takes to load and reach a frame is the machine's business, not
+  // this check's. Waiting a fixed 1.5s measured a frame that had not happened yet
+  // on a runner four times slower than the machine the number came from.
+  const SETTLE_MS = 30000;
+  const settle = async (want, ms = SETTLE_MS) => {
+    const deadline = Date.now() + ms;
+    for (let shot = await viewport(); ; shot = await viewport()) {
+      if (want(at(shot)) || Date.now() > deadline) return shot;
+      await ed.sleep(250);
+    }
+  };
+  const isFlat = (p) => p[0] > 200 && p[1] > 200 && p[2] > 200;
+  const isSky = (p) => p[1] + 20 < p[0] && p[1] + 20 < p[2];
+
+  const flat = await settle(isFlat);
   await ed.call('set_field', { entity: 1, component: 'Light2D', key: 'environment',
                                type: 'asset', value: 'assets/sky.esenv' }, 30000);
-  await ed.sleep(1500);
-  const lit = await viewport();
-  const at = (shot) => shot.px(Math.round(shot.w * 0.5), Math.round(shot.h * 0.5));
+  const lit = await settle(isSky);
   const before = at(flat);
   const after = at(lit);
   check(before[0] > 200 && before[1] > 200 && before[2] > 200,
         `a flat white ambient drew the wall ${JSON.stringify(before)}`);
   check(after[1] + 20 < after[0] && after[1] + 20 < after[2],
-        `with the environment the wall is ${JSON.stringify(after)} — a sky with no green in it`);
+        `with the environment the wall is still ${JSON.stringify(after)} after ${SETTLE_MS / 1000}s`
+        + ' — a sky with no green in it');
   return check.failures;
 }
