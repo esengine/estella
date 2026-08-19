@@ -86,6 +86,24 @@ const METRICS = [
         of: 'Mut write-back, component tracked',
         over: 'Mut write-back, component NOT tracked',
     },
+    {
+        name: 'transform pass: ten times the world',
+        why: 'The pass walks every transform, so ten times as many costs ten times'
+            + ' as much. A number climbing well past 10 is a walk that grew a second'
+            + ' pass over the world — the shape no single measurement can show.',
+        group: 'Render path - transform pass, flat world',
+        of: '50k roots',
+        over: '5k roots',
+    },
+    {
+        name: 'transform pass: deep hierarchy vs shallow',
+        why: 'The same 10k transforms, reached through chains ten times as long.'
+            + ' Recursion depth is not work: this is near 1, and a number that is'
+            + ' not says the walk repeats itself down a chain.',
+        group: 'Render path - transform pass, hierarchy',
+        of: '10k in chains of 20',
+        over: '10k in chains of 2',
+    },
 ];
 
 /**
