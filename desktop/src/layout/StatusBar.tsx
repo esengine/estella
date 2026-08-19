@@ -37,8 +37,12 @@ function SelectionReadout() {
   if (!selection) return null;
   return (
     <span className="sitem mono" title={t('layout.status.selectionTooltip')}>
-      {selection.x}, {selection.y}
-      <span className="smute"> · {selection.rot}°</span>
+      {selection.x}, {selection.y}{selection.z !== null && `, ${selection.z}`}
+      <span className="smute">
+        {' · '}
+        {selection.tilt !== null && `${selection.tilt.x}, ${selection.tilt.y}, `}
+        {selection.rot}°
+      </span>
     </span>
   );
 }

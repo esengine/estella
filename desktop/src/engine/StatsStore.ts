@@ -5,12 +5,18 @@ import { getResourceStats } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
 import { useSelection } from '@/store/selectionStore';
+import { quatToEuler } from './schema';
 
 /** The lone-selected entity's transform for the status bar (rot in degrees). */
 export interface SelTransform {
   x: number;
   y: number;
+  /** Depth, or null when the entity is on the 2D plane and there is none to report. */
+  z: number | null;
+  /** Turn about Z, in degrees — the whole rotation of a 2D transform. */
   rot: number;
+  /** The other two turns, or null when there are none. */
+  tilt: { x: number; y: number } | null;
 }
 
 /** Texture residency for the status bar (bytes; evictable = warm cache). */
@@ -31,22 +37,37 @@ export interface StatsSnapshot {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Sample the lone selection's transform from the model, or null. */
-function sampleSelection(): SelTransform | null {
+/**
+ * Sample the lone selection's transform from the model, or null.
+ *
+ * A depth and a tilt are reported only when they are there: a flat, Z-turned
+ * transform reads as the two numbers and one angle it always did, and a posed one
+ * says so rather than showing a Z angle that is not its rotation.
+ */
+export function sampleSelection(): SelTransform | null {
   const sel = useSelection.getState();
   if (sel.selectedIds.size !== 1 || sel.selectedId == null) return null;
   const e = SceneModel.entityBySource(sel.selectedId);
   const tf = e?.components.find((c) => c.type === 'Transform')?.data as
-    | { position?: { x: number; y: number }; rotation?: { w: number; z: number } }
+    | { position?: { x: number; y: number; z?: number }; rotation?: { x: number; y: number; z: number; w: number } }
     | undefined;
   if (!tf?.position) return null;
-  // 2D rotation lives on Z; recover the angle from the (w, z) quaternion.
-  const rot = tf.rotation ? 2 * Math.atan2(tf.rotation.z, tf.rotation.w) * (180 / Math.PI) : 0;
-  return { x: round1(tf.position.x), y: round1(tf.position.y), rot: round1(rot) };
+  // Through the inspector's own conversion — a fourth transcription of "the Z angle
+  // of a quaternion" is a fourth chance for the readout to disagree with the field.
+  const [rx, ry, rz] = tf.rotation ? quatToEuler(tf.rotation) : [0, 0, 0];
+  const z = tf.position.z ?? 0;
+  return {
+    x: round1(tf.position.x),
+    y: round1(tf.position.y),
+    z: z === 0 ? null : round1(z),
+    rot: round1(rz),
+    tilt: rx === 0 && ry === 0 ? null : { x: round1(rx), y: round1(ry) },
+  };
 }
 
 const selEq = (a: SelTransform | null, b: SelTransform | null): boolean =>
-  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.rot === b.rot);
+  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.z === b.z && a.rot === b.rot
+    && a.tilt?.x === b.tilt?.x && a.tilt?.y === b.tilt?.y);
 
 /** Sample texture residency from the engine's resource stats, or null. */
 function sampleVram(): VramReadout | null {
