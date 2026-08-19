@@ -216,9 +216,10 @@ way the flat term is. A light with no environment stays exactly what it was: the
 coefficients are zero, and the same expression is the flat term again.
 
 <Aside>
-  Lights are still placed in the plane: a `Light2D` has no third coordinate, so
-  distance is measured in xy and a point light's height comes from its radius. The
-  normal and the view vector are the three-dimensional part of the model.
+  How far a light is depends on what it is lighting. A sprite has no depth of its
+  own, so distance is measured in the plane and the light's `z` does not enter. A
+  mesh with normals measures across all three, against the world `z` of the light's
+  own entity — which is where a point or spot light's height comes from.
 </Aside>
 
 ## Shadows between meshes

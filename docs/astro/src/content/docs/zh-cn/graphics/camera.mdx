@@ -48,8 +48,8 @@ SDK 默认值为 2D 调好(正交、活动、`orthoSize` 540)。移动相机就�
 | `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic`(2D)或 `Perspective`。 |
 | `orthoSize` | number | `540` | 可见半高(世界单位,正交)——你的**缩放**。可动画。 |
 | `fov` | number | `60` | 视场角(度,仅透视;1–179)。 |
-| `nearPlane` | number | `0.1` | 近裁剪距离。 |
-| `farPlane` | number | `1000` | 远裁剪距离。 |
+| `nearPlane` | number | `0.1` | 近裁剪距离（仅透视）。 |
+| `farPlane` | number | `1000` | 远裁剪距离。正交相机没有近裁剪面,渲染的是一个对称的 `±farPlane` 盒子,所以这个值是它两个方向上的范围。 |
 | `aspectRatio` | number | `1.77` | 宽 / 高。`0` = 从视口自动推算。 |
 | `isActive` | boolean | `true` | 该相机是否有资格成为活动相机。 |
 | `priority` | number | `0` | 活动相机之间的优先级(高者胜)。 |

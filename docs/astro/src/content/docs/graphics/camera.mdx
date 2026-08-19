@@ -53,8 +53,8 @@ the camera by moving its entity's `Transform`.
 | `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic` (2D) or `Perspective`. |
 | `orthoSize` | number | `540` | Visible half-height in world units (Orthographic) — your **zoom**. Animatable. |
 | `fov` | number | `60` | Field of view in degrees (Perspective only; 1–179). |
-| `nearPlane` | number | `0.1` | Near clip distance. |
-| `farPlane` | number | `1000` | Far clip distance. |
+| `nearPlane` | number | `0.1` | Near clip distance (Perspective only). |
+| `farPlane` | number | `1000` | Far clip distance. Orthographic has no near plane and renders a symmetric `±farPlane` box, so this is its reach in both directions. |
 | `aspectRatio` | number | `1.77` | Width / height. `0` = auto from the viewport. |
 | `isActive` | boolean | `true` | Whether this camera is eligible to be the active one. |
 | `priority` | number | `0` | Tie-breaker among active cameras (higher wins). |
