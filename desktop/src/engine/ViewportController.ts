@@ -18,7 +18,7 @@ import {
   entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, type EntityBox,
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
-  editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
+  editorViewAxes, editorViewAxisAngles, editorViewBasis, cameraFrustumCorners, type ScreenAxis,
   editorViewWorkPlane, screenNudgeAxes, worldAxisVector, DEFAULT_EDITOR_VIEW, type WorldAxis,
   lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
@@ -45,6 +45,9 @@ const JOINT3D_AXIS_WORLD_HALF = 60;
 // (cameras, lights, empties) — so they're click-selectable like any sprite.
 const ICON_WORLD_HALF = 24;
 // Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
+// How square-on the work plane has to be before a screen point names a place on it
+// rather than a mile of it. ~6°, below which one pixel of cursor is unbounded world.
+const WORK_PLANE_MIN_FACING = 0.1;
 const ORBIT_DEG_PER_PX = 0.4;
 
 // The scene-authored joint components, each drawn as an anchor-to-anchor link gizmo.
@@ -287,13 +290,18 @@ export const ViewportController = {
    */
   canvasToWorkPlane(clientX: number, clientY: number): Vec3 | null {
     const view = editorView();
-    if (!view) return null;
-    const plane = editorViewWorkPlane(view);
-    const normal = worldAxisVector(plane.normal);
-    // Through the world origin, which is the plane the GRID draws: a drop lands on
-    // the surface the person can see, and panning the eye does not carry the floor
-    // along with it.
-    return this.canvasToWorldOnPlane(clientX, clientY, { x: 0, y: 0, z: 0 }, normal);
+    const ray = this.canvasRay(clientX, clientY);
+    if (!view || !ray) return null;
+    const normal = worldAxisVector(editorViewWorkPlane(view).normal);
+    const len = Math.hypot(ray.dir.x, ray.dir.y, ray.dir.z) || 1;
+    const facing = Math.abs(
+      (ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z) / len);
+    // Through the world origin — the plane the GRID draws. Seen edge-on it names no
+    // point anyone pointed at, and then a screen point means the plane through the
+    // focus facing the eye; head-on the two ARE that plane, so 2D is unchanged.
+    return facing >= WORK_PLANE_MIN_FACING
+      ? rayPlaneHit(ray, { x: 0, y: 0, z: 0 }, normal)
+      : rayPlaneHit(ray, { x: view.x, y: view.y, z: view.z ?? 0 }, editorViewBasis(view).forward);
   },
 
   /** The world z an entity sits on — the plane its overlays and drags happen on. */

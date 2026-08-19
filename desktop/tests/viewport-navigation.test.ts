@@ -140,6 +140,18 @@ describe('the plane the view authors on', () => {
     expect(p!.z).toBeCloseTo(95, 6);
     expect(ViewportController.workPlaneAxes()).toEqual(['x', 'z']);
   });
+
+  // A perspective eye held head-on looks ALONG the ground: every ray meets it
+  // where nobody pointed. The plane through the focus facing the eye is what a
+  // screen point means there — and head-on that is the 2D plane, unchanged.
+  it('falls back to the focus plane when the work plane is edge-on', () => {
+    host.view = perspectiveView({ z: -25 });
+    host.ray = { origin: { x: 3, y: 4, z: 900 }, dir: { x: 0, y: 0.001, z: -1 } };
+    const p = ViewportController.canvasToWorkPlane(400, 300);
+    expect(p).not.toBeNull();
+    expect(p!.z).toBeCloseTo(-25, 4);
+    expect(p!.x).toBeCloseTo(3, 4);
+  });
 });
 
 describe('the arrow-key nudge', () => {
