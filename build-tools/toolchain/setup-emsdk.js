@@ -49,10 +49,11 @@ function main() {
         process.exit(1);
     }
 
-    // tools/emsdk/emsdk (POSIX) or tools/emsdk/emsdk.bat (Windows). With shell:true
-    // on Windows, the bare name resolves to emsdk.bat from EMSDK_DIR.
+    // The path is spelled out on both platforms: cmd searches the working
+    // directory for a bare name only where NoDefaultCurrentDirectoryInExePath is
+    // unset. Quoted because a .bat needs a shell, which concatenates its args.
     const emsdkCmd = process.platform === 'win32'
-        ? 'emsdk.bat'
+        ? `"${path.join(EMSDK_DIR, 'emsdk.bat')}"`
         : path.join(EMSDK_DIR, 'emsdk');
 
     run(emsdkCmd, ['install', EMSCRIPTEN_VERSION]);

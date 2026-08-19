@@ -141,6 +141,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The 3D view head-on no longer paints the frame flat.** A perspective view
+  authors on the ground, and an editor eye at y = 0 stands IN it. Every pixel's
+  ray then meets that plane at t = 0 — at the eye's own point — and `step(0.0, t)`
+  counted the eye as a hit in front of itself. One point's grid coordinate landed
+  on every pixel, `fwidth` of it was zero, every coverage and legibility term
+  saturated, and the whole viewport came back washed in the axis colour. Two
+  buttons reach it: **3D View**, then **Face Scene Head-On**.
+
+  The eye's own point is not in front of the eye. A plane through it has no
+  picture — zero thickness, seen edge-on — so the grid draws nothing there, which
+  is what gate `editor-grid-edge-on` asserts on both backends: the same view,
+  grid on and grid off, has to come back the same frame to the pixel.
+
 - **Whether a surface has normals no longer decides where its light is.** Two
   facts had one switch: `MESH_NORMALS` said "this geometry carries a normal
   channel", and the injected lighting read it as "so measure the light in three

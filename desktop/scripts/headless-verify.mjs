@@ -18,6 +18,7 @@
  *   ESTELLA_VERIFY_W / _H    capture size (default 640×480)
  *   ESTELLA_VERIFY_STEPS     fixed-dt frames to advance before capture (default 30)
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
+ *   ESTELLA_VERIFY_GRID_EXPECT  what that diff must be: "frame" (default) or "nothing"
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
@@ -582,6 +583,13 @@ app.whenReady().then(async () => {
     let grid = null;
     if (process.env.ESTELLA_VERIFY_GRID) {
       const spacing = Number(process.env.ESTELLA_VERIFY_GRID) || 64;
+      // What the grid owes this view. A plane the eye lies IN is edge-on through
+      // the eye's own point: it has no picture, and "none" is the answer rather
+      // than a frame nobody can read.
+      const wantGrid = process.env.ESTELLA_VERIFY_GRID_EXPECT ?? 'frame';
+      if (wantGrid !== 'frame' && wantGrid !== 'nothing') {
+        throw new Error(`ESTELLA_VERIFY_GRID_EXPECT is "frame" or "nothing", not "${wantGrid}"`);
+      }
       await exec(`window.__estellaHeadless.api.setGrid(true, ${spacing})`);
       await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
       // Optional PNG of the grid-on frame (ESTELLA_VERIFY_GRID_OUT) for eyeballing.
@@ -615,7 +623,12 @@ app.whenReady().then(async () => {
         }
         // A grid is there everywhere you look, so every quarter of the frame has
         // some of it. A plane seen edge-on lights one band and passes a total.
-        return { differingPixels: differing, quadrants, ok: differing > 300 && quadrants.every((q) => q > 20) };
+        const covers = differing > 300 && quadrants.every((q) => q > 20);
+        const want = ${JSON.stringify(wantGrid)};
+        return {
+          differingPixels: differing, quadrants, want,
+          ok: want === 'nothing' ? differing === 0 : covers,
+        };
       `);
     }
     finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);

@@ -114,8 +114,10 @@ void main() {
     vec2 p = vec2(dot(hit, u_planeU.xyz), dot(hit, u_planeV.xyz));
     vec2 wpp = fwidth(p);
 
-    // Orthographic sees the plane on both sides of the eye; perspective only in front.
-    float inFront = max(step(0.0, t), 1.0 - u_rayForward.w);
+    // Orthographic sees the plane on both sides of the eye; perspective only in
+    // front of it, and the eye's OWN point is not in front. An eye lying IN the
+    // plane meets it at t = 0 on every ray: one point's coordinate on every pixel.
+    float inFront = max(t > 0.0 ? 1.0 : 0.0, 1.0 - u_rayForward.w);
 
     float sp = u_gridParams.x;
     float major = sp * u_gridParams.y;
@@ -194,7 +196,7 @@ fn over(top : vec4f, bot : vec4f) -> vec4f {
     let p = vec2f(dot(hit, mc.u_planeU.xyz), dot(hit, mc.u_planeV.xyz));
     let wpp = fwidth(p);
 
-    let inFront = max(step(0.0, t), 1.0 - mc.u_rayForward.w);
+    let inFront = max(select(0.0, 1.0, t > 0.0), 1.0 - mc.u_rayForward.w);
 
     let sp = mc.u_gridParams.x;
     let major = sp * mc.u_gridParams.y;
