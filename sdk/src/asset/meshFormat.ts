@@ -46,6 +46,9 @@ export const MeshChannel = {
 } as const;
 
 /** How a channel's components are stored. Append only — serialized. */
+/** Every id {@link MeshChannel} declares, for validating a file's channel table. */
+const CHANNEL_SEMANTICS: ReadonlySet<number> = new Set(Object.values(MeshChannel));
+
 export const MeshChannelType = {
     Float32: 0,
     UNorm8: 1,
@@ -168,6 +171,12 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     }
 
     const channelCount = view.getUint16(6, true);
+    // A semantic IS the shader location it binds to, and the per-object instance
+    // block starts at location 8 — so an id outside the vocabulary collides with that
+    // block: WebGPU rejects the pipeline, GL binds it and draws a wrong frame.
+    if (channelCount > CHANNEL_SEMANTICS.size) {
+        throw new Error(`.esmesh declares ${channelCount} channels; the format has ${CHANNEL_SEMANTICS.size}`);
+    }
     const vertexStride = view.getUint32(8, true);
     const vertexCount = view.getUint32(12, true);
     const indexCount = view.getUint32(16, true);
@@ -182,8 +191,12 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     const channels: MeshChannelDesc[] = [];
     let at = headerBytes;
     for (let i = 0; i < channelCount; i++) {
+        const semantic = view.getUint8(at);
+        if (!CHANNEL_SEMANTICS.has(semantic)) {
+            throw new Error(`.esmesh channel ${i} has semantic ${semantic}, which the format does not define`);
+        }
         channels.push({
-            semantic: view.getUint8(at),
+            semantic,
             components: view.getUint8(at + 1),
             type: view.getUint8(at + 2),
             offset: view.getUint32(at + 4, true),
