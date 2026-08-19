@@ -106,8 +106,9 @@ function startRadiusHandleDrag(
   const center = centerOverride ?? ViewportController.getEntityWorldPos(rt);
   if (src == null || !center) return;
   e.stopPropagation();
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), `${component} radius`, (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const r = Math.max(0, Math.hypot(w.x - center.x, w.y - center.y) / (ppu || 1));
     SceneCommands.setField(src, component, field, 'number', r);
@@ -130,8 +131,9 @@ function startSizeHandleDrag(
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), `${component} size`, (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - center.x, dy = w.y - center.y;
     const lx = dx * cos + dy * sin;      // un-rotate into the box's local frame
@@ -150,8 +152,9 @@ function startPivotHandleDrag(rt: number, e: ReactPointerEvent): void {
   const f = ViewportController.spritePivotFrame(rt);
   if (src == null || !f) return;
   e.stopPropagation();
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), 'Sprite pivot', (ev) => {
-    const p = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const p = read(ev.clientX, ev.clientY);
     if (!p) return;
     const next = pivotDrag(f, p);
     SceneCommands.setField(src, 'Sprite', 'pivot', 'vec2', [next.pivot.x, next.pivot.y]);
@@ -181,8 +184,9 @@ function startColliderPointDrag(
   const base = target.index == null
     ? null
     : (((SceneModel.entityBySource(src)?.components.find((c) => c.type === target.comp)?.data as Record<string, unknown> | undefined)?.[target.key]) as Array<{ x: number; y: number }> | undefined) ?? null;
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), 'Edit Collider', (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - origin.x, dy = w.y - origin.y;
     const lx = (dx * cos + dy * sin) / (ppu || 1);   // un-rotate into local → metres
@@ -239,9 +243,9 @@ function syncColliderPoints(g: SVGGElement, points: ColliderPointHandle[]): void
   }
 }
 
-// Project a world-space, axis-aligned rect (center + half extents) to a CSS-px
-// screen rect. The editor camera is 2D ortho (no rotation), so projecting two
-// opposite corners and taking their AABB is exact. Null if off-camera / no view.
+// A world-space rect on the 2D plane → a CSS-px screen rect, from two opposite
+// corners. Exact head-on, which is where the 2D frames it draws mean anything;
+// turned, it is the AABB of a quad. Null if off-camera / no view.
 function worldRectToScreen(
   cx: number,
   cy: number,
@@ -352,8 +356,9 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), 'Cone angle', (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - center.x, dy = w.y - center.y;
     const lx = dx * cos + dy * sin;
@@ -375,8 +380,9 @@ function startJointAnchorDrag(rt: number, type: JointGizmoType, end: 'a' | 'b', 
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), `${type} anchor`, (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - frame.x, dy = w.y - frame.y;
     SceneCommands.setField(src, type, end === 'a' ? 'anchorA' : 'anchorB', 'vec2',
@@ -394,8 +400,9 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  const read = ViewportController.readerFor(rt);
   runHandleDrag(eventWindow(e), `${type} axis`, (ev) => {
-    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    const w = read(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - frame.x, dy = w.y - frame.y;
     const lx = dx * cos + dy * sin;

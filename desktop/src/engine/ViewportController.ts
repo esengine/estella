@@ -295,6 +295,17 @@ export const ViewportController = {
   },
 
   /**
+   * The inverse of {@link projectorFor}: the cursor read back on the plane that
+   * entity's overlay was drawn on. Every handle DRAG goes through this, so a
+   * handle is read on the plane it is drawn on — reading a z = 0 plane instead
+   * makes the value jump the moment the grabbed entity has a depth.
+   */
+  readerFor(id: EntityId): (clientX: number, clientY: number) => { x: number; y: number } | null {
+    const z = this.entityPlaneZ(id);
+    return (clientX, clientY) => this.canvasToWorld(clientX, clientY, z);
+  },
+
+  /**
    * World-space oriented bounding box of any entity (rotation-aware). Sprites use
    * `size × scale` about their pivot; entities without renderable bounds (cameras,
    * lights, empties) get a fixed icon box so they're still selectable. The center is
