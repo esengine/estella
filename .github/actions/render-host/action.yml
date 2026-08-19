@@ -1,0 +1,29 @@
+name: Editor host from this run's engine
+description: Stage the wasm this run built into the editor host, with the SDK and the renderer bundle built against it.
+
+# Every job that measures pixels needs the same four steps between the artifact
+# and a runnable host. Two jobs do, and a second copy of them is a copy that
+# drifts — one of them would end up measuring an engine the other never built.
+runs:
+  using: composite
+  steps:
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    - name: Build SDK
+      shell: bash
+      run: pnpm --filter ./sdk build
+
+    - name: Stage wasm for the editor host
+      shell: bash
+      run: |
+        mkdir -p desktop/public/wasm
+        cp build/wasm/web/* desktop/public/wasm/
+
+    - name: Build editor renderer bundle
+      shell: bash
+      working-directory: desktop
+      run: pnpm exec vite build

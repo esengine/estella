@@ -8,13 +8,12 @@
  * first failure: which scenes broke is the useful answer, not which broke first.
  *
  *   node tools/verify-render.mjs --tier pr
- *   node tools/verify-render.mjs --tier pr --backend webgpu
+ *   node tools/verify-render.mjs --tier pr --backend webgpu --budget 45
  *   node tools/verify-render.mjs --tier nightly --only spine,video
  */
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TIERS, SCENES, scenesAtTier } from './renderScenes.mjs';
+import { TIERS, SCENES, scenesAtTier, SCENE_WATCHDOG_MS } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
@@ -31,6 +30,7 @@ const flag = (n, d) => {
 const TIER = flag('tier', 'pr');
 const ONLY = flag('only', '');
 const BACKEND = flag('backend', 'webgl2');
+const BUDGET = flag('budget', '');
 const NO_BUILD = argv.includes('--no-build');
 // CI runners cannot use the SUID sandbox helper (not root-owned in
 // node_modules), and a pixel check does not need it.
@@ -54,6 +54,18 @@ if (!['webgl2', 'webgpu'].includes(BACKEND)) {
   console.error(`verify-render: unknown backend "${BACKEND}" (have: webgl2, webgpu)`);
   process.exit(2);
 }
+if (BUDGET && !(Number(BUDGET) > 0)) {
+  console.error(`verify-render: --budget takes minutes, not "${BUDGET}"`);
+  process.exit(2);
+}
+// Minutes the whole run may spend before it stops and says what it never
+// measured. A tier that outgrows its runner is a report either way; without one
+// the report is a killed process, which names no scene at all.
+const BUDGET_MS = Number(BUDGET || 0) * 60_000;
+const WATCHDOG_MS = SCENE_WATCHDOG_MS[BACKEND];
+// The scene's own watchdog produces a verdict, so this kill is for the launch
+// that never reaches it — a whole electron start-up beyond.
+const LAUNCH_MARGIN_MS = 30_000;
 // A scene runs on the second backend only where it says so: the two backends
 // agree on most frames and deliberately differ on a couple of tolerances, and
 // guessing that per scene is how the WebGPU list became a third copy.
@@ -87,26 +99,44 @@ if (!NO_BUILD) {
   }
 }
 
+const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
+
 function runScene(scene) {
   const args = XVFB
     ? ['-a', 'pnpm', 'exec', 'electron', 'scripts/headless-verify.mjs']
     : ['exec', 'electron', 'scripts/headless-verify.mjs'];
+  const at = Date.now();
   const r = runTool(XVFB ? 'xvfb-run' : 'pnpm', args, {
     cwd: DESKTOP,
     encoding: 'utf8',
-    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ...scene.env },
+    timeout: WATCHDOG_MS + LAUNCH_MARGIN_MS,
+    env: {
+      ...process.env,
+      ELECTRON_DISABLE_SANDBOX: '1',
+      ESTELLA_VERIFY_TIMEOUT_MS: String(WATCHDOG_MS),
+      ...scene.env,
+    },
   });
   const out = `${r.stdout || ''}${r.stderr || ''}`;
   return {
     ok: r.status === 0,
     out,
-    verdict: ((r.stdout || '').match(/\[verify:render\][^\n]*/) ?? [''])[0].replace('[verify:render] ', ''),
+    ms: Date.now() - at,
+    verdict: r.timedOut
+      ? 'the run never reached its own watchdog and was killed'
+      : ((r.stdout || '').match(/\[verify:render\][^\n]*/) ?? [''])[0].replace('[verify:render] ', ''),
   };
 }
 
 const failed = [];
+const unmeasured = [];
+const startedAt = Date.now();
 let retried = 0;
-for (const scene of scenes) {
+for (const [index, scene] of scenes.entries()) {
+  if (BUDGET_MS && Date.now() - startedAt >= BUDGET_MS) {
+    for (const rest of scenes.slice(index)) unmeasured.push(rest.id);
+    break;
+  }
   // A scene that TAKES the GPU away on purpose owns its own device-loss result;
   // everything else shares one retry policy with the golden runner, or the same
   // dead runner is a retry in one and a broken engine in the other.
@@ -126,16 +156,20 @@ for (const scene of scenes) {
     run = attempt;
   }
   if (!run.ok) failed.push(scene.id);
-  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} `
+  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${seconds(run.ms).padStart(7)}  `
     + `${run.gpuDied ? deadGpuVerdict('the scene') : run.verdict}`);
   if (!run.ok) {
     for (const l of run.out.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
   }
 }
 
-console.log(`\nrender ${TIER}: ${scenes.length - failed.length}/${scenes.length} scene(s) drew what they claim`
+const measured = scenes.length - unmeasured.length;
+console.log(`\nrender ${TIER}: ${measured - failed.length}/${measured} scene(s) drew what they claim`
+  + ` in ${seconds(Date.now() - startedAt)}`
   + (retried ? `, ${retried} measured twice (the GPU had died)` : ''));
-if (failed.length) {
-  for (const id of failed) console.log(`  ✗ ${id}`);
-  process.exit(1);
+if (failed.length) for (const id of failed) console.log(`  ✗ ${id}`);
+if (unmeasured.length) {
+  console.log(`\nthe ${BUDGET} minute budget ran out: ${unmeasured.length} scene(s) never ran`);
+  for (const id of unmeasured) console.log(`  · ${id}`);
 }
+if (failed.length || unmeasured.length) process.exit(1);

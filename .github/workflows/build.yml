@@ -280,23 +280,7 @@ jobs:
 
     - uses: ./.github/actions/setup
 
-    - name: Download web wasm artifact
-      uses: actions/download-artifact@v8
-      with:
-        name: wasm-web
-        path: build/wasm/web/
-
-    - name: Build SDK
-      run: pnpm --filter ./sdk build
-
-    - name: Stage wasm for the editor host
-      run: |
-        mkdir -p desktop/public/wasm
-        cp build/wasm/web/* desktop/public/wasm/
-
-    - name: Build editor renderer bundle
-      working-directory: desktop
-      run: pnpm exec vite build
+    - uses: ./.github/actions/render-host
 
     # Twin coverage guard: every fixture AND example .esshader must carry its
     # WGSL twin (hand-written, generated, or switch-skipped) — a twin-less shader
@@ -322,30 +306,6 @@ jobs:
       # nothing ran, five CI scenes with no name to reproduce them by.
       # --no-build: the renderer bundle is already built two steps up.
       run: node tools/verify-render.mjs --tier pr --no-build
-
-    # Third attempt at the second backend, starting from what the first two bought:
-    # ICDs are not the missing half (Dawn came up with mesa's eight installed),
-    # the GPU process is — it died before any scene drew, on every retry. Two
-    # things are new. The GPU process runs its own sandbox, which
-    # ELECTRON_DISABLE_SANDBOX does not reach, so it is disabled in the harness;
-    # and the adapter asked for is Electron's own bundled SwiftShader, which is
-    # what 85 scenes passed on locally, where the last run took mesa's lavapipe.
-    #
-    # That answered it: the process comes up once its own sandbox is off, and one
-    # scene drew. So the list is the PR tier now, which is the first time these
-    # gates run anywhere but a developer's machine — three of this month's bugs
-    # were visible only here (a shadow map upside down, a shader language asked
-    # for as the wrong one, a twin naming what it never declared).
-    #
-    # Still informational for one more run: sixty-four scenes on a software
-    # rasterizer is a different question from one, and a tolerance that only ever
-    # met this machine's GPU should say so without gating anyone. It comes off
-    # when the whole tier is green here.
-    - name: Second backend, PR tier (informational)
-      continue-on-error: true
-      env:
-        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
-      run: node tools/verify-render.mjs --tier pr --backend webgpu --no-build
 
     - name: Run MCP end-to-end
       working-directory: desktop
@@ -384,13 +344,38 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-legacy.mjs --tier pr
 
-    # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
-    # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
-    # runner verifies the second backend for real: WGSL twins, the reflected
-    # material path, the editor grid, and the async readback (material preview).
-    # No WebGPU step: Dawn gets no adapter on a GitHub runner, and the ten scenes
-    # that declare the second backend say so in tools/renderScenes.mjs (WEBGPU_GAP)
-    # rather than through a step that cannot pass.
+  # The same scenes on the second backend, on a runner of its own.
+  #
+  # Informational is a statement about the VERDICT, not about the cost: sixty-four
+  # scenes on a software Vulkan cost more than half an hour, and spending that
+  # inside the gate job spends the budget the gates need — the editor, golden and
+  # released-project checks are what stopped running for it. Its own job answers
+  # the same question in parallel, and the runner keeps its own budget so the
+  # answer is a report rather than a runner killed at the ceiling.
+  verify-render-webgpu:
+    name: Render verify (second backend)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    # The runner stops at its own 45-minute budget and prints what it never
+    # reached; this is that, plus the one scene it may already be retrying
+    # through a dead GPU when the budget runs out.
+    timeout-minutes: 75
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/render-host
+
+    # Electron's own bundled SwiftShader: the runner installs no Vulkan driver,
+    # and it is the adapter the tier passes on locally.
+    - name: Second backend, PR tier
+      env:
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
+      run: node tools/verify-render.mjs --tier pr --backend webgpu --no-build --budget 45
+
   # The native runtime, judged by pixels on a machine with no GPU.
   #
   # Until the desktop host existed the native runtime could only be checked on a

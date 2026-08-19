@@ -23,6 +23,7 @@
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
+ *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -623,4 +624,7 @@ app.whenReady().then(async () => {
   }
 });
 
-setTimeout(() => finish({ ok: false, error: 'timeout' }), 45000);
+// A verdict of "it took too long" is one this process can report; the runner
+// kills it a launch margin later, and that one names no scene.
+const TIMEOUT_MS = Number(process.env.ESTELLA_VERIFY_TIMEOUT_MS) || 45000;
+setTimeout(() => finish({ ok: false, error: `timeout after ${TIMEOUT_MS} ms` }), TIMEOUT_MS);

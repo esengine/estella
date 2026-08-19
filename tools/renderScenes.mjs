@@ -22,13 +22,21 @@
 /** Cheapest tier a scene runs at; tiers are cumulative. */
 export const TIERS = ['pr', 'nightly'];
 
-/** All 85 pass on Electron's bundled SwiftShader, the software adapter a GPU-less
- *  runner would use. On a runner given `libvulkan1` + `mesa-vulkan-drivers` Dawn
- *  finds an adapter and the GPU process then dies before drawing — the sandbox is
- *  the next thing to try. Only the boot log names the adapter. */
-export const WEBGPU_GAP = 'CI runs ONE of them, informationally, while whether the GPU'
-    + ' process comes up there is still the open question; all 85 passed on this'
-    + ' machine\'s SwiftShader on 2026-08-17 (`--tier nightly --backend webgpu`)';
+/** Electron's own bundled SwiftShader is the adapter a GPU-less runner gets, and
+ *  what the whole list passes on locally. Only the boot log names the one a run
+ *  actually took. */
+export const WEBGPU_GAP = 'CI runs the pr tier of them on a runner of its own,'
+    + ' informationally and inside a budget — whether that tier fits there, and'
+    + ' passes, is the open question; the 85 that declared it then all passed on'
+    + ' this machine\'s SwiftShader on 2026-08-17 (`--tier nightly --backend webgpu`)';
+
+/**
+ * How long a scene gets to reach a verdict, by backend — the runner hands this
+ * to the scene as its own watchdog and kills the process a launch margin later.
+ * WebGL2 is measured (a 65-scene tier averages 1.4s each); the second backend
+ * rasterises the same frames on a CPU, and every run prints what each took.
+ */
+export const SCENE_WATCHDOG_MS = { webgl2: 45_000, webgpu: 120_000 };
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
