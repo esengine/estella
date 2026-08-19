@@ -2,15 +2,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    EditorView.ts
- * @brief   Editor viewport camera — a dedicated, editor-only 2D view.
+ * @brief   Editor viewport camera — a dedicated, editor-only eye on the scene.
  *
  * This is NOT a scene entity: it is never serialized, never on the undo stack,
  * and never part of the saved scene. When `active`, the camera system renders
  * the framebuffer through this view and drives all screen<->world queries from
  * it (CameraView / UICameraInfo) INSTEAD of the scene's game Camera entities —
- * so editor navigation (pan / zoom / frame) moves only this view and never the
- * scene's camera. In play mode it is deactivated, so the viewport shows the real
- * game camera (the true "Game" view). The editor mutates x / y / orthoSize.
+ * so editor navigation (pan / zoom / frame / orbit) moves only this view and never
+ * the scene's camera. In play mode it is deactivated, so the viewport shows the
+ * real game camera (the true "Game" view). The editor mutates the focus, the zoom
+ * and the angles the eye stands at; the head-on 2D view is all of them at zero.
  *
  * The view's view-projection is built from the SAME math primitives as scene
  * cameras (see CameraPlugin) — there is one source of view-projection math; only

@@ -95,19 +95,6 @@
   border-radius: var(--r-md);
 }
 .ov-seg .ov-tool { width: 28px; height: 26px; }
-/* Static mode indicator — the engine is 2D-only, so this reads, it doesn't toggle. */
-.vp-mode-chip {
-  font-family: var(--mono);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--on-accent);
-  background: var(--acc);
-  padding: 3px 6px;
-  border-radius: var(--r-sm);
-  user-select: none;
-}
-
 /* Floating tool palette (vertical) over the canvas' top-left corner — the Q/W/E/R
    selection + transform tools, always visible without crowding the top bar. */
 .ov-left { top: 48px; left: 10px; }

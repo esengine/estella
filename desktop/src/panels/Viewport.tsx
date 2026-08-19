@@ -2468,7 +2468,6 @@ export function Viewport() {
         )}
 
         <div className="viewport__tb-group viewport__tb-group--right">
-          <span className="vp-mode-chip">2D</span>
           <div className="ov-seg">
             <OvTool toggle icon={Grid3x3} label={t('vp.flag.grid')} active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
             <OvTool toggle icon={Axis3d} label={t('vp.flag.gizmos')} active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
