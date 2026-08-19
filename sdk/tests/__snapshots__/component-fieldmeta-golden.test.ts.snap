@@ -169,6 +169,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "advanced": true,
       "tooltip": "Aim depth (Directional): -1 shines into the screen.",
     },
+    "drawEnvironment": {
+      "tooltip": "Draw this environment as the sky behind the scene.",
+    },
     "environment": {
       "tooltip": "Baked environment (.esenv) this Ambient light casts.",
     },
