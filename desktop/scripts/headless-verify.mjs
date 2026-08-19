@@ -61,6 +61,10 @@ const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// The GPU process runs its own sandbox, which ELECTRON_DISABLE_SANDBOX does not
+// reach: on a runner with no device it died before any scene drew, on every
+// retry. Harmless with a GPU — this is a headless verifier, not a shipped app.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
 // Pins the profile for anything that goes through the compositor (a screenshot
 // for a human). The pixel assertions do not: a composited read is colour
 // managed, turning rgb(0,255,0) into rgb(58,254,32) switch or no switch.

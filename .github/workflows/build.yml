@@ -323,11 +323,24 @@ jobs:
       # --no-build: the renderer bundle is already built two steps up.
       run: node tools/verify-render.mjs --tier pr --no-build
 
-    # No WebGPU step, and the reason has moved on from e5485f8a7's. Installing
-    # `libvulkan1` + `mesa-vulkan-drivers` does put eight ICDs on the runner,
-    # lavapipe's among them, and Dawn then comes up — the failure is no longer no
-    # adapter but the GPU process dying before any scene draws, on every retry.
-    # WEBGPU_GAP carries what a next attempt starts from.
+    # Third attempt at the second backend, starting from what the first two bought:
+    # ICDs are not the missing half (Dawn came up with mesa's eight installed),
+    # the GPU process is — it died before any scene drew, on every retry. Two
+    # things are new. The GPU process runs its own sandbox, which
+    # ELECTRON_DISABLE_SANDBOX does not reach, so it is disabled in the harness;
+    # and the adapter asked for is Electron's own bundled SwiftShader, which is
+    # what 85 scenes passed on locally, where the last run took mesa's lavapipe.
+    #
+    # ONE scene, because the open question is whether the process comes up at all
+    # — the rest is 90 more of the same answer. continue-on-error while this is a
+    # question and not a guard: a step that has never been green cannot gate
+    # anyone's push, and its log is what a fourth attempt would start from. It
+    # comes off, and the scene list grows, once it is green twice in a row.
+    - name: Second backend, one scene (informational)
+      continue-on-error: true
+      env:
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
+      run: node tools/verify-render.mjs --only sprite-default --backend webgpu --no-build
 
     - name: Run MCP end-to-end
       working-directory: desktop

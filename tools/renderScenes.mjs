@@ -26,8 +26,9 @@ export const TIERS = ['pr', 'nightly'];
  *  runner would use. On a runner given `libvulkan1` + `mesa-vulkan-drivers` Dawn
  *  finds an adapter and the GPU process then dies before drawing — the sandbox is
  *  the next thing to try. Only the boot log names the adapter. */
-export const WEBGPU_GAP = 'no step runs these on CI; all 85 passed on SwiftShader on 2026-08-17'
-  + ' (`--tier nightly --backend webgpu`)';
+export const WEBGPU_GAP = 'CI runs ONE of them, informationally, while whether the GPU'
+    + ' process comes up there is still the open question; all 85 passed on this'
+    + ' machine\'s SwiftShader on 2026-08-17 (`--tier nightly --backend webgpu`)';
 
 /**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs

@@ -88,6 +88,6 @@ const byTier = TIERS.map((t) => `${t} ${scenesAtTier(t).length}`).join(' / ');
 const weak = SCENES.filter((s) => s.rendersOnly);
 console.log(`check-render-scenes: ${SCENES.length} pixel gate(s) with a scene CI can find — ok (${byTier})`);
 const gpu = SCENES.filter((s) => s.webgpu);
-console.log(`  ${gpu.length} declare the second backend, which nothing runs: ${WEBGPU_GAP}`);
+console.log(`  ${gpu.length} declare the second backend: ${WEBGPU_GAP}`);
 console.log(`  ${SCENES.length - weak.length} probe pixels; ${weak.length} only assert that something drew:`);
 for (const s of weak) console.log(`    ${s.id}: ${s.rendersOnly}`);
