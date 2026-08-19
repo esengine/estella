@@ -16,6 +16,80 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The two backends disagree about what is behind an orthographic camera, and a
+  scene now says so.** `mat4.ts` builds every camera projection in the GL convention,
+  where clip z runs `[-1, 1]`; WebGPU clips everything below 0 of it. So an
+  orthographic camera's box is symmetric on WebGL2 and one-sided on WebGPU, and a
+  renderable between the camera plane and `+farPlane` draws on one backend and not
+  the other. `RenderFrame.cpp:954` already hand-builds the shadow projection to dodge
+  exactly this, "because this matrix is the one place the choice is free" — a camera's
+  is not, so it kept the divergence.
+
+  Nothing caught it because no fixture had content there: the whole scene corpus
+  stands its cameras back, and the parity host puts every entity at z = 0.
+  `celestial-heights` does have content there — `spire.esscene` has `HealthBar_Fill`
+  at world z = +1 under a camera at z = 0 — which is a Dawn build drawing the game
+  without part of its HUD.
+
+  Gate `ortho-clip-behind-camera` is that geometry, and it is **red on WebGPU on
+  purpose**: it holds the divergence open rather than describing it. Whichever way the
+  conventions are reconciled, that scene is what says they were. The fix is not in this
+  change — it moves a convention that `Frustum::extractFromMatrix`, `cameraFrustumCorners`
+  (@beta) and a numeric assertion in `mat4.test.ts` all depend on.
+
+- **A turned sprite is culled by a box that turned with it.** The same bound the mesh
+  path just gained, for the three plane renderables that also draw a turned quad: a
+  sprite's box now turns its pivot offset and grows its extents, and a shape's and a
+  UI node's grow (their centres already turned). At 45 degrees the old box was 41%
+  short of the quad, so a rotating sprite left the frame early at the edges. Text is
+  unchanged because it never turns — its box was already exact. `flatTurnZ` /
+  `flatHalfExtents` are the one copy of that arithmetic.
+
+### Fixed
+
+- **A skinned mesh's channels reach the inspector as numbers.** `meshSummary`'s name
+  table stopped at `Tangent`, so every skinned import — the only meshes that carry the
+  joint channels — described itself as `position, uv, color, #5, #6`.
+
+- **A `.esmesh` channel table is checked against the vocabulary that gives it meaning.**
+  A channel's semantic IS the shader location the engine binds it to, and the per-object
+  instance block starts at location 8; an id past the vocabulary therefore collided with
+  that block instead of failing, which WebGPU reports as an unattributable invalid
+  pipeline and GL does not report at all. `decodeMesh` rejects an unknown semantic and a
+  table longer than the vocabulary — the one reader that sees the table as a table.
+
+- **Two documented facts that the code contradicts.** The lighting guide said a
+  `Light2D` "has no third coordinate, so a point light's height comes from its radius";
+  the height is the light entity's own world z (`RenderFrame.cpp:714`), read by any
+  surface with real geometry. The camera reference gave `nearPlane` no projection
+  qualifier while qualifying its neighbours, though only a perspective camera reads it.
+  Both locales.
+
+### Decided
+
+- **Reversed-Z is closed, not deferred.** It buys precision from a float depth
+  exponent, and the engine has none to buy from: depth is `Depth24Stencil8` on both
+  backends, the default camera is orthographic (linear depth), and the depth test is
+  off unless a project declares a depth layer. The `[0, 1]` clip a float buffer would
+  need is `EXT_clip_control` on GL, which is where the web and WeChat builds live.
+
+- **`MeshChannel::Tangent` stays claimed and unimplemented.** Nothing writes it,
+  nothing reads it, and no committed `.esmesh` carries it; normal mapping derives its
+  tangent frame per pixel instead. Ids must stay below `MESH_INSTANCE_FIRST_LOCATION`,
+  so renumbering to reclaim it would spend the last free slot to save nothing. No
+  second UV is reserved either — there is no lightmap path to reserve it for.
+
+- **An orthographic camera has no near plane.** It renders a symmetric `±farPlane`
+  box, `nearPlane` is perspective-only, and honouring it would clip content authored
+  behind z = 0 in every existing 2D scene. Documented rather than changed.
+
+- **`Mesh2D` and `Light2D` keep their names for now.** Both carry 3D work their names
+  do not admit, but the Create picker already labels them `Mesh` / `Light`, no shipped
+  template uses either, and the 3D path is still moving — the right end state may be a
+  separate pair rather than a rename. Whenever it happens, `upgradeComponent` runs
+  before `upgradeLightAim`, which finds its subject by the literal `'Light2D'`: renaming
+  first would silently skip the light-aim migration on the fixtures that still need it.
+
 - **What is nearer is measured from the viewer, not read off world z.** Every
   renderable handed the sort key its world z as depth, and the key's own comment
   said why that worked: the camera looks down -Z, so a larger z is nearer. That
