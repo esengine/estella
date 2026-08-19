@@ -19,6 +19,7 @@ import {
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
+  editorViewWorkPlane, worldAxisVector,
   lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -34,7 +35,7 @@ import {
   obbCorners,
   rectsIntersect,
   screenAABB,
-  worldToLocal2D,
+  worldToLocal3D,
 } from './viewportMath';
 
 // Half-length of a 3D joint's axis marker, in world units — long enough to read
@@ -232,11 +233,35 @@ export const ViewportController = {
     return ray ? rayPlaneHit(ray, point, normal) : null;
   },
 
-  /** The world z an entity sits on — the plane its picking and dragging happen on. */
+  /** The two world axes the view's work plane runs in, as their letters — what a
+   *  coordinate readout on that plane is naming. */
+  workPlaneAxes(): [string, string] {
+    const view = editorView();
+    const plane = editorViewWorkPlane(view ?? { perspective: false } as EditorViewData);
+    const letter = ['x', 'y', 'z'];
+    return [letter[plane.u]!, letter[plane.v]!];
+  },
+
+  /**
+   * Where the cursor lands on {@link editorViewWorkPlane} — the ground under a
+   * perspective eye, the 2D plane under an orthographic one, and where a thing
+   * dropped here goes. {@link canvasToWorld} answers for a z plane instead, which
+   * asks about an entity already somewhere, not about where a new one belongs.
+   */
+  canvasToWorkPlane(clientX: number, clientY: number): Vec3 | null {
+    const view = editorView();
+    if (!view) return null;
+    const plane = editorViewWorkPlane(view);
+    const normal = worldAxisVector(plane.normal);
+    // Through the world origin, which is the plane the GRID draws: a drop lands on
+    // the surface the person can see, and panning the eye does not carry the floor
+    // along with it.
+    return this.canvasToWorldOnPlane(clientX, clientY, { x: 0, y: 0, z: 0 }, normal);
+  },
+
+  /** The world z an entity sits on — the plane its overlays and drags happen on. */
   entityPlaneZ(e: EntityId): number {
-    const world = EngineHost.world;
-    if (!world || !world.has(e, Transform)) return 0;
-    return (world.get(e, Transform) as { position?: { z?: number } }).position?.z ?? 0;
+    return this.getEntityWorldPos(e)?.z ?? 0;
   },
 
   /**
@@ -404,16 +429,16 @@ export const ViewportController = {
   },
 
   /**
-   * The entity's world-space position — parent-composed, the same value the
-   * renderer places it at. For UI nodes this is the laid-out box center (the
-   * Yoga pass writes local `position`; the transform pass composes it), so the
-   * gizmo lands on the element, not on its parent-relative offset.
+   * Where the entity is — parent-composed, the same value the renderer places it
+   * at. For UI nodes that is the laid-out box center, so a gizmo lands on the
+   * element rather than on its parent-relative offset. All three components come
+   * from the SAME composed transform; the LOCAL `position.z` is a different plane.
    */
-  getEntityWorldXY(id: EntityId): { x: number; y: number } | null {
+  getEntityWorldPos(id: EntityId): Vec3 | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
-    return { x: t.worldPosition.x, y: t.worldPosition.y };
+    return { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z };
   },
 
   /** The entity's world rotation about Z (radians) — drives the local-space gizmo frame. */
@@ -435,21 +460,21 @@ export const ViewportController = {
 
   /**
    * A world point re-expressed in `parentId`'s live world frame — the local
-   * `Transform.position` a child at that world spot must hold. No/invalid
-   * parent ⇒ the point is already root-local.
+   * `Transform.position` a child at that world spot must hold. No/invalid parent
+   * ⇒ the point is already root-local. The parent's WHOLE frame inverts: a 2D
+   * inverse plus an untouched z holds only while the chain lies flat.
    */
-  worldToParentLocalXY(parentId: EntityId | null | undefined, wx: number, wy: number): { x: number; y: number } {
+  worldToParentLocal(parentId: EntityId | null | undefined, w: Vec3): Vec3 {
     const world = EngineHost.world;
     if (parentId == null || !world || !world.valid(parentId) || !world.has(parentId, Transform)) {
-      return { x: wx, y: wy };
+      return { x: w.x, y: w.y, z: w.z };
     }
     const t = world.get(parentId, Transform);
-    return worldToLocal2D(wx, wy, {
-      x: t.worldPosition.x,
-      y: t.worldPosition.y,
-      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
-      sx: t.worldScale.x,
-      sy: t.worldScale.y,
+    const q = t.worldRotation as { w: number; x: number; y: number; z: number };
+    return worldToLocal3D(w, {
+      pos: { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z },
+      rot: { x: q.x, y: q.y, z: q.z, w: q.w },
+      scale: { x: t.worldScale.x, y: t.worldScale.y, z: t.worldScale.z },
     });
   },
 
@@ -1407,11 +1432,8 @@ export const ViewportController = {
     } | undefined;
     if (!d?.cellSize) return null;
     const rt = SceneModel.runtimeFor(id);
-    const xy = rt != null ? this.getEntityWorldXY(rt) : null;
-    if (!xy || rt == null) return null;
-    // The origin is a point in space, not on a plane: the overlay draws on the
-    // layer's own depth so it lands on the tiles under a perspective view.
-    const origin = { ...xy, z: this.entityPlaneZ(rt) };
+    const origin = rt != null ? this.getEntityWorldPos(rt) : null;
+    if (!origin || rt == null) return null;
     return {
       params: {
         orientation: d.orientation ?? 0,

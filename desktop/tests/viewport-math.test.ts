@@ -15,6 +15,8 @@ import {
   snapTo,
   clamp,
   worldToLocal2D,
+  worldToLocal3D,
+  rotateVec3,
   axisIndicatorEnds,
   frustumPlaneCrossings,
 } from '@/engine/viewportMath';
@@ -105,6 +107,62 @@ describe('worldToLocal2D', () => {
     const p = worldToLocal2D(5, 6, { x: 0, y: 0, rot: 0, sx: 0, sy: 2 });
     expect(p.x).toBe(5);
     expect(p.y).toBe(3);
+  });
+});
+
+describe('worldToLocal3D', () => {
+  const compose = (local: { x: number; y: number; z: number }, f: {
+    pos: { x: number; y: number; z: number };
+    rot: { x: number; y: number; z: number; w: number };
+    scale: { x: number; y: number; z: number };
+  }): { x: number; y: number; z: number } => {
+    const s = { x: local.x * f.scale.x, y: local.y * f.scale.y, z: local.z * f.scale.z };
+    const r = rotateVec3(s, f.rot);
+    return { x: f.pos.x + r.x, y: f.pos.y + r.y, z: f.pos.z + r.z };
+  };
+
+  it('identity frame passes the point through', () => {
+    expect(worldToLocal3D({ x: 3, y: 4, z: 5 }, {
+      pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
+    })).toEqual({ x: 3, y: 4, z: 5 });
+  });
+
+  // The case a 2D inverse cannot answer: a parent turned about X mixes the child's
+  // y and z, so a local position taken as (world.x, world.y, untouched z) is wrong
+  // in two of three components.
+  it('round-trips a frame turned about X', () => {
+    const a = Math.PI / 5;
+    const f = {
+      pos: { x: 4, y: -2, z: 7 },
+      rot: { x: Math.sin(a / 2), y: 0, z: 0, w: Math.cos(a / 2) },
+      scale: { x: 1, y: 1, z: 1 },
+    };
+    const local = { x: 1, y: 6, z: -3 };
+    const back = worldToLocal3D(compose(local, f), f);
+    expect(back.x).toBeCloseTo(local.x, 9);
+    expect(back.y).toBeCloseTo(local.y, 9);
+    expect(back.z).toBeCloseTo(local.z, 9);
+  });
+
+  it('round-trips the whole TRS compose (turn about all three, per-axis scale)', () => {
+    const f = {
+      pos: { x: 10, y: -5, z: 2 },
+      // A normalized quaternion with all four components non-zero.
+      rot: { x: 0.3, y: -0.4, z: 0.5, w: Math.sqrt(1 - 0.09 - 0.16 - 0.25) },
+      scale: { x: 2, y: 0.5, z: 3 },
+    };
+    const local = { x: 3, y: -7, z: 4 };
+    const back = worldToLocal3D(compose(local, f), f);
+    expect(back.x).toBeCloseTo(local.x, 9);
+    expect(back.y).toBeCloseTo(local.y, 9);
+    expect(back.z).toBeCloseTo(local.z, 9);
+  });
+
+  it('a zero scale axis passes through undivided instead of exploding', () => {
+    const p = worldToLocal3D({ x: 5, y: 6, z: 8 }, {
+      pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 0, y: 2, z: 4 },
+    });
+    expect(p).toEqual({ x: 5, y: 3, z: 2 });
   });
 });
 

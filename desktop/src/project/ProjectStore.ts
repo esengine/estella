@@ -943,7 +943,7 @@ class ProjectStoreImpl {
   async instantiatePrefabFromPath(
     path: string,
     parent: number | null = null,
-    position?: { x: number; y: number },
+    position?: { x: number; y: number; z?: number },
     name?: string,
   ): Promise<number | null> {
     const uuid = AssetRegistry.uuidFor(path);
@@ -1027,9 +1027,11 @@ class ProjectStoreImpl {
     const root = SceneModel.entityBySource(instanceRoot);
     const parent = root?.parent ?? null;
     const tf = root?.components.find((c) => c.type === 'Transform')?.data as
-      | { position?: { x: number; y: number } }
+      | { position?: { x: number; y: number; z?: number } }
       | undefined;
-    const position = tf?.position ? { x: tf.position.x, y: tf.position.y } : undefined;
+    const position = tf?.position
+      ? { x: tf.position.x, y: tf.position.y, z: tf.position.z ?? 0 }
+      : undefined;
     SceneCommands.deleteEntity(instanceRoot);
     return this.instantiatePrefabFromPath(info.path, parent, position);
   }
@@ -1206,8 +1208,10 @@ class ProjectStoreImpl {
     // proven delete + re-instantiate path — the variant flattens to the same tree).
     const root = SceneModel.entityBySource(instanceRoot);
     const parent = root?.parent ?? null;
-    const tf = root?.components.find((c) => c.type === 'Transform')?.data as { position?: { x: number; y: number } } | undefined;
-    const position = tf?.position ? { x: tf.position.x, y: tf.position.y } : undefined;
+    const tf = root?.components.find((c) => c.type === 'Transform')?.data as { position?: { x: number; y: number; z?: number } } | undefined;
+    const position = tf?.position
+      ? { x: tf.position.x, y: tf.position.y, z: tf.position.z ?? 0 }
+      : undefined;
     SceneCommands.deleteEntity(instanceRoot);
     const newRoot = await this.instantiatePrefabFromPath(newPath, parent, position);
     Toasts.push(t('proj.variantCreated', { name: variantName }), 'success');
@@ -1226,7 +1230,7 @@ class ProjectStoreImpl {
    * thumbnail and an inspector — and this is the door the other four asset kinds
    * already had.
    */
-  async instantiateMeshFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
+  async instantiateMeshFromPath(path: string, position: { x: number; y: number; z?: number }): Promise<number | null> {
     const ref = await AssetRegistry.assetRefForPath(path, 'mesh');
     if (!ref) return null;
     const summary = await readMeshSummary(path);
@@ -1237,7 +1241,7 @@ class ProjectStoreImpl {
     return id;
   }
 
-  async instantiateSpriteFromPath(path: string, position: { x: number; y: number }): Promise<number | null> {
+  async instantiateSpriteFromPath(path: string, position: { x: number; y: number; z?: number }): Promise<number | null> {
     const ref = await AssetRegistry.assetRefForPath(path, 'texture');
     if (!ref) return null;
     const size = await imageSize(path);

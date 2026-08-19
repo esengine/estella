@@ -96,7 +96,7 @@ export const EntityOps = {
     }
     const src = srcIdOf(ref);
     if (src == null || !point.world) return null;
-    SceneCommands.setEntityXY(src, point.world.x, point.world.y);
+    SceneCommands.setEntityWorldPos(src, point.world.x, point.world.y);
     return 'document';
   },
 

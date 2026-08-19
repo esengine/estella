@@ -45,7 +45,7 @@ function animClipSource(clipPath: string, clipRef: string, asset: AnimClipAssetD
 /** Create a Sprite + SpriteAnimator entity referencing the given .esanim and select it. */
 export async function createAnimatedSpriteFromClip(
   clipPath: string,
-  position?: { x: number; y: number },
+  position?: { x: number; y: number; z?: number },
 ): Promise<void> {
   const clipRef = AssetRegistry.assetRef(clipPath); // .esanim → @uuid
   if (!clipRef) {

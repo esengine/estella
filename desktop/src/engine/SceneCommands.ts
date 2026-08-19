@@ -195,7 +195,7 @@ export type EditHook = (
 export class SceneCommandsImpl {
   // — Field-edit gesture: coalesce a focus→blur / drag into a single undo step. —
   // Undo recording is INTERNAL: the only public write door is `setField` (and
-  // `setEntityXY`, which routes through it), and it always records. Outside a
+  // `setEntityWorldPos`, which routes through it), and it always records. Outside a
   // gesture, one `setField` = one undo step. Inside a gesture, writes coalesce —
   // the BEFORE model value is captured on first touch of each field, the AFTER
   // value read at `endGesture`, and the pair recorded as one model-op step.
@@ -552,19 +552,21 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Move an entity to a world position. `Transform.position` is parent-local, so a
-   * parented entity's world target is re-expressed in its parent's live frame:
-   * viewport tools speak world space, the model invariant stays local. `z` is the
-   * LOCAL depth (as a rotate writes it); omitting it keeps what the entity has.
+   * Move an entity to a world position — all three coordinates world, all three
+   * through the parent's one inverse (`Transform.position` is parent-local, and
+   * viewport tools speak world). Omitting `z` keeps the depth the entity has,
+   * read off the same composed transform the caller's x/y came from.
    */
-  setEntityXY(sourceId: EntityId, x: number, y: number, z?: number): void {
+  setEntityWorldPos(sourceId: EntityId, x: number, y: number, z?: number): void {
     if (this.setUINodeXY_(sourceId, x, y)) return;
     const entity = this.model.entityBySource(sourceId);
     const pos = this.modelFieldValue(sourceId, 'Transform', 'position') as { z?: number } | undefined;
     if (pos === undefined && !entity) return;
+    const rt = this.model.runtimeFor(sourceId);
+    const worldZ = z ?? (rt != null ? ViewportController.entityPlaneZ(rt) : (pos?.z ?? 0));
     const parentRt = entity?.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
-    const local = ViewportController.worldToParentLocalXY(parentRt, x, y);
-    this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, z ?? pos?.z ?? 0]);
+    const local = ViewportController.worldToParentLocal(parentRt, { x, y, z: worldZ });
+    this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, local.z]);
   }
 
   /**
@@ -946,7 +948,7 @@ export class SceneCommandsImpl {
    */
   create(
     prefab: PrefabData,
-    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string; name?: string },
+    opts: { parent: EntityId | null; position?: { x: number; y: number; z?: number }; linkPrefabRef?: string; name?: string },
   ): EntityId | null {
     if (!this.model.current) return null;
     const ref = opts.linkPrefabRef ?? '';
@@ -974,6 +976,9 @@ export class SceneCommandsImpl {
         const p = ((tf.data as Record<string, unknown>).position ??= { x: 0, y: 0, z: 0 }) as { x: number; y: number; z: number };
         p.x = opts.position.x;
         p.y = opts.position.y;
+        // A drop point in a 3D view has a depth of its own; without one the template
+        // keeps the depth it was authored at, which is what every 2D caller means.
+        if (opts.position.z !== undefined) p.z = opts.position.z;
       }
     }
 
@@ -1027,7 +1032,7 @@ export class SceneCommandsImpl {
     prefab: PrefabData,
     ref: string,
     parent: EntityId | null,
-    position?: { x: number; y: number },
+    position?: { x: number; y: number; z?: number },
     name?: string,
   ): EntityId | null {
     return this.create(prefab, { parent, position, linkPrefabRef: ref, name });

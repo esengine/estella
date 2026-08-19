@@ -121,7 +121,7 @@ describe.skipIf(!HAS_WASM)('setField UINode position → Absolute bakes insets (
         // Reset to the Center-anchor shape: every inset + margin auto (self-centered).
         for (const k of ['insetLeft', 'insetRight', 'insetTop', 'insetBottom', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom'])
             S.commands.setField(child, 'UINode', k, 'dimension', { value: 0, unit: AUTO });
-        S.commands.setEntityXY(child, 250, 50); // center 100→250 in x (dx=150), y unchanged
+        S.commands.setEntityWorldPos(child, 250, 50); // center 100→250 in x (dx=150), y unchanged
         const n = host.world.get(e, UINode);
         // The dragged (x) axis: auto margins nailed to 0, inset pinned to move the node.
         expect(n.marginLeft.unit).toBe(PX);

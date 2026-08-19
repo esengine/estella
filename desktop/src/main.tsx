@@ -711,7 +711,7 @@ function buildEditorAutomation(): unknown {
      *  layout-rejected. */
     entityWorldXY: (id: number) => {
       const rt = SceneModel.runtimeFor(id);
-      return rt == null ? null : ViewportController.getEntityWorldXY(rt);
+      return rt == null ? null : ViewportController.getEntityWorldPos(rt);
     },
     /** The LIVE World component data for a SOURCE entity — for verifying that a
      *  model edit actually reached the engine (vs stayed model-only). */

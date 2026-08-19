@@ -4,7 +4,7 @@
  * @file  alignTools.ts
  * @brief Multi-selection align + distribute — the Figma/UMG layout-precision tools
  *        the viewport was missing. Every move lands through the ONE unified position
- *        door, `SceneCommands.setEntityXY`, which routes a world point to a UINode
+ *        door, `SceneCommands.setEntityWorldPos`, which routes a world point to a UINode
  *        inset (Absolute), a Transform position (world entity), or a no-op (a
  *        flex-flow node the layout owns) — so align is correct for every entity kind
  *        without special-casing here. One gesture = one undo step. Geometry is in the
@@ -20,7 +20,7 @@ import { alignTargets, distributeTargets, type AlignBox, type AlignOp, type Dist
 import type { EntityId } from '@/types';
 
 /** Positionable selection → each entity's world AABB. Excludes flex-flow / orphan
- *  UI nodes (setEntityXY can't move them) and descendants of a selected ancestor
+ *  UI nodes (setEntityWorldPos can't move them) and descendants of a selected ancestor
  *  (already carried by their parent's move). */
 function collectBoxes(): Array<{ sid: EntityId; box: AlignBox }> {
   const ids = pruneDescendants([...useSelection.getState().selectedIds]).filter(
@@ -46,7 +46,7 @@ function collectBoxes(): Array<{ sid: EntityId; box: AlignBox }> {
 function apply(boxes: Array<{ sid: EntityId; box: AlignBox }>, targets: Array<{ cx: number; cy: number }>, label: string): void {
   SceneCommands.beginGesture(label);
   try {
-    boxes.forEach((b, i) => SceneCommands.setEntityXY(b.sid, targets[i].cx, targets[i].cy));
+    boxes.forEach((b, i) => SceneCommands.setEntityWorldPos(b.sid, targets[i].cx, targets[i].cy));
   } finally {
     SceneCommands.endGesture();
   }

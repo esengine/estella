@@ -40,10 +40,15 @@ import {
   ringAngleAt,
   hitTestRings,
   axisQuat,
+  axisDragFraction,
+  axisScreenDir,
+  isPlaneAxis,
   quatMul,
+  scaleFactors,
   type Quat,
   type RotateRing,
   scaleAround,
+  turnAround,
 } from './gizmo';
 import { Marquee } from './marquee';
 import { Toasts } from '@/store/Toasts';
@@ -67,8 +72,13 @@ interface Drag {
   tx: EditorTransaction;
   kind: Kind;
   axis: GizmoAxis;
-  pivotWorld: Pt;
+  /** The point the gizmo stands on, in space — a selection spread through depth
+   *  has a centroid that is not on any one plane. */
+  pivotWorld: Vec3;
   pivotClient: Pt; // canvas-relative
+  /** Where the world axes point on screen, so a scale drag can be measured along
+   *  the arrow that was grabbed rather than as distance from the pivot. */
+  axes: ViewAxes;
   /**
    * The world plane this drag is measured on: through the active target, with the
    * normal the grabbed handle implies. Screen motion becomes world motion only on
@@ -80,6 +90,9 @@ interface Drag {
   downWorld: Vec3;
   /** Where the press landed, in window-client px — what the slop is measured from. */
   downClient: Pt;
+  /** The same press in canvas px, which is the space the handles are laid out in —
+   *  what a drag along one of them is measured from. */
+  downCanvas: Pt;
   /** rotate: where the press landed — the ring's own parameter, or the screen
    *  angle around the pivot when no ring took the press. */
   startAngle: number;
@@ -121,17 +134,19 @@ function canvasOrigin(): { left: number; top: number } | null {
 function readTarget(sourceId: EntityId): Target | null {
   const rtId = SceneModel.runtimeFor(sourceId);
   if (rtId == null) return null;
-  const pos = ViewportController.getEntityWorldXY(rtId);
+  const pos = ViewportController.getEntityWorldPos(rtId);
   if (!pos) return null;
   // The rotation field reads as three degrees; a drag composes onto the pose they
   // describe, which is why the whole quaternion is captured and not just its Z.
   const rot = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number[]) ?? [0, 0, 0];
-  const p = (SceneQuery.getFieldValue(sourceId, 'Transform', 'position') as number[]) ?? [0, 0, 0];
   const sc = (SceneQuery.getFieldValue(sourceId, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
+  // All three from the composed transform: a drag is measured and written in world
+  // space, and a depth taken from the LOCAL field instead put the two halves of one
+  // position in two different frames.
   return {
     sourceId,
     start: {
-      x: pos.x, y: pos.y, z: p[2] ?? 0, rot: eulerToQuat(rot),
+      x: pos.x, y: pos.y, z: pos.z, rot: eulerToQuat(rot),
       sx: sc[0] ?? 1, sy: sc[1] ?? 1, sz: sc[2] ?? 1,
     },
   };
@@ -154,7 +169,7 @@ export function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
 
 /** Flow-layout (Relative) UINodes: the flex flow owns their position, so a move
  *  gesture has nothing to write (Absolute nodes move via inset edits instead —
- *  see SceneCommands.setEntityXY). Rotation/scale are NOT layout-owned, so this
+ *  see SceneCommands.setEntityWorldPos). Rotation/scale are NOT layout-owned, so this
  *  only gates `move`. */
 export function isFlowUINode(sourceId: EntityId): boolean {
   const pos = SceneQuery.getFieldValue(sourceId, 'UINode', 'position');
@@ -228,12 +243,12 @@ function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[]
 }
 
 /** Selection centroid = mean of the live world positions of `ids`. */
-function pivotOf(ids: readonly EntityId[]): Pt | null {
-  const pts: Pt[] = [];
+function pivotOf(ids: readonly EntityId[]): Vec3 | null {
+  const pts: Vec3[] = [];
   for (const sid of ids) {
     const rtId = SceneModel.runtimeFor(sid);
     if (rtId == null) continue;
-    const pos = ViewportController.getEntityWorldXY(rtId);
+    const pos = ViewportController.getEntityWorldPos(rtId);
     if (pos) pts.push(pos);
   }
   return pts.length ? groupPivot(pts) : null;
@@ -261,13 +276,13 @@ function primaryRotationQuat(ids: readonly EntityId[]): Quat | undefined {
  * all when nothing in the selection may be transformed (an all-locked selection
  * returns null, which reads as "no handles" at both ends).
  */
-export function selectionPivot(ids: readonly EntityId[]): Pt | null {
+export function selectionPivot(ids: readonly EntityId[]): Vec3 | null {
   const editable = transformableIds(ids);
   if (editable.length === 0) return null;
   if (useEditorStore.getState().pivotMode === 'pivot') {
     const id = primaryOf(editable);
     const rt = id != null ? SceneModel.runtimeFor(id) : null;
-    const pos = rt != null ? ViewportController.getEntityWorldXY(rt) : null;
+    const pos = rt != null ? ViewportController.getEntityWorldPos(rt) : null;
     if (pos) return pos;
   }
   return pivotOf(editable);
@@ -289,16 +304,16 @@ export function gizmoFrame(ids: readonly EntityId[]): Quat | undefined {
  * preceding the move gesture. Locked members are left out, like every other
  * viewport write — an Alt-drag over a mixed selection clones what it can move.
  */
-function altDuplicateTargets(ids: readonly EntityId[]): { targets: Target[]; pivot: Pt | null } {
+function altDuplicateTargets(ids: readonly EntityId[]): { targets: Target[]; pivot: Vec3 | null } {
   const targets: Target[] = [];
-  const pts: Pt[] = [];
+  const pts: Vec3[] = [];
   for (const sid of transformableIds(pruneDescendants(ids))) {
     const t = readTarget(sid);
     if (!t) continue;
     const copy = SceneCommands.duplicateEntity(sid);
     if (copy == null) continue;
     targets.push({ sourceId: copy, start: t.start });
-    pts.push({ x: t.start.x, y: t.start.y });
+    pts.push({ x: t.start.x, y: t.start.y, z: t.start.z });
   }
   if (targets.length) {
     const ids2 = targets.map((t) => t.sourceId);
@@ -311,7 +326,7 @@ function beginDrag(
   kind: Kind,
   axis: GizmoAxis,
   targets: Target[],
-  pivotWorld: Pt,
+  pivotWorld: Vec3,
   pivotClient: Pt,
   p: PointerInput,
   cur: Pt,
@@ -321,11 +336,10 @@ function beginDrag(
   ring: RotateRing | null = null,
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
-  // The active target is the one the gizmo sits on, so its position is the point
-  // the plane passes through; a mixed-depth selection still moves rigidly with it.
-  const planePoint = { x: pivotWorld.x, y: pivotWorld.y, z: targets.length
-    ? ViewportController.entityPlaneZ(targets[targets.length - 1].sourceId)
-    : 0 };
+  // Through the pivot — the point the handle being grabbed is drawn at. Taking the
+  // plane through some other point leaves the world under the cursor sliding past
+  // the arrow the cursor is on.
+  const planePoint = pivotWorld;
   const normal = planeNormal(dragPlane(axis, axes));
   const downWorld = ViewportController.canvasToWorldOnPlane(
     p.clientX, p.clientY, planePoint, normal) ?? { x: 0, y: 0, z: planePoint.z };
@@ -339,10 +353,12 @@ function beginDrag(
     axis,
     pivotWorld,
     pivotClient,
+    axes,
     planePoint,
     planeNormal: normal,
     downWorld,
     downClient: { x: p.clientX, y: p.clientY },
+    downCanvas: { x: cur.x, y: cur.y },
     ring,
     // A grabbed ring measures in its own parameter; without one this is the
     // screen angle around the pivot, which is what the 2D drag always used.
@@ -381,7 +397,18 @@ function applyMove(d: Drag, curWorld: Vec3): void {
   // Through the one door a viewport move goes through: it routes a UINode to its
   // layout, and re-expresses a parented entity's world target in its parent's frame.
   for (const t of d.targets) {
-    SceneCommands.setEntityXY(t.sourceId, t.start.x + dx, t.start.y + dy, t.start.z + dz);
+    SceneCommands.setEntityWorldPos(t.sourceId, t.start.x + dx, t.start.y + dy, t.start.z + dz);
+  }
+}
+
+/** The group turn a rotate drag applies: every member's arm about the shared pivot,
+ *  and the same turn composed onto each member's own pose. */
+function applyTurn(d: Drag, turn: Quat): void {
+  for (const t of d.targets) {
+    const p = turnAround({ x: t.start.x, y: t.start.y, z: t.start.z }, d.pivotWorld, turn);
+    SceneCommands.setEntityWorldPos(t.sourceId, p.x, p.y, p.z);
+    SceneCommands.setField(t.sourceId, 'Transform', 'rotation', 'euler',
+      quatToEuler(quatMul(turn, t.start.rot)));
   }
 }
 
@@ -403,17 +430,10 @@ function applyRotate(d: Drag, cur: Pt): void {
     const deg = snapTo(r0 + (deltaRad * 180) / Math.PI, ed.snapAngle) - r0;
     deltaRad = (deg * Math.PI) / 180;
   }
-  const turn = axisQuat(d.ring?.axis ?? 'z', deltaRad);
-  for (const t of d.targets) {
-    // The whole offset from the pivot turns, not just its x/y: about X or Y a
-    // group rotation moves its members through depth.
-    const rel = rotateVecByQuat(
-      { x: t.start.x - d.pivotWorld.x, y: t.start.y - d.pivotWorld.y, z: 0 }, turn);
-    SceneCommands.setField(t.sourceId, 'Transform', 'position', 'vec3',
-      [d.pivotWorld.x + rel.x, d.pivotWorld.y + rel.y, t.start.z + rel.z]);
-    SceneCommands.setField(t.sourceId, 'Transform', 'rotation', 'euler',
-      quatToEuler(quatMul(turn, t.start.rot)));
-  }
+  // The whole arm from the pivot turns: about X or Y a group rotation carries its
+  // members through depth, and a member at a depth of its own swings on a longer
+  // arm than its x/y alone describe.
+  applyTurn(d, axisQuat(d.ring?.axis ?? 'z', deltaRad));
 }
 
 /** An angle folded into (-pi, pi] — a drag past the seam is a small turn, not a full one. */
@@ -426,40 +446,33 @@ function axisAngleOf(q: Quat, axis: 'x' | 'y' | 'z'): number {
   return quatToEuler(q)[axis === 'x' ? 0 : axis === 'y' ? 1 : 2];
 }
 
-/** A vector turned by a quaternion (q·v·q⁻¹, expanded). */
-function rotateVecByQuat(v: { x: number; y: number; z: number }, q: Quat): { x: number; y: number; z: number } {
-  const t = { x: 2 * (q.y * v.z - q.z * v.y), y: 2 * (q.z * v.x - q.x * v.z), z: 2 * (q.x * v.y - q.y * v.x) };
-  return {
-    x: v.x + q.w * t.x + q.y * t.z - q.z * t.y,
-    y: v.y + q.w * t.y + q.z * t.x - q.x * t.z,
-    z: v.z + q.w * t.z + q.x * t.y - q.y * t.x,
-  };
-}
-
 function applyScale(d: Drag, cur: Pt): void {
-  const curDist = Math.hypot(cur.x - d.pivotClient.x, cur.y - d.pivotClient.y);
-  // Delta-based, referenced to the gizmo's on-screen length — f is exactly 1 at the
-  // grab point and moves linearly with the drag, so grabbing the center box or an
-  // entity's body (down point near the pivot) can't produce a runaway factor the way
-  // the old curDist/startDist ratio did off a ~1px baseline.
-  const f = 1 + (curDist - d.startDist) / GIZMO.axisLen;
+  const delta = { x: cur.x - d.downCanvas.x, y: cur.y - d.downCanvas.y };
+  // f is exactly 1 at the grab point, so a grab near the pivot cannot run away.
+  // An axis handle reads the drag ALONG its own arrow; a plane (or centre) handle
+  // has no single direction, so it keeps the radial reading.
+  const f = 1 + (isPlaneAxis(d.axis)
+    ? (Math.hypot(cur.x - d.pivotClient.x, cur.y - d.pivotClient.y) - d.startDist) / GIZMO.axisLen
+    : axisDragFraction(axisScreenDir(d.axes, d.axis, d.localRotation), delta));
   const ed = useEditorStore.getState();
-  let fx = d.axis === 'y' ? 1 : f;
-  let fy = d.axis === 'x' ? 1 : f;
+  let factor = scaleFactors(d.axis, f);
   if (ed.snapping) {
     // Snap the primary's RESULTING absolute scale to the grid, then back out the
     // factor (like move-snap) — so a scaled object lands on 0.1 increments.
     const s0 = d.targets[0].start;
-    if (d.axis !== 'y' && s0.sx) fx = snapTo(s0.sx * fx, ed.snapScale) / s0.sx;
-    if (d.axis !== 'x' && s0.sy) fy = snapTo(s0.sy * fy, ed.snapScale) / s0.sy;
+    const snapAxis = (k: number, start: number): number =>
+      (k !== 1 && start ? snapTo(start * k, ed.snapScale) / start : k);
+    factor = {
+      x: snapAxis(factor.x, s0.sx), y: snapAxis(factor.y, s0.sy), z: snapAxis(factor.z, s0.sz),
+    };
   }
   // Floor the factor so a drag through the pivot can't collapse or mirror the object.
-  fx = Math.max(0.01, fx);
-  fy = Math.max(0.01, fy);
+  factor = { x: Math.max(0.01, factor.x), y: Math.max(0.01, factor.y), z: Math.max(0.01, factor.z) };
   for (const t of d.targets) {
-    const np = scaleAround({ x: t.start.x, y: t.start.y }, d.pivotWorld, fx, fy);
-    SceneCommands.setEntityXY(t.sourceId, np.x, np.y);
-    SceneCommands.setField(t.sourceId, 'Transform', 'scale', 'vec3', [t.start.sx * fx, t.start.sy * fy, t.start.sz]);
+    const np = scaleAround({ x: t.start.x, y: t.start.y, z: t.start.z }, d.pivotWorld, factor);
+    SceneCommands.setEntityWorldPos(t.sourceId, np.x, np.y, np.z);
+    SceneCommands.setField(t.sourceId, 'Transform', 'scale', 'vec3',
+      [t.start.sx * factor.x, t.start.sy * factor.y, t.start.sz * factor.z]);
   }
 }
 
@@ -516,7 +529,9 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       if (mode !== 'select' && ed.showGizmos && sel.selectedIds.size > 0) {
         const ids = [...sel.selectedIds];
         const pivotWorld = selectionPivot(ids);
-        const pc = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
+        const pc = pivotWorld
+          ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y, pivotWorld.z)
+          : null;
         if (pivotWorld && pc) {
           // Aimed through the SAME basis the handles are drawn from, so the arrow
           // you grab is the axis that moves. Head-on, world Z projects to nothing —
@@ -578,7 +593,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         const pivotWorld = selectionPivot(ids);
         altPending = p.alt ? ids : null;
         if (!targets.length || !pivotWorld) return false;
-        const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) ?? cur;
+        const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y, pivotWorld.z) ?? cur;
         // Dragging the body itself slides it on the plane facing the eye, which
         // head-on is the XY plane this always used.
         const bodyAxes = ViewportController.viewAxes() ?? HEAD_ON;

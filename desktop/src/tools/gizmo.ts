@@ -14,16 +14,13 @@
  * direction, and the arrows and the rings are both made of it.
  */
 
-import { axisQuat, quatMul, type Quat } from '@/engine/viewportMath';
+import { axisQuat, quatMul, rotateVec3, type Quat, type Vec3 } from '@/engine/viewportMath';
 
-export { axisQuat, quatMul, type Quat };
+export { axisQuat, quatMul, rotateVec3, type Quat, type Vec3 };
 
 export type GizmoMode = 'move' | 'rotate' | 'scale';
 /** What a handle constrains motion to: one world axis, or the plane of two. */
 export type GizmoAxis = 'x' | 'y' | 'z' | 'xy' | 'yz' | 'zx';
-
-/** A direction in world space. */
-export interface Vec3 { x: number; y: number; z: number }
 
 /** Where each world axis points on screen — see `editorViewAxes`. */
 export interface ViewAxes {
@@ -109,21 +106,14 @@ export interface AxisHandle {
  */
 export function axisHandles(axes: ViewAxes, rotation?: Quat): AxisHandle[] {
   return (['x', 'y', 'z'] as const)
-    .map((axis) => ({
-      axis,
-      dir: screenDir(axes, rotation ? rotateVec(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis]),
-    }))
+    .map((axis) => ({ axis, dir: axisScreenDir(axes, axis, rotation) }))
     .filter((h) => Math.hypot(h.dir.x, h.dir.y) >= AXIS_MIN_PROJ);
 }
 
-/** A world direction turned by a quaternion — how a local axis reaches world space. */
-export function rotateVec(v: Vec3, q: Quat): Vec3 {
-  const t = { x: 2 * (q.y * v.z - q.z * v.y), y: 2 * (q.z * v.x - q.x * v.z), z: 2 * (q.x * v.y - q.y * v.x) };
-  return {
-    x: v.x + q.w * t.x + q.y * t.z - q.z * t.y,
-    y: v.y + q.w * t.y + q.z * t.x - q.x * t.z,
-    z: v.z + q.w * t.z + q.x * t.y - q.y * t.x,
-  };
+/** Where one world axis points on screen, in the entity's frame when `rotation` is
+ *  given — the arrow that is drawn, and the direction a drag along it is measured in. */
+export function axisScreenDir(axes: ViewAxes, axis: 'x' | 'y' | 'z', rotation?: Quat): Pt {
+  return screenDir(axes, rotation ? rotateVec3(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis]);
 }
 
 /** Distance from point `p` to the segment a→b (used for axis-arrow hit zones). */
@@ -208,13 +198,36 @@ export function planeNormal(plane: 'xy' | 'yz' | 'zx'): Vec3 {
 }
 
 /**
+ * The per-axis scale factor a handle applies: the axes it names take `f`, the
+ * rest stay 1 — a handle constrains a scale the way it constrains a move. Head-on
+ * the face-on plane is XY, so the 2D gizmo's uniform x/y scale is this rule's
+ * yaw = pitch = 0 case rather than a mode of its own.
+ */
+export function scaleFactors(axis: GizmoAxis, f: number): Vec3 {
+  const on = (a: 'x' | 'y' | 'z'): boolean =>
+    (isPlaneAxis(axis) ? (PLANE_AXES[axis] as readonly string[]).includes(a) : axis === a);
+  return { x: on('x') ? f : 1, y: on('y') ? f : 1, z: on('z') ? f : 1 };
+}
+
+/**
+ * How far a drag has travelled along an axis handle, as a fraction of that
+ * arrow's DRAWN length. Projected onto the arrow rather than measured from the
+ * pivot: radial distance grows for motion across the axis, and dividing by the
+ * drawn length is what makes one gesture mean one scale from every angle.
+ */
+export function axisDragFraction(dir: Pt, delta: Pt): number {
+  const len2 = dir.x * dir.x + dir.y * dir.y;
+  return len2 > 0 ? (delta.x * dir.x + delta.y * dir.y) / (len2 * GIZMO.axisLen) : 0;
+}
+
+/**
  * Constrain a world-space delta to what a handle allows: a plane handle keeps the
  * delta (it was measured ON that plane), an axis handle projects onto that axis.
  * `rotation` puts the axis in the entity's own frame — a local-space drag.
  */
 export function constrainDelta(axis: GizmoAxis, delta: Vec3, rotation?: Quat): Vec3 {
   if (isPlaneAxis(axis)) return delta;
-  const a = rotation ? rotateVec(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis];
+  const a = rotation ? rotateVec3(AXIS_VECTOR[axis], rotation) : AXIS_VECTOR[axis];
   const k = delta.x * a.x + delta.y * a.y + delta.z * a.z;
   return { x: a.x * k, y: a.y * k, z: a.z * k };
 }
@@ -250,30 +263,35 @@ export function pivotDrag(f: PivotFrame, cursor: Pt): { pivot: Pt; pos: Pt } {
   };
 }
 
-/** Centroid of a set of world points — the group transform pivot for multi-select. */
-export function groupPivot(points: readonly Pt[]): Pt {
-  if (points.length === 0) return { x: 0, y: 0 };
+/**
+ * Centroid of a set of world points — the group transform pivot for multi-select.
+ *
+ * A point, not a point on a plane: a selection spread through depth has a centre
+ * that is nowhere near z = 0, and a gizmo drawn there is drawn on nothing.
+ */
+export function groupPivot(points: readonly Vec3[]): Vec3 {
+  if (points.length === 0) return { x: 0, y: 0, z: 0 };
   let sx = 0;
   let sy = 0;
+  let sz = 0;
   for (const p of points) {
     sx += p.x;
     sy += p.y;
+    sz += p.z;
   }
-  return { x: sx / points.length, y: sy / points.length };
+  return { x: sx / points.length, y: sy / points.length, z: sz / points.length };
 }
 
-/** Rotate a point `p` around pivot `c` by `angle` radians (group rotate). */
-export function rotateAround(p: Pt, c: Pt, angle: number): Pt {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const dx = p.x - c.x;
-  const dy = p.y - c.y;
-  return { x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos };
+/** A point turned about pivot `c` by `q` — one member's arm through a group rotate.
+ *  About X or Y that arm swings through depth, which is why it is not a 2D turn. */
+export function turnAround(p: Vec3, c: Vec3, q: Quat): Vec3 {
+  const r = rotateVec3({ x: p.x - c.x, y: p.y - c.y, z: p.z - c.z }, q);
+  return { x: c.x + r.x, y: c.y + r.y, z: c.z + r.z };
 }
 
-/** Scale a point `p` away from pivot `c` by per-axis factors (group scale). */
-export function scaleAround(p: Pt, c: Pt, fx: number, fy: number): Pt {
-  return { x: c.x + (p.x - c.x) * fx, y: c.y + (p.y - c.y) * fy };
+/** A point scaled away from pivot `c` by per-axis factors (group scale). */
+export function scaleAround(p: Vec3, c: Vec3, f: Vec3): Vec3 {
+  return { x: c.x + (p.x - c.x) * f.x, y: c.y + (p.y - c.y) * f.y, z: c.z + (p.z - c.z) * f.z };
 }
 
 /**
@@ -311,7 +329,7 @@ const RING_MIN_DET = 0.12;
  */
 export function rotateRings(axes: ViewAxes, rotation?: Quat): RotateRing[] {
   const dir = (a: 'x' | 'y' | 'z'): Pt =>
-    screenDir(axes, rotation ? rotateVec(AXIS_VECTOR[a], rotation) : AXIS_VECTOR[a]);
+    screenDir(axes, rotation ? rotateVec3(AXIS_VECTOR[a], rotation) : AXIS_VECTOR[a]);
   return (['yz', 'zx', 'xy'] as const)
     .map((plane) => {
       const [a, b] = PLANE_AXES[plane];

@@ -15,7 +15,7 @@ vi.mock('@/engine/SceneCommands', () => ({
     setField: vi.fn(),
     setFieldValue: vi.fn(),
     setEntityVisible: vi.fn(),
-    setEntityXY: vi.fn(),
+    setEntityWorldPos: vi.fn(),
   },
   toModelValue: (_cur: unknown, _type: unknown, _key: string, value: unknown) => value,
 }));
@@ -58,7 +58,7 @@ describe('while editing', () => {
 
   it('moves through the document command, in world units', () => {
     expect(EntityOps.moveToPoint(authoredRef(3), { world: { x: 10, y: 20 } })).toBe('document');
-    expect(SceneCommands.setEntityXY).toHaveBeenCalledWith(3, 10, 20);
+    expect(SceneCommands.setEntityWorldPos).toHaveBeenCalledWith(3, 10, 20);
   });
 
   it('refuses a ref the document has no entity for', () => {
@@ -84,7 +84,7 @@ describe('while playing', () => {
     expect(PlayRealm.setVisible).toHaveBeenCalledWith(900, false);
     expect(PlayRealm.dragTo).toHaveBeenCalledWith(900, 0.5, 0.25, 'x', undefined);
     expect(SceneCommands.setEntityVisible).not.toHaveBeenCalled();
-    expect(SceneCommands.setEntityXY).not.toHaveBeenCalled();
+    expect(SceneCommands.setEntityWorldPos).not.toHaveBeenCalled();
   });
 
   it('hands the grid to the side that can resolve it', () => {

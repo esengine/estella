@@ -103,7 +103,7 @@ function startRadiusHandleDrag(
 ): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
+  const center = centerOverride ?? ViewportController.getEntityWorldPos(rt);
   if (src == null || !center) return;
   e.stopPropagation();
   runHandleDrag(eventWindow(e), `${component} radius`, (ev) => {
@@ -125,7 +125,7 @@ function startSizeHandleDrag(
 ): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
+  const center = centerOverride ?? ViewportController.getEntityWorldPos(rt);
   if (src == null || !center) return;
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
@@ -155,7 +155,7 @@ function startPivotHandleDrag(rt: number, e: ReactPointerEvent): void {
     if (!p) return;
     const next = pivotDrag(f, p);
     SceneCommands.setField(src, 'Sprite', 'pivot', 'vec2', [next.pivot.x, next.pivot.y]);
-    SceneCommands.setEntityXY(src, next.pos.x, next.pos.y);
+    SceneCommands.setEntityWorldPos(src, next.pos.x, next.pos.y);
   });
 }
 
@@ -173,7 +173,7 @@ function startColliderPointDrag(
 ): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const origin = ViewportController.getEntityWorldXY(rt);
+  const origin = ViewportController.getEntityWorldPos(rt);
   if (src == null || !origin) return;
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
@@ -347,7 +347,7 @@ function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void
 function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const center = ViewportController.getEntityWorldXY(rt);
+  const center = ViewportController.getEntityWorldPos(rt);
   if (src == null || !center) return;
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
@@ -588,7 +588,7 @@ function HudCursor() {
   if (!cursor && !tile) return null;
   return (
     <>
-      {cursor && <strong>{cursor.x}, {cursor.y}</strong>}
+      {cursor && <strong>{cursor.axes[0]} {cursor.x}, {cursor.axes[1]} {cursor.y}</strong>}
       {tile && (
         <span className="hud-tile">
           {' '}▦ {tile.tx}, {tile.ty}{tile.id ? ` #${tile.id}` : ''}
@@ -1460,7 +1460,11 @@ export function Viewport() {
       // for a pivot that's never drawn.
       const drawPivot = ready && showG && toolMode !== 'select' && selIds.length > 0;
       const pivotWorld = drawPivot ? selectionPivot(selIds) : null;
-      const pivot = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
+      // Through the pivot's OWN depth: the gizmo belongs on the selection, and a
+      // projection that assumes z = 0 puts it on the selection's shadow there.
+      const pivot = pivotWorld
+        ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y, pivotWorld.z)
+        : null;
       if (pivot) {
         // No screen rotation: local space is baked into each handle's own
         // direction (gizmo.ts), which a CSS rotate could only ever express in 2D.
@@ -1500,7 +1504,7 @@ export function Viewport() {
           ? SceneModel.entityBySource(sid)?.components.find((c) => c.type === 'TilemapLayer')
           : undefined;
         const cs = layer?.data as { cellSize?: { x: number; y: number } } | undefined;
-        const origin = ready && rt != null ? ViewportController.getEntityWorldXY(rt) : null;
+        const origin = ready && rt != null ? ViewportController.getEntityWorldPos(rt) : null;
         if (tsel && cs?.cellSize && origin && !nonOrtho) {
           const x0 = Math.min(tsel.x0, tsel.x1);
           const y0 = Math.min(tsel.y0, tsel.y1);
@@ -2136,8 +2140,12 @@ export function Viewport() {
   };
 
   const onPointerMove = (e: ReactPointerEvent) => {
-    const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
-    if (wp) StatsStore.setCursor(wp.x, wp.y);
+    // On the plane the view works on, and labelled with the axes that plane runs
+    // in: over a 3D scene the pair is x/z, and reporting a z = 0 crossing as x/y
+    // is two wrong numbers under two wrong names.
+    const [pu, pv] = ViewportController.workPlaneAxes();
+    const wp = ViewportController.canvasToWorkPlane(e.clientX, e.clientY);
+    if (wp) StatsStore.setCursor(wp[pu as 'x' | 'y' | 'z'], wp[pv as 'x' | 'y' | 'z'], [pu, pv]);
 
     if (orbitRef.current) {
       ViewportController.orbitByClient(orbitRef.current.px, orbitRef.current.py, e.clientX, e.clientY);
@@ -2282,7 +2290,10 @@ export function Viewport() {
     }
     const path = e.dataTransfer.getData('application/x-estella-asset');
     if (!path) return;
-    const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
+    // Scene content lands on the plane the VIEW works on — the ground under a 3D
+    // eye, the 2D plane under the orthographic one. A z = 0 answer would be a wall
+    // the cursor crosses somewhere the person is not pointing at.
+    const wp = ViewportController.canvasToWorkPlane(e.clientX, e.clientY);
     if (path.toLowerCase().endsWith('.esprefab')) {
       e.preventDefault();
       // Place at the drop point; fall back to the prefab's authored origin if it
@@ -2290,10 +2301,10 @@ export function Viewport() {
       void ProjectStore.instantiatePrefabFromPath(path, null, wp ?? undefined);
     } else if (IMAGE_RE.test(path)) {
       e.preventDefault();
-      void ProjectStore.instantiateSpriteFromPath(path, wp ?? { x: 0, y: 0 });
+      void ProjectStore.instantiateSpriteFromPath(path, wp ?? { x: 0, y: 0, z: 0 });
     } else if (path.toLowerCase().endsWith('.esmesh')) {
       e.preventDefault();
-      void ProjectStore.instantiateMeshFromPath(path, wp ?? { x: 0, y: 0 });
+      void ProjectStore.instantiateMeshFromPath(path, wp ?? { x: 0, y: 0, z: 0 });
     } else if (path.toLowerCase().endsWith('.estileset')) {
       e.preventDefault();
       // A tileset spawns a paintable TilemapLayer, which wires its own placement + painter.
@@ -2425,7 +2436,7 @@ export function Viewport() {
         </div>
 
         {/* Align + distribute — contextual, appears once 2+ entities are selected.
-            Every button lands through SceneCommands.setEntityXY (one undo step). */}
+            Every button lands through SceneCommands.setEntityWorldPos (one undo step). */}
         {selCount >= 2 && (
           <div className="viewport__tb-group">
             <OvTool icon={AlignStartVertical} label={t('vp.align.left')} onClick={() => alignSelection('left')} />

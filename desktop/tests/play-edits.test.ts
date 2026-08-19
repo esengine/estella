@@ -15,7 +15,7 @@ vi.mock('@/engine/SceneCommands', () => ({
     setField: vi.fn(),
     setFieldValue: vi.fn(),
     setEntityVisible: vi.fn(),
-    setEntityXY: vi.fn(),
+    setEntityWorldPos: vi.fn(),
     transact: vi.fn((_label: string, fn: () => void) => fn()),
   },
   toModelValue: (_cur: unknown, _t: unknown, _k: string, v: unknown) => v,

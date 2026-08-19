@@ -107,7 +107,7 @@ describe.skipIf(!HAS_WASM)('SceneCommands.setUINodeAnchor (headless World)', () 
     it('reads a field the scene never stored as its default, not as absent', () => {
         const { id } = withUINode(); // a bare UINode: nothing authored on it
         // "Is this a UINode, and how is it positioned?" — the question the move tool
-        // and setEntityXY both ask. Absent meant "not a UINode" / "no answer".
+        // and setEntityWorldPos both ask. Absent meant "not a UINode" / "no answer".
         expect(S.query.getFieldValue(id, 'UINode', 'position')).toBe(UIPositionType.Relative);
         expect(S.query.getFieldValue(id, 'UINode', 'insetRight')).toEqual({ value: 0, unit: AUTO });
         // Still null for a component the entity genuinely does not have.
@@ -119,7 +119,7 @@ describe.skipIf(!HAS_WASM)('SceneCommands.setUINodeAnchor (headless World)', () 
         // where it used to fall through and write Transform.position — a value the
         // next layout pass overwrites.
         const { id } = withUINode();
-        S.commands.setEntityXY(id, 123, 456);
+        S.commands.setEntityWorldPos(id, 123, 456);
         expect(S.query.getFieldValue(id, 'Transform', 'position')).toEqual([0, 0, 0]);
     });
 

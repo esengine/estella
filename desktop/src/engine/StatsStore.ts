@@ -68,7 +68,7 @@ const vramEq = (a: VramReadout | null, b: VramReadout | null): boolean =>
 class StatsStoreImpl {
   private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null, vram: null }));
   // Pointer-rate churn stays out of the slow-stats subscribers.
-  private readonly cursorStore = createStore<{ x: number; y: number } | null>(() => null);
+  private readonly cursorStore = createStore<{ x: number; y: number; axes: [string, string] } | null>(() => null);
   // The hovered tile cell (coords + id) while painting a tilemap, or null.
   private readonly tileStore = createStore<{ tx: number; ty: number; id: number } | null>(() => null);
 
@@ -123,13 +123,18 @@ class StatsStoreImpl {
     this.windowStart = 0;
   }
 
-  /** Report the viewport cursor world position (rounded; ignores no-op moves). */
-  setCursor(x: number, y: number) {
-    const cx = Math.round(x);
-    const cy = Math.round(y);
+  /**
+   * Report where the cursor is on the plane the view works on (rounded; ignores
+   * no-op moves). `axes` names the two world axes those numbers are, because on a
+   * ground plane they are x and z — a readout that always says x/y is telling the
+   * user the wrong two.
+   */
+  setCursor(u: number, v: number, axes: readonly [string, string]) {
+    const cu = Math.round(u);
+    const cv = Math.round(v);
     const cur = this.cursorStore.getState();
-    if (cur && cur.x === cx && cur.y === cy) return;
-    this.cursorStore.setState({ x: cx, y: cy }, true);
+    if (cur && cur.x === cu && cur.y === cv && cur.axes[0] === axes[0] && cur.axes[1] === axes[1]) return;
+    this.cursorStore.setState({ x: cu, y: cv, axes: [axes[0], axes[1]] }, true);
   }
 
   clearCursor() {
@@ -150,7 +155,7 @@ class StatsStoreImpl {
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): StatsSnapshot => this.store.getState();
   subscribeCursor = (fn: () => void): (() => void) => this.cursorStore.subscribe(fn);
-  getCursor = (): { x: number; y: number } | null => this.cursorStore.getState();
+  getCursor = (): { x: number; y: number; axes: [string, string] } | null => this.cursorStore.getState();
   subscribeTile = (fn: () => void): (() => void) => this.tileStore.subscribe(fn);
   getTile = (): { tx: number; ty: number; id: number } | null => this.tileStore.getState();
 }

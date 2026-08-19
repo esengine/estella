@@ -46,8 +46,8 @@ describe('SceneCommands transaction', () => {
 
   it('commit coalesces a burst of edits into one undo step', () => {
     const tx = cmds.transaction('Move');
-    cmds.setEntityXY(1, 5, 0);
-    cmds.setEntityXY(1, 9, 0);
+    cmds.setEntityWorldPos(1, 5, 0);
+    cmds.setEntityWorldPos(1, 9, 0);
     tx.commit();
     expect(posX(model)).toBe(9);
     expect(history.canUndo()).toBe(true);
@@ -58,7 +58,7 @@ describe('SceneCommands transaction', () => {
 
   it('abort reverts live edits and records nothing', () => {
     const tx = cmds.transaction('Move');
-    cmds.setEntityXY(1, 7, 0);
+    cmds.setEntityWorldPos(1, 7, 0);
     expect(posX(model)).toBe(7); // applied live during the stroke
     tx.abort();
     expect(posX(model)).toBe(0); // restored to the captured BEFORE
@@ -66,13 +66,13 @@ describe('SceneCommands transaction', () => {
   });
 
   it('transact commits on return and aborts (rethrows) on throw', () => {
-    cmds.transact('Batch', () => cmds.setEntityXY(1, 3, 0));
+    cmds.transact('Batch', () => cmds.setEntityWorldPos(1, 3, 0));
     expect(posX(model)).toBe(3);
     expect(history.canUndo()).toBe(true);
 
     expect(() =>
       cmds.transact('Bad', () => {
-        cmds.setEntityXY(1, 8, 0);
+        cmds.setEntityWorldPos(1, 8, 0);
         throw new Error('boom');
       }),
     ).toThrow('boom');
@@ -81,7 +81,7 @@ describe('SceneCommands transaction', () => {
 
   it('handle is idempotent (double commit/abort is a no-op)', () => {
     const tx = cmds.transaction('Move');
-    cmds.setEntityXY(1, 4, 0);
+    cmds.setEntityWorldPos(1, 4, 0);
     tx.commit();
     tx.commit(); // no-op
     tx.abort(); // no-op

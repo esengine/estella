@@ -25,10 +25,12 @@ import { componentGlyph, primitiveGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 import { EngineHost } from './EngineHost';
 
-/** Where a source is created: the target parent + (for asset/drop sources) its origin. */
+/** Where a source is created: the target parent + (for asset/drop sources) its origin.
+ *  The origin is a point in space — a viewport drop resolves it on the plane the view
+ *  works on, which under a 3D eye is the ground rather than z = 0. */
 export interface CreateContext {
   parent: EntityId | null;
-  position?: { x: number; y: number };
+  position?: { x: number; y: number; z?: number };
   assetPath?: string;
   /** Name the new entity instead of taking the template's own — one undo step, and
    *  for a prefab template it becomes an ordinary `name` override. */

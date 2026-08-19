@@ -2,9 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  viewportMath.ts
- * @brief Pure 2D geometry for viewport picking, marquee, and gizmos — no engine
+ * @brief Pure geometry for viewport picking, marquee, and gizmos — no engine
  *        state or DOM, so it unit-tests in isolation. The imperative shells
  *        (ViewportController picking, the gizmo tools) layer on top of these.
+ *        Flat helpers stay flat because what they describe is (a tile cell, a
+ *        laid-out UI box); a transform frame is not one of those, and its
+ *        inverse is `worldToLocal3D`.
  *        The one import is the SDK's pure mirror of the renderer's layer rules,
  *        which picking has to rank by rather than restate.
  */
@@ -92,6 +95,30 @@ export function worldToLocal2D(wx: number, wy: number, frame: Frame2D): { x: num
   return { x: frame.sx ? rx / frame.sx : rx, y: frame.sy ? ry / frame.sy : ry };
 }
 
+/** A world frame: translation, rotation, per-axis scale — one entity's TRS. */
+export interface Frame3D {
+  pos: Vec3;
+  rot: Quat;
+  scale: Vec3;
+}
+
+/**
+ * A world point re-expressed in `frame`'s local coordinates — the inverse of the
+ * engine's TRS compose (world = T + R·(S·local)), so local = S⁻¹·R⁻¹·(world − T).
+ * A parent turned about X or Y has no 2D inverse, which is why the editor writes
+ * through this one. A zero scale axis passes through undivided (no inverse).
+ */
+export function worldToLocal3D(w: Vec3, frame: Frame3D): Vec3 {
+  const d = { x: w.x - frame.pos.x, y: w.y - frame.pos.y, z: w.z - frame.pos.z };
+  const q = frame.rot;
+  const r = rotateVec3(d, { x: -q.x, y: -q.y, z: -q.z, w: q.w });
+  return {
+    x: frame.scale.x ? r.x / frame.scale.x : r.x,
+    y: frame.scale.y ? r.y / frame.scale.y : r.y,
+    z: frame.scale.z ? r.z / frame.scale.z : r.z,
+  };
+}
+
 /** Whether two client rects overlap (touching edges count as overlap). */
 export function rectsIntersect(a: ClientRect, b: ClientRect): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
@@ -113,6 +140,25 @@ export const clamp = (v: number, lo: number, hi: number): number => Math.max(lo,
 export const snapTo = (v: number, step: number): number => (step > 0 ? Math.round(v / step) * step : v);
 
 export interface Quat { x: number; y: number; z: number; w: number }
+
+/** A point or direction in world space. */
+export interface Vec3 { x: number; y: number; z: number }
+
+/**
+ * A vector turned by a quaternion (q·v·q⁻¹, expanded).
+ *
+ * The editor's ONE copy of this: a gizmo's local axes, a group rotation's arm and
+ * a parent frame's inverse are the same turn, and three transcriptions of it are
+ * three chances for the handle, the motion and the stored value to disagree.
+ */
+export function rotateVec3(v: Vec3, q: Quat): Vec3 {
+  const t = { x: 2 * (q.y * v.z - q.z * v.y), y: 2 * (q.z * v.x - q.x * v.z), z: 2 * (q.x * v.y - q.y * v.x) };
+  return {
+    x: v.x + q.w * t.x + q.y * t.z - q.z * t.y,
+    y: v.y + q.w * t.y + q.z * t.x - q.x * t.z,
+    z: v.z + q.w * t.z + q.x * t.y - q.y * t.x,
+  };
+}
 
 /** Quaternion for a turn of `rad` about a world axis. */
 export function axisQuat(axis: 'x' | 'y' | 'z', rad: number): Quat {

@@ -596,7 +596,7 @@ export class EditorControlSurfaceImpl {
     this.s.commands.removeComponent(entity, component);
   }
   setEntityXY(id: EntityId, x: number, y: number): void {
-    this.s.commands.setEntityXY(id, x, y);
+    this.s.commands.setEntityWorldPos(id, x, y);
   }
   /** Coalesce a burst of setField writes (a drag) into one undo step. */
   beginGesture(label: string): void {

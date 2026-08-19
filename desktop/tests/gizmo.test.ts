@@ -16,7 +16,7 @@ import {
   dragPlane,
   planeNormal,
   groupPivot,
-  rotateAround,
+  turnAround,
   scaleAround,
   rotateRings,
   ringPoint,
@@ -25,6 +25,9 @@ import {
   axisQuat,
   quatMul,
   distToSegment,
+  scaleFactors,
+  axisDragFraction,
+  axisScreenDir,
 } from '@/tools/gizmo';
 
 const pivot = { x: 100, y: 100 };
@@ -121,19 +124,73 @@ describe('the plane a drag is measured on', () => {
 
 describe('groupPivot', () => {
   it('is the centroid', () => {
-    expect(groupPivot([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 9 }])).toEqual({ x: 5, y: 3 });
+    expect(groupPivot([
+      { x: 0, y: 0, z: 0 }, { x: 10, y: 0, z: 3 }, { x: 5, y: 9, z: 6 },
+    ])).toEqual({ x: 5, y: 3, z: 3 });
   });
-  it('empty is the origin', () => expect(groupPivot([])).toEqual({ x: 0, y: 0 }));
+  it('empty is the origin', () => expect(groupPivot([])).toEqual({ x: 0, y: 0, z: 0 }));
 });
 
-describe('rotateAround / scaleAround', () => {
-  it('rotates a point 90° about a pivot', () => {
-    const r = rotateAround({ x: 10, y: 0 }, { x: 0, y: 0 }, Math.PI / 2);
+describe('turnAround / scaleAround', () => {
+  it('turns a point 90° about a pivot', () => {
+    const r = turnAround({ x: 10, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, axisQuat('z', Math.PI / 2));
     expect(r.x).toBeCloseTo(0, 6);
     expect(r.y).toBeCloseTo(10, 6);
   });
+  // A member standing at a different depth than the pivot swings on the arm its
+  // z gives it — the case a 2D turn silently answered with the wrong radius.
+  it('swings the depth offset too', () => {
+    const r = turnAround({ x: 0, y: 0, z: 10 }, { x: 0, y: 0, z: 0 }, axisQuat('y', Math.PI / 2));
+    expect(r.x).toBeCloseTo(10, 6);
+    expect(r.z).toBeCloseTo(0, 6);
+  });
   it('scales a point away from a pivot per axis', () => {
-    expect(scaleAround({ x: 4, y: 4 }, { x: 0, y: 0 }, 2, 0.5)).toEqual({ x: 8, y: 2 });
+    expect(scaleAround({ x: 4, y: 4, z: 4 }, { x: 0, y: 0, z: 0 }, { x: 2, y: 0.5, z: 1 }))
+      .toEqual({ x: 8, y: 2, z: 4 });
+  });
+});
+
+describe('scaleFactors', () => {
+  // Head-on, the centre grab is the XY plane — the uniform x/y scale the 2D gizmo
+  // has always had, arrived at by the same rule rather than written down for it.
+  it('the face-on plane head-on is the 2D uniform scale', () => {
+    expect(scaleFactors(faceOnPlane(HEAD_ON), 2)).toEqual({ x: 2, y: 2, z: 1 });
+  });
+
+  it('each arrow names its own axis, and only it', () => {
+    expect(scaleFactors('x', 3)).toEqual({ x: 3, y: 1, z: 1 });
+    expect(scaleFactors('y', 3)).toEqual({ x: 1, y: 3, z: 1 });
+    expect(scaleFactors('z', 3)).toEqual({ x: 1, y: 1, z: 3 });
+  });
+
+  it('a plane handle names the two axes it spans', () => {
+    expect(scaleFactors('yz', 4)).toEqual({ x: 1, y: 4, z: 4 });
+    expect(scaleFactors('zx', 4)).toEqual({ x: 4, y: 1, z: 4 });
+  });
+});
+
+describe('axisDragFraction', () => {
+  const along = axisScreenDir(HEAD_ON, 'x');
+
+  it('is the drag along the arrow, over the arrow drawn length', () => {
+    expect(axisDragFraction(along, { x: GIZMO.axisLen, y: 0 })).toBeCloseTo(1, 9);
+    expect(axisDragFraction(along, { x: -GIZMO.axisLen / 2, y: 0 })).toBeCloseTo(-0.5, 9);
+  });
+
+  // Radial distance from the pivot grows for this drag; the axis does not.
+  it('ignores motion across the arrow', () => {
+    expect(axisDragFraction(along, { x: 0, y: 40 })).toBeCloseTo(0, 9);
+  });
+
+  // A foreshortened arrow draws short, so the same world travel is fewer pixels —
+  // dividing by the DRAWN length is what makes the gesture mean the same thing.
+  it('scales with the foreshortening, so one gesture means one scale', () => {
+    const half = { x: 0.5, y: 0 };
+    expect(axisDragFraction(half, { x: GIZMO.axisLen / 2, y: 0 })).toBeCloseTo(1, 9);
+  });
+
+  it('an axis that projects to nothing names no distance', () => {
+    expect(axisDragFraction({ x: 0, y: 0 }, { x: 30, y: 30 })).toBe(0);
   });
 });
 

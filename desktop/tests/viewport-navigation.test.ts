@@ -15,11 +15,14 @@ import { DEFAULT_EDITOR_VIEW, editorViewHalfExtent, type EditorViewData } from '
 const host = vi.hoisted(() => ({
   view: null as EditorViewData | null,
   canvas: null as unknown,
+  /** The ray a screen point names, when a test wants to ask where it lands. */
+  ray: null as unknown,
 }));
 
 vi.mock('@/engine/EngineHost', () => ({
   EngineHost: {
-    getResource: () => host.view,
+    getResource: (r: unknown) =>
+      ((r as { _name?: string })?._name === 'CameraView' ? { screenRay: () => host.ray } : host.view),
     get canvas() { return host.canvas; },
     get world() { return null; },
   },
@@ -106,5 +109,35 @@ describe('zooming about the cursor', () => {
     ViewportController.zoomAtClient(W * 0.9, H * 0.1, 0.5);
     expect(v.y).toBeCloseTo(0, 6);
     expect(Math.hypot(v.x, v.z)).toBeGreaterThan(1);
+  });
+});
+
+describe('the plane the view authors on', () => {
+  // Straight down the −z axis from a point above the origin: it meets the 2D
+  // plane at (12, 5, 0) and the ground at (12, 0, 5).
+  const downAndBack = { origin: { x: 12, y: 5, z: 100 }, dir: { x: 0, y: -1, z: -1 } };
+
+  it('orthographic is the 2D plane, which is where every 2D drop always landed', () => {
+    host.view = view({});
+    host.ray = downAndBack;
+    const p = ViewportController.canvasToWorkPlane(400, 300);
+    expect(p).not.toBeNull();
+    expect(p!.z).toBeCloseTo(0, 6);
+    expect(p!.x).toBeCloseTo(12, 6);
+    expect(p!.y).toBeCloseTo(-95, 6);
+    expect(ViewportController.workPlaneAxes()).toEqual(['x', 'y']);
+  });
+
+  // A 3D scene stands on the ground, and that is the surface a dropped thing
+  // belongs on — not the wall at z = 0 the cursor happens to cross.
+  it('perspective is the ground, and says so in the axes it names', () => {
+    host.view = perspectiveView({});
+    host.ray = downAndBack;
+    const p = ViewportController.canvasToWorkPlane(400, 300);
+    expect(p).not.toBeNull();
+    expect(p!.y).toBeCloseTo(0, 6);
+    expect(p!.x).toBeCloseTo(12, 6);
+    expect(p!.z).toBeCloseTo(95, 6);
+    expect(ViewportController.workPlaneAxes()).toEqual(['x', 'z']);
   });
 });
