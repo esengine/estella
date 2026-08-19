@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "OrthoClipBehindCamera",
+  "entities": [
+    {
+      "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
+    },
+    {
+      "id": 1, "name": "OnPlane", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -120, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 160, "y": 160 }, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 2, "name": "BehindPlane", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 120, "y": 0, "z": 1 } } },
+        { "type": "Sprite", "data": { "size": { "x": 160, "y": 160 }, "color": { "r": 0, "g": 1, "b": 0, "a": 1 }, "enabled": true } }
+      ]
+    }
+  ]
+}
