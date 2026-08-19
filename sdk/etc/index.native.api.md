@@ -5,7 +5,7 @@ Symbols: 113 public · 71 beta · 1477 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"ea9373ff870f868a"
+"9169449040ae1dcb"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -3990,6 +3990,7 @@ BuiltinComponentDef<Light2DData>
 color: Color
 direction: Vec2
 directionZ: number
+drawEnvironment: boolean
 enabled: boolean
 environment: number
 innerAngle: number

@@ -336,6 +336,13 @@ private:
     u32 shadow_texture_id_ = 0;
     /// The frame environment's reflection atlas, on the same terms. 0 = none this frame.
     u32 environment_texture_id_ = 0;
+    /// Whether that environment is also the background this frame.
+    bool draw_sky_ = false;
+    /// The far-plane quad's program, compiled on first use.
+    u32 sky_program_ = 0;
+    bool sky_compiled_ = false;
+    /// Emits the background quad when an environment asked to be seen behind the scene.
+    void collectSky(RenderCollectContext& ctx);
 
     // processMasks scratch, reused across cameras/frames.
     std::vector<Entity> mask_scissor_scratch_;

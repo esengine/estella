@@ -18,6 +18,7 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initial_index_count_ = initialIndexCount;
 
     for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape,
+                        LayoutId::Sky,
                         LayoutId::MeshInstance}) {
         setupStream(layout);
     }
@@ -279,6 +280,13 @@ void TransientBufferPool::setupStream(LayoutId layout) {
             desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
             desc.attributes[2] = {2, 4, GfxDataType::Float, false, 16, 0};
             desc.attributes[3] = {3, 4, GfxDataType::Float, false, 32, 0};
+            break;
+        case LayoutId::Sky:
+            // One vec3 and nothing else: a layout may not declare an attribute its
+            // shader does not consume, which is why this is not the Batch one.
+            desc.attributeCount = 1;
+            desc.strides[0] = 12;
+            desc.attributes[0] = {0, 3, GfxDataType::Float, false, 0, 0};
             break;
         default:
             break;

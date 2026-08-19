@@ -4,6 +4,7 @@
 #include "../rhi/Shader.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../store/LightStore.hpp"
+#include "../draw/BatchBuilder.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light2D.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
@@ -17,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 namespace esengine {
@@ -649,6 +651,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     lights.clear();
     shadow_light_slot_ = -1;
     environment_texture_id_ = 0;
+    draw_sky_ = false;
 
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
@@ -768,6 +771,9 @@ bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3&
         return false;
     }
     environment_texture_id_ = textureId;
+    // Only a reflection can be looked at directly: the nine coefficients are the
+    // sky averaged over every direction, which as a background is one flat colour.
+    draw_sky_ = light.drawEnvironment && textureId != 0;
     return true;
 }
 
@@ -1011,6 +1017,58 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     device_.setViewport(sceneViewport.x, sceneViewport.y, sceneViewport.w, sceneViewport.h);
 }
 
+/**
+ * The background an environment is, as a quad on the far plane. Not a plugin and
+ * not an entity: a sky belongs to no transform and is culled by nothing. Its
+ * corners are the far plane's, unprojected, so a fragment's direction is the one
+ * from the eye through it — which viewDirection() already answers.
+ */
+void RenderFrame::collectSky(RenderCollectContext& ctx) {
+    if (!draw_sky_ || environment_texture_id_ == 0) return;
+    if (!sky_compiled_) {
+        sky_compiled_ = true;
+        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::SKY);
+        const auto target = resource_manager_.preferredShaderTarget();
+        const std::vector<std::string> features{"ES_ENV_MAP"};
+        resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "",
+                                                  features, target),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "",
+                                                  features, target),
+            {}, resource_manager_.preferredShaderLanguage());
+        if (auto* shader = resource_manager_.getShader(handle)) sky_program_ = shader->getProgramId();
+    }
+    if (sky_program_ == 0) return;
+
+    // The far plane's four corners in world space. Clip z = 1 is that plane under
+    // both backends' shared projection, and w divides out whichever it is.
+    const glm::mat4 invVP = glm::inverse(ctx.frame_context.view_projection);
+    glm::vec3 corners[4];
+    const glm::vec2 ndc[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    for (u32 i = 0; i < 4; ++i) {
+        const glm::vec4 p = invVP * glm::vec4(ndc[i], 1.0f, 1.0f);
+        corners[i] = glm::vec3(p) / p.w;
+    }
+
+    BatchDrawKey key{};
+    key.stage = RenderStage::Background;
+    key.layer = std::numeric_limits<i32>::min();
+    key.shaderId = sky_program_;
+    key.blend = BlendMode::None;
+    key.layoutId = LayoutId::Sky;
+    // Slot 0 is filled with white and never sampled: the atlas rides the unit the
+    // shaders pin it to, and the fill is what the slot walk below it expects.
+    key.textureId = ctx.frame_context.white_texture_id;
+    key.envTextureId = environment_texture_id_;
+    key.type = RenderType::Mesh;
+    // Neither tested nor written: the sky is behind everything by being first, and
+    // depth of its own would fight the geometry that draws over it.
+    key.depthTest = false;
+    key.depthWrite = false;
+    appendIndexedDraw(ctx.buffer_pool, ctx.draw_list, ctx.clip_state, corners, 4,
+                      BATCH_QUAD_INDICES, 6, key);
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     ES_PROFILE_SCOPE("render.collect");
     buildClipState();
@@ -1021,6 +1079,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
 
     RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
                                     computeCameraWorldRect(ctx.view_projection)};
+    collectSky(collectCtx);
     for (auto& plugin : plugins_) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
         plugin->collect(collectCtx);

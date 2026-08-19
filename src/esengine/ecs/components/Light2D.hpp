@@ -119,6 +119,13 @@ struct Light2D {
     ES_PROPERTY(asset = environment, tooltip="Baked environment (.esenv) this Ambient light casts.")
     resource::EnvironmentHandle environment;
 
+    /** @brief Draw @ref environment as the background as well as reflecting it. Off by
+     *         default, so a scene that adopts an environment for its lighting does not
+     *         also acquire a sky it did not ask for. Ignored without one — and the
+     *         camera still decides whether the background is drawn at all. */
+    ES_PROPERTY(tooltip="Draw this environment as the sky behind the scene.")
+    bool drawEnvironment{false};
+
     /** @brief Disabled lights are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};

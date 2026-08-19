@@ -85,9 +85,13 @@ enum class LayoutId : u8 {
     /// pool's; the layout belongs to the mesh, which is the one that knows what
     /// its own vertices look like.
     MeshInstance    = 3,
+    /// The background quad: a world position and nothing else. Its own stream
+    /// because the Batch one spends every sampler slot on a per-vertex merge, and
+    /// the sky has to reach the environment atlas on the slot the shaders pin it to.
+    Sky             = 4,
 };
 
-static constexpr u32 LAYOUT_COUNT = 4;
+static constexpr u32 LAYOUT_COUNT = 5;
 
 /// One per-object record for a resident mesh: a model matrix and a tint.
 static constexpr u32 MESH_INSTANCE_STRIDE = 68;

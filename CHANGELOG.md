@@ -14,6 +14,26 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **An environment can be seen, not only reflected.** A baked `.esenv` gave a
+  scene its irradiance and a prefiltered reflection, so a metal ball had a sky in
+  it — and behind the ball was a flat clear colour. The same panorama was half
+  visible and half not, for no reason anyone chose.
+
+  `Light2D.drawEnvironment` draws it as the background: a quad on the far plane,
+  shaded by the direction from the eye through each pixel, which is the direction
+  the reflection already samples. Off by default, so a scene that adopts an
+  environment for its lighting does not also acquire a sky it did not ask for; and
+  only where there is a prefiltered reflection to look at, since the nine
+  irradiance coefficients are that sky averaged over every direction — as a
+  background, one flat colour.
+
+  It is not a renderable: a sky belongs to no transform, is culled by nothing, and
+  sorts first by being in the Background stage. Its own vertex stream, because the
+  Batch one spends every sampler slot on a per-vertex merge and the sky has to
+  reach the environment atlas on the unit the shaders pin it to.
+
 ### Fixed
 
 - **Whether a surface has normals no longer decides where its light is.** Two

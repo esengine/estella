@@ -384,6 +384,7 @@ export interface Light2D {
     meshShadows: boolean;
     shadowExtent: number;
     environment: number;
+    drawEnvironment: boolean;
     enabled: boolean;
 }
 

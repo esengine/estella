@@ -699,6 +699,7 @@ export interface Light2DPtrData {
     meshShadows: boolean;
     shadowExtent: number;
     environment: number;
+    drawEnvironment: boolean;
     enabled: boolean;
 }
 
@@ -719,7 +720,8 @@ export function fillLight2D(
     out.meshShadows = u8[ptr + 56] !== 0;
     out.shadowExtent = f32[(ptr + 60) >> 2];
     out.environment = u32[(ptr + 64) >> 2];
-    out.enabled = u8[ptr + 68] !== 0;
+    out.drawEnvironment = u8[ptr + 68] !== 0;
+    out.enabled = u8[ptr + 69] !== 0;
 }
 
 export function writeLight2D(
@@ -739,7 +741,8 @@ export function writeLight2D(
     u8[ptr + 56] = data.meshShadows ? 1 : 0;
     f32[(ptr + 60) >> 2] = data.shadowExtent;
     u32[(ptr + 64) >> 2] = data.environment;
-    u8[ptr + 68] = data.enabled ? 1 : 0;
+    u8[ptr + 68] = data.drawEnvironment ? 1 : 0;
+    u8[ptr + 69] = data.enabled ? 1 : 0;
 }
 
 export function createLight2DData(): Light2DPtrData {
@@ -757,6 +760,7 @@ export function createLight2DData(): Light2DPtrData {
         meshShadows: false,
         shadowExtent: 0,
         environment: 0,
+        drawEnvironment: false,
         enabled: false,
     };
 }

@@ -1635,6 +1635,12 @@
           "doc": "Baked environment (.esenv) this Ambient light casts."
         },
         {
+          "key": "drawEnvironment",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Draw this environment as the sky behind the scene."
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

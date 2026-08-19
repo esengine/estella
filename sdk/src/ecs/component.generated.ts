@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ea9373ff870f868a';
+export const ABI_LAYOUT_HASH = '9169449040ae1dcb';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -401,6 +401,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             meshShadows: false,
             shadowExtent: 0,
             environment: 0,
+            drawEnvironment: false,
             enabled: true,
         },
         renderableField: 'enabled',
@@ -421,6 +422,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional)." },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true },
             environment: { tooltip: "Baked environment (.esenv) this Ambient light casts." },
+            drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene." },
         },
     },
     Mesh2D: {
@@ -1213,6 +1215,7 @@ export interface Light2DData {
     meshShadows: boolean;
     shadowExtent: number;
     environment: number;
+    drawEnvironment: boolean;
     enabled: boolean;
 }
 
