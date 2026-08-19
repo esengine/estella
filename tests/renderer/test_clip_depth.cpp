@@ -26,6 +26,12 @@ static float ndcZ(const glm::mat4& m, const glm::vec3& world) {
 
 static bool near(float a, float b) { return std::fabs(a - b) < 1e-5f; }
 
+/// Same tolerance, taken against the magnitude — for a world-space coordinate,
+/// where 1e-5 absolute is below what a float32 can hold at a few hundred units.
+static bool nearRel(float a, float b) {
+    return std::fabs(a - b) <= 1e-5f * std::fmax(1.0f, std::fmax(std::fabs(a), std::fabs(b)));
+}
+
 int main() {
     // The symmetric slab a 2D camera frames: far in both directions, which is what
     // puts content behind the camera plane at a negative clip z.
@@ -74,7 +80,10 @@ int main() {
     const glm::vec4 pWgpu = cameraFromViewProjection(
         toClipDepthRange(persp, ClipDepthRange::ZeroToOne));
     CHECK(near(pGl.w, 1.0f) && near(pWgpu.w, 1.0f), "a perspective camera reports an eye point");
-    CHECK(near(pGl.x, pWgpu.x) && near(pGl.y, pWgpu.y) && near(pGl.z, pWgpu.z),
+    // A POINT, so relative: a float32 keeps ~7 digits and the two matrices are
+    // inverted independently. The claim is that the EXTRACTION ignores the clip
+    // range — any k·row2 + m·row3 only scales the column it reads.
+    CHECK(nearRel(pGl.x, pWgpu.x) && nearRel(pGl.y, pWgpu.y) && nearRel(pGl.z, pWgpu.z),
           "the perspective viewpoint is invariant under the conversion");
 
     std::printf(g_failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", g_failures);
