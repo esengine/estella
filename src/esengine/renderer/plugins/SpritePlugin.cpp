@@ -37,8 +37,15 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec2 finalSize = sprite.size * glm::vec2(scale);
         glm::vec2 pivotOffset((0.5f - sprite.pivot.x) * finalSize.x,
                               (0.5f - sprite.pivot.y) * finalSize.y);
-        glm::vec3 aabbCenter = position + glm::vec3(pivotOffset, 0.0f);
-        glm::vec3 halfExtents = glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f;
+        // The quad turns about `position`, so its pivot offset turns with it and its
+        // extents grow. Bounding the unturned box instead loses a turned sprite while
+        // part of it is still on screen — at 45 degrees the box is 41% short.
+        const glm::vec2 turn = flatTurnZ(rotation);
+        glm::vec3 aabbCenter = position + glm::vec3(pivotOffset.x * turn.x - pivotOffset.y * turn.y,
+                                                    pivotOffset.x * turn.y + pivotOffset.y * turn.x,
+                                                    0.0f);
+        glm::vec3 halfExtents = flatHalfExtents(
+            turn, glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f);
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
             continue;
         }

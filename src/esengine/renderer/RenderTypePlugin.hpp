@@ -16,6 +16,8 @@
 
 #include <glm/glm.hpp>
 
+#include <cmath>
+
 namespace esengine {
 
 struct Frustum;
@@ -101,6 +103,27 @@ inline glm::vec3 parallaxedWorldPosition(ecs::Transform& transform, const glm::v
     position.x += camera.center.x * (1.0f - parallax.x);
     position.y += camera.center.y * (1.0f - parallax.y);
     return position;
+}
+
+/**
+ * @brief The cos/sin of the turn a plane renderable draws with: its entity's rotation
+ *        about Z, which is the only part a flat quad uses.
+ */
+inline glm::vec2 flatTurnZ(const glm::quat& rotation) {
+    const f32 n = rotation.w * rotation.w + rotation.z * rotation.z;
+    if (n <= 1e-12f) return {1.0f, 0.0f};
+    return {(rotation.w * rotation.w - rotation.z * rotation.z) / n,
+            2.0f * rotation.w * rotation.z / n};
+}
+
+/**
+ * @brief World AABB half-extents of a flat box turned by @p turn (from flatTurnZ).
+ *        |R| * half, exact for a box. An unturned entity gets @p half back, so the
+ *        result is never narrower than the box itself.
+ */
+inline glm::vec3 flatHalfExtents(const glm::vec2& turn, const glm::vec3& half) {
+    const f32 c = std::abs(turn.x), s = std::abs(turn.y);
+    return {c * half.x + s * half.y, s * half.x + c * half.y, half.z};
 }
 
 class RenderTypePlugin {

@@ -54,7 +54,10 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
-        glm::vec3 halfExtents = glm::vec3(shape.size.x * scale.x, shape.size.y * scale.y, 0.0f) * 0.5f;
+        // Turned about `position`, so only the extents move (see flatHalfExtents).
+        glm::vec3 halfExtents = flatHalfExtents(
+            flatTurnZ(rotation),
+            glm::vec3(shape.size.x * scale.x, shape.size.y * scale.y, 0.0f) * 0.5f);
         if (!frustum.intersectsAABB(position, halfExtents)) {
             continue;
         }

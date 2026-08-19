@@ -87,7 +87,9 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         position.x += dx;
         position.y += dy;
 
-        glm::vec3 halfExtents = glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f;
+        // `position` above already carries the turned offset, so only the extents do.
+        glm::vec3 halfExtents = flatHalfExtents(
+            flatTurnZ(rotation), glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f);
         if (!frustum.intersectsAABB(position, halfExtents)) continue;
 
         f32 angle = 2.0f * std::atan2(rotation.z, rotation.w);
