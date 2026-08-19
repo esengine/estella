@@ -14,6 +14,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_access.hpp>
 
 #include <algorithm>
 #include <string>
@@ -192,12 +193,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
         const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
-        // Cull at the local AABB scaled into world space (rotation ignored — the
-        // same approximation the sprite path uses).
-        glm::vec3 localCenter = (localMin + localMax) * 0.5f;
-        glm::vec3 localHalf = (localMax - localMin) * 0.5f;
-        glm::vec3 aabbCenter = position + localCenter * scale;
-        glm::vec3 halfExtents = glm::abs(localHalf * scale);
+        // The world AABB of the ORIENTED box: each axis takes |R| * halfExtents,
+        // exact for a box. Ignoring the rotation bounds a turned model by a box
+        // smaller than itself, so it vanishes while still partly on screen.
+        const glm::vec3 localCenter = (localMin + localMax) * 0.5f;
+        const glm::vec3 localHalf = (localMax - localMin) * 0.5f;
+        const glm::mat3 basis = glm::mat3_cast(rotation);
+        const glm::vec3 scaledHalf = glm::abs(localHalf * scale);
+        const glm::vec3 aabbCenter = position + basis * (localCenter * scale);
+        const glm::vec3 halfExtents{
+            glm::dot(glm::abs(glm::row(basis, 0)), scaledHalf),
+            glm::dot(glm::abs(glm::row(basis, 1)), scaledHalf),
+            glm::dot(glm::abs(glm::row(basis, 2)), scaledHalf),
+        };
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) continue;
 
         u32 textureId = ctx.white_texture_id;
