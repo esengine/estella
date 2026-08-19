@@ -35,6 +35,7 @@ import {
   obbCorners,
   rectsIntersect,
   screenAABB,
+  screenHull,
   worldToLocal3D,
 } from './viewportMath';
 
@@ -551,24 +552,32 @@ export const ViewportController = {
   },
 
   /**
-   * Screen rect of a UI node's layout box — its world OBB projected through the
-   * UI camera. Drives the selection outline for UI, which lives in screen space.
+   * The OUTLINE of an entity as it projects: the convex hull of its box's corners
+   * in CSS px, or null when any corner fails to project. A box is a quadrilateral
+   * on screen while it is flat and square to the eye, and a hexagon once it has
+   * depth. Every corner goes through its OWN depth, or the outline is the shadow's.
    */
-  uiEntityScreenRect(id: EntityId): ClientRect | null {
-    const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
-    const obb = this.uiEntityWorldOBB(id);
-    if (!cam?.valid || !obb) return null;
-    return screenAABB(entityBoxCorners(obb).map((c) => this.uiWorldToClient(cam, c.x, c.y)));
+  entityScreenHull(id: EntityId): Array<{ x: number; y: number }> | null {
+    const cam = EngineHost.world?.has(id, UINode)
+      ? (EngineHost.getResource(UICameraInfo) as UICameraData | undefined)
+      : undefined;
+    const box = cam ? this.uiEntityWorldOBB(id) : this.entityBounds(id);
+    if (!box || (cam !== undefined && !cam.valid)) return null;
+    const pts = entityBoxCorners(box).map((c) => (cam
+      ? this.uiWorldToClient(cam, c.x, c.y)
+      : this.worldToClient(c.x, c.y, c.z)));
+    if (pts.some((p) => !p)) return null;
+    return screenHull(pts as Array<{ x: number; y: number }>);
   },
 
-  /** Screen-space bounding rect (CSS px rel. canvas) of an entity, for the selection outline. */
+  /**
+   * Screen-space bounding rect (CSS px rel. canvas) of an entity — the AABB of
+   * {@link entityScreenHull}, so what hit-tests against a rect and what is drawn
+   * around the entity cannot describe two different shapes.
+   */
   getEntityScreenRect(id: EntityId): ClientRect | null {
-    if (EngineHost.world?.has(id, UINode)) return this.uiEntityScreenRect(id);
-    const b = this.entityBounds(id);
-    if (!b) return null;
-    // Every corner through its OWN depth: a box with any thickness has corners on
-    // different planes, and one shared plane would draw the outline of its shadow.
-    return screenAABB(entityBoxCorners(b).map((c) => this.worldToClient(c.x, c.y, c.z)));
+    const hull = this.entityScreenHull(id);
+    return hull ? screenAABB(hull) : null;
   },
 
   /**

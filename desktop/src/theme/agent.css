@@ -1073,14 +1073,20 @@
    each frame, so it tracks pan and zoom rather than sitting where it was drawn. */
 .viewport__agentpeek {
   position: absolute;
-  top: 0; left: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  opacity: 0;
-  border: 1px solid var(--nebula);
-  border-radius: 2px;
-  box-shadow: 0 0 0 3px var(--nebula-soft);
-  transition: opacity var(--t-fast);
+  overflow: visible;
   z-index: 3;
+}
+.viewport__agentpeek .peek-outline {
+  fill: none;
+  stroke: var(--nebula);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px var(--nebula-soft));
+  transition: opacity var(--t-fast);
 }
 /* An entity named in the answer. A hairline under it, not a colour: it is a
    thing in the scene, not a hyperlink out of the editor. */

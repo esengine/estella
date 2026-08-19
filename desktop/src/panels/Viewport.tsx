@@ -258,6 +258,20 @@ function worldRectToScreen(
   return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
 }
 
+/**
+ * Shape one outline polygon to the entity's projected hull, or hide it. `sid` null
+ * (engine not ready) hides it too — a stale outline on a scene that is not there
+ * reads as a selection.
+ */
+function shapeOutline(el: SVGPolygonElement | null, sid: number | null): void {
+  if (!el) return;
+  const rt = sid != null ? SceneModel.runtimeFor(sid) : undefined;
+  const hull = rt != null ? ViewportController.entityScreenHull(rt) : null;
+  if (!hull || hull.length < 2) { el.style.opacity = '0'; return; }
+  el.setAttribute('points', hull.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+  el.style.opacity = '1';
+}
+
 function setRectAttrs(el: Element | null, r: { x: number; y: number; w: number; h: number }): void {
   if (!el) return;
   el.setAttribute('x', String(r.x));
@@ -930,14 +944,15 @@ export function Viewport() {
   const pivotHandleRef = useRef<HTMLDivElement>(null);
   const designSvgRef = useRef<SVGSVGElement>(null);
   const designLabelRef = useRef<HTMLDivElement>(null);
-  // One outline div per selected entity, keyed by source id and positioned by the rAF.
-  const selRefs = useRef(new Map<number, HTMLDivElement | null>());
+  // One outline polygon per selected entity, keyed by source id and shaped by the rAF.
+  const selRefs = useRef(new Map<number, SVGPolygonElement | null>());
   // Entities under the pointer in the agent's transcript. A tool row naming
   // `id: 7` means nothing until 7 lights up where the work actually is.
   const agentPeeked = useAgent((s) => s.peeked);
-  const peekRefs = useRef(new Map<number, HTMLDivElement | null>());
-  // The single merged-selection box shown instead, above the merge threshold.
-  const mergedSelRef = useRef<HTMLDivElement>(null);
+  const peekRefs = useRef(new Map<number, SVGPolygonElement | null>());
+  // The single merged-selection box shown instead, above the merge threshold. A
+  // bounding box is what it claims to be, so it stays a rect where an outline is a hull.
+  const mergedSelRef = useRef<SVGRectElement>(null);
   const marqueeRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
   const tilePreviewRef = useRef<HTMLDivElement>(null);
@@ -1270,9 +1285,7 @@ export function Viewport() {
         }
         if (merged) {
           if (Number.isFinite(minX)) {
-            merged.style.transform = `translate(${minX}px, ${minY}px)`;
-            merged.style.width = `${maxX - minX}px`;
-            merged.style.height = `${maxY - minY}px`;
+            setRectAttrs(merged, { x: minX, y: minY, w: maxX - minX, h: maxY - minY });
             merged.style.opacity = '1';
           } else {
             merged.style.opacity = '0';
@@ -1280,37 +1293,12 @@ export function Viewport() {
         }
       } else {
         if (merged) merged.style.opacity = '0';
-        for (const [sid, el] of selRefs.current) {
-          if (!el) continue;
-          const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
-          const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
-          if (rect) {
-            el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
-            el.style.width = `${rect.w}px`;
-            el.style.height = `${rect.h}px`;
-            el.style.opacity = '1';
-          } else {
-            el.style.opacity = '0';
-          }
-        }
+        for (const [sid, el] of selRefs.current) shapeOutline(el, ready ? sid : null);
       }
 
-      // Agent peek outlines, positioned the same way selection is — they follow
-      // pan and zoom because they are projected from world every frame, not
-      // placed once.
-      for (const [sid, el] of peekRefs.current) {
-        if (!el) continue;
-        const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
-        const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
-        if (rect) {
-          el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
-          el.style.width = `${rect.w}px`;
-          el.style.height = `${rect.h}px`;
-          el.style.opacity = '1';
-        } else {
-          el.style.opacity = '0';
-        }
-      }
+      // Agent peek outlines, shaped the same way selection is — they follow pan and
+      // zoom because they are projected from world every frame, not placed once.
+      for (const [sid, el] of peekRefs.current) shapeOutline(el, ready ? sid : null);
 
       // UI resize gizmo: a single selected UINode gets edge/corner handles on its
       // screen rect (getEntityScreenRect — the same rect the selection outline uses).
@@ -2879,33 +2867,37 @@ export function Viewport() {
         </div>
       )}
 
-      {/* One outline per selected entity (rAF-positioned); primary gets the accent.
-          Above the merge threshold these collapse to the single merged box below. */}
-      {selList.length <= SELECTION_OUTLINE_MERGE_THRESHOLD &&
-        selList.map((id) => (
-          <div
-            key={id}
+      {/* One outline per selected entity, shaped by the rAF to the entity's projected
+          hull; primary reads stronger. Above the merge threshold they collapse to the
+          merged bounding box, which is a rect because that is what it claims to be. */}
+      <svg className="viewport__selection" aria-hidden="true">
+        {selList.length <= SELECTION_OUTLINE_MERGE_THRESHOLD &&
+          selList.map((id) => (
+            <polygon
+              key={id}
+              ref={(el) => {
+                if (el) selRefs.current.set(id, el);
+                else selRefs.current.delete(id);
+              }}
+              className={`sel-outline${id === primaryId ? ' primary' : ''}`}
+              style={{ opacity: 0 }}
+            />
+          ))}
+        <rect ref={mergedSelRef} className="sel-outline" style={{ opacity: 0 }} />
+      </svg>
+      <svg className="viewport__agentpeek" aria-hidden="true">
+        {agentPeeked.map((id) => (
+          <polygon
+            key={`peek-${id}`}
             ref={(el) => {
-              if (el) selRefs.current.set(id, el);
-              else selRefs.current.delete(id);
+              if (el) peekRefs.current.set(id, el);
+              else peekRefs.current.delete(id);
             }}
-            className={`viewport__selection${id === primaryId ? ' primary' : ''}`}
-            aria-hidden="true"
+            className="peek-outline"
+            style={{ opacity: 0 }}
           />
         ))}
-      {agentPeeked.map((id) => (
-        <div
-          key={`peek-${id}`}
-          ref={(el) => {
-            if (el) peekRefs.current.set(id, el);
-            else peekRefs.current.delete(id);
-          }}
-          className="viewport__agentpeek"
-          aria-hidden="true"
-        />
-      ))}
-      {/* The merged selection box (shown only above the threshold; rAF-positioned). */}
-      <div ref={mergedSelRef} className="viewport__selection" style={{ opacity: 0 }} aria-hidden="true" />
+      </svg>
       {/* The selected sprite's pivot dot. One element for the whole viewport (only a
           single selection ever gets it); the rAF parks it and stamps the runtime id the
           drag reads, so no per-entity element is minted for a handle that shows once. */}

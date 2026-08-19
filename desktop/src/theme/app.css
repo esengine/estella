@@ -248,22 +248,29 @@
 /* Selection outline around the selected entity (rAF-driven, below the gizmo). */
 /* Selected-entity outline — the iconic orange, with a dark halo for contrast
    over any scene color. The blue accent stays reserved for UI chrome. */
+/* Selection chrome: one overlay, whose shapes are the entities' projected hulls.
+   A box is a quadrilateral on screen only while it is flat and square to the eye. */
 .viewport__selection {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 1;
-  opacity: 0;
   pointer-events: none;
-  border: 1px solid var(--sel);
-  box-shadow:
-    0 0 0 1px rgba(14, 15, 18, 0.7),
-    inset 0 0 0 1px rgba(14, 15, 18, 0.4);
-  will-change: transform, width, height, opacity;
+  overflow: visible;
+}
+.viewport__selection .sel-outline {
+  fill: none;
+  stroke: var(--sel);
+  stroke-width: 1;
+  /* The dark hairline the box-shadow used to carry, so the outline reads over
+     light artwork as well as dark. */
+  paint-order: stroke;
+  filter: drop-shadow(0 0 1px rgba(14, 15, 18, 0.7));
 }
 /* The primary (active) entity in a multi-selection reads slightly stronger. */
-.viewport__selection.primary {
-  border-width: 1.5px;
+.viewport__selection .sel-outline.primary {
+  stroke-width: 1.5;
 }
 /* The selected sprite's pivot dot: a ring with a centre point, drawn ON the entity
    origin. `translate` puts its centre there (hence the -50% pair), and it sits above
