@@ -156,7 +156,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = particle_shader_id_,
             .blend = blendMode,
             .textureId = textureId,
-            .depth = emitterWorldPos.z,
+            .depth = collect_ctx.camera.viewDepth(emitterWorldPos),
             // Sorted by world Y like every other draw — a burst left at y = 0
             // loses to any sprite standing anywhere else, so an emitter placed on
             // a character disappears behind them.
@@ -182,7 +182,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                 .shaderId = ctx.batch_shader_id,
                 .blend = blendMode,
                 .textureId = ctx.white_texture_id,
-                .depth = emitterWorldPos.z,
+                .depth = collect_ctx.camera.viewDepth(emitterWorldPos),
                 .y = emitterWorldPos.y,
                 .entity = entity,
                 .type = RenderType::Trail,

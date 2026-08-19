@@ -92,7 +92,7 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = ctx.batch_shader_id,
             .blend = static_cast<BlendMode>(trail.blendMode),
             .textureId = textureId,
-            .depth = headWorld.z,
+            .depth = collect_ctx.camera.viewDepth(headWorld),
             .y = headWorld.y,
             .entity = entity,
             .type = RenderType::Trail,

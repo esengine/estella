@@ -157,12 +157,9 @@ struct DrawCommand {
 
         u64 stageKey = static_cast<u64>(stage) << 44;
 
-        // Order-preserving float mapping — monotonic over the FULL float range.
-        // The old [-1,1] normalize-and-truncate silently wrapped any real-world z
-        // (e.g. a backdrop at z=-5 sorted as if nearest), and had the painter's
-        // order inverted for the blended stages. Camera looks down -z, so larger
-        // z = nearer: transparent/overlay draw back-to-front (far first, near
-        // lands on top); opaque draws front-to-back (early-z friendly).
+        // Order-preserving float mapping — monotonic over the FULL float range, so
+        // any real-world depth sorts. `depth` is CameraView::viewDepth, larger =
+        // nearer: blended back-to-front, opaque front-to-back for early-z.
         const bool blended = stage == RenderStage::Transparent || stage == RenderStage::Overlay;
         u32 orderedDepth = blended ? orderedFloatBits(depth) : ~orderedFloatBits(depth);
 

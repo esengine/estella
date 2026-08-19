@@ -157,7 +157,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     const auto& layers = tilemap_system_->allLayers();
     if (layers.empty()) return;
 
-    const CameraWorldRect& cam = collect_ctx.camera;
+    const CameraView& cam = collect_ctx.camera;
 
     for (const auto& [entity, layer] : layers) {
         // The TilemapLayer component is the single source of a layer's visual
@@ -366,6 +366,9 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     .shaderId = batch_shader_id_,
                     .blend = BlendMode::Normal,
                     .textureId = resolved[si].glTexId,
+                    // Authored, not measured: a tilemap layer is flat content stacked
+                    // by a number the layer carries, so there is no world point to ask
+                    // the camera how near it is. It stays a plain sort value.
                     .depth = depth,
                     .entity = entity,
                     .type = RenderType::Sprite,

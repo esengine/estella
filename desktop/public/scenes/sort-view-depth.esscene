@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "SortViewDepth",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 300 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Green",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -60, "y": 0, "z": 0 } } },
+        { "type": "ShapeRenderer", "data": { "shapeType": 0, "size": { "x": 400, "y": 400 }, "color": { "r": 0, "g": 1, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Red",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 60, "y": 0, "z": 0 } } },
+        { "type": "ShapeRenderer", "data": { "shapeType": 0, "size": { "x": 400, "y": 400 }, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    }
+  ]
+}

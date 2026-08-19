@@ -109,7 +109,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             .layer = shape.layer,
             .shaderId = shape_shader_id_,
             .blend = BlendMode::Normal,
-            .depth = position.z,
+            .depth = collect_ctx.camera.viewDepth(position),
             .y = position.y,
             .entity = entity,
             .type = RenderType::Shape,

@@ -85,7 +85,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,
-            .depth = position.z,
+            .depth = collect_ctx.camera.viewDepth(position),
             .y = position.y,
             .entity = entity,
             .type = RenderType::Sprite,

@@ -231,7 +231,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             .normalTextureId = normalTextureId,
             .shadowTextureId = ctx.shadow_texture_id,
             .envTextureId = ctx.environment_texture_id,
-            .depth = position.z,
+            .depth = collect_ctx.camera.viewDepth(position),
             .y = position.y,
             .entity = entity,
             .type = RenderType::Mesh,

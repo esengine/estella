@@ -251,6 +251,10 @@ export const SCENES = [
   // centres at x = ±120 project to 0.40 / 0.60, with 0.30 empty. The hit test at
   // the new place proves screen→world followed the turn.
   { id: "view-orbit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_ORBIT: "60,0", ESTELLA_VERIFY_PICK: "{\"x\":0.40,\"y\":0.556,\"entity\":1}", ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.60,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.556,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // Two blended quads side by side in X at the SAME world z, the far one submitted
+  // last, seen from an eye turned -60° about Y. Equal world z ties, and the tie puts
+  // the FAR quad on top; only a viewer-measured depth puts the near (green) one there.
+  { id: "sort-view-depth", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_ORBIT: "-60,0", ESTELLA_VERIFY_SCENE: "/scenes/sort-view-depth.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sort-view-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.70,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
   // Two quads crossing: one flat, one turned 60° about Y, so each is nearer on
   // one side. Painter's order cannot draw that — with `opaque` the halves resolve
   // by depth (left green, right red), and without it the later draw takes both.

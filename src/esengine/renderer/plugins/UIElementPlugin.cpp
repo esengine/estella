@@ -223,7 +223,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,
-            .depth = position.z,
+            .depth = collect_ctx.camera.viewDepth(position),
             .cullBit = renderer.uiCullBit,
             .entity = entity,
             .type = RenderType::UIElement,

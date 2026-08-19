@@ -22,6 +22,8 @@
 
 #include <glm/glm.hpp>
 
+#include <cmath>
+
 namespace esengine {
 
 /**
@@ -35,6 +37,22 @@ struct FrameConstants {
     glm::mat4 viewProjection{1.0f};
     glm::vec4 camera{0.0f, 0.0f, 1.0f, 0.0f};
 };
+
+/**
+ * @brief Where the frame is seen from, read out of the matrix that projects it.
+ *
+ * @details inverse(VP) on the clip z axis: a perspective divide brings it down to
+ *          the eye POINT (w = 1); orthographic has none, so it stays a DIRECTION,
+ *          negated to point at the viewer (w = 0). One answer for both the shaders'
+ *          FrameConstants::camera and the CPU's draw ordering.
+ */
+inline glm::vec4 cameraFromViewProjection(const glm::mat4& viewProjection) {
+    const glm::vec4 axis = glm::inverse(viewProjection)[2];
+    if (std::abs(axis.w) > 1e-6f) return glm::vec4(glm::vec3(axis) / axis.w, 1.0f);
+    const f32 len = glm::length(glm::vec3(axis));
+    if (len < 1e-12f) return glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+    return glm::vec4(-glm::vec3(axis) / len, 0.0f);
+}
 
 /** @brief Indexed uniform binding point the FrameConstants block is bound to. */
 inline constexpr u32 FRAME_CONSTANTS_BINDING = 0;

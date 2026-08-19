@@ -4,6 +4,7 @@
 
 #include "../core/Types.hpp"
 #include "./frame/RenderStage.hpp"
+#include "./frame/FrameConstants.hpp"
 #include "./draw/RenderItem.hpp"
 #include "./draw/DrawCommand.hpp"
 #include "./draw/DrawList.hpp"
@@ -41,25 +42,43 @@ struct RenderFrameContext {
     u32 environment_texture_id = 0;
 };
 
-/** @brief The camera's view bounds in world space, derived once per collect from the
- *         inverse view-projection — the single source for every plugin's parallax and
- *         world-rect culling math (previously re-derived inside each plugin). */
-struct CameraWorldRect {
+/** @brief What every plugin needs to know about the camera, derived once per collect
+ *         from the inverse view-projection — the single source for parallax, world-rect
+ *         culling and the depth draws are sorted by (each previously re-derived, or in
+ *         the depth's case assumed, inside the plugins). */
+struct CameraView {
     f32 left = 0.0f, bottom = 0.0f, right = 0.0f, top = 0.0f;
     glm::vec2 center{0.0f};
+
+    /// Where the frame is seen from, in FrameConstants::camera's convention: the
+    /// eye's world position when w = 1, or the unit direction pointing at the
+    /// viewer when w = 0. From cameraFromViewProjection, as the shaders' copy is.
+    glm::vec4 eye{0.0f, 0.0f, 1.0f, 0.0f};
+
+    /**
+     * @brief How near @p worldPos is to the viewer, larger = nearer — the order the
+     *        sort key wants, and the one world z gives only while the camera looks
+     *        down -Z. Orthographic projects onto the viewer direction (head-on that
+     *        is worldPos.z exactly); perspective answers with -distance to the eye.
+     */
+    f32 viewDepth(const glm::vec3& worldPos) const {
+        if (eye.w < 0.5f) return glm::dot(worldPos, glm::vec3(eye));
+        return -glm::length(worldPos - glm::vec3(eye));
+    }
 };
 
-inline CameraWorldRect computeCameraWorldRect(const glm::mat4& viewProjection) {
+inline CameraView computeCameraView(const glm::mat4& viewProjection) {
     glm::mat4 invVP = glm::inverse(viewProjection);
     glm::vec4 bl = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
     glm::vec4 tr = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
-    CameraWorldRect rect;
-    rect.left   = bl.x / bl.w;
-    rect.bottom = bl.y / bl.w;
-    rect.right  = tr.x / tr.w;
-    rect.top    = tr.y / tr.w;
-    rect.center = { (rect.left + rect.right) * 0.5f, (rect.bottom + rect.top) * 0.5f };
-    return rect;
+    CameraView view;
+    view.left   = bl.x / bl.w;
+    view.bottom = bl.y / bl.w;
+    view.right  = tr.x / tr.w;
+    view.top    = tr.y / tr.w;
+    view.center = { (view.left + view.right) * 0.5f, (view.bottom + view.top) * 0.5f };
+    view.eye    = cameraFromViewProjection(viewProjection);
+    return view;
 }
 
 struct RenderCollectContext {
@@ -69,14 +88,14 @@ struct RenderCollectContext {
     TransientBufferPool& buffer_pool;
     DrawList& draw_list;
     RenderFrameContext& frame_context;
-    CameraWorldRect camera;
+    CameraView camera;
 };
 
 /** @brief Decomposes @p transform and returns its world position shifted toward the
  *         camera by (1 - parallax); factor 1 = no shift, 0 = screen-pinned. Applied
  *         before the frustum cull so a parallaxed renderable is culled where drawn. */
 inline glm::vec3 parallaxedWorldPosition(ecs::Transform& transform, const glm::vec2& parallax,
-                                         const CameraWorldRect& camera) {
+                                         const CameraView& camera) {
     transform.ensureDecomposed();
     glm::vec3 position = transform.worldPosition;
     position.x += camera.center.x * (1.0f - parallax.x);

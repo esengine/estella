@@ -906,7 +906,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         if (cascades == 1) {
             // What the map covers: the 3D geometry, unless the light asked for a fixed
             // reach. A radius, so coverage does not change as the light turns.
-            const CameraWorldRect view = computeCameraWorldRect(sceneVP);
+            const CameraView view = computeCameraView(sceneVP);
             const f32 fitted = haveBounds
                 ? 0.5f * glm::length(boundsMax - boundsMin)
                 : 0.5f * glm::length(glm::vec2(view.right - view.left, view.top - view.bottom));
@@ -990,7 +990,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         auto ctx = makeContext();
         ctx.shadow_pass = true;
         RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
-                                        computeCameraWorldRect(matrices[c])};
+                                        computeCameraView(matrices[c])};
         for (auto& plugin : plugins_) plugin->collect(collectCtx);
 
         draw_list_.finalize(pool_);
@@ -1085,7 +1085,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     auto ctx = makeContext();
 
     RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
-                                    computeCameraWorldRect(ctx.view_projection)};
+                                    computeCameraView(ctx.view_projection)};
     collectSky(collectCtx);
     for (auto& plugin : plugins_) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;

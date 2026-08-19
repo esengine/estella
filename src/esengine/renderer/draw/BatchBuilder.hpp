@@ -94,6 +94,9 @@ struct BatchDrawKey {
     // The frame environment's prefiltered reflection, one slot further on. Same
     // terms as the shadow map: per-draw, and only where a mesh vertex source asked.
     u32 envTextureId = 0;
+    // How near the draw's anchor is to the viewer, larger = nearer —
+    // CameraView::viewDepth, not a world coordinate. Only that orders blended draws
+    // the way they composite once the camera has been turned off head-on.
     f32 depth = 0.0f;
     // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
     // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.

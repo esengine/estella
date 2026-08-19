@@ -16,6 +16,60 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **What is nearer is measured from the viewer, not read off world z.** Every
+  renderable handed the sort key its world z as depth, and the key's own comment
+  said why that worked: the camera looks down -Z, so a larger z is nearer. That
+  sentence stopped being true when the eye learned to turn. A scene seen from an
+  orbited editor view or a tilted camera still ordered its blended draws by an
+  axis pointing somewhere else, and blended draws are exactly the ones with no
+  depth buffer to fall back on — they do not write depth, by design, because
+  writing is what clips translucent sprites into black edges. So the frame
+  composited in the wrong order and nothing anywhere said so.
+
+  `CameraView::viewDepth` is that measurement now, derived once per collect
+  beside the world rect the plugins already share. An orthographic camera has no
+  eye point, so it projects onto the direction pointing at the viewer — head-on
+  that direction is exactly +Z and the answer is `worldPos.z` to the bit, which
+  is why every 2D scene renders identically. A perspective one answers with the
+  distance to the eye, negated to keep larger meaning nearer.
+
+  Where the viewer is has one answer for the whole engine now.
+  `cameraFromViewProjection` moved to `FrameConstants.hpp`, next to the field it
+  fills, and both the shaders' view vector and the CPU's ordering read it — the
+  two cannot disagree about where the eye is. A tilemap layer keeps its authored
+  depth: it is flat content stacked by a number it carries, not a world point
+  anything can measure.
+
+  Gate `sort-view-depth`, both backends: two blended quads side by side in X at
+  the same world z, the far one submitted last, seen from an eye turned -60°
+  about Y. Equal world z ties, and the tie hands the frame to the far quad. None
+  of the sixty-six pixel gates that already existed could fail this — head-on the
+  old rule and the new one agree, which is precisely why it survived so long.
+
+- **A turned model is culled by a box that turned with it.** The mesh cull scaled
+  a local AABB into world space and ignored the rotation, which a flat sprite can
+  afford and a model cannot: the bound it produces is smaller than the geometry it
+  is meant to contain, so a mesh rotated about anything but the view axis vanished
+  while part of it was still on screen. Each world axis takes `|R| * halfExtents`
+  now, which is exact for a box and costs nine multiplies. An unrotated entity
+  gets the same box it got before. `EntityBox` became oriented last week for the
+  hit test; this is the same fact, on the side that decides what draws.
+
+- **The renderer has one camera, and the SDK owns it.** `renderFrame` resolved a
+  camera of its own in C++: it built the view from `inverse(translate(position))`,
+  so it ignored the entity's rotation, read the local position rather than the
+  world one (a parented camera pointed at the wrong place), took the first active
+  camera it iterated past rather than the one with the priority, and knew nothing
+  of viewport, culling mask or pixel-perfect snapping. Nothing called it —
+  `buildCameraInfo` on the SDK side has been the real path throughout — but it was
+  bound on both hosts and it was the first thing a search for the camera found.
+  A second implementation of a thing, kept wrong and reachable, is a trap for
+  whoever extends it next; it is gone.
+
+- **GL states the depth function its second backend states.** `GLDevice::init`
+  enabled the depth test and never set the compare, matching WebGPU's `Less` only
+  because that is also GL's default. The rule is written down on both sides now.
+
 - **A light aims where its entity is turned.** A light carried its own aim —
   `direction` in the plane and a `directionZ` bolted on beside it — and the entity's
   rotation meant nothing to the renderer. So rotating a light did nothing, a torch
