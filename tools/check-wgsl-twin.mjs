@@ -16,6 +16,9 @@
  * log carrying no mention of a shader at all. That has now happened four times:
  * a mesh twin without `t3`, an environment atlas nobody declared, a shadow map
  * the same, and a sky twin that named the `VSOut` from its own vertex block.
+ *
+ * Not every dual-language shader is a file. The SDK writes some of its own into
+ * template literals, and those reach the same parser and the same backend.
  */
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -73,8 +76,36 @@ function bindingsReachedBy(name, seen = new Set()) {
     return out;
 }
 
-const files = execFileSync('git', ['ls-files', '*.esshader'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter(Boolean);
+// git grep exits 1 when nothing matches, which is an answer and not a failure.
+const listed = (args) => {
+    try {
+        return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+    } catch { return []; }
+};
+
+/** Every template literal in `text` that carries shader source, labelled by line. */
+function embedded(file, text) {
+    const out = [];
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] !== '`') continue;
+        let j = i + 1;
+        while (j < text.length && text[j] !== '`') j += text[j] === '\\' ? 2 : 1;
+        const body = text.slice(i + 1, j);
+        if (body.includes('#pragma')) {
+            out.push({ label: `${file}:${text.slice(0, i).split('\n').length}`, text: body });
+        }
+        i = j;
+    }
+    return out;
+}
+
+const sources = [];
+for (const file of listed(['ls-files', '*.esshader'])) {
+    sources.push({ label: file, text: readFileSync(path.join(ROOT, file), 'utf8') });
+}
+for (const file of listed(['grep', '-l', '-F', '#pragma fragment wgsl', '--', '*.ts'])) {
+    sources.push(...embedded(file, readFileSync(path.join(ROOT, file), 'utf8')));
+}
 
 /** `#pragma <stage> wgsl` … `#pragma end` for one stage, or null. */
 function wgslStage(text, stage) {
@@ -85,8 +116,7 @@ function wgslStage(text, stage) {
 const problems = [];
 let checked = 0;
 
-for (const file of files) {
-    const text = readFileSync(path.join(ROOT, file), 'utf8');
+for (const { label: file, text } of sources) {
     const frag = wgslStage(text, 'fragment');
     // No twin at all, or a fragment-only one: the engine supplies the interface.
     if (!frag || wgslStage(text, 'vertex') === null) continue;
@@ -121,5 +151,6 @@ if (problems.length > 0) {
     process.exit(1);
 }
 
-console.log(`check-wgsl-twin: ${checked} twin(s) with their own vertex stage declare every`
-    + ` struct and texture they reach (${HELPERS.size} injected helpers followed)`);
+console.log(`check-wgsl-twin: ${checked} of ${sources.length} twin(s) write their own vertex`
+    + ` stage and declare every struct and texture they reach`
+    + ` (${HELPERS.size} injected helpers followed)`);

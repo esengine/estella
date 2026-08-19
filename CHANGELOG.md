@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A twin written in a template literal is still a twin.** `check-wgsl-twin` read
+  `.esshader` files, and the SDK writes some of its dual-language shaders into
+  template literals instead — the editor grid, the post-process effects, the seven
+  builtin material templates. Forty-four shaders never reached the gate that exists
+  because a twin missing one declaration reaches the second backend as `Invalid
+  RenderPipeline` with no shader named anywhere in the log. It reads both now, and
+  a shader's location is a file and a line either way.
+
 - **A gate on what a WGSL twin has to declare for itself.** A fragment-only twin
   is assembled with its domain's canonical vertex stage, and the engine injects
   the matching `VSOut` and the eight batch texture bindings with it. A twin that
