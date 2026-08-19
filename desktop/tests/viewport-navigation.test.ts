@@ -10,7 +10,10 @@
  * would say so.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DEFAULT_EDITOR_VIEW, editorViewHalfExtent, editorViewWorldPerPixel, type EditorViewData } from 'esengine';
+import {
+  DEFAULT_EDITOR_VIEW, editorViewClipFar, editorViewHalfExtent, editorViewWorldPerPixel,
+  type EditorViewData,
+} from 'esengine';
 
 const host = vi.hoisted(() => ({
   view: null as EditorViewData | null,
@@ -272,5 +275,25 @@ describe('the plane a gesture is spelt on', () => {
     const p = { x: -12, y: 7, z: 31 };
     const uv = ViewportController.worldToPlanePoint(p);
     expect(ViewportController.planePointToWorld(p, uv.u, uv.v)).toEqual(p);
+  });
+});
+
+describe("the editor eye's clip volume", () => {
+  it('an orthographic head-on eye keeps the reach it always had', () => {
+    expect(editorViewClipFar(view({}))).toBeCloseTo(100000, 6);
+  });
+
+  // A perspective eye stands off what it looks at, and that stand-off is spent
+  // before the scene begins — so the reach past the focus must survive it.
+  it('a perspective eye adds its stand-off, so the reach past the focus is the same', () => {
+    const v = perspectiveView({});
+    expect(editorViewClipFar(v) - v.distance).toBeCloseTo(100000, 6);
+  });
+
+  it('grows with the zoom, which is what moves a perspective eye back', () => {
+    const near = perspectiveView({});
+    const far = perspectiveView({ distance: near.distance * 50 });
+    expect(editorViewClipFar(far)).toBeGreaterThan(editorViewClipFar(near));
+    expect(editorViewClipFar(far) - far.distance).toBeCloseTo(100000, 6);
   });
 });

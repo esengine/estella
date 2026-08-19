@@ -202,6 +202,19 @@ export function editorViewStandoff(view: EditorViewData): number {
   return view.perspective || editorViewIsOrbited(view) ? view.distance : 0;
 }
 
+/**
+ * How far the view's volume reaches, from the EYE — which stands off what it is
+ * looking at, and spends that stand-off before the scene begins. So the reach past
+ * the focus is constant and the stand-off is added to it; a head-on orthographic
+ * eye, which has none, is left with exactly the reach it always had.
+ */
+export function editorViewClipFar(view: EditorViewData): number {
+  return editorViewStandoff(view) + EDITOR_VIEW_REACH;
+}
+
+/** How far past what the view is looking at its volume extends. */
+const EDITOR_VIEW_REACH = 100000;
+
 /** Where the eye stands in world space. */
 export function editorViewEye(view: EditorViewData): Vec3 {
   const m = orbitMatrix(view);

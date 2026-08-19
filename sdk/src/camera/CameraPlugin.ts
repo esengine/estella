@@ -18,7 +18,7 @@ import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
-import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, type EditorViewData } from './EditorView';
+import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewClipFar, type EditorViewData } from './EditorView';
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../render/renderPipeline';
@@ -441,7 +441,7 @@ export function editorCameraInfo(
         // A perspective projection divides by z, so near must be > 0 — the
         // orthographic path builds a symmetric [-far, far] box and ignores it.
         near: view.perspective ? 0.1 : 0,
-        far: 100000,
+        far: editorViewClipFar(view),
         viewport: { x: 0, y: 0, z: 1, w: 1 },
         clearFlags: ClearFlags.ColorAndDepth,
         priority: 0,
