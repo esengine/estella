@@ -426,13 +426,13 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 
 /* Light2D gizmo: the wrap is translated to the light (rAF); icon + SVG draw at its origin,
    tinted by the wrap's `color` (set to the light color) via currentColor. */
+/* Covers the panel, like every other overlay here: its shapes reach out to a
+   light's radius, and a wrapper sized to the light clips them to nothing. */
 .viewport__light-gizmo {
   position: absolute;
-  left: 0;
-  top: 0;
+  inset: 0;
   z-index: 2;
   pointer-events: none;
-  will-change: transform;
   transition: opacity var(--t-fast);
 }
 /* The bulb is the light's click target (select-to-identify); generously padded hit box. */
@@ -489,8 +489,9 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 }
 .viewport__light-svg {
   position: absolute;
-  left: 0;
-  top: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 .viewport__light-svg .lg-radius {

@@ -278,6 +278,15 @@ function shapeOutline(el: SVGPolygonElement | null, sid: number | null): void {
   el.style.opacity = '1';
 }
 
+/** Place an SVG line by its two ends. */
+function setLineAttrs(el: Element | null, x1: number, y1: number, x2: number, y2: number): void {
+  if (!el) return;
+  el.setAttribute('x1', String(x1));
+  el.setAttribute('y1', String(y1));
+  el.setAttribute('x2', String(x2));
+  el.setAttribute('y2', String(y2));
+}
+
 function setRectAttrs(el: Element | null, r: { x: number; y: number; w: number; h: number }): void {
   if (!el) return;
   el.setAttribute('x', String(r.x));
@@ -1933,9 +1942,14 @@ export function Viewport() {
           wrap.style.opacity = lg.on ? '1' : '0.35';
           wrap.style.visibility = 'visible'; // re-enable the click target with the gizmo
           wrap.style.color = lg.color;
-          wrap.style.transform = `translate(${lg.cx}px, ${lg.cy}px)`;
+          // The icon moves; the shapes are drawn where they are, in the panel-wide
+          // SVG's own coordinates.
+          const hit = wrap.firstElementChild as HTMLElement | null;
+          if (hit) hit.style.transform = `translate(${lg.cx}px, ${lg.cy}px)`;
           const circle = wrap.querySelector('.lg-radius') as SVGCircleElement | null;
           if (circle) {
+            circle.setAttribute('cx', String(lg.cx));
+            circle.setAttribute('cy', String(lg.cy));
             circle.setAttribute('r', String(lg.radiusPx));
             circle.style.opacity = lg.on && lg.radiusPx > 0 ? '0.6' : '0';
           }
@@ -1943,8 +1957,7 @@ export function Viewport() {
           if (dir) {
             const hasDir = lg.sdx !== 0 || lg.sdy !== 0;
             const len = lg.kind === 3 ? Math.max(lg.radiusPx, 28) : 38;
-            dir.setAttribute('x2', String(lg.sdx * len));
-            dir.setAttribute('y2', String(lg.sdy * len));
+            setLineAttrs(dir, lg.cx, lg.cy, lg.cx + lg.sdx * len, lg.cy + lg.sdy * len);
             dir.style.opacity = lg.on && hasDir ? '0.9' : '0';
           }
           // Spot (kind 3): two cone-edge lines at ±half-angle around the aim, out to the reach.
@@ -1958,8 +1971,7 @@ export function Viewport() {
               const sa = Math.sin(a);
               const ex = (lg.sdx * ca - lg.sdy * sa) * lg.radiusPx;
               const ey = (lg.sdx * sa + lg.sdy * ca) * lg.radiusPx;
-              line.setAttribute('x2', String(ex));
-              line.setAttribute('y2', String(ey));
+              setLineAttrs(line, lg.cx, lg.cy, lg.cx + ex, lg.cy + ey);
               line.style.opacity = '0.55';
             } else {
               line.style.opacity = '0';
@@ -1970,8 +1982,8 @@ export function Viewport() {
           const lhnd = wrap.querySelector('.lg-handle') as SVGCircleElement | null;
           if (lhnd) {
             if (lg.on && lg.handle) {
-              lhnd.setAttribute('cx', String(lg.handle.x - lg.cx));
-              lhnd.setAttribute('cy', String(lg.handle.y - lg.cy));
+              lhnd.setAttribute('cx', String(lg.handle.x));
+              lhnd.setAttribute('cy', String(lg.handle.y));
               lhnd.style.display = '';
             } else {
               lhnd.style.display = 'none';
@@ -2570,7 +2582,7 @@ export function Viewport() {
             >
               <Lightbulb className="viewport__light-icon" size={14} strokeWidth={1.9} />
             </span>
-            <svg className="viewport__light-svg" width="0" height="0" overflow="visible" aria-hidden="true">
+            <svg className="viewport__light-svg" aria-hidden="true">
               <circle className="lg-radius" cx="0" cy="0" r="0" />
               <line className="lg-dir" x1="0" y1="0" x2="0" y2="0" />
               <line className="lg-cone1" x1="0" y1="0" x2="0" y2="0" />

@@ -119,6 +119,36 @@ export function worldToLocal3D(w: Vec3, frame: Frame3D): Vec3 {
   };
 }
 
+/** A point in screen (CSS px) space. */
+export interface Pt {
+  x: number;
+  y: number;
+}
+
+/** Where each world axis points on screen — see `editorViewAxes`. */
+export interface ViewAxes {
+  x: { dx: number; dy: number };
+  y: { dx: number; dy: number };
+  z: { dx: number; dy: number };
+}
+
+/** The head-on 2D view: +X right, +Y up, Z straight at the eye. */
+export const HEAD_ON: ViewAxes = { x: { dx: 1, dy: 0 }, y: { dx: 0, dy: -1 }, z: { dx: 0, dy: 0 } };
+
+/**
+ * Where a world direction points on screen, in the view's own basis.
+ *
+ * The projection of a direction is linear in that basis, so every arrow the editor
+ * draws — a gizmo handle, a ring's spanning vectors, a light's aim — is this one
+ * function applied to a unit vector, and none of them writes a direction down.
+ */
+export function screenDir(axes: ViewAxes, v: Vec3): Pt {
+  return {
+    x: v.x * axes.x.dx + v.y * axes.y.dx + v.z * axes.z.dx,
+    y: v.x * axes.x.dy + v.y * axes.y.dy + v.z * axes.z.dy,
+  };
+}
+
 /** Whether two client rects overlap (touching edges count as overlap). */
 export function rectsIntersect(a: ClientRect, b: ClientRect): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;

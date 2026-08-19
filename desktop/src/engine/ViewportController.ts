@@ -35,7 +35,9 @@ import {
   obbCorners,
   rectsIntersect,
   screenAABB,
+  screenDir,
   screenHull,
+  HEAD_ON,
   worldToLocal3D,
 } from './viewportMath';
 
@@ -47,10 +49,10 @@ const JOINT3D_AXIS_WORLD_HALF = 60;
 const ICON_PICK_SCREEN_HALF = 11;
 // The room a MAP, or "Frame", gives such a marker: world units, fixed under zoom.
 const ICON_MAP_WORLD_HALF = 24;
-// Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
 // How square-on the work plane has to be before a screen point names a place on it
 // rather than a mile of it. ~6°, below which one pixel of cursor is unbounded world.
 const WORK_PLANE_MIN_FACING = 0.1;
+// Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
 const ORBIT_DEG_PER_PX = 0.4;
 
 // The scene-authored joint components, each drawn as an anchor-to-anchor link gizmo.
@@ -400,15 +402,23 @@ export const ViewportController = {
     return entityWorldBox(world, id, { iconHalf: iconHalf ?? this.iconPickHalf() });
   },
 
-  /** The world half-size an icon covers where it stands, for the zoom it is drawn
-   *  at — what a click has to hit. */
-  iconPickHalf(): (at: Vec3) => number {
+  /** World units per screen pixel where `at` stands — what a world length measures
+   *  on screen there, and what a screen size measures in the world. */
+  worldPerPixelAt(at: Vec3): number {
     const view = editorView();
     const canvas = EngineHost.canvas;
     const dpr = window.devicePixelRatio || 1;
     const heightPx = canvas ? canvas.height / dpr : 0;
-    if (!view || heightPx <= 0) return () => ICON_MAP_WORLD_HALF;
-    return (at) => ICON_PICK_SCREEN_HALF * editorViewWorldPerPixel(view, heightPx, at);
+    return view && heightPx > 0 ? editorViewWorldPerPixel(view, heightPx, at) : 0;
+  },
+
+  /** The world half-size an icon covers where it stands, for the zoom it is drawn
+   *  at — what a click has to hit. */
+  iconPickHalf(): (at: Vec3) => number {
+    return (at) => {
+      const perPixel = this.worldPerPixelAt(at);
+      return perPixel > 0 ? ICON_PICK_SCREEN_HALF * perPixel : ICON_MAP_WORLD_HALF;
+    };
   },
 
   /**
@@ -1008,34 +1018,33 @@ export const ViewportController = {
     const center = toClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
 
-    // Point (0) / Spot (3) have a falloff radius; project a world-radius offset to CSS px.
-    let radiusPx = 0;
-    if (l.type === 0 || l.type === 3) {
-      const edge = toClient(t.worldPosition.x + l.radius, t.worldPosition.y);
-      if (edge) radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
-    }
-    // Directional (1) / Spot (3) aim along the entity's forward; flip world-Y to screen
-    // space. An aim with nothing in the plane draws no arrow, and a Spot falls back to
-    // down — both are what the engine's collectLights reads off the same rotation.
+    const at = { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z };
+    // Point (0) / Spot (3) have a falloff radius. What a world length measures on
+    // screen where the light stands — projecting an offset along ONE world axis
+    // would shrink the reach whenever the eye foreshortens that axis.
+    const perPixel = this.worldPerPixelAt(at);
+    const radiusPx = (l.type === 0 || l.type === 3) && perPixel > 0 ? l.radius / perPixel : 0;
+    // Directional (1) / Spot (3) aim along the entity's forward, projected through the
+    // view like every other arrow the editor draws. An aim pointing at the eye projects
+    // to nothing and draws no arrow, which is what it looks like.
     let sdx = 0;
     let sdy = 0;
     if (l.type === 1 || l.type === 3) {
-      const aim = lightAimOf(t.worldRotation);
-      const len = Math.hypot(aim.x, aim.y);
+      const dir = screenDir(this.viewAxes() ?? HEAD_ON, lightAimOf(t.worldRotation));
+      const len = Math.hypot(dir.x, dir.y);
       if (len > 1e-4) {
-        sdx = aim.x / len;
-        sdy = -aim.y / len;
-      } else if (l.type === 3) {
-        sdy = 1; // world (0,-1) → screen down
+        sdx = dir.x / len;
+        sdy = dir.y / len;
       }
     }
     const coneHalf = l.type === 3 ? ((l.outerAngle ?? 45) * 0.5 * Math.PI) / 180 : 0;
     const hex = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
     const color = `#${hex(l.color.r)}${hex(l.color.g)}${hex(l.color.b)}`;
     const on = l.enabled !== false && l.intensity > 0;
-    // Radius handle at the top of the reach circle (Point/Spot only — drag = radius).
+    // Radius handle at the top of the reach circle as DRAWN (Point/Spot only — drag =
+    // radius), rather than at a world offset that lands elsewhere from a turned eye.
     const handle = (l.type === 0 || l.type === 3)
-      ? toClient(t.worldPosition.x, t.worldPosition.y + l.radius)
+      ? { x: center.x, y: center.y - radiusPx }
       : null;
     return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on, handle: handle ?? null };
   },

@@ -14,37 +14,17 @@
  * direction, and the arrows and the rings are both made of it.
  */
 
-import { axisQuat, quatMul, rotateVec3, type Quat, type Vec3 } from '@/engine/viewportMath';
+import {
+  axisQuat, quatMul, rotateVec3, screenDir, HEAD_ON,
+  type Quat, type Vec3, type ViewAxes, type Pt,
+} from '@/engine/viewportMath';
 
-export { axisQuat, quatMul, rotateVec3, type Quat, type Vec3 };
+export { axisQuat, quatMul, rotateVec3, screenDir, HEAD_ON };
+export type { Quat, Vec3, ViewAxes, Pt };
 
 export type GizmoMode = 'move' | 'rotate' | 'scale';
 /** What a handle constrains motion to: one world axis, or the plane of two. */
 export type GizmoAxis = 'x' | 'y' | 'z' | 'xy' | 'yz' | 'zx';
-
-/** Where each world axis points on screen — see `editorViewAxes`. */
-export interface ViewAxes {
-  x: { dx: number; dy: number };
-  y: { dx: number; dy: number };
-  z: { dx: number; dy: number };
-}
-
-/** The head-on 2D view: +X right, +Y up, Z straight at the eye. */
-export const HEAD_ON: ViewAxes = { x: { dx: 1, dy: 0 }, y: { dx: 0, dy: -1 }, z: { dx: 0, dy: 0 } };
-
-/**
- * Where a world direction points on screen, in the view's own basis.
- *
- * The projection of a direction is linear in that basis, so every handle — an
- * arrow, a ring's two spanning vectors, a local axis turned by the entity's own
- * rotation — is this one function applied to a unit vector.
- */
-export function screenDir(axes: ViewAxes, v: Vec3): Pt {
-  return {
-    x: v.x * axes.x.dx + v.y * axes.y.dx + v.z * axes.z.dx,
-    y: v.x * axes.x.dy + v.y * axes.y.dy + v.z * axes.z.dy,
-  };
-}
 
 /** The world axis a single-axis handle constrains to. */
 export const AXIS_VECTOR: Record<'x' | 'y' | 'z', Vec3> = {
@@ -69,11 +49,6 @@ export interface GizmoHandle {
   id: string;
   mode: GizmoMode;
   axis: GizmoAxis;
-}
-
-export interface Pt {
-  x: number;
-  y: number;
 }
 
 /** Screen-space layout of the gizmo (CSS px). Rendering (Viewport.tsx) mirrors these. */

@@ -16,7 +16,7 @@
  */
 import { cp } from 'node:fs/promises';
 import path from 'node:path';
-import { makeProject, checker, DESKTOP } from '../lib/editorDriver.mjs';
+import { makeProject, checker, originIn, viewportRegion, DESKTOP } from '../lib/editorDriver.mjs';
 
 const EXAMPLE = path.resolve(DESKTOP, '..', 'examples', 'sprite-rendering');
 
@@ -45,31 +45,6 @@ const SCENE = JSON.stringify({
 export const name = 'icon-pick';
 export const describes = 'an entity drawn as an icon is clickable where the icon is';
 
-/**
- * Where the grid's coloured axis lines are, which is where the world origin projects
- * — independent of what the editor draws over it. They are blended at 55% over an
- * unknown background, so the ARGMAX identifies the line rather than any exact value.
- */
-function axisAt(png, rgb, vertical, region) {
-  const tally = new Array(vertical ? png.w : png.h).fill(0);
-  for (let y = region.y0; y < region.y1; y++) {
-    for (let x = region.x0; x < region.x1; x++) {
-      const p = png.px(x, y);
-      // The line is the channel ORDER, not the exact value: alpha over an unknown
-      // background moves every channel but keeps which one leads.
-      const lead = p[0] > p[1] && p[0] > p[2];
-      const isGreen = p[1] > p[0] && p[1] > p[2];
-      if ((rgb === 'red' && lead && p[0] > 60) || (rgb === 'green' && isGreen && p[1] > 60)) {
-        tally[vertical ? x : y] += 1;
-      }
-    }
-  }
-  let best = -1;
-  let at = -1;
-  tally.forEach((n, i) => { if (n > best) { best = n; at = i; } });
-  return best > 20 ? at : -1;
-}
-
 export async function run(ed) {
   const root = await makeProject({
     'assets/scenes/main.esscene': SCENE,
@@ -86,14 +61,11 @@ export async function run(ed) {
   await ed.sleep(800);
 
   const shot = await ed.screenshot('icon-pick');
-  // The viewport, roughly — enough to keep the panels' own colours out of the tally.
-  const region = { x0: Math.round(shot.w * 0.25), x1: Math.round(shot.w * 0.72),
-                   y0: Math.round(shot.h * 0.16), y1: Math.round(shot.h * 0.62) };
-  const cx = axisAt(shot, 'green', true, region);
-  const cy = axisAt(shot, 'red', false, region);
-  if (!check(cx > 0 && cy > 0, `the grid's axis lines were not found (x=${cx}, y=${cy})`)) {
+  const origin = originIn(shot, viewportRegion(shot));
+  if (!check(origin != null, "the grid's axis lines were not found — the camera is at the origin")) {
     return check.failures;
   }
+  const { x: cx, y: cy } = origin;
 
   const at = async (dx, dy) => ed.json('pick', { clientX: cx + dx, clientY: cy + dy }, 30000);
   const centre = await at(0, 0);

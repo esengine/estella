@@ -211,6 +211,41 @@ export async function withEditor(body, opts = {}) {
   }
 }
 
+/**
+ * Where the world origin projects, read off the grid's own coloured axis lines —
+ * independent of whatever the editor draws over them. `region` keeps the panels out
+ * of the tally. The lines are blended over an unknown background, so one is
+ * identified by which channel LEADS and by the argmax, never by an exact colour.
+ */
+export function originIn(png, region) {
+  const axis = (wantRed, vertical) => {
+    const tally = new Array(vertical ? png.w : png.h).fill(0);
+    for (let y = region.y0; y < region.y1; y++) {
+      for (let x = region.x0; x < region.x1; x++) {
+        const p = png.px(x, y);
+        const leadsRed = p[0] > p[1] && p[0] > p[2] && p[0] > 60;
+        const leadsGreen = p[1] > p[0] && p[1] > p[2] && p[1] > 60;
+        if (wantRed ? leadsRed : leadsGreen) tally[vertical ? x : y] += 1;
+      }
+    }
+    let best = -1;
+    let at = -1;
+    tally.forEach((n, i) => { if (n > best) { best = n; at = i; } });
+    return best > 20 ? at : -1;
+  };
+  const x = axis(false, true); // the +Y axis line runs vertically, and is green
+  const y = axis(true, false); // the +X axis line runs horizontally, and is red
+  return x >= 0 && y >= 0 ? { x, y } : null;
+}
+
+/** The viewport, roughly — enough of it to read the grid without the panels. */
+export function viewportRegion(png) {
+  return {
+    x0: Math.round(png.w * 0.25), x1: Math.round(png.w * 0.72),
+    y0: Math.round(png.h * 0.16), y1: Math.round(png.h * 0.62),
+  };
+}
+
 /** Collect failures without stopping at the first: one run, every claim tested. */
 export function checker() {
   const failures = [];
