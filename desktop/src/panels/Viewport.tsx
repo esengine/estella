@@ -1365,8 +1365,12 @@ export function Viewport() {
         // Show the design/device overlay in UI mode (design frame always) OR in any mode
         // once a real device is picked — reading the project design resolution when the
         // scene has no Canvas, so a gameplay scene previews on devices without a UI layer.
+        // Not from a turned eye: it is all screen rects on the 2D plane, and only a
+        // head-on view projects that plane to a rect — perspective head-on still does,
+        // so what this asks about is the eye and not the projection.
         const ms0 = useEditorMode.getState();
-        const ci = ready && showG && (activeModeOverlays().designFrame || ms0.device !== 'design')
+        const ci = ready && showG && !ViewportController.isOrbited()
+          && (activeModeOverlays().designFrame || ms0.device !== 'design')
           ? ViewportController.screenInfo()
           : null;
         // The design frame lives in the UI world scale: 1 unit = 1 design px (the invariant

@@ -19,7 +19,7 @@ import {
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
-  editorViewWorkPlane, worldAxisVector,
+  editorViewWorkPlane, screenNudgeAxes, worldAxisVector,
   lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -231,6 +231,25 @@ export const ViewportController = {
     if (!cv || !s) return null;
     const ray = cv.screenRay(s.sx, s.sy);
     return ray ? rayPlaneHit(ray, point, normal) : null;
+  },
+
+  /**
+   * What a nudge of `right` / `up` (world units, as the screen sees them) means in
+   * the world: the work plane's two axes, oriented so the thing moves the way the
+   * arrow points. Head-on this is the +X / +Y nudge the 2D editor always had.
+   */
+  nudgeVector(right: number, up: number): Vec3 {
+    const view = editorView();
+    if (!view) return { x: right, y: up, z: 0 };
+    const n = screenNudgeAxes(view);
+    const out = { x: 0, y: 0, z: 0 };
+    for (const [a, amount] of [[n.right, right], [n.up, up]] as const) {
+      const v = worldAxisVector(a.axis);
+      out.x += v.x * a.sign * amount;
+      out.y += v.y * a.sign * amount;
+      out.z += v.z * a.sign * amount;
+    }
+    return out;
   },
 
   /** The two world axes the view's work plane runs in, as their letters — what a

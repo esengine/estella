@@ -141,3 +141,33 @@ describe('the plane the view authors on', () => {
     expect(ViewportController.workPlaneAxes()).toEqual(['x', 'z']);
   });
 });
+
+describe('the arrow-key nudge', () => {
+  it('is +X right and +Y up head-on, which is the 2D nudge', () => {
+    host.view = view({});
+    const d = ViewportController.nudgeVector(10, 4);
+    expect(d.x).toBeCloseTo(10, 6);
+    expect(d.y).toBeCloseTo(4, 6);
+    expect(d.z).toBeCloseTo(0, 6);
+  });
+
+  // From straight above, world +Y is the axis the eye looks down: adding to it
+  // lifts the thing off the ground instead of sliding it up the screen.
+  it('slides over the ground from a top-down eye', () => {
+    host.view = perspectiveView({ pitch: 90 });
+    const d = ViewportController.nudgeVector(10, 4);
+    expect(d.y).toBeCloseTo(0, 6);
+    expect(d.x).toBeCloseTo(10, 6);
+    expect(d.z).toBeCloseTo(-4, 6);
+  });
+
+  // Turned a quarter turn about Y, screen-right is world Z and the ground's other
+  // axis takes the vertical key — never the same axis twice.
+  it('follows the eye round, and never names one axis twice', () => {
+    host.view = perspectiveView({ yaw: 90, pitch: 45 });
+    const d = ViewportController.nudgeVector(10, 4);
+    expect(d.y).toBeCloseTo(0, 6);
+    expect(Math.abs(d.z)).toBeCloseTo(10, 6);
+    expect(Math.abs(d.x)).toBeCloseTo(4, 6);
+  });
+});

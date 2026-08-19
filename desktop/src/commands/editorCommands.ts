@@ -308,17 +308,19 @@ for (const m of EDITOR_MODES) {
 }
 
 // — Keyboard nudge — arrow keys move the selection by one grid step (Shift = ×10),
-// world +Y is up so ArrowUp adds to Y. One undo step; the Outliner stops arrows from
-// reaching here while it's focused (tree nav owns them there).
+// on the plane the view works on and the way the key points; head-on that is the
+// +X / +Y 2D nudge. One undo step; the Outliner stops arrows from reaching here
+// while it's focused (tree nav owns them there).
 function nudgeSelection(ux: number, uy: number, big: boolean): void {
   const ids = [...sel().selectedIds];
   if (!ids.length) return;
   const step = editor().snapStep * (big ? 10 : 1);
+  const d = ViewportController.nudgeVector(ux * step, uy * step);
   SceneCommands.transact('Nudge', () => {
     for (const sid of ids) {
       const rt = SceneModel.runtimeFor(sid);
       const pos = rt != null ? ViewportController.getEntityWorldPos(rt) : null;
-      if (pos) SceneCommands.setEntityWorldPos(sid, pos.x + ux * step, pos.y + uy * step);
+      if (pos) SceneCommands.setEntityWorldPos(sid, pos.x + d.x, pos.y + d.y, pos.z + d.z);
     }
   });
 }

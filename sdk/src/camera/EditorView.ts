@@ -243,6 +243,36 @@ export function editorViewWorkPlane(view: EditorViewData): EditorWorkPlane {
   return view.perspective ? { u: 0, v: 2, normal: 1 } : { u: 0, v: 1, normal: 2 };
 }
 
+/**
+ * The work-plane axis a screen direction names, with the sign pointing that way —
+ * what an arrow key nudges along. `right` resolves first and `up` takes the plane's
+ * other axis, so the pair is never one axis twice. Head-on: +X right, +Y up.
+ */
+export function screenNudgeAxes(
+  view: EditorViewData,
+): { right: { axis: WorldAxis; sign: number }; up: { axis: WorldAxis; sign: number } } {
+  const plane = editorViewWorkPlane(view);
+  const screen = editorViewAxes(view);
+  const of = (a: WorldAxis): ScreenAxis => (a === 0 ? screen.x : a === 1 ? screen.y : screen.z);
+  // Screen y runs down, so pointing up the screen is a negative dy.
+  const score = (a: WorldAxis, sign: number, dir: 'right' | 'up'): number =>
+    sign * (dir === 'right' ? of(a).dx : -of(a).dy);
+  const best = (axes: WorldAxis[], dir: 'right' | 'up'): { axis: WorldAxis; sign: number } => {
+    let out = { axis: axes[0]!, sign: 1 };
+    let top = -Infinity;
+    for (const a of axes) {
+      for (const sign of [1, -1]) {
+        const v = score(a, sign, dir);
+        if (v > top) { top = v; out = { axis: a, sign }; }
+      }
+    }
+    return out;
+  };
+  const right = best([plane.u, plane.v], 'right');
+  const up = best([plane.u, plane.v].filter((a) => a !== right.axis), 'up');
+  return { right, up };
+}
+
 /** A world axis as a unit vector. */
 export function worldAxisVector(axis: WorldAxis): Vec3 {
   return { x: axis === 0 ? 1 : 0, y: axis === 1 ? 1 : 0, z: axis === 2 ? 1 : 0 };
