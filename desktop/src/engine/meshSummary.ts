@@ -28,6 +28,8 @@ const CHANNEL_NAMES: Record<number, string> = {
   [MeshChannel.Color]: 'color',
   [MeshChannel.Normal]: 'normal',
   [MeshChannel.Tangent]: 'tangent',
+  [MeshChannel.Joints]: 'joints',
+  [MeshChannel.Weights]: 'weights',
 };
 
 /** Trim a measurement to something readable without lying about a small one. */

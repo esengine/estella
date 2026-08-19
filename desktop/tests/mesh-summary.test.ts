@@ -11,6 +11,26 @@ import { describe, it, expect } from 'vitest';
 import { encodeMesh, packChannels, MeshChannel, MeshChannelType } from 'esengine';
 import { summarizeMesh } from '@/engine/meshSummary';
 
+/** One quad, 200 x 100, deformed by joints — what a skinned glTF import writes. */
+function skinnedQuad(): Uint8Array {
+  const { channels, vertexStride } = packChannels([
+    { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
+    { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
+    { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
+    { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16 },
+    { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32 },
+  ]);
+  return encodeMesh({
+    channels,
+    vertexStride,
+    vertexCount: 4,
+    vertices: new Uint8Array(4 * vertexStride),
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2]),
+    aabbMin: [-100, -50, 0],
+    aabbMax: [100, 50, 0],
+  });
+}
+
 /** One quad, 200 x 100, with the channels a lit import writes. */
 function quad(withNormals: boolean): Uint8Array {
   const { channels, vertexStride } = packChannels([
@@ -32,6 +52,13 @@ function quad(withNormals: boolean): Uint8Array {
 }
 
 describe('summarizeMesh', () => {
+  it('names the joint channels a skinned mesh carries', () => {
+    // Not decoration: every skinned import lands here, and an id with no name in
+    // the table reaches the inspector as the raw number.
+    expect(summarizeMesh(skinnedQuad())?.channels)
+      .toBe('position, uv, color, joints, weights');
+  });
+
   it('reads the counts, the size and the channels the file declares', () => {
     expect(summarizeMesh(quad(true))).toEqual({
       vertices: 4,
