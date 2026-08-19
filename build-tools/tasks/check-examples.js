@@ -32,6 +32,11 @@ function discoverExamples(rootDir) {
     return out;
 }
 
+// A directory SYMLINK needs a privilege Windows grants only under Developer Mode
+// or elevation, so the gate reported all 53 examples broken on a plain checkout.
+// A junction resolves the same and needs none.
+const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
+
 function setupTypeLinks(exampleDir, rootDir) {
     const sdkDist = path.join(rootDir, 'sdk', 'dist');
     const editorDist = path.join(rootDir, 'editor', 'dist');
@@ -52,11 +57,11 @@ function setupTypeLinks(exampleDir, rootDir) {
     // against an old API). The mirror is a disposable cache; the editor
     // re-stages it on the next open.
     rmSync(sdkLink, { recursive: true, force: true });
-    symlinkSync(sdkDist, sdkLink, 'dir');
+    symlinkSync(sdkDist, sdkLink, LINK_TYPE);
 
     if (existsSync(editorDist)) {
         rmSync(editorLink, { recursive: true, force: true });
-        symlinkSync(editorDist, editorLink, 'dir');
+        symlinkSync(editorDist, editorLink, LINK_TYPE);
     }
 }
 
