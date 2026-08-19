@@ -82,6 +82,15 @@ target_include_directories(test_draw_params PRIVATE
 )
 add_test(NAME test_draw_params COMMAND test_draw_params)
 
+# Clip-depth convention: the engine builds for [-1,1] and a device keeping [0,1]
+# is handed the same projection in its terms. Header-only math, so no engine link.
+add_executable(test_clip_depth renderer/test_clip_depth.cpp)
+target_include_directories(test_clip_depth PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_clip_depth COMMAND test_clip_depth)
+
 # Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
 # directly — no GL/engine link — and checks #pragma feature parsing + #define injection.
 add_executable(test_shader_variant

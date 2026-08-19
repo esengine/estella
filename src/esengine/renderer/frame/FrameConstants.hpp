@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../rhi/GfxEnums.hpp"
 
 #include <glm/glm.hpp>
 
@@ -52,6 +53,21 @@ inline glm::vec4 cameraFromViewProjection(const glm::mat4& viewProjection) {
     const f32 len = glm::length(glm::vec3(axis));
     if (len < 1e-12f) return glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
     return glm::vec4(-glm::vec3(axis) / len, 0.0f);
+}
+
+/**
+ * @brief The projection @p p as a device keeping @p range wants it.
+ *
+ * @details The engine builds for [-1, 1], so MinusOneToOne returns @p p itself and
+ *          such a device is handed the matrix bit for bit. ZeroToOne averages row 2
+ *          with row 3, which is that remap written as a matrix; the viewpoint
+ *          cameraFromViewProjection reads is invariant under it.
+ */
+inline glm::mat4 toClipDepthRange(const glm::mat4& p, ClipDepthRange range) {
+    if (range == ClipDepthRange::MinusOneToOne) return p;
+    glm::mat4 out = p;
+    for (int col = 0; col < 4; ++col) out[col][2] = (p[col][2] + p[col][3]) * 0.5f;
+    return out;
 }
 
 /** @brief Indexed uniform binding point the FrameConstants block is bound to. */

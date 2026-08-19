@@ -199,7 +199,10 @@ inline bool approxEqual(const glm::vec3& a, const glm::vec3& b, float epsilon = 
  * @return Orthographic projection matrix
  */
 inline glm::mat4 ortho(float left, float right, float bottom, float top, float nearPlane, float farPlane) {
-    return glm::ortho(left, right, bottom, top, nearPlane, farPlane);
+    // _NO, spelled out: the build defines GLM_FORCE_DEPTH_ZERO_TO_ONE, and a
+    // projection that silently followed it would contradict the one convention
+    // ClipDepthRange states the engine builds for.
+    return glm::orthoRH_NO(left, right, bottom, top, nearPlane, farPlane);
 }
 
 /**
@@ -211,7 +214,8 @@ inline glm::mat4 ortho(float left, float right, float bottom, float top, float n
  * @return Perspective projection matrix
  */
 inline glm::mat4 perspective(float fov, float aspect, float nearPlane, float farPlane) {
-    return glm::perspective(fov, aspect, nearPlane, farPlane);
+    // See ortho: the engine's convention is stated, not inherited from a macro.
+    return glm::perspectiveRH_NO(fov, aspect, nearPlane, farPlane);
 }
 
 /**

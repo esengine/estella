@@ -950,9 +950,9 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             }
         }
         const glm::mat4 lightView = glm::lookAt(centre + toLight * castDistance, centre, up);
-        // Zero-to-one depth on purpose: the engine's shared ortho() is the GL convention
-        // (z in [-1,1]) and WebGPU clips everything below 0 of it. Written out here rather
-        // than reused, because this matrix is the one place the choice is free.
+        // Written out rather than built from math::ortho: this maps the occluders it
+        // draws onto exactly [0,1], so it needs no conversion for either device — which
+        // is what lets the depths it writes be compared against the receiver's own copy.
         glm::mat4 lightProj(1.0f);
         const f32 range = castDistance + radius * 2.0f;
         lightProj[0][0] = 1.0f / radius;

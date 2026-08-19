@@ -152,13 +152,6 @@ public:
 
 
     /**
-     * @brief Uploads the per-frame view-projection into the shared FrameConstants UBO.
-     * @details Called once per render pass before its draws; every engine shader reads
-     *          u_projection from this single UBO (bound at FRAME_CONSTANTS_BINDING).
-     *          The camera's own placement rides along, recovered from the matrix — every
-     *          path in hands over exactly one view-projection and nothing else.
-     */
-    /**
      * @brief Point the frame at what a CAMERA sees.
      * @details Keeps the projection in the engine's convention and uploads it in
      *          the device's. This is the one place that conversion happens.

@@ -155,17 +155,8 @@ void RenderContext::initFrameUbo() {
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
 
-// The same projection with its clip z mapped from [-1, 1] onto [0, 1]: row 2
-// becomes the average of rows 2 and 3, which is that map written as a matrix.
-static glm::mat4 toZeroToOneDepth(const glm::mat4& p) {
-    glm::mat4 out = p;
-    for (int col = 0; col < 4; ++col) out[col][2] = (p[col][2] + p[col][3]) * 0.5f;
-    return out;
-}
-
 void RenderContext::updateCameraConstants(const glm::mat4& viewProjection) {
-    const bool zeroToOne = device_.clipDepthRange() == ClipDepthRange::ZeroToOne;
-    uploadFrameConstants(zeroToOne ? toZeroToOneDepth(viewProjection) : viewProjection,
+    uploadFrameConstants(toClipDepthRange(viewProjection, device_.clipDepthRange()),
                          viewProjection);
 }
 

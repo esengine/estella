@@ -1131,7 +1131,7 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
         g_transformSystem->update(world);
     }
 
-    const glm::mat4 vp = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+    const glm::mat4 vp = math::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
     g_renderFrame->renderToTarget(reg, vp, static_cast<u32>(w), static_cast<u32>(h));
 }
 
@@ -1186,7 +1186,7 @@ void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
         half = std::max({half, std::abs(v.x), std::abs(v.y)});
     }
     half *= 1.08f;
-    const glm::mat4 proj = glm::ortho(-half, half, -half, half, 0.01f, radius * 8.0f);
+    const glm::mat4 proj = math::ortho(-half, half, -half, half, 0.01f, radius * 8.0f);
     g_renderFrame->renderToTarget(reg, proj * view, static_cast<u32>(w), static_cast<u32>(h));
 }
 
