@@ -86,9 +86,12 @@ describe('what the editor records', () => {
     it('notes an edit as a shape — no name, no value ever reaches the stream', () => {
         // The stream is not redacted, so this is the property that makes that
         // safe. An entity called "SecretBossName" must not appear here.
+        // Six digits, because this is a substring check over a snapshot carrying
+        // an ISO timestamp: `999` matched a millisecond field about one run in a
+        // thousand. No six-digit run occurs in an ISO time — the year is four.
         EditorHistory.describe({
             kind: 'modify', entity: 7, name: 'SecretBossName',
-            component: 'Transform', field: 'x', before: 1, after: 999,
+            component: 'Transform', field: 'x', before: 1, after: 987654,
         });
         EditorHistory.record('Move entity', () => {}, () => {});
         const t = timelineSnapshot(NOW);
@@ -96,7 +99,7 @@ describe('what the editor records', () => {
         expect(edit?.id).toBe('Move entity');
         expect(edit?.detail).toBe('modify×1 Transform');
         expect(JSON.stringify(t)).not.toContain('SecretBossName');
-        expect(JSON.stringify(t)).not.toContain('999');
+        expect(JSON.stringify(t)).not.toContain('987654');
     });
 
     it('names the step an undo reached, not just that undo happened', () => {
