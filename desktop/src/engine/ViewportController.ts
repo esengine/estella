@@ -19,7 +19,7 @@ import {
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
-  editorViewWorkPlane, screenNudgeAxes, worldAxisVector,
+  editorViewWorkPlane, screenNudgeAxes, worldAxisVector, DEFAULT_EDITOR_VIEW, type WorldAxis,
   lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -92,6 +92,24 @@ function cameraView(): CameraViewLike | null {
 // panning/zooming/framing never touches — or dirties — the scene's game Camera.
 function editorView(): EditorViewData | null {
   return EngineHost.getResource(EditorView) ?? null;
+}
+
+/**
+ * The two world axes a top-down MAP of the work plane is drawn in: `u` across it,
+ * `v` up it, where up is `normal × u` — so a map of the ground reads the way
+ * looking down at it does. On the 2D plane that is x across and +y up: the map the
+ * minimap has always drawn.
+ */
+function mapAxes(): { u: WorldAxis; v: WorldAxis; vSign: number } {
+  const view = editorView();
+  const p = editorViewWorkPlane(view ?? DEFAULT_EDITOR_VIEW);
+  const cyclic = p.u === (p.normal + 1) % 3 && p.v === (p.normal + 2) % 3;
+  return { u: p.u, v: p.v, vSign: cyclic ? 1 : -1 };
+}
+
+/** One component of a world point, by axis index. */
+function axisOf(p: Vec3, axis: WorldAxis): number {
+  return axis === 0 ? p.x : axis === 1 ? p.y : p.z;
 }
 
 /**
@@ -733,23 +751,37 @@ export const ViewportController = {
     setZoomAmount(view, halfH);
   },
 
-  /** World center + half-extents of the editor camera's visible rect on the z = 0
-   *  plane — the minimap's camera indicator, from the same extent the grid covers. */
+  /** The editor camera's visible rect in the minimap's own two axes — its focus,
+   *  and the extent it sees. Schematic: from a turned eye the extent is what the
+   *  view covers, not the footprint that coverage has on the plane. */
   editorViewRect(): { cx: number; cy: number; halfW: number; halfH: number } | null {
     const view = editorView();
     const canvas = EngineHost.canvas;
     if (!view) return null;
+    const map = mapAxes();
+    const focus = { x: view.x, y: view.y, z: view.z ?? 0 };
     const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
-    return { cx: view.x, cy: view.y, ...editorViewHalfExtent(view, aspect) };
+    return {
+      cx: axisOf(focus, map.u),
+      cy: axisOf(focus, map.v) * map.vSign,
+      ...editorViewHalfExtent(view, aspect),
+    };
   },
 
-  /** Recenter the editor view on a world point (minimap click / drag navigation). Leaves
-   *  zoom untouched — the minimap moves the camera, it doesn't reframe. */
-  centerViewOn(wx: number, wy: number): void {
+  /** Recenter the editor view on a point in the minimap's axes (click / drag
+   *  navigation). Leaves zoom untouched — the minimap moves the camera, it doesn't
+   *  reframe — and leaves the axis the map looks along where it was. */
+  centerViewOn(mu: number, mv: number): void {
     const view = editorView();
     if (!view) return;
-    view.x = wx;
-    view.y = wy;
+    const map = mapAxes();
+    const write = (axis: WorldAxis, value: number): void => {
+      if (axis === 0) view.x = value;
+      else if (axis === 1) view.y = value;
+      else view.z = value;
+    };
+    write(map.u, mu);
+    write(map.v, mv * map.vSign);
   },
 
   /** World AABB of a painted tilemap layer from its chunk-grid bounds (cheap — chunk
@@ -786,6 +818,7 @@ export const ViewportController = {
    *  screen-space, so they're excluded. */
   minimapBoxes(): { bounds: MinimapBounds | null; boxes: MinimapBox[] } {
     const world = EngineHost.world;
+    const map = mapAxes();
     const boxes: MinimapBox[] = [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const add = (e: EntityId, x0: number, y0: number, x1: number, y1: number, kind: MinimapBox['kind']) => {
@@ -798,14 +831,28 @@ export const ViewportController = {
         if (!world.valid(e) || !world.has(e, Transform) || world.has(e, UINode)) continue;
         if (world.has(e, TilemapLayer)) {
           const tb = this.tilemapWorldAABB(e);
-          if (tb) { add(e, tb.x0, tb.y0, tb.x1, tb.y1, 'tile'); continue; }
+          // Through the same two axes as everything else: a tilemap lies in the 2D
+          // plane, so on a map of the ground it is the edge-on line it really is.
+          if (tb) {
+            const z = this.entityPlaneZ(e);
+            const us: number[] = [];
+            const vs: number[] = [];
+            for (const [x, y] of [[tb.x0, tb.y0], [tb.x1, tb.y0], [tb.x1, tb.y1], [tb.x0, tb.y1]] as const) {
+              us.push(axisOf({ x, y, z }, map.u));
+              vs.push(axisOf({ x, y, z }, map.v) * map.vSign);
+            }
+            add(e, Math.min(...us), Math.min(...vs), Math.max(...us), Math.max(...vs), 'tile');
+            continue;
+          }
         }
         const b = this.entityBounds(e);
         if (!b) continue;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (const c of entityBoxCorners(b)) {
-          x0 = Math.min(x0, c.x); y0 = Math.min(y0, c.y);
-          x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y);
+          const mx = axisOf(c, map.u);
+          const my = axisOf(c, map.v) * map.vSign;
+          x0 = Math.min(x0, mx); y0 = Math.min(y0, my);
+          x1 = Math.max(x1, mx); y1 = Math.max(y1, my);
         }
         add(e, x0, y0, x1, y1, world.has(e, Sprite) ? 'sprite' : 'icon');
       }

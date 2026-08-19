@@ -171,3 +171,31 @@ describe('the arrow-key nudge', () => {
     expect(Math.abs(d.x)).toBeCloseTo(4, 6);
   });
 });
+
+describe('the minimap plots the plane the view works on', () => {
+  it('is the 2D plane orthographically, and the map round-trips', () => {
+    const v = view({ x: 5, y: 7, z: 3 });
+    host.view = v;
+    const r = ViewportController.editorViewRect()!;
+    expect(r.cx).toBeCloseTo(5, 6);
+    expect(r.cy).toBeCloseTo(7, 6);
+    ViewportController.centerViewOn(10, 20);
+    expect(v.x).toBeCloseTo(10, 6);
+    expect(v.y).toBeCloseTo(20, 6);
+    expect(v.z).toBeCloseTo(3, 6); // the axis the map looks along is left alone
+  });
+
+  // Looking down at the ground, +Z runs AWAY from the eye — down the map, the way
+  // a plan drawn from above reads. Plotting it as +y up would mirror the scene.
+  it('is the ground under a 3D eye, drawn as looking down reads', () => {
+    const v = perspectiveView({ x: 5, y: 1, z: 7 });
+    host.view = v;
+    const r = ViewportController.editorViewRect()!;
+    expect(r.cx).toBeCloseTo(5, 6);
+    expect(r.cy).toBeCloseTo(-7, 6);
+    ViewportController.centerViewOn(10, 20);
+    expect(v.x).toBeCloseTo(10, 6);
+    expect(v.z).toBeCloseTo(-20, 6);
+    expect(v.y).toBeCloseTo(1, 6);
+  });
+});
