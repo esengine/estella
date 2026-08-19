@@ -17,6 +17,8 @@
 
 export { Filters } from './render/filters';
 
+export { LIGHT_FORWARD, lightAimRotation, lightAimOf } from './render/lightAim';
+
 export {
     SpriteFilter,
     type OutlineFilterOptions,

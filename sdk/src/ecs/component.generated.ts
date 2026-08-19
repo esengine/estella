@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9169449040ae1dcb';
+export const ABI_LAYOUT_HASH = 'e868cc33a27b61d4';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -392,8 +392,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             color: { r: 1, g: 1, b: 1, a: 1 },
             intensity: 1,
             radius: 200,
-            direction: { x: 0, y: 0 },
-            directionZ: -1,
             innerAngle: 30,
             outerAngle: 45,
             shadowSoftness: 0,
@@ -408,13 +406,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         assetFields: [{ field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'directionZ', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
             radius: { min: 0, tooltip: "Falloff reach in world units (Point / Spot)." },
-            direction: { tooltip: "Aim direction (Directional / Spot).", advanced: true },
-            directionZ: { tooltip: "Aim depth (Directional): -1 shines into the screen.", advanced: true },
             innerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
@@ -1206,8 +1202,6 @@ export interface Light2DData {
     color: Color;
     intensity: number;
     radius: number;
-    direction: Vec2;
-    directionZ: number;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;

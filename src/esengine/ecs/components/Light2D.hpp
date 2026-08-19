@@ -7,9 +7,10 @@
  *          per-frame LightConstants UBO (binding 2); Lit2D-domain material shaders read them
  *          via the injected applyLighting2D() helper. Point/Directional/Spot lights occupy a
  *          light slot; Ambient lights sum into the ambient term. This component carries only
- *          the light's intrinsic parameters; Point/Spot read their world position from the
- *          entity's Transform (and are skipped without one), while Ambient/Directional have
- *          no spatial anchor and need no Transform.
+ *          the light's intrinsic parameters. Where a light sits and where it aims are the
+ *          entity's Transform: Point/Spot read their world position from it (and are skipped
+ *          without one), and Directional/Spot aim along the entity's forward — its rotation
+ *          applied to -Z, which is what an unrotated light has always shone along.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -28,7 +29,8 @@ namespace esengine::ecs {
 
 /**
  * @brief 2D light kind. Point uses the Transform position + radius falloff; Directional uses
- *        `direction` with no attenuation; Ambient adds a flat term independent of normal/position.
+ *        the Transform's forward with no attenuation; Ambient adds a flat term independent of
+ *        normal/position.
  */
 ES_ENUM()
 enum class Light2DType : i32 {
@@ -67,17 +69,6 @@ struct Light2D {
     /** @brief Point/Spot falloff radius in world units (ignored by Directional/Ambient). */
     ES_PROPERTY(animatable, min=0, tooltip="Falloff reach in world units (Point / Spot).")
     f32 radius{200.0f};
-
-    /** @brief Direction in the 2D plane: Directional light direction, or Spot cone axis
-     *         ({0,0} = straight at the screen / cone aims down). Ignored by Point/Ambient. */
-    ES_PROPERTY(advanced, tooltip="Aim direction (Directional / Spot).")
-    glm::vec2 direction{0.0f, 0.0f};
-
-    /** @brief The third component of a Directional light's aim, so a sun can be placed in a
-     *         3D scene rather than only tilted within the plane. -1 shines into the screen,
-     *         which is where a 2D scene's light has always come from. */
-    ES_PROPERTY(animatable, advanced, tooltip="Aim depth (Directional): -1 shines into the screen.")
-    f32 directionZ{-1.0f};
 
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)

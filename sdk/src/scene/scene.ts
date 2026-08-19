@@ -7,6 +7,7 @@
 
 import { World } from '../ecs/world';
 import { Entity, INVALID_ENTITY } from '../types';
+import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
@@ -308,6 +309,9 @@ export interface SceneMigrationResult {
     data: SceneData;
     /** True if any legacy shape was upgraded (callers may prompt a re-save). */
     migrated: boolean;
+    /** Retired engine components dropped, by name — an editor says which it
+     *  upgraded away; a runtime load has no one to tell. */
+    retired: string[];
     fromVersion: number;
     toVersion: number;
 }
@@ -335,7 +339,7 @@ export function parseSceneFormatVersion(v: unknown): number {
  * StateMachine/StateVisuals pair is superseded by UIController($interaction) +
  * UIGear, which the widget prefabs now carry.
  */
-export const RETIRED_COMPONENT_TYPES: ReadonlySet<string> = new Set(['StateMachine', 'StateVisuals']);
+export { RETIRED_COMPONENT_TYPES } from './legacyComponents';
 
 /**
  * Upgrade a SceneData to the current format. Total + idempotent: already-current
@@ -360,37 +364,17 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
     const data: SceneData = JSON.parse(JSON.stringify(raw)) as SceneData;
 
     let migrated = false;
+    const retired = new Set<string>();
     for (const entity of data.entities) {
         // Prefab-instance entries carry no `components` to migrate; the async
         // loader expands them first, so any seen here belong to the sync path
         // and are left untouched (spawnAndLoadEntities warns + skips them).
         if (isPrefabEntry(entity)) continue;
-        // Drop components retired by an engine upgrade before per-component
-        // normalization — keeping them would only make loadComponent warn + skip.
-        const live = entity.components.filter((c) => !RETIRED_COMPONENT_TYPES.has(c.type));
-        if (live.length !== entity.components.length) { entity.components = live; migrated = true; }
-        for (const comp of entity.components) {
-            if (normalizeLegacyComponent(comp)) migrated = true;
-        }
+        if (upgradeEntityComponents(entity, retired)) migrated = true;
     }
 
     data.version = SCENE_FORMAT_VERSION;
-    return { data, migrated, fromVersion, toVersion: SCENE_FORMAT_VERSION };
-}
-
-/** Normalize legacy component spellings in place. Returns true if changed. */
-function normalizeLegacyComponent(compData: SceneComponentData): boolean {
-    let changed = false;
-    if (compData.type === 'LocalTransform' || compData.type === 'WorldTransform') {
-        compData.type = 'Transform';
-        changed = true;
-    }
-    if (compData.type === 'UIMask') {
-        const maskData = compData.data as Record<string, unknown>;
-        if (maskData.mode === 'scissor') { maskData.mode = 0; changed = true; }
-        else if (maskData.mode === 'stencil') { maskData.mode = 1; changed = true; }
-    }
-    return changed;
+    return { data, migrated, retired: [...retired], fromVersion, toVersion: SCENE_FORMAT_VERSION };
 }
 
 // =============================================================================

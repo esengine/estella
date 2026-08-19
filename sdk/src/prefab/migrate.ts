@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PrefabData, PrefabEntityData, PrefabOverride } from './types';
+import {
+    needsComponentUpgrade,
+    upgradeEntityComponents,
+    type UpgradableEntity,
+} from '../scene/legacyComponents';
 
 /**
  * Result of a migration pass over a prefab JSON blob. `migrated` is true
@@ -45,8 +50,13 @@ export function migratePrefabData(raw: unknown): MigrationResult {
     // (a file authored as an old version but already string-id'd must still bump
     // to current, so "re-save" truly lands on the latest format).
     const isLegacy = needsMigration(obj) || fromVersion !== PREFAB_FORMAT_VERSION;
+    // A prefab current in every other way can still hold component data written
+    // for an older engine, and upgrading that rewrites records the caller owns —
+    // so the copy is made here rather than editing under them.
+    const staleComponents = !isLegacy
+        && (obj['entities'] as UpgradableEntity[]).some(needsComponentUpgrade);
 
-    if (!isLegacy) {
+    if (!isLegacy && !staleComponents) {
         return {
             data: obj as unknown as PrefabData,
             migrated: false,
@@ -55,13 +65,18 @@ export function migratePrefabData(raw: unknown): MigrationResult {
         };
     }
 
-    const upgraded = upgradeNumericIds(obj);
-    upgraded.version = PREFAB_FORMAT_VERSION;
+    const upgraded = isLegacy
+        ? upgradeNumericIds(obj)
+        : (JSON.parse(JSON.stringify(obj)) as PrefabData);
+    // The same door a scene's components come through: a prefab holds the same
+    // records, and an upgrade that ran on only one of the two is half an upgrade.
+    for (const entity of upgraded.entities) upgradeEntityComponents(entity);
+    if (isLegacy) upgraded.version = PREFAB_FORMAT_VERSION;
     return {
         data: upgraded,
         migrated: true,
         fromVersion,
-        toVersion: PREFAB_FORMAT_VERSION,
+        toVersion: isLegacy ? PREFAB_FORMAT_VERSION : fromVersion,
     };
 }
 

@@ -780,7 +780,6 @@ function isConditionallyHidden(compType: string, key: string, data: Record<strin
       // type: Point = 0, Directional = 1, Ambient = 2, Spot = 3.
       const type = Number(data.type) || 0;
       if (key === 'radius') return type === 1 || type === 2;    // Point / Spot reach only
-      if (key === 'direction') return type === 0 || type === 2; // Directional / Spot aim only
       if (key === 'innerAngle' || key === 'outerAngle') return type !== 3; // Spot cone only
       if (key === 'shadowDistance') return type !== 1;          // Directional shadow only
       if (key === 'shadowSoftness') return type === 2;          // Ambient casts no shadow

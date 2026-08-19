@@ -32,35 +32,36 @@ describe('conditional inspector fields', () => {
   });
 
   describe('Light2D type', () => {
-    it('Point: radius only, no direction / cone angles / directional shadow', () => {
+    it('Point: radius only, no cone angles / directional shadow', () => {
       const k = keys('Light2D', { type: 0 });
       expect(k.has('radius')).toBe(true);
-      expect(k.has('direction')).toBe(false);
       expect(k.has('innerAngle')).toBe(false);
       expect(k.has('shadowDistance')).toBe(false);
     });
-    it('Directional: direction + directional shadow, no radius / cone angles', () => {
+    it('Directional: directional shadow, no radius / cone angles', () => {
       const k = keys('Light2D', { type: 1 });
-      expect(k.has('direction')).toBe(true);
       expect(k.has('shadowDistance')).toBe(true);
       expect(k.has('radius')).toBe(false);
       expect(k.has('outerAngle')).toBe(false);
     });
-    it('Ambient: neither reach, aim, cone, nor shadows', () => {
+    it('Ambient: neither reach, cone, nor shadows', () => {
       const k = keys('Light2D', { type: 2 });
       expect(k.has('radius')).toBe(false);
-      expect(k.has('direction')).toBe(false);
       expect(k.has('innerAngle')).toBe(false);
       expect(k.has('shadowSoftness')).toBe(false);
       expect(k.has('intensity')).toBe(true); // still tunable
     });
-    it('Spot: reach + aim + cone angles, no directional shadow', () => {
+    it('Spot: reach + cone angles, no directional shadow', () => {
       const k = keys('Light2D', { type: 3 });
       expect(k.has('radius')).toBe(true);
-      expect(k.has('direction')).toBe(true);
       expect(k.has('innerAngle')).toBe(true);
       expect(k.has('outerAngle')).toBe(true);
       expect(k.has('shadowDistance')).toBe(false);
+    });
+    it('no type shows an aim field — a light is aimed by its Transform', () => {
+      for (const type of [0, 1, 2, 3]) {
+        expect(keys('Light2D', { type }).has('direction')).toBe(false);
+      }
     });
   });
 

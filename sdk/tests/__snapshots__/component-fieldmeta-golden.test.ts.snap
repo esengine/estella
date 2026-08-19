@@ -161,14 +161,6 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "Light2D": {
-    "direction": {
-      "advanced": true,
-      "tooltip": "Aim direction (Directional / Spot).",
-    },
-    "directionZ": {
-      "advanced": true,
-      "tooltip": "Aim depth (Directional): -1 shines into the screen.",
-    },
     "drawEnvironment": {
       "tooltip": "Draw this environment as the sky behind the scene.",
     },

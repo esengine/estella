@@ -19,16 +19,19 @@ Estella 用 **`Light2D`** 光源和 **`ShadowCaster2D`** 遮挡体照亮 2D 场�
 给一个实体加 `Light2D` 组件并选一个类型:
 
 ```typescript
-import { defineSystem, Commands, Transform, Light2D, Light2DType } from 'esengine';
+import { defineSystem, Commands, Transform, Light2D, Light2DType, lightAimRotation } from 'esengine';
 
 const addSun = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
-    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    // 灯沿所在实体的朝前方向照射,所以太阳靠转动它来瞄准。
+    .insert(Transform, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
+    })
     .insert(Light2D, {
       type: Light2DType.Directional,
       color: { r: 1, g: 0.95, b: 0.8, a: 1 },
       intensity: 1.2,
-      direction: { x: -1, y: -1 },
     });
 });
 ```
@@ -41,7 +44,6 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `color` | `{1,1,1,1}` | 光颜色,RGBA 0..1。 |
 | `intensity` | `1` | 亮度倍数。 |
 | `radius` | `200` | 衰减半径,世界单位(Point / Spot)。 |
-| `direction` | `{0,0}` | 朝向(Directional / Spot)。 |
 | `innerAngle` | `30` | 聚光锥内角,度(内部全亮)。 |
 | `outerAngle` | `45` | 聚光锥外角,度(到这里衰减为零)。 |
 | `shadowSoftness` | `0` | 阴影边缘柔和度(光源尺寸);`0` = 硬边。 |
@@ -52,9 +54,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 | 类型 | 行为 |
 |---|---|
-| **Directional(方向光)** | 来自单一 `direction` 的均匀光,像太阳——位置无关,只看朝向。 |
+| **Directional(方向光)** | 沿实体朝前方向的均匀光,像太阳——位置无关,只看旋转。 |
 | **Point(点光)** | 从实体位置向外辐射,到 `radius` 处衰减为零。 |
-| **Spot(聚光)** | 从位置沿 `direction` 的一个锥,在 `innerAngle` 内全亮、到 `outerAngle` 衰减到边缘,直到 `radius`。 |
+| **Spot(聚光)** | 从位置沿实体朝前方向的一个锥,在 `innerAngle` 内全亮、到 `outerAngle` 衰减到边缘,直到 `radius`。 |
 | **Ambient(环境光)** | 处处叠加的平坦底光,与位置无关——用较低的 `intensity`,让阴影区不至于纯黑。 |
 
 ```typescript
@@ -62,8 +64,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 .insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
                    color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
 
-// 一束手电锥
-.insert(Light2D, { type: Light2DType.Spot, direction: { x: 0, y: -1 },
+// 一束手电锥,由它所在的实体朝下瞄准
+.insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
+.insert(Light2D, { type: Light2DType.Spot,
                    innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
 
 // 一点微弱环境光,让画面不至于全黑
@@ -213,9 +216,9 @@ mesh 再画一遍,于是站得高的 mesh 会让下面的暗下来。
 
 ```typescript
 cmds.spawn()
+  .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // 光线偏向哪边
   .insert(Light2D, {
     type: Light2DType.Directional,
-    direction: { x: 0.5, y: 0 },   // 光线偏向哪边
     meshShadows: true,
   });
 ```

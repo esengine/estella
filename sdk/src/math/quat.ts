@@ -114,6 +114,38 @@ export const q = {
         };
     },
 
+    /**
+     * The shortest turn taking `from` to `to`; either may be any length. A
+     * direction is a way of naming a rotation, so it comes in here — what is
+     * stored stays the rotation. Roll about the axis is unconstrained by the pair
+     * and is left at none, which is what an aim has to say about it.
+     */
+    rotationTo(from: Vec3, to: Vec3): Quat {
+        const fl = Math.hypot(from.x, from.y, from.z);
+        const tl = Math.hypot(to.x, to.y, to.z);
+        if (fl === 0 || tl === 0) return { w: 1, x: 0, y: 0, z: 0 };
+        const f = { x: from.x / fl, y: from.y / fl, z: from.z / fl };
+        const t = { x: to.x / tl, y: to.y / tl, z: to.z / tl };
+        const d = f.x * t.x + f.y * t.y + f.z * t.z;
+        if (d >= 1 - 1e-9) return { w: 1, x: 0, y: 0, z: 0 };
+        // Opposite: every axis perpendicular to `from` is a half turn taking it to
+        // `to`, so pick one that exists for any `from` rather than a fixed axis it
+        // could be parallel to.
+        if (d <= -1 + 1e-9) {
+            const axis = Math.abs(f.x) > 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+            const px = f.y * axis.z - f.z * axis.y;
+            const py = f.z * axis.x - f.x * axis.z;
+            const pz = f.x * axis.y - f.y * axis.x;
+            return this.normalize({ w: 0, x: px, y: py, z: pz });
+        }
+        return this.normalize({
+            w: 1 + d,
+            x: f.y * t.z - f.z * t.y,
+            y: f.z * t.x - f.x * t.z,
+            z: f.x * t.y - f.y * t.x,
+        });
+    },
+
     /** Set the Z turn, keeping whatever the other two axes say — the 2D way in. */
     setAngleZ(a: Quat | undefined, deg: number): Quat {
         const e = a ? this.toEuler(a) : [0, 0, 0];

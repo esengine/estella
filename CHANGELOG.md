@@ -14,6 +14,33 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A light aims where its entity is turned.** A light carried its own aim —
+  `direction` in the plane and a `directionZ` bolted on beside it — and the entity's
+  rotation meant nothing to the renderer. So rotating a light did nothing, a torch
+  parented to a character did not swing with it, an imported light had nowhere to put
+  its orientation, and a spot's cone axis travelled to the shader in two unrelated
+  slots. The camera has taken its orientation from its Transform all along; the light
+  was the one thing in the engine that did not.
+
+  A light's aim is its entity's forward now — the rotation applied to -Z, which is
+  where an unrotated light has always shone. `Light2D.direction` and
+  `Light2D.directionZ` are gone; the rotate gizmo aims a light, a parent turns it, and
+  a rotation track animates it. The GPU wire format is untouched — only where the
+  renderer reads the aim from changed.
+
+  Scenes and prefabs written before this are upgraded on load: the pair becomes the
+  rotation whose forward IS that direction, so every scene is lit exactly as it was.
+  `upgradeEntityComponents` is that upgrade, and it is one function now rather than
+  the SDK's half and the editor's — the editor had its own copy of the retired-component
+  drop and none of the rest, so a scene opened in the editor and the same scene played
+  were two different upgrades.
+
+  `lightAimRotation` / `lightAimOf` name the convention on the SDK side (one place;
+  the engine's is `lightForward`), and `q.rotationTo` joins the math module — the
+  shortest turn from one direction to another, which is what naming an aim means.
+
 ### Added
 
 - **An entity's box has a third dimension, and one hit test uses it.** `EntityBox`

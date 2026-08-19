@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, textureImportSettingsFrom, Renderer, migrateSceneData, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot, Audio, applyAudioProjectConfig } from 'esengine';
 import { applyImporterEdit } from './assetImporter';
 import { hasImporter, runImporters } from '../plugins/importers';
 import { importerDefaults } from '../../../pipeline/src/project/importSettings';
@@ -120,27 +120,6 @@ function unknownComponentTypes(data: SceneData): string[] {
     }
   }
   return [...unknown];
-}
-
-/**
- * Drop components retired by an engine upgrade (see SDK RETIRED_COMPONENT_TYPES)
- * from a raw scene, in place; returns the retired type names that were present.
- * These are dead ENGINE types — unlike genuinely-unknown project components (kept
- * verbatim so they round-trip), they carry no live system. Stripping them out of
- * the source-of-truth model on open means a save cleans the file, and they never
- * reach the "unknown project component" warning below. The SDK scene loader drops
- * them too, so Play never warns "Unknown component type" on them.
- */
-function stripRetiredComponents(data: SceneData): string[] {
-  const dropped = new Set<string>();
-  for (const entity of data.entities ?? []) {
-    const comps = entity.components;
-    if (!comps) continue;
-    for (let i = comps.length - 1; i >= 0; i--) {
-      if (RETIRED_COMPONENT_TYPES.has(comps[i].type)) { dropped.add(comps[i].type); comps.splice(i, 1); }
-    }
-  }
-  return [...dropped];
 }
 
 class ProjectStoreImpl {
@@ -488,8 +467,9 @@ class ProjectStoreImpl {
       return;
     }
     const { rel, text } = found;
-    const raw = JSON.parse(text) as SceneData;
-    const retired = stripRetiredComponents(raw);
+    // The SDK's own upgrade rather than the editor's half of it: what a scene
+    // becomes on load is what the editor has to show, and what a save writes back.
+    const { data: raw, retired } = migrateSceneData(JSON.parse(text) as SceneData);
     if (retired.length > 0) {
       console.info(
         `[project] upgraded scene "${rel}": dropped retired engine component(s) ` +

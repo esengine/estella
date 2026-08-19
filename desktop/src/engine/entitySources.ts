@@ -17,7 +17,7 @@
 import { projectPrefabSources, projectDesignSeed } from './projectSeams';
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan, Sun } from 'lucide-react';
-import { BUILTIN_MESH_TEMPLATES, BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, type PrefabData } from 'esengine';
+import { BUILTIN_MESH_TEMPLATES, BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, applyThemeToWorld, lightAimRotation, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { ContributionRegistry } from '@/contrib/ContributionRegistry';
 import { componentByName, componentDefaults, readonlyFieldsFor, prettyLabel, componentCategory, userComponentNames } from './schema';
@@ -283,7 +283,7 @@ export const ENTITY_SOURCES: EntitySource[] = [
   // lights a mesh from inside it. A key light aimed into the screen is what shaded
   // geometry needs, and nothing else in the picker offers one.
   presetSource('sun', 'Sun', componentCategory('Light2D'), Sun,
-    [['Transform', {}], ['Light2D', { type: 1, direction: { x: 0.3, y: -0.5 }, directionZ: -0.8 }]]),
+    [['Transform', { rotation: lightAimRotation({ x: 0.3, y: -0.5, z: -0.8 }) }], ['Light2D', { type: 1 }]]),
   // Tilemap is asset-driven (it needs a tileset + orientation), so it can't build
   // synchronously like an anchor — picking it opens the New-Tilemap dialog. Listed here
   // anyway so the Create picker stays the one place every entity is born.

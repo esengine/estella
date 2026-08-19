@@ -21,16 +21,19 @@ sprites stay unlit, and the ones you want lit get a lit material.
 Give an entity a `Light2D` component and pick a type:
 
 ```typescript
-import { defineSystem, Commands, Transform, Light2D, Light2DType } from 'esengine';
+import { defineSystem, Commands, Transform, Light2D, Light2DType, lightAimRotation } from 'esengine';
 
 const addSun = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
-    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    // A light aims along its entity's forward, so the sun is aimed by turning it.
+    .insert(Transform, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
+    })
     .insert(Light2D, {
       type: Light2DType.Directional,
       color: { r: 1, g: 0.95, b: 0.8, a: 1 },
       intensity: 1.2,
-      direction: { x: -1, y: -1 },
     });
 });
 ```
@@ -43,7 +46,6 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `color` | `{1,1,1,1}` | Light color, RGBA 0..1. |
 | `intensity` | `1` | Brightness multiplier. |
 | `radius` | `200` | Falloff reach in world units (Point / Spot). |
-| `direction` | `{0,0}` | Aim direction (Directional / Spot). |
 | `innerAngle` | `30` | Spot cone inner angle, degrees (full brightness inside). |
 | `outerAngle` | `45` | Spot cone outer angle, degrees (falls to zero by here). |
 | `shadowSoftness` | `0` | Shadow edge softness (light-source size); `0` = hard edge. |
@@ -54,9 +56,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 | Type | Behavior |
 |---|---|
-| **Directional** | A uniform light from one `direction`, like the sun — position doesn't matter, only the aim. |
+| **Directional** | A uniform light along the entity's forward, like the sun — position doesn't matter, only the rotation. |
 | **Point** | Radiates from the entity's position and falls off to nothing at `radius`. |
-| **Spot** | A cone from the position along `direction`, full-bright within `innerAngle` and fading to the edge at `outerAngle`, out to `radius`. |
+| **Spot** | A cone from the position along the entity's forward, full-bright within `innerAngle` and fading to the edge at `outerAngle`, out to `radius`. |
 | **Ambient** | A flat base light added everywhere, regardless of position — use a low `intensity` so shaded areas aren't pure black. |
 
 ```typescript
@@ -64,8 +66,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 .insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
                    color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
 
-// A flashlight cone
-.insert(Light2D, { type: Light2DType.Spot, direction: { x: 0, y: -1 },
+// A flashlight cone, aimed down the screen by the entity it sits on
+.insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
+.insert(Light2D, { type: Light2DType.Spot,
                    innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
 
 // A dim ambient fill so nothing is fully black
@@ -227,9 +230,9 @@ mesh standing above another darkens it.
 
 ```typescript
 cmds.spawn()
+  .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // where the rays lean
   .insert(Light2D, {
     type: Light2DType.Directional,
-    direction: { x: 0.5, y: 0 },   // where the rays lean
     meshShadows: true,
   });
 ```

@@ -19,6 +19,7 @@ import {
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, cameraFrustumCorners, type ScreenAxis,
+  lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
@@ -843,7 +844,7 @@ export const ViewportController = {
     const t = world.get(id, Transform);
     const l = world.get(id, Light2D) as {
       type: number; color: { r: number; g: number; b: number }; radius: number;
-      direction: { x: number; y: number }; outerAngle: number; enabled: boolean; intensity: number;
+      outerAngle: number; enabled: boolean; intensity: number;
     };
     const toClient = this.projectorFor(id);
     const center = toClient(t.worldPosition.x, t.worldPosition.y);
@@ -855,15 +856,17 @@ export const ViewportController = {
       const edge = toClient(t.worldPosition.x + l.radius, t.worldPosition.y);
       if (edge) radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
     }
-    // Directional (1) / Spot (3) point along `direction`; flip world-Y to screen space. A Spot
-    // with no direction defaults to aiming down (matching the engine's collectLights fallback).
+    // Directional (1) / Spot (3) aim along the entity's forward; flip world-Y to screen
+    // space. An aim with nothing in the plane draws no arrow, and a Spot falls back to
+    // down — both are what the engine's collectLights reads off the same rotation.
     let sdx = 0;
     let sdy = 0;
     if (l.type === 1 || l.type === 3) {
-      const len = Math.hypot(l.direction.x, l.direction.y);
+      const aim = lightAimOf(t.worldRotation);
+      const len = Math.hypot(aim.x, aim.y);
       if (len > 1e-4) {
-        sdx = l.direction.x / len;
-        sdy = -l.direction.y / len;
+        sdx = aim.x / len;
+        sdy = -aim.y / len;
       } else if (l.type === 3) {
         sdy = 1; // world (0,-1) → screen down
       }

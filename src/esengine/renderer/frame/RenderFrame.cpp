@@ -639,11 +639,13 @@ RenderFrameContext RenderFrame::makeContext() {
     };
 }
 
-/// A directional light's aim depth. An aim of zero in all three has no direction to
-/// give, so it keeps the one a 2D scene has always had rather than dividing by zero.
-static f32 aimZ(const ecs::Light2D& light) {
-    const glm::vec3 aim(light.direction, light.directionZ);
-    return glm::dot(aim, aim) > 1e-8f ? light.directionZ : -1.0f;
+/// Where a light aims: the entity's forward, its rotation applied to -Z. A light
+/// without a Transform aims the way an unrotated one does, which is into the screen —
+/// where a 2D scene's light comes from.
+static glm::vec3 lightForward(ecs::Transform* transform) {
+    if (!transform) return glm::vec3(0.0f, 0.0f, -1.0f);
+    transform->ensureDecomposed();
+    return transform->worldRotation * glm::vec3(0.0f, 0.0f, -1.0f);
 }
 
 void RenderFrame::collectLights(ecs::Registry& registry) {
@@ -659,9 +661,9 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     std::vector<CollectedLight>& collected = light_scratch_;
     collected.clear();
 
-    // A light's Transform need is type-dependent: Ambient (a flat scene-wide term) and
-    // Directional (parallel rays; direction is intrinsic) have no spatial anchor and work
-    // without one — only Point/Spot sample a world position.
+    // A light's Transform need is type-dependent. Ambient is a flat scene-wide term and
+    // reads none of it; Directional takes only the rotation, so it works without one and
+    // aims into the screen; Point/Spot need a position and are skipped without one.
     auto view = registry.view<ecs::Light2D>();
     for (auto entity : view) {
         const auto& light = view.get(entity);
@@ -692,10 +694,11 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
             // component, which only a directional light has a use for — point and spot spend
             // that slot on their falloff radius.
-            gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, aimZ(light));
+            const glm::vec3 aim = lightForward(registry.tryGet<ecs::Transform>(entity));
+            gpu.posDir = glm::vec4(aim.x, aim.y, 1.0f, aim.z);
             if (light.meshShadows && shadow_light_slot_ < 0) {
                 castsMeshShadow = true;
-                shadow_light_dir_ = glm::vec3(light.direction, aimZ(light));
+                shadow_light_dir_ = aim;
                 shadow_light_extent_ = std::max(light.shadowExtent, 0.0f);
             }
         } else {  // Point / Spot — world position from the Transform, w=falloff radius.
@@ -710,14 +713,18 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // MESH_NORMALS half of the lighting loop.
             gpu.shadow.z = p.z;
             if (type == ecs::Light2DType::Spot) {
-                // The cone axis unnormalized, so the two halves can each normalize the
-                // vector they need: the plane's xy, and the whole of it in three.
-                glm::vec2 aim = light.direction;
-                if (glm::dot(aim, aim) <= 1e-8f) aim = glm::vec2(0.0f, -1.0f);
-                gpu.spot = glm::vec4(aim.x, aim.y,
+                // Split across two slots because the two shading halves read different
+                // parts: the plane's xy, and the whole of it in three.
+                const glm::vec3 aim = lightForward(transform);
+                // A cone aimed straight into the screen has no axis IN the plane, and the
+                // plane's half of the shading has nowhere else to read one from — so it
+                // keeps the direction an unrotated spot has always lit along.
+                glm::vec2 planar(aim.x, aim.y);
+                if (glm::dot(planar, planar) <= 1e-8f) planar = glm::vec2(0.0f, -1.0f);
+                gpu.spot = glm::vec4(planar.x, planar.y,
                                      std::cos(glm::radians(light.innerAngle * 0.5f)),
                                      std::cos(glm::radians(light.outerAngle * 0.5f)));
-                gpu.shadow.w = light.directionZ;
+                gpu.shadow.w = aim.z;
             }
         }
         collected.push_back({gpu, castsMeshShadow});
