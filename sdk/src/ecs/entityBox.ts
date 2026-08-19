@@ -49,8 +49,12 @@ export interface EntityBoxOptions {
      * World half-size for an entity that draws nothing of its own — a camera, a
      * light, an empty. Zero (the default) reports no box for those; an editor
      * that wants them clickable passes the size of the icon it drew.
+     *
+     * A function when that size is not a world size: an icon drawn at a fixed
+     * number of PIXELS covers a world extent that depends on where it is, and the
+     * caller is handed the entity's world position to answer for it.
      */
-    iconHalf?: number;
+    iconHalf?: number | ((at: Vec3) => number);
 }
 
 /** The rotation an entity is drawn with, defaulted for a partial write. */
@@ -75,7 +79,8 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
     const t = world.get(entity, Transform);
     const rot = worldRot(t);
 
-    const iconHalf = opts?.iconHalf ?? 0;
+    const spec = opts?.iconHalf ?? 0;
+    const iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
     // An icon is a marker in space rather than a card, so it is a cube: it reads
     // and clicks the same from wherever the view has been turned to.
     let w = iconHalf * 2;

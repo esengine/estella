@@ -10,7 +10,7 @@
  * would say so.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DEFAULT_EDITOR_VIEW, editorViewHalfExtent, type EditorViewData } from 'esengine';
+import { DEFAULT_EDITOR_VIEW, editorViewHalfExtent, editorViewWorldPerPixel, type EditorViewData } from 'esengine';
 
 const host = vi.hoisted(() => ({
   view: null as EditorViewData | null,
@@ -223,5 +223,54 @@ describe('the minimap plots the plane the view works on', () => {
     expect(v.x).toBeCloseTo(10, 6);
     expect(v.z).toBeCloseTo(-20, 6);
     expect(v.y).toBeCloseTo(1, 6);
+  });
+});
+
+describe('world units per screen pixel', () => {
+  it('is the seen height over the pixel height, orthographically the same everywhere', () => {
+    const v = view({ orthoSize: 300 });
+    expect(editorViewWorldPerPixel(v, 600)).toBeCloseTo(1, 9);
+    // Depth cannot change it: an orthographic screen point's scale is constant.
+    expect(editorViewWorldPerPixel(v, 600, { x: 0, y: 0, z: -5000 })).toBeCloseTo(1, 9);
+  });
+
+  // In perspective it is the distance ALONG the view axis that the projection
+  // divides by, so a thing twice as far covers twice the world per pixel.
+  it('grows with the distance along the view axis in perspective', () => {
+    const v = perspectiveView({});
+    const standoff = v.distance;
+    expect(editorViewWorldPerPixel(v, 600, { x: 0, y: 0, z: 0 })).toBeCloseTo(1, 6);
+    expect(editorViewWorldPerPixel(v, 600, { x: 0, y: 0, z: -standoff })).toBeCloseTo(2, 6);
+  });
+
+  it('behind the eye reports the focus scale rather than a negative one', () => {
+    const v = perspectiveView({});
+    expect(editorViewWorldPerPixel(v, 600, { x: 0, y: 0, z: v.distance * 2 })).toBeCloseTo(1, 6);
+  });
+});
+
+describe('the plane a gesture is spelt on', () => {
+  it('head-on it is world x and y, and round-trips', () => {
+    host.view = view({});
+    expect(ViewportController.worldToPlanePoint({ x: 3, y: 4, z: 5 })).toEqual({ u: 3, v: 4 });
+    expect(ViewportController.planePointToWorld({ x: 3, y: 4, z: 5 }, 10, 20))
+      .toEqual({ x: 10, y: 20, z: 5 });
+  });
+
+  // Looking down at the ground, "up the screen" is −Z; the axis the plane is across
+  // (here y, the height) is carried through untouched, because "align left" is not
+  // an instruction about height.
+  it('over the ground it is x and −z, and leaves the third axis alone', () => {
+    host.view = perspectiveView({ pitch: 90 });
+    expect(ViewportController.worldToPlanePoint({ x: 3, y: 4, z: 5 })).toEqual({ u: 3, v: -5 });
+    expect(ViewportController.planePointToWorld({ x: 3, y: 4, z: 5 }, 10, 20))
+      .toEqual({ x: 10, y: 4, z: -20 });
+  });
+
+  it('is its own inverse, over the ground', () => {
+    host.view = perspectiveView({ yaw: 35, pitch: 40 });
+    const p = { x: -12, y: 7, z: 31 };
+    const uv = ViewportController.worldToPlanePoint(p);
+    expect(ViewportController.planePointToWorld(p, uv.u, uv.v)).toEqual(p);
   });
 });

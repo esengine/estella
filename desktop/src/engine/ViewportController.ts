@@ -14,12 +14,12 @@ import {
   BoxCollider3D, SphereCollider3D, CapsuleCollider3D, MeshCollider3D, CharacterController3D,
   readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,
   readJoint3D, rotateVec3ByQuat,
-  editorViewHalfHeight, editorViewHalfExtent, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
+  editorViewHalfHeight, editorViewHalfExtent, editorViewWorldPerPixel, setEditorViewHalfHeight, EDITOR_UI_ANCHOR,
   entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, type EntityBox,
   pickEntitiesByRay, editorViewIsOrbited,
   moveEditorViewFocus, editorViewBoxExtent,
   editorViewAxes, editorViewAxisAngles, editorViewBasis, cameraFrustumCorners, type ScreenAxis,
-  editorViewWorkPlane, screenNudgeAxes, worldAxisVector, DEFAULT_EDITOR_VIEW, type WorldAxis,
+  editorViewWorkPlane, screenWorkAxes, worldAxisVector, DEFAULT_EDITOR_VIEW, type WorldAxis,
   lightAimOf,
   rayPlaneHit, type WorldRay, type Vec3,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -42,9 +42,11 @@ import {
 // Half-length of a 3D joint's axis marker, in world units — long enough to read
 // against a body, short enough not to look like the link itself.
 const JOINT3D_AXIS_WORLD_HALF = 60;
-// World half-size of the pick/outline box for entities without renderable bounds
-// (cameras, lights, empties) — so they're click-selectable like any sprite.
-const ICON_WORLD_HALF = 24;
+// The box for an entity that draws nothing of its own — a camera, a light, an empty.
+// A CLICK has to hit the icon that was drawn, which is CSS pixels wherever it stands.
+const ICON_PICK_SCREEN_HALF = 11;
+// The room a MAP, or "Frame", gives such a marker: world units, fixed under zoom.
+const ICON_MAP_WORLD_HALF = 24;
 // Degrees of turn per pixel dragged — the rate a DCC's orbit uses.
 // How square-on the work plane has to be before a screen point names a place on it
 // rather than a mile of it. ~6°, below which one pixel of cursor is unbounded world.
@@ -263,7 +265,7 @@ export const ViewportController = {
   nudgeVector(right: number, up: number): Vec3 {
     const view = editorView();
     if (!view) return { x: right, y: up, z: 0 };
-    const n = screenNudgeAxes(view);
+    const n = screenWorkAxes(view);
     const out = { x: 0, y: 0, z: 0 };
     for (const [a, amount] of [[n.right, right], [n.up, up]] as const) {
       const v = worldAxisVector(a.axis);
@@ -271,6 +273,33 @@ export const ViewportController = {
       out.y += v.y * a.sign * amount;
       out.z += v.z * a.sign * amount;
     }
+    return out;
+  },
+
+  /**
+   * A world point in the work plane's two axes, as the SCREEN names them — right
+   * across, up the screen. What a gesture spelt in those words (align left, nudge
+   * up, distribute across) measures in, and head-on it is world x and y.
+   */
+  worldToPlanePoint(at: Vec3): { u: number; v: number } {
+    const view = editorView();
+    if (!view) return { u: at.x, v: at.y };
+    const n = screenWorkAxes(view);
+    return { u: axisOf(at, n.right.axis) * n.right.sign, v: axisOf(at, n.up.axis) * n.up.sign };
+  },
+
+  /**
+   * The inverse: `at` with its two plane components replaced. The third is carried
+   * through, because a gesture on a plane says nothing about the axis across it.
+   */
+  planePointToWorld(at: Vec3, u: number, v: number): Vec3 {
+    const view = editorView();
+    if (!view) return { x: u, y: v, z: at.z };
+    const n = screenWorkAxes(view);
+    const out = { x: at.x, y: at.y, z: at.z };
+    const key = (['x', 'y', 'z'] as const);
+    out[key[n.right.axis]!] = u * n.right.sign;
+    out[key[n.up.axis]!] = v * n.up.sign;
     return out;
   },
 
@@ -359,17 +388,27 @@ export const ViewportController = {
    * (= transform position). Reads the parent-composed world transform — the same
    * fields the renderer draws from — so parented entities pick where they render.
    */
-  entityBounds(id: EntityId): EntityBox | null {
+  entityBounds(id: EntityId, iconHalf?: number | ((at: Vec3) => number)): EntityBox | null {
     const world = EngineHost.world;
     if (!world) return null;
     // A mesh's extent is in its vertices, so it is asked for before the icon
     // fallback below would answer with a box the size of a camera gizmo.
     const mesh = meshWorldBox(world, id);
     if (mesh) return mesh;
-    // The icon half-size is the editor's own: it is the size of the thing the
-    // editor drew for an entity that draws nothing, so a camera is still
-    // clickable. The running world has no icons and asks for no box.
-    return entityWorldBox(world, id, { iconHalf: ICON_WORLD_HALF });
+    // The icon half-size is the editor's own — the running world draws no icons
+    // and asks for no box. Which size it is depends on what the caller is asking.
+    return entityWorldBox(world, id, { iconHalf: iconHalf ?? this.iconPickHalf() });
+  },
+
+  /** The world half-size an icon covers where it stands, for the zoom it is drawn
+   *  at — what a click has to hit. */
+  iconPickHalf(): (at: Vec3) => number {
+    const view = editorView();
+    const canvas = EngineHost.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    const heightPx = canvas ? canvas.height / dpr : 0;
+    if (!view || heightPx <= 0) return () => ICON_MAP_WORLD_HALF;
+    return (at) => ICON_PICK_SCREEN_HALF * editorViewWorldPerPixel(view, heightPx, at);
   },
 
   /**
@@ -442,7 +481,7 @@ export const ViewportController = {
     if (world && ray) {
       const masks = projectSortingLayerModes();
       for (const e of pickEntitiesByRay(world, ray, {
-        iconHalf: ICON_WORLD_HALF,
+        iconHalf: this.iconPickHalf(),
         // Locked / editor-hidden / environment entities aren't click-selectable.
         pickable: (e) => {
           const src = SceneModel.sourceFor(e as EntityId);
@@ -709,7 +748,7 @@ export const ViewportController = {
     let maxY = -Infinity;
     let maxZ = -Infinity;
     for (const id of ids) {
-      const b = this.entityBounds(id) ?? this.uiEntityWorldOBB(id);
+      const b = this.entityBounds(id, ICON_MAP_WORLD_HALF) ?? this.uiEntityWorldOBB(id);
       if (!b) continue;
       for (const c of entityBoxCorners(b)) {
         minX = Math.min(minX, c.x);
@@ -862,7 +901,7 @@ export const ViewportController = {
             continue;
           }
         }
-        const b = this.entityBounds(e);
+        const b = this.entityBounds(e, ICON_MAP_WORLD_HALF);
         if (!b) continue;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (const c of entityBoxCorners(b)) {

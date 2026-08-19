@@ -19,34 +19,53 @@ import { pruneDescendants, isFlowUINode, isOrphanUINode } from './transformTools
 import { alignTargets, distributeTargets, type AlignBox, type AlignOp, type DistributeAxis } from './alignMath';
 import type { EntityId } from '@/types';
 
-/** Positionable selection → each entity's world AABB. Excludes flex-flow / orphan
- *  UI nodes (setEntityWorldPos can't move them) and descendants of a selected ancestor
- *  (already carried by their parent's move). */
-function collectBoxes(): Array<{ sid: EntityId; box: AlignBox }> {
+/** One target of an align gesture: where it is, and the box it presents. Boxes are
+ *  measured in the work plane's two axes as the SCREEN names them, so "left" and
+ *  "top" mean what they say from any eye — head-on that is world x and y. */
+interface AlignTarget {
+  sid: EntityId;
+  at: { x: number; y: number; z: number };
+  box: AlignBox;
+}
+
+/** Positionable selection → each entity's box on the work plane. Excludes flex-flow /
+ *  orphan UI nodes (setEntityWorldPos can't move them) and descendants of a selected
+ *  ancestor (already carried by their parent's move). */
+function collectBoxes(): AlignTarget[] {
   const ids = pruneDescendants([...useSelection.getState().selectedIds]).filter(
     (sid) => !isFlowUINode(sid) && !isOrphanUINode(sid),
   );
-  const out: Array<{ sid: EntityId; box: AlignBox }> = [];
+  const out: AlignTarget[] = [];
   for (const sid of ids) {
     const rt = SceneModel.runtimeFor(sid);
     if (rt == null) continue;
     const obb = ViewportController.entityBounds(rt) ?? ViewportController.uiEntityWorldOBB(rt);
-    if (!obb) continue;
-    const corners = entityBoxCorners(obb);
-    const xs = corners.map((c) => c.x);
-    const ys = corners.map((c) => c.y);
+    const at = rt != null ? ViewportController.getEntityWorldPos(rt) : null;
+    if (!obb || !at) continue;
+    const uv = entityBoxCorners(obb).map((c) => ViewportController.worldToPlanePoint(c));
+    const us = uv.map((p) => p.u);
+    const vs = uv.map((p) => p.v);
+    const origin = ViewportController.worldToPlanePoint({ x: obb.cx, y: obb.cy, z: obb.cz });
     out.push({
       sid,
-      box: { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys), cx: obb.cx, cy: obb.cy },
+      at,
+      box: {
+        minX: Math.min(...us), maxX: Math.max(...us),
+        minY: Math.min(...vs), maxY: Math.max(...vs),
+        cx: origin.u, cy: origin.v,
+      },
     });
   }
   return out;
 }
 
-function apply(boxes: Array<{ sid: EntityId; box: AlignBox }>, targets: Array<{ cx: number; cy: number }>, label: string): void {
+function apply(targets: AlignTarget[], moved: Array<{ cx: number; cy: number }>, label: string): void {
   SceneCommands.beginGesture(label);
   try {
-    boxes.forEach((b, i) => SceneCommands.setEntityWorldPos(b.sid, targets[i].cx, targets[i].cy));
+    targets.forEach((t, i) => {
+      const p = ViewportController.planePointToWorld(t.at, moved[i].cx, moved[i].cy);
+      SceneCommands.setEntityWorldPos(t.sid, p.x, p.y, p.z);
+    });
   } finally {
     SceneCommands.endGesture();
   }

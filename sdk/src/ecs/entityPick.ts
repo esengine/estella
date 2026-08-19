@@ -8,7 +8,7 @@
  * boxes. They asked it twice, and the two answers had drifted: one knew a mesh's
  * extent and the other boxed a model as a point.
  */
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
 import { Transform, Sprite } from './component';
@@ -34,9 +34,10 @@ export interface EntityPickOptions {
     /**
      * World half-size of the box given to entities that draw nothing — a camera,
      * a light, an empty. Zero (the default) leaves them unpickable, which is what
-     * a realm that draws no gizmo for them wants.
+     * a realm that draws no gizmo for them wants. A function when the icon's size
+     * is a screen size (see {@link EntityBoxOptions.iconHalf}).
      */
-    iconHalf?: number;
+    iconHalf?: number | ((at: Vec3) => number);
     /** Entities this realm refuses to select. Everything is selectable by default. */
     pickable?(entity: Entity): boolean;
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
@@ -57,7 +58,9 @@ export function pickEntitiesByRay(
     world: PickWorld, ray: WorldRay, opts: EntityPickOptions = {},
 ): Entity[] {
     const iconHalf = opts.iconHalf ?? 0;
-    const unlayered = iconHalf > 0 ? GIZMO_PICK_LAYER : 0;
+    // Whether icons are pickable at all, which is the question here — how big one is
+    // where it stands is entityWorldBox's.
+    const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const hits: PickCandidate<Entity>[] = [];
     for (const entity of world.getAllEntities()) {
         if (!world.valid(entity) || !world.has(entity, Transform)) continue;

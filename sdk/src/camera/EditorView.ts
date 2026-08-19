@@ -101,6 +101,26 @@ export function editorViewHalfExtent(
 }
 
 /**
+ * World units per screen pixel at @p at — what a thing drawn at a fixed number of
+ * pixels measures in the world where it stands. Orthographically the same
+ * everywhere; in perspective it grows with the distance along the view axis, which
+ * is the axis the projection divides by. Without @p at, the focus answers.
+ */
+export function editorViewWorldPerPixel(
+  view: EditorViewData, heightPx: number, at?: Vec3,
+): number {
+  const base = heightPx > 0 ? (2 * editorViewHalfHeight(view)) / heightPx : 0;
+  const standoff = editorViewStandoff(view);
+  if (!view.perspective || !at || standoff <= 0) return base;
+  const eye = editorViewEye(view);
+  const f = editorViewBasis(view).forward;
+  const along = (at.x - eye.x) * f.x + (at.y - eye.y) * f.y + (at.z - eye.z) * f.z;
+  // Behind the eye there is no size to report; the focus's own scale is the
+  // nearest honest answer and keeps a marker there clickable rather than infinite.
+  return along > 0 ? base * (along / standoff) : base;
+}
+
+/**
  * Zoom the view until it sees @p halfH world units of height, writing whichever
  * field this projection zooms with. The inverse of {@link editorViewHalfHeight},
  * so "frame this" and "how big is what I see" cannot disagree.
@@ -260,10 +280,11 @@ const PLANE_SEEN_MIN = 0.1;
 
 /**
  * The work-plane axis a screen direction names, with the sign pointing that way —
- * what an arrow key nudges along. `right` resolves first and `up` takes the plane's
- * other axis, so the pair is never one axis twice. Head-on: +X right, +Y up.
+ * what "right" and "up" mean for a gesture on that plane. `right` resolves first
+ * and `up` takes the plane's other axis, so the pair is never one axis twice.
+ * Head-on: +X right, +Y up.
  */
-export function screenNudgeAxes(
+export function screenWorkAxes(
   view: EditorViewData,
 ): { right: { axis: WorldAxis; sign: number }; up: { axis: WorldAxis; sign: number } } {
   const plane = editorViewWorkPlane(view);
