@@ -469,7 +469,16 @@ class ProjectStoreImpl {
     const { rel, text } = found;
     // The SDK's own upgrade rather than the editor's half of it: what a scene
     // becomes on load is what the editor has to show, and what a save writes back.
-    const { data: raw, retired } = migrateSceneData(JSON.parse(text) as SceneData);
+    // An upgrade that REFUSES a file is a thing to say about it, not a reason to
+    // open something else: the runtime rejects what it cannot mean, and a document
+    // tool has to show the document so a person can fix it.
+    let raw = JSON.parse(text) as SceneData;
+    let retired: string[] = [];
+    try {
+      ({ data: raw, retired } = migrateSceneData(raw));
+    } catch (e) {
+      console.error(`[project] "${rel}" could not be brought forward (${e}); opening it as written.`);
+    }
     if (retired.length > 0) {
       console.info(
         `[project] upgraded scene "${rel}": dropped retired engine component(s) ` +
@@ -2394,7 +2403,10 @@ class ProjectStoreImpl {
           useSelection.getState().select(returnSelection);
         }
         Toasts.push(t('proj.returnedScene', { name: back.split('/').pop() ?? back }), 'info', 1600);
-      } catch {
+      } catch (e) {
+        // Why matters: this hands back a BLANK document, and without the reason
+        // the next symptom is whatever the blank one does not have.
+        console.error(`[project] returning to "${back}" failed: ${e}`);
         await this.newScene();
         Toasts.push(t('proj.returnSceneGone', { name: back.split('/').pop() ?? back }), 'warn');
       }
