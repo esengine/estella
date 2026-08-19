@@ -331,16 +331,21 @@ jobs:
     # and the adapter asked for is Electron's own bundled SwiftShader, which is
     # what 85 scenes passed on locally, where the last run took mesa's lavapipe.
     #
-    # ONE scene, because the open question is whether the process comes up at all
-    # — the rest is 90 more of the same answer. continue-on-error while this is a
-    # question and not a guard: a step that has never been green cannot gate
-    # anyone's push, and its log is what a fourth attempt would start from. It
-    # comes off, and the scene list grows, once it is green twice in a row.
-    - name: Second backend, one scene (informational)
+    # That answered it: the process comes up once its own sandbox is off, and one
+    # scene drew. So the list is the PR tier now, which is the first time these
+    # gates run anywhere but a developer's machine — three of this month's bugs
+    # were visible only here (a shadow map upside down, a shader language asked
+    # for as the wrong one, a twin naming what it never declared).
+    #
+    # Still informational for one more run: sixty-four scenes on a software
+    # rasterizer is a different question from one, and a tolerance that only ever
+    # met this machine's GPU should say so without gating anyone. It comes off
+    # when the whole tier is green here.
+    - name: Second backend, PR tier (informational)
       continue-on-error: true
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
-      run: node tools/verify-render.mjs --only sprite-default --backend webgpu --no-build
+      run: node tools/verify-render.mjs --tier pr --backend webgpu --no-build
 
     - name: Run MCP end-to-end
       working-directory: desktop
