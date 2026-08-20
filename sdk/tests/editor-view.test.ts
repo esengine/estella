@@ -248,8 +248,25 @@ describe('the work plane', () => {
     expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 0, z: 1 });
   });
 
-  it('is the ground once the view is a 3D one', () => {
+  it('is the ground once the view is turned to look at a 3D scene', () => {
+    const p = editorViewWorkPlane(view({ perspective: true, pitch: 40 }));
+    expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 1, z: 0 });
+    expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
+  });
+
+  // A perspective eye that has not been turned yet looks ALONG the ground: that
+  // plane is a line on screen and offers nothing to work on, so the plane the eye
+  // most faces answers — which head-on is the 2D plane, exactly as it was.
+  it('is the 2D plane again while a perspective eye is held head-on', () => {
     const p = editorViewWorkPlane(view({ perspective: true }));
+    expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 0, z: 1 });
+    expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
+  });
+
+  // A top-down orthographic view is the same statement the other way round: the
+  // 2D plane is edge-on there, and the ground is what it is looking at.
+  it('is the ground from a top-down orthographic view', () => {
+    const p = editorViewWorkPlane(view({ pitch: 90 }));
     expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 1, z: 0 });
     expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
   });

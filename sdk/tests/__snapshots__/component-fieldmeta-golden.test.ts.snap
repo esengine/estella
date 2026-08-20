@@ -60,6 +60,12 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "fov": {
       "max": 179,
       "min": 1,
+      "shownWhen": {
+        "field": "projectionType",
+        "values": [
+          0,
+        ],
+      },
       "unit": "°",
     },
     "nearPlane": {
@@ -68,10 +74,22 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "orthoSize": {
       "min": 0,
+      "shownWhen": {
+        "field": "projectionType",
+        "values": [
+          1,
+        ],
+      },
       "tooltip": "Half the visible height in world units (Orthographic).",
     },
     "pixelPerfect": {
       "advanced": true,
+      "shownWhen": {
+        "field": "projectionType",
+        "values": [
+          1,
+        ],
+      },
       "tooltip": "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).",
     },
     "priority": {
@@ -162,15 +180,33 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
   },
   "Light2D": {
     "drawEnvironment": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          2,
+        ],
+      },
       "tooltip": "Draw this environment as the sky behind the scene.",
     },
     "environment": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          2,
+        ],
+      },
       "tooltip": "Baked environment (.esenv) this Ambient light casts.",
     },
     "innerAngle": {
       "advanced": true,
       "max": 180,
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          3,
+        ],
+      },
       "unit": "°",
     },
     "intensity": {
@@ -178,31 +214,85 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Brightness multiplier of the light.",
     },
     "meshShadows": {
-      "tooltip": "Cast a shadow map over 3D meshes (Directional).",
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "tooltip": "Cast a shadow map over 3D meshes (Directional, Spot, Point).",
     },
     "outerAngle": {
       "advanced": true,
       "max": 180,
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          3,
+        ],
+      },
       "unit": "°",
     },
     "radius": {
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          3,
+        ],
+      },
       "tooltip": "Falloff reach in world units (Point / Spot).",
     },
     "shadowDistance": {
       "advanced": true,
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          1,
+        ],
+      },
       "tooltip": "Directional shadow distance; 0 = no directional shadow.",
     },
     "shadowExtent": {
       "advanced": true,
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          1,
+        ],
+      },
       "tooltip": "Shadow map coverage radius; 0 = fit the view.",
     },
     "shadowSoftness": {
       "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
       "tooltip": "Shadow softness (light-source size); 0 = hard edge.",
+    },
+    "sourceAngle": {
+      "advanced": true,
+      "max": 90,
+      "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          1,
+        ],
+      },
+      "tooltip": "Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).",
+      "unit": "°",
     },
     "type": {
       "enum": [
@@ -328,22 +418,46 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "category": "Collision",
       "max": 1,
       "min": 0,
+      "shownWhen": {
+        "field": "collisionEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "collisionEnabled": {
       "category": "Collision",
     },
     "collisionFloor": {
       "category": "Collision",
+      "shownWhen": {
+        "field": "collisionEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "collisionFriction": {
       "category": "Collision",
       "max": 1,
       "min": 0,
+      "shownWhen": {
+        "field": "collisionEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "collisionLifetimeLoss": {
       "category": "Collision",
       "max": 1,
       "min": 0,
+      "shownWhen": {
+        "field": "collisionEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "colorEasing": {
       "category": "Color",
@@ -471,14 +585,33 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "shapeAngle": {
       "category": "Shape",
+      "shownWhen": {
+        "field": "shape",
+        "values": [
+          3,
+        ],
+      },
       "unit": "°",
     },
     "shapeRadius": {
       "category": "Shape",
       "min": 0,
+      "shownWhen": {
+        "field": "shape",
+        "values": [
+          1,
+          3,
+        ],
+      },
     },
     "shapeSize": {
       "category": "Shape",
+      "shownWhen": {
+        "field": "shape",
+        "values": [
+          2,
+        ],
+      },
     },
     "simulationSpace": {
       "category": "Rendering",
@@ -587,16 +720,34 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "trailMinDistance": {
       "category": "Trail",
       "min": 0,
+      "shownWhen": {
+        "field": "trailEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "trailPoints": {
       "category": "Trail",
       "max": 12,
       "min": 2,
+      "shownWhen": {
+        "field": "trailEnabled",
+        "values": [
+          1,
+        ],
+      },
       "step": 1,
     },
     "trailWidth": {
       "category": "Trail",
       "min": 0,
+      "shownWhen": {
+        "field": "trailEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
   },
   "ParticleForceField": {
@@ -727,6 +878,12 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
   "TilemapLayer": {
     "hexSideLength": {
       "min": 0,
+      "shownWhen": {
+        "field": "orientation",
+        "values": [
+          3,
+        ],
+      },
       "step": 1,
       "tooltip": "Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.",
     },
@@ -772,6 +929,13 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           "value": 1,
         },
       ],
+      "shownWhen": {
+        "field": "orientation",
+        "values": [
+          2,
+          3,
+        ],
+      },
       "tooltip": "Stagger axis (staggered/hex): Y shifts rows, X shifts columns.",
     },
     "staggerIndex": {
@@ -785,6 +949,13 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           "value": 1,
         },
       ],
+      "shownWhen": {
+        "field": "orientation",
+        "values": [
+          2,
+          3,
+        ],
+      },
       "tooltip": "Which lines carry the half-cell shift (staggered/hex).",
     },
     "tilesetColumns": {
