@@ -307,28 +307,34 @@ function buildEditorAutomation(): unknown {
      */
     setPlay: async (state: 'playing' | 'paused' | 'stopped') => {
       const now = () => PlayRealm.getSnapshot();
-      const settle = async (done: () => boolean) => {
+      // Says whether it GOT there, as `play` above does: told nothing, a caller
+      // probes a realm that is not there and waits out ITS timeout, which names
+      // whichever call drew the short straw rather than the boot that failed.
+      const settle = async (done: () => boolean): Promise<boolean> => {
         const deadline = Date.now() + 60_000;
         while (!done() && !now().error && Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 100));
         }
+        return done();
       };
+      const answer = (ok: boolean, missed: string) =>
+        (ok ? now() : { ...now(), note: `the realm did not ${missed} within 60s` });
       // Awaited like the other direction. Reading the state straight after the
       // toggle answered `playing: true` to someone who had just asked for it to
       // stop, which is a lie they then act on.
       if (state === 'stopped') {
         if (now().playing) useEditorStore.getState().togglePlay();
-        await settle(() => !now().playing);
-        return now();
+        return answer(await settle(() => !now().playing), 'stop');
       }
+      let up = true;
       if (!now().playing) {
         useEditorStore.getState().togglePlay();
-        await settle(() => now().playing && now().ready);
+        up = await settle(() => now().playing && now().ready);
       }
       // Paused LAST, so it applies to a realm that is up rather than to one
       // still booting, which would come up running.
       PlayRealm.setPaused(state === 'paused');
-      return now();
+      return answer(up, 'come up');
     },
     /**
      * How fast the running game's clock advances: 1 is normal, 0.25 quarter

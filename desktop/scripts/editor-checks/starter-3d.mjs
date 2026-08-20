@@ -38,8 +38,11 @@ export async function run(ed) {
   await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   await ed.sleep(800);
 
-  await ed.call('set_play', { state: 'play' }, 180000);
-  await ed.sleep(2500);
+  await ed.play('playing', 180000);
+  // Settled in FRAMES, not in wall-clock: the realm's loop is throttled while the
+  // editor window is unfocused, so what a sleep buys is a question about the
+  // machine rather than about the character.
+  await ed.call('step', { frames: 120, dt: 1 / 60 }, 60000);
 
   const at = async () => ed.json('play_probe', { code: PROBE }, 60000);
   const rest = await at();
@@ -90,6 +93,6 @@ export async function run(ed) {
     `walking left the character at y = ${moved.p.y.toFixed(1)} rather than on the ground at ${stand}`,
   );
 
-  await ed.call('set_play', { state: 'stop' }, 60000);
+  await ed.play('stopped', 60000);
   return check.failures;
 }

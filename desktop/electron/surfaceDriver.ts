@@ -16,7 +16,7 @@
  * else in main that wants to drive the editor calls the same object directly —
  * so an in-process caller and a remote MCP client cannot drift apart.
  */
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, WebFrameMain } from 'electron';
 import { scriptDiagnostics, lookupScriptSymbol, searchScriptSymbols, isScriptPath } from './scriptService';
 import { searchInRoot, writeInRoot } from './projectFs';
 
@@ -253,11 +253,27 @@ export function createSurfaceDriver(
     if (!root) throw new Error('no project open');
     return root;
   };
+  /**
+   * Wait out a load in progress — a call can arrive before the renderer booted.
+   *
+   * Polled, never event-awaited: isLoading() covers SUBFRAMES (the play realm is
+   * an iframe) where did-finish-load fires for the main frame alone, so awaiting
+   * the event parks forever. Bounded: executeJavaScript's own error beats silence.
+   */
+  const settleLoad = async (win: BrowserWindow): Promise<void> => {
+    for (let waited = 0; win.webContents.isLoading() && waited < 10_000; waited += 50) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
+
   /** The play realm's frame. It is an estella:// OOPIF, so a main-process eval
    *  is the only thing that reaches it; `frame` picks one in a multiplayer
-   *  preview (0 = the host). */
-  const playFrame = (input: Record<string, unknown>) => {
-    const frames = requireWin().webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
+   *  preview (0 = the host). Awaited: a realm still loading is one the frame list
+   *  already carries and no eval into it would return from. */
+  const playFrame = async (input: Record<string, unknown>): Promise<WebFrameMain> => {
+    const win = requireWin();
+    await settleLoad(win);
+    const frames = win.webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
     const at = Number(input.frame ?? 0);
     const frame = frames[at];
     if (!frame) {
@@ -266,19 +282,13 @@ export function createSurfaceDriver(
     return frame;
   };
 
+  /** Run code in the play realm, once the realm is a thing that can run it. */
+  const playExec = async (input: Record<string, unknown>, code: string): Promise<unknown> =>
+    unwrap(await (await playFrame(input)).executeJavaScript(code));
+
   const exec = async (code: string): Promise<unknown> => {
     const win = requireWin();
-    // A call can arrive before the renderer finished booting (the endpoint comes
-    // up with the window) — wait out the initial load instead of failing it.
-    // Polled, never event-awaited: isLoading() covers SUBFRAMES (the play realm
-    // prewarms in an iframe seconds after a project opens), but did-finish-load
-    // fires only for the main frame — a call that awaited the event during a
-    // subframe load parked forever, timing out whichever automation call drew
-    // the short straw. Bounded: a page that never settles still gets the call,
-    // and executeJavaScript's own error is a better answer than silence.
-    for (let waited = 0; win.webContents.isLoading() && waited < 10_000; waited += 50) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    await settleLoad(win);
     return unwrap(await win.webContents.executeJavaScript(carryError(code), true));
   };
 
@@ -305,11 +315,8 @@ export function createSurfaceDriver(
         }
         return cropToGame(image, rect).toPNG().toString('base64');
       }
-      case 'play_probe': {
-        return unwrap(await playFrame(input).executeJavaScript(
-          carryError(String(input.code ?? 'true'), PROBE_SCOPE),
-        ));
-      }
+      case 'play_probe':
+        return playExec(input, carryError(String(input.code ?? 'true'), PROBE_SCOPE));
       // The NAMED reads. Same realm, but the expression is OURS — no arbitrary
       // code, nothing to confirm. `kind` is a closed set, so a caller reaches
       // only what the realm published.
@@ -319,15 +326,14 @@ export function createSurfaceDriver(
           throw new Error(`no play query "${kind}" (it answers: ${[...PLAY_QUERIES].join(', ')})`);
         }
         const arg = JSON.stringify(input.arg ?? null);
-        return unwrap(await playFrame(input).executeJavaScript(
-          carryError(`window.__estellaPlay.${kind}(...(${arg} === null ? [] : [${arg}]))`, PROBE_SCOPE),
+        return playExec(input, carryError(
+          `window.__estellaPlay.${kind}(...(${arg} === null ? [] : [${arg}]))`, PROBE_SCOPE,
         ));
       }
       case 'play_input': {
         // Same realm as play_probe, and like play_query the code is OURS — a
         // caller cannot mistype the facade and get silence. Everything routes
         // through `__estellaPlay.input`, the platform binding's own callbacks.
-        const frame = playFrame(input);
         const { kind } = input as { kind?: string };
         const x = Number(input.x ?? 0), y = Number(input.y ?? 0);
         const button = Number(input.button ?? 0);
@@ -355,9 +361,9 @@ export function createSurfaceDriver(
         // Clicking a NAMED element answers with where it went, so it is not one
         // of the fire-and-forget spellings above.
         if (kind === 'ui') {
-          return unwrap(await frame.executeJavaScript(carryError(
+          return playExec(input, carryError(
             `window.__estellaPlay.clickUi(${JSON.stringify(String(input.target ?? ''))})`,
-          )));
+          ));
         }
         if (!call) {
           throw new Error(
@@ -365,7 +371,7 @@ export function createSurfaceDriver(
             + 'key_down, key_up, tap, gamepad, gamepad_release, ui',
           );
         }
-        return unwrap(await frame.executeJavaScript(carryError(
+        return playExec(input, carryError(
           `(async () => { const p = window.__estellaPlay; if (!p || !p.input) `
           + `throw new Error('this play realm publishes no input door — it predates play_input'); `
           + `const i = p.input; const f = (n) => (p.step ? p.step(n) : undefined); await f(1); `
@@ -373,7 +379,7 @@ export function createSurfaceDriver(
           // realm older than the one that started answering, keep 'ok'.
           + `const r = await (async () => { ${call} })(); `
           + `return r === undefined ? 'ok' : r; })()`,
-        )));
+        ));
       }
       // — What the TypeScript compiler knows. Main-process because the language
       //   service lives here (scriptService.ts), reading the project off disk. —

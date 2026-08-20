@@ -270,6 +270,24 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Entering play answers whether the realm came up.** `set_play` resolves both when the
+  realm settles and when it gives up waiting for it, and the two answers were the same
+  object — so a caller told nothing went on to probe a realm that was not there and waited
+  out its OWN timeout instead. What CI then reported was `timeout tools/call play_probe`:
+  a boot that never happened, named as whichever call drew the short straw. The door says
+  which of the two it is now, and the driver every editor check goes through asks before
+  it probes, so a realm that never came up fails by name.
+
+  Four checks had each grown a poll of their own against exactly this, with a different
+  bound each; they share the driver's now. `starter-3d`, the one that had none, was the
+  one that lost the run. It also settles the character in FRAMES rather than in seconds
+  of wall-clock — the realm's loop is throttled while the editor window is unfocused, so
+  what a sleep buys is a fact about the machine.
+
+  Evals into the play realm wait out a load in progress the way evals into the editor
+  window already did. It is one helper now rather than a guard on one door and none on
+  the door beside it.
+
 - **The 3D starter is a complete project again.** A manifest that names no `scripts`
   entry gets the defaults, and one of those is `src/components.ts` — the module the
   editor imports on its own to read a project's component schemas. The 3D starter shipped

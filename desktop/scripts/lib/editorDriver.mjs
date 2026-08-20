@@ -197,6 +197,27 @@ export async function withEditor(body, opts = {}) {
       if (scene) await call('open_scene', { path: scene }, 120000);
       await sleep(2000);
     },
+    /**
+     * Enter (or leave) play and answer with the state the realm REACHED.
+     *
+     * `set_play` resolves when the realm settles AND when it gives up on it, and
+     * those read alike from outside: a check that takes the second for the first
+     * probes a realm that is not there. Here a realm that never came up fails by name.
+     */
+    play: async (state = 'playing', ms = 120000) => {
+      const up = (s) => (state === 'stopped' ? s?.playing === false : s?.ready === true);
+      const reached = await editor.json('set_play', { state }, ms);
+      let last = reached;
+      for (let i = 0; i < 40 && !up(last); i++) {
+        await sleep(500);
+        last = await editor.json('get_play_state', {});
+      }
+      if (!up(last)) {
+        throw new Error(`the play realm never reported ${state === 'stopped' ? 'stopped' : 'ready'}`
+          + ` — set_play answered ${JSON.stringify(reached)}`);
+      }
+      return last;
+    },
   };
 
   try {

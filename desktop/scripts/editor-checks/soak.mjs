@@ -59,22 +59,16 @@ export async function run(ed) {
 
   const samples = [];
   for (let cycle = 0; cycle < CYCLES; cycle++) {
-    await ed.call('set_play', { state: 'playing' }, 120000);
-    let ready = false;
-    for (let i = 0; i < 40 && !ready; i++) {
-      ready = (await ed.json('get_play_state', {}))?.ready === true;
-      if (!ready) await ed.sleep(250);
+    // Which cycle it was is the whole point here — a realm that comes up nine
+    // times and not the tenth is the leak this check exists to catch.
+    try {
+      await ed.play();
+      await ed.call('step', { frames: 10, dt: 1 / 60 }, 60000);
+      await ed.play('stopped');
+    } catch (err) {
+      check(false, `cycle ${cycle}: ${err.message}`);
+      return check.failures;
     }
-    if (!check(ready, `cycle ${cycle}: the play realm never reported ready`)) return check.failures;
-    await ed.call('step', { frames: 10, dt: 1 / 60 }, 60000);
-
-    await ed.call('set_play', { state: 'stopped' }, 120000);
-    let stopped = false;
-    for (let i = 0; i < 40 && !stopped; i++) {
-      stopped = (await ed.json('get_play_state', {}))?.playing === false;
-      if (!stopped) await ed.sleep(250);
-    }
-    if (!check(stopped, `cycle ${cycle}: play never stopped`)) return check.failures;
 
     // A rescan every cycle: the path that releases a GL texture before uploading
     // its replacement. Whether it re-uploaded is not assumed — render.gl.textures

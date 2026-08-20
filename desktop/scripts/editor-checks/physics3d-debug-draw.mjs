@@ -84,14 +84,7 @@ export async function run(ed) {
   const check = checker();
 
   await ed.open(root, 'assets/scenes/main.esscene');
-  await ed.call('set_play', { state: 'playing' }, 120000);
-
-  let ready = false;
-  for (let i = 0; i < 40 && !ready; i++) {
-    ready = (await ed.json('get_play_state', {}))?.ready === true;
-    if (!ready) await ed.sleep(500);
-  }
-  if (!check(ready, 'the play realm never reported ready')) return check.failures;
+  await ed.play();
 
   await ed.call('play_probe', { code: 'await step(3); return true;' }, 60000);
   await ed.sleep(600);
