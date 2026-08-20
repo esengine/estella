@@ -107,6 +107,17 @@ published separately; it ships inside the editor.
   carries depth) and linear with layer 1 (capture built with depth) both drew red;
   linear with no layer drew green.
 
+- **A pixel gate's verdict depended on the developer's monitor scaling.** The
+  headless render host never attaches its canvas to a document, so
+  `getBoundingClientRect()` is all zeros and `clientToScreen` reduces to
+  `client * devicePixelRatio` — the machine's own display scale. At Windows' 150%
+  every `ESTELLA_VERIFY_PICK` therefore hit-tested a point 1.5x away from the one
+  it named and answered null: `mesh-assign` and `view-orbit` were red on one
+  machine and green on another, about nothing either of them is testing. The host
+  forces `device-scale-factor` to 1 for the same reason it already forces the
+  colour profile to sRGB — a gate may not read the display it happens to run on.
+  The pr tier is 69/69 on WebGL2 and 68/68 on WebGPU with this.
+
 - **The last gate still asserting the old work-plane rule.** `editor-grid-edge-on`
   held that a head-on perspective eye works a plane it lies IN, so the grid has no
   picture at all. "The view works on a plane it can see" replaced that rule — a
