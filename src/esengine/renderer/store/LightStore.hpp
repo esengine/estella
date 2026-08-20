@@ -69,16 +69,26 @@ public:
         dirty_ = true;
     }
 
-    /// Hands over the shadow map a frame rendered: one world -> clip matrix per
-    /// cascade, the bias each needs, and the params whose x is the master switch.
-    /// Zeroed `params` when no light cast one, so no matrix outlives its map.
-    void setShadow(const glm::mat4* matrices, u32 count, const glm::vec4& params,
-                   const glm::vec4& bias) {
-        for (u32 i = 0; i < MAX_SHADOW_CASCADES; ++i) {
+    /// Hands over the shadow tiles a frame rendered: per tile a world -> clip matrix
+    /// and the atlas rect it was drawn into (bias in w), plus the params whose x is
+    /// the master switch. Zeroed when nothing cast, so no matrix outlives its map.
+    void setShadowTiles(const glm::mat4* matrices, const glm::vec4* tiles, u32 count,
+                        const glm::vec4& params) {
+        for (u32 i = 0; i < MAX_SHADOW_TILES; ++i) {
             data_.shadowMatrix[i] = i < count ? matrices[i] : glm::mat4(1.0f);
+            data_.shadowTile[i] = i < count ? tiles[i] : glm::vec4(0.0f);
         }
         data_.shadowParams = params;
-        data_.shadowBias = bias;
+        dirty_ = true;
+    }
+
+    /// Names the atlas tiles light @p slot casts into. What lets a fragment read the
+    /// right map once more than one light has rendered one; a slot nobody names keeps
+    /// the zeroed count, which is a light with no map.
+    void setLightShadowTiles(u32 slot, u32 first, u32 tiles) {
+        if (slot >= count_) return;
+        data_.lights[slot].shadowMap = glm::vec4(static_cast<f32>(first),
+                                                 static_cast<f32>(tiles), 0.0f, 0.0f);
         dirty_ = true;
     }
 

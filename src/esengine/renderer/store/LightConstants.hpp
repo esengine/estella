@@ -53,16 +53,22 @@ inline constexpr u32 MAX_LIGHTS_2D = 16;
 inline constexpr u32 MAX_OCCLUDERS_2D = 8;
 
 /**
- * @brief Cascades one directional shadow map is split into, laid out 2x2 in one
- *        atlas texture (the RHI has no array textures, the same reason the
- *        environment reflection is an atlas). Each covers a slice of the view,
- *        so the near one spends its texels on what is near instead of on the
- *        whole scene. Must match `u_shadowMatrix[..]` in the injected shaders.
+ * @brief Slices one directional shadow map is split into, each covering a stretch
+ *        of the view — so the near one spends its texels on what is near instead
+ *        of on the whole scene. Where they LAND is the atlas's answer, not this
+ *        number's: a cascade claims a tile like anything else that casts.
  */
 inline constexpr u32 MAX_SHADOW_CASCADES = 4;
 
 /**
- * @brief One 2D light, std140-packed (four vec4s, 64 bytes, 16-aligned).
+ * @brief Max shadow tiles one frame's atlas hands out — the shader's array bound.
+ * @details Not the same number as the cascades above: a cascade is one reason to want
+ *          a tile and a spot light is another, and the atlas does not care which asked.
+ */
+inline constexpr u32 MAX_SHADOW_TILES = 8;
+
+/**
+ * @brief One 2D light, std140-packed (five vec4s, 80 bytes, 16-aligned).
  * @details posDir: xy = world position (point/spot) or aim direction (directional); z = type
  *          (0 = point, 1 = directional, 2 = spot); w = falloff radius in world units for
  *          point/spot, and the aim's third component for directional — the two never share
@@ -71,6 +77,7 @@ inline constexpr u32 MAX_SHADOW_CASCADES = 4;
  *          spot: xy = normalized cone axis, z = cos(innerHalfAngle), w = cos(outerHalfAngle)
  *          (spot only; zero for other types). Ambient lights are folded into
  *          LightConstants::ambient instead of occupying a slot.
+ *          shadowMap: x = first atlas tile, y = tile count (0 = casts no map).
  *          shadow: x = penumbra softness (light-source half-extent in world units; 0 = hard,
  *          backward-compatible); y = directional shadow march distance (world units; 0 = a
  *          directional light casts no shadow); z = a point/spot light's world height, which
@@ -82,13 +89,16 @@ struct GpuLight2D {
     glm::vec4 color{0.0f};
     glm::vec4 spot{0.0f};
     glm::vec4 shadow{0.0f};
+    /// x = this light's first tile in the shadow atlas, y = how many it owns; zw unused.
+    /// y = 0 is a light with no map, which is every light that did not ask for one.
+    glm::vec4 shadowMap{0.0f};
 };
 
 /**
  * @brief CPU mirror of the GLSL LightConstants block (std140).
  * @details ambient: rgb = summed ambient color, a = active light count (informational).
- *          std140 array-of-struct stride is 64 (each GpuLight2D is four 16-aligned vec4s), so
- *          lights start at offset 16 and the lights array spans 64*MAX_LIGHTS_2D bytes.
+ *          std140 array-of-struct stride is 80 (each GpuLight2D is five 16-aligned vec4s), so
+ *          lights start at offset 16 and the lights array spans 80*MAX_LIGHTS_2D bytes.
  */
 struct LightConstants {
     glm::vec4 ambient{0.0f};
@@ -100,18 +110,16 @@ struct LightConstants {
     /// fragment→light segment (or, for directional, the fragment→far-along-light-dir segment)
     /// crosses any box.
     glm::vec4 occluders[MAX_OCCLUDERS_2D];
-    /// World -> each cascade's clip space, for the one directional light casting a
-    /// map. Identity where a cascade is unused; `shadowParams.x` says whether any
-    /// may be read and `shadowParams.y` how many.
-    glm::mat4 shadowMatrix[MAX_SHADOW_CASCADES];
-    /// x = 1 when a shadow map was rendered this frame — the master switch, so w's
-    /// zeroed default cannot darken slot 0 before one exists; y = how many cascades
-    /// carry one; z = one texel of the atlas; w = the light slot that cast it.
+    /// World -> tile i's clip space. Identity where a tile is unclaimed; which tiles
+    /// a light may read are the ones its own `shadowMap` names.
+    glm::mat4 shadowMatrix[MAX_SHADOW_TILES];
+    /// Where tile i sits: xy = its low corner as a fraction of the atlas, z = its side
+    /// as one, w = its depth bias. DATA and not an expression the shader recomputes, so
+    /// tiles need not all be one size; the bias derives from what that one covers.
+    glm::vec4 shadowTile[MAX_SHADOW_TILES];
+    /// x = 1 when the atlas holds a map this frame — the master switch, so a zeroed
+    /// tile record cannot darken anything before one exists; y = one texel of the atlas.
     glm::vec4 shadowParams{0.0f};
-    /// Depth bias per cascade, in the map's own [0,1] units, xyzw = cascade 0..3.
-    /// Per cascade because one covers less world in the same texels than the next:
-    /// a bias that stops the near one shadowing itself lets the far one detach.
-    glm::vec4 shadowBias{0.0f};
     /// The frame environment's nine irradiance coefficients, rgb in xyz. Zero when
     /// no light carries one, which makes the flat `ambient` term the order-zero case
     /// of one expression rather than a second path. vec4: std140 pads vec3 anyway.
@@ -125,9 +133,10 @@ struct LightConstants {
     glm::vec4 envTint{0.0f};
 };
 
-static_assert(sizeof(GpuLight2D) == 64, "GpuLight2D must be std140-tight (four vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 64 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D
-                                        + 64 * MAX_SHADOW_CASCADES + 16 + 16 + 16 * 9 + 16 + 16,
+static_assert(sizeof(GpuLight2D) == 80, "GpuLight2D must be std140-tight (five vec4s)");
+static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D
+                                        + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
+                                        + 16 + 16 * 9 + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

@@ -16,6 +16,34 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A shadow map lands where the atlas says, and a light reads its own.** Two facts
+  were spelled as literals, and between them they made "one light casts" a property
+  of the code rather than a decision. Where a cascade sits was
+  `vec2(i % 2, i / 2) * 0.5` in one shader and its mirror image in the other — four
+  quadrants, so four maps, so one light with four cascades and nothing else. Which
+  light reads them was `float(i) == u_shadowParams.w`: a single slot number, so the
+  other fifteen could not have a map even if the atlas had room.
+
+  `ShadowAtlas` is where a square comes from now — a grid of cells handed out as
+  aligned blocks, all-or-nothing, so a caller never gets half a cascade set and
+  leaves the rest reading depths belonging to someone else. A tile's rect leaves it
+  as DATA the shader indexes (`shadowTile[i]` = origin, side, bias) rather than an
+  expression the shader recomputes, which is what makes tiles of different sizes
+  cost the shader nothing: what it reads is an origin and a side either way. And a
+  light carries its own tile range (`GpuLight2D::shadowMap`), so "which map is mine"
+  is a question each light answers instead of a slot number only one can hold.
+
+  Nothing renders differently. The allocator reproduces the old quadrant order
+  exactly — its first four claims are the same four squares in the same order — and
+  the whole pr tier is unmoved on both backends.
+
+  It is pinned by a C++ test rather than a scene, because **no pixel gate can see
+  it**: with `unitRect` sabotaged to report tile 0 for every tile, all 69 scenes
+  still pass. A scene whose fragments resolve in one cascade draws the same picture
+  whichever tile the other three sample, and `mesh-shadow-cascade` — the only
+  multi-cascade gate there is — turns out to be such a scene. That hole predates
+  this change: the expression it replaces was never verified either.
+
 - **A device is asked what its clip volume is, instead of being assumed to be GL.**
   Every projection in the engine is built for clip z in `[-1, 1]` and was handed to
   both backends unchanged. WebGPU keeps `[0, 1]` and discards the rest, so an

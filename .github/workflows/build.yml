@@ -29,7 +29,7 @@ env:
     test_registry_ondestroy test_view_api_matrix
     test_shader_device test_draw_params test_texture_fb test_buffer_device
     test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
-    test_clip_depth
+    test_clip_depth test_shadow_atlas
     test_text_edit test_render_graph test_device_loss test_physics_interpolation
 
 jobs:

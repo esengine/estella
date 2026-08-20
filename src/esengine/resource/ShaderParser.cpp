@@ -725,15 +725,15 @@ fn linearToSrgb(c : vec3f) -> vec3f {
 }
 )";
 
-const char* kLit2DHeaderWGSL = R"(struct Light2D { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f };
+const char* kLit2DHeaderWGSL = R"(struct Light2D { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f };
 struct LightConstants {
     u_ambient : vec4f,
     u_lights : array<Light2D, 16>,
     u_occluderCount : vec4f,
     u_occluders : array<vec4f, 8>,
-    u_shadowMatrix : array<mat4x4f, 4>,
+    u_shadowMatrix : array<mat4x4f, 8>,
+    u_shadowTile : array<vec4f, 8>,
     u_shadowParams : vec4f,
-    u_shadowBias : vec4f,
     u_envIrradiance : array<vec4f, 9>,
     u_envParams : vec4f,
     u_envTint : vec4f,
@@ -746,40 +746,32 @@ fn packDepth(d : f32) -> vec3f {
 fn unpackDepth(c : vec3f) -> f32 {
     return dot(c, vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
 }
-// The ONE place the two backends must not agree. Both WRITE the same quadrant (a rect
-// arrives in GL's terms and is flipped there), but v = 0 samples a texture's bottom in
-// GL and its top here: this turns the atlas over, cascadeUV the square inside it.
-fn cascadeOrigin(index : i32) -> vec2f {
-    return vec2f(f32(index % 2), 1.0 - f32(index / 2)) * 0.5;
-}
-fn cascadeUV(uv : vec2f) -> vec2f {
-    return vec2f(uv.x, 1.0 - uv.y) * 0.5;
-}
-fn shadowFactor3D(worldPos : vec3f) -> f32 {
+fn shadowFactor3D(worldPos : vec3f, first : i32, count : i32) -> f32 {
 #ifndef ES_RECEIVE_SHADOW
     return 1.0;
 #else
     if (lc.u_shadowParams.x < 0.5) { return 1.0; }
-    let count = i32(lc.u_shadowParams.y);
-    // Copied out of the uniform first: a vector in that address space cannot be
-    // indexed by a value the shader computes, and what comes back is a pipeline
-    // that will not build with nothing in the log about a shader.
-    var bias = lc.u_shadowBias;
-    // Nearest cascade first: they overlap, and the first one covering a fragment
-    // is the one that spends the most texels on it.
-    for (var c = 0; c < 4; c++) {
-        if (c >= count) { break; }
-        let lcp = lc.u_shadowMatrix[c] * vec4f(worldPos, 1.0);
+    // Nearest tile first: a light's tiles overlap, and the first one covering a
+    // fragment is the one that spends the most texels on it.
+    for (var k = 0; k < 8; k++) {
+        if (k >= count) { break; }
+        let t = first + k;
+        let lcp = lc.u_shadowMatrix[t] * vec4f(worldPos, 1.0);
         let proj = lcp.xyz / lcp.w;
         let uv = proj.xy * 0.5 + 0.5;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { continue; }
-        let here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - bias[c];
-        let base = cascadeOrigin(c);
+        let rect = lc.u_shadowTile[t];
+        let here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - rect.w;
+        // The ONE place the two backends must not agree: v = 0 samples a texture's
+        // bottom in GL and its top here, and the rect arrives with its low corner in
+        // GL's terms — so the tile and the square inside it are both turned over.
+        let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
         var lit = 0.0;
         for (var y = 0; y < 2; y++) {
             for (var x = 0; x < 2; x++) {
-                let o = (vec2f(f32(x), f32(y)) - 0.5) * lc.u_shadowParams.z;
-                let d = unpackDepth(textureSampleLevel(t2, s2, base + cascadeUV(uv) + o, 0.0).rgb);
+                let o = (vec2f(f32(x), f32(y)) - 0.5) * lc.u_shadowParams.y;
+                let at = base + vec2f(uv.x, 1.0 - uv.y) * rect.z + o;
+                let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
                 if (d >= here) { lit += 1.0; }
             }
         }
@@ -985,8 +977,9 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         if (castShadow && col.a > 0.0 && atten > 0.0) {
             atten *= shadowFactor2D(worldPos.xy, aim, sh.x);
         }
-        if (f32(i) == lc.u_shadowParams.w && atten > 0.0) {
-            atten *= shadowFactor3D(worldPos);
+        let sm = lc.u_lights[i].shadowMap;
+        if (sm.y > 0.0 && atten > 0.0) {
+            atten *= shadowFactor3D(worldPos, i32(sm.x), i32(sm.y));
         }
         let ndotl = max(dot(N, L), 0.0);
         let radiance = col.rgb * (col.a * ndotl * atten);
@@ -1299,15 +1292,16 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // GpuLight2D = four vec4s).
     if (stage == ShaderStage::Fragment && parsed.domain == "Lit2D") {
         static const char* kLit2DHeader =
-            "struct Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow; };\n"
+            "struct Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow;"
+            " highp vec4 shadowMap; };\n"
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    Light2D u_lights[16];\n"
             "    highp vec4 u_occluderCount;\n"   // x = active occluder count
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
-            "    highp mat4 u_shadowMatrix[4];\n"  // world -> each cascade's clip
-            "    highp vec4 u_shadowParams;\n"    // x = has map, y = cascades, z = texel
-            "    highp vec4 u_shadowBias;\n"      // per-cascade depth bias
+            "    highp mat4 u_shadowMatrix[8];\n"  // world -> each atlas tile's clip
+            "    highp vec4 u_shadowTile[8];\n"   // xy = origin, z = side, w = bias
+            "    highp vec4 u_shadowParams;\n"    // x = has map, y = one atlas texel
             "    highp vec4 u_envIrradiance[9];\n"  // SH9, rgb in xyz; zero = no environment
             "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
             "    highp vec4 u_envTint;\n"         // the ambient light's colour, scaling both halves
@@ -1334,38 +1328,31 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Visibility of a world point from the light that rendered the map. Depth is
             // written and compared through the SAME matrix and expression, so the two
             // backends' clip-z conventions cancel. 2x2 taps: one is a staircase.
-            // Where a cascade's [0,1] square sits in the 2x2 atlas: 0 lower-left,
-            // 1 lower-right, 2 upper-left, 3 upper-right. One expression, so both
-            // backends land on one texel.
-            "highp vec2 cascadeOrigin(in int index) {\n"
-            "    return vec2(float(index - (index / 2) * 2), float(index / 2)) * 0.5;\n"
-            "}\n"
-            "highp vec2 cascadeUV(in highp vec2 uv) {\n"
-            "    return uv * 0.5;\n"
-            "}\n"
-            "highp float shadowFactor3D(in highp vec3 worldPos) {\n"
+            "highp float shadowFactor3D(in highp vec3 worldPos, in int first, in int count) {\n"
             "#ifndef ES_RECEIVE_SHADOW\n"
             "    return 1.0;\n"
             "#else\n"
             "    if (u_shadowParams.x < 0.5) return 1.0;\n"
-            "    int count = int(u_shadowParams.y);\n"
-            // Nearest cascade first: they overlap, and the first one covering a
-            // fragment is the one that spends the most texels on it.
-            "    for (int c = 0; c < 4; ++c) {\n"
-            "        if (c >= count) break;\n"
-            "        highp vec4 lc = u_shadowMatrix[c] * vec4(worldPos, 1.0);\n"
+            // Nearest tile first: a light's tiles overlap, and the first one covering
+            // a fragment is the one that spends the most texels on it.
+            "    for (int k = 0; k < 8; ++k) {\n"
+            "        if (k >= count) break;\n"
+            "        int t = first + k;\n"
+            "        highp vec4 lc = u_shadowMatrix[t] * vec4(worldPos, 1.0);\n"
             "        highp vec3 proj = lc.xyz / lc.w;\n"
             "        highp vec2 uv = proj.xy * 0.5 + 0.5;\n"
-            // Outside every cascade is lit: a map covers what the camera can see,
-            // and darkening everything beyond it would be a visible square of night.
+            // Outside every tile is lit: a map covers what the camera can see, and
+            // darkening everything beyond it would be a visible square of night.
             "        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) continue;\n"
-            "        highp float here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - u_shadowBias[c];\n"
-            "        highp vec2 base = cascadeOrigin(c);\n"
+            // The tile's rect is data, so a tile need not be the same size as its
+            // neighbour and this expression does not care which one it is reading.
+            "        highp vec4 rect = u_shadowTile[t];\n"
+            "        highp float here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - rect.w;\n"
             "        highp float lit = 0.0;\n"
             "        for (int y = 0; y < 2; ++y) {\n"
             "            for (int x = 0; x < 2; ++x) {\n"
-            "                highp vec2 o = (vec2(float(x), float(y)) - 0.5) * u_shadowParams.z;\n"
-            "                highp vec2 at = base + cascadeUV(uv) + o;\n"
+            "                highp vec2 o = (vec2(float(x), float(y)) - 0.5) * u_shadowParams.y;\n"
+            "                highp vec2 at = rect.xy + uv * rect.z + o;\n"
             "                lit += unpackDepth(texture(u_shadowMap, at).rgb) < here ? 0.0 : 1.0;\n"
             "            }\n"
             "        }\n"
@@ -1624,10 +1611,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
             "            atten *= shadowFactor2D(worldPos.xy, target, sh.x);\n"
             "        }\n"
-            // One map, one light: params.w names the slot that rendered it, so the
-            // other fifteen are not darkened by someone else's occluders.
-            "        if (float(i) == u_shadowParams.w && atten > 0.0) {\n"
-            "            atten *= shadowFactor3D(worldPos);\n"
+            // The tiles this light rendered into, which are its own: a fragment
+            // tested against every map in the atlas would be darkened by geometry
+            // seen from somewhere no light reaching it is standing.
+            "        highp vec4 sm = u_lights[i].shadowMap;\n"
+            "        if (sm.y > 0.0 && atten > 0.0) {\n"
+            "            atten *= shadowFactor3D(worldPos, int(sm.x), int(sm.y));\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"

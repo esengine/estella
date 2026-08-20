@@ -7,6 +7,7 @@
 #include "../rhi/RenderTarget.hpp"
 #include "./RenderContext.hpp"
 #include "../store/LightConstants.hpp"
+#include "../store/ShadowAtlas.hpp"
 #include "../RenderTypePlugin.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "./PostProcessPipeline.hpp"
@@ -29,6 +30,16 @@
 namespace esengine {
 
 namespace ecs { struct Light2D; }
+
+/// The one shadow texture every map a frame renders shares. One size for every
+/// scene: coverage adapts to the camera instead, so texel density is a property of
+/// how far a light was asked to reach rather than of a knob nobody can calibrate.
+inline constexpr u32 kShadowAtlasSize = 2048;
+/// The unit the atlas is handed out in. A cascade takes a 2x2 block of them; the
+/// texel snap and the depth bias are derived from the tile that comes back, not
+/// from this, so a smaller tile is a smaller answer rather than a wrong one.
+inline constexpr u32 kShadowCellSize = 512;
+inline constexpr u32 kShadowCascadeCells = 2;
 
 struct Plane {
     glm::vec3 normal;
@@ -362,6 +373,9 @@ private:
     glm::vec3 shadow_light_dir_{0.0f, 0.0f, -1.0f};
     f32 shadow_light_extent_ = 0.0f;
     RenderTargetManager::Handle shadow_rt_ = 0;
+    /// Who owns which square of it. Rebuilt every frame: a tile means nothing once
+    /// the depths in it belong to a frame that is gone.
+    ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
     u32 shadow_texture_id_ = 0;
     /// The frame environment's reflection atlas, on the same terms. 0 = none this frame.

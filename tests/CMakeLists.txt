@@ -91,6 +91,16 @@ target_include_directories(test_clip_depth PRIVATE
 )
 add_test(NAME test_clip_depth COMMAND test_clip_depth)
 
+# Shadow atlas allocation. Header-only, and deliberately here rather than in a
+# pixel gate: a scene whose fragments resolve in one cascade draws the same
+# picture whichever tile the others sample.
+add_executable(test_shadow_atlas renderer/test_shadow_atlas.cpp)
+target_include_directories(test_shadow_atlas PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_shadow_atlas COMMAND test_shadow_atlas)
+
 # Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
 # directly — no GL/engine link — and checks #pragma feature parsing + #define injection.
 add_executable(test_shader_variant

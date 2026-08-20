@@ -806,17 +806,9 @@ bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3&
     return true;
 }
 
-/// Side length of ONE cascade. One size for every scene: the coverage adapts to the
-/// camera instead, so the texel density a scene gets is a property of how far it asked
-/// the light to reach rather than of a knob nobody can calibrate.
-static constexpr u32 kShadowMapSize = 1024;
-
-/// The atlas holding them, 2x2. The RHI has no array textures — the same reason the
-/// environment reflection is an atlas — so a cascade is a quadrant of one texture.
-static constexpr u32 kShadowAtlasSize = kShadowMapSize * 2;
-
-/// Depth bias in the map's own [0,1] units. Large enough for a 1024 map over a
-/// camera-sized area to stop shadowing itself, small enough not to detach contact.
+/// Depth bias in the map's own [0,1] units, before the tile it lands in scales it.
+/// Large enough for a 1024 tile over a camera-sized area to stop shadowing itself,
+/// small enough not to detach contact.
 static constexpr f32 kShadowBias = 0.0015f;
 
 /// The world box every GPU-resident mesh occupies, or false when none does — what
@@ -870,9 +862,10 @@ static f32 splitFraction(u32 i, u32 count, f32 nearDist, f32 farDist) {
 
 void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
-    // Zeroed params first: a matrix that outlived its map would shadow the scene
-    // against geometry from a frame that no longer exists.
-    context_.lights().setShadow(nullptr, 0, glm::vec4(0.0f), glm::vec4(0.0f));
+    // Zeroed first, and the atlas given back: a tile that outlived its map would
+    // shadow the scene against geometry from a frame that no longer exists.
+    shadow_atlas_.reset();
+    context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
     if (!in_frame_ || shadow_light_slot_ < 0 || !device_.isDeviceUsable()) return;
 
     if (shadow_rt_ == 0) {
@@ -919,10 +912,16 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
 
     const glm::mat4 sceneVP = view_projection_;
     const GfxDevice::Viewport sceneViewport = device_.viewport();
-    glm::mat4 matrices[MAX_SHADOW_CASCADES];
-    glm::vec4 bias(0.0f);
+    // Every tile this light needs or none of them: half a cascade set leaves the
+    // rest of the fragments reading depths that belong to somebody else.
+    const i32 firstTile = shadow_atlas_.allocate(cascades, kShadowCascadeCells);
+    if (firstTile < 0) return;
+    glm::mat4 matrices[MAX_SHADOW_TILES];
+    glm::vec4 tiles[MAX_SHADOW_TILES];
+    bool cleared = false;
 
     for (u32 c = 0; c < cascades; ++c) {
+        const ShadowTile& tile = shadow_atlas_.tile(static_cast<u32>(firstTile) + c);
         glm::vec3 centre(0.0f);
         f32 radius = 1.0f;
         if (cascades == 1) {
@@ -952,7 +951,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // Snap to the map's own texel grid, in the light's axes: without it the
             // cascade slides continuously with the camera and every shadow edge
             // crawls along the geometry a texel at a time.
-            const f32 texel = (radius * 2.0f) / static_cast<f32>(kShadowMapSize);
+            const f32 texel = (radius * 2.0f) / static_cast<f32>(tile.size);
             glm::vec3 inLight = glm::vec3(lightRot * glm::vec4(centre, 1.0f));
             inLight.x = std::floor(inLight.x / texel) * texel;
             inLight.y = std::floor(inLight.y / texel) * texel;
@@ -982,27 +981,26 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         lightProj[2][2] = -1.0f / range;
         lightProj[3][2] = 0.0f;
         matrices[c] = lightProj * lightView;
-        // Scaled by what a texel is worth AND by what a unit of packed depth spans:
-        // the number stopping the near cascade shadowing itself would let a coarser
-        // one detach from whatever casts into it.
-        bias[static_cast<int>(c)] = kShadowBias * std::max(radius, 1.0f)
-                                  / (0.5f * static_cast<f32>(kShadowMapSize))
-                                  * (4.0f * std::max(radius, 1.0f) / std::max(range, 1.0f));
+        // The tile's rect, and in its w the bias it needs — scaled by what a texel
+        // of THIS tile is worth: the number stopping a near cascade shadowing
+        // itself would let a coarser one detach from whatever casts into it.
+        tiles[c] = shadow_atlas_.unitRect(static_cast<u32>(firstTile) + c);
+        tiles[c].w = kShadowBias * std::max(radius, 1.0f)
+                   / (0.5f * static_cast<f32>(tile.size))
+                   * (4.0f * std::max(radius, 1.0f) / std::max(range, 1.0f));
 
         // A self-contained pass, in the shape renderToTarget uses: swap what the frame is
         // looking through, collect only what casts, draw, and hand the target back.
-        RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/c == 0};
-        // Depth too: the map keeps the NEAREST occluder, which is the depth buffer's job,
-        // and last frame's contents would reject this frame's geometry outright.
-        pass.clearDepth = true;
-        // White is depth 1 unpacked — "nothing here", so an untouched texel never shadows.
+        // The whole atlas, once — a later clear would wipe what an earlier tile
+        // wrote, and each tile only ever tests inside its own viewport. White is
+        // depth 1 unpacked: a texel nobody drew into never shadows.
+        RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/!cleared};
+        pass.clearDepth = !cleared;
         pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
         pass.clearColorValue[3] = 1.0f;
         device_.beginRenderPass(pass);
-        // This cascade's quadrant, in the order cascadeOrigin() reads them back: 0
-        // lower-left, 1 lower-right, 2 upper-left, 3 upper-right.
-        device_.setViewport((c % 2) * kShadowMapSize, (c / 2) * kShadowMapSize,
-                            kShadowMapSize, kShadowMapSize);
+        cleared = true;
+        device_.setViewport(tile.x, tile.y, tile.size, tile.size);
 
         view_projection_ = matrices[c];
         frustum_.extractFromMatrix(matrices[c]);
@@ -1033,11 +1031,13 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     device_.invalidatePipelineCache();
 
     shadow_texture_id_ = static_cast<u32>(rt->getColorTexture());
-    context_.lights().setShadow(
-        matrices, cascades,
-        glm::vec4(1.0f, static_cast<f32>(cascades), 1.0f / static_cast<f32>(kShadowAtlasSize),
-                  static_cast<f32>(shadow_light_slot_)),
-        bias);
+    context_.lights().setShadowTiles(
+        matrices, tiles, cascades,
+        glm::vec4(1.0f, 1.0f / static_cast<f32>(kShadowAtlasSize), 0.0f, 0.0f));
+    // Which of them this light reads. Without it a fragment would test against every
+    // map in the atlas, including ones rendered from somewhere it cannot see.
+    context_.lights().setLightShadowTiles(static_cast<u32>(shadow_light_slot_),
+                                          static_cast<u32>(firstTile), cascades);
 
     // Back to the frame's own target and camera. The scene has drawn nothing yet, so
     // re-opening the pass costs a load rather than the frame's contents.
