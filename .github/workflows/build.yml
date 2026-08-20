@@ -370,11 +370,18 @@ jobs:
 
     - uses: ./.github/actions/render-host
 
-    # Electron's own bundled SwiftShader: the runner installs no Vulkan driver,
-    # and it is the adapter the tier passes on locally.
+    # A software Vulkan driver, because the runner ships no driver at all. The
+    # bundled-SwiftShader adapter is what the tier passes on locally, and on this
+    # runner it took the GPU process down at frame 0 in every scene of every run
+    # this job has ever had — a device created and then lost as "destroyed", with
+    # the GL fallback dead behind it. lavapipe is a real ICD for the loader to
+    # find, which is what an empty adapter asks it to do.
+    - name: Software Vulkan for the second backend
+      run: sudo apt-get update && sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
+
     - name: Second backend, PR tier
       env:
-        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
       run: node tools/verify-render.mjs --tier pr --backend webgpu --no-build --budget 45
 
   # The native runtime, judged by pixels on a machine with no GPU.
