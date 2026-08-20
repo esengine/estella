@@ -33,6 +33,10 @@ export const REGISTRY_BINDINGS = {
     removeParent: 'es_removeParent',
     hasChildren: 'es_hasChildren',
     getChildren: 'es_getChildren',
+    // MeshSkin's joints are a variable-length entity list, so the component has no
+    // POD layout and no generated accessor — the same reason Children is here.
+    getMeshSkinJoints: 'es_getMeshSkinJoints',
+    setMeshSkinJoints: 'es_setMeshSkinJoints',
 } as const;
 
 /**

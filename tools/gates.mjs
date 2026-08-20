@@ -75,6 +75,9 @@ export const GATES = [
   { id: 'capabilities', run: 'node tools/check-capabilities.mjs' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs' },
   { id: 'component-fields', run: 'node tools/check-component-fields.mjs' },
+  // …and that each of them can be reached on a device, where the registry is
+  // assembled from ptr accessors rather than from embind.
+  { id: 'native-components', run: 'node tools/check-native-components.mjs' },
   { id: 'shader-conditionals', run: 'node tools/check-shader-conditionals.mjs' },
   { id: 'mesh-vocabulary', run: 'node tools/check-mesh-vocabulary.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },

@@ -150,6 +150,34 @@ describe('createNativeRegistry', () => {
         expect(reg.hasChildren(1)).toBe(true);
     });
 
+    it('exposes MeshSkin the component way — its joints have no POD layout', () => {
+        // The third component outside PTR_ACCESSORS, and the one a rigged glTF
+        // inserts: without these four, a skinned model on a device died at
+        // `insertBuiltin(MeshSkin)` with "C++ Registry missing methods".
+        const skins = new Map<number, number[]>();
+        const scope: Record<string, unknown> = {
+            es_setMeshSkinJoints: (e: number, ids: number[]) => { skins.set(e, [...ids]); },
+            es_getMeshSkinJoints: (e: number) => skins.get(e) ?? [],
+            es_MeshSkin_has: (e: number) => skins.has(e),
+            es_MeshSkin_remove: (e: number) => { skins.delete(e); },
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        for (const m of ['addMeshSkin', 'getMeshSkin', 'hasMeshSkin', 'removeMeshSkin']) {
+            expect(typeof reg[m]).toBe('function');
+        }
+
+        expect(reg.hasMeshSkin(4)).toBe(false);
+        reg.addMeshSkin(4, { joints: [7, 8, 9] });
+        expect(reg.hasMeshSkin(4)).toBe(true);
+        expect((reg.getMeshSkin(4) as { joints: number[] }).joints).toEqual([7, 8, 9]);
+        // The order IS the meaning: entry i drives joint i of the bind matrices.
+        reg.addMeshSkin(4, { joints: [9, 8, 7] });
+        expect((reg.getMeshSkin(4) as { joints: number[] }).joints).toEqual([9, 8, 7]);
+        reg.removeMeshSkin(4);
+        expect(reg.hasMeshSkin(4)).toBe(false);
+        expect((reg.getMeshSkin(4) as { joints: number[] }).joints).toEqual([]);
+    });
+
     it('getChildren.entities is iterable (for...of) as well as vector-shaped', () => {
         // The timeline/animator child-path resolver walks children with a for-of and
         // types the field `Entity[]`; the VectorEntity shim must answer Symbol.iterator

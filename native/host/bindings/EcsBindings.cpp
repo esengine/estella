@@ -24,6 +24,7 @@
 
 #include "esengine/ecs/TransformSystem.hpp"       // ecs::setParent
 #include "esengine/ecs/components/Hierarchy.hpp"  // Parent / Children
+#include "esengine/ecs/components/Mesh2D.hpp"     // MeshSkin
 
 using namespace esengine;
 
@@ -67,6 +68,36 @@ JSValue js_getChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     return arr;
 }
 
+// MeshSkin's joints are a variable-length entity list, so the component has no POD
+// layout and nothing generated can carry it — the same reason Children is here. A
+// glTF with a rig inserts one, and without these the insert fails on a device.
+JSValue js_getMeshSkinJoints(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    JSValue arr = JS_NewArray(ctx);
+    if (auto* s = host().registry->tryGet<ecs::MeshSkin>(esn_entity(ctx, argv[0]))) {
+        uint32_t i = 0;
+        for (Entity joint : s->joints) {
+            JS_SetPropertyUint32(ctx, arr, i++, JS_NewUint32(ctx, joint.id()));
+        }
+    }
+    return arr;
+}
+JSValue js_setMeshSkinJoints(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2) return JS_UNDEFINED;
+    auto& skin = host().registry->getOrEmplace<ecs::MeshSkin>(esn_entity(ctx, argv[0]));
+    skin.joints.clear();
+    uint32_t len = 0;
+    JSValue lenv = JS_GetPropertyStr(ctx, argv[1], "length");
+    JS_ToUint32(ctx, &len, lenv);
+    JS_FreeValue(ctx, lenv);
+    skin.joints.reserve(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        JSValue v = JS_GetPropertyUint32(ctx, argv[1], i);
+        skin.joints.push_back(esn_entity(ctx, v));
+        JS_FreeValue(ctx, v);
+    }
+    return JS_UNDEFINED;
+}
+
 }  // namespace
 
 void registerEcsBindings(HostState& h, JSValue global) {
@@ -78,6 +109,8 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_removeParent", js_removeParent, 1);
     bindGlobal(h, global, "es_hasChildren", js_hasChildren, 1);
     bindGlobal(h, global, "es_getChildren", js_getChildren, 1);
+    bindGlobal(h, global, "es_getMeshSkinJoints", js_getMeshSkinJoints, 1);
+    bindGlobal(h, global, "es_setMeshSkinJoints", js_setMeshSkinJoints, 2);
 }
 
 }  // namespace eshost

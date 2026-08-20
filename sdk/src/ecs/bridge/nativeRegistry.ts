@@ -121,6 +121,19 @@ export function createNativeRegistry(
         const kids = (hostCall(scope, REGISTRY_BINDINGS.getChildren, [parent]) as Entity[] | undefined) ?? [];
         for (const child of kids) hostCall(scope, REGISTRY_BINDINGS.removeParent, [child]);
     };
+    // MeshSkin, the third component with no POD layout: its joints are a variable
+    // -length entity list, so it has no ptr accessor and the loop below never
+    // reaches it. Without these, every rigged glTF dies at `insertBuiltin(MeshSkin)`.
+    reg.hasMeshSkin = (e: Entity): boolean =>
+        !!hostCallOpt(scope, `es_MeshSkin_has`, [e]);
+    reg.removeMeshSkin = (e: Entity): void => { hostCallOpt(scope, `es_MeshSkin_remove`, [e]); };
+    reg.getMeshSkin = (e: Entity): { joints: Entity[] } => ({
+        joints: (hostCall(scope, REGISTRY_BINDINGS.getMeshSkinJoints, [e]) as Entity[] | undefined) ?? [],
+    });
+    reg.addMeshSkin = (e: Entity, data: { joints?: Iterable<Entity> }): void => {
+        hostCall(scope, REGISTRY_BINDINGS.setMeshSkinJoints, [e, [...(data.joints ?? [])]]);
+    };
+
     reg.delete = (): void => {};
 
     // The scene queries the wasm module answers as module-level functions. There is
