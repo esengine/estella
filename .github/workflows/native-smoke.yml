@@ -31,6 +31,12 @@ on:
         required: false
         default: ''
         type: string
+      template-source:
+        description: 'release = the newest published templates; head = build this branch first (~40 min).'
+        required: false
+        default: release
+        type: choice
+        options: [release, head]
   workflow_call:
     inputs:
       template-tag:
@@ -38,6 +44,12 @@ on:
         default: ''
         type: string
       examples:
+        required: false
+        default: ''
+        type: string
+      # Blank from a caller: the templates are that run's own artifacts, which is
+      # what the release pipeline hands over. Only a hand run has to choose.
+      template-source:
         required: false
         default: ''
         type: string
@@ -56,8 +68,94 @@ env:
   ANDROID_API: '34'
 
 jobs:
+  # Only for a hand run that asks for `head`. A caller (the release pipeline) has
+  # already built the templates this run will smoke, and a tag names published
+  # ones — in both cases there is nothing to build here and this is skipped.
+  #
+  # The build itself is one `cli.js native` call per ABI; what repeats around it is
+  # runner setup, which differs per target anyway. The same pair of calls appears
+  # in release-desktop's template job and in android-canary-apk, each with the
+  # setup its own runner needs.
+  templates:
+    name: Build runtime template (${{ matrix.name }})
+    if: inputs.template-source == 'head'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: android
+            os: ubuntu-latest
+          - name: ios
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      # With submodules: the host links box2d, spine and glm from third_party.
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, which is why a template
+      # is matched against the editor version that ships with it.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        shell: bash
+        run: node build-tools/cli.js native --deps-cache-key ${{ matrix.name }} >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pinned checkouts + Dawn builds
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      - name: Set up CMake + Ninja
+        if: startsWith(matrix.os, 'macos')
+        run: brew install cmake ninja
+
+      - name: Set up the Android NDK
+        if: matrix.name == 'android'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      - name: Build the iOS template (device + simulator)
+        if: matrix.name == 'ios'
+        run: |
+          node build-tools/cli.js native --target ios --simulator --no-template
+          node build-tools/cli.js native --target ios --template-out artifacts
+
+      # Both architectures into ONE template: the emitter refuses an incomplete
+      # one, and an x86_64-only build fails at the emit rather than the compile.
+      - name: Build the Android template (arm64 + x86_64)
+        if: matrix.name == 'android'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          node build-tools/cli.js native --abi arm64-v8a
+          node build-tools/cli.js native --abi x86_64 --template-out artifacts
+
+      # The name the shards below download when no tag names a release.
+      - name: Upload template artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-template-${{ matrix.name }}
+          path: artifacts/*.zip
+
   android:
     name: Android ${{ matrix.shard }}/3
+    needs: templates
+    # `templates` is skipped unless this run builds them, and a skipped dependency
+    # would otherwise skip this too.
+    if: always() && needs.templates.result != 'failure' && needs.templates.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -77,8 +175,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.template-tag }}
+          SOURCE: ${{ inputs.template-source }}
         run: |
-          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ] && [ "$SOURCE" != 'head' ]; then
             TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
             echo "no tag given — taking the templates from the latest release, $TAG"
           fi
@@ -152,6 +251,8 @@ jobs:
 
   ios:
     name: iOS ${{ matrix.shard }}/3
+    needs: templates
+    if: always() && needs.templates.result != 'failure' && needs.templates.result != 'cancelled'
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
@@ -168,8 +269,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.template-tag }}
+          SOURCE: ${{ inputs.template-source }}
         run: |
-          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ] && [ "$SOURCE" != 'head' ]; then
             TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
             echo "no tag given — taking the templates from the latest release, $TAG"
           fi
