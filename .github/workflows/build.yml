@@ -355,11 +355,14 @@ jobs:
   # answer is a report rather than a runner killed at the ceiling.
   verify-render-webgpu:
     name: Render verify (second backend)
-    runs-on: ubuntu-latest
+    # macOS, for the GPU. The Linux runner ships no graphics driver, and every run
+    # this job ever had died the same way: the GPU process exiting during init and
+    # requestDevice answering "a valid external Instance reference no longer
+    # exists", with lavapipe installed making no difference. A macOS runner has
+    # Metal, so what this measures is a REAL second implementation rather than a
+    # software one — which is the portability question it was created to ask.
+    runs-on: macos-latest
     needs: build-emscripten
-    # The runner stops at its own 45-minute budget and prints what it never
-    # reached; this is that, plus the one scene it may already be retrying
-    # through a dead GPU when the budget runs out.
     timeout-minutes: 75
     continue-on-error: true
 
@@ -370,15 +373,8 @@ jobs:
 
     - uses: ./.github/actions/render-host
 
-    # A software Vulkan driver, because the runner ships no driver at all. The
-    # bundled-SwiftShader adapter is what the tier passes on locally, and on this
-    # runner it took the GPU process down at frame 0 in every scene of every run
-    # this job has ever had — a device created and then lost as "destroyed", with
-    # the GL fallback dead behind it. lavapipe is a real ICD for the loader to
-    # find, which is what an empty adapter asks it to do.
-    - name: Software Vulkan for the second backend
-      run: sudo apt-get update && sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
-
+    # The adapter Dawn picks for itself, which here is Metal. `swiftshader` is the
+    # bundled software one, kept as an explicit opt-in for a machine with no GPU.
     - name: Second backend, PR tier
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: ''

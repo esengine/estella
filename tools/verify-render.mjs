@@ -82,9 +82,10 @@ const scenes = selected.map((s) => ({
       ...s.env,
       ...(typeof s.webgpu === 'object' ? s.webgpu : {}),
       ESTELLA_VERIFY_BACKEND: 'webgpu',
-      // Empty lets the Vulkan loader choose from the ICDs installed; a name it
-      // does not recognize is ignored in silence. The boot log says which it got.
-      ESTELLA_VERIFY_WEBGPU_ADAPTER: process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER ?? 'swiftshader',
+      // The adapter Dawn picks for itself: a real driver is the only kind that
+      // answers the portability question. `swiftshader` names the bundled software
+      // one, for a machine with no GPU. The boot log says which it got.
+      ESTELLA_VERIFY_WEBGPU_ADAPTER: process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER ?? '',
     }
     : s.env,
 }));

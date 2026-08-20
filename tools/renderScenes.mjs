@@ -86,8 +86,10 @@ export const SCENES = [
   { id: "point-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.833,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.333,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
   // A SUN WITH A SIZE: its source is infinitely far away, so what it carries is an angle
   // and not a length — the penumbra is tan(sourceAngle/2) times how far the caster stands
-  // above what it falls on. Its ramp sits one sample step along on the second backend.
-  { id: "sun-shadow", tier: "pr", webgpu: { ESTELLA_VERIFY_EXPECT: "[{\"x\":0.62,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.66,\"y\":0.5,\"rgb\":[39,39,39],\"tol\":30},{\"x\":0.72,\"y\":0.5,\"rgb\":[186,186,186],\"tol\":30},{\"x\":0.85,\"y\":0.5,\"rgb\":[247,247,247],\"tol\":20}]" }, env: { ESTELLA_VERIFY_SCENE: "/scenes/sun-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.62,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.66,\"y\":0.5,\"rgb\":[70,70,70],\"tol\":35},{\"x\":0.72,\"y\":0.5,\"rgb\":[209,209,209],\"tol\":25},{\"x\":0.85,\"y\":0.5,\"rgb\":[247,247,247],\"tol\":20}]" } },
+  // above what it falls on. One expectation for both backends: a real WebGPU driver lands
+  // on the WebGL2 values exactly, and SwiftShader's ramp sits a sample step along, inside
+  // the tolerance either way.
+  { id: "sun-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/sun-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.62,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.66,\"y\":0.5,\"rgb\":[70,70,70],\"tol\":35},{\"x\":0.72,\"y\":0.5,\"rgb\":[209,209,209],\"tol\":25},{\"x\":0.85,\"y\":0.5,\"rgb\":[247,247,247],\"tol\":20}]" } },
   // The same scene with the caster moved DOWN the sun's own ray: its shadow lands where it
   // did and the edge sharpens by the ratio of the distances. Two of these four probes
   // differ from the gate above by 70 and 38, which a fixed blur could not produce.
