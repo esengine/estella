@@ -39,9 +39,6 @@ export async function run(ed) {
   await ed.sleep(800);
 
   await ed.play('playing', 180000);
-  // Settled in FRAMES, not in wall-clock: the realm's loop is throttled while the
-  // editor window is unfocused, so what a sleep buys is a question about the
-  // machine rather than about the character.
   // Few of them, and generously waited for: a frame of a lit 3D scene costs the
   // best part of a second on the software rasteriser a check runner draws with,
   // and the character starts at rest height — this is "the solver has run".

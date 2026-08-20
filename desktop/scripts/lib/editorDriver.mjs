@@ -205,7 +205,12 @@ export async function withEditor(body, opts = {}) {
      * probes a realm that is not there. Here a realm that never came up fails by name.
      */
     play: async (state = 'playing', ms = 120000) => {
-      const up = (s) => (state === 'stopped' ? s?.playing === false : s?.ready === true);
+      // BOTH, as the door's own settle asks: a realm prewarms in an iframe once a
+      // project opens, so `ready` alone is answered by one that is not playing —
+      // and `step` sent to THAT drives the edit world, in the editor's own renderer.
+      const up = (s) => (state === 'stopped'
+        ? s?.playing === false
+        : s?.playing === true && s?.ready === true);
       const reached = await editor.json('set_play', { state }, ms);
       let last = reached;
       for (let i = 0; i < 40 && !up(last); i++) {
@@ -213,8 +218,8 @@ export async function withEditor(body, opts = {}) {
         last = await editor.json('get_play_state', {});
       }
       if (!up(last)) {
-        throw new Error(`the play realm never reported ${state === 'stopped' ? 'stopped' : 'ready'}`
-          + ` — set_play answered ${JSON.stringify(reached)}`);
+        throw new Error(`the play realm never reported ${state === 'stopped' ? 'stopped' : 'playing and ready'}`
+          + ` — set_play answered ${JSON.stringify(reached)}, and it is now ${JSON.stringify(last)}`);
       }
       return last;
     },

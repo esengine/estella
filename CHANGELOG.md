@@ -278,6 +278,11 @@ published separately; it ships inside the editor.
   which of the two it is now, and the driver every editor check goes through asks before
   it probes, so a realm that never came up fails by name.
 
+  What it asks for is the pair, `playing` AND `ready`, which is what the door's own
+  settle asks: a realm prewarms in an iframe once a project opens, so `ready` alone is
+  answered by one that is not playing — and `step` sent to that advances the EDIT world,
+  in the editor's own renderer rather than the game's.
+
   Four checks had each grown a poll of their own against exactly this, with a different
   bound each; they share the driver's now. `starter-3d`, the one that had none, was the
   one that lost the run. It also settles the character in FRAMES rather than in seconds
