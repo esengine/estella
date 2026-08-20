@@ -281,8 +281,19 @@ jobs:
   # One job holds every archive, so only it can describe the set: the index
   # carries a digest per template, and the editor refuses a download that does not
   # match it.
-  publish-templates:
+  # The templates are checked for CONTENTS further down and were never booted, so
+  # what a release published was an archive that carried the right files. This is
+  # the boot: native-smoke has had a `workflow_call` interface and the branch that
+  # takes the templates from the run's own artifacts since it was written, and no
+  # caller — so the only thing it ever smoke-tested was a release already out.
+  smoke-templates:
+    name: Boot the templates this release will publish
     needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    uses: ./.github/workflows/native-smoke.yml
+
+  publish-templates:
+    needs: [draft, native-templates, smoke-templates]
     if: github.event_name == 'push' && needs.draft.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
