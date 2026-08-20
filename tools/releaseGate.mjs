@@ -15,7 +15,7 @@
  * This says the criteria are OWNED. Whether they PASS is what running them says.
  */
 
-export const RELEASE = '0.54';
+export const RELEASE = '0.55';
 
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files
