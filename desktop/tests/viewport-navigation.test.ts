@@ -11,7 +11,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  DEFAULT_EDITOR_VIEW, editorViewClipFar, editorViewHalfExtent, editorViewWorldPerPixel,
+  DEFAULT_EDITOR_VIEW, editorViewClipFar, editorViewClipNear, editorViewHalfExtent,
+  editorViewWorldPerPixel,
   type EditorViewData,
 } from 'esengine';
 
@@ -295,5 +296,26 @@ describe("the editor eye's clip volume", () => {
     const far = perspectiveView({ distance: near.distance * 50 });
     expect(editorViewClipFar(far)).toBeGreaterThan(editorViewClipFar(near));
     expect(editorViewClipFar(far) - far.distance).toBeCloseTo(100000, 6);
+  });
+
+  it('an orthographic eye has no near plane to place', () => {
+    expect(editorViewClipNear(view({}))).toBe(0);
+    expect(editorViewClipNear(view({ yaw: 30, pitch: 20 }))).toBe(0);
+  });
+
+  // Depth resolution goes as distance² / near, and the stand-off IS the distance:
+  // a near plane fixed close to the eye spends the buffer before the scene starts.
+  it('the near plane follows the stand-off, so the far half keeps its precision', () => {
+    const close = perspectiveView({ distance: 500 });
+    const wide = perspectiveView({ distance: 500000 });
+    expect(editorViewClipNear(wide)).toBeGreaterThan(editorViewClipNear(close) * 100);
+    expect(editorViewClipFar(wide) / editorViewClipNear(wide))
+      .toBeLessThan(editorViewClipFar(close) / editorViewClipNear(close));
+  });
+
+  // The floor answers for a close-up eye, so it never sits further out than that.
+  it('never sits further out than the value a close-up eye always had', () => {
+    expect(editorViewClipNear(perspectiveView({ distance: 14 }))).toBeCloseTo(0.1, 9);
+    expect(editorViewClipNear(perspectiveView({ distance: 1 }))).toBeCloseTo(0.1, 9);
   });
 });

@@ -212,8 +212,23 @@ export function editorViewClipFar(view: EditorViewData): number {
   return editorViewStandoff(view) + EDITOR_VIEW_REACH;
 }
 
+/**
+ * Where the volume begins, from the eye. Zero orthographically — that projection
+ * builds a symmetric box and ignores it. Depth resolution goes as distance² over
+ * near, and the stand-off IS the distance, so how close the near plane may sit is
+ * a question about the zoom. The floor is what answers at a close-up eye.
+ */
+export function editorViewClipNear(view: EditorViewData): number {
+  return view.perspective
+    ? Math.max(EDITOR_VIEW_NEAR_FLOOR, editorViewStandoff(view) * EDITOR_VIEW_NEAR_FRACTION)
+    : 0;
+}
+
 /** How far past what the view is looking at its volume extends. */
 const EDITOR_VIEW_REACH = 100000;
+/** The near plane as a fraction of the stand-off, and the closest it ever sits. */
+const EDITOR_VIEW_NEAR_FRACTION = 1e-3;
+const EDITOR_VIEW_NEAR_FLOOR = 0.1;
 
 /** Where the eye stands in world space. */
 export function editorViewEye(view: EditorViewData): Vec3 {
