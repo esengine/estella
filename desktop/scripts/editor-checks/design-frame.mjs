@@ -127,5 +127,8 @@ export async function run(ed) {
     + 'trapezoid, and this is still being drawn as a box',
   );
 
+  // The mode is remembered across sessions, so it outlives this editor and would
+  // decide what the next check's viewport draws.
+  await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   return check.failures;
 }

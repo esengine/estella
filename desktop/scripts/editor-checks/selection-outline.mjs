@@ -98,6 +98,8 @@ export async function run(ed) {
   const check = checker();
   await ed.open(root, 'assets/scenes/main.esscene');
 
+  // The mode is remembered across sessions: say which one this is measured in.
+  await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   // The select tool draws no transform gizmo, so the only ink selecting adds around
   // the entity is the outline itself (and the pivot dot, at the centre).
   await ed.call('run_editor_command', { id: 'tool.select' }, 30000);

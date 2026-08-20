@@ -91,6 +91,8 @@ export async function run(ed) {
   const check = checker();
   await ed.open(root, 'assets/scenes/main.esscene');
 
+  // The mode is remembered across sessions: say which one this is measured in.
+  await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   await ed.call('run_editor_command', { id: 'tool.move' }, 30000);
   await ed.call('run_editor_command', { id: 'view.resetOrbit' }, 30000);
   await ed.call('select', { id: null }, 30000);
