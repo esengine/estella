@@ -42,7 +42,10 @@ export async function run(ed) {
   // Settled in FRAMES, not in wall-clock: the realm's loop is throttled while the
   // editor window is unfocused, so what a sleep buys is a question about the
   // machine rather than about the character.
-  await ed.call('step', { frames: 120, dt: 1 / 60 }, 60000);
+  // Few of them, and generously waited for: a frame of a lit 3D scene costs the
+  // best part of a second on the software rasteriser a check runner draws with,
+  // and the character starts at rest height — this is "the solver has run".
+  await ed.call('step', { frames: 6, dt: 1 / 60 }, 180000);
 
   const at = async () => ed.json('play_probe', { code: PROBE }, 60000);
   const rest = await at();
@@ -79,7 +82,8 @@ export async function run(ed) {
   // The key the template's own script reads, held over frames the game runs.
   const before = rest.p.z;
   await ed.call('play_input', { kind: 'key_down', code: 'KeyW' }, 30000);
-  await ed.json('play_probe', { code: 'await step(30, 1/60); return 1;' }, 60000);
+  // 340 units a second, so a fifth of a second walks three times the 20 asked for.
+  await ed.json('play_probe', { code: 'await step(12, 1/60); return 1;' }, 180000);
   const moved = await at();
   await ed.call('play_input', { kind: 'key_up', code: 'KeyW' }, 30000);
 
