@@ -107,6 +107,15 @@ published separately; it ships inside the editor.
   carries depth) and linear with layer 1 (capture built with depth) both drew red;
   linear with no layer drew green.
 
+- **The last gate still asserting the old work-plane rule.** `editor-grid-edge-on`
+  held that a head-on perspective eye works a plane it lies IN, so the grid has no
+  picture at all. "The view works on a plane it can see" replaced that rule — a
+  nominal plane within ~6 degrees of edge-on hands over to the plane the eye most
+  faces, and head-on that is the 2D plane — but the gate was not moved with it, so
+  it had been red ever since. It is `editor-grid-head-on` now and asserts the rule
+  that exists: the grid covers the frame. It is sensitive both ways — under the old
+  rule the diff was exactly zero pixels, so the new assertion fails there.
+
 - **A skinned mesh's channels reach the inspector as numbers.** `meshSummary`'s name
   table stopped at `Tangent`, so every skinned import — the only meshes that carry the
   joint channels — described itself as `position, uv, color, #5, #6`.
