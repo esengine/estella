@@ -42,7 +42,7 @@
  * not have a simulator, and says so in the output when it takes that door.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePng, distinctColors } from '../build-tools/utils/png.js';
@@ -505,7 +505,9 @@ function iosDriver(opts) {
             const container = trySh('xcrun', ['simctl', 'get_app_container', udid, APP_ID, 'data']);
             if (container.status !== 0) return '';
             const file = path.join(container.stdout.trim(), 'Documents', LOG_NAME);
-            return existsSync(file) ? sh('cat', [file]) : '';
+            // Read, not `cat`: execFileSync buffers a megabyte and the flagship's
+            // boot log is bigger, so the shard died on ENOBUFS instead of judging.
+            return existsSync(file) ? readFileSync(file, 'utf8') : '';
         },
         screenshot() {
             const shot = path.join(opts.out, 'raw.png');
