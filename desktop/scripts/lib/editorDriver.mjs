@@ -197,6 +197,26 @@ export async function withEditor(body, opts = {}) {
       if (scene) await call('open_scene', { path: scene }, 120000);
       await sleep(2000);
     },
+    /**
+     * Put the game in a named state — 'playing', 'paused' or 'stopped' — and wait
+     * for the realm to be in it. `set_play` bounds its own wait, so a probe issued
+     * straight after it can reach a renderer still loading the realm and park there
+     * until the CALLER's timeout — a check that fails with "timeout play_probe".
+     */
+    play: async (state, ms = 240000) => {
+      await call('set_play', { state }, Math.min(ms, 180000));
+      const arrived = (s) => (state === 'stopped' ? s?.playing === false : s?.ready === true);
+      const deadline = Date.now() + ms;
+      let now = await editor.json('get_play_state', {}, 30000);
+      while (!arrived(now) && !now?.error && Date.now() < deadline) {
+        await sleep(500);
+        now = await editor.json('get_play_state', {}, 30000);
+      }
+      if (!arrived(now)) {
+        throw new Error(`the play realm never reached "${state}": ${JSON.stringify(now)}`);
+      }
+      return now;
+    },
   };
 
   try {

@@ -576,7 +576,7 @@ const ATOMS = [
     method: 'createEntity',
     args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y, z: i.z, name: i.name }], root: 'editor' },
   { name: 'set_play', effect: 'ephemeral',
-    description: "Put the game in a NAMED state and get the one it reached: 'playing', 'paused', or 'stopped'. AWAITED — it resolves once the realm is up (or gone), so there is nothing to poll. "
+    description: "Put the game in a NAMED state and get the one it reached: 'playing', 'paused', or 'stopped'. AWAITED — it waits for the realm to come up (or go), and the state it ANSWERS with is the one it actually reached: a realm still booting when the wait runs out comes back `ready: false`, and everything that reaches into it (play_probe, step, play_input) then blocks on a renderer that is still loading. Read `ready` off the answer, and get_play_state until it turns true. "
       + "A named state rather than a toggle because a toggle needs you to know where it started, and called twice it is a no-op that reads as a failure. 'paused' from stopped boots the realm and freezes it, which is the state to set up in before stepping. "
       + 'Play runs the game in an isolated realm and never dirties the edit scene. Once in: `step` advances it by exact frames, `play_input` drives it, `find_entities` / `inspect_entity` read it, `screenshot` shows it.',
     schema: obj({ state: { type: 'string', description: "'playing' | 'paused' | 'stopped'" } }, ['state']),

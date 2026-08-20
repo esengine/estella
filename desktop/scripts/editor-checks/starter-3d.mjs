@@ -38,8 +38,11 @@ export async function run(ed) {
   await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   await ed.sleep(800);
 
-  await ed.call('set_play', { state: 'play' }, 180000);
-  await ed.sleep(2500);
+  await ed.play('playing');
+  // A realm that is up has not simulated a frame, and no solver reports ground
+  // under a character until it has. Frames rather than a wait: the realm's loop is
+  // throttled while nothing has focus, so a sleep buys an unknown number of them.
+  await ed.call('step', { frames: 10, dt: 1 / 60 }, 60000);
 
   const at = async () => ed.json('play_probe', { code: PROBE }, 60000);
   const rest = await at();
@@ -90,6 +93,6 @@ export async function run(ed) {
     `walking left the character at y = ${moved.p.y.toFixed(1)} rather than on the ground at ${stand}`,
   );
 
-  await ed.call('set_play', { state: 'stop' }, 60000);
+  await ed.play('stopped');
   return check.failures;
 }
