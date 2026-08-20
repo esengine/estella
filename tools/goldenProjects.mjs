@@ -298,6 +298,10 @@ export const GOLDEN = [
     // Nightly, not pr: a project earns the release gate by having run, and this
     // one has not run anywhere yet. It is also the biggest thing in the corpus.
     tier: 'nightly',
+    // Its player runs from frame one and the two sides settle on different clocks
+    // (the editor's realm is a throttled OOPIF), so the frames are a moment apart:
+    // measured 0.0015 to 0.0756, against 0.3623 for a different game.
+    parity: 0.12,
     // The thumb drags the on-screen stick a touch device gets. Stricter than
     // the default because this game moves on its own: a thumb on the stick
     // measures 0.65, a thumb on empty background 0.40.
