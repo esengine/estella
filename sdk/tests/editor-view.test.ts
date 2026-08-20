@@ -248,9 +248,18 @@ describe('the work plane', () => {
     expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 0, z: 1 });
   });
 
-  it('is the ground once the view is a 3D one', () => {
-    const p = editorViewWorkPlane(view({ perspective: true }));
+  it('is the ground once the view is a turned 3D one', () => {
+    const p = editorViewWorkPlane(view({ perspective: true, pitch: 30 }));
     expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 1, z: 0 });
+    expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
+  });
+
+  // A perspective eye held head-on looks ALONG the ground, so the ground is a
+  // line on screen and offers nothing to work on. The plane the eye most faces
+  // answers there, and head-on that is the 2D plane.
+  it('is the 2D plane again while a 3D view is held head-on', () => {
+    const p = editorViewWorkPlane(view({ perspective: true }));
+    expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 0, z: 1 });
     expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
   });
 });
