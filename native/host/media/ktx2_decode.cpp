@@ -73,10 +73,10 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
         break;
     }
 
-    // A compressed texture keeps the KTX2's pre-baked mip chain (basis cannot
-    // generate mips for block formats); the RGBA32 fallback uploads base only.
-    // output_blocks_buf_size counts blocks (block formats) or pixels (RGBA32);
-    // block_width/height is 1 for RGBA32, so this covers both.
+    // The output count is BLOCKS for a block format and PIXELS for an uncompressed
+    // one: basis reports a 4x4 block for RGBA32 too, so one formula does not cover
+    // both — 324 units of a 70x70 image is a decode that fails.
+    const bool uncompressed = basist::basis_transcoder_format_is_uncompressed(basisFmt);
     const uint32_t bw = basist::basis_get_block_width(basisFmt);
     const uint32_t bh = basist::basis_get_block_height(basisFmt);
     const uint32_t bpb = basist::basis_get_bytes_per_block_or_pixel(basisFmt);
@@ -93,7 +93,8 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     for (uint32_t level = 0; level < numLevels; ++level) {
         const uint32_t lw = (w >> level) ? (w >> level) : 1u;
         const uint32_t lh = (h >> level) ? (h >> level) : 1u;
-        const uint32_t units = ((lw + bw - 1) / bw) * ((lh + bh - 1) / bh);
+        const uint32_t units = uncompressed ? (lw * lh)
+                                           : ((lw + bw - 1) / bw) * ((lh + bh - 1) / bh);
         const size_t off = out.size();
         out.resize(off + static_cast<size_t>(units) * bpb);
         if (!t.transcode_image_level(level, 0, 0, out.data() + off, units, basisFmt)) {

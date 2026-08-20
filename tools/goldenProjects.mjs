@@ -155,9 +155,9 @@ export const GOLDEN = [
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowRight'], frames: 40 },
-    // A KTX2 that is not whole 4x4 blocks, on purpose: WebGPU refuses one, and a
-    // single failed texture blanks the frame — so the desktop run guards
-    // ktx2_decode.cpp's fallback. The cook only encodes .png, so this passes through.
+    // A KTX2 that is not whole 4x4 blocks, on purpose, so ktx2_decode.cpp falls back
+    // to RGBA32. What LOADS it is the native boot smoke (it packages every asset);
+    // check-golden only holds the file to its odd size.
     oddSizedKtx2: 'assets/textures/block-guard.ktx2',
     // Two textured platforms and the sky behind them. Measured over three runs
     // and stable to the byte; the falling player is NOT, which is why it is not
