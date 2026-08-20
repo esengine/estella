@@ -61,11 +61,20 @@ inline constexpr u32 MAX_OCCLUDERS_2D = 8;
 inline constexpr u32 MAX_SHADOW_CASCADES = 4;
 
 /**
+ * @brief Faces a point light's map is rendered as. Six cones at right angles cover
+ *        every direction from a point, and each is a tile like any other — which is
+ *        what spares the pass a projection nothing else in it understands.
+ */
+inline constexpr u32 SHADOW_CUBE_FACES = 6;
+
+/**
  * @brief Max shadow tiles one frame's atlas hands out — the shader's array bound.
  * @details Not the same number as the cascades above: a cascade is one reason to want
  *          a tile and a spot light is another, and the atlas does not care which asked.
+ *          Sixteen because a point light's map is a cube — six of them — and eight
+ *          could not hold one beside a sun's cascades.
  */
-inline constexpr u32 MAX_SHADOW_TILES = 8;
+inline constexpr u32 MAX_SHADOW_TILES = 16;
 
 /**
  * @brief One 2D light, std140-packed (five vec4s, 80 bytes, 16-aligned).
@@ -114,8 +123,9 @@ struct LightConstants {
     /// a light may read are the ones its own `shadowMap` names.
     glm::mat4 shadowMatrix[MAX_SHADOW_TILES];
     /// Where tile i sits: xy = its low corner as a fraction of the atlas, z = its side
-    /// as one, w = its depth bias. DATA and not an expression the shader recomputes, so
-    /// tiles need not all be one size; the bias derives from what that one covers.
+    /// as one; w unused. DATA and not an expression the shader recomputes, so tiles need
+    /// not all be one size — and how big one is is what a receiver derives its own bias
+    /// from, which is why no bias is stored here.
     glm::vec4 shadowTile[MAX_SHADOW_TILES];
     /// x = 1 when the atlas holds a map this frame — the master switch, so a zeroed
     /// tile record cannot darken anything before one exists; y = one texel of the atlas.

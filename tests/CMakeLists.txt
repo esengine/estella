@@ -91,9 +91,10 @@ target_include_directories(test_clip_depth PRIVATE
 )
 add_test(NAME test_clip_depth COMMAND test_clip_depth)
 
-# Shadow atlas allocation. Header-only, and deliberately here rather than in a
-# pixel gate: a scene whose fragments resolve in one cascade draws the same
-# picture whichever tile the others sample.
+# Shadow atlas allocation. Header-only, and here rather than in a pixel gate for
+# the arithmetic a frame cannot show: which square a claim hands out, and what a
+# refused one leaves behind. Whether a light READS the square it was given is a
+# pixel question, and point-shadow asks it.
 add_executable(test_shadow_atlas renderer/test_shadow_atlas.cpp)
 target_include_directories(test_shadow_atlas PRIVATE
     ${CMAKE_SOURCE_DIR}/src

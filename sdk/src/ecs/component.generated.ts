@@ -415,7 +415,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
-            meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional)." },
+            meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional, Spot, Point)." },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true },
             environment: { tooltip: "Baked environment (.esenv) this Ambient light casts." },
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene." },

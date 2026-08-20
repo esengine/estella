@@ -16,6 +16,42 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A point light casts a shadow in every direction.** A spot's map is the cone it
+  opens. A point light opens none, and no single projection covers everywhere at once —
+  so its map is a cube: six cones at right angles, six tiles out of the same atlas,
+  rendered by the same pass through the same projection builder a spot hands its cone
+  to. Only the direction and the opening differ. A receiving fragment resolves in
+  exactly one face, and whatever stands between it and the light is inside that same
+  face by construction, because a face's frustum IS the cone from the light through
+  everything the face covers.
+
+  Nothing in the pass learned a new shape to do it. A caster carries `Box | Cone | Cube`
+  and the tile plan asks it how many squares it wants rather than which kind of light it
+  came from; the atlas already handed out blocks of cells and did not care who asked.
+  Its tile budget went 8 to 16 so a cube (six) fits beside a sun's cascades (four), and
+  the lights that stand somewhere claim first — a crowded frame costs the sun its
+  farthest cascade rather than costing another light its map.
+
+  Two tests join the square's, both about a tile that has no answer for this fragment
+  rather than a dark one: `w <= 0`, where the divide has no meaning (behind the light a
+  negative w mirrors the point into the map's own square, and exactly on a face's edge
+  plane it is 0/0), and a depth outside `[0, 1]`, which is a place the map never saw.
+  Each covers a case the other does not. Together they are what a cube needs: with
+  neither, an earlier face accepts the mirrored fragment, answers "lit", and both of
+  `point-shadow`'s shadows disappear.
+
+  Gate `point-shadow`, both backends: a lamp between a floor and two blockers, one to
+  its left and one below it, so the two shadows land in two DIFFERENT faces of the cube.
+  Both casters are probed too, and read the value they have with shadows off, to the
+  digit.
+
+  That gate also closes the hole the atlas work left open. Sabotaging
+  `ShadowAtlas::unitRect` to report tile 0 for every tile used to leave all 69 scenes
+  green, because every one of them resolved in a single tile. This one resolves in two:
+  under that sabotage both its shadow probes come back lit — 102 where 0 is expected —
+  and `mesh-shadow-cascade`, one of the scenes that could not see it before, now fails
+  under it as well.
+
 - **A spot light casts a real shadow map.** Until now exactly one light in a scene
   could cast one, and it had to be the sun: everything else fell back to the
   world-space boxes of `ShadowCaster2D`, which know nothing about the meshes in front
@@ -41,6 +77,37 @@ published separately; it ships inside the editor.
   instead of 0 while the three lit probes do not move at all.
 
 ### Changed
+
+- **A shadow's depth bias is derived where it is used, out of what the map covers
+  there.** It was computed per tile on the CPU — a constant, times the tile's coverage,
+  over its side, times its coverage again, times how much depth a world unit is worth at
+  the map's far plane — and stored in the tile record. That expression is quadratic in
+  coverage where the thing it corrects for (one texel) is linear in it, and it reads the
+  depth response at the far plane, which for a hyperbolic depth is the one place it is
+  flattest: near a cone's near plane it is orders of magnitude too small. The per-tile
+  `depthPerWorld` added earlier in this cycle made the two projections agree on the
+  wrong number rather than the right one.
+
+  The receiver derives it now, and in WORLD units rather than in depth: one texel of the
+  tile it is reading, at the distance it is standing — the matrix's x scale is clip per
+  world, w says how far away this is and is 1 where the map has no eye, and the tile's
+  rect over one atlas texel is how many texels the square holds — times how steeply the
+  surface stands to the light, which is the whole reason a stored depth and the depth
+  asking about it disagree. It then asks its question one step TOWARD the light instead
+  of shifting the answer: a step in world units is the same step whether a map's depth
+  runs linearly with distance or hyperbolically, which is what lets one expression serve
+  a cascade, a cone and a cube face.
+
+  `kShadowBias`, `ShadowProjection` and the bias slot in the tile record went with it —
+  nothing on the CPU calibrates a shadow any more, and a tile record says where a square
+  is and nothing else. The pr tier is unmoved on both backends.
+
+  The 2x2 taps are clamped inside their own tile in the same pass, because half a texel
+  past a tile's edge is another light's map and, for a cube, the neighbouring face is the
+  least related depth in the atlas. No probe in the corpus moves when that clamp is
+  removed: the fragments it changes are the ones whose lookup lands within half a texel
+  of a face's border, which is a curve narrower than a pixel at the sizes these scenes
+  capture.
 
 - **A shadow map lands where the atlas says, and a light reads its own.** Two facts
   were spelled as literals, and between them they made "one light casts" a property
@@ -113,6 +180,27 @@ published separately; it ships inside the editor.
   `flatHalfExtents` are the one copy of that arithmetic.
 
 ### Fixed
+
+- **A shadow map stores the depth at the fragment, not an interpolation of its
+  corners'.** The depth written into a map was `z / w`, computed in the vertex stage and
+  carried across the triangle as a varying. `z / w` is not affine across a triangle, so
+  what each fragment received was an interpolation of the corners' quotients rather than
+  the quotient at the fragment — while the receiver, multiplying the same matrix at the
+  same point, gets the exact one. The two disagree by more the wider the depth range one
+  triangle spans.
+
+  An orthographic map never showed it: w is 1 throughout, the quotient is affine, and
+  the interpolation is exact. That is why a sun's cascades were right, and why a spot
+  aimed at what it lights was near enough — and why the first point light was not. A
+  cube face looks ALONG a floor as often as at it, and a quad seen nearly edge-on spans
+  50 world units of depth in one primitive. Measured on the first `point-shadow` frame:
+  every caster in the scene shadowed itself completely black, its own surface reading
+  0.0067 too near in stored depth — some seven world units where it stood, which no
+  bias could have covered without detaching every shadow in the frame.
+
+  Both stages carry the clip position now and divide per fragment, which is exact
+  because z and w are each affine in world space. Pinned by `point-shadow`'s caster
+  probes: 108 with the fix, 0 without it.
 
 - **A cone's shadow bias is derived from a cone's depth.** The bias every tile got was
   `1/range` per world unit — true of an orthographic map, whose depth is linear in

@@ -1604,7 +1604,7 @@
           "key": "meshShadows",
           "type": "boolean",
           "default": "false",
-          "doc": "Cast a shadow map over 3D meshes (Directional)."
+          "doc": "Cast a shadow map over 3D meshes (Directional, Spot, Point)."
         },
         {
           "key": "shadowExtent",

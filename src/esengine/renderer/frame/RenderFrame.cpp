@@ -725,7 +725,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             if (light.meshShadows && !haveSun) {
                 haveSun = true;
                 castsMeshShadow = true;
-                caster.directional = true;
+                caster.shape = ShadowShape::Box;
                 caster.dir = aim;
                 caster.extent = std::max(light.shadowExtent, 0.0f);
             }
@@ -751,16 +751,18 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
                                      std::cos(glm::radians(light.innerAngle * 0.5f)),
                                      std::cos(glm::radians(light.outerAngle * 0.5f)));
                 gpu.shadow.w = aim.z;
-                // A cone's map is the cone: where it stands, which way it points, how
-                // wide it opens and how far it reaches are the whole projection.
-                if (light.meshShadows) {
-                    castsMeshShadow = true;
-                    caster.directional = false;
-                    caster.dir = aim;
-                    caster.pos = p;
-                    caster.range = std::max(light.radius, 0.0f);
-                    caster.outerAngle = light.outerAngle;
-                }
+                caster.dir = aim;
+            }
+            // A cone's map is the cone it opens. A point opens none and lights every
+            // direction, so its map is six cones at right angles — the same projection,
+            // six times.
+            if (light.meshShadows) {
+                castsMeshShadow = true;
+                caster.shape = type == ecs::Light2DType::Spot ? ShadowShape::Cone
+                                                              : ShadowShape::Cube;
+                caster.pos = p;
+                caster.range = std::max(light.radius, 0.0f);
+                caster.outerAngle = light.outerAngle;
             }
         }
         collected.push_back({gpu, castsMeshShadow, caster});
@@ -824,11 +826,6 @@ bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3&
     return true;
 }
 
-/// Depth bias in the map's own [0,1] units, before the tile it lands in scales it.
-/// Large enough for a 1024 tile over a camera-sized area to stop shadowing itself,
-/// small enough not to detach contact.
-static constexpr f32 kShadowBias = 0.0015f;
-
 /// The world box every GPU-resident mesh occupies, or false when none does — what
 /// a shadow map has to cover, casters and receivers alike. Rotation is ignored,
 /// the same approximation MeshPlugin's own cull uses.
@@ -878,17 +875,6 @@ static f32 splitFraction(u32 i, u32 count, f32 nearDist, f32 farDist) {
     return (d - nearDist) / std::max(farDist - nearDist, 1e-6f);
 }
 
-/// One tile's projection and what its depths are worth, so one bias expression serves
-/// every kind of light: an orthographic depth is linear in distance and a cone's is
-/// not, and `depthPerWorld` is exactly that difference.
-struct ShadowProjection {
-    glm::mat4 matrix{1.0f};
-    /// How much world the map spans across, at its widest.
-    f32 radius = 1.0f;
-    /// How much stored depth one world unit is worth, where the map is coarsest.
-    f32 depthPerWorld = 1.0f;
-};
-
 /**
  * The frustum a cone sees, with clip z running [0, 1] over [near, far].
  *
@@ -911,6 +897,33 @@ static glm::mat4 spotProjection(f32 fovDegrees, f32 nearDist, f32 farDist) {
 /// An up that cannot be parallel to @p dir, whichever way it points.
 static glm::vec3 shadowUp(const glm::vec3& dir) {
     return std::abs(dir.z) > 0.99f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+}
+
+/**
+ * The map a light standing somewhere casts over one cone: the frustum it sees.
+ *
+ * @details A spot's whole map and one face of a point light's cube are this same call.
+ *          They differ by how wide the cone opens and which way it points, which is the
+ *          only sense in which a point light is a new kind of caster at all.
+ */
+static glm::mat4 coneShadow(const glm::vec3& pos, const glm::vec3& dir, f32 fovDegrees,
+                            f32 reach) {
+    // A fraction of the reach and not a constant: a perspective depth spends its
+    // precision next to the near plane, and one fixed in world units would put that
+    // wherever the scene's scale happened to be.
+    const f32 farPlane = std::max(reach, 1e-3f);
+    const f32 nearPlane = std::max(farPlane * 0.005f, 1e-3f);
+    return spotProjection(fovDegrees, nearPlane, farPlane)
+         * glm::lookAt(pos, pos + dir, shadowUp(dir));
+}
+
+/// Face @p index of a cube: the axis it looks down, positive first. Six of them cover
+/// every direction from a point, which is what lets a point light's map be six cones
+/// rather than a projection nothing else in the pass understands.
+static glm::vec3 cubeFace(u32 index) {
+    glm::vec3 dir(0.0f);
+    dir[static_cast<i32>(index / 2)] = (index % 2 == 0) ? 1.0f : -1.0f;
+    return dir;
 }
 
 void RenderFrame::renderShadowMap(ecs::Registry& registry) {
@@ -951,22 +964,24 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         farDist = std::max(farDist, nearDist * 1.001f);
     }
 
-    // Who gets what. A spot reserves first at one cell, because a sun claiming the
-    // atlas whole would leave every other caster mapless; the sun then takes as many
-    // cascades as still fit, losing its farthest slice rather than the spots.
+    // Who gets what. A light that stands somewhere claims first, because a sun taking the
+    // atlas whole would leave every other caster mapless; the sun then loses its farthest
+    // cascade rather than costing a light whose map cannot be shortened.
     struct TilePlan {
         u32 first = 0;
         u32 count = 0;
     };
     std::vector<TilePlan> plan(shadow_casters_.size());
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
-        if (shadow_casters_[i].directional) continue;
-        const i32 at = shadow_atlas_.allocate(1, 1);
-        if (at >= 0) plan[i] = {static_cast<u32>(at), 1};
+        const ShadowShape shape = shadow_casters_[i].shape;
+        if (shape == ShadowShape::Box) continue;
+        const u32 want = shape == ShadowShape::Cube ? SHADOW_CUBE_FACES : 1;
+        const i32 at = shadow_atlas_.allocate(want, 1);
+        if (at >= 0) plan[i] = {static_cast<u32>(at), want};
     }
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];
-        if (!caster.directional) continue;
+        if (caster.shape != ShadowShape::Box) continue;
         // A fixed reach is the author saying what the map covers; splitting it would
         // hand the rest of the atlas to slices they never asked for.
         u32 want = (perspective && caster.extent <= 0.0f) ? MAX_SHADOW_CASCADES : 1;
@@ -989,37 +1004,25 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         if (mine.count == 0) continue;
         anyTile = true;
 
-        // The shader lights a surface from normalize(-aim), so rays travel the other way.
-        const glm::vec3 toLight = glm::normalize(-caster.dir);
-        const glm::vec3 up = shadowUp(toLight);
-        // Rotation only, for snapping a centre to the map's grid in the light's own axes.
-        const glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), -toLight, up);
-        const glm::mat4 lightRotInv = glm::inverse(lightRot);
-
         for (u32 c = 0; c < mine.count; ++c) {
             const u32 tileIndex = mine.first + c;
             const ShadowTile& tile = shadow_atlas_.tile(tileIndex);
-            ShadowProjection projection;
+            glm::mat4 projection(1.0f);
 
-            if (!caster.directional) {
-                // A fraction of the reach and not a constant: a perspective depth
-                // spends its precision next to the near plane, and one fixed in world
-                // units would put that wherever the scene's scale happened to be.
-                const f32 reach = std::max(caster.range, 1e-3f);
-                const f32 nearPlane = std::max(reach * 0.005f, 1e-3f);
-                projection.matrix = spotProjection(caster.outerAngle, nearPlane, reach)
-                                  * glm::lookAt(caster.pos, caster.pos + caster.dir,
-                                                shadowUp(caster.dir));
-                // What the cone covers where it is widest, which is what a texel of
-                // this tile is worth — the same two numbers the cascades report.
-                projection.radius = std::tan(glm::radians(
-                    std::clamp(caster.outerAngle, 1.0f, 179.0f) * 0.5f)) * reach;
-                // A cone's depth is hyperbolic; at the far plane, flattest and where
-                // self-shadowing is worst, a world unit is worth this much of it. An
-                // orthographic map's 1/range is the same question of a linear depth.
-                projection.depthPerWorld = nearPlane
-                                         / (reach * std::max(reach - nearPlane, 1.0f));
+            if (caster.shape != ShadowShape::Box) {
+                // A receiver resolves in exactly one face, and whatever stands between
+                // it and the light is inside that same face: a face's frustum IS the
+                // cone from the light through everything the face covers.
+                const bool cube = caster.shape == ShadowShape::Cube;
+                projection = coneShadow(caster.pos, cube ? cubeFace(c) : caster.dir,
+                                        cube ? 90.0f : caster.outerAngle, caster.range);
             } else {
+                // The shader lights a surface from normalize(-aim), so rays travel the
+                // other way; the rotation alone snaps a centre to the map's own grid.
+                const glm::vec3 toLight = glm::normalize(-caster.dir);
+                const glm::vec3 up = shadowUp(toLight);
+                const glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), -toLight, up);
+                const glm::mat4 lightRotInv = glm::inverse(lightRot);
                 glm::vec3 centre(0.0f);
                 f32 radius = 1.0f;
                 if (mine.count == 1) {
@@ -1082,20 +1085,14 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
                 lightProj[1][1] = 1.0f / radius;
                 lightProj[2][2] = -1.0f / range;
                 lightProj[3][2] = 0.0f;
-                projection.matrix = lightProj * lightView;
-                projection.radius = radius;
-                projection.depthPerWorld = 1.0f / std::max(range, 1.0f);
+                projection = lightProj * lightView;
             }
 
-            matrices[tileIndex] = projection.matrix;
-            // The tile's rect, and in its w the bias it needs — scaled by what a texel
-            // of THIS tile is worth: the number stopping a near cascade shadowing
-            // itself would let a coarser one detach from whatever casts into it.
+            matrices[tileIndex] = projection;
+            // Where the tile sits, and nothing else. What a comparison against it has
+            // to forgive is not a property of the tile but of the fragment asking, and
+            // is derived there out of this matrix and the size of the square.
             tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex);
-            tiles[tileIndex].w = kShadowBias * std::max(projection.radius, 1.0f)
-                               / (0.5f * static_cast<f32>(tile.size))
-                               * (4.0f * std::max(projection.radius, 1.0f))
-                               * projection.depthPerWorld;
 
             // A self-contained pass, in the shape renderToTarget uses: swap what the
             // frame looks through, collect what casts, draw, hand the target back. The
@@ -1108,15 +1105,15 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             cleared = true;
             device_.setViewport(tile.x, tile.y, tile.size, tile.size);
 
-            view_projection_ = projection.matrix;
-            frustum_.extractFromMatrix(projection.matrix);
+            view_projection_ = projection;
+            frustum_.extractFromMatrix(projection);
             pool_.beginFrame();
             draw_list_.clear();
 
             auto ctx = makeContext();
             ctx.shadow_pass = true;
             RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_,
-                                            ctx, computeCameraView(projection.matrix)};
+                                            ctx, computeCameraView(projection)};
             for (auto& plugin : plugins_) plugin->collect(collectCtx);
 
             draw_list_.finalize(pool_);
@@ -1124,7 +1121,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // Not a camera's: this projection spans exactly the occluders it draws, so
             // it sits inside either clip volume as built, and the depths it writes are
             // compared against the copy of it the receiving shader holds.
-            context_.updateFrameConstants(projection.matrix);
+            context_.updateFrameConstants(projection);
             // The depth variant is still a Lit2D shader and still declares the light block,
             // and a draw whose declared UBO is unbound is undefined behaviour that draws
             // nothing — the whole pass came back empty for exactly this.

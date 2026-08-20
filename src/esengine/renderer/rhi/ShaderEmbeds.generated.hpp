@@ -350,7 +350,13 @@ out highp vec3 v_worldNormal;
 out highp vec3 v_worldPos;
 #endif
 #ifdef SHADOW_DEPTH
-out highp float v_shadowDepth;
+// The clip position, and not the depth it divides down to. z/w is not affine across a
+// triangle, so a stage that divides here hands the fragment an interpolation of the
+// corners' quotients rather than the quotient at the fragment — off by more, the wider
+// the depth range one triangle spans. An orthographic map never showed it (w is 1
+// throughout), and a cube face looking along a floor is the case that does: the error
+// there is worth several world units, which shadows the caster against itself.
+out highp vec4 v_shadowClip;
 #endif
 
 void main() {
@@ -370,9 +376,7 @@ void main() {
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
 #ifdef SHADOW_DEPTH
-    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
-    // same matrix: whatever each backend's clip z means, both sides mean it alike.
-    v_shadowDepth = clamp(gl_Position.z / gl_Position.w * 0.5 + 0.5, 0.0, 1.0);
+    v_shadowClip = gl_Position;
 #endif
 #ifdef LIT
 #if defined(MESH_NORMALS) && defined(SKINNED)
@@ -398,7 +402,7 @@ in highp vec3 v_worldNormal;
 in highp vec3 v_worldPos;
 #endif
 #ifdef SHADOW_DEPTH
-in highp float v_shadowDepth;
+in highp vec4 v_shadowClip;
 #endif
 
 uniform sampler2D u_texture;
@@ -410,7 +414,11 @@ out vec4 fragColor;
 
 void main() {
 #ifdef SHADOW_DEPTH
-    fragColor = vec4(packDepth(v_shadowDepth), 1.0);
+    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
+    // same matrix and at the same point: whatever each backend's clip z means, both
+    // sides mean it alike.
+    fragColor = vec4(packDepth(clamp(v_shadowClip.z / v_shadowClip.w * 0.5 + 0.5,
+                                     0.0, 1.0)), 1.0);
 #else
     vec4 base = texture(u_texture, v_texCoord) * v_color;
 #ifdef LIT
@@ -469,7 +477,8 @@ struct VSOut {
     @location(3) v_worldPos : vec3f,
 #endif
 #ifdef SHADOW_DEPTH
-    @location(4) v_shadowDepth : f32,
+    // The clip position, not the depth it divides down to — see the GLSL twin.
+    @location(4) v_shadowClip : vec4f,
 #endif
 };
 
@@ -492,9 +501,7 @@ struct VSOut {
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
 #ifdef SHADOW_DEPTH
-    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
-    // same matrix: whatever each backend's clip z means, both sides mean it alike.
-    out.v_shadowDepth = clamp(out.pos.z / out.pos.w * 0.5 + 0.5, 0.0, 1.0);
+    out.v_shadowClip = out.pos;
 #endif
 #ifdef LIT
 #ifdef MESH_NORMALS
@@ -543,13 +550,17 @@ struct VSOut {
     @location(3) v_worldPos : vec3f,
 #endif
 #ifdef SHADOW_DEPTH
-    @location(4) v_shadowDepth : f32,
+    @location(4) v_shadowClip : vec4f,
 #endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
 #ifdef SHADOW_DEPTH
-    return vec4f(packDepth(v.v_shadowDepth), 1.0);
+    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
+    // same matrix and at the same point: whatever each backend's clip z means, both
+    // sides mean it alike.
+    return vec4f(packDepth(clamp(v.v_shadowClip.z / v.v_shadowClip.w * 0.5 + 0.5,
+                                 0.0, 1.0)), 1.0);
 #else
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
 #ifdef LIT

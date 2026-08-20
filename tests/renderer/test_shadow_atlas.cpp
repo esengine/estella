@@ -1,6 +1,6 @@
-// Who owns which square of the shadow texture, pinned here because no pixel gate
-// can see it: a scene whose fragments all resolve in one cascade draws the same
-// picture whichever tile the other three sample.
+// Who owns which square of the shadow texture. A frame sees some of this now —
+// point-shadow resolves in two faces of a cube and goes red if every tile reports one
+// rect — but only the tiles its own fragments land in. The arithmetic is pinned here.
 
 #include "esengine/renderer/store/ShadowAtlas.hpp"
 
@@ -68,6 +68,20 @@ int main() {
     CHECK(small == 1, "single cells claim after it");
     CHECK(isTile(mixed.tile(1), 1024, 0, 512), "the first single cell clears the block");
     CHECK(isRect(mixed.unitRect(1), 0.5f, 0.0f, 0.25f), "and reports a quarter-side rect");
+
+    // A point light's cube: six single cells claimed together, contiguous and in the
+    // order the faces are rendered — which is what lets a light name a first tile and a
+    // count rather than six indices.
+    ShadowAtlas cube(2048, 512);
+    CHECK(cube.allocate(SHADOW_CUBE_FACES, 1) == 0, "a cube claims its six faces at once");
+    CHECK(cube.tileCount() == 6, "and gets all six");
+    CHECK(isTile(cube.tile(0), 0, 0, 512), "face 0 takes the first cell");
+    CHECK(isTile(cube.tile(5), 512, 512, 512), "face 5 the sixth, the row filled in order");
+    // What a sun standing beside it can still have: the cube left a row half used, and a
+    // 2x2 block only starts on a multiple of 2 — so the sun loses cascades, not its map.
+    CHECK(cube.allocate(4, 2) < 0, "four cascades no longer fit beside a cube");
+    CHECK(cube.allocate(2, 2) == 6, "two do, in the rows the cube did not reach");
+    CHECK(isTile(cube.tile(6), 0, 1024, 1024), "the first of them clearing the cube's rows");
 
     // The budget is the shader's array bound, not the texture's room: a 4096 atlas
     // of 512 cells has 64 of them and the block still stops at MAX_SHADOW_TILES.

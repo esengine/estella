@@ -731,8 +731,8 @@ struct LightConstants {
     u_lights : array<Light2D, 16>,
     u_occluderCount : vec4f,
     u_occluders : array<vec4f, 8>,
-    u_shadowMatrix : array<mat4x4f, 8>,
-    u_shadowTile : array<vec4f, 8>,
+    u_shadowMatrix : array<mat4x4f, 16>,
+    u_shadowTile : array<vec4f, 16>,
     u_shadowParams : vec4f,
     u_envIrradiance : array<vec4f, 9>,
     u_envParams : vec4f,
@@ -746,31 +746,59 @@ fn packDepth(d : f32) -> vec3f {
 fn unpackDepth(c : vec3f) -> f32 {
     return dot(c, vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
 }
-fn shadowFactor3D(worldPos : vec3f, first : i32, count : i32) -> f32 {
+fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, first : i32, count : i32) -> f32 {
 #ifndef ES_RECEIVE_SHADOW
     return 1.0;
 #else
     if (lc.u_shadowParams.x < 0.5) { return 1.0; }
+    // How steeply the surface stands to the light: one texel covers a patch of it, and
+    // the steeper the patch the further apart its ends are. Clamped, because edge-on is
+    // a tangent that runs away.
+    let NoL = clamp(dot(N, L), 0.0, 1.0);
+    let slope = sqrt(1.0 - NoL * NoL) / max(NoL, 0.15);
     // Nearest tile first: a light's tiles overlap, and the first one covering a
     // fragment is the one that spends the most texels on it.
-    for (var k = 0; k < 8; k++) {
+    for (var k = 0; k < 16; k++) {
         if (k >= count) { break; }
         let t = first + k;
-        let lcp = lc.u_shadowMatrix[t] * vec4f(worldPos, 1.0);
+        let m = lc.u_shadowMatrix[t];
+        let lcp = m * vec4f(worldPos, 1.0);
+        // Behind the light, where a divide by a negative w mirrors the point into the
+        // map's own square and shadows it against whatever the light sees the other
+        // way. A cube's six faces have five of themselves behind each one.
+        if (lcp.w <= 0.0) { continue; }
         let proj = lcp.xyz / lcp.w;
         let uv = proj.xy * 0.5 + 0.5;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { continue; }
+        // Depth counts as outside as much as the square does: this matrix and the one
+        // that wrote the map both run z over [0, 1], so past either end is somewhere
+        // the map never saw.
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0
+            || proj.z < 0.0 || proj.z > 1.0) { continue; }
         let rect = lc.u_shadowTile[t];
-        let here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - rect.w;
+        // One texel of this tile in WORLD units where this fragment stands: the matrix's
+        // x scale is clip per world, w how far away this is (1 where the map has no eye),
+        // and the rect over one atlas texel how many texels the square holds.
+        let texels = max(rect.z / max(lc.u_shadowParams.y, 1e-9), 1.0);
+        let across = length(vec3f(m[0].x, m[1].x, m[2].x));
+        let texel = 2.0 * lcp.w / max(across * texels, 1e-9);
+        // Ask a step toward the light rather than shift the answer: a step in world units
+        // is the same step whether a map's depth runs linearly with distance or
+        // hyperbolically, which is what lets one expression serve a cascade and a cone.
+        let lb = m * vec4f(worldPos + L * (texel * 1.5 * (1.0 + slope)), 1.0);
+        let here = clamp(lb.z / max(lb.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
         // The ONE place the two backends must not agree: v = 0 samples a texture's
         // bottom in GL and its top here, and the rect arrives with its low corner in
         // GL's terms — so the tile and the square inside it are both turned over.
         let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
+        // A tap that leaves this tile reads another map entirely — a neighbouring cube
+        // face, which is the least related depth in the atlas.
+        let lo = base + lc.u_shadowParams.y * 0.5;
+        let hi = base + rect.z - lc.u_shadowParams.y * 0.5;
         var lit = 0.0;
         for (var y = 0; y < 2; y++) {
             for (var x = 0; x < 2; x++) {
                 let o = (vec2f(f32(x), f32(y)) - 0.5) * lc.u_shadowParams.y;
-                let at = base + vec2f(uv.x, 1.0 - uv.y) * rect.z + o;
+                let at = clamp(base + vec2f(uv.x, 1.0 - uv.y) * rect.z + o, lo, hi);
                 let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
                 if (d >= here) { lit += 1.0; }
             }
@@ -982,7 +1010,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         }
         let sm = lc.u_lights[i].shadowMap;
         if (sm.y > 0.0 && atten > 0.0) {
-            atten *= shadowFactor3D(worldPos, i32(sm.x), i32(sm.y));
+            atten *= shadowFactor3D(worldPos, N, L, i32(sm.x), i32(sm.y));
         }
         let ndotl = max(dot(N, L), 0.0);
         let radiance = col.rgb * (col.a * ndotl * atten);
@@ -1302,8 +1330,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    Light2D u_lights[16];\n"
             "    highp vec4 u_occluderCount;\n"   // x = active occluder count
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
-            "    highp mat4 u_shadowMatrix[8];\n"  // world -> each atlas tile's clip
-            "    highp vec4 u_shadowTile[8];\n"   // xy = origin, z = side, w = bias
+            "    highp mat4 u_shadowMatrix[16];\n"  // world -> each atlas tile's clip
+            "    highp vec4 u_shadowTile[16];\n"  // xy = origin, z = side, w = bias
             "    highp vec4 u_shadowParams;\n"    // x = has map, y = one atlas texel
             "    highp vec4 u_envIrradiance[9];\n"  // SH9, rgb in xyz; zero = no environment
             "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
@@ -1331,31 +1359,58 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Visibility of a world point from the light that rendered the map. Depth is
             // written and compared through the SAME matrix and expression, so the two
             // backends' clip-z conventions cancel. 2x2 taps: one is a staircase.
-            "highp float shadowFactor3D(in highp vec3 worldPos, in int first, in int count) {\n"
+            "highp float shadowFactor3D(in highp vec3 worldPos, in highp vec3 N, in highp vec3 L,\n"
+            "                           in int first, in int count) {\n"
             "#ifndef ES_RECEIVE_SHADOW\n"
             "    return 1.0;\n"
             "#else\n"
             "    if (u_shadowParams.x < 0.5) return 1.0;\n"
+            // How steeply the surface stands to the light: one texel covers a patch of
+            // it, and the steeper the patch the further apart its ends are. Clamped,
+            // because edge-on is a tangent that runs away.
+            "    highp float NoL = clamp(dot(N, L), 0.0, 1.0);\n"
+            "    highp float slope = sqrt(1.0 - NoL * NoL) / max(NoL, 0.15);\n"
             // Nearest tile first: a light's tiles overlap, and the first one covering
             // a fragment is the one that spends the most texels on it.
-            "    for (int k = 0; k < 8; ++k) {\n"
+            "    for (int k = 0; k < 16; ++k) {\n"
             "        if (k >= count) break;\n"
             "        int t = first + k;\n"
-            "        highp vec4 lc = u_shadowMatrix[t] * vec4(worldPos, 1.0);\n"
+            "        highp mat4 m = u_shadowMatrix[t];\n"
+            "        highp vec4 lc = m * vec4(worldPos, 1.0);\n"
+            // Behind the light, where a divide by a negative w mirrors the point into
+            // the map's own square and shadows it against whatever the light sees the
+            // other way. A cube's six faces have five of themselves behind each one.
+            "        if (lc.w <= 0.0) continue;\n"
             "        highp vec3 proj = lc.xyz / lc.w;\n"
             "        highp vec2 uv = proj.xy * 0.5 + 0.5;\n"
-            // Outside every tile is lit: a map covers what the camera can see, and
-            // darkening everything beyond it would be a visible square of night.
-            "        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) continue;\n"
+            // Outside every tile is lit: darkening what a map does not cover would be a
+            // visible square of night. Depth counts as outside as much as the square
+            // does — both matrices run z over [0, 1], so past either end is unseen.
+            "        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0\n"
+            "            || proj.z < 0.0 || proj.z > 1.0) continue;\n"
             // The tile's rect is data, so a tile need not be the same size as its
             // neighbour and this expression does not care which one it is reading.
             "        highp vec4 rect = u_shadowTile[t];\n"
-            "        highp float here = clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - rect.w;\n"
+            // One texel of this tile in WORLD units where this fragment stands: the
+            // matrix's x scale is clip per world, w how far away this is (1 where the map
+            // has no eye), and the rect over one atlas texel how many texels it holds.
+            "        highp float texels = max(rect.z / max(u_shadowParams.y, 1e-9), 1.0);\n"
+            "        highp float across = length(vec3(m[0][0], m[1][0], m[2][0]));\n"
+            "        highp float texel = 2.0 * lc.w / max(across * texels, 1e-9);\n"
+            // Ask a step toward the light rather than shift the answer: a step in world
+            // units is the same step whether a map's depth runs linearly with distance or
+            // hyperbolically, which is what lets one expression serve a cascade and a cone.
+            "        highp vec4 lb = m * vec4(worldPos + L * (texel * 1.5 * (1.0 + slope)), 1.0);\n"
+            "        highp float here = clamp(lb.z / max(lb.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
+            // A tap that leaves this tile reads another map entirely — a neighbouring
+            // cube face, which is the least related depth in the atlas.
+            "        highp vec2 lo = rect.xy + u_shadowParams.y * 0.5;\n"
+            "        highp vec2 hi = rect.xy + rect.z - u_shadowParams.y * 0.5;\n"
             "        highp float lit = 0.0;\n"
             "        for (int y = 0; y < 2; ++y) {\n"
             "            for (int x = 0; x < 2; ++x) {\n"
             "                highp vec2 o = (vec2(float(x), float(y)) - 0.5) * u_shadowParams.y;\n"
-            "                highp vec2 at = rect.xy + uv * rect.z + o;\n"
+            "                highp vec2 at = clamp(rect.xy + uv * rect.z + o, lo, hi);\n"
             "                lit += unpackDepth(texture(u_shadowMap, at).rgb) < here ? 0.0 : 1.0;\n"
             "            }\n"
             "        }\n"
@@ -1622,7 +1677,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // seen from somewhere no light reaching it is standing.
             "        highp vec4 sm = u_lights[i].shadowMap;\n"
             "        if (sm.y > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor3D(worldPos, int(sm.x), int(sm.y));\n"
+            "            atten *= shadowFactor3D(worldPos, N, L, int(sm.x), int(sm.y));\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"

@@ -41,6 +41,15 @@ inline constexpr u32 kShadowAtlasSize = 2048;
 inline constexpr u32 kShadowCellSize = 512;
 inline constexpr u32 kShadowCascadeCells = 2;
 
+/**
+ * @brief The shape a light's map has to cover — the one thing a shadow pass differs by.
+ * @details A box of the world for a sun, one cone for a spot, and for a point light six
+ *          cones at right angles, because a point lights every direction and no single
+ *          projection covers that. Each face is a tile like any other, so the atlas, the
+ *          collect, the vertex stage and the depth packing are shared by all three.
+ */
+enum class ShadowShape : u8 { Box, Cone, Cube };
+
 struct Plane {
     glm::vec3 normal;
     f32 distance;
@@ -345,8 +354,9 @@ private:
      * @brief Draws the scene's mesh occluders from the shadow-casting light, into a map
      *        the main pass samples.
      * @details Runs at the top of collectAll and re-opens the frame's own target behind
-     *          itself. A no-op unless collectLights found a Directional light asking for
-     *          one: the map is one per frame, the receiving shader having one of each.
+     *          itself. A no-op unless collectLights found a light asking for one. Every
+     *          map a frame renders shares one atlas texture, and who owns which square
+     *          of it is ShadowAtlas's answer rather than the light type's.
      */
     void renderShadowMap(ecs::Registry& registry);
 
@@ -362,21 +372,23 @@ private:
     /**
      * @brief What a light needs a shadow map FOR — everything the pass differs by.
      *
-     * @details A directional light's map covers a stretch of the view and a spot's
-     *          covers its cone, so they build different projections; everything after
-     *          that is one pass. Kept as a description rather than a flag on the light
-     *          because the cap sort reorders those and this has to survive it.
+     * @details A sun's map covers a stretch of the view, a spot's its cone and a point's
+     *          every direction, so the three build different projections and share the
+     *          pass after that. A description rather than a flag on the light, because
+     *          the cap sort reorders those and this has to survive it.
      */
     struct ShadowCaster {
         u32 slot = 0;
-        bool directional = true;
-        /// Which way it points — the aim, not the direction light travels.
+        ShadowShape shape = ShadowShape::Box;
+        /// Which way it points — the aim, not the direction light travels. A cube aims
+        /// six ways of its own and reads none of it.
         glm::vec3 dir{0.0f, 0.0f, -1.0f};
-        /// Where it stands. Spot only; a directional light has no position.
+        /// Where it stands. Cone and cube only; a sun has no position.
         glm::vec3 pos{0.0f};
-        /// Directional: a fixed reach, or 0 to fit what the camera can see.
+        /// Box: a fixed reach, or 0 to fit what the camera can see.
         f32 extent = 0.0f;
-        /// Spot: how far its falloff reaches, and how wide the cone opens (degrees).
+        /// Cone and cube: how far the falloff reaches, and how wide one cone opens in
+        /// degrees — a cube's six are right angles and do not read the angle.
         f32 range = 0.0f;
         f32 outerAngle = 0.0f;
     };
