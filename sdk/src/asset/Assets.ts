@@ -22,6 +22,7 @@ import { AssetRefLedger } from './AssetRefLedger';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
+import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import { isBuiltinMeshRef } from './builtinMeshes';
 import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
@@ -1707,8 +1708,12 @@ export class Assets {
         this.materialLoader_ = new MaterialAssetLoader();
         this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
-        this.register(new MeshAssetLoader(() => this.module_));
-        this.register(new EnvironmentAssetLoader(() => this.module_));
+        // The engine core however it is embedded: the module on the web, the host's
+        // bindings on a device. Taking only the module made these two web-only by
+        // construction — a packaged game passes `module: null`.
+        const core = (): EngineApi | null => this.module_ ?? nativeEngineApi();
+        this.register(new MeshAssetLoader(core));
+        this.register(new EnvironmentAssetLoader(core));
         // The audio loader needs the AudioAPI outside load() too (unload /
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));

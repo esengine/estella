@@ -12,6 +12,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
+import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
 import { Assets } from '../src/asset/AssetPlugin';
 import { shutdownResourceManager } from '../src/wasm/resourceManager';
@@ -142,5 +144,65 @@ describe('native Assets.loadTexture', () => {
         expect(releaseSpy).not.toHaveBeenCalled();   // still one reference
         assets.releaseTexture('logo.png');
         expect(releaseSpy).toHaveBeenCalledWith(1);
+    });
+});
+
+// A device's core is the host's bindings, not a wasm module. The two loaders that
+// marshal bulk data took only the module, so no native package ever loaded a mesh.
+describe('native Assets mesh loading', () => {
+    it('marshals built-in geometry through the native core, with no wasm module', async () => {
+        const { scope } = makeTextureScope();
+        const heap = new Uint8Array(1 << 20);
+        let brk = 16;
+        const created: Array<{ channels: number; stride: number; indices: number }> = [];
+        Object.assign(scope, {
+            es_heap: () => heap,
+            es_malloc: (n: number) => { const p = brk; brk += n + (8 - (n % 8)); return p; },
+            es_free: () => {},
+            es_mesh_createFromChannels: (
+                _table: number, channelCount: number, stride: number,
+                _verts: number, _vertBytes: number, _idx: number, indexCount: number,
+            ) => {
+                created.push({ channels: channelCount, stride, indices: indexCount });
+                return 7;
+            },
+        });
+        setNativeEngineApi({
+            HEAPU8: heap,
+            HEAPU16: new Uint16Array(heap.buffer),
+            HEAPU32: new Uint32Array(heap.buffer),
+            HEAPI32: new Int32Array(heap.buffer),
+            HEAPF32: new Float32Array(heap.buffer),
+            HEAPF64: new Float64Array(heap.buffer),
+            _malloc: (n: number) => (scope.es_malloc as (n: number) => number)(n),
+            _free: () => {},
+            mesh_createFromChannels: scope.es_mesh_createFromChannels as never,
+        });
+        try {
+            const app = createNativeApp(makeBridge({}), scope);
+            await app.tick(0);
+            const assets = app.getResource(Assets);
+
+            const scene = {
+                version: '1.0', name: 'Main',
+                entities: [{
+                    id: 0, name: 'Block', parent: null, children: [], visible: true,
+                    components: [
+                        { type: 'Transform', data: {} },
+                        { type: 'Mesh2D', data: { mesh: 'builtin:cube' } },
+                    ],
+                }],
+            };
+            const result = await assets.preloadSceneAssets(scene as never);
+
+            expect(result.missing).toEqual([]);
+            expect(created).toHaveLength(1);
+            // The geometry that crossed is the cube's own, not an empty upload.
+            const cube = builtinMeshTemplate('builtin:cube')!.build();
+            expect(created[0]!.indices).toBe(cube.indices.length);
+            expect(created[0]!.channels).toBe(cube.channels.length);
+        } finally {
+            setNativeEngineApi(null);
+        }
     });
 });

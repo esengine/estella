@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext } from '../AssetLoader';
 import { resolveDocumentRef } from '../documentRef';
-import type { ESEngineModule } from '../../wasm';
+import type { EngineApi } from '../../ecs/bridge/engineApi';
+import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
 import { log } from '../../util/logger';
 
@@ -36,7 +37,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
     readonly extensions = ['.esenv'];
 
     /** Lazy like the mesh loader's: the module arrives after construction. */
-    constructor(private readonly module_: () => ESEngineModule | null) {}
+    constructor(private readonly core_: () => EngineApi | null) {}
 
     async load(path: string, ctx: LoadContext): Promise<EnvironmentResult> {
         const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
@@ -45,7 +46,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
             throw new Error(`${path}: an environment is nine RGB coefficients, got `
                 + `${data.irradiance?.length ?? 0} numbers`);
         }
-        const m = this.module_();
+        const m = marshallingCore(this.core_());
         if (!m?.environment_create) {
             throw new Error('this engine build carries no environment_create');
         }
@@ -83,7 +84,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
     }
 
     unload(asset: EnvironmentResult, ctx: LoadContext): void {
-        this.module_()?.environment_release?.(asset.handle);
+        this.core_()?.environment_release?.(asset.handle);
         if (asset.specularPath) ctx.releaseTexture(asset.specularPath);
     }
 }

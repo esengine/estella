@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext } from '../AssetLoader';
-import type { ESEngineModule } from '../../wasm';
+import type { EngineApi } from '../../ecs/bridge/engineApi';
+import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
 import { decodeMesh, encodeChannelTable } from '../meshFormat';
 import { builtinMeshTemplate, isBuiltinMeshRef } from '../builtinMeshes';
@@ -27,7 +28,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
     readonly extensions = ['.esmesh'];
 
     /** Lazy like the audio loader's: unload/invalidate have no LoadContext. */
-    constructor(private readonly module_: () => ESEngineModule | null) {}
+    constructor(private readonly core_: () => EngineApi | null) {}
 
     async load(path: string, ctx: LoadContext): Promise<MeshResult> {
         const builtin = isBuiltinMeshRef(path) ? builtinMeshTemplate(path) : undefined;
@@ -35,7 +36,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
             ? builtin.build()
             : decodeMesh(new Uint8Array(await ctx.loadBinary(ctx.catalog.getBuildPath(path))));
         const table = encodeChannelTable(mesh.channels);
-        const m = this.module_();
+        const m = marshallingCore(this.core_());
         if (!m?.mesh_createFromChannels) {
             throw new Error('this engine build carries no mesh_createFromChannels');
         }
@@ -76,6 +77,6 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
 
     unload(asset: MeshResult): void {
         releaseMeshCollision(asset.handle);
-        this.module_()?.mesh_release?.(asset.handle);
+        this.core_()?.mesh_release?.(asset.handle);
     }
 }
