@@ -98,8 +98,11 @@ struct GpuLight2D {
     glm::vec4 color{0.0f};
     glm::vec4 spot{0.0f};
     glm::vec4 shadow{0.0f};
-    /// x = this light's first tile in the shadow atlas, y = how many it owns; zw unused.
+    /// x = this light's first tile in the shadow atlas, y = how many it owns; w unused.
     /// y = 0 is a light with no map, which is every light that did not ask for one.
+    /// z = how wide its source is where its own map cannot measure a distance to divide
+    /// by: the tangent of the angle it subtends, which is what a directional light has
+    /// instead of a half-extent. Zero for a light that stands somewhere.
     glm::vec4 shadowMap{0.0f};
 };
 

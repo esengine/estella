@@ -87,8 +87,10 @@ public:
     /// the zeroed count, which is a light with no map.
     void setLightShadowTiles(u32 slot, u32 first, u32 tiles) {
         if (slot >= count_) return;
-        data_.lights[slot].shadowMap = glm::vec4(static_cast<f32>(first),
-                                                 static_cast<f32>(tiles), 0.0f, 0.0f);
+        // The two the atlas decides, and nothing else: z is the light's own source size,
+        // written when it was collected and not this pass's to overwrite.
+        data_.lights[slot].shadowMap.x = static_cast<f32>(first);
+        data_.lights[slot].shadowMap.y = static_cast<f32>(tiles);
         dirty_ = true;
     }
 

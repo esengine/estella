@@ -720,6 +720,11 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // that slot on their falloff radius.
             const glm::vec3 aim = lightForward(registry.tryGet<ecs::Transform>(entity));
             gpu.posDir = glm::vec4(aim.x, aim.y, 1.0f, aim.z);
+            // A source infinitely far away has no half-extent a map can divide by a
+            // distance, so what it carries is the angle it subtends — as its tangent,
+            // which is what the penumbra is made of either way.
+            gpu.shadowMap.z = std::tan(glm::radians(
+                std::clamp(light.sourceAngle, 0.0f, 179.0f) * 0.5f));
             // One sun: a second set of cascades would claim the atlas a first one is
             // already spending, and two suns is not a scene anybody authors.
             if (light.meshShadows && !haveSun) {

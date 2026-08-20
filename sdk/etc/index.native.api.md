@@ -5,7 +5,7 @@ Symbols: 113 public · 71 beta · 1500 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"e868cc33a27b61d4"
+"4f073fe384c59476"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4028,6 +4028,7 @@ radius: number
 shadowDistance: number
 shadowExtent: number
 shadowSoftness: number
+sourceAngle: number
 type: number
 ```
 

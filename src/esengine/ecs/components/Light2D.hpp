@@ -85,6 +85,14 @@ struct Light2D {
     ES_PROPERTY(animatable, min=0, tooltip="Shadow softness (light-source size); 0 = hard edge.")
     f32 shadowSoftness{0.0f};
 
+    /** @brief How wide a Directional light's source is, as the angle it subtends — the full
+     *         angular diameter in degrees, 0.53 being the real sun's. A length cannot say it:
+     *         the source is infinitely far away, so only an angle carries a penumbra. 0 is a
+     *         hard edge (default); ignored by the types that have a position and a size. */
+    ES_PROPERTY(animatable, min=0, max=90, unit="°", advanced,
+                tooltip="Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).")
+    f32 sourceAngle{0.0f};
+
     /** @brief Directional-light shadow reach in world units: how far back toward the light a
      *         fragment searches for an occluder. 0 = a Directional light casts no shadow (default).
      *         Ignored by Point/Spot, which shadow along the segment to the light position. */

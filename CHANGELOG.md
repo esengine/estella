@@ -16,6 +16,35 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sun has a size too, and it is an angle.** A light with a position carries its source
+  as a half-extent in world units, and the penumbra follows from dividing that by the
+  distance to what blocks it. A directional light has no such distance — its source is
+  infinitely far away — so a length says nothing about its shadow's edge, and its cascades
+  stayed hard while every other light's softened. `Light2D::sourceAngle` is what it
+  carries instead: the full angle its source subtends, in degrees, 0.53 being the real
+  sun's. Every engine that does this splits it the same way, and for the same reason.
+
+  One expression still serves both, which is the point: the penumbra is the tangent of the
+  angle the source subtends AT THE BLOCKER, times how far the receiver stands beyond it.
+  A map with an eye divides a half-extent by the blocker's distance to get that tangent; a
+  map without one measures its own w as 1 everywhere, so what it divides is the tangent
+  itself. The shader picks between them on a property of the matrix — whether its w varies
+  with position — and the same line computes the radius either way.
+
+  What it costs to know the blocker's distance is nothing new either. The map's depth row
+  has length A, and each kind of map inverts its own depth with it: hyperbolic where there
+  is an eye, linear where there is not.
+
+  Gates `sun-shadow` and `sun-shadow-contact`, both backends: one scene with the caster at
+  two points along the SAME sunbeam, so its shadow lands in the same place and only the
+  edge differs — 9 world units of penumbra with the caster 100 above the ground, 2.4 with
+  it a quarter of that. Two of the four shared probes differ by 70 and 38.
+
+  Verified against the defect and against the neighbouring field: with `sourceAngle` zeroed
+  the edge collapses to one sample step (0 → 124 → 247) and both differing probes go red,
+  and with `shadowSoftness` set to 200 on the same sun the frame does not move by a single
+  value — a length is not what a sun's map reads.
+
 - **A shadow map's edge is as soft as the light source is big.** `shadowSoftness` — the
   light's half-extent in world units — reached only the 2D occluder path, which samples
   five points across the source and counts what each of them can see. A mesh shadow map

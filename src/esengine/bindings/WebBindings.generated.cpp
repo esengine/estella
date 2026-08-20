@@ -479,6 +479,7 @@ struct Light2DJS {
     f32 innerAngle;
     f32 outerAngle;
     f32 shadowSoftness;
+    f32 sourceAngle;
     f32 shadowDistance;
     bool meshShadows;
     f32 shadowExtent;
@@ -495,6 +496,7 @@ void light2dApplyJS(esengine::ecs::Light2D& c, const Light2DJS& js) {
     c.innerAngle = js.innerAngle;
     c.outerAngle = js.outerAngle;
     c.shadowSoftness = js.shadowSoftness;
+    c.sourceAngle = js.sourceAngle;
     c.shadowDistance = js.shadowDistance;
     c.meshShadows = js.meshShadows;
     c.shadowExtent = js.shadowExtent;
@@ -518,6 +520,7 @@ Light2DJS light2dToJS(const esengine::ecs::Light2D& c) {
     js.innerAngle = c.innerAngle;
     js.outerAngle = c.outerAngle;
     js.shadowSoftness = c.shadowSoftness;
+    js.sourceAngle = c.sourceAngle;
     js.shadowDistance = c.shadowDistance;
     js.meshShadows = c.meshShadows;
     js.shadowExtent = c.shadowExtent;
@@ -1437,6 +1440,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("innerAngle", &Light2DJS::innerAngle)
         .field("outerAngle", &Light2DJS::outerAngle)
         .field("shadowSoftness", &Light2DJS::shadowSoftness)
+        .field("sourceAngle", &Light2DJS::sourceAngle)
         .field("shadowDistance", &Light2DJS::shadowDistance)
         .field("meshShadows", &Light2DJS::meshShadows)
         .field("shadowExtent", &Light2DJS::shadowExtent)
@@ -2781,12 +2785,13 @@ static_assert(offsetof(esengine::ecs::Light2D, radius) == 24, "ABI offset drift:
 static_assert(offsetof(esengine::ecs::Light2D, innerAngle) == 28, "ABI offset drift: esengine::ecs::Light2D.innerAngle (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::Light2D, outerAngle) == 32, "ABI offset drift: esengine::ecs::Light2D.outerAngle (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::Light2D, shadowSoftness) == 36, "ABI offset drift: esengine::ecs::Light2D.shadowSoftness (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::Light2D, shadowDistance) == 40, "ABI offset drift: esengine::ecs::Light2D.shadowDistance (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::Light2D, meshShadows) == 44, "ABI offset drift: esengine::ecs::Light2D.meshShadows (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::Light2D, shadowExtent) == 48, "ABI offset drift: esengine::ecs::Light2D.shadowExtent (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::Light2D, environment) == 52, "ABI offset drift: esengine::ecs::Light2D.environment (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::Light2D, drawEnvironment) == 56, "ABI offset drift: esengine::ecs::Light2D.drawEnvironment (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Light2D, enabled) == 57, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 57)");
+static_assert(offsetof(esengine::ecs::Light2D, sourceAngle) == 40, "ABI offset drift: esengine::ecs::Light2D.sourceAngle (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::Light2D, shadowDistance) == 44, "ABI offset drift: esengine::ecs::Light2D.shadowDistance (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::Light2D, meshShadows) == 48, "ABI offset drift: esengine::ecs::Light2D.meshShadows (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::Light2D, shadowExtent) == 52, "ABI offset drift: esengine::ecs::Light2D.shadowExtent (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::Light2D, environment) == 56, "ABI offset drift: esengine::ecs::Light2D.environment (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::Light2D, drawEnvironment) == 60, "ABI offset drift: esengine::ecs::Light2D.drawEnvironment (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::Light2D, enabled) == 61, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 61)");
 static_assert(offsetof(esengine::ecs::Mesh2D, texture) == 0, "ABI offset drift: esengine::ecs::Mesh2D.texture (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Mesh2D, normalMap) == 4, "ABI offset drift: esengine::ecs::Mesh2D.normalMap (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Mesh2D, color) == 8, "ABI offset drift: esengine::ecs::Mesh2D.color (EHT expected 8)");
@@ -3019,7 +3024,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "e868cc33a27b61d4";
+static const char* kEsAbiLayoutHash = "4f073fe384c59476";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

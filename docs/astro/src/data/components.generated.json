@@ -1593,6 +1593,14 @@
           "range": "≥ 0"
         },
         {
+          "key": "sourceAngle",
+          "type": "number",
+          "default": "0",
+          "doc": "Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).",
+          "range": "0–90",
+          "advanced": true
+        },
+        {
           "key": "shadowDistance",
           "type": "number",
           "default": "0",
@@ -1642,6 +1650,7 @@
         "innerAngle",
         "outerAngle",
         "shadowSoftness",
+        "sourceAngle",
         "shadowDistance"
       ]
     },

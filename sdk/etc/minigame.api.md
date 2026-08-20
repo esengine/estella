@@ -4015,6 +4015,7 @@ radius: number
 shadowDistance: number
 shadowExtent: number
 shadowSoftness: number
+sourceAngle: number
 type: number
 ```
 

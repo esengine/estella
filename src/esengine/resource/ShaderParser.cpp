@@ -771,9 +771,16 @@ fn diskTap(i : i32, n : i32, radius : f32) -> vec2f {
     // A spiral, not a table: the golden angle spreads any number of taps evenly over a
     // disc, so the pattern follows the count instead of being pasted in beside it.
     let a = f32(i) * 2.3999632;
-    return radius * sqrt((f32(i) + 0.5) / f32(n)) * vec2f(cos(a), sin(a));
+    // Turned over in v for the reason the tile's rect is: an offset in texture space
+    // follows the axis the texture is sampled along, and this backend's runs the other
+    // way. A spiral is not its own mirror, so without this the two average other points.
+    return radius * sqrt((f32(i) + 0.5) / f32(n)) * vec2f(cos(a), -sin(a));
 }
-fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, softness : f32,
+// The widest disc the tap count below can average over: past it the samples sit further
+// apart than the texels they average, and a penumbra bands instead of blurring. It bounds
+// the search too — a blocker outside it cannot widen an edge that cannot be drawn wider.
+const kShadowDisc = 8.0;
+fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
                   first : i32, count : i32) -> f32 {
 #ifndef ES_RECEIVE_SHADOW
     return 1.0;
@@ -820,10 +827,13 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, softness : f32,
         let at0 = base + vec2f(uv.x, 1.0 - uv.y) * rect.z;
         let lo = base + lc.u_shadowParams.y * 0.5;
         let hi = base + rect.z - lc.u_shadowParams.y * 0.5;
-        // A source with no size — or a map whose w does not vary with position, which is
-        // a map with no eye and so no distance to measure a source against — throws one
-        // edge, and four taps are its whole cost.
-        if (softness <= 0.0 || length(vec3f(m[0].w, m[1].w, m[2].w)) < 0.5) {
+        // How wide the source is in the unit this map measures depth in: world units
+        // where its w varies with position, so it has an eye to measure them from, and
+        // the tangent of the angle it subtends where its w is 1 everywhere.
+        let hasEye = length(vec3f(m[0].w, m[1].w, m[2].w)) > 0.5;
+        let src = select(source.y, source.x, hasEye);
+        // A source with no size throws one edge, and four taps are its whole cost.
+        if (src <= 0.0) {
             var lit = 0.0;
             for (var y = 0; y < 2; y++) {
                 for (var x = 0; x < 2; x++) {
@@ -833,31 +843,33 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, softness : f32,
             }
             return lit * 0.25;
         }
-        // What blocks this fragment. The search is the source's own half-extent in
-        // texels, capped: the tap count is fixed, so a wider disc than this samples too
-        // sparsely to average.
-        let searchR = clamp(softness / texel, 1.0, 8.0);
-        // Against a depth that forgives the reach, not the texel: a tap r texels away
-        // lands r texels along the surface too, and comparing it to a one-texel bias
-        // counts the receiver's own slope as the thing shadowing it.
-        let reach = shadowDepth(m, worldPos + L * stepFor(texel, slope, searchR));
+        // What blocks this fragment, over the whole disc an edge can reach across — and
+        // against a depth that forgives that reach, since a tap r texels away lands r
+        // texels along the surface and a one-texel bias would call the slope a blocker.
+        let reach = shadowDepth(m, worldPos + L * stepFor(texel, slope, kShadowDisc));
         var sum = 0.0;
         var hits = 0.0;
         for (var i = 0; i < 8; i++) {
-            let at = clamp(at0 + diskTap(i, 8, searchR) * lc.u_shadowParams.y, lo, hi);
+            let at = clamp(at0 + diskTap(i, 8, kShadowDisc) * lc.u_shadowParams.y, lo, hi);
             let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
             if (d < reach) { sum += d; hits += 1.0; }
         }
         if (hits < 0.5) { return 1.0; }
-        // How far from the light that blocker stands, out of the map's own depth: this
-        // projection writes z = A - A*near/d, and A is the length of its depth row, so
-        // one stored depth and this fragment's own distance inverts the other exactly.
+        // How far the receiver stands beyond what blocks it, and how far from the light
+        // that blocker is. A is the length of the map's depth row, and each kind of map
+        // inverts its own with it: hyperbolic where it has an eye, linear where w is 1.
         let A = length(vec3f(m[0].z, m[1].z, m[2].z));
-        let db = lcp.w * (A - proj.z) / max(A - (2.0 * (sum / hits) - 1.0), 1e-6);
-        // A source of half-extent `softness` at db throws this much penumbra across a
-        // receiver at lcp.w — which is why a shadow hardens as its caster nears the
-        // surface, and why one number governs both.
-        let radius = clamp(softness * (lcp.w - db) / max(db * texel, 1e-4), 0.5, 8.0);
+        let zb = 2.0 * (sum / hits) - 1.0;
+        var dbw = 1.0;
+        var span = (proj.z - zb) / max(A, 1e-9);
+        if (hasEye) {
+            dbw = lcp.w * (A - proj.z) / max(A - zb, 1e-6);
+            span = lcp.w - dbw;
+        }
+        // A source subtending src/dbw at the blocker throws that much penumbra across the
+        // span beyond it — which is why a shadow hardens as its caster nears what it
+        // falls on, and why a sun's angle and a lamp's size are the same expression.
+        let radius = clamp(src * span / max(dbw * texel, 1e-4), 0.5, kShadowDisc);
         let wide = shadowDepth(m, worldPos + L * stepFor(texel, slope, radius));
         // Thirty-two, where the hard edge needs four: the disc is as wide as the source
         // makes it, and a penumbra averaged over too few taps bands instead of blurring.
@@ -1072,7 +1084,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         }
         let sm = lc.u_lights[i].shadowMap;
         if (sm.y > 0.0 && atten > 0.0) {
-            atten *= shadowFactor3D(worldPos, N, L, sh.x, i32(sm.x), i32(sm.y));
+            atten *= shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y));
         }
         let ndotl = max(dot(N, L), 0.0);
         let radiance = col.rgb * (col.a * ndotl * atten);
@@ -1440,6 +1452,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    return 1.0;\n"
             "#endif\n"
             "}\n"
+            // The widest disc the tap count below can average over: past it the samples
+            // sit further apart than the texels they average, and a penumbra bands rather
+            // than blurs. It bounds the search too, which can find no wider an edge.
+            "const highp float kShadowDisc = 8.0;\n"
             // A spiral, not a table: the golden angle spreads any number of taps evenly
             // over a disc, so the pattern follows the count instead of sitting beside it.
             "highp vec2 diskTap(in int i, in int n, in highp float radius) {\n"
@@ -1450,7 +1466,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // written and compared through the SAME matrix and expression, so the two
             // backends' clip-z conventions cancel. 2x2 taps: one is a staircase.
             "highp float shadowFactor3D(in highp vec3 worldPos, in highp vec3 N, in highp vec3 L,\n"
-            "                           in highp float softness, in int first, in int count) {\n"
+            "                           in highp vec2 source, in int first, in int count) {\n"
             "#ifndef ES_RECEIVE_SHADOW\n"
             "    return 1.0;\n"
             "#else\n"
@@ -1494,11 +1510,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp vec2 at0 = rect.xy + uv * rect.z;\n"
             "        highp vec2 lo = rect.xy + u_shadowParams.y * 0.5;\n"
             "        highp vec2 hi = rect.xy + rect.z - u_shadowParams.y * 0.5;\n"
-            // A source with no size — or a map whose w does not vary with position, which
-            // is a map with no eye and so no distance to measure a source against —
-            // throws one edge, and four taps are its whole cost.
-            "        if (softness <= 0.0\n"
-            "            || length(vec3(m[0][3], m[1][3], m[2][3])) < 0.5) {\n"
+            // How wide the source is in the unit this map measures depth in: world units
+            // where its w varies with position, so it has an eye to measure them from, and
+            // the tangent of the angle it subtends where its w is 1 everywhere.
+            "        bool hasEye = length(vec3(m[0][3], m[1][3], m[2][3])) > 0.5;\n"
+            "        highp float src = hasEye ? source.x : source.y;\n"
+            // A source with no size throws one edge, and four taps are its whole cost.
+            "        if (src <= 0.0) {\n"
             "            highp float lit = 0.0;\n"
             "            for (int y = 0; y < 2; ++y) {\n"
             "                for (int x = 0; x < 2; ++x) {\n"
@@ -1508,33 +1526,34 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            }\n"
             "            return lit * 0.25;\n"
             "        }\n"
-            // What blocks this fragment. The search is the source's own half-extent in
-            // texels, capped: the tap count is fixed, so a wider disc than this samples
-            // too sparsely to average.
-            "        highp float searchR = clamp(softness / texel, 1.0, 8.0);\n"
-            // Against a depth that forgives the reach, not the texel: a tap r texels away
-            // lands r texels along the surface too, and comparing it to a one-texel bias
-            // counts the receiver's own slope as the thing shadowing it.
-            "        highp float reach = shadowDepth(m, worldPos + L * stepFor(texel, slope, searchR));\n"
+            // What blocks this fragment, over the whole disc an edge can reach across —
+            // against a depth that forgives that reach, since a tap r texels out lands r
+            // texels along the surface and a one-texel bias would call the slope one.
+            "        highp float reach = shadowDepth(m, worldPos + L * stepFor(texel, slope, kShadowDisc));\n"
             "        highp float sum = 0.0;\n"
             "        highp float hits = 0.0;\n"
             "        for (int i = 0; i < 8; ++i) {\n"
-            "            highp vec2 at = clamp(at0 + diskTap(i, 8, searchR) * u_shadowParams.y, lo, hi);\n"
+            "            highp vec2 at = clamp(at0 + diskTap(i, 8, kShadowDisc) * u_shadowParams.y, lo, hi);\n"
             "            highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
             "            if (d < reach) { sum += d; hits += 1.0; }\n"
             "        }\n"
             "        if (hits < 0.5) return 1.0;\n"
-            // How far from the light that blocker stands, out of the map's own depth:
-            // this projection writes z = A - A*near/d, and A is the length of its depth
-            // row, so one stored depth and this fragment's distance invert the other.
+            // How far the receiver stands beyond what blocks it, and how far from the
+            // light that blocker is. A is the length of the map's depth row, and each map
+            // inverts its own with it: hyperbolic where it has an eye, linear where w is 1.
             "        highp float A = length(vec3(m[0][2], m[1][2], m[2][2]));\n"
-            "        highp float db = lc.w * (A - proj.z)\n"
-            "                       / max(A - (2.0 * (sum / hits) - 1.0), 1e-6);\n"
-            // A source of half-extent `softness` at db throws this much penumbra across a
-            // receiver at lc.w — which is why a shadow hardens as its caster nears the
-            // surface, and why one number governs both.
-            "        highp float radius = clamp(softness * (lc.w - db) / max(db * texel, 1e-4),\n"
-            "                                   0.5, 8.0);\n"
+            "        highp float zb = 2.0 * (sum / hits) - 1.0;\n"
+            "        highp float dbw = 1.0;\n"
+            "        highp float span = (proj.z - zb) / max(A, 1e-9);\n"
+            "        if (hasEye) {\n"
+            "            dbw = lc.w * (A - proj.z) / max(A - zb, 1e-6);\n"
+            "            span = lc.w - dbw;\n"
+            "        }\n"
+            // A source subtending src/dbw at the blocker throws that much penumbra across
+            // the span beyond it — which is why a shadow hardens as its caster nears what
+            // it falls on, and why a sun's angle and a lamp's size are one expression.
+            "        highp float radius = clamp(src * span / max(dbw * texel, 1e-4),\n"
+            "                                   0.5, kShadowDisc);\n"
             "        highp float wide = shadowDepth(m, worldPos + L * stepFor(texel, slope, radius));\n"
             // Thirty-two, where the hard edge needs four: the disc is as wide as the
             // source makes it, and a penumbra averaged over too few taps bands rather
@@ -1807,7 +1826,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // seen from somewhere no light reaching it is standing.
             "        highp vec4 sm = u_lights[i].shadowMap;\n"
             "        if (sm.y > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor3D(worldPos, N, L, sh.x, int(sm.x), int(sm.y));\n"
+            "            atten *= shadowFactor3D(worldPos, N, L, vec2(sh.x, sm.z),\n"
+            "                                    int(sm.x), int(sm.y));\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"

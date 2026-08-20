@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'e868cc33a27b61d4';
+export const ABI_LAYOUT_HASH = '4f073fe384c59476';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -395,6 +395,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerAngle: 30,
             outerAngle: 45,
             shadowSoftness: 0,
+            sourceAngle: 0,
             shadowDistance: 0,
             meshShadows: false,
             shadowExtent: 0,
@@ -406,7 +407,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         assetFields: [{ field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'shadowDistance'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance'],
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
@@ -414,6 +415,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
+            sourceAngle: { min: 0, max: 90, unit: "°", tooltip: "Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).", advanced: true },
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
             meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional, Spot, Point)." },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true },
@@ -1205,6 +1207,7 @@ export interface Light2DData {
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;
+    sourceAngle: number;
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
