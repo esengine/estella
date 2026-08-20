@@ -14,6 +14,32 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A spot light casts a real shadow map.** Until now exactly one light in a scene
+  could cast one, and it had to be the sun: everything else fell back to the
+  world-space boxes of `ShadowCaster2D`, which know nothing about the meshes in front
+  of them. A spot now claims a tile from the atlas and renders its cone through the
+  same pass a cascade goes through — the same collect, the same vertex stage, the same
+  depth packing — differing only in the projection it hands over.
+
+  That projection is the cone as the frustum it is, with clip z running `[0, 1]` over
+  `[near, far]`, for the reason the orthographic one is written out by hand: a
+  GL-convention perspective puts half its volume below zero and the second backend
+  discards it. The near plane is a fraction of the light's reach rather than a
+  constant, so where the depth spends its precision follows the scene's scale instead
+  of a number.
+
+  Who gets a tile is a decision now rather than an accident of the code: spots reserve
+  one cell each first, and the sun takes as many cascades as still fit, so a scene with
+  spot shadows loses its farthest directional slice rather than losing the spots.
+
+  Gate `spot-shadow`, both backends: a spot above and to the left of a blocker, and the
+  ground it throws onto. The shadow is offset from the caster — a point light projects
+  rather than sweeps — and the probes either side of x = 162 are where its edge lands.
+  Verified against the defect: with `meshShadows` off the shadowed probe reads 163
+  instead of 0 while the three lit probes do not move at all.
+
 ### Changed
 
 - **A shadow map lands where the atlas says, and a light reads its own.** Two facts
@@ -87,6 +113,23 @@ published separately; it ships inside the editor.
   `flatHalfExtents` are the one copy of that arithmetic.
 
 ### Fixed
+
+- **A cone's shadow bias is derived from a cone's depth.** The bias every tile got was
+  `1/range` per world unit — true of an orthographic map, whose depth is linear in
+  distance, and wrong by orders of magnitude for a perspective one, whose depth is
+  hyperbolic and nearly flat at the far plane. The first spot map rendered correctly
+  and then shadowed nothing: its bias came out at 0.047 against a real depth difference
+  of 0.004. A projection reports `depthPerWorld` now — `1/range` for the orthographic
+  case, `near/(far*(far-near))` for the cone — so there is one bias expression and the
+  difference between the two lives in one number. The orthographic value is unchanged
+  to the bit.
+
+- **A spot's aim is stored as it is.** A cone with no component in the plane got the
+  substitute `(0, -1)` written into its data, because the plane's half of the shading
+  has nowhere else to read an axis from. That substitute then tilted the
+  THREE-dimensional axis too: a spot aimed straight down had its 3D cone come out at 45
+  degrees. The fallback moved into the shader, where the plane's convention is applied;
+  `ES_SURFACE_3D` reads the aim the light actually has.
 
 - **A frame is given a depth buffer by what it draws, not by a setting that stopped
   covering it.** An opaque mesh has declared its own depth test and write since it

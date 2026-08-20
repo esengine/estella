@@ -359,19 +359,39 @@ private:
     u32 initBatchShader();
     resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
 
-    /// A collected light and whether it casts the frame's mesh shadow. Paired rather
-    /// than flagged inside the GPU struct, because the cap sort reorders these and the
-    /// answer has to travel with the light.
+    /**
+     * @brief What a light needs a shadow map FOR — everything the pass differs by.
+     *
+     * @details A directional light's map covers a stretch of the view and a spot's
+     *          covers its cone, so they build different projections; everything after
+     *          that is one pass. Kept as a description rather than a flag on the light
+     *          because the cap sort reorders those and this has to survive it.
+     */
+    struct ShadowCaster {
+        u32 slot = 0;
+        bool directional = true;
+        /// Which way it points — the aim, not the direction light travels.
+        glm::vec3 dir{0.0f, 0.0f, -1.0f};
+        /// Where it stands. Spot only; a directional light has no position.
+        glm::vec3 pos{0.0f};
+        /// Directional: a fixed reach, or 0 to fit what the camera can see.
+        f32 extent = 0.0f;
+        /// Spot: how far its falloff reaches, and how wide the cone opens (degrees).
+        f32 range = 0.0f;
+        f32 outerAngle = 0.0f;
+    };
+    /// A collected light and the map it asked for, if any. Paired rather than flagged
+    /// inside the GPU struct, because the cap sort reorders these and the answer has
+    /// to travel with the light.
     struct CollectedLight {
         GpuLight2D gpu;
         bool castsMeshShadow;
+        ShadowCaster caster;
     };
     std::vector<CollectedLight> light_scratch_;  // reused across frames; collectLights only
-    /// Which light slot casts the map, and the direction + coverage it asked for.
-    /// Written by collectLights, read by renderShadowMap; -1 = nobody asked.
-    i32 shadow_light_slot_ = -1;
-    glm::vec3 shadow_light_dir_{0.0f, 0.0f, -1.0f};
-    f32 shadow_light_extent_ = 0.0f;
+    /// Every light that asked for a map this frame, in UBO slot order. Written by
+    /// collectLights, read by renderShadowMap; empty = nobody asked.
+    std::vector<ShadowCaster> shadow_casters_;
     RenderTargetManager::Handle shadow_rt_ = 0;
     /// Who owns which square of it. Rebuilt every frame: a tile means nothing once
     /// the depths in it belong to a frame that is gone.

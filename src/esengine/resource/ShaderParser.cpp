@@ -929,7 +929,10 @@ fn lightVector(pd : vec4f, sh : vec4f, worldPos : vec3f) -> vec3f {
 }
 fn lightDistance(toLight : vec3f) -> f32 { return length(toLight.xy); }
 fn spotCone(sp : vec4f, sh : vec4f, toLight : vec3f, dist : f32) -> f32 {
-    let axis = normalize(sp.xy);
+    // A cone aimed out of the plane has no axis IN it, and this half of the shading
+    // has nowhere else to read one — so it lights the way an unrotated spot always has.
+    var axis = vec2f(0.0, -1.0);
+    if (dot(sp.xy, sp.xy) > 1e-8) { axis = normalize(sp.xy); }
     var toFrag = axis;
     if (dist > 0.0001) { toFrag = -toLight.xy / dist; }
     return smoothstep(sp.w, sp.z, dot(axis, toFrag));
@@ -1547,7 +1550,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp float lightDistance(in highp vec3 toLight) { return length(toLight.xy); }\n"
             "highp float spotCone(in highp vec4 sp, in highp vec4 sh, in highp vec3 toLight,\n"
             "                     in highp float dist) {\n"
-            "    highp vec2 axis = normalize(sp.xy);\n"
+            // A cone aimed out of the plane has no axis IN it, and this half of the
+            // shading has nowhere else to read one, so it keeps lighting the way an
+            // unrotated spot always has.
+            "    highp vec2 axis = dot(sp.xy, sp.xy) > 1e-8 ? normalize(sp.xy) : vec2(0.0, -1.0);\n"
             "    highp vec2 toFrag = (dist > 0.0001) ? -toLight.xy / dist : axis;\n"
             "    return smoothstep(sp.w, sp.z, dot(axis, toFrag));\n"
             "}\n"
