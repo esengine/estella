@@ -16,6 +16,39 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A shadow map's edge is as soft as the light source is big.** `shadowSoftness` — the
+  light's half-extent in world units — reached only the 2D occluder path, which samples
+  five points across the source and counts what each of them can see. A mesh shadow map
+  ignored it and drew one edge, so the field's own documentation was false for maps.
+
+  It reaches the map now, by the physics the occluder path integrates: a source of
+  half-extent s at distance db throws a penumbra of s*(dr-db)/db across a receiver at dr.
+  The receiver finds db by looking — eight taps in a disc as wide as the source is, and
+  then the map's own depth inverted back into a distance. That inversion needs nothing
+  new: the projection writes z = A - A*near/d and A is the length of its depth row, so
+  one stored depth and this fragment's own distance give the other exactly. The filter is
+  thirty-two taps over a disc of the width that produces, spread by the golden angle so
+  the pattern follows the count instead of being pasted in beside it.
+
+  What this buys over a blur is contact hardening, and that is what the gates pin.
+  `soft-shadow` and `soft-shadow-contact` are one scene with the caster at two points
+  along the SAME light ray: the shadow lands in the same place both times and only its
+  edge differs — 25 world units of penumbra with the caster halfway to the light, 9 with
+  it nearly touching the floor. The two gates read the same four probes, and two of those
+  probes disagree by 85 and by 95.
+
+  Where a map has no eye — a sun's cascades are orthographic — a source's size in world
+  units says nothing about a penumbra, because there is no distance to measure it
+  against. Those keep the one edge and the four taps, which is also what every light
+  whose `shadowSoftness` is still 0 pays.
+
+  Verified against three defects. With the softness zeroed, the soft gate's penumbra
+  probe reads 0 where it wants 75. With the filter's radius made independent of the
+  blocker's distance, the contact gate reads 124 where it wants 180. And with the blocker
+  search comparing against a one-texel bias rather than its own reach, the receiver's own
+  slope counts as the thing shadowing it — which collapses the whole feature back to a
+  hard edge, and is how it first behaved.
+
 - **A point light casts a shadow in every direction.** A spot's map is the cone it
   opens. A point light opens none, and no single projection covers everywhere at once —
   so its map is a cube: six cones at right angles, six tiles out of the same atlas,

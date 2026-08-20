@@ -78,9 +78,10 @@ struct Light2D {
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
     f32 outerAngle{45.0f};
 
-    /** @brief Shadow penumbra softness = light-source half-extent in world units. 0 = hard-edged
-     *         shadow (default; identical to no softening). Larger values widen the penumbra the way
-     *         a bigger area light does. Applies to every light type that casts a shadow. */
+    /** @brief Shadow penumbra softness = the light source's half-extent in world units; 0 is a
+     *         hard edge (default). It widens a penumbra the way a bigger source does, and the edge
+     *         sharpens as a caster nears what it falls on. Read by the 2D occluder boxes of every
+     *         type, and by a mesh shadow map only where the light HAS a position (Point/Spot). */
     ES_PROPERTY(animatable, min=0, tooltip="Shadow softness (light-source size); 0 = hard edge.")
     f32 shadowSoftness{0.0f};
 
