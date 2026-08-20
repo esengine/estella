@@ -25,8 +25,8 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { parseSpineAtlasPages } from './atlasPages';
-import { createTextureFromPixels, type RuntimeAssetSource } from '../runtime/runtimeAssets';
-import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
+import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
+import type { BasisTranscoder } from '../asset/compressed';
 
 /**
  * The in-place editable spine props from a SpineAnimation component's data — the
@@ -130,22 +130,17 @@ export async function loadSpineAssets(
                     // file, so the derived logical path resolves through the
                     // manifest/catalog like every other fetch.
                     const staged = resolveRef(texPath);
-                    let result: { width: number; height: number; pixels: Uint8Array };
-                    if (isKtx2Path(staged)) {
-                        const transcoder = await transcoderProvider?.();
-                        if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
-                        const rgba = transcoder.transcodeToRgba(new Uint8Array(await source.backend.fetchBinary(staged)));
-                        if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
-                        result = { width: rgba.width, height: rgba.height, pixels: rgba.data };
-                    } else {
-                        result = await source.decodePixels(staged, false);
-                    }
-                    const handle = createTextureFromPixels(module, result, false);
-                    rm.registerTextureWithPath(handle, texPath);
+                    const page = await createAtlasPageTexture(
+                        staged,
+                        (p) => source.backend.fetchBinary(p),
+                        (p) => source.decodePixels(p, false),
+                        transcoderProvider, module,
+                    );
+                    rm.registerTextureWithPath(page.handle, texPath);
                     textures.set(texName, {
-                        glId: rm.getTextureGLId(handle),
-                        w: result.width,
-                        h: result.height,
+                        glId: rm.getTextureGLId(page.handle),
+                        w: page.width,
+                        h: page.height,
                     });
                 } catch (err) {
                     log.warn('runtime', `Failed to load texture: ${texPath}`, err);

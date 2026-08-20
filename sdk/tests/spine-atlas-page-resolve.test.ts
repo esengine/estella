@@ -11,17 +11,19 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-const { rm, createTextureFromPixels } = vi.hoisted(() => ({
+// The page-form decision (KTX2 through the realm's decoder, else the image path)
+// lives in runtimeAssets and is the thing under test, so only the upload below it
+// is stood in for — a ResourceManager that takes bytes, as a native host's does.
+const { rm } = vi.hoisted(() => ({
     rm: {
         registerTextureWithPath: vi.fn(),
         getTextureGLId: vi.fn(() => 7),
+        createTextureFromBytes: vi.fn(() => 11),
     },
-    createTextureFromPixels: vi.fn(() => 11),
 }));
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => rm,
 }));
-vi.mock('../src/runtime/runtimeAssets', () => ({ createTextureFromPixels }));
 
 import { loadSpineAssets } from '../src/spine/loadSpineScene';
 import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
@@ -101,6 +103,25 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         const source = makeSource({});
         await loadSpineAssets({} as never, source, null, [{ skeleton: 'boy.skel', atlas: 'boy.atlas' }]);
         expect(source.decodePixels).toHaveBeenCalledWith('spineboy.png', false);
+    });
+
+    // A device has no wasm transcoder and never will; its host decodes KTX2 in C++.
+    // Asking for the transcoder there is what left every Spine atlas unloadable.
+    it('takes a KTX2 page from the ResourceManager when it can decode one', async () => {
+        const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
+        const createTextureFromKTX2 = vi.fn(() => ({ handle: 21, width: 8, height: 8 }));
+        Object.assign(rm, { createTextureFromKTX2 });
+        try {
+            const info = await loadSpineAssets({} as never, source, null, PAIR);
+
+            expect(createTextureFromKTX2).toHaveBeenCalledTimes(1);
+            expect(source.decodePixels).not.toHaveBeenCalled();
+            expect(rm.registerTextureWithPath).toHaveBeenCalledWith(21, 'assets/spine/spineboy.png');
+            const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.textures.get('spineboy.png');
+            expect(tex).toEqual({ glId: 7, w: 8, h: 8 });
+        } finally {
+            delete (rm as { createTextureFromKTX2?: unknown }).createTextureFromKTX2;
+        }
     });
 
     it('a KTX2 page in a realm without basis warns and skips, not throws', async () => {

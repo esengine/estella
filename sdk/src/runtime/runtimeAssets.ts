@@ -14,6 +14,7 @@ import { linearColorSpace } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { requireResourceManager } from '../wasm/resourceManager';
+import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 import { withMalloc } from '../wasm/wasmScratch';
 
 /**
@@ -77,6 +78,38 @@ const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror
 /** Upload decoded RGBA pixels as a GL texture; returns the engine texture handle.
  *  `module` is the wasm-heap marshalling vehicle; it may be null on the native
  *  (embedded-Dawn) backend, whose ResourceManager takes the bytes directly. */
+/**
+ * A texture for an ATLAS PAGE, in whichever form the cook left it. A KTX2 page
+ * goes to the ResourceManager where it can decode one (a native host's own basis)
+ * and to the realm's wasm transcoder where it cannot — the choice TextureLoader
+ * makes for an ordinary texture, which is why it is not made twice more.
+ */
+export async function createAtlasPageTexture(
+    staged: string,
+    fetchBinary: (path: string) => Promise<ArrayBuffer>,
+    decodePixels: (path: string) => Promise<{ width: number; height: number; pixels: Uint8Array }>,
+    transcoderProvider: (() => Promise<BasisTranscoder | null>) | undefined,
+    module: ESEngineModule | null,
+): Promise<{ handle: number; width: number; height: number }> {
+    if (!isKtx2Path(staged)) {
+        const decoded = await decodePixels(staged);
+        return { handle: createTextureFromPixels(module, decoded, false), ...decoded };
+    }
+    const bytes = new Uint8Array(await fetchBinary(staged));
+    const rm = requireResourceManager();
+    if (rm.createTextureFromKTX2) {
+        const r = rm.createTextureFromKTX2(bytes, linearColorSpace());
+        if (!r) throw new Error(`KTX2 transcode failed: ${staged}`);
+        return r;
+    }
+    const transcoder = await transcoderProvider?.();
+    if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
+    const rgba = transcoder.transcodeToRgba(bytes);
+    if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
+    const decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
+    return { handle: createTextureFromPixels(module, decoded, false), ...decoded };
+}
+
 export function createTextureFromPixels(
     module: ESEngineModule | null,
     result: { width: number; height: number; pixels: Uint8Array },

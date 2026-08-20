@@ -28,8 +28,8 @@ import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
-import { createTextureFromPixels, type RuntimeAssetSource } from '../runtime/runtimeAssets';
-import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
+import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
+import type { BasisTranscoder } from '../asset/compressed';
 import type { DragonBonesManager } from './DragonBonesManager';
 
 /** Lazily yields the realm's Basis transcoder, or null where a cook cannot have
@@ -152,20 +152,15 @@ async function uploadAtlasImage_(
 
     try {
         const staged = resolveRef(imagePath);
-        let decoded: { width: number; height: number; pixels: Uint8Array };
-        if (isKtx2Path(staged)) {
-            const transcoder = await transcoderProvider?.();
-            if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
-            const rgba = transcoder.transcodeToRgba(new Uint8Array(await source.backend.fetchBinary(staged)));
-            if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
-            decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
-        } else {
-            decoded = await source.decodePixels(staged, false);
-        }
+        const page = await createAtlasPageTexture(
+            staged,
+            (p) => source.backend.fetchBinary(p),
+            (p) => source.decodePixels(p, false),
+            transcoderProvider, module,
+        );
         const rm = requireResourceManager();
-        const handle = createTextureFromPixels(module, decoded, false);
-        rm.registerTextureWithPath(handle, imagePath);
-        return rm.getTextureGLId(handle);
+        rm.registerTextureWithPath(page.handle, imagePath);
+        return rm.getTextureGLId(page.handle);
     } catch (err) {
         log.warn('runtime', `Failed to load DragonBones atlas image: ${imagePath}`, err);
         return -1;
