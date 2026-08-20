@@ -88,7 +88,10 @@ const scenes = selected.map((s) => ({
     }
     : s.env,
 }));
-requireCurrentEngine(ROOT, path.join(DESKTOP, 'public', 'wasm'));
+// The copy this run will actually serve: --no-build leaves desktop/dist as it
+// stands, so a freshly built public/ one it never copies is evidence about a
+// binary no scene below is judging.
+requireCurrentEngine(ROOT, path.join(DESKTOP, NO_BUILD ? 'dist' : 'public', 'wasm'));
 console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`);
 
 if (!NO_BUILD) {
