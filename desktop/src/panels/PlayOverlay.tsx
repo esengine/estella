@@ -24,7 +24,7 @@ import { PlayRealm } from '@/engine/PlayRealm';
 import { EntityOps } from '@/engine/entityOps';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
-import { snapTo, quatAngleZ2D } from '@/engine/viewportMath';
+import { snapTo, quatAngleZ } from '@/engine/viewportMath';
 import type { CanvasPoint, PlayOverlayBox } from '@/engine/playProtocol';
 
 /** Half-size of the origin handle, in CSS px. */
@@ -135,7 +135,7 @@ export function PlayOverlay({ interactive }: Props) {
       from: { x: e.clientX, y: e.clientY },
       startAngle: polar.angle,
       startDist: polar.dist,
-      startRot: quatAngleZ2D(t.rotation as { z?: number; w?: number } | undefined),
+      startRot: quatAngleZ(t.rotation as { x?: number; y?: number; z?: number; w?: number } | undefined),
       startScale: (t.scale as { x?: number } | undefined)?.x ?? 1,
       sentTurn: 0,
       sentScale: 1,

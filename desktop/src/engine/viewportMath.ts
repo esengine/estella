@@ -32,9 +32,18 @@ export interface ClientRect {
   h: number;
 }
 
-/** Z angle (radians) of a rotation quaternion — the only DOF a 2D transform uses. */
-export function quatAngleZ(q: { w: number; x: number; y: number; z: number }): number {
-  return Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+/**
+ * Z angle (radians) of a rotation quaternion — the turn a 2D transform is made of,
+ * and the one a 2D gesture edits on a posed one. From the WHOLE quaternion:
+ * `2·atan2(z, w)` is this angle only while x and y are zero. Absent components read
+ * as the identity, so a partial rotation is no rotation rather than a NaN.
+ */
+export function quatAngleZ(q: { w?: number; x?: number; y?: number; z?: number } | undefined): number {
+  const w = q?.w ?? 1;
+  const x = q?.x ?? 0;
+  const y = q?.y ?? 0;
+  const z = q?.z ?? 0;
+  return Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
 }
 
 /** The four world-space corners of an OBB, CCW from the (−hw,−hh) local corner. */
@@ -219,11 +228,6 @@ export function quatMul(a: Quat, b: Quat): Quat {
 export function turnQuat2D(q: { x?: number; y?: number; z?: number; w?: number } | undefined, radians: number): Quat {
   const cur: Quat = { x: q?.x ?? 0, y: q?.y ?? 0, z: q?.z ?? 0, w: q?.w ?? 1 };
   return quatMul(axisQuat('z', radians), cur);
-}
-
-/** The Z angle of a 2D rotation quaternion; 0 for one that isn't there. */
-export function quatAngleZ2D(q: { z?: number; w?: number } | undefined): number {
-  return 2 * Math.atan2(q?.z ?? 0, q?.w ?? 1);
 }
 
 /** A scale vector multiplied by a per-axis factor, keeping z. */

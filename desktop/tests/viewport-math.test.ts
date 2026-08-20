@@ -30,6 +30,23 @@ describe('quatAngleZ', () => {
     const q = { w: Math.cos(a / 2), x: 0, y: 0, z: Math.sin(a / 2) };
     expect(quatAngleZ(q)).toBeCloseTo(a, 6);
   });
+
+  // 2*atan2(z, w) agrees only while x and y are zero. Turn the pose about X and it
+  // reports a number that is none of the three turns.
+  it('is the pose\'s Z turn, not the shortcut that only holds for a flat one', () => {
+    const half = Math.PI / 8;
+    const tilt = { w: Math.cos(half), x: Math.sin(half), y: 0, z: 0 };
+    expect(quatAngleZ(tilt)).toBeCloseTo(0, 6);
+    expect(2 * Math.atan2(tilt.z, tilt.w)).toBeCloseTo(0, 6); // agrees here
+    // ...and here it does not: a pose with x and z both set.
+    const posed = { w: 0.8446, x: 0.1913, y: 0.0, z: 0.5 };
+    expect(quatAngleZ(posed)).not.toBeCloseTo(2 * Math.atan2(posed.z, posed.w), 2);
+  });
+
+  it('an absent rotation is no rotation, not a NaN', () => {
+    expect(quatAngleZ(undefined)).toBe(0);
+    expect(quatAngleZ({ z: 0 })).toBe(0);
+  });
   it('identity quat is zero', () => {
     expect(quatAngleZ({ w: 1, x: 0, y: 0, z: 0 })).toBeCloseTo(0, 6);
   });
