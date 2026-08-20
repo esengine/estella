@@ -27,6 +27,19 @@ export interface SideModuleHost {
 export type SideModuleInstantiator = (descriptor: SideModuleDescriptor, id: SideModuleId) => Promise<SideModule>;
 
 /**
+ * Thrown by a transport for a module its realm was never built to carry, rather
+ * than one that should be there and would not load. A native host decodes KTX2 in
+ * C++ and so has no `basis` to give — reported as a failure, that made every game
+ * with a Spine atlas read as a broken boot.
+ */
+export class SideModuleAbsent extends Error {
+    constructor(id: SideModuleId, why: string) {
+        super(`"${id}" is not part of this realm — ${why}`);
+        this.name = 'SideModuleAbsent';
+    }
+}
+
+/**
  * Build a host over a transport. Caches per id (including failures-as-null so a
  * missing artifact isn't refetched every frame). The transport is the only
  * realm-specific part; everything above it — gating, plugin install — is shared.
@@ -39,8 +52,11 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator): SideM
             if (cached) return cached;
             const descriptor = sideModuleDescriptor(id);
             const pending: Promise<SideModule | null> = descriptor
-                ? instantiate(descriptor, id).catch((e) => {
-                      log.error('sidemodule', `failed to load "${id}" (${descriptor.file}) — ${howToFix(id)}`, e);
+                ? instantiate(descriptor, id).catch((e: unknown) => {
+                      // Absent BY DESIGN is the answer null already means; only a
+                      // module that was meant to be here is a failure to report.
+                      if (e instanceof SideModuleAbsent) log.info('sidemodule', e.message);
+                      else log.error('sidemodule', `failed to load "${id}" (${descriptor.file}) — ${howToFix(id)}`, e);
                       return null;
                   })
                 // Unknown ids used to be impossible (the type was closed) and so

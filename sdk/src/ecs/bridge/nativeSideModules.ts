@@ -21,7 +21,7 @@
  * whose first call is a TypeError.
  */
 
-import { createSideModuleHost, type SideModuleHost, type SideModule } from '../../sideModules/host';
+import { createSideModuleHost, SideModuleAbsent, type SideModuleHost, type SideModule } from '../../sideModules/host';
 import { SPINE_VERSIONS, spineModuleId, type SideModuleId } from '../../sideModules/registry';
 import { log } from '../../util/logger';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
@@ -149,7 +149,8 @@ export function createNativeSideModules(
     return createSideModuleHost(async (_descriptor, id): Promise<SideModule> => {
         const probe = NATIVE_SIDE_MODULE_PROBES[id];
         if (!probe) {
-            throw new Error(`[native] "${id}" is not compiled into this host`);
+            throw new SideModuleAbsent(id, 'a native host has no side modules beyond the '
+                + 'subsystems it compiles in (KTX2, for one, is decoded in C++)');
         }
         if (typeof scope[probe] !== 'function') {
             throw new Error(

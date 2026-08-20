@@ -6,7 +6,7 @@
  *        WeChat) is exercised by the per-realm export + runtime paths.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { createSideModuleHost } from '../src/sideModules/host';
+import { createSideModuleHost, SideModuleAbsent } from '../src/sideModules/host';
 import { SIDE_MODULES, SPINE_VERSIONS, spineModuleId } from '../src/sideModules/registry';
 
 describe('side-module registry', () => {
@@ -56,5 +56,24 @@ describe('createSideModuleHost', () => {
     expect(await host.acquire('physics')).toBeNull();
     expect(await host.acquire('physics')).toBeNull();
     expect(instantiate).toHaveBeenCalledTimes(1);
+  });
+
+  // Both answer null; only one of them is a fault. A native host carries no
+  // `basis` by design, and calling that a failed load made every game with a
+  // Spine atlas print an error and read as a broken boot on a device.
+  it('reports a module the realm never carried without calling it a failure', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const absent = createSideModuleHost(
+        vi.fn().mockRejectedValue(new SideModuleAbsent('basis', 'decoded in C++ here')));
+      expect(await absent.acquire('basis')).toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+
+      const broke = createSideModuleHost(vi.fn().mockRejectedValue(new Error('boom')));
+      expect(await broke.acquire('basis')).toBeNull();
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
