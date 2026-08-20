@@ -3,11 +3,13 @@
 /**
  * @file  Conditional field visibility — the Details panel hides fields that are
  *        inert in a component's current state (Camera projection, Light2D type,
- *        ParticleEmitter shape/trail/collision), gated on a sibling discriminator.
- *        Exercised through the builtin registry (no WASM). A rule must hide a field
- *        ONLY when it is meaningless, and bring it back when the discriminator flips.
+ *        ParticleEmitter shape/trail/collision), gated on a sibling discriminator
+ *        each field names for itself at its C++ ES_PROPERTY site. Exercised through
+ *        the builtin registry (no WASM). A rule must hide a field ONLY when it is
+ *        meaningless, and bring it back when the discriminator flips.
  */
 import { describe, it, expect } from 'vitest';
+import { getComponentFieldMeta } from 'esengine';
 import { inspectorFields } from '@/engine/schema';
 
 /** The visible field keys the inspector would render for `data`. */
@@ -61,6 +63,47 @@ describe('conditional inspector fields', () => {
     it('no type shows an aim field — a light is aimed by its Transform', () => {
       for (const type of [0, 1, 2, 3]) {
         expect(keys('Light2D', { type }).has('direction')).toBe(false);
+      }
+    });
+  });
+
+  describe('Light2D type — what belongs to each kind of light', () => {
+    it('Directional: the sun\'s own coverage and angular size, and no environment', () => {
+      const k = keys('Light2D', { type: 1 });
+      expect(k.has('sourceAngle')).toBe(true);
+      expect(k.has('shadowExtent')).toBe(true);
+      expect(k.has('meshShadows')).toBe(true);
+      expect(k.has('environment')).toBe(false);
+      expect(k.has('drawEnvironment')).toBe(false);
+    });
+    it('Ambient: the environment it casts, and nothing about casting shadows', () => {
+      const k = keys('Light2D', { type: 2 });
+      expect(k.has('environment')).toBe(true);
+      expect(k.has('drawEnvironment')).toBe(true);
+      expect(k.has('meshShadows')).toBe(false);
+      expect(k.has('shadowExtent')).toBe(false);
+      expect(k.has('sourceAngle')).toBe(false);
+    });
+    it('Spot: a map it can cast, but not a sun\'s coverage or angle', () => {
+      const k = keys('Light2D', { type: 3 });
+      expect(k.has('meshShadows')).toBe(true);
+      expect(k.has('shadowSoftness')).toBe(true);
+      expect(k.has('sourceAngle')).toBe(false);
+      expect(k.has('shadowExtent')).toBe(false);
+    });
+  });
+
+  describe('the rule travels with the field, not with the panel', () => {
+    it('a field carries the states it belongs to, by the number the data stores', () => {
+      expect(getComponentFieldMeta('Light2D').innerAngle?.shownWhen)
+        .toEqual({ field: 'type', values: [3] });
+      expect(getComponentFieldMeta('ParticleEmitter').trailWidth?.shownWhen)
+        .toEqual({ field: 'trailEnabled', values: [1] });
+    });
+    it('a field that names no state is shown whatever the discriminator says', () => {
+      expect(getComponentFieldMeta('Light2D').intensity?.shownWhen).toBeUndefined();
+      for (const type of [0, 1, 2, 3]) {
+        expect(keys('Light2D', { type }).has('intensity')).toBe(true);
       }
     });
   });

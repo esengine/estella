@@ -67,36 +67,39 @@ struct Light2D {
     f32 intensity{1.0f};
 
     /** @brief Point/Spot falloff radius in world units (ignored by Directional/Ambient). */
-    ES_PROPERTY(animatable, min=0, tooltip="Falloff reach in world units (Point / Spot).")
+    ES_PROPERTY(animatable, min=0, shown_when=type:Point|Spot,
+                tooltip="Falloff reach in world units (Point / Spot).")
     f32 radius{200.0f};
 
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
-    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
+    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced, shown_when=type:Spot)
     f32 innerAngle{30.0f};
 
     /** @brief Spot outer cone angle in degrees (full angle; fades to dark by here). */
-    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced)
+    ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced, shown_when=type:Spot)
     f32 outerAngle{45.0f};
 
     /** @brief Shadow penumbra softness = the light source's half-extent in world units; 0 is a
      *         hard edge (default). It widens a penumbra the way a bigger source does, and the edge
      *         sharpens as a caster nears what it falls on. Read by the 2D occluder boxes of every
      *         type, and by a mesh shadow map only where the light HAS a position (Point/Spot). */
-    ES_PROPERTY(animatable, min=0, tooltip="Shadow softness (light-source size); 0 = hard edge.")
+    ES_PROPERTY(animatable, min=0, shown_when=type:Point|Directional|Spot,
+                tooltip="Shadow softness (light-source size); 0 = hard edge.")
     f32 shadowSoftness{0.0f};
 
     /** @brief How wide a Directional light's source is, as the angle it subtends — the full
      *         angular diameter in degrees, 0.53 being the real sun's. A length cannot say it:
      *         the source is infinitely far away, so only an angle carries a penumbra. 0 is a
      *         hard edge (default); ignored by the types that have a position and a size. */
-    ES_PROPERTY(animatable, min=0, max=90, unit="°", advanced,
+    ES_PROPERTY(animatable, min=0, max=90, unit="°", advanced, shown_when=type:Directional,
                 tooltip="Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).")
     f32 sourceAngle{0.0f};
 
     /** @brief Directional-light shadow reach in world units: how far back toward the light a
      *         fragment searches for an occluder. 0 = a Directional light casts no shadow (default).
      *         Ignored by Point/Spot, which shadow along the segment to the light position. */
-    ES_PROPERTY(animatable, min=0, advanced, tooltip="Directional shadow distance; 0 = no directional shadow.")
+    ES_PROPERTY(animatable, min=0, advanced, shown_when=type:Directional,
+                tooltip="Directional shadow distance; 0 = no directional shadow.")
     f32 shadowDistance{0.0f};
 
     /** @brief Casts a shadow map over 3D meshes. Every type but Ambient can: a
@@ -106,12 +109,14 @@ struct Light2D {
      *         one light can do both, and a 2.5D scene often wants exactly that. Lights
      *         that stand somewhere claim their tiles first and one sun takes what is left,
      *         so a crowded frame costs the sun its farthest cascade rather than a map. */
-    ES_PROPERTY(tooltip="Cast a shadow map over 3D meshes (Directional, Spot, Point).")
+    ES_PROPERTY(shown_when=type:Point|Directional|Spot,
+                tooltip="Cast a shadow map over 3D meshes (Directional, Spot, Point).")
     bool meshShadows{false};
 
     /** @brief Half-extent of the shadow map's world coverage, centred on the camera.
      *         0 = fit what the camera can see. Larger trades sharpness for reach. */
-    ES_PROPERTY(min=0, advanced, tooltip="Shadow map coverage radius; 0 = fit the view.")
+    ES_PROPERTY(min=0, advanced, shown_when=type:Directional,
+                tooltip="Shadow map coverage radius; 0 = fit the view.")
     f32 shadowExtent{0.0f};
 
     /** @brief What this Ambient light IS, when it is more than one colour: a baked
@@ -119,14 +124,16 @@ struct Light2D {
      *         flat term it has always been — the same lighting, at order zero.
      *         @ref color and @ref intensity scale it. Ignored by the other types;
      *         the first Ambient light that carries one is the frame's environment. */
-    ES_PROPERTY(asset = environment, tooltip="Baked environment (.esenv) this Ambient light casts.")
+    ES_PROPERTY(asset = environment, shown_when=type:Ambient,
+                tooltip="Baked environment (.esenv) this Ambient light casts.")
     resource::EnvironmentHandle environment;
 
     /** @brief Draw @ref environment as the background as well as reflecting it. Off by
      *         default, so a scene that adopts an environment for its lighting does not
      *         also acquire a sky it did not ask for. Ignored without one — and the
      *         camera still decides whether the background is drawn at all. */
-    ES_PROPERTY(tooltip="Draw this environment as the sky behind the scene.")
+    ES_PROPERTY(shown_when=type:Ambient,
+                tooltip="Draw this environment as the sky behind the scene.")
     bool drawEnvironment{false};
 
     /** @brief Disabled lights are skipped during collection. */

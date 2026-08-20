@@ -3077,6 +3077,7 @@ map: boolean | undefined
 max: number | undefined
 min: number | undefined
 normalizedOf: string | undefined
+shownWhen: { field: string; values: ReadonlyArray<number>; } | undefined
 slider: boolean | undefined
 step: number | undefined
 tooltip: string | undefined

@@ -78,13 +78,13 @@ struct ParticleEmitter {
     ES_PROPERTY(enum=EmitterShape, category=Shape)
     i32 shape{static_cast<i32>(EmitterShape::Cone)};
 
-    ES_PROPERTY(min=0, category=Shape)
+    ES_PROPERTY(min=0, category=Shape, shown_when=shape:Circle|Cone)
     f32 shapeRadius{100.0f};
 
-    ES_PROPERTY(category=Shape)
+    ES_PROPERTY(category=Shape, shown_when=shape:Rectangle)
     glm::vec2 shapeSize{100.0f, 100.0f};
 
-    ES_PROPERTY(unit="°", category=Shape)
+    ES_PROPERTY(unit="°", category=Shape, shown_when=shape:Cone)
     f32 shapeAngle{25.0f};
 
     // Velocity
@@ -225,13 +225,13 @@ struct ParticleEmitter {
     ES_PROPERTY(category=Trail)
     bool trailEnabled{false};
 
-    ES_PROPERTY(min=0, category=Trail)
+    ES_PROPERTY(min=0, category=Trail, shown_when=trailEnabled:true)
     f32 trailWidth{8.0f};
 
-    ES_PROPERTY(min=2, max=12, step=1, category=Trail)
+    ES_PROPERTY(min=2, max=12, step=1, category=Trail, shown_when=trailEnabled:true)
     i32 trailPoints{6};
 
-    ES_PROPERTY(min=0, category=Trail)
+    ES_PROPERTY(min=0, category=Trail, shown_when=trailEnabled:true)
     f32 trailMinDistance{6.0f};
 
     // Collision (Phase 1: a horizontal floor plane) — world-space particles that fall
@@ -241,21 +241,21 @@ struct ParticleEmitter {
     ES_PROPERTY(category=Collision)
     bool collisionEnabled{false};
 
-    ES_PROPERTY(category=Collision)
+    ES_PROPERTY(category=Collision, shown_when=collisionEnabled:true)
     f32 collisionFloor{0.0f};
 
     // Restitution: 0 = particles stop dead on the floor, 1 = a full elastic bounce.
-    ES_PROPERTY(min=0, max=1, category=Collision)
+    ES_PROPERTY(min=0, max=1, category=Collision, shown_when=collisionEnabled:true)
     f32 collisionBounce{0.5f};
 
     // Tangential friction applied on each bounce (0 = frictionless slide, 1 = stop
     // horizontal motion).
-    ES_PROPERTY(min=0, max=1, category=Collision)
+    ES_PROPERTY(min=0, max=1, category=Collision, shown_when=collisionEnabled:true)
     f32 collisionFriction{0.1f};
 
     // Fraction of a particle's remaining life burned on each bounce (0 = none, 1 =
     // dies on first contact) — fades splashes/sparks out as they settle.
-    ES_PROPERTY(min=0, max=1, category=Collision)
+    ES_PROPERTY(min=0, max=1, category=Collision, shown_when=collisionEnabled:true)
     f32 collisionLifetimeLoss{0.0f};
 
     ParticleEmitter() = default;

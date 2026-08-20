@@ -140,6 +140,33 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A field says which states of its component it belongs to, where the field is.** The
+  inspector hid the fields that are inert in a component's current state — a Spot's cone
+  angles on a Point light, a trail's tuning with the trail off — from a switch in the
+  editor's TypeScript: four components, seventeen rules, each written as a bare enum
+  number (`type !== 3`, `shape === 0 || shape === 2`) in a language that cannot see the
+  C++ enum those numbers come from. Two places knowing one thing, and the second one
+  knowing it by ordinal.
+
+  `shown_when=<field>:<State>|<State>` is authored at the C++ ES_PROPERTY site now,
+  beside the range and the tooltip that already live there, and it names STATES:
+  `shown_when=type:Point|Spot`, `shown_when=trailEnabled:true`. The generator resolves
+  the names against that discriminator's own enum and ships the numbers the data stores,
+  so reordering an enum moves every rule with it, and a state that enum has no member of
+  is a build failure rather than a 0. The editor's switch is gone: what is left reads the
+  rule off the field and knows no component's name.
+
+  Twenty rules now, where there were seventeen. Light2D gained the three the switch never
+  had — `sourceAngle`, `shadowExtent` and `meshShadows` are a sun's, an environment is an
+  Ambient light's — which is what makes the component read as one kind of light at a time
+  rather than the union of all four.
+
+  Verified in both directions on the existing behavioural suite (`inspector-conditional-
+  fields`, 14 tests that pass unchanged against the derived implementation, and 5 new
+  ones): a rule aimed one state off turns three of them red, a state the enum does not
+  have stops the generator with the enum named, and a discriminator that is not a field
+  stops it before codegen.
+
 - **A shadow's depth bias is derived where it is used, out of what the map covers
   there.** It was computed per tile on the CPU — a constant, times the tile's coverage,
   over its side, times its coverage again, times how much depth a world unit is worth at

@@ -63,6 +63,12 @@ class CppParser:
         # Same value grammar as a C++ member initializer: number, true/false,
         # Enum::Member, or a braced vector `{100, 100}`.
         'editor_default',
+        # `shown_when=<field>:<Name>|<Name>` scopes a field to the states of a sibling
+        # discriminator it means anything in — Light2D.radius to Point and Spot, a
+        # trail's tuning to trailEnabled:true. The states are named, never numbered,
+        # and resolved against that field's own enum when the metadata is generated,
+        # so reordering the enum moves every rule with it.
+        'shown_when',
         # `normalized_of=<sibling>` marks this field a FRACTION of that sibling's
         # value (Sprite.pivot is a fraction of Sprite.size), so the editor can
         # offer a pixel view of it. The stored value stays the fraction — the
@@ -248,15 +254,30 @@ class CppParser:
     def _validate_component_refs(self, component: Component, filepath: Path) -> None:
         """Component-level checks that need the full field set: `invalidates=<field>`
         must name a sibling property (else the generated setter side-effect would
-        reference a non-existent member), and `normalized_of=<field>` must name a
+        reference a non-existent member), `normalized_of=<field>` must name a
         sibling of the SAME type (the denominator is applied axis-wise, so a
-        mismatched arity would divide an axis by nothing and read as 0)."""
+        mismatched arity would divide an axis by nothing and read as 0), and
+        `shown_when=<field>:...` must name a sibling to read its state from. What
+        those states MEAN is checked where the enums are, in the metadata generator."""
         by_name = {p.name: p for p in component.properties}
         for prop in component.properties:
             loc = f"{filepath}:{component.name}.{prop.name}"
             target = prop.annotations.get('invalidates')
             if target is not None and target not in by_name:
                 self.errors.append(f"{loc}: invalidates='{target}' names no field on this component")
+            rule = prop.annotations.get('shown_when')
+            if rule is not None:
+                field, sep, states = rule.partition(':')
+                if not sep or not field.strip() or not states.strip():
+                    self.errors.append(
+                        f"{loc}: shown_when='{rule}' is not <field>:<State>|<State>"
+                    )
+                elif field == prop.name:
+                    self.errors.append(f"{loc}: shown_when='{rule}' reads the field itself")
+                elif field not in by_name:
+                    self.errors.append(
+                        f"{loc}: shown_when='{rule}' names no field on this component"
+                    )
             denom = prop.annotations.get('normalized_of')
             if denom is None:
                 continue

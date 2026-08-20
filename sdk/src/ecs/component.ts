@@ -98,6 +98,13 @@ export interface FieldMeta {
      * stays the fraction. Authored `normalized_of=` at the C++ ES_PROPERTY site.
      */
     normalizedOf?: string;
+    /**
+     * The states of a sibling discriminator this field means anything in — a Spot's
+     * cone angles to `type: Spot`. The inspector hides it elsewhere and leaves the
+     * stored value alone. Authored `shown_when=<field>:<State>` by NAME at the C++
+     * ES_PROPERTY site; the names resolve to stored numbers when this is generated.
+     */
+    shownWhen?: { field: string; values: ReadonlyArray<number> };
     /** Human label / tooltip overriding the key-derived ones. */
     label?: string;
     tooltip?: string;

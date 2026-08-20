@@ -115,9 +115,50 @@ class MetadataGenerator:
                 entries.append(('bitmask', '{ source: ' + json.dumps(a['bitmask_source'], ensure_ascii=False) + ' }'))
             if 'normalized_of' in a:
                 entries.append(('normalizedOf', json.dumps(a['normalized_of'], ensure_ascii=False)))
+            if 'shown_when' in a:
+                entries.append(('shownWhen', self._shown_when(comp, prop, a['shown_when'])))
             if entries:
                 out.append((prop.name, entries))
         return out
+
+    def _shown_when(self, comp: Component, prop, raw: str) -> str:
+        """`shown_when=<field>:<State>|<State>` as `{ field, values: [n, ...] }`.
+
+        The states are resolved HERE, against the discriminator's own enum, because
+        this is where the enums are: the rule ships the numbers the data stores, and
+        reordering the enum moves the rule with it. A state that is not a member of
+        that enum is an error and not a 0 — a rule aimed at the wrong value hides a
+        field in the state it belongs to, which reads as the field having vanished.
+        """
+        loc = f'{comp.name}.{prop.name}'
+        field, _, states = raw.partition(':')
+        sibling = next((p for p in comp.properties if p.name == field), None)
+        if sibling is None:
+            raise ValueError(f"{loc}: shown_when reads '{field}', which is not a field here")
+        t = self.types.clean_type(sibling.cpp_type)
+        enum_name = t if self.types.is_enum(t) else sibling.annotations.get('enum')
+        members = self.types.get_enum_values(enum_name) if enum_name else []
+        values: List[int] = []
+        for state in states.split('|'):
+            state = state.strip()
+            if members:
+                if state not in members:
+                    raise ValueError(
+                        f"{loc}: shown_when names '{state}', which {enum_name} has no member of"
+                    )
+                values.append(members.index(state))
+            elif t == 'bool':
+                if state not in ('true', 'false'):
+                    raise ValueError(
+                        f"{loc}: shown_when on the bool '{field}' takes true or false, not '{state}'"
+                    )
+                values.append(1 if state == 'true' else 0)
+            else:
+                raise ValueError(
+                    f"{loc}: shown_when reads '{field}', which is {t} — a state is an enum"
+                    ' member or a bool'
+                )
+        return '{ field: ' + json.dumps(field) + ', values: [' + ', '.join(map(str, values)) + '] }'
 
     def _get_editor_defaults(self, comp: Component) -> List[Tuple[str, str]]:
         """Collect `editor_default=` creation overrides as [(field, tsLiteral)].

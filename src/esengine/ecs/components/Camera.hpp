@@ -73,11 +73,12 @@ struct Camera {
     ProjectionType projectionType{ProjectionType::Perspective};
 
     /** @brief Field of view in degrees (perspective only) */
-    ES_PROPERTY(min=1, max=179, unit="°")
+    ES_PROPERTY(min=1, max=179, unit="°", shown_when=projectionType:Perspective)
     f32 fov{60.0f};
 
     /** @brief Orthographic size (half-height in world units) */
-    ES_PROPERTY(animatable, min=0, tooltip="Half the visible height in world units (Orthographic).", editor_default=540)
+    ES_PROPERTY(animatable, min=0, shown_when=projectionType:Orthographic,
+                tooltip="Half the visible height in world units (Orthographic).", editor_default=540)
     f32 orthoSize{5.0f};
 
     /** @brief Near clipping plane distance */
@@ -111,7 +112,8 @@ struct Camera {
 
     /** @brief Snap the camera to the world-space pixel grid (Orthographic) so static
      *         pixel art renders crisp, without sub-pixel shimmer when the camera moves. */
-    ES_PROPERTY(advanced, tooltip="Snap the camera to the pixel grid for crisp pixel-art (Orthographic).")
+    ES_PROPERTY(advanced, shown_when=projectionType:Orthographic,
+                tooltip="Snap the camera to the pixel grid for crisp pixel-art (Orthographic).")
     bool pixelPerfect{false};
 
     /** @brief Sorting layers this camera renders (bit i = layer i). UI belongs to its

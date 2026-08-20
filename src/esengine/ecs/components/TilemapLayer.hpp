@@ -53,13 +53,16 @@ struct TilemapLayer {
     ES_PROPERTY(enum=TilemapOrientation, tooltip="Grid layout: orthogonal, isometric, staggered, or hexagonal.")
     u8 orientation{0};
 
-    ES_PROPERTY(min=0, step=1, tooltip="Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.")
+    ES_PROPERTY(min=0, step=1, shown_when=orientation:Hexagonal,
+                tooltip="Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.")
     f32 hexSideLength{0.0f};
 
-    ES_PROPERTY(enum=TilemapStaggerAxis, tooltip="Stagger axis (staggered/hex): Y shifts rows, X shifts columns.")
+    ES_PROPERTY(enum=TilemapStaggerAxis, shown_when=orientation:Staggered|Hexagonal,
+                tooltip="Stagger axis (staggered/hex): Y shifts rows, X shifts columns.")
     u8 staggerAxis{0};
 
-    ES_PROPERTY(enum=TilemapStaggerIndex, tooltip="Which lines carry the half-cell shift (staggered/hex).")
+    ES_PROPERTY(enum=TilemapStaggerIndex, shown_when=orientation:Staggered|Hexagonal,
+                tooltip="Which lines carry the half-cell shift (staggered/hex).")
     u8 staggerIndex{0};
 
     ES_PROPERTY()
