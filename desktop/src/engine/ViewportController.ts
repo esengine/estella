@@ -412,6 +412,17 @@ export const ViewportController = {
     return view && heightPx > 0 ? editorViewWorldPerPixel(view, heightPx, at) : 0;
   },
 
+  /**
+   * A world length as it measures on screen where it stands — what any world-sized
+   * circle, reach or arm is drawn at. Projecting an offset along ONE world axis
+   * answers this only while the eye is square to that axis, and shrinks the length
+   * to nothing as the eye turns to look down it.
+   */
+  screenLengthAt(at: Vec3, world: number): number {
+    const perPixel = this.worldPerPixelAt(at);
+    return perPixel > 0 ? world / perPixel : 0;
+  },
+
   /** The world half-size an icon covers where it stands, for the zoom it is drawn
    *  at — what a click has to hit. */
   iconPickHalf(): (at: Vec3) => number {
@@ -1022,8 +1033,7 @@ export const ViewportController = {
     // Point (0) / Spot (3) have a falloff radius. What a world length measures on
     // screen where the light stands — projecting an offset along ONE world axis
     // would shrink the reach whenever the eye foreshortens that axis.
-    const perPixel = this.worldPerPixelAt(at);
-    const radiusPx = (l.type === 0 || l.type === 3) && perPixel > 0 ? l.radius / perPixel : 0;
+    const radiusPx = (l.type === 0 || l.type === 3) ? this.screenLengthAt(at, l.radius) : 0;
     // Directional (1) / Spot (3) aim along the entity's forward, projected through the
     // view like every other arrow the editor draws. An aim pointing at the eye projects
     // to nothing and draws no arrow, which is what it looks like.
@@ -1233,6 +1243,9 @@ export const ViewportController = {
     const sin = Math.sin(rot);
     const wp = { x: t.worldPosition.x, y: t.worldPosition.y };
     const toClient = this.projectorFor(id);
+    const planeZ = this.entityPlaneZ(id);
+    const lengthPx = (world: number): number =>
+      this.screenLengthAt({ x: wp.x, y: wp.y, z: planeZ }, world);
 
     // readColliderShapes only reads (has/get); the editor world is the readonly view.
     const instances = readColliderShapes(world as unknown as Parameters<typeof readColliderShapes>[0], id);
@@ -1253,9 +1266,8 @@ export const ViewportController = {
       }
       for (const c of o.circles) {
         const ctr = toClient(c.c.x, c.c.y);
-        const edge = toClient(c.c.x + c.r, c.c.y);
-        if (!ctr || !edge) continue;
-        const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
+        if (!ctr) continue;
+        const r = lengthPx(c.r);
         d += `M${ctr.x - r},${ctr.y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0 `;
       }
       return d;
@@ -1528,9 +1540,8 @@ export const ViewportController = {
       }
       for (const c of piece.circles) {
         const ctr = toClient(c.c.x, c.c.y);
-        const edge = toClient(c.c.x + c.r, c.c.y);
-        if (!ctr || !edge) continue;
-        const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
+        if (!ctr) continue;
+        const r = this.screenLengthAt({ x: c.c.x, y: c.c.y, z: piece.planeZ ?? 0 }, c.r);
         // A full circle as two half-arcs (SVG has no closed-circle path primitive).
         const arc = `M${ctr.x - r},${ctr.y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0 `;
         if (piece.sensor) sensor += arc; else solid += arc;
@@ -1820,7 +1831,8 @@ export const ViewportController = {
       angleSpreadMin: number; angleSpreadMax: number; enabled: boolean;
     };
     const toClient = this.projectorFor(id);
-    const center = toClient(t.worldPosition.x, t.worldPosition.y);
+    const at = { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z };
+    const center = toClient(at.x, at.y);
     if (!center) return null;
     const on = p.enabled !== false;
     const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
@@ -1853,11 +1865,10 @@ export const ViewportController = {
 
     switch (p.shape) {
       case 1: {  // Circle — spawn disk of shapeRadius
-        const edge = toClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
-        const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
-        // Radius handle at the top of the ring (drag to resize shapeRadius).
-        const handle = toClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
-        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], spread: null, on, handle: handle ?? null, sizeHandle: null, angleHandle: null };
+        const r = this.screenLengthAt(at, p.shapeRadius);
+        // Radius handle at the top of the ring as DRAWN (drag to resize shapeRadius).
+        const handle = { x: center.x, y: center.y - r };
+        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], spread: null, on, handle, sizeHandle: null, angleHandle: null };
       }
       case 2: {  // Rectangle — oriented spawn box of shapeSize
         const corners = obbCorners({
