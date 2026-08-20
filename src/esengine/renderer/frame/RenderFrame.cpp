@@ -1117,11 +1117,9 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
         plugin->collect(collectCtx);
     }
 
-    // What this camera drew is part of what the FRAME drew: OR-ed across the
-    // frame's cameras and applied at the next beginFrame, never mid-frame. The
-    // capture is scratch each camera composites out of, so rebuilding it between
-    // two of them would drop the pixels the first one has not composited yet —
-    // and the editor's grid, which draws between begin() and this collect.
+    // OR-ed across the frame's cameras, applied at the next beginFrame and never
+    // mid-frame: the capture is scratch each camera composites out of, and the
+    // editor's grid draws into it between begin() and this collect.
     frame_collected_ = true;
     frame_depth_seen_ = frame_depth_seen_ || draw_list_.needsDepth();
 }

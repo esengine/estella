@@ -108,13 +108,10 @@ public:
     /**
      * @brief Opens the FRAME, once, before any of its cameras.
      *
-     * @details begin()/end() bracket one CAMERA — a frame runs the pair once per
-     *          camera — so a decision that must hold steady across a frame cannot
-     *          be made there. This is where the scene's depth requirement is rolled
-     *          forward and applied (@ref applySceneDepthNeed): the attachment the
-     *          capture is built with then stays put for every camera in the frame,
-     *          instead of a 2D camera's answer dropping the buffer a 3D camera two
-     *          lines later is about to test against.
+     * @details begin()/end() bracket one CAMERA, so a decision that must hold
+     *          steady across a frame cannot be made there. The scene's depth
+     *          requirement is rolled forward and applied here
+     *          (@ref applySceneDepthNeed), once, for every camera in the frame.
      */
     void beginFrame();
 
@@ -315,29 +312,12 @@ private:
     void buildClipState();
 
     /**
-     * @brief Tells the capture whether to carry a depth attachment, from the one
-     *        answer there is.
+     * @brief Tells the capture whether to carry a depth attachment.
      *
-     * @details The capture's attachments are chosen when it is BUILT, which is
-     *          before the frame has collected anything — so the frame cannot be
-     *          asked, and the previous one is asked instead. Three states, and the
-     *          conservative one is the default:
-     *
-     *          - Nothing answered yet (boot): the frame gets depth. A 3D scene is
-     *            therefore right on the first frame it draws, which is the frame a
-     *            single-shot capture — a thumbnail, a preview, a pixel gate — takes.
-     *          - A frame answered and nothing in it resolved by depth: released, so
-     *            a 2D project pays for one frame's attachment and no more. That is
-     *            the cost this flag exists to save and it is still saved.
-     *          - Anything ever resolved by depth: kept, permanently. A latch and not
-     *            a per-frame answer, because culling makes a per-frame one flap —
-     *            the lone mesh that leaves the frustum would take the buffer with it
-     *            and the frame it comes back on would have none.
-     *
-     *          What remains is one frame: a world with no depth-resolving renderable
-     *          that gains its first. It self-heals on the next frame and never
-     *          returns, which is the price of an attachment chosen before the
-     *          content that needs it is known.
+     * @details Chosen when the capture is BUILT, before this frame has collected,
+     *          so the PREVIOUS frame answers and an unanswered one (boot) gets
+     *          depth. Released once a frame proves nothing needs it, latched on
+     *          once anything does — culling would make a per-frame answer flap.
      */
     void applySceneDepthNeed();
     /// Gathers the scene's enabled Light2D components into the per-frame LightConstants UBO

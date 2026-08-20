@@ -64,18 +64,10 @@ public:
     /**
      * @brief Whether a frame holding these draws has to be handed a depth buffer.
      *
-     * @details Two things resolve by depth and they are ONE question. A layer the
-     *          project declared depth-resolved is one; a draw that declared it for
-     *          ITSELF is the other — an opaque mesh writes and tests depth without
-     *          waiting for a layer to grant it, which is what lets one model hide
-     *          another in a project that never heard of 2.5D. Asking only the mask
-     *          is how an opaque mesh came to test against an attachment nobody
-     *          made: a depth test with no buffer behind it does not fail, it
-     *          passes, and an opaque draw sorts front-to-back for early-z — so the
-     *          furthest is painted last and the picture inverts rather than
-     *          degrading.
-     *
-     *          This is the whole answer, so nobody downstream needs a second one.
+     * @details Two things resolve by depth and they are ONE question: a layer the
+     *          project declared depth-resolved, and a draw that declared it for
+     *          ITSELF (an opaque mesh). A depth test with no attachment behind it
+     *          PASSES, and opaque sorts front-to-back — the furthest paints last.
      */
     bool needsDepth() const { return depth_mask_ != 0 || depth_required_; }
 

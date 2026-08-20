@@ -48,12 +48,9 @@ export const SCENES = [
   { id: "editor-grid", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_STEPS: "3" } },
     // The same grid from straight above a 3D view. It stands on the ground there, so it fills the frame; the 2D plane would be edge-on and light one band.
   { id: "editor-grid-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,90", ESTELLA_VERIFY_STEPS: "3" } },
-  // The same 3D view head-on, where the eye would stand IN the ground it works on.
-  // It does not work that ground: a plane within ~6 degrees of edge-on hands over
-  // to the plane the eye most faces, which head-on is the 2D plane — so the grid
-  // covers the frame here rather than collapsing to the single horizontal stroke
-  // an edge-on plane draws. This gate held the OLD rule ("no picture at all") and
-  // was the last thing still asserting it.
+  // The same 3D view head-on. A plane within ~6 degrees of edge-on hands over to the
+  // plane the eye most faces, which head-on is the 2D plane — so the grid covers the
+  // frame instead of collapsing to the one stroke an edge-on plane draws.
   { id: "editor-grid-head-on", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,0", ESTELLA_VERIFY_STEPS: "3" } },
   { id: "mesh2d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh2d.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh2d.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "parallax-shape", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/parallax-shape.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/parallax-shape.textures.json", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.25,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
@@ -94,14 +91,9 @@ export const SCENES = [
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
   // reads 155 at -25 against 236 at its middle, which a flat quad could not.
   { id: "mesh-instanced", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_DRAW_CALLS: "1", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.25,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.25,\"y\":0.75,\"rgb\":[0,0,255],\"tol\":20},{\"x\":0.75,\"y\":0.75,\"rgb\":[255,255,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
-  // Two opaque cubes overlapping on screen, the red one 120 units nearer. An opaque
-  // draw sorts front-to-back, so with a depth buffer the red one owns the overlap and
-  // without one the green is simply painted over it — the picture inverts rather than
-  // degrading. Deliberately declares NO depth layer, because an opaque mesh has not
-  // needed one since it began saying so itself, and boots LINEAR, which is the cheaper
-  // of the two ways a project engages the post-process capture (a bloom pass is the
-  // other). That is the whole scene: the frame's depth attachment is decided by the
-  // project's depth-layer mask, and what asks for depth here never touched it.
+  // Two opaque cubes overlapping on screen, the red one 120 units nearer. Declares NO
+  // depth layer and boots LINEAR — the cheap way to engage the post-process capture.
+  // Opaque sorts front-to-back, so with no attachment the far cube paints over.
   { id: "mesh-depth-through-capture", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth-through-capture.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.57,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.4,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.74,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.1,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   { id: "mesh-builtin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-builtin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.1333,\"y\":0.5,\"rgb\":[98,98,98],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one

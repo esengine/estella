@@ -71,12 +71,9 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 // for a human). The pixel assertions do not: a composited read is colour
 // managed, turning rgb(0,255,0) into rgb(58,254,32) switch or no switch.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
-// ...and the same reason for the SIZE of a device pixel. The headless canvas is
-// never attached to a document, so its bounding rect is all zeros and a client
-// coordinate reaches the hit test as `client * devicePixelRatio` — the developer's
-// own monitor scaling. At Windows' 150% every ESTELLA_VERIFY_PICK landed 1.5x away
-// from the point it named and answered null, so two gates were red on one machine
-// and green on another, about nothing.
+// ...and the same for the SIZE of a device pixel: this canvas is never attached to
+// a document, so its rect is zeros and a client coordinate reaches the hit test as
+// `client * devicePixelRatio` — whatever the machine's display happens to scale by.
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 // WebGPU: the unsafe flag covers non-default platforms (Linux CI); the optional
 // software adapter (ESTELLA_VERIFY_WEBGPU_ADAPTER=swiftshader) gives GPU-less
