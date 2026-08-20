@@ -135,8 +135,17 @@ const failed = [];
 const unmeasured = [];
 const startedAt = Date.now();
 let retried = 0;
+// A runner with no GPU for this backend fails every scene the same way, six
+// attempts apiece — an hour to say nothing, with the rest blamed on the budget.
+// Once this many have died with it down and none has drawn, no scene can change it.
+const DEAD_GPU_GIVE_UP = 3;
+let deadInARow = 0;
+let drewSomething = false;
+let noGpu = false;
 for (const [index, scene] of scenes.entries()) {
-  if (BUDGET_MS && Date.now() - startedAt >= BUDGET_MS) {
+  const outOfBudget = BUDGET_MS && Date.now() - startedAt >= BUDGET_MS;
+  noGpu = !drewSomething && deadInARow >= DEAD_GPU_GIVE_UP;
+  if (outOfBudget || noGpu) {
     for (const rest of scenes.slice(index)) unmeasured.push(rest.id);
     break;
   }
@@ -158,7 +167,8 @@ for (const [index, scene] of scenes.entries()) {
     );
     run = attempt;
   }
-  if (!run.ok) failed.push(scene.id);
+  if (run.ok) drewSomething = true; else failed.push(scene.id);
+  deadInARow = run.gpuDied ? deadInARow + 1 : 0;
   console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${seconds(run.ms).padStart(7)}  `
     + `${run.gpuDied ? deadGpuVerdict('the scene') : run.verdict}`);
   if (!run.ok) {
@@ -172,7 +182,10 @@ console.log(`\nrender ${TIER}: ${measured - failed.length}/${measured} scene(s) 
   + (retried ? `, ${retried} measured twice (the GPU had died)` : ''));
 if (failed.length) for (const id of failed) console.log(`  ✗ ${id}`);
 if (unmeasured.length) {
-  console.log(`\nthe ${BUDGET} minute budget ran out: ${unmeasured.length} scene(s) never ran`);
+  console.log(noGpu
+    ? `\nthe runner never gave ${BACKEND} a GPU: ${measured} scene(s) died with it down and `
+      + `${unmeasured.length} were not run — this is a verdict about the RUNNER, not the engine`
+    : `\nthe ${BUDGET} minute budget ran out: ${unmeasured.length} scene(s) never ran`);
   for (const id of unmeasured) console.log(`  · ${id}`);
 }
 if (failed.length || unmeasured.length) process.exit(1);
