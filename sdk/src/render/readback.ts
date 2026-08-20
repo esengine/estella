@@ -18,17 +18,22 @@ export const READBACK_FAILED = 2;
 
 /**
  * Awaits an engine readback poll until it reports ready (1) or failed (2),
- * yielding a macrotask between pending polls. Returns the terminal status;
- * a readback still pending after @p maxPolls resolves as failed.
+ * yielding a macrotask between pending polls. Returns the terminal status.
+ *
+ * @param timeoutMs A backstop, not a schedule: the copy is already submitted, so
+ *   what keeps it from landing is a device that died — which the poll reports as
+ *   failed on its own — or a queue that has not drained. A CPU rasterizer with a
+ *   few dozen shadow-casting frames behind it takes seconds to hand one over.
  */
 export async function awaitReadback(
     poll: () => number,
-    maxPolls = 240,
+    timeoutMs = 15_000,
 ): Promise<number> {
-    for (let i = 0; i < maxPolls; i++) {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
         const status = poll();
         if (status !== 0) return status;
+        if (Date.now() >= deadline) return READBACK_FAILED;
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
-    return READBACK_FAILED;
 }

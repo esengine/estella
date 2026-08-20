@@ -469,7 +469,7 @@ app.whenReady().then(async () => {
       let c = null;
       if (api.captureViewportPixels) {
         c = await api.captureViewportPixels();
-        if (!c) throw new Error('captureViewportPixels: the engine refused its own readback');
+        if (!c) throw new Error('captureViewportPixels: no pixels — the engine refused the readback, or it was still pending when the wait gave up');
       }
       c = c ?? api.captureViewport();
       const px = c.rgba, w = c.width, h = c.height;

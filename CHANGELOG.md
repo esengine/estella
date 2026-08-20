@@ -214,6 +214,22 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Waiting for a frame the GPU has not finished is bounded by the device, not by a
+  poll count.** The readback poll gave up after 240 turns of the event loop — about a
+  second — and reported the readback as FAILED. That is the right answer for a device
+  that died and the wrong one for a queue that has not drained, and the two are
+  indistinguishable from the outside: what the caller gets either way is no pixels.
+
+  Measured on the second backend, where the copy resolves on a later event-loop turn
+  rather than at request time: `point-shadow` stepped 32 frames hands its frame over
+  after 1.4 seconds, and 64 frames after 2.7 — a CPU rasterizer with six cube faces per
+  frame behind it. Both were reported as failures. The bound is wall-clock now (15s) and
+  is a backstop rather than a schedule: the copy is already submitted, so what keeps it
+  from landing is a device that died, which the poll reports by itself.
+
+  Gate `point-shadow-stepped`, both backends: the same scene at 64 steps. Verified
+  against the defect — with the bound back at 1.1s it fails, by name.
+
 - **A readback the engine refuses is a failure, not a blank frame.** The pixel harness
   asked the engine for its own pixels and, when that came back null, read the composited
   PAGE instead. On the hidden window every verifier runs in, that page is blank — so a
