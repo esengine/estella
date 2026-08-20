@@ -46,6 +46,11 @@
               "x": 0,
               "y": -20,
               "z": 0
+            },
+            "scale": {
+              "x": 14.0,
+              "y": 0.4,
+              "z": 10.0
             }
           }
         },
@@ -65,6 +70,21 @@
             },
             "friction": 0.5
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.3,
+              "g": 0.34,
+              "b": 0.3,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -82,6 +102,11 @@
               "x": 300,
               "y": 15,
               "z": 0
+            },
+            "scale": {
+              "x": 2.4,
+              "y": 0.3,
+              "z": 3.0
             }
           }
         },
@@ -100,6 +125,21 @@
               "z": 150
             },
             "friction": 0.5
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.36,
+              "g": 0.32,
+              "b": 0.28,
+              "a": 1
+            }
           }
         }
       ]
@@ -118,6 +158,11 @@
               "x": 520,
               "y": 45,
               "z": 0
+            },
+            "scale": {
+              "x": 2.4,
+              "y": 0.9,
+              "z": 3.0
             }
           }
         },
@@ -137,6 +182,21 @@
             },
             "friction": 0.5
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.36,
+              "g": 0.32,
+              "b": 0.28,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -154,6 +214,11 @@
               "x": -620,
               "y": 100,
               "z": 0
+            },
+            "scale": {
+              "x": 0.4,
+              "y": 2.0,
+              "z": 8.0
             }
           }
         },
@@ -173,6 +238,21 @@
             },
             "friction": 0.5
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.34,
+              "g": 0.36,
+              "b": 0.44,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -190,6 +270,11 @@
               "x": -260,
               "y": 30,
               "z": -150
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
             }
           }
         },
@@ -210,6 +295,21 @@
               "z": 30
             },
             "friction": 0.2
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.62,
+              "g": 0.44,
+              "b": 0.24,
+              "a": 1
+            }
           }
         }
       ]
@@ -228,6 +328,11 @@
               "x": -160,
               "y": 30,
               "z": -150
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
             }
           }
         },
@@ -248,6 +353,21 @@
               "z": 30
             },
             "friction": 0.2
+          }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.62,
+              "g": 0.44,
+              "b": 0.24,
+              "a": 1
+            }
           }
         }
       ]
@@ -266,6 +386,11 @@
               "x": -60,
               "y": 30,
               "z": -150
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
             }
           }
         },
@@ -287,6 +412,21 @@
             },
             "friction": 0.2
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.62,
+              "g": 0.44,
+              "b": 0.24,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -304,6 +444,11 @@
               "x": -80,
               "y": 120,
               "z": -320
+            },
+            "scale": {
+              "x": 0.4,
+              "y": 2.4,
+              "z": 0.4
             }
           }
         },
@@ -323,6 +468,21 @@
             },
             "friction": 0.5
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.3,
+              "g": 0.3,
+              "b": 0.34,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -340,6 +500,11 @@
               "x": 80,
               "y": 120,
               "z": -320
+            },
+            "scale": {
+              "x": 2.8,
+              "y": 2.4,
+              "z": 0.24
             }
           }
         },
@@ -380,6 +545,21 @@
             "lowerAngle": -1.4,
             "upperAngle": 1.4
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.36,
+              "b": 0.22,
+              "a": 1
+            }
+          }
         }
       ]
     },
@@ -397,6 +577,11 @@
               "x": 0,
               "y": 120,
               "z": 250
+            },
+            "scale": {
+              "x": 1.2,
+              "y": 1.2,
+              "z": 1.2
             }
           }
         },
@@ -404,12 +589,99 @@
           "type": "CharacterController3D",
           "data": {
             "radius": 30,
-            "halfHeight": 50,
+            "halfHeight": 30,
             "stepHeight": 40,
             "snapDown": 50
           }
+        },
+        {
+          "type": "Mesh2D",
+          "data": {
+            "mesh": "builtin:capsule",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.85,
+              "g": 0.62,
+              "b": 0.3,
+              "a": 1
+            }
+          }
         }
       ]
+    },
+    {
+      "id": 31,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 0.83394695,
+              "x": -0.52086316,
+              "y": 0.18230211,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 1,
+            "intensity": 1.05,
+            "enabled": true,
+            "color": {
+              "r": 1,
+              "g": 0.96,
+              "b": 0.9,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 32,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 2,
+            "intensity": 0.42,
+            "enabled": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.66,
+              "b": 0.85,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
     }
   ]
 }
