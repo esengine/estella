@@ -566,15 +566,15 @@ const ATOMS = [
       + 'Outline, hit-flash, dissolve, pixelate and UV-scroll are among the ones already here; reaching for a hand-written shader before reading this list is writing one that exists.',
     schema: obj({}), method: 'listShaderTemplates', args: () => [], root: 'editor' },
   { name: 'create_entity', effect: 'undoable',
-    description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position, parent and NAME. '
+    description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position (x, y and — for a scene with depth — z), parent and NAME. '
       + '`name` matters most for a `prefab:<path>` template: without it every instance arrives called whatever the prefab is called, so ten enemies are ten entities you cannot tell apart. '
       + 'It is applied as the entity is built (one undo step) and, on an instance, saves as an ordinary name override — the prefab keeps its own name.',
     schema: obj({
       template: { type: 'string' }, parent: { type: ['number', 'null'] },
-      x: { type: 'number' }, y: { type: 'number' }, name: { type: 'string' },
+      x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' }, name: { type: 'string' },
     }, ['template']),
     method: 'createEntity',
-    args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y, name: i.name }], root: 'editor' },
+    args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y, z: i.z, name: i.name }], root: 'editor' },
   { name: 'set_play', effect: 'ephemeral',
     description: "Put the game in a NAMED state and get the one it reached: 'playing', 'paused', or 'stopped'. AWAITED — it resolves once the realm is up (or gone), so there is nothing to poll. "
       + "A named state rather than a toggle because a toggle needs you to know where it started, and called twice it is a no-op that reads as a failure. 'paused' from stopped boots the realm and freezes it, which is the state to set up in before stepping. "

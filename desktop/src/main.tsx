@@ -512,13 +512,17 @@ function buildEditorAutomation(): unknown {
     /** Spawn a ready-made entity through the one create pipeline (menu/DnD parity). */
     createEntity: async (
       sourceId: string,
-      opts?: { parent?: number | null; x?: number; y?: number; name?: string },
+      opts?: { parent?: number | null; x?: number; y?: number; z?: number; name?: string },
     ) => {
       const source = sourceById(sourceId);
       if (!source) throw new Error(`unknown entity template: ${sourceId} (see listEntityTemplates)`);
+      // A point in space, as the viewport's own drop resolves one: z is optional and
+      // omitting it keeps the template's own depth, which is what a 2D caller means.
       return createFromSource(source, {
         parent: opts?.parent ?? null,
-        position: opts?.x != null && opts?.y != null ? { x: opts.x, y: opts.y } : undefined,
+        position: opts?.x != null && opts?.y != null
+          ? { x: opts.x, y: opts.y, ...(opts.z != null ? { z: opts.z } : {}) }
+          : undefined,
         name: opts?.name,
       });
     },

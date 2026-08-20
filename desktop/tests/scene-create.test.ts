@@ -34,7 +34,7 @@ function widgetPrefab(): PrefabData {
 const REF = '@uuid:widget-1';
 
 const rootPos = (m: SceneModelImpl, id: number) =>
-  (m.entityBySource(id)!.components.find((c) => c.type === 'Transform')!.data as { position: { x: number; y: number } }).position;
+  (m.entityBySource(id)!.components.find((c) => c.type === 'Transform')!.data as { position: { x: number; y: number; z: number } }).position;
 
 describe('SceneCommands.create (unified template/prefab birth path)', () => {
   let model: SceneModelImpl;
@@ -77,6 +77,22 @@ describe('SceneCommands.create (unified template/prefab birth path)', () => {
     const rootId = cmds.create(widgetPrefab(), { parent: null, linkPrefabRef: REF, position: { x: 50, y: 60 } })!;
     const p = rootPos(model, rootId);
     expect([p.x, p.y]).toEqual([50, 60]);
+  });
+
+  // A drop point in a 3D view has a depth of its own, and the caller says so.
+  it('a drop point with a depth places the root at it', () => {
+    const rootId = cmds.create(widgetPrefab(), { parent: null, position: { x: 50, y: 60, z: -140 } })!;
+    const p = rootPos(model, rootId);
+    expect([p.x, p.y, p.z]).toEqual([50, 60, -140]);
+  });
+
+  // Without one, the template keeps the depth it was authored at — which is what
+  // every 2D caller means by naming only x and y.
+  it('a drop point without one leaves the authored depth alone', () => {
+    const prefab = widgetPrefab();
+    (prefab.entities[0].components[0].data as { position: { z: number } }).position.z = -7;
+    const rootId = cmds.create(prefab, { parent: null, position: { x: 50, y: 60 } })!;
+    expect(rootPos(model, rootId).z).toBe(-7);
   });
 
   it('under a parent: the root attaches to the given parent', () => {
