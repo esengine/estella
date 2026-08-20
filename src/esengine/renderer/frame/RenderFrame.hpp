@@ -105,6 +105,19 @@ public:
         u32 w = 0, h = 0;
     };
 
+    /**
+     * @brief Opens the FRAME, once, before any of its cameras.
+     *
+     * @details begin()/end() bracket one CAMERA — a frame runs the pair once per
+     *          camera — so a decision that must hold steady across a frame cannot
+     *          be made there. This is where the scene's depth requirement is rolled
+     *          forward and applied (@ref applySceneDepthNeed): the attachment the
+     *          capture is built with then stays put for every camera in the frame,
+     *          instead of a 2D camera's answer dropping the buffer a 3D camera two
+     *          lines later is about to test against.
+     */
+    void beginFrame();
+
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target = 0);
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                const PassClear& clear);
@@ -168,9 +181,9 @@ public:
     void setYSortLayers(u32 mask) { draw_list_.setYSortMask(mask); }
     void setDepthLayers(u32 mask) {
         draw_list_.setDepthMask(mask);
-        // The scene target needs a depth attachment exactly when some layer resolves
-        // by depth; before init there is no pipeline yet, and it reads the mask itself.
-        if (post_process_) post_process_->setSceneNeedsDepth(mask != 0);
+        // Through the one applier: the mask is no longer the whole answer, only
+        // half of it. Before init there is no pipeline yet, and init asks again.
+        applySceneDepthNeed();
     }
     u32 depthLayers() const { return draw_list_.depthMask(); }
 
@@ -265,6 +278,16 @@ private:
     u32 preview_h_ = 0;
     bool in_frame_ = false;
     bool flushed_ = false;
+    /// Depth state for the capture's attachment — see applySceneDepthNeed.
+    /// Latched on for good: what once resolved by depth may leave the frustum.
+    bool depth_seen_ = false;
+    /// This frame's cameras, OR-ed; rolled into depth_seen_ at the next beginFrame.
+    bool frame_depth_seen_ = false;
+    /// Whether this frame collected at all — an uncollected frame answers nothing,
+    /// so it must not be read as "nothing here needs depth".
+    bool frame_collected_ = false;
+    /// Whether ANY frame has answered yet. Until one has, the answer is "give it one".
+    bool depth_answered_ = false;
     u32 width_ = 0;
     u32 height_ = 0;
 
@@ -290,6 +313,33 @@ private:
 
     RenderFrameContext makeContext();
     void buildClipState();
+
+    /**
+     * @brief Tells the capture whether to carry a depth attachment, from the one
+     *        answer there is.
+     *
+     * @details The capture's attachments are chosen when it is BUILT, which is
+     *          before the frame has collected anything — so the frame cannot be
+     *          asked, and the previous one is asked instead. Three states, and the
+     *          conservative one is the default:
+     *
+     *          - Nothing answered yet (boot): the frame gets depth. A 3D scene is
+     *            therefore right on the first frame it draws, which is the frame a
+     *            single-shot capture — a thumbnail, a preview, a pixel gate — takes.
+     *          - A frame answered and nothing in it resolved by depth: released, so
+     *            a 2D project pays for one frame's attachment and no more. That is
+     *            the cost this flag exists to save and it is still saved.
+     *          - Anything ever resolved by depth: kept, permanently. A latch and not
+     *            a per-frame answer, because culling makes a per-frame one flap —
+     *            the lone mesh that leaves the frustum would take the buffer with it
+     *            and the frame it comes back on would have none.
+     *
+     *          What remains is one frame: a world with no depth-resolving renderable
+     *          that gains its first. It self-heals on the next frame and never
+     *          returns, which is the price of an attachment chosen before the
+     *          content that needs it is known.
+     */
+    void applySceneDepthNeed();
     /// Gathers the scene's enabled Light2D components into the per-frame LightConstants UBO
     /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
     /// flush() uploads + binds the result so Lit2D material shaders read it.

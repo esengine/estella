@@ -60,6 +60,53 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A frame is given a depth buffer by what it draws, not by a setting that stopped
+  covering it.** An opaque mesh has declared its own depth test and write since it
+  stopped waiting for a depth layer to grant them (`MeshPlugin.cpp:240`, "an opaque
+  surface says so itself"). Whether the frame HAD a depth buffer to test against was
+  still decided somewhere else entirely: the post-process capture took its depth
+  attachment from the project's depth-layer mask alone. The two never spoke.
+
+  So a project that declares no depth layer and engages the capture — one post effect,
+  or the linear colour space a PBR pipeline is built for — rendered its opaque meshes
+  into a target with no depth attachment. The test did not fail; it passed, because
+  there was nothing to fail against. And an opaque draw sorts front-to-back for
+  early-z, so what is painted last is what is furthest away: the picture inverted
+  rather than degrading, and nothing said so.
+
+  Nothing in the corpus stood there. All four 3D projects — `3d-starter`,
+  `lighting-3d`, `model-import`, `physics-3d` — ship gamma and ship no post stack,
+  which is the only combination that worked.
+
+  `DrawList::needsDepth()` is the one answer now: the declared layer mask OR any
+  command that tests or writes depth, accumulated where commands ENTER the list so a
+  render path added later cannot produce a depth draw it fails to count.
+
+  The capture's attachments are chosen when it is BUILT, which is before the frame has
+  collected anything — so the frame cannot be asked and the previous one is asked
+  instead, through `RenderFrame::beginFrame()`. That is the frame's own opening, which
+  `begin()` is not: `begin()`/`end()` bracket one CAMERA, so an answer applied there
+  would let a 2D camera drop the buffer a 3D camera two lines later is about to test
+  against. Three states, conservative by default: nothing has answered yet (boot) ⇒
+  the frame gets depth, so a 3D scene is right on the first frame it draws — the frame
+  a thumbnail, a preview or a pixel gate takes; a frame answered and nothing in it
+  resolved by depth ⇒ released, so a 2D project still pays for one frame's attachment
+  and no more; anything ever resolved by depth ⇒ kept for good, a latch rather than a
+  per-frame answer because culling makes a per-frame one flap — the lone mesh that
+  leaves the frustum would take the buffer with it.
+
+  What remains is one frame, stated rather than discovered: a world with no
+  depth-resolving renderable that gains its first. It self-heals on the next frame and
+  never returns, and it is the price of an attachment chosen before the content that
+  needs it is known.
+
+  Gate `mesh-depth-through-capture`, both backends: two opaque cubes overlapping on
+  screen, the red one 120 units nearer, booted linear and declaring no depth layer. It
+  was landed red on purpose one commit earlier. Measured against the two controls that
+  differ in one thing each — gamma with no layer (capture bypassed, default surface
+  carries depth) and linear with layer 1 (capture built with depth) both drew red;
+  linear with no layer drew green.
+
 - **A skinned mesh's channels reach the inspector as numbers.** `meshSummary`'s name
   table stopped at `Tangent`, so every skinned import — the only meshes that carry the
   joint channels — described itself as `position, uv, color, #5, #6`.

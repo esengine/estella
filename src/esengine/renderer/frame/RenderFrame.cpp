@@ -141,9 +141,10 @@ void RenderFrame::init(u32 width, u32 height) {
 #ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);
     post_process_->setLinearOutput(linear_color_);
-    // Depth layers may have been declared before the pipeline existed (the mask
-    // arrives with the project, init happens on the first frame).
-    post_process_->setSceneNeedsDepth(draw_list_.depthMask() != 0);
+    // The requirement may have been declared before the pipeline existed (a depth
+    // layer arrives with the project, init happens on the first frame) — and until
+    // a frame has answered, the answer is that the capture carries depth.
+    applySceneDepthNeed();
     post_process_->init(width, height);
 #endif
 
@@ -217,6 +218,27 @@ void RenderFrame::resize(u32 width, u32 height) {
     if (post_process_) {
         post_process_->resize(width, height);
     }
+#endif
+}
+
+void RenderFrame::beginFrame() {
+    // Last frame's answer becomes this frame's, once. A frame that collected
+    // nothing answered nothing — an editor frame that only blits, a frame the host
+    // skipped — so it neither latches nor releases.
+    if (frame_collected_) {
+        depth_answered_ = true;
+        if (frame_depth_seen_) depth_seen_ = true;
+    }
+    frame_collected_ = false;
+    frame_depth_seen_ = false;
+    applySceneDepthNeed();
+}
+
+void RenderFrame::applySceneDepthNeed() {
+#ifdef ES_ENABLE_POSTPROCESS
+    if (!post_process_) return;
+    post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_
+                                      || draw_list_.depthMask() != 0);
 #endif
 }
 
@@ -1094,6 +1116,14 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
         plugin->collect(collectCtx);
     }
+
+    // What this camera drew is part of what the FRAME drew: OR-ed across the
+    // frame's cameras and applied at the next beginFrame, never mid-frame. The
+    // capture is scratch each camera composites out of, so rebuilding it between
+    // two of them would drop the pixels the first one has not composited yet —
+    // and the editor's grid, which draws between begin() and this collect.
+    frame_collected_ = true;
+    frame_depth_seen_ = frame_depth_seen_ || draw_list_.needsDepth();
 }
 
 glm::vec3 srgbToLinearCpu(const glm::vec3& c) {

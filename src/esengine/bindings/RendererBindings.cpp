@@ -484,6 +484,8 @@ void renderer_beginFrame(f32 elapsedSec) {
     if (auto* rc = ctx().tryGet<RenderContext>()) {
         rc->setFrameTime(elapsedSec, g_viewportWidth, g_viewportHeight);
     }
+    // The frame's own opening, which begin() is not: it runs once per camera.
+    if (g_renderFrame) g_renderFrame->beginFrame();
 }
 
 // The pass's load-op rides begin: clearFlags bit0 = color, bit1 = depth; the color

@@ -61,6 +61,24 @@ public:
     void setDepthMask(u32 mask) { depth_mask_ = mask; }
     u32 depthMask() const { return depth_mask_; }
 
+    /**
+     * @brief Whether a frame holding these draws has to be handed a depth buffer.
+     *
+     * @details Two things resolve by depth and they are ONE question. A layer the
+     *          project declared depth-resolved is one; a draw that declared it for
+     *          ITSELF is the other — an opaque mesh writes and tests depth without
+     *          waiting for a layer to grant it, which is what lets one model hide
+     *          another in a project that never heard of 2.5D. Asking only the mask
+     *          is how an opaque mesh came to test against an attachment nobody
+     *          made: a depth test with no buffer behind it does not fail, it
+     *          passes, and an opaque draw sorts front-to-back for early-z — so the
+     *          furthest is painted last and the picture inverts rather than
+     *          degrading.
+     *
+     *          This is the whole answer, so nobody downstream needs a second one.
+     */
+    bool needsDepth() const { return depth_mask_ != 0 || depth_required_; }
+
     // Bit i set ⇒ the camera being rendered draws layer i. A camera property, not a
     // scene one, so it is set per camera (RenderFrame::begin clears the list each time).
     void setCullingMask(u32 mask) { culling_mask_ = mask; }
@@ -114,6 +132,8 @@ private:
     u32 merged_draw_calls_ = 0;
     u32 ysort_mask_ = 0;
     u32 depth_mask_ = 0;
+    /// Any command pushed this collect that tests or writes depth — see needsDepth.
+    bool depth_required_ = false;
     u32 culling_mask_ = 0xFFFFFFFFu;  // every layer, until a camera says otherwise
 };
 

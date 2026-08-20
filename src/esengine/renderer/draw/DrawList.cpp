@@ -46,6 +46,7 @@ void DrawList::clear() {
     sort_entries_.clear();
     skin_matrices_.clear();
     merged_draw_calls_ = 0;
+    depth_required_ = false;
 }
 
 u32 DrawList::addSkinMatrices(const glm::mat4* matrices, u32 count) {
@@ -55,6 +56,10 @@ u32 DrawList::addSkinMatrices(const glm::mat4* matrices, u32 count) {
 }
 
 void DrawList::push(const DrawCommand& cmd) {
+    // Accumulated where commands ENTER, not scanned where the answer is wanted:
+    // push is the one funnel every render path goes through, so a path added
+    // later cannot produce a depth draw this fails to count. See needsDepth.
+    depth_required_ = depth_required_ || cmd.depth_test || cmd.depth_write;
     commands_.push_back(cmd);
 }
 
