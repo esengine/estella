@@ -552,6 +552,11 @@ class ProjectStoreImpl {
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
 
     EngineHost.syncEditorViewToScene();
+    // The eye starts the way the scene's own camera looks — a scene whose camera has
+    // a perspective is a scene with depth. Through the toggle's own door, so the eye
+    // parks where 3D parks it. A first look, not a follow.
+    const perspective = EngineHost.sceneUsesPerspective();
+    if (perspective !== null) useEditorStore.setState({ viewPerspective: perspective });
     // …and widen it to the design rect if the panel is narrower than the game's
     // aspect. The sync above adopts the scene camera's orthoSize as a HALF-HEIGHT,
     // which is the game's framing only while the panel is at least as wide as the

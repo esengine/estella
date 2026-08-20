@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "3D Starter",
+  "tag": "Starter",
+  "description": "A lit 3D world with ground, props and a character you walk around \u2014 start a 3D game from something that already runs.",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}

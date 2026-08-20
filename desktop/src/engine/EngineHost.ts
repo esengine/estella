@@ -9,6 +9,7 @@ import {
   Transform,
   Sprite,
   Camera,
+  ProjectionType,
   EditorView, editorViewHalfHeight, setEditorViewHalfHeight,
   EditorGrid,
   installEditorGrid,
@@ -330,6 +331,15 @@ class EngineHostImpl {
   }
 
   /**
+   * Whether the scene's active camera has a perspective, or null when the scene
+   * has no camera to ask. What the editor's own eye starts as — a scene whose
+   * camera sees depth is a scene with depth in it.
+   */
+  sceneUsesPerspective(): boolean | null {
+    return this.readSceneCamera()?.perspective ?? null;
+  }
+
+  /**
    * Seed the editor camera from the scene's active camera and activate it for
    * edit mode. Called after a scene loads; navigation thereafter is independent
    * of the scene — the editor view never writes back to a scene Camera entity,
@@ -423,7 +433,7 @@ class EngineHostImpl {
   }
 
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */
-  private readSceneCamera(): { x: number; y: number; orthoSize: number } | null {
+  private readSceneCamera(): { x: number; y: number; orthoSize: number; perspective: boolean } | null {
     const world = this.world;
     if (!world) return null;
     let chosen: number | null = null;
@@ -437,8 +447,13 @@ class EngineHostImpl {
     }
     if (chosen == null) return null;
     const t = world.get(chosen, Transform);
-    const c = world.get(chosen, Camera) as { orthoSize?: number };
-    return { x: t.position.x, y: t.position.y, orthoSize: c.orthoSize ?? 360 };
+    const c = world.get(chosen, Camera) as { orthoSize?: number; projectionType?: number };
+    return {
+      x: t.position.x,
+      y: t.position.y,
+      orthoSize: c.orthoSize ?? 360,
+      perspective: (c.projectionType ?? ProjectionType.Orthographic) === ProjectionType.Perspective,
+    };
   }
 
   // — Headless / automation drive —

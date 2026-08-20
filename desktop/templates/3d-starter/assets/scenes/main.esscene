@@ -1,0 +1,422 @@
+{
+ "version": 1,
+ "name": "Main",
+ "folders": [
+  "Lighting",
+  "World"
+ ],
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 380,
+       "z": 900
+      },
+      "rotation": {
+       "x": -0.15643447,
+       "y": 0,
+       "z": 0,
+       "w": 0.98768834
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 55,
+      "nearPlane": 10,
+      "farPlane": 5000,
+      "isActive": true,
+      "priority": 0,
+      "backgroundColor": {
+       "r": 0.09,
+       "g": 0.11,
+       "b": 0.15,
+       "a": 1
+      }
+     }
+    }
+   ],
+   "visible": true
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.83394695,
+       "x": -0.52086316,
+       "y": 0.18230211,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light2D",
+     "data": {
+      "type": 1,
+      "intensity": 1.05,
+      "enabled": true,
+      "color": {
+       "r": 1,
+       "g": 0.96,
+       "b": 0.9,
+       "a": 1
+      }
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "Lighting"
+  },
+  {
+   "id": 2,
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light2D",
+     "data": {
+      "type": 2,
+      "intensity": 0.42,
+      "enabled": true,
+      "color": {
+       "r": 0.55,
+       "g": 0.66,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "Lighting"
+  },
+  {
+   "id": 3,
+   "name": "Ground",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 10,
+       "y": 1,
+       "z": 7
+      }
+     }
+    },
+    {
+     "type": "Mesh2D",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": false,
+      "color": {
+       "r": 0.3,
+       "g": 0.36,
+       "b": 0.3,
+       "a": 1
+      }
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "World"
+  },
+  {
+   "id": 4,
+   "name": "GroundBody",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -40,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "RigidBody3D",
+     "data": {
+      "bodyType": 0
+     }
+    },
+    {
+     "type": "BoxCollider3D",
+     "data": {
+      "halfExtents": {
+       "x": 500,
+       "y": 40,
+       "z": 350
+      },
+      "friction": 0.6
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "World"
+  },
+  {
+   "id": 5,
+   "name": "Block",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -230,
+       "y": 60,
+       "z": -80
+      },
+      "scale": {
+       "x": 1.2,
+       "y": 1.2,
+       "z": 1.2
+      }
+     }
+    },
+    {
+     "type": "Mesh2D",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.42,
+       "g": 0.34,
+       "b": 0.28,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "RigidBody3D",
+     "data": {
+      "bodyType": 0
+     }
+    },
+    {
+     "type": "BoxCollider3D",
+     "data": {
+      "halfExtents": {
+       "x": 60,
+       "y": 60,
+       "z": 60
+      },
+      "friction": 0.6
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "World"
+  },
+  {
+   "id": 6,
+   "name": "Pillar",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 210,
+       "y": 140,
+       "z": -170
+      },
+      "scale": {
+       "x": 0.8,
+       "y": 2.8,
+       "z": 0.8
+      }
+     }
+    },
+    {
+     "type": "Mesh2D",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.36,
+       "g": 0.38,
+       "b": 0.46,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "RigidBody3D",
+     "data": {
+      "bodyType": 0
+     }
+    },
+    {
+     "type": "BoxCollider3D",
+     "data": {
+      "halfExtents": {
+       "x": 40,
+       "y": 140,
+       "z": 40
+      },
+      "friction": 0.6
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "World"
+  },
+  {
+   "id": 7,
+   "name": "Step",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 170,
+       "y": 25,
+       "z": 130
+      },
+      "scale": {
+       "x": 3.0,
+       "y": 0.5,
+       "z": 1.6
+      }
+     }
+    },
+    {
+     "type": "Mesh2D",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.34,
+       "g": 0.3,
+       "b": 0.26,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "RigidBody3D",
+     "data": {
+      "bodyType": 0
+     }
+    },
+    {
+     "type": "BoxCollider3D",
+     "data": {
+      "halfExtents": {
+       "x": 150,
+       "y": 25,
+       "z": 80
+      },
+      "friction": 0.6
+     }
+    }
+   ],
+   "visible": true,
+   "folder": "World"
+  },
+  {
+   "id": 8,
+   "name": "Hero",
+   "parent": null,
+   "children": [],
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 80,
+       "z": 170
+      },
+      "scale": {
+       "x": 1.6,
+       "y": 1.6,
+       "z": 1.6
+      }
+     }
+    },
+    {
+     "type": "Mesh2D",
+     "data": {
+      "mesh": "builtin:capsule",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.62,
+       "b": 0.3,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "CharacterController3D",
+     "data": {
+      "radius": 40,
+      "halfHeight": 40,
+      "stepHeight": 45,
+      "snapDown": 50
+     }
+    }
+   ],
+   "visible": true
+  }
+ ]
+}
