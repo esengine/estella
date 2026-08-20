@@ -121,7 +121,15 @@ export async function withEditor(body, opts = {}) {
   if ((opts.mode ?? 'editor') === 'editor') args.push('--editor');
   const child = spawn(process.execPath, args, {
     cwd: DESKTOP, stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ESTELLA_MCP_ALLOW_WRITES: '1' },
+    env: {
+      ...process.env,
+      ESTELLA_MCP_ALLOW_WRITES: '1',
+      // A check reads coordinates off a screenshot, which is in DEVICE pixels, and
+      // clicks in CSS ones. Only a scale of 1 makes those the same number, so
+      // without this a verdict is about the display the run happened to be on.
+      ESTELLA_MCP_EDITOR_ARGS: ['--force-device-scale-factor=1',
+                                process.env.ESTELLA_MCP_EDITOR_ARGS ?? ''].join(' ').trim(),
+    },
   });
 
   let buf = '';

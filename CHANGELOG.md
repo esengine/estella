@@ -107,6 +107,14 @@ published separately; it ships inside the editor.
   carries depth) and linear with layer 1 (capture built with depth) both drew red;
   linear with no layer drew green.
 
+- **An editor check's verdict depended on it too.** The same fact one layer up:
+  a check reads coordinates off a screenshot, which is in device pixels, and
+  clicks in CSS ones — so at 150% scaling `icon-pick` clicked 1.5x away from the
+  icon and `gizmo-chrome` measured everything half again too big. The check
+  harness pins `device-scale-factor` to 1 for the editor it drives; a person
+  driving their own editor over MCP is untouched, because a real window's rect is
+  not zero and its scaling is the one they want. 33/34 with this, up from 31.
+
 - **A pixel gate's verdict depended on the developer's monitor scaling.** The
   headless render host never attaches its canvas to a document, so
   `getBoundingClientRect()` is all zeros and `clientToScreen` reduces to
