@@ -299,6 +299,23 @@ inline GfxBlockInfo gfxCompressedBlockInfo(GfxCompressedFormat fmt) {
     }
 }
 
+/** @brief How many mip levels of a @p width x @p height image are WHOLE blocks,
+ *         counting from the base — the levels a compressed copy may write, since a
+ *         copy whose size is not a multiple of the block is refused. 72x72 has two
+ *         (72, 36; 18 stops it) and 70x70 has none, which is what makes an image
+ *         uncompressible rather than merely short of mips. */
+inline u32 gfxWholeBlockLevels(GfxCompressedFormat fmt, u32 width, u32 height, u32 mipLevels) {
+    const GfxBlockInfo bi = gfxCompressedBlockInfo(fmt);
+    u32 levels = 0;
+    for (u32 level = 0; level < (mipLevels ? mipLevels : 1); ++level) {
+        const u32 lw = (width >> level) ? (width >> level) : 1u;
+        const u32 lh = (height >> level) ? (height >> level) : 1u;
+        if ((lw % bi.blockWidth) != 0 || (lh % bi.blockHeight) != 0) break;
+        ++levels;
+    }
+    return levels;
+}
+
 /** @brief Total bytes of a full mip pyramid (levels 0..mipLevels-1) for a
  *         base-size compressed texture — the block-aligned sum both the transcoder
  *         (packing) and the device (uploading) agree on. */

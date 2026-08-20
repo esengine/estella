@@ -75,6 +75,27 @@ int main() {
         CHECK(d.lastCompressedByteLength == 512, "ETC2 byte length forwarded");
     }
 
+    // --- how many mip levels of an image are whole blocks ---
+    // The rule a compressed copy obeys at every level, not only the base: 72x72
+    // passed a base-only check and its 18x18 third mip was uploaded anyway.
+    {
+        using esengine::gfxWholeBlockLevels;
+        const auto etc2 = GfxCompressedFormat::ETC2_RGBA8;   // 4x4
+        const auto astc8 = GfxCompressedFormat::ASTC_8x8;    // 8x8
+
+        CHECK(gfxWholeBlockLevels(etc2, 70, 70, 1) == 0, "70x70 base is not whole blocks");
+        CHECK(gfxWholeBlockLevels(etc2, 72, 72, 8) == 2, "72x72 gives 72 and 36, and stops at 18");
+        CHECK(gfxWholeBlockLevels(etc2, 512, 512, 10) == 8, "512x512 runs down to 4, not to 1");
+        CHECK(gfxWholeBlockLevels(etc2, 64, 64, 1) == 1, "a single level is counted");
+        CHECK(gfxWholeBlockLevels(etc2, 64, 64, 0) == 1, "zero levels reads as the base");
+        CHECK(gfxWholeBlockLevels(etc2, 4, 4, 4) == 1, "a 4x4 base has exactly one level");
+        // The block belongs to the format, not to the number 4: 32x32 runs down to
+        // 8 for an 8x8 format where a 4x4 one would keep going to 4.
+        CHECK(gfxWholeBlockLevels(astc8, 32, 32, 6) == 3, "ASTC 8x8 stops at 8");
+        CHECK(gfxWholeBlockLevels(etc2, 32, 32, 6) == 4, "the same image keeps one more level at 4x4");
+        CHECK(gfxWholeBlockLevels(astc8, 68, 68, 4) == 0, "4-aligned is not 8-aligned");
+    }
+
     if (g_failures == 0) {
         std::printf("\nALL COMPRESSED-FORMAT TESTS PASSED\n");
         return 0;

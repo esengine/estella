@@ -60,19 +60,17 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     basist::transcoder_texture_format basisFmt = basist::transcoder_texture_format::cTFRGBA32;
     GfxCompressedFormat gfxFmt = GfxCompressedFormat::ETC2_RGBA8;
     bool compressed = false;
-    // Every choice below is a 4x4 block format, and WebGPU refuses a compressed
-    // texture whose size is not whole blocks — a 70x70 sprite fails CreateTexture
-    // and the game draws nothing. Device support is not the only question.
-    const bool wholeBlocks = (w % 4 == 0) && (h % 4 == 0);
+    // WebGPU refuses a compressed copy whose size is not whole blocks — a 70x70
+    // sprite fails CreateTexture and the game draws nothing. Device support is not
+    // the only question, and the block is the FORMAT's, not always 4x4.
     for (const FormatChoice& c : kChoices) {
-        if (!wholeBlocks) break;
         const GfxCompressedFormat want = srgb ? c.srgb : c.linear;
-        if (device.supportsCompressedFormat(want)) {
-            basisFmt = c.basisFmt;
-            gfxFmt = want;
-            compressed = true;
-            break;
-        }
+        if (!device.supportsCompressedFormat(want)) continue;
+        if (gfxWholeBlockLevels(want, w, h, 1) == 0) continue;
+        basisFmt = c.basisFmt;
+        gfxFmt = want;
+        compressed = true;
+        break;
     }
 
     // A compressed texture keeps the KTX2's pre-baked mip chain (basis cannot
@@ -82,7 +80,12 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     const uint32_t bw = basist::basis_get_block_width(basisFmt);
     const uint32_t bh = basist::basis_get_block_height(basisFmt);
     const uint32_t bpb = basist::basis_get_bytes_per_block_or_pixel(basisFmt);
-    const uint32_t numLevels = compressed ? (t.get_levels() ? t.get_levels() : 1u) : 1u;
+    // The rule is about each LEVEL, not the image: 72x72 is whole blocks and its
+    // third mip, 18x18, is not — and that copy is refused exactly as a 70x70 base
+    // would be. The chain stops there, whole as far as it goes.
+    const uint32_t numLevels = compressed
+        ? gfxWholeBlockLevels(gfxFmt, w, h, t.get_levels() ? t.get_levels() : 1u)
+        : 1u;
 
     // Pack each level tightly, level 0 first — the layout the device unpacks.
     std::vector<uint8_t> out;
