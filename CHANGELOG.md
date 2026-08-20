@@ -214,6 +214,20 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A readback the engine refuses is a failure, not a blank frame.** The pixel harness
+  asked the engine for its own pixels and, when that came back null, read the composited
+  PAGE instead. On the hidden window every verifier runs in, that page is blank — so a
+  readback the engine declined produced a frame that had rendered nothing, and every
+  probe in the scene agreed with it. It now says so, by name, and only falls back where
+  the build cannot answer at all.
+
+  Which is how this was found: on the second backend a scene that renders a shadow map
+  refuses its own readback once it has stepped past about 24 frames. `point-shadow` at
+  `ESTELLA_VERIFY_STEPS=32` reproduces it and at 24 does not; a scene with no shadow map
+  is fine at 200. What it is not is a rendering fault — the next readback in the same run
+  returns the right pixels. Nothing in the corpus steps that far, so no gate moved, and
+  the defect behind it is still open.
+
 - **A shadow map stores the depth at the fragment, not an interpolation of its
   corners'.** The depth written into a map was `z / w`, computed in the vertex stage and
   carried across the triangle as a varying. `z / w` is not affine across a triangle, so

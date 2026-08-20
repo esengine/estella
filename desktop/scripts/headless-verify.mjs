@@ -461,10 +461,17 @@ app.whenReady().then(async () => {
     // Both backends are read the same way: the ENGINE's pixels, in the page.
     // Reading the composited page instead answers what a display would show —
     // rgb(0,255,0) comes back as rgb(58,254,32).
+    // A build that CAN answer and does not is a failure, not a reason to read the
+    // page: on a hidden window that page is blank, so falling back turns a refused
+    // readback into a frame that rendered nothing, which every probe then agrees with.
     const readFrame = (expr) => exec(`(async () => {
       const api = window.__estellaHeadless.api;
-      const c = (api.captureViewportPixels ? await api.captureViewportPixels() : null)
-        ?? api.captureViewport();
+      let c = null;
+      if (api.captureViewportPixels) {
+        c = await api.captureViewportPixels();
+        if (!c) throw new Error('captureViewportPixels: the engine refused its own readback');
+      }
+      c = c ?? api.captureViewport();
       const px = c.rgba, w = c.width, h = c.height;
       ${expr}
     })()`);
