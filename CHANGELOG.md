@@ -270,6 +270,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The 3D starter is a complete project again.** A manifest that names no `scripts`
+  entry gets the defaults, and one of those is `src/components.ts` — the module the
+  editor imports on its own to read a project's component schemas. The 3D starter shipped
+  without it, because its systems declare no components and its `main.ts` says so. The
+  file has to be there whether or not it declares anything: the editor opens what the
+  manifest resolves to. `templates.test.ts` has been red on it since it shipped, which is
+  what says how a bundled template is meant to be checked.
+
 - **Waiting for a frame the GPU has not finished is bounded by the device, not by a
   poll count.** The readback poll gave up after 240 turns of the event loop — about a
   second — and reported the readback as FAILED. That is the right answer for a device
