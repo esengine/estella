@@ -91,6 +91,15 @@ export const SCENES = [
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
   // reads 155 at -25 against 236 at its middle, which a flat quad could not.
   { id: "mesh-instanced", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_DRAW_CALLS: "1", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.25,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.25,\"y\":0.75,\"rgb\":[0,0,255],\"tol\":20},{\"x\":0.75,\"y\":0.75,\"rgb\":[255,255,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // Two opaque cubes overlapping on screen, the red one 120 units nearer. An opaque
+  // draw sorts front-to-back, so with a depth buffer the red one owns the overlap and
+  // without one the green is simply painted over it — the picture inverts rather than
+  // degrading. Deliberately declares NO depth layer, because an opaque mesh has not
+  // needed one since it began saying so itself, and boots LINEAR, which is the cheaper
+  // of the two ways a project engages the post-process capture (a bloom pass is the
+  // other). That is the whole scene: the frame's depth attachment is decided by the
+  // project's depth-layer mask, and what asks for depth here never touched it.
+  { id: "mesh-depth-through-capture", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth-through-capture.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.57,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.4,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.74,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.1,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   { id: "mesh-builtin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-builtin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.1333,\"y\":0.5,\"rgb\":[98,98,98],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat
