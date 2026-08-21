@@ -949,7 +949,11 @@ fn shadowFactor2D(worldPos : vec2f, aim : vec2f, softness : f32) -> f32 {
     }
     return 1.0 - blocked / 5.0;
 }
-fn distributionGGX(NdotH : f32, a : f32) -> f32 {
+)"
+// Split, not restructured: MSVC caps ONE string literal at 16380 bytes
+// and this twin passed it. Adjacent literals concatenate with no cap, so
+// the WGSL is byte-for-byte what it was.
+R"(fn distributionGGX(NdotH : f32, a : f32) -> f32 {
     let a2 = a * a;
     let d = NdotH * NdotH * (a2 - 1.0) + 1.0;
     return a2 / max(3.14159265 * d * d, 1e-7);
