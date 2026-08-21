@@ -6,12 +6,16 @@ how the project pays for itself.
 
 ## TL;DR
 
-- **Estella is licensed under [Apache-2.0](LICENSE).** Use it for anything,
+- **The engine is licensed under [Apache-2.0](LICENSE).** Use it for anything,
   including commercial games and commercial products, free of charge. No royalties,
   no seat fees, no revenue thresholds, no "free for indies, paid for studios" tier.
-- **The whole engine is open and stays open.** The engine runtime, the SDK, the
-  editor, the build CLI, and the runtime loader are all Apache-2.0. We do not hold
-  core features back behind a paywall.
+- **The engine is open and stays open.** The runtime, the SDK, the asset pipeline,
+  the build CLI, the runtime loader, the project templates and the plugin API are
+  all Apache-2.0. Everything needed to build, run and ship a game is here.
+- **The visual editor is not open source.** It is a separate product, developed in
+  a private repository. This is a change from how Estella shipped through v0.55.0 —
+  see [What changed with the editor](#what-changed-with-the-editor) below, which
+  says plainly what we promised before and what we are doing instead.
 - **We fund the project from things built _around_ the engine, not from the engine
   itself** — sponsorship, optional hosted/"pro" add-ons, a marketplace, and paid
   support. Every one of those is optional; none of them gate the open-source engine.
@@ -39,13 +43,38 @@ clear **trademark** boundary, which protect both users and the project, while st
 being fully permissive and commercial-friendly. It is also compatible with the
 permissive licenses of our bundled dependencies.
 
-### Our promise (no rug-pull)
+### Our promise, and its limit
 
 The Apache-2.0 grant is **irrevocable** for the code released under it. We can't take
-back the rights you already have, and we don't intend to. The core engine will
-remain under a permissive OSI-approved license. If governance ever moves (for
-example, to a foundation), it will only move in a direction that keeps the engine
-open.
+back the rights you already have. The **engine** will remain under a permissive
+OSI-approved license. If governance ever moves (for example, to a foundation), it
+will only move in a direction that keeps the engine open.
+
+The limit is now explicit, because the previous version of this promise was not:
+it covers the engine. The editor moved out from under it, which is exactly the kind
+of move this section used to be read as ruling out.
+
+## What changed with the editor
+
+Through **v0.55.0** the visual editor shipped in this repository under Apache-2.0,
+and this document said the editor was part of what stays open, under a heading that
+promised no rug-pull. **That is no longer true, and we are not going to pretend it
+was never said.** From the next release the editor is developed in a private
+repository and is a separate product.
+
+Two things about that are worth stating precisely:
+
+- **The Apache-2.0 grant on the editor code already released is irrevocable.**
+  Every version up to and including v0.55.0 remains Apache-2.0 for everyone who has
+  it. You may use, modify, fork and redistribute that code under those terms. We
+  cannot take that back and are not trying to.
+- **The engine's Apache-2.0 grant is unchanged and is what the rest of this
+  document commits to.** The engine is not being made worse to push the editor: the
+  split moved the engine's own verification INTO the engine, and the open repo now
+  runs its own renderer gates rather than borrowing the editor's host.
+
+If you were relying on the editor being open, that is a reasonable thing to have
+relied on, and we would rather say so here than let you find out from a changelog.
 
 ## What is always free and open
 
@@ -53,8 +82,9 @@ Everything needed to build and ship a game is Apache-2.0 and lives in this repo:
 
 - the C++/WebAssembly engine runtime and renderer,
 - the TypeScript SDK (`esengine`) and the web loader (`@esengine/web-loader`),
-- the visual editor,
-- the build/CLI tooling,
+- the asset pipeline and the build/CLI tooling,
+- the project templates a new game starts from,
+- the editor plugin API (`editor-api/`), so a plugin author needs no private code,
 - documentation and examples.
 
 We will not move a feature from this list behind a paywall. New core capabilities
@@ -69,12 +99,12 @@ Recurring sponsorship (e.g. GitHub Sponsors / OpenCollective) and one-off donati
 from individuals and companies that depend on Estella. Sponsors may get recognition
 and a louder voice on the roadmap — never exclusive access to core features.
 
-### 2. Optional hosted & "pro" add-ons (open-core, done honestly)
-Convenience products that sit on top of the open engine and are worth paying for
-because they save time, not because the engine was crippled without them — for
-example a hosted/cloud editor, team collaboration, a managed build-and-publish
-pipeline, or a pro asset pipeline. These are **separate products**: the open-source
-engine is fully usable, self-hostable, and shippable without any of them.
+### 2. The editor, and optional hosted add-ons
+The visual editor is a separate product built on top of the open engine, as are
+things like team collaboration, a managed build-and-publish pipeline, or a hosted
+build service. The open-source engine is fully usable, self-hostable, and shippable
+without any of them: the SDK, the CLI and the templates are a complete path from an
+empty directory to a shipped game on every target Estella supports.
 
 ### 3. Marketplace
 A place to buy and sell assets, templates, and plugins, with the project taking a
@@ -88,10 +118,13 @@ via Discord/issues/QQ.
 
 ## Boundaries we hold ourselves to
 
-- The **core engine stays Apache-2.0** and stays feature-complete on its own.
+- The **core engine stays Apache-2.0** and stays feature-complete on its own — a
+  game can be built, run, packaged and shipped from this repository alone.
 - Paid offerings are **additive and optional** — they never remove or gate
   functionality that is in the open-source engine today.
 - We won't make the open build deliberately worse to push the paid one.
+- When we change a licensing commitment, we say so where the old one was written,
+  rather than quietly editing it away.
 - **Trademarks:** Apache-2.0 covers the code, not the "Estella"/"ESEngine" names and
   logos. Please say your project "uses Estella," but don't ship a fork under the
   Estella name or imply official endorsement.
@@ -102,9 +135,9 @@ via Discord/issues/QQ.
 ## Status
 
 These funding pillars describe the direction, not a finished storefront — most are
-not live yet. What **is** committed today is the licensing: Apache-2.0, free for
-commercial use, no rug-pull. As paid offerings come online they'll be announced
-here and in the [CHANGELOG](CHANGELOG.md).
+not live yet. What **is** committed today is the engine's licensing: Apache-2.0,
+free for commercial use. As paid offerings come online they'll be announced here
+and in the [CHANGELOG](CHANGELOG.md).
 
 ## Contact
 

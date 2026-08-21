@@ -45,7 +45,7 @@ cmake -B build -DES_ENABLE_CCACHE=OFF
 ### Build Commands
 
 ```bash
-# Full build (WASM + SDK + sync to editor)
+# Full build (WASM + SDK, synced to an editor checkout if there is one)
 node build-tools/cli.js build -t all
 
 # SDK only
@@ -60,7 +60,8 @@ node build-tools/cli.js build -t web -d
 # Watch mode
 node build-tools/cli.js watch -t web
 
-# Run editor
+# Run the editor (a separate, private repository — mounted at desktop/ when you
+# have access; the engine builds, tests and gates all run without it)
 cd desktop && npm run dev
 ```
 
@@ -124,7 +125,7 @@ We follow a strict commit message format:
 
 1. Fork the repository and create your branch from `master`
 2. Make your changes, following the code style guidelines
-3. Test your changes locally (build, run editor, preview)
+3. Test your changes locally (build, run the gates with `pnpm run verify`, preview)
 4. Check bundle sizes if you modified C++ or SDK code:
    ```bash
    node build-tools/cli.js build -t all --manifest

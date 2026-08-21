@@ -21,7 +21,7 @@
 
 ## What is Estella?
 
-Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It ships with a visual editor for scene editing and project management, and outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps.
+Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps. A visual editor is available as a separate, free download.
 
 <div align="center">
   <img src="docs/assets/editor-hero-c5bfd2f3.png" alt="An action-RPG scene open in the Estella editor" width="900" />
@@ -127,14 +127,22 @@ We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) 
 
 ## License
 
-Estella is licensed under the [Apache License, Version 2.0](LICENSE).
+This repository — the engine runtime, the SDK, the asset pipeline, the CLI, the
+project templates and the editor plugin API — is licensed under the
+[Apache License, Version 2.0](LICENSE).
 
 You may use, modify, and distribute it **for any purpose, including commercial use**,
 free of charge. There is no separate commercial license and no noncommercial
 restriction. We follow [Semantic Versioning](VERSIONING.md) and keep a
 [CHANGELOG](CHANGELOG.md).
 
-Two things to keep in mind:
+Three things to keep in mind:
+
+- **The visual editor is a separate product** and is not open source. It is free to
+  download and use, and it is built on this engine — but its source lives in a
+  private repository rather than here. Everything needed to build, run and ship a
+  game is in this repository: see [BUSINESS_MODEL.md](BUSINESS_MODEL.md) for what
+  that boundary is and what changed.
 
 - **Trademarks.** Apache-2.0 grants rights to the code, not to the "Estella" /
   "ESEngine" names or logos. You may state that your project uses Estella, but
