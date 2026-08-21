@@ -69,7 +69,12 @@ export const CRITERIA = [
     // CI pays for the pr tier on each push. The rest — spine, video, particles,
     // every material scene, text, ktx2 — was declared and run by nothing at all
     // until the registry gave the whole set one runner.
-    answeredBy: 'node tools/verify-render.mjs --tier nightly',
+    //
+    // Both backends, because verify-render defaults to one: the scenes that
+    // declare the second are dropped in silence, which is the hole this
+    // criterion exists to close.
+    answeredBy:
+      'node tools/verify-render.mjs --tier nightly && node tools/verify-render.mjs --tier nightly --backend webgpu',
     needs: ['tools/renderScenes.mjs', 'tools/verify-render.mjs'],
   },
   {
