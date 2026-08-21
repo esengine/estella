@@ -17,7 +17,7 @@
 import path from 'node:path';
 import { checker, DESKTOP } from '../lib/editorDriver.mjs';
 
-const TEMPLATE = path.resolve(DESKTOP, 'templates', '3d-starter');
+const TEMPLATE = path.resolve(DESKTOP, '..', 'templates', '3d-starter');
 
 export const name = 'starter-3d';
 export const describes = 'the 3D starter template stands up, and its key moves the character';

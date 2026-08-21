@@ -86,7 +86,7 @@ extraResources:
   # exported (dist-playable/, dist-wechat/, dist-game/ … — `dist-<platform>`) sits
   # inside the example it came from, and `**/dist/**` never matched those names, so
   # local export output rode into the installer.
-  - from: templates
+  - from: ../templates
     to: templates
     filter:
       - "**/*"

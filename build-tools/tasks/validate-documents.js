@@ -17,7 +17,7 @@ import { pathToFileURL } from 'url';
 import * as logger from '../utils/logger.js';
 
 // Every directory tree that ships authored documents to users.
-const DOCUMENT_ROOTS = ['examples', 'sdk/src/ui/widgets/prefabs', 'desktop/templates'];
+const DOCUMENT_ROOTS = ['examples', 'sdk/src/ui/widgets/prefabs', 'templates'];
 const SKIP_DIRS = new Set(['node_modules', '.esengine', 'dist', '.git']);
 const EXTENSIONS = ['.esprefab', '.esscene'];
 

@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 import * as logger from '../utils/logger.js';
 
 // Every project directory that ships to users: the examples plus the editor's
-// bundled new-project templates (desktop/templates).
-const PROJECT_ROOTS = ['examples', 'desktop/templates'];
+// bundled new-project templates (templates/).
+const PROJECT_ROOTS = ['examples', 'templates'];
 
 function discoverExamples(rootDir) {
     const out = [];

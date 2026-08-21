@@ -115,7 +115,7 @@ const templateRoots = (): Array<{ root: string; kind: TemplateEntry['kind'] }> =
         { root: path.join(process.resourcesPath, 'examples'), kind: 'example' },
       ]
     : [
-        { root: path.join(process.env.APP_ROOT ?? '', 'templates'), kind: 'starter' },
+        { root: path.join(process.env.APP_ROOT ?? '', '..', 'templates'), kind: 'starter' },
         { root: path.join(process.env.APP_ROOT ?? '', '..', 'examples'), kind: 'example' },
       ];
 
