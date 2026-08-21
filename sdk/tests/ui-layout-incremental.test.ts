@@ -16,7 +16,7 @@
  * build the same end state in a FRESH registry (which resets the retained
  * cache — Registry::instanceId) and require the two to agree exactly.
  *
- * Needs pre-built WASM at desktop/public/wasm (`node build-tools/cli.js build -t web`).
+ * Needs pre-built WASM at build/wasm/web (`node build-tools/cli.js build -t web`).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { UIPositionType, UINode, type UINodeData } from '../src/ui/core/ui-node';

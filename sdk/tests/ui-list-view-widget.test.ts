@@ -5,7 +5,7 @@
  * @brief   Integration tests for the createListView widget factory over the real
  *          WASM module + full uiPlugin — virtualization, scroll re-mount, dispose.
  *
- * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
+ * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';

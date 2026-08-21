@@ -2,11 +2,10 @@
 // each behaviour against a value arithmetic predicts. A world that steps without
 // throwing proves nothing about where anything ended up.
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { requireWasm } from './helpers/wasmDir.mjs';
 
-const dir = path.dirname(fileURLToPath(import.meta.url));
-const wasmDir = path.resolve(dir, '../../desktop/public/wasm');
+const wasmDir = requireWasm('physics3d.wasm');
 const factory = (await import('file://' + path.join(wasmDir, 'physics3d.js').replace(/\\/g, '/'))).default;
 const wasmBinary = readFileSync(path.join(wasmDir, 'physics3d.wasm'));
 const m = await factory({ wasmBinary });

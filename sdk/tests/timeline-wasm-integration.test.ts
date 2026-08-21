@@ -3,7 +3,7 @@
 /**
  * Integration tests: Timeline property animation applied to real WASM-backed components.
  *
- * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
+ * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';

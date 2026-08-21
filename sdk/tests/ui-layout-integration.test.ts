@@ -5,7 +5,7 @@
  * @brief   Integration tests: App.tick() drives the single-pass UINode Yoga
  *          layout via the real WASM module.
  *
- * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
+ * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll } from 'vitest';

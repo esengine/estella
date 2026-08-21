@@ -5,7 +5,7 @@
  * @brief   Anchor presets map to/from UINode box fields, and lay out through the
  *          real Yoga solver as pinned / centred / stretched.
  *
- * The integration half needs pre-built WASM at desktop/public/wasm/esengine.wasm
+ * The integration half needs pre-built WASM at build/wasm/web/esengine.wasm
  * (`node build-tools/cli.js build -t web`); the pure half always runs.
  */
 import { describe, it, expect, beforeAll } from 'vitest';

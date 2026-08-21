@@ -9,7 +9,7 @@ import type { ESEngineModule } from '../../src/wasm';
  * built WASM SDK (esengine.js + esengine.wasm). Resolution order:
  *   1. $ESENGINE_WASM_DIR        — explicit override (CI passes the build dir)
  *   2. <repo>/build/wasm/web     — the in-repo CMake/Emscripten output
- *   3. <repo>/desktop/public/wasm — legacy path when built inside the editor repo
+ *   3. <repo>/desktop/public/wasm — the copy synced into the editor, when checked out
  *
  * The first candidate that actually contains esengine.wasm wins. If none do,
  * {@link HAS_WASM} is false and the integration suites skip themselves via

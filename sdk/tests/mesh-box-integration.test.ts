@@ -7,7 +7,7 @@
  * not in the component at all — so the engine is what answers. An editor that
  * boxes a mesh by its component alone gets nothing to click.
  *
- * Requires pre-built WASM at desktop/public/wasm/esengine.wasm.
+ * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
