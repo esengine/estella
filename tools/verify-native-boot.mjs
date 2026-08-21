@@ -597,10 +597,14 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         // Its own budget, not the ready timeout: a scene this slow is worth
         // waiting out, a hung one is not, and the set is 40-odd apps per device.
         const framesBy = Date.now() + frameBudgetMs(label);
-        while (Date.now() < settleBy) await sleep(250);
-        while (framesDrawn(log = driver.readLog()) < opts.frames && Date.now() < framesBy) {
-            if (driver.died?.()) break;
-            await sleep(500);
+        await sleep(Math.max(settleBy - Date.now(), 0));
+        // Backing off rather than polling flat out: reading the record spawns a
+        // process on the device, and asking a struggling app ninety times is the
+        // instrument leaning on what it measures.
+        for (let wait = 500; framesDrawn(log = driver.readLog()) < opts.frames;) {
+            if (driver.died?.() || Date.now() >= framesBy) break;
+            await sleep(Math.min(wait, Math.max(framesBy - Date.now(), 0)));
+            wait = Math.min(wait * 2, 4000);
         }
         offScreen = await driver.foreground();
         if (!offScreen) break;
