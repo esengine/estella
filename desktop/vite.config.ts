@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
+import { createReadStream, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron/simple';
 import { context as esbuildContext, type BuildContext } from 'esbuild';
@@ -48,6 +50,39 @@ function realmHosts(): Plugin {
   };
 }
 
+
+/**
+ * Scene fixtures live engine-side in `fixtures/`, outside Vite's root, and the
+ * headless hosts mount them at /scenes and /assets. Dev has to answer the same
+ * URLs or the editor's fallback scene 404s only when you run it interactively.
+ */
+function fixtureRoutes(): Plugin {
+  const dir = fileURLToPath(new URL('../fixtures', import.meta.url));
+  return {
+    name: 'estella-fixture-routes',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = (req.url ?? '').split('?')[0];
+        if (!/^\/(scenes|assets)\//.test(url)) return next();
+        const abs = join(dir, decodeURIComponent(url).replace(/^\//, ''));
+        if (!abs.startsWith(dir) || !existsSync(abs)) return next();
+        res.setHeader('content-type', url.endsWith('.esscene') ? 'application/json' : lookupMime(abs));
+        createReadStream(abs).pipe(res);
+      });
+    },
+  };
+}
+
+/** Minimal content types — the fixture tree holds scenes, images, and skeletal data. */
+function lookupMime(file: string): string {
+  const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
+  return ({
+    '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+    '.webp': 'image/webp', '.mp4': 'video/mp4', '.webm': 'video/webm',
+  } as Record<string, string>)[ext] ?? 'application/octet-stream';
+}
+
 // Estella Editor — Electron + React + Vite.
 // `public/` (wasm runtime, bundled SDK, example projects) is served at the web root,
 // so the engine binary is reachable at /wasm/esengine.wasm once we wire the viewport.
@@ -79,6 +114,7 @@ export default defineConfig({
   plugins: [
     react(),
     realmHosts(),
+    fixtureRoutes(),
     electron({
       main: {
         entry: 'electron/main.ts',

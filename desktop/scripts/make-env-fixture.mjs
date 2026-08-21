@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const scenes = path.join(HERE, '..', 'public', 'scenes');
+const scenes = path.join(HERE, '..', '..', 'fixtures', 'scenes');
 const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 
 const W = 64;

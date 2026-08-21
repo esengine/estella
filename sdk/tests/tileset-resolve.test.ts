@@ -93,10 +93,10 @@ describe('atlasCells', () => {
     // the case a hand-written expectation would most likely get wrong.
     it('agrees with the column count Tiled wrote for every shipped map', () => {
         const maps = [
-            '../../desktop/public/scenes/tilemap-spacing/map.tmj',
-            '../../desktop/public/scenes/tilemap-multiset/map.tmj',
-            '../../desktop/public/scenes/tilemap-gidobj/map.tmj',
-            '../../desktop/public/scenes/tilemap-hex/map.tmj',
+            '../../fixtures/scenes/tilemap-spacing/map.tmj',
+            '../../fixtures/scenes/tilemap-multiset/map.tmj',
+            '../../fixtures/scenes/tilemap-gidobj/map.tmj',
+            '../../fixtures/scenes/tilemap-hex/map.tmj',
             '../../examples/tilemap-demo/assets/maps/level.tmj',
         ];
         let checked = 0;

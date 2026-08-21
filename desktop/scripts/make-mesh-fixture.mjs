@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const scenes = path.join(HERE, '..', 'public', 'scenes');
+const scenes = path.join(HERE, '..', '..', 'fixtures', 'scenes');
 const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 
 // two-triangles: the mesh2d geometry, so a file drawing what the scene draws is
@@ -25,7 +25,7 @@ const cli = path.join(HERE, '..', '..', 'pipeline', 'bin', 'estella.mjs');
 // parent and two placed children, one of them scaled. normalmap-quad: a normal
 // map over flat normals, which only a tangent frame can tell apart.
 //
-// public/ stands in for the project root, so the prefab's refs read `scenes/…`
+// fixtures/ stands in for the project root, so the prefab's refs read `scenes/…`
 // — the spelling a component carries, resolved from the served root.
 // model-material: the three channels only a material can carry — emission,
 // occlusion, an alpha cutoff — one quad each.

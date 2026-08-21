@@ -27,12 +27,12 @@
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
 import os from 'node:os';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from './rendererConsole.mjs';
+import { serveHost } from '../../tools/lib/staticServer.mjs';
 
 // SwiftShader rasterizes on the CPU; run the whole electron tree below normal
 // priority (child processes inherit the class) so a verify never starves the
@@ -86,33 +86,6 @@ if (BACKEND === 'webgpu') {
   }
 }
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
-
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml',
-  '.mp4': 'video/mp4', '.webm': 'video/webm',
-};
-
-function serveDist() {
-  const server = http.createServer(async (req, res) => {
-    try {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-      const abs = path.join(DIST, rel);
-      if (!abs.startsWith(DIST)) {
-        res.writeHead(403).end();
-        return;
-      }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch {
-      res.writeHead(404).end('not found');
-    }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 function finish(result, server) {
   // Both modes assert the loss was seen and reported and the device ended Live
@@ -171,7 +144,7 @@ function finish(result, server) {
 app.whenReady().then(async () => {
   let server;
   try {
-    server = await serveDist();
+    server = await serveHost(DIST);
     const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the

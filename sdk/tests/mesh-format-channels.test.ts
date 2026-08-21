@@ -53,7 +53,7 @@ describe('decodeMesh channel table', () => {
   it('reads every .esmesh committed to the repo', () => {
     // The guard is only worth having if it admits what the importers actually
     // write; these are their output, cooked by the shipping pipeline.
-    const dir = path.resolve(__dirname, '../../desktop/public/scenes');
+    const dir = path.resolve(__dirname, '../../fixtures/scenes');
     const files = readdirSync(dir).filter((f) => f.endsWith('.esmesh'));
     expect(files.length).toBeGreaterThan(0);
     for (const f of files) {

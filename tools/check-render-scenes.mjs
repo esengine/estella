@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, sceneFileOf, WEBGPU_GAP } from './renderScenes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PUBLIC = path.join(ROOT, 'desktop', 'public');
+const FIXTURES = path.join(ROOT, 'fixtures');
 const WORKFLOW = path.join(ROOT, '.github', 'workflows', 'build.yml');
 
 const problems = [];
@@ -31,12 +31,12 @@ for (const s of SCENES) {
   // A scene path that does not resolve is a check that passes by never drawing
   // the thing it was written for.
   const file = sceneFileOf(s);
-  if (file && !existsSync(path.join(PUBLIC, file))) {
-    fail(`"${s.id}" loads ${s.env.ESTELLA_VERIFY_SCENE}, which is not under desktop/public`);
+  if (file && !existsSync(path.join(FIXTURES, file))) {
+    fail(`"${s.id}" loads ${s.env.ESTELLA_VERIFY_SCENE}, which is not under fixtures/`);
   }
   const manifest = s.env.ESTELLA_VERIFY_MANIFEST;
-  if (manifest && !existsSync(path.join(PUBLIC, manifest.replace(/^\//, '')))) {
-    fail(`"${s.id}" names manifest ${manifest}, which is not under desktop/public`);
+  if (manifest && !existsSync(path.join(FIXTURES, manifest.replace(/^\//, '')))) {
+    fail(`"${s.id}" names manifest ${manifest}, which is not under fixtures/`);
   }
   // An expectation is the whole point: a scene with none passes as long as it
   // renders anything at all. Allowed, as a sentence — the same bargain the

@@ -14,10 +14,9 @@
  * from location.origin), opens headless.html, then exercises the surface.
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serveHost } from '../../tools/lib/staticServer.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const SCENE = '/scenes/sprite-rendering.esscene';
@@ -26,35 +25,13 @@ const MANIFEST = '/scenes/sprite-rendering.textures.json';
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
-};
-
-function serveDist() {
-  const server = http.createServer(async (req, res) => {
-    try {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-      const abs = path.join(DIST, rel);
-      if (!abs.startsWith(DIST)) return void res.writeHead(403).end();
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch {
-      res.writeHead(404).end('not found');
-    }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
-
 const checks = [];
 const check = (name, pass, detail) => checks.push({ name, pass: !!pass, detail });
 
 app.whenReady().then(async () => {
   let server;
   try {
-    server = await serveDist();
+    server = await serveHost(DIST);
     const win = new BrowserWindow({ show: false, width: 640, height: 480, webPreferences: { offscreen: false } });
     await win.loadURL(`http://127.0.0.1:${server.address().port}/headless.html?w=640&h=480`);
     const exec = (code) => win.webContents.executeJavaScript(code, true);
