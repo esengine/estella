@@ -58,6 +58,8 @@ const FRAME_SAMPLES = 3;
  *  it counts as covering it. See `foreground` for why this is a wait and not a
  *  question. */
 const FOCUS_WAIT_MS = 8000;
+/// Longest a slow scene may spend reaching `--frames` before it is judged anyway.
+const FRAME_WAIT_S = 45;
 
 /**
  * Examples that do not start or draw on a device yet, and why.
@@ -91,7 +93,7 @@ const FRAME_NOT_JUDGED = {
 
 function parseArgs(argv) {
     const opts = {
-        platform: 'android', timeout: 120, settle: 3,
+        platform: 'android', timeout: 120, settle: 3, frames: 30,
         // Two, not a threshold that sounds more rigorous. A 2D scene of flat
         // sprites is legitimately four colors, and "8" red-flagged camera-follow
         // for rendering exactly what it is supposed to render. The claim this can
@@ -115,6 +117,7 @@ function parseArgs(argv) {
     opts.timeout = Number(opts.timeout);
     opts.minColors = Number(opts.minColors);
     opts.settle = Number(opts.settle);
+    opts.frames = Number(opts.frames);
     return opts;
 }
 
@@ -543,6 +546,16 @@ function iosDriver(opts) {
 // The two questions, asked of one installed app
 // =============================================================================
 
+/**
+ * How far the render loop got, from the frame lines the host writes on a ramp.
+ * 0 before the first one — which is the answer for a loop that never ran.
+ */
+function framesDrawn(log) {
+    let n = 0;
+    for (const m of log.matchAll(/real-SDK frame (\d+)/g)) n = Math.max(n, Number(m[1]));
+    return n;
+}
+
 async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     driver.install(artifact);
 
@@ -567,8 +580,18 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
             if (driver.died?.()) break;
             await sleep(2000);
         }
-        // `ready` is the first frame submitted; presenting it is not instant.
-        await sleep(opts.settle * 1000);
+        // `ready` is the first frame SUBMITTED, and what the capture needs is a
+        // loop that has been running: a software rasterizer spends about a second
+        // on a lit frame, so a flat wait judges a lit scene on its first few.
+        const settleBy = Date.now() + Math.max(opts.settle, 1) * 1000;
+        // Its own budget, not the ready timeout: a scene this slow is worth
+        // waiting out, a hung one is not, and the set is 40-odd apps per device.
+        const framesBy = Date.now() + Math.min(opts.timeout, FRAME_WAIT_S) * 1000;
+        while (Date.now() < settleBy) await sleep(250);
+        while (framesDrawn(log = driver.readLog()) < opts.frames && Date.now() < framesBy) {
+            if (driver.died?.()) break;
+            await sleep(500);
+        }
         offScreen = await driver.foreground();
         if (!offScreen) break;
         driver.clearScreen();
@@ -648,14 +671,19 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     // be LOOKED AT, not counted. Counting colors would red the run on a scene that
     // is legitimately dark and still say nothing about what a reviewer can see.
     const countColors = judgeFrame && opts.frameJudge !== false;
+    // How far the loop got, in the verdict: a flat frame after six frames is a
+    // capture that outran the game, one after three hundred is the game, and
+    // without the number they read as the same failure.
+    const frames = framesDrawn(log);
     const why = !ready ? 'never reported ready'
         : offScreen ? `the game was not on screen — ${offScreen}`
             : bootErrors.length ? bootErrors[0].trim()
-                : (countColors && colors < opts.minColors) ? `the frame is ${colors} flat color`
+                : (countColors && colors < opts.minColors)
+                    ? `the frame is ${colors} flat color after ${frames} frame(s)`
                     : recreateWhy;
 
     return {
-        ok: !why, ready, colors, readyLine, errors, offScreen, metrics,
+        ok: !why, ready, colors, frames, readyLine, errors, offScreen, metrics,
         size: `${image.width}x${image.height}`, log, shot, why,
     };
 }
@@ -800,7 +828,7 @@ for (const name of examples) {
     }
     results.push({ name, ...r });
     const frameNote = FRAME_NOT_JUDGED[name] ? ' (frame not judged)' : '';
-    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors${frameNote}` : `✗ ${r.why.split('\n')[0]}`}`);
+    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors, ${r.frames} frames${frameNote}` : `✗ ${r.why.split('\n')[0]}`}`);
 }
 
 const known = Object.keys(KNOWN_FAILURES);
