@@ -62,3 +62,11 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+[submodule "desktop"]
+	path = desktop
+	url = https://github.com/esengine/estella-editor.git
+	# The editor is a separate, PRIVATE product and this submodule is OPTIONAL.
+	# A clone without it builds, tests and gates the engine in full: run-gates
+	# skips the eight gates whose subject is the editor and names them, and
+	# verify-render --host engine runs 100 of the 108 pixel gates. Do not make
+	# anything engine-side require this path to exist.
