@@ -7,12 +7,14 @@
 #include "glyph_raster.hpp"
 
 #include "Host.hpp"
+#include "Runtime.hpp"
 
 #include "esengine/text/SdfGenerator.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -33,9 +35,16 @@ struct Font {
     bool ok = false;
 };
 
-/** Parsed fonts by file path — the matcher answers a path per glyph, and only a
- *  path we have not seen costs a read + parse. */
+/** Parsed fonts by file AND face — the matcher answers both per glyph, and only
+ *  a face we have not seen costs a read + parse. Keyed by the pair because a
+ *  collection holds several faces at one path: keyed by path alone, whichever
+ *  face was parsed first answers for every other one in the same file. */
 std::unordered_map<std::string, std::unique_ptr<Font>> g_fonts;
+
+/** The cache key: a path names a file, a file may hold many faces. */
+std::string faceKey(const FontFile& file) {
+    return file.path + '#' + std::to_string(file.faceIndex);
+}
 
 Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style,
                bool& syntheticBold, bool& syntheticItalic) {
@@ -44,7 +53,8 @@ Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint
     syntheticItalic = file.syntheticItalic;
     if (file.path.empty()) return nullptr;
 
-    auto it = g_fonts.find(file.path);
+    const std::string key = faceKey(file);
+    auto it = g_fonts.find(key);
     if (it != g_fonts.end()) return it->second->ok ? it->second.get() : nullptr;
 
     auto font = std::make_unique<Font>();
@@ -54,7 +64,11 @@ Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint
         font->ok = true;
     }
     Font* raw = font.get();
-    g_fonts.emplace(file.path, std::move(font));
+    if (!raw->ok) {
+        ESHOST_LOGE("font: %s face %d did not parse — text in this family draws nothing",
+                    file.path.c_str(), file.faceIndex);
+    }
+    g_fonts.emplace(key, std::move(font));
     return raw->ok ? raw : nullptr;
 }
 

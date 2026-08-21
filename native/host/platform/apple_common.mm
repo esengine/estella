@@ -16,6 +16,7 @@
 
 #include "platform/apple_common.hpp"
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "Runtime.hpp"                 // ESHOST_LOGE
 
 namespace eshost {
 
@@ -67,8 +68,32 @@ FontFile appleLoadFont(const std::string& family, u32 codepoint, int style) {
     }
 
     CFURLRef url = (CFURLRef)CTFontCopyAttribute(font, kCTFontURLAttribute);
+    if (!url) {
+        ESHOST_LOGE("font: Core Text matched a face for \"%s\" that names no file, so nothing "
+                    "can be read for it", family.c_str());
+        CFRelease(font);
+        return out;
+    }
+    // WHICH face in that file. A .ttc holds several — the CJK fallback lands in
+    // one — and the descriptors come back in file order, so the matched face's
+    // position in them is the index stbtt needs. Every other platform's matcher
+    // answers this itself (AFont_getCollectionIndex, FC_INDEX, IDWriteFont::GetIndex);
+    // Core Text answers a font, so its index is looked up here rather than assumed 0.
+    if (CFStringRef want = CTFontCopyPostScriptName(font)) {
+        if (CFArrayRef faces = CTFontManagerCreateFontDescriptorsFromURL(url)) {
+            const CFIndex count = CFArrayGetCount(faces);
+            for (CFIndex i = 0; i < count; ++i) {
+                CTFontDescriptorRef d = (CTFontDescriptorRef)CFArrayGetValueAtIndex(faces, i);
+                CFStringRef have = (CFStringRef)CTFontDescriptorCopyAttribute(d, kCTFontNameAttribute);
+                const bool same = have && CFStringCompare(have, want, 0) == kCFCompareEqualTo;
+                if (have) CFRelease(have);
+                if (same) { out.faceIndex = (int)i; break; }
+            }
+            CFRelease(faces);
+        }
+        CFRelease(want);
+    }
     CFRelease(font);
-    if (!url) return out;
     NSString* path = [(__bridge NSURL*)url path];
     CFRelease(url);
     if (!path) return out;
