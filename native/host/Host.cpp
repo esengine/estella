@@ -347,8 +347,10 @@ void frame() {
     if (shotAfterPresent(*h.gfx)) h.quitRequested = true;
     // What the frame DREW, not only that one happened: a capture is one flat colour
     // whether nothing was submitted or it was submitted into a view nothing is in.
-    // Frame 1 too — a run judged after half a second never reaches the 120th.
-    if (++h.frame == 1 || h.frame % 120 == 0) {
+    // Reported on a ramp, not only every 120th: the runs worth explaining are the
+    // SHORT ones, and the last line printed is then how far the loop got.
+    const auto n = ++h.frame;
+    if (n == 1 || n == 2 || n == 5 || n == 10 || n == 30 || n == 60 || n % 120 == 0) {
         if (auto* rf = h.ctx->tryGet<RenderFrame>()) {
             const auto& st = rf->stats();
             ESHOST_LOGI("real-SDK frame %llu — %u draw(s), %u tri, %u sprite, %u mesh, %u text, %u culled",
