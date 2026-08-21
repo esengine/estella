@@ -12,9 +12,185 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.55.0] - 2026-08-21
+
+### Fixed
+
+- **No packaged game had ever loaded a mesh on a device.** Three examples refused to
+  boot on either phone with `this engine build carries no mesh_createFromChannels` —
+  `model-import`, `lighting-3d` and `physics-3d`, which is every example with geometry
+  in it. The binding is there, in the published host's `.so` and in the generated
+  native API; what is not there is a wasm module, because a packaged game passes
+  `module: null` and the engine core is native. The mesh and environment loaders were
+  the last two reaching for `app.wasmModule` — which `engineApi.ts`'s own header calls a
+  statement about HOW the core is embedded rather than what the caller wants. They ask
+  for the core now: the module on the web, the host's bindings on a device, both
+  answering the same entry points and a heap to marshal through. So 3D could not ship
+  to a phone at all.
+
+- **A rigged model could not reach a device's registry.** `lighting-3d` was the last
+  example that would not boot on a phone: `C++ Registry missing methods for component
+  "MeshSkin"`. The native registry is assembled from `PTR_ACCESSORS`, and `MeshSkin`
+  has no accessor because its only field is a variable-length entity list — no fixed
+  offset, nothing to lay out. The binding generator says so inside its own output
+  (`// skip joints … needs a bespoke binding`) and nothing had ever read that line, so a
+  glTF with a rig in it has never been shippable to a device. `MeshSkin` joins `Parent`
+  and `Children`, the other two with no POD layout, as a hand-presented surface — and a
+  gate now requires every builtin to reach the registry on a device by one route or the
+  other, because the shape of this bug is that nothing asks.
+
+- **A compressed texture's mip chain uploaded levels the device refuses.** Ten of the
+  forty-two examples did not boot on either platform, the flagship among them, saying
+  `copySize.width (2) is not a multiple of compressed texture format block width (4)`.
+  The guard that existed asked whether the IMAGE is whole blocks, and a 72×72 one is —
+  its third mip, 18×18, is not. The rule is one function beside the block metadata it
+  reads now, so the level count comes from the FORMAT's block rather than from the
+  number 4: an ASTC 8×8 device stops a level earlier than a 4×4 one, which the old
+  check never asked.
+
+- **The fallback for a texture that is not whole blocks had never once worked.**
+  `platformer` did not boot on either phone: `KTX2 transcode failed`. The file is the
+  70×70 one put in the corpus on purpose so that fallback has something to fall back on.
+  The decode counts its output in the units basis wants, and the comment beside it said
+  `block_width/height is 1 for RGBA32, so this covers both` — it is not: basis reports a
+  4×4 block for RGBA32 as well, so a 70×70 image was offered 324 units of a buffer where
+  the call wanted 4900 pixels, and returned false every time.
+
+- **A re-encoded Spine or DragonBones atlas page was unloadable on a device.**
+  `spine-demo` and `dragonbones-demo` did not boot on either phone: `KTX2 atlas page but
+  no Basis transcoder in this realm`. There is none and there never will be — a native
+  host decodes KTX2 in C++, which is why `TextureLoader` asks the ResourceManager first
+  and only falls to the wasm transcoder behind it. The two atlas loaders knew only the
+  second half of that; three copies of "which form is this page in" was how two of them
+  came to know about only one answer.
+
+- **A module a realm was never built to carry is not a failed load.** `spine-demo` and
+  `dragonbones-demo` reported a broken boot on both phones over `failed to load
+  "basis"`. Nothing was broken: a native host compiles its subsystems in, so it has no
+  `basis` and never will, and every caller already treats the null as "not available in
+  this realm". `SideModuleAbsent` is the transport saying so — reported and answered
+  null — while any other throw is still a load that failed and still says so.
+
+- **A device drew no text at all.** No example had ever put a glyph on a phone.
+  `rich-text` captured its panels, its input box, its button and its image with not one
+  character, and passed the smoke at 190 colours because flat panels clear a two-colour
+  bar. Four things, each hiding the next.
+
+  `renderer_submitTextBatch` takes eleven arguments and its last is `cullBit`; the
+  QuickJS binding generated from that signature opens `if (argc < 11) return
+  JS_UNDEFINED`. The web path passes eleven and the native seam passed ten, so every
+  text batch a device ever submitted was dropped on the argument count, silently, in
+  generated code nobody edits.
+
+  With text arriving, CJK on iOS drew nothing while Latin in the same string drew. The
+  font cache was keyed by PATH, and a collection holds many faces at one path — so
+  whichever face was parsed first answered for every other one in the same file, on
+  every platform whose matcher returns an index. It is keyed by the pair now, and Apple,
+  which had left that index 0, looks it up from the descriptors of the file it names,
+  matched by PostScript name.
+
+  Then the diagnostic named the real one: `PingFangUI.ttc` face 185 "did not parse".
+  Not a match that failed — a match the parser cannot read. `stb_truetype` looks for a
+  `CFF ` table and has no mention of CFF2 anywhere, and Apple's system CJK is CFF2
+  variable, so every face Core Text correctly fell back to loaded nothing. `Platform`
+  grows `drawGlyph`, which Apple answers with Core Graphics and everyone else declines;
+  what it hands back is coverage, not a tile, so `sdfFromAlpha`, the downsample and the
+  atlas packing stay one implementation for both.
+
+  And the CJK came through upside down, because Quartz DRAWS y-up and STORES top-down —
+  two conventions in one API, and reading the drawing one as the storage one reversed
+  the coverage row by row, exactly undoing an order that already matched the atlas. The
+  colour count was 4096 either way up; this was caught by looking at the frame.
+
+- **A shadow pass draws depth, not what the material says.** `lighting-3d` booted on
+  Android and drew a black screen every frame after the first, with Dawn rejecting every
+  command buffer: the 2048² texture whose usage "includes writable usage and another
+  usage in the same synchronization scope" is the shadow atlas, and the pass sampling it
+  was the pass writing it. `MeshPlugin` suppressed `lit` and the normal map for a shadow
+  pass and cleared the material where the key is built — and the material resolve ran
+  AFTER that clear and put it straight back, so an occluder carrying a material wrote
+  its shaded colour into the depth atlas through a variant that declares the shadow
+  sampler. The pass has the last word now. Below it, two things that let one draw's
+  mistake become the whole frame's: a draw that samples states its WHOLE sampler block
+  (only the Batch layout pinned its unused units, while the shaders declare all 8
+  regardless), and `WebGPUDevice` refuses to sample the current pass's attachment.
+  Gate `mesh-shadow-material` — no scene had put a material and a shadow caster in the
+  same scene at all.
+
+- **Every generated WGSL twin was stale, and sixteen of twenty read their uniforms at
+  the wrong stride.** A user-authored `.esshader` gets its WebGPU twin generated by
+  translating the ASSEMBLED GLSL — the authored stages plus the header the engine
+  injects — and the stamp that says whether the twin is current covered only the
+  authored half. So when `Light2D` grew a fifth `vec4` for the shadow atlas, every
+  generated twin went on declaring the old four-`vec4` struct and read `LightConstants`
+  at a 64-byte stride where the engine writes 80, while the gate said has-twin. What
+  that renders is not obviously broken, which is why it survived: light 0 is the one
+  slot whose fields still line up. The 15 slots after it, the occluders, the shadow
+  matrices and the whole environment block are read from the wrong offsets — including
+  in the five shaders shipped in `examples/effects-gallery`. The stamp is over what the
+  twin is a translation of now. Render nightly is 106/106 on WebGL2 and 105/105 on
+  WebGPU, the first time the second backend has been whole.
+
+- **A collider on a layer the project never named stopped colliding.**
+  `collisionLayerMasks` arrives from project settings at whatever length the project
+  saved, and `resolveCollisionMask` read `layerMasks[i]` for any category bit up to 16 —
+  so a collider on a layer past the end of that table got `undefined` as its filter,
+  which reaches wasm as a mask matching nothing. No error to find. It falls back to the
+  collider's own `maskBits` now, which is what "the table does not name this layer"
+  means.
+
+- **An upgrade a scene refuses does not replace the scene.** `loadCurrentScene` runs the
+  SDK's migration, which REFUSES what it cannot mean — a shape with no entities, a
+  format newer than this engine — so the open path went from "always opens" to "may
+  throw", and `exitPrefabMode` caught a throw by handing back a BLANK document. The
+  runtime is right to refuse a file it cannot mean; a document tool is not, because that
+  file is what the person opened the editor to fix. An upgrade that refuses opens the
+  scene as written and says so.
+
+- **A DragonBones scene loaded through automation drew nothing.** `SceneLoader.loadInto`
+  bound spine and stopped, while the PROJECT transport has bound both all along — so a
+  scene with an armature in it loaded, reported its entities, and drew nothing, with no
+  error anywhere. It binds both now, through one ref resolver rather than two copies.
+  The scene that found it stays, as a pixel gate beside spine's.
+
+- **The Windows host stopped building on a string literal.** MSVC accepts 16380 bytes in
+  one, and `kLit2DHeaderWGSL` had reached 18019 — the shadow work grew it a function at
+  a time and nothing said so, because CI builds linux, macOS, Android and iOS. Split
+  into two adjacent literals, verified byte-for-byte identical, and `check-shader-literals`
+  holds the line: C2026 points at the line the literal ENDS on, nowhere near whichever
+  function pushed it over.
+
+- **The 3D physics example draws the world it solves.** It had no renderable in it at
+  all — eleven bodies, a character and a hinge, with only the debug overlay on screen.
+  A physics example nobody can see except in debug mode is a poor example, and it is
+  also why the golden interact criterion could not make its claim about it: the reducer
+  that asks "did the picture answer the key" reads thin wireframes on black, so the
+  declared key moved it 0.0724 where a key NOTHING reads moved it 0.0457. Every body
+  carries the cube its collider is now, and the same measurement gives 0.2772 against
+  0.0241 — the 0.15 the corpus asks for with an order of magnitude on each side.
 
 ### Added
+
+- **A WebGPU run says which adapter drew it.** `--use-webgpu-adapter` is honoured for a
+  name Chromium knows and ignored in silence for one it does not, and nothing reported
+  what was actually used — so a passing WebGPU run could not tell hardware from a
+  software rasterizer, and the switch asking for one proved nothing. The headless
+  harness could not have shown it either: its console filter spelled `webgl`, which does
+  not match `webgpu`, so the second backend's whole boot was the one thing never
+  forwarded. What it answers: all 85 scenes declaring the second backend pass on
+  Electron's bundled SwiftShader, so a GPU-less runner's failures are that runner's
+  Vulkan stack rather than Dawn's ability to drive a software rasterizer.
+
+- **A device's boot record says what its frames drew.** A capture is one flat colour
+  whether nothing was drawn or it was drawn where the view is not, and those want
+  opposite investigations — and the first question, did the engine submit anything, was
+  the one nothing could answer. The periodic frame line carries the counts now (draws,
+  triangles, sprites, meshes, text, culled) and reports on a ramp — frames 1, 2, 5, 10,
+  30, 60 and every 120th after — because a run judged half a second in never reaches a
+  120th frame, and the last line printed is how far the loop got. A stretch of skipped
+  frames says so once, and so does coming out of it: skipping because no surface is
+  bound looks from outside exactly like a game that hung, and which of the two it is
+  decides where to look next.
 
 - **A sun has a size too, and it is an angle.** A light with a position carries its source
   as a half-extent in world units, and the penumbra follows from dividing that by the
@@ -487,6 +663,8 @@ published separately; it ships inside the editor.
   before `upgradeLightAim`, which finds its subject by the literal `'Light2D'`: renaming
   first would silently skip the light-aim migration on the fixtures that still need it.
 
+### Changed
+
 - **What is nearer is measured from the viewer, not read off world z.** Every
   renderable handed the sort key its world z as depth, and the key's own comment
   said why that worked: the camera looks down -Z, so a larger z is nearer. That
@@ -565,6 +743,136 @@ published separately; it ships inside the editor.
   `lightAimRotation` / `lightAimOf` name the convention on the SDK side (one place;
   the engine's is `lightForward`), and `q.rotationTo` joins the math module — the
   shortest turn from one direction to another, which is what naming an aim means.
+
+### Fixed
+
+- **The editor's view learned space; what it *does* in that space had not.** The eye
+  gained a focus in three dimensions and every gesture aimed through it was still
+  spelled on z = 0. An entity's position was an x/y from the composed transform plus a
+  z read off the LOCAL field — the same number only for an unparented entity — so every
+  overlay projected through a mixed pair; `getEntityWorldPos` answers with all three
+  from the one transform. The gizmo was drawn on the selection's *shadow* at z = 0
+  while the outline around the same entity was drawn on the entity, so under a
+  perspective eye the handles sat where the thing was not; the drag plane passes
+  through the point the grabbed handle is drawn at now, and a group rotate turns the
+  whole arm from it rather than by `(dx, dy, 0)` — which stopped being rigid the moment
+  the group had thickness. `applyScale` read none of the three axes the gizmo has drawn
+  since the eye could turn: the Z arrow scaled x and y, and a plane handle spanning z
+  did the same. A handle scales the axes it names now, its magnitude the drag projected
+  ALONG the grabbed arrow over that arrow's drawn length. A parent's frame inverts in
+  three dimensions, where the 2D inverse plus an untouched z was right only while the
+  chain lay flat. And what you drop lands on the plane the view works on, carrying the
+  depth that resolve returns — a mesh dragged into a 3D view used to resolve against a
+  z = 0 wall the cursor crosses somewhere the person is not pointing, and then dropped
+  the depth anyway.
+
+  One `rotateVec3` for the editor, where it had been transcribed three times, which is
+  how a handle, the motion it drives and the value that lands come to disagree.
+
+- **A handle is read on the plane it is drawn on.** Every on-canvas handle — a collider
+  point, a radius, a box corner, a sprite pivot, a cone's spread, a joint anchor or
+  axis — is DRAWN through `projectorFor`, which projects on the entity's own plane, and
+  every one of them then read the cursor back with the default `canvasToWorld`, which
+  answers for z = 0. Head-on the two agree, which is why the pair went unnoticed; from
+  a perspective eye the handle sits on the entity and the value it writes comes from
+  somewhere else, so grabbing one makes it jump. `readerFor` is that projector's
+  inverse, taken once at grab the way the projector is taken once per gizmo.
+
+- **A world length is measured where it stands, not along one axis.** A light's reach, a
+  collider circle, a tile-collision circle and a particle spawn disk are each a LENGTH
+  in the world, and every one turned into pixels by projecting an offset along world
+  +X and taking how long that came out — which measures that axis's foreshortening as
+  well as the length, so the same reach shrank as the eye turned toward X and collapsed
+  to nothing looking down it. `screenLengthAt` is the one expression for it. Gated by
+  `gizmo-scale`, which measures a point light's reach head-on and again from the eye
+  the 3D toggle parks: projecting the offset again drifts it 7%, and the gate allows 3%.
+
+- **An icon is clickable where the icon is, and align happens on the plane being
+  worked.** Two shapes of the same mistake — a quantity in a unit that matches at one
+  zoom or from one eye. An entity that draws nothing of its own gets an icon a fixed
+  number of CSS pixels tall, and the box a click hit was 24 WORLD units: framed on a
+  large scene it shrinks under a pixel and the thing on screen is not clickable at all.
+  Picking and the outline take the icon's screen size now, while the minimap and Frame
+  keep a world size — or framing a light would zoom to a box derived from the zoom it
+  is about to change. And align/distribute were the last gestures still spelt in world
+  x and y: over a 3D scene "align left" moved things along world X while "align top"
+  moved them into the air. Gated by `icon-pick`, on a project framed at 16000 units
+  across; with the world size back, the click on the icon picks nothing.
+
+- **A light's gizmo shapes had never been drawn at all.** The reach circle, the aim
+  arrow, the spot cone and the radius handle sat in an `<svg width="0" height="0">`
+  nested inside a wrapper translated to the light, so nothing outside a light's own
+  pixel was ever painted — the bulb icon is a sibling, which is why the gizmo looked
+  present. With them visible the aim was wrong too: it read the direction's world x and
+  y as the screen's x and −y, right only from the head-on eye. Gated by `light-aim`, and
+  verified against both defects separately.
+
+- **A selection is outlined by its own shape.** The outline was the entity's screen
+  AABB — a box around the thing rather than the thing — which coincides with the shape
+  only head-on and unturned: a sprite rotated 45° got a box with its corners in empty
+  space. `entityScreenHull` projects the box's corners and takes their convex hull, the
+  answer the play realm's overlay has always used, and `getEntityScreenRect` is the AABB
+  OF that hull, so what hit-tests against a rect and what is drawn around an entity
+  cannot describe two different shapes.
+
+- **The authored screen is drawn where it is, not hidden when it is not a rect.** The
+  design frame, the device frame, the scrim and the safe-area inset are rects on the 2D
+  plane, and a rect seen at an angle is a trapezoid; hiding the overlay from a turned
+  eye was a workaround for drawing it wrong. They are kept in WORLD half-extents and
+  projected corner by corner now, which makes the derived geometry world-space and
+  better for it — "does the device contain the design" compares half-extents rather
+  than two projections of them. Gated by `design-frame`.
+
+- **An arrow key moves the way it points, on the plane being worked.** The nudge added
+  to world X and Y; looking down at the ground, ArrowUp lifted the thing into the air.
+  `screenNudgeAxes` names the work plane's two axes with the signs that point right and
+  up on screen, `right` resolved first so the pair is never one axis twice even from an
+  eye looking straight down one of them.
+
+- **The minimap is a map of the plane the scene stands on.** It plotted every entity's
+  world x/y, so a 3D scene — which stands on the ground — collapsed the whole map to a
+  line, useless exactly where a map of a large level is worth most. It plots the work
+  plane's two axes now, oriented so a map of the ground reads the way looking down at
+  it does.
+
+- **The selection readout says the pose it has.** The status bar took the rotation as
+  `2·atan2(z, w)`, which is the Z angle only while the quaternion's x and y are zero —
+  so for a posed transform it reported a number that is none of its three turns, in the
+  readout a person glances at to check what they just did.
+
+- **A drop point falls back when the work plane is edge-on.** A perspective eye held
+  head-on looks ALONG the ground, so every ray meets it thousands of units away, or at
+  the eye itself — and head-on perspective is exactly the state `view.resetOrbit`
+  leaves. Below ~6° of facing, the point comes from the plane through the focus facing
+  the eye, which is what a screen point unambiguously names from any angle.
+
+- **One formula for the Z angle of a rotation.** `viewportMath` carried two, and the
+  play overlay used `2·atan2(z, w)` to capture the angle a rotate-drag starts from — so
+  on anything with a pose, the drag snapped its total onto a grid measured from a
+  number that is none of the three turns.
+
+- **The editor eye's volume reaches past what it is looking at.** The far plane was a
+  constant 100000 measured from the eye, and a perspective eye STANDS OFF what it looks
+  at — framed on a large scene that stand-off is tens of thousands of units, all spent
+  before the scene begins, so the back half of a scene simply vanished. `editorViewClipFar`
+  adds the stand-off, so the reach PAST THE FOCUS is what the number means. Measured
+  against a sprite 50000 units behind the plane: the orthographic eye of the same
+  framing showed 34225 pixels of it and the perspective eye showed zero.
+
+- **The editor eye's near plane follows how far back it stands.** Depth resolution goes
+  as distance squared over the near plane, and for this eye the stand-off IS the
+  distance — so a near plane fixed at 0.1 spent the whole buffer on the first few units.
+  Framed on a large scene, two opaque quads 200 units apart resolved WRONG: the further
+  one, submitted last, covered the nearer. `editorViewClipNear` is a fraction of the
+  stand-off floored at the value it has always had, so a close-up eye is unchanged.
+  Gated by `depth-precision`, which asks both directions from one scene. At ordinary
+  scales neither this nor the far plane was ever visible; it takes a project framed at
+  120000 units across, and both were found from the same probe.
+
+- **The toolbar no longer states, permanently, that this is 2D.** A blue chip in the
+  display-flags group read "2D", always, and its own stylesheet said why — "the engine
+  is 2D-only, so this reads, it doesn't toggle". That premise is gone, and the
+  projection button five items to its left said "3D" while the chip said "2D".
 
 ### Added
 
@@ -7656,7 +7964,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.54.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.55.0...HEAD
+[0.55.0]: https://github.com/esengine/estella/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/esengine/estella/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/esengine/estella/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/esengine/estella/compare/v0.51.0...v0.52.0
