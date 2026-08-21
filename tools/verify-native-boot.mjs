@@ -119,7 +119,10 @@ function parseArgs(argv) {
 }
 
 const sh = (cmd, args, o = {}) => execFileSync(cmd, args, { encoding: 'utf8', ...o });
-const trySh = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8' });
+// 64MB, not the default megabyte: every use of this reads a device — a boot record,
+// a /proc file, a log — and the biggest project in the corpus writes more than a
+// megabyte before it is done booting. ENOBUFS there reads as a broken game.
+const trySh = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
@@ -512,7 +515,9 @@ function iosDriver(opts) {
         screenshot() {
             const shot = path.join(opts.out, 'raw.png');
             simctl('io', udid, 'screenshot', shot);
-            return sh('cat', [shot], { encoding: 'buffer' });
+            // Read, not `cat`: a phone-sized PNG of a busy scene is over the
+            // megabyte execFileSync buffers, and the flagship's was.
+            return readFileSync(shot);
         },
         diagnostics() {
             const log = trySh('xcrun', ['simctl', 'spawn', udid, 'log', 'show',
@@ -688,7 +693,7 @@ function packageExample(driver, name, opts) {
         '--json', report,
     ]);
     if (!existsSync(report)) throw new Error('the export wrote no result');
-    const exported = JSON.parse(sh('cat', [report]));
+    const exported = JSON.parse(readFileSync(report, 'utf8'));
     if (!exported.ok) throw new Error(`export failed: ${(exported.errors ?? []).join('; ') || 'no reason given'}`);
     return { app: driver.build(exported), work };
 }
