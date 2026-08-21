@@ -18,7 +18,6 @@
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 #include "Runtime.hpp"                 // ESHOST_LOGE
 #include <vector>
-#include <cstring>
 #include <cmath>
 
 namespace eshost {
@@ -176,6 +175,9 @@ bool appleDrawGlyph(const std::string& family, u32 codepoint, int style,
     const int wss = w * ss;
     const int hss = h * ss;
 
+    // Quartz DRAWS y-up and STORES top-down, which is the atlas' own row order —
+    // so this is handed over as it lies. Flipping it here is how the first run of
+    // this path put every glyph on its head while the Latin beside it stood up.
     std::vector<esengine::u8> canvas((size_t)wss * hss, 0);
     CGContextRef ctx = CGBitmapContextCreate(canvas.data(), (size_t)wss, (size_t)hss, 8,
                                              (size_t)wss, NULL, kCGImageAlphaOnly);
@@ -191,12 +193,7 @@ bool appleDrawGlyph(const std::string& family, u32 codepoint, int style,
     CGContextRelease(ctx);
     CFRelease(font);
 
-    // Core Graphics counts rows from the bottom and the atlas from the top.
-    out.alpha.resize((size_t)wss * hss);
-    for (int row = 0; row < hss; ++row) {
-        std::memcpy(out.alpha.data() + (size_t)row * wss,
-                    canvas.data() + (size_t)(hss - 1 - row) * wss, (size_t)wss);
-    }
+    out.alpha = std::move(canvas);
     out.width = wss;
     out.height = hss;
     // The tile's top-left in pen space, y UP — the same two the stb path reports.

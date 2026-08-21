@@ -49,6 +49,10 @@ app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 // capturePage pixels go through the OS display profile; pin sRGB so a colour
 // judgement reads the same on a wide-gamut machine as on a CI runner.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
+// And pin the scale, for the same reason the editor's own driver does: a capture
+// is in DEVICE pixels, so a scaled display returns a bigger frame than the editor
+// it is compared against and parity refuses the pair for differing in size.
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
 // A desktop Chromium reports no touch hardware, so a game that only shows its
 // on-screen controls to a touch device shows them to nobody here. This is the
 // emulation a phone would make true.
