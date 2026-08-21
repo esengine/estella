@@ -17,6 +17,7 @@
  * therefore carries no display size — only (font, codepoint, style).
  */
 import { ShelfPacker, type Packer } from '../../util/shelfPack';
+import { log } from '../../util/logger';
 
 /** A glyph rendered to an upload-ready bitmap plus its layout metrics (in render-size px). */
 export interface RasterGlyph {
@@ -150,6 +151,9 @@ export class GlyphAtlas {
             : Math.max(1, Math.round(displaySize * this.dpr * this.contentScale_));
     }
 
+    /** Families already reported as producing no glyph — one line each, not one per character. */
+    private readonly mute_ = new Set<string>();
+
     private key(codepoint: number, fontFamily: string, style: number, pixelSize: number): string {
         return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${pixelSize}`;
     }
@@ -166,6 +170,14 @@ export class GlyphAtlas {
 
         const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
         if (!raster) {
+            // Once per family, because the alternative is what this cost to find:
+            // a rasterizer answering null for every codepoint draws no text and
+            // says nothing, on a screen full of everything else that worked.
+            if (!this.mute_.has(fontFamily)) {
+                this.mute_.add(fontFamily);
+                log.warn('text', `no glyph for U+${codepoint.toString(16).toUpperCase()} in `
+                    + `"${fontFamily}" — this family produced none, so its text draws nothing`);
+            }
             this.cache.set(k, null);
             return null;
         }

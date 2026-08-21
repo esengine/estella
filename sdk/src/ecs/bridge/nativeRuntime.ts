@@ -230,7 +230,15 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
  * text, exactly as a host without an audio device stays silent.
  */
 function installNativeUI(app: App, scope: Record<string, unknown>): void {
-    if (!hasTextBindings(scope)) return;
+    if (!hasTextBindings(scope)) {
+        // Named, because what this drops is the whole UI plugin — layout, masks,
+        // interaction, focus — and a host missing one binding looks from the frame
+        // like a scene that simply has no UI in it.
+        const missing = Object.values(TEXT_BINDINGS).filter((n) => typeof scope[n] !== 'function');
+        log.warn('native', `no UI: this host binds no ${missing.join(', ')}, and the UI plugin `
+            + 'owns layout and interaction as well as text');
+        return;
+    }
 
     // The engine's own renderer_submitTextBatch, generated for QuickJS: same
     // argument list as the wasm call in ui/text/submit.ts, because it IS that
@@ -239,11 +247,11 @@ function installNativeUI(app: App, scope: Record<string, unknown>): void {
     const submit = scope[TEXT_BINDINGS.submitTextBatch] as (
         vertices: Float32Array, vertexCount: number, indices: Uint16Array, indexCount: number,
         textureId: number, transform: Float32Array, entity: number, layer: number,
-        depth: number, sdf: number,
+        depth: number, sdf: number, cullBit: number,
     ) => void;
-    setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf) => {
+    setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf, cullBit) => {
         submit(vertices, vertexCount, indices, indices.length, textureId, transform,
-               entity, layer, depth, sdf ? 1 : 0);
+               entity, layer, depth, sdf ? 1 : 0, cullBit);
     });
     app.addPlugin(uiPlugin);
 }

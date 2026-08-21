@@ -28,6 +28,7 @@ export type NativeTextBatchSubmit = (
     layer: number,
     depth: number,
     sdf: boolean,
+    cullBit: number,
 ) => void;
 
 let nativeSubmit_: NativeTextBatchSubmit | null = null;
@@ -60,7 +61,7 @@ export function submitTextBatch(
     if (vertexCount <= 0 || indices.length <= 0 || transform.length < 16) return;
     // No wasm heap (the native core): the host reads the arrays as they are.
     if (!module?.renderer_submitTextBatch) {
-        nativeSubmit_?.(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
+        nativeSubmit_?.(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf, cullBit);
         return;
     }
 
