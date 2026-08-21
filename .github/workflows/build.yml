@@ -265,19 +265,19 @@ jobs:
 
   # Headless pixel verification: real scenes rendered by the editor's electron
   # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel.
+  # Three jobs, not three steps of one. They need the same host and nothing of
+  # each other, and run serially they were 27 minutes of critical path for 2
+  # minutes of scenes — the same trade verify-render-webgpu below was split out
+  # for. A shallow checkout everywhere except the released-projects job, which
+  # reads examples out of release tags.
   verify-render:
     name: Render verify (headless)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 40
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v7
-      with:
-        # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0
-        # …), which a shallow checkout has none of — the step failed on every run
-        # that ever reached it.
-        fetch-depth: 0
 
     - uses: ./.github/actions/setup
 
@@ -322,11 +322,48 @@ jobs:
     # opens the app over MCP and asks a question only the running editor can
     # answer (does the project setting reach the viewport, does a click select
     # what is drawn on top, does the grid cover a perspective frame).
+  # The EDITOR's authoring surface, driven for real. The engine has had a pixel
+  # gate for years; the editor had none, which is how depth layers shipped
+  # reaching the play realm and neither the viewport nor a build. Each check
+  # opens the app over MCP and asks a question only the running editor can
+  # answer (does the project setting reach the viewport, does a click select
+  # what is drawn on top, does the grid cover a perspective frame).
+  verify-editor:
+    name: Editor authoring checks
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/render-host
+
     - name: Run editor authoring checks
       working-directory: desktop
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node scripts/editor-checks/run.mjs
+
+  verify-packages:
+    name: Packages (golden + released)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0
+        # …), which a shallow checkout has none of — the step failed on every run
+        # that ever reached it.
+        fetch-depth: 0
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/render-host
 
     # The golden corpus, packaged and opened the way a player opens it, then held
     # against the editor's own frame of the same game. Exporting was checked and
