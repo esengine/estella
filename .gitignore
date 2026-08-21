@@ -152,6 +152,8 @@ native/ios/app.generated.yml
 
 # verify-golden's package scratch (exports it launches and throws away)
 /.golden/
+# verify-playthrough's, on the same terms
+/.playthrough/
 
 # The export pipeline bundles through a scratch dir inside its own tree (node
 # resolution), and a crashed run leaves one behind for the source gates to judge.

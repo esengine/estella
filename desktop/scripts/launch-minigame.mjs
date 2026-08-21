@@ -30,6 +30,10 @@ import { inputScript } from './inputScript.mjs';
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
+// Both of the above pin a machine's answer to the code's; so does this. A capture
+// is in DEVICE pixels, so a scaled display returns a frame the editor's own
+// capture cannot be compared against. Its twin launcher pins it for the same reason.
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
