@@ -46,6 +46,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSyn
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePng, distinctColors } from '../build-tools/utils/png.js';
+import { GOLDEN, launchTimeoutFor } from './goldenProjects.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_ID = 'com.estella.game';
@@ -60,6 +61,15 @@ const FRAME_SAMPLES = 3;
 const FOCUS_WAIT_MS = 8000;
 /// Longest a slow scene may spend reaching `--frames` before it is judged anyway.
 const FRAME_WAIT_S = 45;
+
+/**
+ * That budget for @p name, in ms. A project the golden registry already calls
+ * expensive gets ITS number here too — one place says what a scene costs on a
+ * rasteriser without a GPU, and both native gates read it.
+ */
+function frameBudgetMs(name) {
+    return launchTimeoutFor(GOLDEN.find((g) => g.id === name)) ?? FRAME_WAIT_S * 1000;
+}
 
 /**
  * Examples that do not start or draw on a device yet, and why.
@@ -586,7 +596,7 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         const settleBy = Date.now() + Math.max(opts.settle, 1) * 1000;
         // Its own budget, not the ready timeout: a scene this slow is worth
         // waiting out, a hung one is not, and the set is 40-odd apps per device.
-        const framesBy = Date.now() + Math.min(opts.timeout, FRAME_WAIT_S) * 1000;
+        const framesBy = Date.now() + frameBudgetMs(label);
         while (Date.now() < settleBy) await sleep(250);
         while (framesDrawn(log = driver.readLog()) < opts.frames && Date.now() < framesBy) {
             if (driver.died?.()) break;
