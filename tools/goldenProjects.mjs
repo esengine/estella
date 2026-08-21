@@ -184,7 +184,10 @@ export const GOLDEN = [
   {
     id: 'model-import',
     certifies: ['model-import', 'model-animation'],
-    targets: ['web'],
+    // Desktop too: these claims are about the ENGINE, and the native runtime is
+    // a second one. Certified only on web, an import that reaches no native
+    // frame reads as covered right up until a device says otherwise.
+    targets: ['web', 'desktop'],
     tier: 'pr',
     // Nothing in it responds to input: the scene is a placed model, and the
     // chain it certifies is the import's — products, refs, prefab, package.
@@ -193,7 +196,10 @@ export const GOLDEN = [
   {
     id: 'lighting-3d',
     certifies: ['model-skinning', 'mesh-shadow', 'environment'],
-    targets: ['web'],
+    // The shadow pass is the engine's, not the web build's, and it broke on the
+    // native runtime while this claim was green: see launchTimeoutMs below for
+    // what a map costs where there is no GPU, on either gate.
+    targets: ['web', 'desktop'],
     tier: 'pr',
     // What a pixel scene proved and no packaged game carried: the model is skinned
     // by its import's own products, the sun casts it onto the panel behind it, and
@@ -218,7 +224,7 @@ export const GOLDEN = [
   {
     id: 'physics-3d',
     certifies: ['physics-3d'],
-    targets: ['web'],
+    targets: ['web', 'desktop'],
     tier: 'nightly',
     // The character walks on the key it declares, and the debug overlay it draws
     // moves with it — the whole picture is the solver's, so a package that lost
