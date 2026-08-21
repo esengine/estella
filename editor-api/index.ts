@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  types.ts — THE public type surface of the editor plugin API.
+ * @file  index.ts — THE public type surface of the editor plugin API.
  *
  * Deliberately SELF-CONTAINED (types only, zero imports): the editor copies this
  * file's text verbatim into a project's `.esengine/plugins/.types/editor-api.d.ts`,

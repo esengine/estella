@@ -26,7 +26,7 @@ import * as ReactDOMClient from 'react-dom/client';
 import * as ReactJsxRuntime from 'react/jsx-runtime';
 import * as esengine from 'esengine';
 import * as editorApi from './api';
-import type { EditorPlugin } from './types';
+import type { EditorPlugin } from '@estella/editor-api';
 
 /**
  * The modules a plugin may import. A bare specifier outside this set is a load

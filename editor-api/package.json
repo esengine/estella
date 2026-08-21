@@ -1,0 +1,14 @@
+{
+  "name": "@estella/editor-api",
+  "version": "0.55.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Public type surface of the Estella editor plugin API",
+  "type": "module",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts"
+    }
+  }
+}

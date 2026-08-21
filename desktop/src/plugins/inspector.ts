@@ -20,7 +20,7 @@ import type { InspectorComponent, InspectorField } from '@/types';
 import type {
   AssetInspectorContribution, ComponentInspectorContribution, InspectorContribution,
   InspectorSectionBuilder, LocalizedString,
-} from './types';
+} from '@estella/editor-api';
 
 const contrib = new ContributionRegistry<InspectorContribution>('inspector section');
 

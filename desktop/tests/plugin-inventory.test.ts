@@ -15,7 +15,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { buildPluginContext, type ContributionKind } from '@/plugins/context';
 import type { PluginManifest } from '@/plugins/manifest';
-import type { PluginContext } from '@/plugins/types';
+import type { PluginContext } from '@estella/editor-api';
 
 const MANIFEST: PluginManifest = {
   id: 'acme.tools',

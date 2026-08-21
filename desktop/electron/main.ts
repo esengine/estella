@@ -1499,7 +1499,7 @@ function pluginsRootFor(scope: 'project' | 'user'): string {
 // Scaffold a plugin — manifest, entry, tsconfig, and the typings sidecar the
 // tsconfig points at. The renderer supplies `editorVersion` and `apiTypes` rather
 // than main reading them: the renderer holds the constant that ENFORCES the
-// `engines.editor` check and the types.ts text the editor is itself typed by, so
+// `engines.editor` check and the editor-api text the editor is itself typed by, so
 // what gets written can never disagree with what gets checked.
 ipcMain.handle('plugins:scaffold', async (_e, scope: 'project' | 'user', opts: ScaffoldPluginOptions) => {
   try {

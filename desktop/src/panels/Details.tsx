@@ -70,7 +70,7 @@ import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, P
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
 import { localizePlugin } from '@/plugins/localize';
-import type { AssetInspectorContribution, ComponentInspectorContribution } from '@/plugins/types';
+import type { AssetInspectorContribution, ComponentInspectorContribution } from '@estella/editor-api';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';

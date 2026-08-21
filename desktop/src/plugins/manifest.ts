@@ -15,7 +15,7 @@
 
 // LocalizedString is owned by the public type surface (types.ts) — one spelling
 // for the manifest and for every contribution a plugin registers.
-import type { LocalizedString } from './types';
+import type { LocalizedString } from '@estella/editor-api';
 
 export type { LocalizedString };
 

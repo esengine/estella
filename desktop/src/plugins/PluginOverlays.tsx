@@ -18,7 +18,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { activeMode } from '@/mode/activeMode';
 import { PluginHost } from './PluginHost';
 import { overlayRegistry, createOverlayGraphics, type OverlayPrimitive } from './overlays';
-import type { GizmoStyle } from './types';
+import type { GizmoStyle } from '@estella/editor-api';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

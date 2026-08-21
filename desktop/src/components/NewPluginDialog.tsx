@@ -29,7 +29,7 @@ import { Toasts } from '@/store/Toasts';
 import { version as EDITOR_VERSION } from '../../package.json';
 // The same text init.ts writes as the project's typings sidecar — see types.ts,
 // which is import-free precisely so it can double as the shipped `.d.ts`.
-import editorApiTypes from '@/plugins/types.ts?raw';
+import editorApiTypes from '../../../editor-api/index.ts?raw';
 import { t, type MsgKey } from '@/i18n';
 
 type Scope = 'project' | 'user';

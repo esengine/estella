@@ -23,7 +23,7 @@
  */
 import { ContributionRegistry, type Owner, type Disposable } from '@/contrib/ContributionRegistry';
 import { isWireToolName, toolNamespace } from '@/agent/toolName';
-import type { AgentToolContribution } from './types';
+import type { AgentToolContribution } from '@estella/editor-api';
 
 /** The registry keys by `id`; a tool's id IS its name — the model addresses it
  *  by that and nothing else, so a second identifier could only disagree. */

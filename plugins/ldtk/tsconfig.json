@@ -7,7 +7,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["vitest/globals"],
-    "paths": { "@estella/editor-api": ["../../desktop/src/plugins/types.ts"] }
+    "paths": { "@estella/editor-api": ["../../editor-api/index.ts"] }
   },
   "include": ["src", "tests"]
 }

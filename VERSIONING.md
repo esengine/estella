@@ -39,7 +39,7 @@ private fields, and anything marked `@internal` or `@experimental`.
 ## The Editor Plugin API
 
 The editor's plugin API — `@estella/editor-api`, the shapes in
-`desktop/src/plugins/types.ts` that the editor writes into your project as
+`editor-api/index.ts` that the editor writes into your project as
 `.esengine/plugins/.types/editor-api.d.ts` — is **not** one of the four surfaces
 above. It is **experimental**, and it is not covered by the MAJOR-line promise:
 it will keep changing after 1.0.

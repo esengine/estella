@@ -200,7 +200,7 @@ export const CRITERIA = [
     // the contract". What fails a release is not the answer but its absence from
     // one of the places somebody acts on it.
     answeredBy: 'node tools/check-plugin-api-contract.mjs',
-    needs: ['tools/check-plugin-api-contract.mjs', 'desktop/src/plugins/types.ts'],
+    needs: ['tools/check-plugin-api-contract.mjs', 'editor-api/index.ts'],
   },
   {
     id: 'every-subsystem-has-a-verdict',

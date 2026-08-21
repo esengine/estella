@@ -19,7 +19,7 @@ import { toolRegistry } from '@/tools/toolRegistry';
 import { useEditorStore } from '@/store/editorStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import type { OverlayPrimitive } from '@/plugins/overlays';
-import type { LocalizedString, OverlayGraphics, Vec2 } from '@/plugins/types';
+import type { LocalizedString, OverlayGraphics, Vec2 } from '@estella/editor-api';
 
 const PLUGIN = 'plugin:acme';
 const id = (v: LocalizedString) => (typeof v === 'string' ? v : v.en);

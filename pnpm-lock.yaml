@@ -79,6 +79,9 @@ importers:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
+      '@estella/editor-api':
+        specifier: workspace:*
+        version: link:../editor-api
       '@fontsource/inter':
         specifier: ^5.2.8
         version: 5.2.8
@@ -118,6 +121,8 @@ importers:
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@25.9.3)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.46.0)
+
+  editor-api: {}
 
   pipeline:
     dependencies:

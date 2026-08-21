@@ -44,7 +44,7 @@ export interface ScaffoldPluginOptions {
   /** The running editor's version — what `engines.editor` is pinned to. */
   editorVersion: string;
   /**
-   * Text of the plugin API typings (`src/plugins/types.ts`). Written as the scope's
+   * Text of the plugin API typings (`editor-api/index.ts`). Written as the scope's
    * `.types/editor-api.d.ts` sidecar so the generated tsconfig resolves on the first
    * open — including for a user-scoped plugin, which lives outside the project the
    * renderer's type sync can reach.

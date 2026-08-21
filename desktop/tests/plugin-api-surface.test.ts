@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import * as api from '@/plugins/api';
 import { importsAnotherModule } from '../../tools/lib/moduleImports.mjs';
 
-const TYPES_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/plugins/types.ts');
+const TYPES_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../editor-api/index.ts');
 const source = readFileSync(TYPES_FILE, 'utf8');
 
 describe('plugin API surface', () => {

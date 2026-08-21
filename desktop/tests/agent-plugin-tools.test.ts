@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { agentTools, type ContributedTool } from '../electron/agent/kernel';
 import { agentToolProblem } from '../src/plugins/agentTools';
 import { isWireToolName } from '../src/agent/toolName';
-import type { AgentToolContribution } from '../src/plugins/types';
+import type { AgentToolContribution } from '@estella/editor-api';
 
 const tool = (over: Partial<ContributedTool> = {}): ContributedTool => ({
     name: 'acme_bake',

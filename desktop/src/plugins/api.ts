@@ -11,9 +11,9 @@
  * implementation that stops matching what authors were promised is a compile error
  * rather than a runtime surprise in someone else's plugin.
  */
-import type * as Api from './types';
+import type * as Api from '@estella/editor-api';
 
-export type * from './types';
+export type * from '@estella/editor-api';
 
 export const definePlugin: typeof Api.definePlugin = (plugin) => plugin;
 

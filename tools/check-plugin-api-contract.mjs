@@ -35,7 +35,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  */
 const SURFACES = {
     typings: {
-        path: 'desktop/src/plugins/types.ts',
+        path: 'editor-api/index.ts',
         who: 'the plugin author, in the .d.ts the editor writes into their project',
         from: /^ \* STABILITY:/m,
         to: /^ \*\/$/m,

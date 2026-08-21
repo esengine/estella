@@ -46,7 +46,7 @@ import type { Owner } from '@/contrib/ContributionRegistry';
 import { resolveLocalized, satisfiesEditorRange, type PluginManifest } from './manifest';
 import { evaluatePlugin } from './loader';
 import { buildPluginContext, type BuiltContext, type PluginContribution } from './context';
-import type { EditorPlugin } from './types';
+import type { EditorPlugin } from '@estella/editor-api';
 
 /** Where a plugin sits in its lifecycle — what the Plugins panel shows. */
 export type PluginPhase =

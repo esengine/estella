@@ -18,7 +18,7 @@ import { PluginHost } from './PluginHost';
 // precisely so it doubles as the `.d.ts` plugin authors compile against — shipping
 // the same file the editor itself is typed by means the two can never disagree,
 // and there is no package to publish or copy to go stale.
-import editorApiTypes from './types.ts?raw';
+import editorApiTypes from '../../../editor-api/index.ts?raw';
 
 let currentRoot: string | null = null;
 let inited = false;

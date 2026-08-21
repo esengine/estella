@@ -18,7 +18,7 @@
 import { ViewportController } from '@/engine/ViewportController';
 import { EngineHost } from '@/engine/EngineHost';
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
-import type { GizmoStyle, OverlayContribution, OverlayGraphics, Vec2 } from './types';
+import type { GizmoStyle, OverlayContribution, OverlayGraphics, Vec2 } from '@estella/editor-api';
 
 /** A collected primitive, already projected to overlay CSS pixels. */
 export type OverlayPrimitive =

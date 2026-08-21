@@ -21,7 +21,8 @@
     "verbatimModuleSyntax": true,
 
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@estella/editor-api": ["../editor-api/index.ts"]
     }
   },
   "include": ["src", "electron", "tests", "vite.config.ts"]

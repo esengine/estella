@@ -50,7 +50,7 @@ import type {
   EditorPlugin, EditorProjectApi, EditorSceneApi, EntityTemplateContribution, FieldValue,
   InspectorContribution, OverlayContribution, PanelContribution, PluginContext,
   PluginFs, SettingContribution, ToolContribution, PointerInput as PluginPointerInput,
-} from './types';
+} from '@estella/editor-api';
 
 /** Per-plugin persisted state, kept out of the project (it's a user preference). */
 const stateKey = (id: string): string => `estella.plugin.state.${id}`;

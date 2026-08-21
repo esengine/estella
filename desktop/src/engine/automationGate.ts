@@ -8,7 +8,7 @@
  * The hook (`window.__estellaEditor`) is the UNCURATED door: project, asset,
  * play, document and command operations, next to the scene surface. Plugin code
  * shares that realm and is deliberately handed a curated subset instead
- * (src/plugins/types.ts), so publishing the hook unconditionally would quietly
+ * (editor-api/index.ts), so publishing the hook unconditionally would quietly
  * widen what a plugin can reach. It is therefore published only while a driver
  * is actually authorized.
  *

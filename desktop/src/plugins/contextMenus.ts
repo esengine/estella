@@ -13,7 +13,7 @@
 import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
 import { localizePlugin } from './localize';
 import type { MenuItem } from '@/components/Menu';
-import type { ContextMenuContribution, ContextMenuLocation, ContextMenuTarget } from './types';
+import type { ContextMenuContribution, ContextMenuLocation, ContextMenuTarget } from '@estella/editor-api';
 
 const contrib = new ContributionRegistry<ContextMenuContribution>('context menu item');
 

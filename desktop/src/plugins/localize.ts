@@ -10,7 +10,7 @@
  * inspector, and the menus all resolve identically.
  */
 import { editorLocale } from '@/i18n';
-import type { LocalizedString } from './types';
+import type { LocalizedString } from '@estella/editor-api';
 
 /** Resolve for the current editor locale, falling back to `en`, then any value. */
 export function localizePlugin(value: LocalizedString | undefined): string {

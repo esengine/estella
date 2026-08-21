@@ -3,7 +3,7 @@
   "version": "0.55.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Estella Editor — visual scene editor for the Estella 2D WASM engine",
+  "description": "Estella Editor \u2014 visual scene editor for the Estella 2D WASM engine",
   "author": "ESEngine Team",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -93,6 +93,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@estella/editor-api": "workspace:*",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@types/node": "^25.9.3",
