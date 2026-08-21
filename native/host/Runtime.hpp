@@ -76,6 +76,9 @@ struct HostState {
     esengine::f32 w = 0, h = 0;
     bool ready = false;             ///< engine + JS booted once
     bool surfaceReady = false;      ///< a live window surface is bound (false while screen off)
+    /// Whether the skipping above has been reported. A loop that runs and draws
+    /// nothing reads exactly like a hung one, so each stretch of it says so once.
+    bool surfaceSkipReported = false;
     /// The host asked its event loop to stop. Only a capture run sets it (Shot.hpp);
     /// a platform whose OS owns the app's lifetime is free to ignore it.
     bool quitRequested = false;

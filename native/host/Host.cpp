@@ -273,8 +273,21 @@ bool boot(Platform& platform) {
 }
 
 void frame() {
-    if (!booted() || !host().surfaceReady) return;
+    if (!booted()) return;
     HostState& h = host();
+    // Skipping is normal (the screen is off, the window is going away) and being
+    // stuck in it is not, and the two look the same from outside: no frames.
+    if (!h.surfaceReady) {
+        if (!h.surfaceSkipReported) {
+            h.surfaceSkipReported = true;
+            ESHOST_LOGI("no surface bound — skipping frames until one is");
+        }
+        return;
+    }
+    if (h.surfaceSkipReported) {
+        h.surfaceSkipReported = false;
+        ESHOST_LOGI("surface bound again — drawing resumes");
+    }
 
     // A window can change size without being recreated: a rotation, an insets
     // change (the system bars leaving on the frame after launch), a layout on
