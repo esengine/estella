@@ -35,6 +35,17 @@ namespace eshost {
 FontFile appleLoadFont(const std::string& family, esengine::u32 codepoint, int style);
 
 /**
+ * Coverage for @p codepoint drawn by Core Text — implements Platform::drawGlyph.
+ *
+ * Apple's system fonts carry CFF2 variable outlines, which the shared parser has
+ * no reader for, so its CJK faces load and rasterize nothing. Core Graphics draws
+ * the same glyph into the padded, supersampled grid the shared path expects.
+ */
+bool appleDrawGlyph(const std::string& family, esengine::u32 codepoint, int style,
+                    esengine::f32 pixelSize, int supersample, int padding,
+                    Platform::GlyphCoverage& out);
+
+/**
  * Run @p req on NSURLSession's background queue and hand the reply to
  * deliverFetch — see Platform::startFetch. TLS is the OS's, which is the reason
  * this is platform code at all.

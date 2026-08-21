@@ -46,16 +46,23 @@ std::string faceKey(const FontFile& file) {
     return file.path + '#' + std::to_string(file.faceIndex);
 }
 
-Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style,
-               bool& syntheticBold, bool& syntheticItalic) {
+/** A face this parser cannot read is not the same answer as no face at all: the
+ *  first is the platform's to draw, the second is nobody's. */
+struct FontLookup {
+    Font* font = nullptr;
+    bool matchedButUnreadable = false;
+};
+
+FontLookup loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style,
+                    bool& syntheticBold, bool& syntheticItalic) {
     FontFile file = platform.loadFont(family, codepoint, style);
     syntheticBold = file.syntheticBold;
     syntheticItalic = file.syntheticItalic;
-    if (file.path.empty()) return nullptr;
+    if (file.path.empty()) return {};
 
     const std::string key = faceKey(file);
     auto it = g_fonts.find(key);
-    if (it != g_fonts.end()) return it->second->ok ? it->second.get() : nullptr;
+    if (it != g_fonts.end()) return {it->second->ok ? it->second.get() : nullptr, !it->second->ok};
 
     auto font = std::make_unique<Font>();
     font->bytes = std::move(file.bytes);
@@ -65,11 +72,13 @@ Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint
     }
     Font* raw = font.get();
     if (!raw->ok) {
-        ESHOST_LOGE("font: %s face %d did not parse — text in this family draws nothing",
+        // Once per face: the platform is asked to draw it instead, and a line per
+        // glyph of a family it draws fine would be the noisiest kind of correct.
+        ESHOST_LOGI("font: %s face %d is past this parser — the platform draws it",
                     file.path.c_str(), file.faceIndex);
     }
     g_fonts.emplace(key, std::move(font));
-    return raw->ok ? raw : nullptr;
+    return {raw->ok ? raw : nullptr, !raw->ok};
 }
 
 /** Average an alpha grid down by an integer factor (the SDK's downsampleBytes). */
@@ -145,21 +154,61 @@ std::vector<uint8_t> toAtlasRgba(const std::vector<uint8_t>& coverage, int width
 
 }  // namespace
 
+/**
+ * The half both rasterizers share: a padded, supersampled alpha grid becomes the
+ * tile the atlas uploads. The SDF is the ENGINE's, so a field the shared shader
+ * samples is encoded the same whoever drew the coverage.
+ */
+void finishTile(GlyphBitmap& out, std::vector<uint8_t>& alpha, int wss, int hss,
+                int ss, int pad, bool sdf) {
+    std::vector<uint8_t> coverage;
+    if (sdf) {
+        std::vector<uint8_t> field((size_t)wss * hss, 0);
+        esengine::text::sdfFromAlpha(alpha.data(), field.data(), (esengine::u32)wss, (esengine::u32)hss,
+                                     (esengine::f32)(pad * ss));
+        coverage = downsample(field, wss, hss, ss);
+    } else {
+        coverage = std::move(alpha);
+    }
+    out.width = wss / ss;
+    out.height = hss / ss;
+    out.rgba = toAtlasRgba(coverage, out.width, out.height);
+}
+
 GlyphBitmap rasterizeGlyph(Platform& platform, uint32_t codepoint, const std::string& family,
                            int style, float pixelSize, bool sdf, float padding) {
     GlyphBitmap out;
     if (pixelSize <= 0.0f) return out;
 
     bool syntheticBold = false, syntheticItalic = false;
-    Font* font = loadFont(platform, family, codepoint, style, syntheticBold, syntheticItalic);
+    const FontLookup found = loadFont(platform, family, codepoint, style, syntheticBold, syntheticItalic);
+    Font* font = found.font;
+    const int padPx = (int)std::lround(padding);
+    const int superSample = sdf ? SDF_SUPERSAMPLE : 1;
+
+    // A face this parser cannot read is the platform's to draw. Asked here rather
+    // than instead of the parser, so every font that already rasterizes keeps the
+    // one implementation and only what it cannot read takes the other path.
+    if (!font && found.matchedButUnreadable) {
+        Platform::GlyphCoverage cov;
+        if (platform.drawGlyph(family, codepoint, style, pixelSize, superSample, padPx, cov)) {
+            out.ok = true;
+            out.advance = cov.advance;
+            if (cov.blank || cov.width <= 0 || cov.height <= 0) return out;
+            finishTile(out, cov.alpha, cov.width, cov.height, superSample, padPx, sdf);
+            out.bearingX = cov.bearingX;
+            out.bearingY = cov.bearingY;
+            return out;
+        }
+    }
     if (!font) return out;
 
     const int glyph = stbtt_FindGlyphIndex(&font->info, (int)codepoint);
     if (glyph == 0) return out;   // the matched font does not have it after all
 
     // px per em, the same unit CSS font-size (and so the SDK's pixelSize) means.
-    const int pad = (int)std::lround(padding);
-    const int ss = sdf ? SDF_SUPERSAMPLE : 1;
+    const int pad = padPx;
+    const int ss = superSample;
     const float scale = stbtt_ScaleForMappingEmToPixels(&font->info, pixelSize) * (float)ss;
 
     int advanceRaw = 0, lsbRaw = 0;
@@ -204,21 +253,7 @@ GlyphBitmap rasterizeGlyph(Platform& platform, uint32_t codepoint, const std::st
         oblique(alpha, wss, hss, pad * ss - y0);
     }
 
-    std::vector<uint8_t> coverage;
-    if (sdf) {
-        // The engine's own generator, so the field the shared SDF shader samples is
-        // encoded exactly as the web's (128 = edge, spread = padding after folding).
-        std::vector<uint8_t> field((size_t)wss * hss, 0);
-        esengine::text::sdfFromAlpha(alpha.data(), field.data(), (esengine::u32)wss, (esengine::u32)hss,
-                                     (esengine::f32)(pad * ss));
-        coverage = downsample(field, wss, hss, ss);
-    } else {
-        coverage = std::move(alpha);
-    }
-
-    out.rgba = toAtlasRgba(coverage, w, h);
-    out.width = w;
-    out.height = h;
+    finishTile(out, alpha, wss, hss, ss, pad, sdf);
     // The tile's top-left in pen space, y UP: the SDK places it at
     // (penX + bearingX, bearingY). The ink starts `pad` in from both.
     out.bearingX = (float)x0 / (float)ss - (float)pad;

@@ -188,6 +188,33 @@ struct Platform {
      *  rasterization and the SDF conversion are shared (see media/glyph_raster.hpp). */
     virtual FontFile loadFont(const std::string& family, esengine::u32 codepoint, int style) = 0;
 
+    /**
+     * Coverage the platform drew itself, padded and supersampled as the shared
+     * path builds it — everything after (the engine's SDF, the downsample, the
+     * tile) stays one implementation. See {@link Platform::drawGlyph}.
+     */
+    struct GlyphCoverage {
+        std::vector<esengine::u8> alpha;  ///< `width * height`, 255 = full ink.
+        int width = 0;                    ///< Supersampled px, padding included.
+        int height = 0;
+        esengine::f32 advance = 0.0f;     ///< Px at the asked size, not supersampled.
+        esengine::f32 bearingX = 0.0f;    ///< Tile's top-left in pen space, y UP, at the asked size.
+        esengine::f32 bearingY = 0.0f;
+        bool blank = false;               ///< Whitespace: an advance and no tile.
+    };
+
+    /**
+     * Draw @p codepoint with the platform's OWN rasterizer, for a system whose
+     * font files the shared parser cannot read — Apple ships CFF2 outlines and
+     * stb_truetype has no CFF2. Reached only where the shared path could not, so
+     * the default false keeps stb_truetype and costs a platform nothing.
+     */
+    virtual bool drawGlyph(const std::string& /*family*/, esengine::u32 /*codepoint*/,
+                           int /*style*/, esengine::f32 /*pixelSize*/, int /*supersample*/,
+                           int /*padding*/, GlyphCoverage& /*out*/) {
+        return false;
+    }
+
     /** Perform an HTTP request off the main thread (NSURLSession / a JNI
      *  HttpURLConnection), then hand the reply back through {@link deliverFetch}
      *  with the same `req.id`. The OS owns the TLS stack, so this is where native

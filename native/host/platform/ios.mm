@@ -151,6 +151,12 @@ struct IOSPlatform final : eshost::Platform {
         return eshost::appleLoadFont(family, codepoint, style);
     }
 
+    // Core Text draws what stb_truetype cannot read — see Platform::drawGlyph.
+    bool drawGlyph(const std::string& family, u32 codepoint, int style, esengine::f32 pixelSize,
+                   int supersample, int padding, GlyphCoverage& out) override {
+        return eshost::appleDrawGlyph(family, codepoint, style, pixelSize, supersample, padding, out);
+    }
+
     void startFetch(const eshost::FetchRequest& req) override {
         eshost::appleStartFetch(req);
     }
