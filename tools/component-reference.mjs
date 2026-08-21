@@ -42,8 +42,10 @@ const SNAPSHOT = join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generate
 const CURATED = join(ROOT, 'docs', 'astro', 'src', 'data', 'componentDocs.ts');
 const DOC_PAGES = join(ROOT, 'docs', 'astro', 'src', 'content', 'docs');
 // The editor's Details panel links each component header at its reference entry;
-// the address is derived here so the two can never point at different pages.
+// the address is derived here so the two can never point at different pages. The
+// editor is an optional submodule, so this is checked when there is one to check.
 const EDITOR_LINKS = join(ROOT, 'desktop', 'src', 'engine', 'componentDocs.generated.ts');
+const HAS_EDITOR = existsSync(join(ROOT, 'desktop', 'package.json'));
 
 const mode = process.argv[2];
 if (mode !== '--check' && mode !== '--update') {
@@ -287,8 +289,12 @@ if (mode === '--update') {
     if (d.missing.length) console.log(`  still to describe in componentDocs.ts: ${d.missing.join(', ')}`);
     if (d.extra.length) console.log(`  componentDocs.ts names components that no longer exist: ${d.extra.join(', ')}`);
     if (!d.missing.length && !d.extra.length) {
-      writeFileSync(EDITOR_LINKS, editorLinksSource(names));
-      console.log(`  wrote the editor's link table (${names.length} entries)`);
+      if (HAS_EDITOR) {
+        writeFileSync(EDITOR_LINKS, editorLinksSource(names));
+        console.log(`  wrote the editor's link table (${names.length} entries)`);
+      } else {
+        console.log('  editor link table NOT written — no editor checkout to write it into');
+      }
     } else {
       console.log("  editor link table NOT written — describe the components above first");
     }
@@ -337,8 +343,10 @@ for (const t of curatedTargets()) {
   }
 }
 
-const links = editorLinkNames();
-if (links === null) problems.push(`missing the editor's link table ${EDITOR_LINKS}`);
+const links = HAS_EDITOR ? editorLinkNames() : undefined;
+if (links === undefined) {
+  console.log("component-reference: no editor checkout — its doc-link table was not checked.");
+} else if (links === null) problems.push(`missing the editor's link table ${EDITOR_LINKS}`);
 else {
   const dLink = diff(links, snapNames);
   for (const n of dLink.missing) problems.push(`the editor's Details panel has no doc link for "${n}"`);

@@ -72,10 +72,9 @@ async function boot(): Promise<void> {
         printErr: (t: string) => console.warn('[wasm]', t),
     };
     if (backend === 'webgpu') {
-        // The device has to exist before the module instantiates — the wasm side
-        // reads it synchronously. The error listener is what makes an invalid
-        // draw visible; without one Dawn drops it in silence, which reads as a
-        // black pass with nothing wrong.
+        // The device has to exist before the module instantiates (the wasm side
+        // reads it synchronously), and the error listener is what makes an invalid
+        // draw visible — without one Dawn drops it in silence.
         const gpu = await acquireWebGPUDevice('webgpu', (m: string) => console.error(m));
         if (!gpu.device) throw new Error(`WebGPU is not available: ${gpu.reason}`);
         console.info(`[engine] webgpu adapter: ${gpu.adapter ?? 'unreported'}`);
@@ -125,10 +124,9 @@ async function boot(): Promise<void> {
     });
     app.enableStats();
 
-    // The fixtures are AUTHORING scenes, and authoring mode is what they were
-    // captured under: gameplay systems (particles, animation, physics, timeline)
-    // stay frozen so a capture is the same frame every time. ESTELLA_VERIFY_PLAY
-    // flips this per gate via setRunMode.
+    // The fixtures are AUTHORING scenes and were captured in authoring mode, where
+    // gameplay systems stay frozen so a capture is the same frame every time.
+    // ESTELLA_VERIFY_PLAY flips this per gate via setRunMode.
     setEditorMode(true);
     setPlayMode(false);
 }
@@ -160,11 +158,9 @@ async function loadScene(sceneUrl: string, manifestUrl?: string): Promise<number
     const map = loadSceneData(app.world, resolved as Parameters<typeof loadSceneData>[1]);
     sceneRaw = raw;
     sourceToEntity = map as unknown as Map<number, number>;
-    // Both skeletal runtimes render through side modules loaded separately from
-    // Assets, so their entities are bound after the World exists — through the
-    // SAME shared loaders the shipped runtime uses. BOTH, because a scene that
-    // carries one and a host that binds the other renders an empty frame and
-    // reports no error.
+    // Both skeletal runtimes load outside Assets, so they bind after the World
+    // exists. BOTH: a scene carrying one against a host that binds the other
+    // renders an empty frame and reports no error.
     const toUrl = (ref: string) =>
         ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? ref) : ref;
     const entityMap = map as unknown as Map<number, number>;
@@ -442,10 +438,9 @@ window.__estellaHeadless = {
                 ext.loseContext();
                 return true;
             }
-            // WebGPU has no lose-context extension. Destroying the device is the
-            // one loss a page can cause, and it reaches the engine as any other
-            // would. The device IN USE, not the one booted with: after a recovery
-            // those differ, and destroying the dead one again is not a loss.
+            // WebGPU has no lose-context extension; destroying the device is the
+            // one loss a page can cause. The device IN USE, not the one booted
+            // with — after a recovery those differ.
             const m = module as unknown as {
                 currentWebGPUDevice?: { destroy?(): void };
                 preinitializedWebGPUDevice?: { destroy?(): void };

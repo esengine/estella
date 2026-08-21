@@ -23,10 +23,10 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SMOKE = path.join(ROOT, 'sdk', 'tests', 'physics3d-smoke.mjs');
-const WASM = path.join(ROOT, 'desktop', 'public', 'wasm', 'physics3d.wasm');
+const WASM = path.join(ROOT, 'build', 'wasm', 'web', 'physics3d.wasm');
 
 if (!existsSync(WASM)) {
-    console.error('check-physics3d: desktop/public/wasm/physics3d.wasm is not built.\n');
+    console.error('check-physics3d: build/wasm/web/physics3d.wasm is not built.\n');
     console.error('  node build-tools/cli.js build -t physics3d');
     process.exit(1);
 }

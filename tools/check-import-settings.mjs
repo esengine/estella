@@ -15,8 +15,8 @@
  * a reader of a model's `scale`.
  */
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,8 +46,14 @@ function schemas() {
 
 // Every place a setting can be READ: the pipeline (cook + import), the SDK
 // (loaders) and the editor. The file that declares them is not a reader.
-const files = execFileSync('git', ['ls-files', 'pipeline/src', 'sdk/src', 'desktop/src', 'desktop/electron'],
-    { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+const { files, missing } = listTrackedSources(['pipeline/src', 'sdk/src', 'desktop/src', 'desktop/electron']);
+// Same bargain as check-component-fields: a setting whose only reader is in the
+// editor would read as a dead knob, so an unscanned root is reported, not hidden.
+if (missing.length) {
+    console.log(`check-import-settings: no editor checkout — ${missing.join(', ')} not scanned for readers.`);
+}
+/** Settings with no reader HERE, which only a checkout that sees the editor can judge. */
+const unverified = [];
 const readers = files
     .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes('generated') && f !== SPECS.split(path.sep).join('/'))
     .map((f) => readFileSync(path.join(ROOT, f), 'utf8'))
@@ -72,11 +78,21 @@ for (const [type, keys] of schemas()) {
         }
         unusedGaps.delete(name);
         if (DECLARED_GAPS[name]) continue;
-        problems.push(`${name} has no reader — an import knob that does nothing`);
+        (missing.length ? unverified : problems)
+            .push(`${name} has no reader — an import knob that does nothing`);
     }
 }
 for (const name of unusedGaps) {
     problems.push(`${name} is listed as a gap but is not a setting any more — drop the entry`);
+}
+
+// Same bargain as check-component-fields: a setting read only by the editor's
+// import panel looks dead from here, and that is a verdict this checkout cannot
+// reach rather than a defect.
+if (unverified.length) {
+    console.log(`check-import-settings: ${unverified.length} setting(s) have no reader in the sources scanned here;`
+        + ' an editor checkout is needed to judge them:');
+    for (const u of unverified) console.log(`  ${u}`);
 }
 
 if (problems.length) {

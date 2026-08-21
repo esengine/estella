@@ -19,6 +19,8 @@ import { RELEASE, CRITERIA } from './releaseGate.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const problems = [];
 const fail = (m) => problems.push(m);
+const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
+const unanswerable = new Set();
 
 const seen = new Set();
 for (const c of CRITERIA) {
@@ -38,8 +40,17 @@ for (const c of CRITERIA) {
   // loudly, rather than at whatever moment somebody trusts the list next.
   if (c.answeredBy && !c.needs?.length) fail(`"${c.id}" names a command but no file it lives in`);
   for (const rel of c.needs ?? []) {
-    if (!existsSync(path.join(ROOT, rel))) fail(`"${c.id}" needs ${rel}, which is not there`);
+    if (existsSync(path.join(ROOT, rel))) continue;
+    // A verifier that lives in the editor cannot be found from a checkout without
+    // one. Counted and reported below rather than failed: it is a criterion this
+    // checkout cannot answer, which is a different verdict from a broken one.
+    if (!HAS_EDITOR && rel.startsWith('desktop/')) { unanswerable.add(c.id); continue; }
+    fail(`"${c.id}" needs ${rel}, which is not there`);
   }
+}
+if (unanswerable.size) {
+  console.log(`check-release-gate: no editor checkout — ${unanswerable.size} criterion(s) cannot be answered here:`
+    + ` ${[...unanswerable].join(', ')}`);
 }
 
 if (problems.length) {

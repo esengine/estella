@@ -66,16 +66,21 @@ if (existsSync(WORKFLOW)) {
 }
 
 // The convenience scripts are shims over the registry. Letting one carry its own
-// env again is how desktop/package.json became the second list.
-const pkg = JSON.parse(readFileSync(path.join(ROOT, 'desktop', 'package.json'), 'utf8'));
-for (const [name, body] of Object.entries(pkg.scripts ?? {})) {
-  if (!name.startsWith('verify:render') || !body.includes('headless-verify.mjs')) continue;
-  fail(`desktop script "${name}" invokes headless-verify itself — make it a verify-render.mjs shim`);
-}
-for (const [name, body] of Object.entries(pkg.scripts ?? {})) {
-  const m = /^node \.\.\/tools\/verify-render\.mjs --only (\S+)$/.exec(body ?? '');
-  if (!m) continue;
-  if (!seen.has(m[1])) fail(`desktop script "${name}" names scene "${m[1]}", which the registry does not have`);
+// env again is how a package.json became the second list. Every manifest that
+// declares them is checked — the editor is an optional submodule, so an absent
+// one is nothing to check rather than a failure.
+const MANIFESTS = ['package.json', path.join('desktop', 'package.json')]
+  .filter((rel) => existsSync(path.join(ROOT, rel)));
+for (const rel of MANIFESTS) {
+  const pkg = JSON.parse(readFileSync(path.join(ROOT, rel), 'utf8'));
+  for (const [name, body] of Object.entries(pkg.scripts ?? {})) {
+    if (!name.startsWith('verify:render')) continue;
+    if (body.includes('render-host/run.mjs')) {
+      fail(`${rel} script "${name}" invokes the render host itself — make it a verify-render.mjs shim`);
+    }
+    const m = /verify-render\.mjs --only (\S+)$/.exec(body ?? '');
+    if (m && !seen.has(m[1])) fail(`${rel} script "${name}" names scene "${m[1]}", which the registry does not have`);
+  }
 }
 
 if (problems.length) {

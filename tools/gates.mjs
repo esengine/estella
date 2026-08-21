@@ -22,6 +22,10 @@ export const SCOPES = ['local', 'ci'];
  * `run` is a shell command from the repo root. `where` narrows a gate to one
  * scope and then owes a `why` — a gate that quietly runs in one place is the
  * thing this file exists to stop.
+ *
+ * `needs: 'editor'` marks a gate whose SUBJECT is the editor. The editor is an
+ * optional submodule, so those cannot run in a checkout without one — and a
+ * skipped gate has to say so, since silence there reads as a clean bill.
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
@@ -68,12 +72,12 @@ export const GATES = [
   // A system's parameters are what the schedule knows about it; the World
   // escape hatch has to say what it reaches for or the schedule knows nothing.
   { id: 'system-access', run: 'node tools/check-system-access.mjs' },
-  { id: 'project-settings', run: 'node tools/check-project-settings.mjs' },
+  { id: 'project-settings', run: 'node tools/check-project-settings.mjs', needs: 'editor' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-spawn', run: 'node tools/check-tool-spawn.mjs' },
-  { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs' },
-  { id: 'capabilities', run: 'node tools/check-capabilities.mjs' },
-  { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs' },
+  { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs', needs: 'editor' },
+  { id: 'capabilities', run: 'node tools/check-capabilities.mjs', needs: 'editor' },
+  { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs', needs: 'editor' },
   { id: 'component-fields', run: 'node tools/check-component-fields.mjs' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
@@ -84,7 +88,7 @@ export const GATES = [
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
-  { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs' },
+  { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs', needs: 'editor' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },
   { id: 'key-codes', run: 'node tools/check-key-codes.mjs' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
@@ -100,10 +104,10 @@ export const GATES = [
     where: 'local',
     why: 'it builds the engine out of the tree `cli native` configured; CI builds every native target from scratch',
   },
-  { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs' },
+  { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
-  { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs' },
+  { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs', needs: 'editor' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
   {
     id: 'physics3d',
@@ -112,7 +116,7 @@ export const GATES = [
     why: 'it runs the built 3D physics wasm; CI builds that module in its own wasm job',
   },
   { id: 'engine-gaps', run: 'node tools/check-engine-gaps.mjs' },
-  { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
+  { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs', needs: 'editor' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
   { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },
@@ -123,8 +127,8 @@ export const GATES = [
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];
 
-/** The gates a scope runs, in declaration order. */
-export function gatesFor(scope) {
+/** The gates a scope runs, in declaration order. `hasEditor` gates the editor ones. */
+export function gatesFor(scope, hasEditor = true) {
   if (!SCOPES.includes(scope)) throw new Error(`unknown scope "${scope}" (have: ${SCOPES.join(', ')})`);
-  return GATES.filter((g) => !g.where || g.where === scope);
+  return GATES.filter((g) => (!g.where || g.where === scope) && (hasEditor || g.needs !== 'editor'));
 }

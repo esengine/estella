@@ -44,9 +44,8 @@ try {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // Two hosts answer the same driving surface. The engine's is the default — a
-// gate about the renderer should not need an editor to run. The editor's keeps
-// the handful whose subject IS an editor door (the reference grid, hit-testing,
-// the editor eye, preview renders).
+// gate about the renderer should not need an editor to run — and the editor's
+// keeps the handful whose subject IS an editor door.
 const HOSTS = {
   engine: { dist: path.join(ROOT, 'build', 'render-host'), page: 'index.html' },
   editor: { dist: path.join(ROOT, 'desktop', 'dist'), page: 'headless.html' },

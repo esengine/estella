@@ -21,6 +21,7 @@
  */
 import madge from 'madge';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -36,16 +37,23 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // than the cycle. Judge a NEW cycle on its own merits; do not read this budget
 // as permission for one.
 const BUDGETS = [
-  { name: 'sdk', entry: 'sdk/src/index.ts', extensions: ['ts'], budget: 0 },
-  { name: 'editor', entry: 'desktop/src/main.tsx', extensions: ['ts', 'tsx'], budget: 1 },
+  { name: 'sdk', entry: 'sdk/src/index.ts', tsconfig: 'sdk', extensions: ['ts'], budget: 0 },
+  { name: 'editor', entry: 'desktop/src/main.tsx', tsconfig: 'desktop', extensions: ['ts', 'tsx'], budget: 1 },
 ];
 
 let failed = false;
 
-for (const { name, entry, extensions, budget } of BUDGETS) {
+for (const { name, entry, tsconfig, extensions, budget } of BUDGETS) {
+  // The editor is an optional submodule; an absent entry is nothing to measure.
+  // Said out loud, because a budget that silently stops being checked is a budget
+  // that always passes.
+  if (!existsSync(path.join(ROOT, entry))) {
+    console.log(`${name.padEnd(7)}   — not checked out, no cycles measured`);
+    continue;
+  }
   const res = await madge(path.join(ROOT, entry), {
     fileExtensions: extensions,
-    tsConfig: path.join(ROOT, name === 'sdk' ? 'sdk' : 'desktop', 'tsconfig.json'),
+    tsConfig: path.join(ROOT, tsconfig, 'tsconfig.json'),
     detectiveOptions: { ts: { skipTypeImports: true }, tsx: { skipTypeImports: true } },
   });
   const cycles = res.circular();
