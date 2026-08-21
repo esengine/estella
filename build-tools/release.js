@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
-import { readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 
-// desktop/package.json is the single source of the desktop app version:
-// electron-builder reads it, and the git tag mirrors it.
-const PKG = 'desktop/package.json';
+// The root package.json is the engine's version; the git tag mirrors it. The
+// editor keeps its own copy because electron-builder reads that one, and it is a
+// submodule that may not be checked out — so it is mirrored, never required.
+const PKG = 'package.json';
+const EDITOR_PKG = 'desktop/package.json';
 
 function run(cmd) {
     console.log(chalk.gray(`  $ ${cmd}`));
@@ -62,7 +64,14 @@ if (oldVersion === version) {
 } else {
     pkg.version = version;
     writeFileSync(PKG, JSON.stringify(pkg, null, 2) + '\n');
-    run(`git add ${PKG}`);
+    let staged = PKG;
+    if (existsSync(EDITOR_PKG)) {
+        const editor = JSON.parse(readFileSync(EDITOR_PKG, 'utf8'));
+        editor.version = version;
+        writeFileSync(EDITOR_PKG, JSON.stringify(editor, null, 2) + '\n');
+        staged += ` ${EDITOR_PKG}`;
+    }
+    run(`git add ${staged}`);
     run(`git commit -m "chore: release v${version}"`);
 }
 

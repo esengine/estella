@@ -34,12 +34,12 @@ const ABI_TRIPLE = {
 };
 
 /**
- * The version a template is stamped with — `desktop/package.json`, which is also
+ * The version a template is stamped with — the root `package.json`, which is also
  * what `app.getVersion()` reports in the editor. The two must be the same number:
  * matching them is how the editor refuses a template built for another release.
  */
 export function readEngineVersion(root = config.paths.root) {
-    return JSON.parse(readFileSync(path.join(root, 'desktop', 'package.json'), 'utf8')).version;
+    return JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 }
 
 /**

@@ -10,9 +10,18 @@ import * as logger from '../utils/logger.js';
 export async function syncToDesktop(options = {}) {
     const { wasm = true, sdk = true } = options;
 
+    const rootDir = config.paths.root;
+
+    // The editor is an optional submodule. Creating desktop/public under an
+    // uninitialised one would leave build output where a checkout is supposed to
+    // go, so an absent editor is a skip, not a directory.
+    if (!existsSync(path.join(rootDir, 'desktop'))) {
+        logger.info('Sync: no editor checkout — skipping (engine output stays in build/)');
+        return { synced: 0, skipped: true };
+    }
+
     logger.step('Syncing to desktop/public...');
 
-    const rootDir = config.paths.root;
     let synced = 0;
 
     if (wasm) {

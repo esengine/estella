@@ -4,7 +4,7 @@
  * @file  check-release-metadata.mjs — the files that name the shipped version
  *        have to name the one being shipped.
  *
- * `desktop/package.json` is the version (release.js writes it and nothing else).
+ * The root `package.json` is the version (release.js writes it and nothing else).
  * Two other files repeat it, and repeating is how they fall behind: SECURITY.md
  * claimed 0.6.x/0.7.x were the supported series while 0.45.0 was shipping — a
  * table nobody had reason to open for thirty-eight releases, telling anyone who
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 
-const version = JSON.parse(read('desktop/package.json')).version;
+const version = JSON.parse(read('package.json')).version;
 const [major, minor] = version.split('.');
 const series = `${major}.${minor}.x`;
 

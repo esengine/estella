@@ -334,7 +334,7 @@ const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, `dist-${platf
 
 // The editor's package.json is the version of the whole product, and the runtime
 // templates are stored per version.
-const engineVersion = JSON.parse(readFileSync(path.join(REPO, 'desktop', 'package.json'), 'utf8')).version;
+const engineVersion = JSON.parse(readFileSync(path.join(REPO, 'package.json'), 'utf8')).version;
 const nativePlatform = platform === 'android' || platform === 'ios';
 const templateDir = nativePlatform
   ? (opts.template ? path.resolve(opts.template) : firstExisting([installedTemplateDir(engineVersion, platform)]) ?? null)
