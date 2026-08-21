@@ -184,10 +184,25 @@ export async function withEditor(body, opts = {}) {
       if (out) await writeFile(path.join(out, `${label}.png`), png);
       return readPNG(png);
     },
-    /** The composited window (the only way to see gizmo overlays or the play realm). */
-    screenshot: async (label, args = {}) => {
-      const block = await call('screenshot', args, 60000);
-      const png = Buffer.from(block.data ?? '', 'base64');
+    /**
+     * The composited window (the only way to see gizmo overlays or the play realm).
+     * `settled` returns the first frame that repeats — a command reaches the
+     * compositor after the call that asked for it, and a sleep guesses at when.
+     * A frame that never repeats (a running realm) comes back at the deadline.
+     */
+    screenshot: async (label, { settled = false, settleMs = 4000, ...args } = {}) => {
+      const shoot = async () => Buffer.from((await call('screenshot', args, 60000)).data ?? '', 'base64');
+      let png = await shoot();
+      if (settled) {
+        const deadline = Date.now() + settleMs;
+        while (Date.now() < deadline) {
+          await sleep(120);
+          const next = await shoot();
+          const same = next.equals(png);
+          png = next;
+          if (same) break;
+        }
+      }
       if (out) await writeFile(path.join(out, `${label}.png`), png);
       return readPNG(png);
     },

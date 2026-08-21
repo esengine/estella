@@ -80,9 +80,7 @@ export async function run(ed) {
   // The design overlay belongs to UI mode, and the editor remembers its mode.
   await ed.call('run_editor_command', { id: 'mode.scene' }, 30000);
   await ed.call('select', { id: null }, 30000);
-  await ed.sleep(800);
-
-  const first = await ed.screenshot('gizmo-chrome-locate');
+  const first = await ed.screenshot('gizmo-chrome-locate', { settled: true });
   const origin = originIn(first, viewportRegion(first));
   if (!check(origin != null, "the grid's axis lines were not found — the subject is at the origin")) {
     return check.failures;
@@ -96,13 +94,13 @@ export async function run(ed) {
     }
     // Adding a component selects its entity, and a selection draws chrome of its own.
     await ed.call('select', { id: null }, 30000);
-    await ed.sleep(700);
+    // Settled, not slept: the baseline is the difference between these two frames,
+    // so a frame read before its toggle landed inflates it and every shaped gizmo
+    // is then measured against a bar nothing can clear.
     await ed.call('run_editor_command', { id: 'view.toggleGizmos' }, 30000);
-    await ed.sleep(700);
-    const off = await ed.screenshot(`gizmo-chrome-${c.comp}-off`);
+    const off = await ed.screenshot(`gizmo-chrome-${c.comp}-off`, { settled: true });
     await ed.call('run_editor_command', { id: 'view.toggleGizmos' }, 30000);
-    await ed.sleep(700);
-    const on = await ed.screenshot(`gizmo-chrome-${c.comp}-on`);
+    const on = await ed.screenshot(`gizmo-chrome-${c.comp}-on`, { settled: true });
     const m = ink(off, on, origin, 300);
     await ed.call('remove_component', { entity: 0, component: c.comp }, 30000);
     await ed.sleep(400);
