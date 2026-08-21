@@ -23,7 +23,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createExecEndpoint } from '../shared/execEndpoint.mjs';
-import { onRendererConsole } from './rendererConsole.mjs';
+import { onRendererConsole } from '../../tools/lib/rendererConsole.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const TOKEN = process.env.ESTELLA_MCP_TOKEN;

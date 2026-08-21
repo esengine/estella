@@ -31,8 +31,8 @@ import os from 'node:os';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onRendererConsole } from './rendererConsole.mjs';
-import { serveHost } from '../../tools/lib/staticServer.mjs';
+import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { serveHost } from '../lib/staticServer.mjs';
 
 // SwiftShader rasterizes on the CPU; run the whole electron tree below normal
 // priority (child processes inherit the class) so a verify never starves the
@@ -41,7 +41,23 @@ try {
   os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
 } catch { /* not fatal — some sandboxes forbid it */ }
 
-const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+// Two hosts answer the same driving surface. The engine's is the default — a
+// gate about the renderer should not need an editor to run. The editor's keeps
+// the handful whose subject IS an editor door (the reference grid, hit-testing,
+// the editor eye, preview renders).
+const HOSTS = {
+  engine: { dist: path.join(ROOT, 'build', 'render-host'), page: 'index.html' },
+  editor: { dist: path.join(ROOT, 'desktop', 'dist'), page: 'headless.html' },
+};
+const HOST = process.env.ESTELLA_VERIFY_HOST ?? 'engine';
+if (!HOSTS[HOST]) {
+  console.error(`verify: unknown host "${HOST}" (have: ${Object.keys(HOSTS).join(', ')})`);
+  process.exit(2);
+}
+const DIST = HOSTS[HOST].dist;
+const PAGE = HOSTS[HOST].page;
 
 const SCENE = process.env.ESTELLA_VERIFY_SCENE ?? '/scenes/sprite-rendering.esscene';
 const MANIFEST = process.env.ESTELLA_VERIFY_MANIFEST ?? '/scenes/sprite-rendering.textures.json';
@@ -145,7 +161,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

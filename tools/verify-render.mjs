@@ -12,6 +12,7 @@
  *   node tools/verify-render.mjs --tier nightly --only spine,video
  */
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, SCENE_WATCHDOG_MS } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
@@ -28,6 +29,10 @@ const flag = (n, d) => {
 };
 
 const TIER = flag('tier', 'pr');
+// Which host's scenes to run. The engine's gates stand on their own, so a
+// checkout without the editor submodule runs `--host engine` and is not quietly
+// short a hundred checks — it says which list it took.
+const HOST_FILTER = flag('host', '');
 const ONLY = flag('only', '');
 const BACKEND = flag('backend', 'webgl2');
 const BUDGET = flag('budget', '');
@@ -50,6 +55,10 @@ if (!TIERS.includes(TIER)) {
   process.exit(2);
 }
 
+if (HOST_FILTER && !['engine', 'editor'].includes(HOST_FILTER)) {
+  console.error(`verify-render: unknown host "${HOST_FILTER}" (have: engine, editor)`);
+  process.exit(2);
+}
 if (!['webgl2', 'webgpu'].includes(BACKEND)) {
   console.error(`verify-render: unknown backend "${BACKEND}" (have: webgl2, webgpu)`);
   process.exit(2);
@@ -77,6 +86,9 @@ const selected = only
   : scenesAtTier(TIER).filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : true));
 const scenes = selected.map((s) => ({
   id: s.id,
+  // Which host answers this scene's driving surface. The engine's is the
+  // default; a scene names the editor's only when its SUBJECT is an editor door.
+  host: s.host ?? 'engine',
   env: BACKEND === 'webgpu'
     ? {
       ...s.env,
@@ -89,35 +101,63 @@ const scenes = selected.map((s) => ({
     }
     : s.env,
 }));
-// The copy this run will actually serve: --no-build leaves desktop/dist as it
-// stands, so a freshly built public/ one it never copies is evidence about a
-// binary no scene below is judging.
-requireCurrentEngine(ROOT, path.join(DESKTOP, NO_BUILD ? 'dist' : 'public', 'wasm'));
-console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`);
+const hosted = HOST_FILTER ? scenes.filter((s) => s.host === HOST_FILTER) : scenes;
+if (HOST_FILTER) {
+  const dropped = scenes.length - hosted.length;
+  if (dropped) console.log(`  not on this host: ${dropped} scene(s)`);
+  scenes.length = 0;
+  scenes.push(...hosted);
+}
+const hostsUsed = new Set(scenes.map((s) => s.host));
+console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`
+  + ` (host: ${[...hostsUsed].sort().join(' + ')})`);
 
-if (!NO_BUILD) {
-  const built = runTool('pnpm', ['exec', 'vite', 'build'], { cwd: DESKTOP, encoding: 'utf8' });
-  if (built.status !== 0) {
-    console.error(`verify-render: vite build failed\n${(built.stderr || built.stdout || '').slice(-800)}`);
-    process.exit(1);
+// Build each host this run needs, then check the wasm it will actually SERVE:
+// --no-build leaves a host's output as it stands, and a freshly built public/
+// copy it never staged is evidence about a binary no scene below is judging.
+if (hostsUsed.has('engine')) {
+  if (!NO_BUILD) {
+    const built = runTool('node', ['tools/render-host/build.mjs'], { cwd: ROOT, encoding: 'utf8' });
+    if (built.status !== 0) {
+      console.error(`verify-render: render-host build failed\n${(built.stderr || built.stdout || '').slice(-800)}`);
+      process.exit(1);
+    }
   }
+  requireCurrentEngine(ROOT, path.join(ROOT, 'build', 'render-host', 'wasm'));
+}
+if (hostsUsed.has('editor')) {
+  if (!existsSync(DESKTOP)) {
+    console.error('verify-render: these scenes name the editor host, which is not checked out'
+      + ' (desktop/ is an optional submodule).');
+    process.exit(2);
+  }
+  if (!NO_BUILD) {
+    const built = runTool('pnpm', ['exec', 'vite', 'build'], { cwd: DESKTOP, encoding: 'utf8' });
+    if (built.status !== 0) {
+      console.error(`verify-render: vite build failed\n${(built.stderr || built.stdout || '').slice(-800)}`);
+      process.exit(1);
+    }
+  }
+  requireCurrentEngine(ROOT, path.join(DESKTOP, NO_BUILD ? 'dist' : 'public', 'wasm'));
 }
 
 const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
 function runScene(scene) {
+  const RUNNER = 'tools/render-host/run.mjs';
   const args = XVFB
-    ? ['-a', 'pnpm', 'exec', 'electron', 'scripts/headless-verify.mjs']
-    : ['exec', 'electron', 'scripts/headless-verify.mjs'];
+    ? ['-a', 'pnpm', 'exec', 'electron', RUNNER]
+    : ['exec', 'electron', RUNNER];
   const at = Date.now();
   const r = runTool(XVFB ? 'xvfb-run' : 'pnpm', args, {
-    cwd: DESKTOP,
+    cwd: ROOT,
     encoding: 'utf8',
     timeout: WATCHDOG_MS + LAUNCH_MARGIN_MS,
     env: {
       ...process.env,
       ELECTRON_DISABLE_SANDBOX: '1',
       ESTELLA_VERIFY_TIMEOUT_MS: String(WATCHDOG_MS),
+      ESTELLA_VERIFY_HOST: scene.host,
       ...scene.env,
     },
   });

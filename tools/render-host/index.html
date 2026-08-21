@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Mirrors the CSP a shipped page runs under (embind needs 'unsafe-eval'),
+         so a render that fails here for a CSP reason fails there too. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws:; worker-src 'self' blob:;"
+    />
+    <title>Estella Render Host</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #000; }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="./host.js"></script>
+  </body>
+</html>

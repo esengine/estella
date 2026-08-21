@@ -37,7 +37,7 @@ import http from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { onRendererConsole } from './rendererConsole.mjs';
+import { onRendererConsole } from '../../tools/lib/rendererConsole.mjs';
 
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 

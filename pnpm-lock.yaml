@@ -21,6 +21,12 @@ importers:
         specifier: ^8.0.0
         version: 8.2.0
     devDependencies:
+      electron:
+        specifier: ^42.4.1
+        version: 42.4.1
+      esbuild:
+        specifier: ^0.27.0
+        version: 0.27.7
       madge:
         specifier: ^8.0.0
         version: 8.0.0(typescript@5.9.3)

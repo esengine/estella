@@ -14,7 +14,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onRendererConsole } from './rendererConsole.mjs';
+import { onRendererConsole } from '../../tools/lib/rendererConsole.mjs';
 
 const COOKED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.cooked-verify');
 const W = 256, H = 256;

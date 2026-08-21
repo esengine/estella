@@ -19,7 +19,7 @@ import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { onRendererConsole } from './rendererConsole.mjs';
+import { onRendererConsole } from '../../tools/lib/rendererConsole.mjs';
 
 try {
   os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
