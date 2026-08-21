@@ -12,6 +12,63 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Changed
+
+- **The visual editor is no longer open source.** It moved to a private repository
+  (`esengine/estella-editor`) and is mounted back at `desktop/` as an **optional**
+  submodule; the engine — runtime, SDK, asset pipeline, CLI, project templates and
+  the editor plugin API — stays Apache-2.0 in this repository. Everything released
+  through 0.55.0 keeps its irrevocable Apache-2.0 grant, including the editor, which
+  is why the per-file SPDX headers on pre-split files are left as they are.
+  [BUSINESS_MODEL.md](BUSINESS_MODEL.md) says what was promised before and what
+  changed, in the place the old promise was written.
+- **The engine verifies its own renderer.** All 108 pixel gates used to run on the
+  editor: the runner served `desktop/dist`, whose entry pulled in `EngineHost` +
+  `EditorSession`, so the gates asserted about the renderer as the EDITOR drives it
+  rather than as a shipped game does. `tools/render-host/` is the engine's own
+  headless host, built out of shipped SDK calls with no authoring model between the
+  scene file and the World. 100 gates now run engine-side; the 8 whose subject is an
+  editor door declare `host: 'editor'`. `verify-render.mjs --host engine|editor`
+  picks a list.
+- **Project templates and scene fixtures are engine-side.** `desktop/templates` →
+  `templates/` (the root `templates/` it replaced was dead — nothing substituted its
+  placeholders), and `desktop/public/{scenes,assets}` → `fixtures/`.
+- **The plugin type surface is its own package.** `desktop/src/plugins/types.ts` →
+  `editor-api/index.ts` (`@estella/editor-api`), so plugin authors and `plugins/*`
+  need no private code to build against the contract VERSIONING.md makes promises
+  about.
+- **The engine's version is the root `package.json`.** `desktop/package.json` was the
+  single source for the CLI's engine version, the native template stamp, the docs
+  site and the release-metadata gate — none of which can depend on a submodule that
+  may not be checked out.
+
+### Fixed
+
+- **`tsc-editor` reported success with no editor to check.** `pnpm --filter` prints
+  "No projects matched the filters" and exits 0, so an uninitialised submodule left
+  the gate type-checking nothing and passing.
+- **CI's shader-twin steps would have silently narrowed.** Both still globbed
+  `desktop/public/scenes`, so after the fixture move they would have checked
+  `examples/` alone and stayed green.
+- **The repo root and the SDK were both named `esengine`,** so pnpm could resolve
+  `esengine: workspace:*` to the repository root instead of the SDK. The root is now
+  `estella`.
+- `check-physics3d` and `verify-desktop-render` were engine checks reading out of the
+  editor's directory; the four SDK physics smokes hard-coded `desktop/public/wasm`
+  rather than the engine's own build output.
+
+### Added
+
+- **Gates hold up without the editor.** Nine gates whose subject IS the editor
+  declare `needs: 'editor'` and are named when skipped. Gates spanning both
+  (`cycles`, `component-fields`, `import-settings`, `component-reference`,
+  `release-gate`) report exactly what they could not judge — a field whose only
+  reader is the inspector is *unverifiable here*, not dead. Verified against a
+  deinitialised submodule: 45/45 static gates and 100/100 engine pixel gates green,
+  with every downgrade printed.
+
 ## [0.55.0] - 2026-08-21
 
 ### Fixed
