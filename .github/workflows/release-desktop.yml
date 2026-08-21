@@ -345,7 +345,17 @@ jobs:
       contents: write
 
     steps:
+      # The editor is a private submodule, so this needs a token that can read it.
+      # EDITOR_SUBMODULE_TOKEN is the one; without it the job fails at checkout
+      # rather than publishing an installer built from whatever was left behind.
       - uses: actions/checkout@v7
+        with:
+          submodules: false
+          token: ${{ secrets.EDITOR_SUBMODULE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Check out the editor
+        shell: bash
+        run: git submodule update --init --depth 1 desktop
 
       - uses: ./.github/actions/setup
 

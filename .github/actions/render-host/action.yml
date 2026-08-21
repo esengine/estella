@@ -1,9 +1,9 @@
-name: Editor host from this run's engine
-description: Stage the wasm this run built into the editor host, with the SDK and the renderer bundle built against it.
+name: Engine render host from this run's engine
+description: Build the engine's headless render host against the wasm this run produced.
 
-# Every job that measures pixels needs the same four steps between the artifact
-# and a runnable host. Two jobs do, and a second copy of them is a copy that
-# drifts — one of them would end up measuring an engine the other never built.
+# Every job that measures pixels needs the same three steps between the artifact
+# and a runnable host. More than one does, and a second copy of them is a copy
+# that drifts — one job would end up measuring an engine the other never built.
 runs:
   using: composite
   steps:
@@ -17,13 +17,6 @@ runs:
       shell: bash
       run: pnpm --filter ./sdk build
 
-    - name: Stage wasm for the editor host
+    - name: Build the render host
       shell: bash
-      run: |
-        mkdir -p desktop/public/wasm
-        cp build/wasm/web/* desktop/public/wasm/
-
-    - name: Build editor renderer bundle
-      shell: bash
-      working-directory: desktop
-      run: pnpm exec vite build
+      run: node tools/render-host/build.mjs

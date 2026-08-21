@@ -288,7 +288,7 @@ jobs:
     # is WebGPU-dead by design and gen-shader-twins --check exits 1 on it. Covers
     # examples/ too so a shipped user shader can never regress to WebGL-only.
     - name: Check shader twins
-      run: node tools/gen-shader-twins.mjs --check $(find desktop/public/scenes examples -name '*.esshader')
+      run: node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader')
 
     # Pipeline smoke: strip a fixture's twins into a temp copy and require the
     # vendored converters (glslang wasm + naga WASI wasm) to produce one —
@@ -296,7 +296,7 @@ jobs:
     - name: Shader-twin pipeline smoke
       run: |
         tmp=$(mktemp -d)
-        sed '/#pragma vertex wgsl/,$d' desktop/public/scenes/mat-tint/tint.esshader > "$tmp/smoke.esshader"
+        sed '/#pragma vertex wgsl/,$d' fixtures/scenes/mat-tint/tint.esshader > "$tmp/smoke.esshader"
         if node tools/gen-shader-twins.mjs --check "$tmp/smoke.esshader"; then
           echo "expected would-generate (exit 1) for a twin-less shader"; exit 1
         fi
@@ -305,16 +305,9 @@ jobs:
       # The list lives in tools/renderScenes.mjs, not here: CI and a developer
       # ran two lists that had drifted both ways — thirty-two declared gates
       # nothing ran, five CI scenes with no name to reproduce them by.
-      # --no-build: the renderer bundle is already built two steps up.
-      run: node tools/verify-render.mjs --tier pr --no-build
-
-    - name: Run MCP end-to-end
-      working-directory: desktop
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: |
-        xvfb-run -a node scripts/editor-mcp-e2e.mjs
-        xvfb-run -a node scripts/editor-mcp-editor-e2e.mjs
+      # --no-build: the host is already built two steps up. --host engine takes
+      # the scenes that need no editor; verify-editor runs the rest.
+      run: node tools/verify-render.mjs --tier pr --host engine --no-build
 
     # The EDITOR's authoring surface, driven for real. The engine has had a pixel
     # gate for years; the editor had none, which is how depth layers shipped
@@ -336,16 +329,34 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        submodules: true
 
     - uses: ./.github/actions/setup
 
-    - uses: ./.github/actions/render-host
+    - uses: ./.github/actions/editor-host
 
     - name: Run editor authoring checks
       working-directory: desktop
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node scripts/editor-checks/run.mjs
+
+    # The pixel gates whose subject is an editor door — the reference grid, hit
+    # testing, the editor eye, preview renders. They cannot run on the engine's
+    # host, which deliberately has none of those.
+    - name: Run the editor's pixel gates
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build
+
+    - name: Run MCP end-to-end
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: |
+        xvfb-run -a node scripts/editor-mcp-e2e.mjs
+        xvfb-run -a node scripts/editor-mcp-editor-e2e.mjs
 
   verify-packages:
     name: Packages (golden + released)
@@ -360,10 +371,12 @@ jobs:
         # …), which a shallow checkout has none of — the step failed on every run
         # that ever reached it.
         fetch-depth: 0
+        # The comparison frame is the EDITOR's, so this job needs its checkout.
+        submodules: true
 
     - uses: ./.github/actions/setup
 
-    - uses: ./.github/actions/render-host
+    - uses: ./.github/actions/editor-host
 
     # The golden corpus, packaged and opened the way a player opens it, then held
     # against the editor's own frame of the same game. Exporting was checked and
@@ -415,7 +428,7 @@ jobs:
     - name: Second backend, PR tier
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
-      run: node tools/verify-render.mjs --tier pr --backend webgpu --no-build --budget 45
+      run: node tools/verify-render.mjs --tier pr --backend webgpu --host engine --no-build --budget 45
 
   # The native runtime, judged by pixels on a machine with no GPU.
   #

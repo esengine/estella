@@ -1,0 +1,29 @@
+name: Editor host from this run's engine
+description: Stage the wasm this run built into the editor host, with the SDK and the renderer bundle built against it.
+
+# For the gates whose subject IS the editor. The engine's own host is a sibling
+# action; a job that measures the renderer should take that one, so an editor
+# checkout is never on the path of an engine verdict.
+runs:
+  using: composite
+  steps:
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    - name: Build SDK
+      shell: bash
+      run: pnpm --filter ./sdk build
+
+    - name: Stage wasm for the editor host
+      shell: bash
+      run: |
+        mkdir -p desktop/public/wasm
+        cp build/wasm/web/* desktop/public/wasm/
+
+    - name: Build editor renderer bundle
+      shell: bash
+      working-directory: desktop
+      run: pnpm exec vite build

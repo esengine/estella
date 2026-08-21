@@ -124,7 +124,7 @@ function desktopPixelsFor(id) {
 
 const opts = parseArgs(process.argv.slice(2));
 const templateDir = opts.template ?? installedTemplateDir(
-    JSON.parse(readFileSync(path.join(ROOT, 'desktop', 'package.json'), 'utf8')).version, HOST_OS);
+    JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version, HOST_OS);
 if (!templateDir || !existsSync(templateDir)) {
     console.error(`verify-desktop-render: no ${HOST_OS} runtime template installed — build one with `
         + `\`node build-tools/cli.js native --target ${HOST_OS}\`.`);
