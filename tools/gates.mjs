@@ -53,7 +53,10 @@ export const GATES = [
   { id: 'api-surface-dts', run: 'node tools/api-surface.mjs --check-dts' },
   // Both read `esengine` from dist, and the editor reads the pipeline.
   { id: 'tsc-pipeline', run: 'pnpm --filter @estella/pipeline exec tsc --noEmit' },
-  { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit' },
+  // needs: 'editor' is load-bearing here rather than merely tidy: `pnpm --filter`
+  // prints "No projects matched the filters" and exits 0, so without a checkout
+  // this gate reported success having type-checked nothing at all.
+  { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit', needs: 'editor' },
   // The shipped plugins type-check against the editor's LIVE plugin API surface
   // (types.ts, the file authors are handed), so a change to it that no plugin
   // could survive fails here rather than in someone else's project.
