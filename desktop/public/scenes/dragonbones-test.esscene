@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "name": "DragonBonesTest",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "DragonBoy",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -120, "z": 0 } } },
+        {
+          "type": "DragonBonesAnimation",
+          "data": {
+            "skeletonPath": "/assets/dragonbones/DragonBoy_ske.json",
+            "atlasPath": "/assets/dragonbones/DragonBoy_tex.json",
+            "armature": "Dragon",
+            "animation": "stand",
+            "timeScale": 1,
+            "loop": true,
+            "playing": true,
+            "fadeInTime": 0.2,
+            "flipX": false,
+            "flipY": false,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "layer": 0,
+            "skeletonScale": 1.0,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

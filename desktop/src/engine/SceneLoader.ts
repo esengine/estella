@@ -7,6 +7,7 @@ import { AssetBinding } from './AssetBinding';
 import { EditorHistory } from './EditorHistory';
 import { PerfMonitor } from './PerfMonitor';
 import { loadEditorSpine } from './spineLoad';
+import { loadEditorDragonBones } from './dragonBonesLoad';
 
 type SceneDataArg = Parameters<typeof loadSceneData>[1];
 
@@ -53,12 +54,13 @@ export const SceneLoader = {
     }
 
     const map = PerfMonitor.measure('scene.load', () => loadSceneData(app.world, resolved as SceneDataArg));
-    // Spine renders through its side modules, loaded separately from Assets (skel
-    // /atlas/textures + per-entity instances). Refs are the scene's own paths or
-    // @uuid: (resolved via the manifest).
-    await loadEditorSpine(app, raw, map as Map<number, number>, (ref) =>
-      ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? ref) : ref,
-    );
+    // Both skeletal runtimes render through side modules, loaded separately from
+    // Assets. Refs are the scene's own paths or @uuid:. BOTH, because the project
+    // transport binds both and one door short is a difference nothing declares.
+    const toUrl = (ref: string) =>
+      ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? ref) : ref;
+    await loadEditorSpine(app, raw, map as Map<number, number>, toUrl);
+    await loadEditorDragonBones(app, raw, map as Map<number, number>, toUrl);
     EditorHistory.clearScene();
     SceneModel.adopt(raw, map as Map<number, number>);
     return map.size;
