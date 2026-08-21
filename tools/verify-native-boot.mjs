@@ -689,15 +689,22 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
     // capture that outran the game, one after three hundred is the game, and
     // without the number they read as the same failure.
     const frames = framesDrawn(log);
+    // Judge the pixels where the loop reached the frame the wait asked for, not
+    // below it: there the capture and the game are still racing. Zero is neither —
+    // ready and then no frame at all is the failure it looks like.
+    const unjudged = countColors && frames > 0 && frames < opts.frames
+        ? `too slow to judge here — ${frames} frame(s) before the capture`
+        : null;
     const why = !ready ? 'never reported ready'
         : offScreen ? `the game was not on screen — ${offScreen}`
             : bootErrors.length ? bootErrors[0].trim()
-                : (countColors && colors < opts.minColors)
-                    ? `the frame is ${colors} flat color after ${frames} frame(s)`
-                    : recreateWhy;
+                : (countColors && frames === 0) ? 'reported ready, then drew no frame at all'
+                    : (countColors && !unjudged && colors < opts.minColors)
+                        ? `the frame is ${colors} flat color after ${frames} frame(s)`
+                        : recreateWhy;
 
     return {
-        ok: !why, ready, colors, frames, readyLine, errors, offScreen, metrics,
+        ok: !why, ready, colors, frames, unjudged, readyLine, errors, offScreen, metrics,
         size: `${image.width}x${image.height}`, log, shot, why,
     };
 }
@@ -838,10 +845,11 @@ for (const name of examples) {
         // is gigabytes for no reason.
         rmSync(work, { recursive: true, force: true });
     } catch (err) {
-        r = { ok: false, why: err.message, log: '', colors: 0, size: '-' };
+        r = { ok: false, why: err.message, log: '', colors: 0, frames: 0, unjudged: null, size: '-' };
     }
     results.push({ name, ...r });
-    const frameNote = FRAME_NOT_JUDGED[name] ? ' (frame not judged)' : '';
+    const frameNote = FRAME_NOT_JUDGED[name] ? ' (frame not judged)'
+        : r.unjudged ? ` — ${r.unjudged}` : '';
     console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors, ${r.frames} frames${frameNote}` : `✗ ${r.why.split('\n')[0]}`}`);
 }
 
@@ -849,7 +857,11 @@ const known = Object.keys(KNOWN_FAILURES);
 const brokeUnexpectedly = results.filter((r) => !r.ok && !KNOWN_FAILURES[r.name]);
 const fixedUnexpectedly = results.filter((r) => r.ok && KNOWN_FAILURES[r.name]);
 
-note(`### ${driver.name} — ${results.filter((r) => r.ok).length}/${results.length} examples started and drew`);
+// Counted, because a run that could not judge half its frames proved half of
+// what it claims and should not read as a clean pass.
+const tooSlow = results.filter((r) => r.ok && r.unjudged);
+note(`### ${driver.name} — ${results.filter((r) => r.ok).length}/${results.length} examples started and drew`
+    + (tooSlow.length ? `, ${tooSlow.length} too slow to judge (${tooSlow.map((r) => r.name).join(', ')})` : ''));
 note('');
 note(`Device: \`${device}\``);
 note('');
