@@ -74,10 +74,16 @@ export function readPixelsPerUnit(app: App): number {
 
 const MAX_COLLISION_LAYERS = 16;
 
+/**
+ * What a collider on `categoryBits` may touch: the project's layer table when it
+ * names that layer, the collider's own mask otherwise. A table is saved at the
+ * length a project has named, so reading past its end is a layer nobody set —
+ * not a layer that touches nothing, which is what `undefined` reaches wasm as.
+ */
 function resolveCollisionMask(categoryBits: number, maskBits: number, layerMasks?: number[]): number {
     if (!layerMasks) return maskBits;
     for (let i = 0; i < MAX_COLLISION_LAYERS; i++) {
-        if (categoryBits === (1 << i)) return layerMasks[i];
+        if (categoryBits === (1 << i)) return layerMasks[i] ?? maskBits;
     }
     return maskBits;
 }
