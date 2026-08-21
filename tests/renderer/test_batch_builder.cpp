@@ -101,8 +101,8 @@ TEST_CASE("appendIndexedDraw: non-Batch stream uses its own stride for baseVerte
 
     REQUIRE(h.list.commandCount() == 2);
     CHECK(h.list.command(0).layout_id == LayoutId::Shape);
-    // A textureless non-Batch draw must not claim a sampler slot (execute() binds
-    // only texture_count units for non-Batch layouts).
+    // A textureless draw must not claim a sampler slot: texture_count is what
+    // execute() binds, and zero of them is what "declares no sampler" looks like.
     CHECK(h.list.command(0).texture_count == 0);
     CHECK(h.list.command(1).vertex_byte_offset == 4 * sizeof(TestShapeVertex));
     // Indices rebased by the SHAPE stride (4 records), not the Batch stride.
@@ -375,6 +375,51 @@ TEST_CASE("execute: a merged mesh draw asks the device for its instances in one 
     CHECK(h.device.drawElementsInstancedCalls == 1);
     CHECK(h.device.lastDrawInstanceCount == 4);
     CHECK(h.device.lastDrawIndexCount == 36);
+}
+
+TEST_CASE("execute: a sampling draw pins every sampler unit it does not use") {
+    // A unit a draw leaves alone keeps what the draw BEFORE it bound, across passes
+    // and frames. So a draw states its whole sampler block or none of it: one that
+    // leaves unit 2 alone samples the shadow atlas a shadow pass is drawing into.
+    Harness h;
+    MaterialStore materials;
+    const u32 white = 99;
+
+    BatchDrawKey key = meshKey(5, /*textureId=*/7);  // albedo only: texture_count == 1
+    pushMeshInstance(h, key, 1.0f);
+    h.list.finalize(h.pool);
+    h.pool.upload();
+    h.list.execute(h.device, h.pool, materials, white);
+
+    u32 boundAt[MAX_CMD_TEXTURE_SLOTS] = {};
+    bool seen[MAX_CMD_TEXTURE_SLOTS] = {};
+    for (const auto& [unit, tex] : h.device.bindLog) {
+        REQUIRE(unit < MAX_CMD_TEXTURE_SLOTS);
+        boundAt[unit] = static_cast<u32>(tex);
+        seen[unit] = true;
+    }
+    for (u32 unit = 0; unit < MAX_CMD_TEXTURE_SLOTS; ++unit) {
+        CHECK(seen[unit]);  // no unit left to whatever ran before
+        CHECK(boundAt[unit] == (unit == 0 ? 7u : white));
+    }
+}
+
+TEST_CASE("execute: a textureless stream declares no sampler and is left alone") {
+    // The other half of the same rule: the shape stream samples nothing, so it
+    // declares nothing, so there is no binding for stale state to land in.
+    Harness h;
+    MaterialStore materials;
+
+    TestShapeVertex sverts[4] = {};
+    BatchDrawKey key = quadKey(0);
+    key.layoutId = LayoutId::Shape;
+    appendIndexedDraw(h.pool, h.list, h.clips, sverts, 4, BATCH_QUAD_INDICES, 6, key);
+
+    h.list.finalize(h.pool);
+    h.pool.upload();
+    h.list.execute(h.device, h.pool, materials, 99);
+
+    CHECK(h.device.bindLog.empty());
 }
 
 TEST_CASE("clip state is stamped onto commands from every stream") {

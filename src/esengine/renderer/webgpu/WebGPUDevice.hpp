@@ -467,6 +467,10 @@ private:
     u32 pass_height_ = 0;
     WGPUTextureFormat pass_ds_format_ = WGPUTextureFormat_Undefined;
     WGPUTextureFormat pass_color_format_ = WGPUTextureFormat_RGBA8Unorm;
+    /// What this pass draws INTO, so flushBindGroup can refuse to also sample it.
+    /// 0 = none (the surface, which nothing can hold as a texture anyway).
+    u32 pass_color_texture_ = 0;
+    u32 pass_depth_texture_ = 0;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
     void* surface_window_ = nullptr;        ///< Native window the surface was made for.

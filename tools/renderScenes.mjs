@@ -72,6 +72,11 @@ export const SCENES = [
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.
   { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
 
+    // The same scene with a MATERIAL on the occluder, over three frames because a
+    // stale sampler unit needs a previous frame. Red at the centre says the material
+    // ran in the CAMERA's pass; black at 0.708 says the occluder still cast.
+  { id: "mesh-shadow-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-material.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
+
   // The same question through a PERSPECTIVE camera, which is what a 3D scene uses:
   // coverage derived from the camera's NDC z=0 slice is the whole view for the
   // orthographic one above and a sliver near the near plane for this one.

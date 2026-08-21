@@ -1481,7 +1481,13 @@ void WebGPUDevice::flushBindGroup() {
         WGPUBindGroupEntry texEntries[kTextureSlots * 2];
         u32 texCount = 0;
         for (u32 unit = 0; unit < kTextureSlots; ++unit) {
-            auto it = textures_.find(texture_slots_[unit]);
+            // A pass may not sample what it draws into: WebGPU rejects the whole
+            // COMMAND BUFFER for it, not the draw. The dummy stands in — reading
+            // one's own attachment is undefined under every backend anyway.
+            const u32 bound = texture_slots_[unit];
+            const bool feedback = bound != 0 && (bound == pass_color_texture_ ||
+                                                 bound == pass_depth_texture_);
+            auto it = feedback ? textures_.end() : textures_.find(bound);
             const TextureRec* rec = (it != textures_.end()) ? &it->second : dummy;
             if (!rec) continue;
             const u32 tb = textureBindingForUnit(unit);
@@ -1580,6 +1586,8 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     WGPUTextureView dsView = nullptr;
     pass_ds_format_ = WGPUTextureFormat_Undefined;
     pass_color_format_ = surface_format_;
+    pass_color_texture_ = 0;
+    pass_depth_texture_ = 0;
     pass_is_surface_ = desc.target == FramebufferHandle::Default;
     if (desc.target != FramebufferHandle::Default) {
         auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
@@ -1594,6 +1602,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         }
         targetView = texIt->second.view;
         pass_color_format_ = texIt->second.format;
+        pass_color_texture_ = fbIt->second.color0;
         pass_width_ = texIt->second.width;
         pass_height_ = texIt->second.height;
         if (fbIt->second.depthStencil != 0) {
@@ -1601,6 +1610,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
             if (dsIt != textures_.end()) {
                 dsView = dsIt->second.view;
                 pass_ds_format_ = dsIt->second.format;
+                pass_depth_texture_ = fbIt->second.depthStencil;
             }
         }
     } else {

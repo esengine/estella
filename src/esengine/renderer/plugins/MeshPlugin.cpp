@@ -248,19 +248,6 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         }
         if (mesh.cullBackfaces) key.cull = static_cast<u8>(CullMode::Back);
 
-        // Casting into a shadow map: every occluder is opaque and depth-tested for
-        // this pass whatever it is in the camera's, because the map holds the
-        // NEAREST occluder and a blended one would let a later draw overwrite it.
-        if (ctx.shadow_pass) {
-            key.stage = RenderStage::Opaque;
-            key.blend = BlendMode::None;
-            key.depthTest = true;
-            key.depthWrite = true;
-            key.materialId = 0;
-            key.shadowTextureId = 0;
-            key.envTextureId = 0;
-        }
-
         // Material resolve mirrors SpritePlugin: an unregistered handle falls back to
         // the default batch shader; a material owns shading fully, so it takes
         // precedence over the lit toggle.
@@ -276,6 +263,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         } else if (mesh.lit && ctx.frame) {
             if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
             if (litProgram != 0) key.shaderId = litProgram;
+        }
+
+        // Casting into a shadow map: opaque and depth-tested whatever the camera's
+        // pass makes it, and none of the three ways to describe a surface — lit, a
+        // normal map, a material. LAST, so the pass outranks all three.
+        if (ctx.shadow_pass) {
+            key.stage = RenderStage::Opaque;
+            key.blend = BlendMode::None;
+            key.depthTest = true;
+            key.depthWrite = true;
+            key.materialId = 0;
+            key.shadowTextureId = 0;
+            key.envTextureId = 0;
         }
 
         // Resident geometry: only the transform is written for the frame. Its

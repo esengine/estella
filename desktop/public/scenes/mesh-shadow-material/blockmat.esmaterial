@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "blockmat.esshader",
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": true,
+  "properties": {}
+}
