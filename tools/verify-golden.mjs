@@ -39,7 +39,8 @@ const NO_PARITY = argv.includes('--no-parity');
 /** Targets this runner owns; the rest belong to the native/desktop verifiers.
  *  A mini-game needs its vendor's globals, so it goes through its own launcher. */
 const OWNED = new Set(['web', 'playable', 'wechat']);
-const LAUNCHER = (target) => (target === 'wechat' ? 'launch-minigame.mjs' : 'launch-export.mjs');
+const LAUNCHER = (target) => path.join(ROOT, 'tools', 'launchers',
+  target === 'wechat' ? 'launch-minigame.mjs' : 'launch-export.mjs');
 /** Targets whose surface this runner can size to the editor's, which is what
  *  makes a frame comparable at all. Measured on one project: web 0.0009,
  *  playable 0.0027, wechat 0.0027 — the packaging wrapper is not what differs. */
@@ -179,8 +180,10 @@ function probePositions(target, dir, w, h, names, extra = []) {
 function launchPackage(id, target, args) {
   const run = retryOnDeadGpu(
     () => {
-      const r = runTool('npx', ['electron', path.join('scripts', LAUNCHER(target)), ...args],
-        { encoding: 'utf8', cwd: DESKTOP });
+      // Opening a PACKAGE needs no editor — the launchers are engine-side, so a
+      // checkout without one can still judge what it shipped.
+      const r = runTool('pnpm', ['exec', 'electron', LAUNCHER(target), ...args],
+        { encoding: 'utf8', cwd: ROOT });
       // The launcher prints a ✓/✗ line once it has looked at the frame; that
       // line existing is what says a measurement happened.
       const verdictLine = (r.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗'));

@@ -59,12 +59,12 @@ if (exported.status !== 0) {
   process.exit(1);
 }
 
-const played = runTool('npx', [
-  'electron', path.join('scripts', 'play-through.mjs'),
+const played = runTool('pnpm', [
+  'exec', 'electron', path.join(ROOT, 'tools', 'launchers', 'play-through.mjs'),
   '--dir', out, '--route', ROUTE,
   '--out', path.join(WORK, `${PROJECT}.png`),
   '--budget', '26000',
-], { encoding: 'utf8', cwd: DESKTOP });
+], { encoding: 'utf8', cwd: ROOT });
 
 for (const line of (played.stdout || '').split('\n')) if (line.trim()) console.log(line);
 if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true });

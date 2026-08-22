@@ -122,7 +122,7 @@ export const GATES = [
     why: 'it runs the built 3D physics wasm; CI builds that module in its own wasm job',
   },
   { id: 'engine-gaps', run: 'node tools/check-engine-gaps.mjs' },
-  { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs', needs: 'editor' },
+  { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
   { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },

@@ -38,7 +38,7 @@ export const CRITERIA = [
     id: 'package-answers-input',
     says: 'a packaged game visibly answers the input its project declares',
     answeredBy: 'node tools/verify-golden.mjs --tier release',
-    needs: ['desktop/scripts/inputScript.mjs'],
+    needs: ['tools/launchers/inputScript.mjs'],
   },
   {
     id: 'launch-smoke-every-platform',
@@ -47,8 +47,8 @@ export const CRITERIA = [
       + ' && node tools/verify-desktop-render.mjs --tier pr'
       + ' && node tools/verify-native-boot.mjs --platform android --examples all',
     needs: [
-      'desktop/scripts/launch-export.mjs',
-      'desktop/scripts/launch-minigame.mjs',
+      'tools/launchers/launch-export.mjs',
+      'tools/launchers/launch-minigame.mjs',
       'tools/verify-desktop-render.mjs',
       'tools/verify-native-boot.mjs',
     ],
@@ -142,7 +142,7 @@ export const CRITERIA = [
     answeredBy: 'node tools/verify-playthrough.mjs',
     needs: [
       'tools/verify-playthrough.mjs',
-      'desktop/scripts/play-through.mjs',
+      'tools/launchers/play-through.mjs',
       'examples/celestial-heights/playthrough.json',
     ],
   },

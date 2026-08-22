@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SHIM_MEMBERS } from '../desktop/scripts/minigameHost.mjs';
+import { SHIM_MEMBERS } from './launchers/minigameHost.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'sdk/src/platform/minigame/api.ts';
@@ -54,7 +54,7 @@ if (missing.length || stale.length) {
   console.error('check-minigame-host: the stand-in host no longer matches the engine.\n');
   for (const n of missing) console.error(`  the engine requires "${n}" and the shim does not provide it`);
   for (const n of stale) console.error(`  the shim provides "${n}", which MiniGameGlobal does not declare`);
-  console.error('\n  Both live in desktop/scripts/minigameHost.mjs (SHIM_MEMBERS beside the page).');
+  console.error('\n  Both live in tools/launchers/minigameHost.mjs (SHIM_MEMBERS beside the page).');
   process.exit(1);
 }
 
