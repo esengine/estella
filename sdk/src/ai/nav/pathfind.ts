@@ -11,7 +11,7 @@
  */
 
 import type { NavGrid, Cell } from './NavGrid';
-import type { Vec2 } from '../../types';
+import type { Vec3 } from '../../types';
 
 export interface PathfindOptions {
     /** Allow 8-connected diagonal moves. Default true. */
@@ -88,6 +88,9 @@ export function findPath(
             const nx = cx + dx;
             const ny = cy + dy;
             if (!fits(grid, nx, ny, clearance)) continue;
+            // Ground that steps up further than the agent can climb is a wall,
+            // however walkable the cell on top of it is.
+            if (!grid.canStep(cx, cy, nx, ny)) continue;
             // No corner-cutting: a diagonal needs both shared orthogonals open.
             if (i >= 4 && (!fits(grid, cx + dx, cy, clearance) || !fits(grid, cx, cy + dy, clearance))) continue;
 
@@ -107,8 +110,8 @@ export function findPath(
     return null;
 }
 
-/** Convert a cell path to world-space waypoints (cell centers). */
-export function pathToWorld(grid: NavGrid, path: Cell[]): Vec2[] {
+/** Convert a cell path to world-space waypoints (cell centres, on the grid's plane). */
+export function pathToWorld(grid: NavGrid, path: Cell[]): Vec3[] {
     return path.map(c => grid.cellToWorld(c.x, c.y));
 }
 

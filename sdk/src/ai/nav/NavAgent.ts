@@ -13,7 +13,7 @@
 
 import { defineComponent } from '../../ecs/component';
 import type { World } from '../../ecs/world';
-import type { Entity, Vec2 } from '../../types';
+import type { Entity } from '../../types';
 
 export interface NavAgentData {
     /** Movement speed in world pixels per second. */
@@ -34,6 +34,7 @@ export interface NavAgentData {
     /** Destination in world pixels. */
     targetX: number;
     targetY: number;
+    targetZ: number;
     /** Set true by the system the frame the agent reaches its goal. */
     arrived: boolean;
 }
@@ -46,6 +47,7 @@ export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
     hasTarget: false,
     targetX: 0,
     targetY: 0,
+    targetZ: 0,
     arrived: false,
 }, {
     fields: {
@@ -59,6 +61,7 @@ export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
         hasTarget: { category: 'Target' },
         targetX: { unit: 'px', category: 'Target' },
         targetY: { unit: 'px', category: 'Target' },
+        targetZ: { unit: 'px', category: 'Target' },
         arrived: { category: 'Target', advanced: true },
     },
 });
@@ -68,12 +71,19 @@ export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
  * (e.g. to chase a moving target) — the system only replans when the target
  * actually moves or the repath timer elapses.
  */
-export function setNavDestination(world: World, entity: Entity, target: Vec2): void {
+export function setNavDestination(
+    world: World,
+    entity: Entity,
+    target: { x: number; y: number; z?: number },
+): void {
     if (!world.has(entity, NavAgent)) return;
     const agent = world.get(entity, NavAgent);
     agent.hasTarget = true;
     agent.targetX = target.x;
     agent.targetY = target.y;
+    // `z` is optional so a flat game keeps naming a destination in two, and a
+    // point in the ground plane of a spatial one is not silently taken as depth 0.
+    agent.targetZ = target.z ?? 0;
     agent.arrived = false;
     world.set(entity, NavAgent, agent);
 }

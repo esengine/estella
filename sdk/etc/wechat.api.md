@@ -4668,12 +4668,14 @@ repathInterval: number
 speed: number
 targetX: number
 targetY: number
+targetZ: number
 ```
 
 ## NavGrid — class @experimental
 ```
+canStep: (fromX: number, fromY: number, toX: number, toY: number) => boolean
 cellSize: number
-cellToWorld: (gx: number, gy: number) => Vec2
+cellToWorld: (gx: number, gy: number) => Vec3
 clearanceAt: (gx: number, gy: number) => number
 height: number
 inBounds: (gx: number, gy: number) => boolean
@@ -4682,10 +4684,15 @@ isWalkable: (gx: number, gy: number) => boolean
 nearestWalkable: (gx: number, gy: number, maxRadius?: number, clearance?: number) => Cell | null
 originX: number
 originY: number
+originZ: number
+plane: NavPlane
 setWalkable: (gx: number, gy: number, walkable: boolean) => void
+stepHeight: number
+surface: Float32Array<ArrayBufferLike> | null
+surfaceAt: (gx: number, gy: number) => number
 walkable: Uint8Array<ArrayBufferLike>
 width: number
-worldToCell: (wx: number, wy: number) => Cell
+worldToCell: (p: { x: number; y: number; z?: number; }) => Cell
 static new (opts: NavGridOptions): NavGrid
 static prototype: NavGrid
 ```
@@ -4694,7 +4701,10 @@ static prototype: NavGrid
 ```
 cellSize: number
 height: number
-origin: Vec2 | undefined
+origin: { x: number; y: number; z?: number; } | undefined
+plane: NavPlane | undefined
+stepHeight: number | undefined
+surface: ArrayLike<number> | undefined
 walkable: ArrayLike<number> | undefined
 width: number
 ```
@@ -4709,7 +4719,7 @@ static prototype: NavPlugin
 
 ## Navigation — class @experimental
 ```
-findWorldPath: (from: Vec2, to: Vec2, opts?: PathfindOptions & { radius?: number; }) => Vec2[] | null
+findWorldPath: (from: { x: number; y: number; z?: number; }, to: { x: number; y: number; z?: number; }, opts?: PathfindOptions & { radius?: number; }) => Vec3[] | null
 grid: NavGrid | null
 hasGrid: () => boolean
 setGrid: (grid: NavGrid | null) => void
@@ -11024,7 +11034,7 @@ ParticlePlugin
 
 ## pathToWorld — function @experimental
 ```
-(grid: NavGrid, path: Cell[]): Vec2[]
+(grid: NavGrid, path: Cell[]): Vec3[]
 ```
 
 ## percent — const @public
@@ -11709,7 +11719,7 @@ ServicesPlugin
 
 ## setNavDestination — function @experimental
 ```
-(world: World, entity: Entity, target: Vec2): void
+(world: World, entity: Entity, target: { x: number; y: number; z?: number; }): void
 ```
 
 ## setPlayMode — function @experimental

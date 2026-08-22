@@ -180,7 +180,7 @@ export const spawnerSystem = defineSystem(
  */
 function standable(grid: NavGrid | null, at: { x: number; y: number }): { x: number; y: number } {
     if (!grid) return at;
-    const cell = grid.worldToCell(at.x, at.y);
+    const cell = grid.worldToCell(at);
     if (grid.isWalkable(cell.x, cell.y)) return at;
     const near = grid.nearestWalkable(cell.x, cell.y, 6);
     return near ? grid.cellToWorld(near.x, near.y) : at;

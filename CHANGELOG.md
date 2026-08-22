@@ -54,6 +54,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Navigation plans and walks in three dimensions.** `NavGrid` now knows which
+  world plane its cells lie in — `xy` (a flat scene, the default and unchanged) or
+  `xz`, the ground of a spatial one, where each cell also carries the height of
+  the ground there. A* honours a `stepHeight`, so a kerb is a route and a ledge of
+  the same width is not, and a route that ends up cut in two reports no path
+  rather than one that walks through a wall. Paths, `NavAgent` (`targetZ`) and the
+  kinematic follower are three-dimensional throughout — a slope is longer than its
+  shadow, and spending a frame's budget on the shadow walked agents uphill faster
+  than along the flat. One grid class rather than two: a second would be this one
+  with two axes renamed.
+
 - **AI sensing is three-dimensional.** A `Perceiver`'s range came from x and y,
   its cone from `atan2` in the same plane, and its facing from the Z half of a
   quaternion — so a guard saw through floors, and any rotation but a flat one

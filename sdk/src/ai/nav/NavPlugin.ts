@@ -28,10 +28,11 @@ import { advanceAlongPath } from './follow';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
 export interface AgentRuntime {
-    waypoints: import('../../types').Vec2[];
+    waypoints: import('../../types').Vec3[];
     index: number;
     plannedX: number;
     plannedY: number;
+    plannedZ: number;
     repathTimer: number;
     reachable: boolean;
 }
@@ -66,12 +67,13 @@ export function stepNavigation(
         const tf = world.get(entity, Transform);
         let rt = runtimes.get(entity);
 
-        const targetMoved = !rt || rt.plannedX !== agent.targetX || rt.plannedY !== agent.targetY;
+        const targetMoved = !rt || rt.plannedX !== agent.targetX || rt.plannedY !== agent.targetY
+            || rt.plannedZ !== agent.targetZ;
         const timerElapsed = rt ? (rt.repathTimer -= dt) <= 0 : false;
         if (!rt || targetMoved || (agent.repathInterval > 0 && timerElapsed)) {
             const path = nav.findWorldPath(
-                { x: tf.position.x, y: tf.position.y },
-                { x: agent.targetX, y: agent.targetY },
+                tf.position,
+                { x: agent.targetX, y: agent.targetY, z: agent.targetZ },
                 { radius: agent.radius },
             );
             rt = {
@@ -80,6 +82,7 @@ export function stepNavigation(
                 index: path && path.length > 1 ? 1 : 0,
                 plannedX: agent.targetX,
                 plannedY: agent.targetY,
+                plannedZ: agent.targetZ,
                 repathTimer: agent.repathInterval,
                 reachable: path !== null,
             };
@@ -90,10 +93,11 @@ export function stepNavigation(
         // change or repath timer) rather than churning it every frame.
         if (!rt.reachable) continue;
 
-        const pos = { x: tf.position.x, y: tf.position.y };
+        const pos = { x: tf.position.x, y: tf.position.y, z: tf.position.z };
         rt.index = advanceAlongPath(pos, rt.waypoints, rt.index, agent.speed * dt);
         tf.position.x = pos.x;
         tf.position.y = pos.y;
+        tf.position.z = pos.z;
         world.set(entity, Transform, tf);
 
         // Arrival is a DISTANCE, not the end of the list: an agent that has to
@@ -101,7 +105,7 @@ export function stepNavigation(
         // one that walks the path exactly stands on top of its target.
         const goal = rt.waypoints[rt.waypoints.length - 1];
         const withinGoal = goal !== undefined && agent.arriveRadius > 0
-            && Math.hypot(goal.x - pos.x, goal.y - pos.y) <= agent.arriveRadius;
+            && Math.hypot(goal.x - pos.x, goal.y - pos.y, goal.z - pos.z) <= agent.arriveRadius;
         if (rt.index >= rt.waypoints.length || withinGoal) {
             agent.arrived = true;
             agent.hasTarget = false;

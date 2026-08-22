@@ -1968,6 +1968,11 @@
           "default": "0"
         },
         {
+          "key": "targetZ",
+          "type": "number",
+          "default": "0"
+        },
+        {
           "key": "arrived",
           "type": "boolean",
           "default": "false",
@@ -1980,7 +1985,8 @@
         "arriveRadius",
         "repathInterval",
         "targetX",
-        "targetY"
+        "targetY",
+        "targetZ"
       ]
     },
     {
