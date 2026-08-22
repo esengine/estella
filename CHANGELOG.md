@@ -54,6 +54,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Network interest is a sphere.** `radiusInterest` measured the distance to a
+  connection's pawn in x and y, so two floors of a building were one place and
+  every connection streamed both — the saving the policy exists to make is the one
+  it stopped making. The reader hook's return type is now `InterestPoint`, whose
+  `z` is optional, so a flat game's reader keeps answering in two.
+
 - **Spatial audio and camera follow are three-dimensional.** Both measured the
   world in x and y only, so in a 3D scene a source across the room was as loud as
   one in your ear, and a camera lost its target the moment it walked in depth.

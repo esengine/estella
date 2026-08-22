@@ -20,12 +20,12 @@ import type { World } from '../src/ecs/world';
 
 const STEP = 1 / 60;
 
-let NetPos: ReturnType<typeof defineComponent<{ x: number; y: number }>>;
+let NetPos: ReturnType<typeof defineComponent<{ x: number; y: number; z: number }>>;
 
 beforeEach(() => {
     clearUserComponents();
-    NetPos = defineComponent('NetPos', { x: 0, y: 0 }, {
-        replicatedFields: ['x', 'y'],
+    NetPos = defineComponent('NetPos', { x: 0, y: 0, z: 0 }, {
+        replicatedFields: ['x', 'y', 'z'],
     });
 });
 
@@ -35,9 +35,9 @@ function makeApp(): App {
     return app;
 }
 
-const posOf = (world: World, e: Entity): { x: number; y: number } | null => {
-    const p = world.tryGet(e, NetPos) as { x: number; y: number } | null;
-    return p ? { x: p.x, y: p.y } : null;
+const posOf = (world: World, e: Entity): { x: number; y: number; z: number } | null => {
+    const p = world.tryGet(e, NetPos) as { x: number; y: number; z: number } | null;
+    return p ? { x: p.x, y: p.y, z: p.z } : null;
 };
 
 async function makePair(policy?: InterestPolicy) {
@@ -51,10 +51,10 @@ async function makePair(policy?: InterestPolicy) {
     return { serverApp, clientApp, server, client, connId };
 }
 
-function spawnAt(app: App, name: string, x: number, y: number, owner = 0): Entity {
+function spawnAt(app: App, name: string, x: number, y: number, owner = 0, z = 0): Entity {
     const e = app.world.spawn(name);
     app.world.insert(e, Replicated, { owner });
-    app.world.insert(e, NetPos, { x, y });
+    app.world.insert(e, NetPos, { x, y, z });
     return e;
 }
 
@@ -160,6 +160,21 @@ describe('interest management (radius policy)', () => {
         await laterApp.getResource(Net).connect(td, { interpolationDelayTicks: 0 });
         await step(serverApp, laterApp);
         expect(ghostNames(laterApp)).toEqual(['near', 'pawn']);
+    });
+
+    // Interest is a sphere, not a column. Two floors of a building sit at the same
+    // x/y, and a radius that drops z sends every connection both of them — the one
+    // saving it means is the one that stops being saved.
+    it('culls by depth as it culls by width', async () => {
+        const { serverApp, clientApp, server, connId } = await makePair();
+        server.setInterestPolicy(radiusInterest(100, { position: posOf }));
+
+        spawnAt(serverApp, 'pawn', 0, 0, connId);
+        spawnAt(serverApp, 'sameFloor', 50, 0);
+        spawnAt(serverApp, 'upstairs', 0, 0, 0, 500);
+        await step(serverApp, clientApp);
+
+        expect(ghostNames(clientApp)).toEqual(['pawn', 'sameFloor']);
     });
 
     it('radius policy fails open while the connection owns no positioned entity', async () => {

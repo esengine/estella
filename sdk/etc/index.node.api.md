@@ -5986,7 +5986,7 @@ ReadonlySet<string>
 
 ## RadiusInterestOptions — interface @experimental
 ```
-position: ((world: World, entity: Entity) => { x: number; y: number; } | null) | undefined
+position: ((world: World, entity: Entity) => InterestPoint | null) | undefined
 ```
 
 ## ReadableWorld — type @experimental

@@ -34,14 +34,21 @@ export interface InterestView {
  */
 export type InterestPolicy = (view: InterestView) => ReadonlySet<Entity> | 'all';
 
+/** Where an entity is, for the distance a policy measures. `z` is optional so a
+ *  flat game's reader can keep answering in two. */
+export interface InterestPoint {
+    x: number;
+    y: number;
+    z?: number;
+}
+
 export interface RadiusInterestOptions {
     /**
-     * How to read an entity's 2D position. Defaults to the `Transform`
-     * component's world-space `position`. Return null for "this entity has no
-     * place" — such entities are always relevant (they can't be culled by
-     * distance).
+     * How to read an entity's position. Defaults to the `Transform` component's
+     * world-space `position`. Return null for "this entity has no place" — such
+     * entities are always relevant (they can't be culled by distance).
      */
-    position?: (world: World, entity: Entity) => { x: number; y: number } | null;
+    position?: (world: World, entity: Entity) => InterestPoint | null;
 }
 
 /**
@@ -54,7 +61,7 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
     const r2 = radius * radius;
     const positionOf = options.position ?? defaultPosition;
     return ({ connectionId, world, candidates }) => {
-        const anchors: { x: number; y: number }[] = [];
+        const anchors: InterestPoint[] = [];
         for (const e of candidates) {
             const repl = world.tryGet(e, Replicated) as ReplicatedData | null;
             if (repl?.owner !== connectionId) continue;
@@ -71,9 +78,12 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
                 continue;
             }
             for (const a of anchors) {
+                // A sphere, not a column: two floors of a building are one place to
+                // a radius that drops z, and every connection then streams both.
                 const dx = p.x - a.x;
                 const dy = p.y - a.y;
-                if (dx * dx + dy * dy <= r2) {
+                const dz = (p.z ?? 0) - (a.z ?? 0);
+                if (dx * dx + dy * dy + dz * dz <= r2) {
                     visible.add(e);
                     break;
                 }
@@ -83,9 +93,9 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
     };
 }
 
-function defaultPosition(world: World, entity: Entity): { x: number; y: number } | null {
+function defaultPosition(world: World, entity: Entity): InterestPoint | null {
     const Transform = getComponent('Transform');
     if (!Transform || !world.has(entity, Transform)) return null;
-    const t = world.tryGet(entity, Transform) as { position?: { x: number; y: number } } | null;
-    return t?.position ? { x: t.position.x, y: t.position.y } : null;
+    const t = world.tryGet(entity, Transform) as { position?: { x: number; y: number; z?: number } } | null;
+    return t?.position ? { x: t.position.x, y: t.position.y, z: t.position.z ?? 0 } : null;
 }
