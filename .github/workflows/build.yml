@@ -212,6 +212,13 @@ jobs:
     # this job for the same reason the job exists: it needs the built wasm, and
     # its own failure mode is a benchmark that quietly stops measuring. Asserts
     # ratios between benchmarks in one run, so the runner's speed cancels out.
+    # The 3D physics module, run where its binary actually is: the gate skips a
+    # machine that has not built it, and this is the machine that has.
+    - name: Check the 3D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics3d.mjs
+
     - name: Check performance snapshot
       env:
         ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
