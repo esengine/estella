@@ -308,7 +308,11 @@ jobs:
       # nothing ran, five CI scenes with no name to reproduce them by.
       # --no-build: the host is already built two steps up. --host engine takes
       # the scenes that need no editor; verify-editor runs the rest.
-      run: node tools/verify-render.mjs --tier pr --host engine --no-build
+      # --budget: on a runner whose GPU keeps dropping command buffers, the retry
+      # policy correctly retries each outage and the tier outgrows the job's 20
+      # minutes — which GitHub answers by killing it, so the run says nothing at
+      # all. A budget makes it report what it measured and name what it did not.
+      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 15
 
     # The EDITOR's authoring surface, driven for real. The engine has had a pixel
     # gate for years; the editor had none, which is how depth layers shipped
