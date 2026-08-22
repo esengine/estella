@@ -27,7 +27,8 @@
     "torture": "pnpm --filter ./sdk exec vitest run tests/torture",
     "gate": "node tools/check-release-gate.mjs --report",
     "render-host": "node tools/render-host/build.mjs",
-    "verify:render": "node tools/verify-render.mjs"
+    "verify:render": "node tools/verify-render.mjs",
+    "test": "vitest run --config vitest.engine.config.ts"
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "electron": "^42.4.1",
     "esbuild": "^0.27.0",
-    "madge": "^8.0.0"
+    "madge": "^8.0.0",
+    "vitest": "^2.1.9"
   }
 }

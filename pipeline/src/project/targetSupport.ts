@@ -16,7 +16,7 @@
  *
  * Without this, an export writes a package that is quietly missing half a
  * scene. This is the one declaration of that gap, so the export can name it
- * instead. `desktop/tests/target-support.test.ts` reads the native CMakeLists
+ * instead. `pipeline/tests/target-support.test.ts` reads the native CMakeLists
  * and fails when the two drift: flipping a flag there is what deletes an entry
  * here.
  *
@@ -79,7 +79,7 @@ export interface SubsystemGap {
 
 /** What the native app cannot render — currently nothing. ONE list: iOS and Android
  *  compile the same `native/CMakeLists.txt`, so a flag flipped there opens or closes
- *  the gap on both. `desktop/tests/target-support.test.ts` reads that file and fails
+ *  the gap on both. `pipeline/tests/target-support.test.ts` reads that file and fails
  *  when the two disagree. */
 const NATIVE_GAPS: readonly SubsystemGap[] = [];
 

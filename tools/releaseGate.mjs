@@ -86,7 +86,7 @@ export const CRITERIA = [
     answeredBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
     needs: [
       'desktop/scripts/headless-hotupdate-verify.mjs',
-      'desktop/tests/hotupdate-verify-fixture.test.ts',
+      'pipeline/tests/hotupdate-verify-fixture.test.ts',
     ],
   },
   {

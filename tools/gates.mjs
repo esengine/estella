@@ -62,6 +62,9 @@ export const GATES = [
   // could survive fails here rather than in someone else's project.
   { id: 'tsc-plugins', run: 'pnpm -r --filter "./plugins/*" exec tsc --noEmit' },
   { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test' },
+  // The engine's own TS suites (pipeline + tooling). They lived in desktop/tests
+  // until the editor split, where a checkout without the editor ran none of them.
+  { id: 'engine-tests', run: 'pnpm run test' },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   // Same shape of rule, other direction: what builds a project may not need the

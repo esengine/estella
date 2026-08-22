@@ -377,4 +377,4 @@ plus physics / Spine / video, which ship as emscripten side modules with no nati
 counterpart yet. An export names them: **Package Project → Mobile** warns about any of them
 a scene uses rather than shipping a package that quietly renders half of it (the gaps are
 declared in `desktop/src/project/targetSupport.ts`, checked against this CMakeLists by
-`desktop/tests/target-support.test.ts`).
+`pipeline/tests/target-support.test.ts`).
