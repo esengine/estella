@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict } from '../lib/deadGpu.mjs';
+import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw } from '../lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
 const BLANK = 'painted=true live=false errors=0';
@@ -152,6 +152,22 @@ describe('retryOnDeadGpu', () => {
         expect(r.ok).toBe(false);
         expect(r.attempts).toBe(2);
         expect(r.gpuDied).toBeUndefined();
+    });
+
+    // The runner ran out of GPU resources and every scene came back empty. Each
+    // run still PRINTED its result, so 'it finished' called it a measurement and
+    // 46 of 70 scenes were reported as broken renderers in one job.
+    it('a run whose engine could not draw has measured nothing', () => {
+        const broke = 'Framebuffer is incomplete! (size: 640x480, GL error 0x37442)';
+        expect(engineCouldNotDraw(broke)).toBe(true);
+        expect(engineCouldNotDraw(BLANK)).toBe(false);
+        const r = runReporting([
+            { ok: false, output: broke, measured: true, drew: false },
+            { ok: true },
+        ]);
+        expect(r.ok).toBe(true);
+        expect(r.attempts).toBe(2);
+        expect(r.notes).toEqual([true]);
     });
 
     it('gives up at the cap and says the GPU is why', () => {

@@ -69,12 +69,25 @@ function backoff(attempt, stepMs) {
 const STEP_MS = 5000;
 
 /**
+ * The ENGINE saying it could not make what it draws through. A run that gets this
+ * far still prints its result — reporting an empty frame — so "it finished" is not
+ * the same as "it rendered", and only the latter is a verdict about the scene.
+ */
+export function engineCouldNotDraw(output) {
+    return /Framebuffer is incomplete|Failed to create framebuffer|Failed to create texture|createTexture failed/
+        .test(output);
+}
+
+/**
  * Whether this attempt reached a verdict at all. `measured` is the run's own
- * answer and wins; without one the log text is all there is.
+ * answer and wins, except that a run whose engine could not draw has measured
+ * nothing whatever else it managed to print.
  */
 function reachedNoVerdict(last) {
+    const output = last.output ?? '';
+    if (engineCouldNotDraw(output)) return true;
     if (typeof last.measured === 'boolean') return !last.measured;
-    return gpuNeverCameUp(last.output ?? '');
+    return gpuNeverCameUp(output);
 }
 
 /**
