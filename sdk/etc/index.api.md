@@ -5698,7 +5698,7 @@ effects: { type: string; enabled: boolean; uniforms: Record<string, number>; tex
 isGlobal: boolean
 priority: number
 shape: "box" | "sphere"
-size: { x: number; y: number; }
+size: { x: number; y: number; z?: number; }
 weight: number
 ```
 

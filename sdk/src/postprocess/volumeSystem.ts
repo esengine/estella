@@ -141,7 +141,10 @@ export const postProcessVolumeSystem = defineSystem(
     ) => {
         const volumes: { data: PostProcessVolumeData; tx: VolumeTransform }[] = [];
         for (const [_entity, volumeData, transform] of volumeQuery) {
-            volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y } });
+            volumes.push({
+                data: volumeData,
+                tx: { x: transform.position.x, y: transform.position.y, z: transform.position.z },
+            });
         }
 
         // Recomputed per camera: a local volume's weight depends on the camera position.
@@ -150,10 +153,11 @@ export const postProcessVolumeSystem = defineSystem(
 
             const cx = cameraTransform.position.x;
             const cy = cameraTransform.position.y;
+            const cz = cameraTransform.position.z;
 
             const activeVolumes: ActiveVolume[] = [];
             for (const { data, tx } of volumes) {
-                const factor = computeVolumeFactor(data, tx, cx, cy);
+                const factor = computeVolumeFactor(data, tx, cx, cy, cz);
                 if (factor > 0) activeVolumes.push({ data, factor });
             }
 

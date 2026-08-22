@@ -6,6 +6,8 @@ import { getEffectDef } from './effects';
 export interface VolumeTransform {
     x: number;
     y: number;
+    /** Where the volume sits in depth. Absent = the plane a flat scene draws on. */
+    z?: number;
 }
 
 export interface ActiveVolume {
@@ -21,42 +23,54 @@ export interface BlendedEffect {
     textures: Map<string, string>;
 }
 
+/**
+ * Signed distance to a box, in three dimensions. `halfD` of **0 is unbounded**
+ * depth — what a flat scene's box has always been, and the only reading that
+ * leaves one unchanged. A box of no thickness contains nothing, so the value is
+ * free to mean that.
+ */
 export function signedDistanceBox(
-    px: number, py: number,
-    cx: number, cy: number,
-    halfW: number, halfH: number
+    px: number, py: number, pz: number,
+    cx: number, cy: number, cz: number,
+    halfW: number, halfH: number, halfD: number
 ): number {
     const dx = Math.abs(px - cx) - halfW;
     const dy = Math.abs(py - cy) - halfH;
-    const outsideDist = Math.sqrt(Math.max(dx, 0) ** 2 + Math.max(dy, 0) ** 2);
-    const insideDist = Math.min(Math.max(dx, dy), 0);
-    return outsideDist + insideDist;
+    const dz = halfD > 0 ? Math.abs(pz - cz) - halfD : -Infinity;
+    const out = Math.sqrt(Math.max(dx, 0) ** 2 + Math.max(dy, 0) ** 2
+        + (halfD > 0 ? Math.max(dz, 0) ** 2 : 0));
+    const inside = Math.min(Math.max(dx, dy, halfD > 0 ? dz : -Infinity), 0);
+    return out + inside;
 }
 
+/** Signed distance to a sphere. A flat scene hands in equal z and gets a circle. */
 export function signedDistanceSphere(
-    px: number, py: number,
-    cx: number, cy: number,
+    px: number, py: number, pz: number,
+    cx: number, cy: number, cz: number,
     radius: number
 ): number {
     const dx = px - cx;
     const dy = py - cy;
-    return Math.sqrt(dx * dx + dy * dy) - radius;
+    const dz = pz - cz;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz) - radius;
 }
 
 export function computeVolumeFactor(
     volume: PostProcessVolumeData,
     transform: VolumeTransform,
-    px: number, py: number
+    px: number, py: number, pz = 0
 ): number {
     if (volume.isGlobal) {
         return volume.weight; // honor the global's weight, like local volumes below
     }
 
+    const cz = transform.z ?? 0;
     let dist: number;
     if (volume.shape === 'sphere') {
-        dist = signedDistanceSphere(px, py, transform.x, transform.y, volume.size.x);
+        dist = signedDistanceSphere(px, py, pz, transform.x, transform.y, cz, volume.size.x);
     } else {
-        dist = signedDistanceBox(px, py, transform.x, transform.y, volume.size.x, volume.size.y);
+        dist = signedDistanceBox(px, py, pz, transform.x, transform.y, cz,
+                                 volume.size.x, volume.size.y, volume.size.z ?? 0);
     }
 
     if (dist <= 0) {

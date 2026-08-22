@@ -1146,7 +1146,11 @@ export interface PostProcessVolumeData {
     }[];
     isGlobal: boolean;
     shape: 'box' | 'sphere';
-    size: { x: number; y: number };
+    /** Half-extents of the shape (a sphere uses `x` as its radius). `z` is the
+     *  half-DEPTH of a box, where **0 means unbounded** — a flat scene's volume
+     *  reaches through every depth, and a box of no thickness would contain
+     *  nothing at all. */
+    size: { x: number; y: number; z?: number };
     priority: number;
     weight: number;
     blendDistance: number;

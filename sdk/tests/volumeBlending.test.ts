@@ -11,49 +11,79 @@ import {
 describe('volumeBlending', () => {
     describe('signedDistanceBox', () => {
         it('returns negative distance when point is inside box', () => {
-            const dist = signedDistanceBox(0, 0, 0, 0, 5, 5);
+            const dist = signedDistanceBox(0, 0, 0, 0, 0, 0, 5, 5, 0);
             expect(dist).toBeLessThan(0);
         });
 
         it('returns 0 when point is on box edge', () => {
-            const dist = signedDistanceBox(5, 0, 0, 0, 5, 5);
+            const dist = signedDistanceBox(5, 0, 0, 0, 0, 0, 5, 5, 0);
             expect(dist).toBeCloseTo(0, 5);
         });
 
         it('returns positive distance when point is outside box', () => {
-            const dist = signedDistanceBox(8, 0, 0, 0, 5, 5);
+            const dist = signedDistanceBox(8, 0, 0, 0, 0, 0, 5, 5, 0);
             expect(dist).toBeCloseTo(3, 5);
         });
 
         it('handles offset center', () => {
-            const dist = signedDistanceBox(15, 10, 10, 10, 5, 5);
+            const dist = signedDistanceBox(15, 10, 0, 10, 10, 0, 5, 5, 0);
             expect(dist).toBeCloseTo(0, 5);
         });
 
         it('handles point at corner outside', () => {
-            const dist = signedDistanceBox(8, 8, 0, 0, 5, 5);
+            const dist = signedDistanceBox(8, 8, 0, 0, 0, 0, 5, 5, 0);
             expect(dist).toBeCloseTo(Math.sqrt(9 + 9), 5);
+        });
+    });
+
+    // A volume is a volume of world, not a column through it. The cases above are
+    // these functions with a shared depth; a `0` half-depth is what keeps a flat
+    // scene's box reaching through every depth, as it always did.
+    describe('depth', () => {
+        it('a box with a half-depth excludes what is outside it', () => {
+            expect(signedDistanceBox(0, 0, 0, 0, 0, 0, 5, 5, 5)).toBeLessThan(0);
+            expect(signedDistanceBox(0, 0, 9, 0, 0, 0, 5, 5, 5)).toBeCloseTo(4);
+        });
+
+        it('a box with no half-depth reaches through every depth', () => {
+            expect(signedDistanceBox(0, 0, 900, 0, 0, 0, 5, 5, 0)).toBeLessThan(0);
+        });
+
+        it('a sphere is a sphere, not a cylinder', () => {
+            expect(signedDistanceSphere(0, 0, 9, 0, 0, 0, 5)).toBeCloseTo(4);
+            expect(signedDistanceSphere(0, 0, 3, 0, 0, 0, 5)).toBeCloseTo(-2);
+        });
+
+        it('a camera two floors up is outside a volume on this one', () => {
+            const volume = {
+                effects: [], isGlobal: false, shape: 'sphere' as const,
+                size: { x: 50, y: 50 }, priority: 0, weight: 1, blendDistance: 0,
+            };
+            const here = computeVolumeFactor(volume, { x: 0, y: 0, z: 0 }, 0, 0, 0);
+            const upstairs = computeVolumeFactor(volume, { x: 0, y: 0, z: 0 }, 0, 0, 400);
+            expect(here).toBe(1);
+            expect(upstairs).toBe(0);
         });
     });
 
     describe('signedDistanceSphere', () => {
         it('returns negative distance when point is inside sphere', () => {
-            const dist = signedDistanceSphere(1, 0, 0, 0, 5);
+            const dist = signedDistanceSphere(1, 0, 0, 0, 0, 0, 5);
             expect(dist).toBeCloseTo(-4, 5);
         });
 
         it('returns 0 when point is on sphere edge', () => {
-            const dist = signedDistanceSphere(5, 0, 0, 0, 5);
+            const dist = signedDistanceSphere(5, 0, 0, 0, 0, 0, 5);
             expect(dist).toBeCloseTo(0, 5);
         });
 
         it('returns positive distance when point is outside sphere', () => {
-            const dist = signedDistanceSphere(8, 0, 0, 0, 5);
+            const dist = signedDistanceSphere(8, 0, 0, 0, 0, 0, 5);
             expect(dist).toBeCloseTo(3, 5);
         });
 
         it('handles offset center', () => {
-            const dist = signedDistanceSphere(15, 10, 10, 10, 5);
+            const dist = signedDistanceSphere(15, 10, 0, 10, 10, 0, 5);
             expect(dist).toBeCloseTo(0, 5);
         });
     });

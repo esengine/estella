@@ -24,12 +24,16 @@ const SNAPSHOT = path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.gen
 /** The one file where a gizmo's geometry is computed. */
 const VIEWPORT = path.join(ROOT, 'desktop', 'src', 'engine', 'ViewportController.ts');
 
+/** Field names that mean "this component occupies a region of world". */
+const SPATIAL_FIELDS = new Set(['halfExtents', 'radius', 'shapeRadius', 'halfHeight', 'extents', 'size']);
+
 /**
- * Field names that mean "this component occupies a volume of world". Deliberately
- * short: a name that also describes something flat (`size` on a UI node, `scale`)
- * would make the rule about layout rather than about space.
+ * Components whose `size` IS what they draw, so the picture is the component.
+ * Listed rather than excluded by field name: `size` covers both a sprite (drawn,
+ * needs no outline) and a post-process volume (drawn by nothing at all), and
+ * dropping the name to avoid the first hid the second for as long as it existed.
  */
-const SPATIAL_FIELDS = new Set(['halfExtents', 'radius', 'shapeRadius', 'halfHeight', 'extents']);
+const DRAWS_ITSELF = new Set(['Sprite', 'ShapeRenderer', 'Mesh2D', 'BitmapText', 'UIVisual', 'UINode']);
 
 /** Components whose extent is deliberately not drawn, and why. */
 const DECLARED_GAPS = {};
@@ -51,6 +55,7 @@ let judged = 0;
 for (const component of components) {
     const spatial = (component.fields ?? []).map((f) => f.key).filter((k) => SPATIAL_FIELDS.has(k));
     if (spatial.length === 0) continue;
+    if (DRAWS_ITSELF.has(component.name)) continue;
     judged++;
     if (DECLARED_GAPS[component.name]) {
         unusedGaps.delete(component.name);

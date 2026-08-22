@@ -54,15 +54,25 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
-- **A component that describes a space is drawn, and a gate says so.** `NavAgent`'s
-  routing width and `ParticleForceField`'s reach were authorable numbers with
-  nothing on screen to show what they covered — the same gap the light gizmos had.
-  Both now draw a world radius ring, from one table rather than a gizmo path each:
-  a radius is a circle wherever it comes from, and what differs is what it means,
-  which is its colour. New gate `check-gizmo-coverage`: a component declaring a
-  spatial field (`halfExtents`, `radius`, `shapeRadius`, `halfHeight`, `extents`)
-  must be named in the viewport, because `gizmo-chrome`'s list is written by hand
-  and cannot notice a component nobody added to it.
+- **A component that describes a region of world is drawn, and a gate says so.**
+  `NavAgent`'s routing width, `ParticleForceField`'s reach, `ShadowCaster2D`'s
+  occluder box and `PostProcessVolume`'s graded region were all authorable numbers
+  with nothing on screen to show what they covered — the same gap the light gizmos
+  had. All four now draw their extent, from one table rather than a gizmo path
+  each: an extent is a ball or a box wherever it comes from, and what differs is
+  what it MEANS, which is its colour. New gate `check-gizmo-coverage`: a component
+  declaring a spatial field must be named in the viewport, because `gizmo-chrome`'s
+  list is written by hand and cannot notice a component nobody added to it.
+  `size` counts, with the components that ARE their own picture (a sprite, a shape)
+  listed rather than the field name dropped — dropping it to spare the sprite is
+  what hid the volume.
+
+- **A post-process volume is a volume.** `signedDistanceBox` and
+  `signedDistanceSphere` measured in x and y, so a "sphere" was a column: a camera
+  two floors above a graded room was inside it. Both take three axes now, and
+  `PostProcessVolume.size` gains an optional `z` half-depth whose **0 means
+  unbounded** — a box of no thickness contains nothing, so the value is free to
+  mean what every flat scene's volume already was.
 
 - **A navigation volume is visible while it is being placed.** Nothing renders a
   `NavVolume` and nothing collides with it, so the box that decides where agents
