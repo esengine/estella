@@ -54,6 +54,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A drag turns the view the way it grabs it.** Dragging the editor eye moved the
+  yaw one way and the pitch the other: a diagonal drag pulled the scene left while
+  pulling it down, because only the vertical half followed the pointer. Both halves
+  now grab the scene — the world turns the way the pointer moves and the eye goes
+  the other way, which is what a turntable orbit does everywhere else. The sign
+  convention lives in one function (`orbitAfterDrag`) that every drag door calls.
+
 - **`tsc-editor` reported success with no editor to check.** `pnpm --filter` prints
   "No projects matched the filters" and exits 0, so an uninitialised submodule left
   the gate type-checking nothing and passing.
@@ -68,6 +75,13 @@ published separately; it ships inside the editor.
   rather than the engine's own build output.
 
 ### Added
+
+- **Right-drag turns the editor eye.** It panned, like the middle button, so the
+  only way to look around a 3D scene was Alt-drag. Right-drag now turns a view that
+  has somewhere to turn to — a perspective one, or one already off head-on — and
+  keeps its pan on a flat 2D view, where turning is an accident rather than a
+  gesture. Middle-drag (and Space + left) still pans everywhere, Alt-drag still
+  turns anything. `viewportNavFor` is the whole button map, in one place.
 
 - **Import settings are edited in batches.** Selecting several assets showed the
   primary one's inspector, so "make every sprite in this folder nearest-filtered"
