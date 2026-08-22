@@ -12,7 +12,7 @@
  * lost configuration, wrong design resolution) move whole regions of the image,
  * while drift between two independently-timed runs moves a few pixels.
  */
-import { readPNG } from '../desktop/scripts/lib/editorDriver.mjs';
+import { readPNG } from './lib/png.mjs';
 
 export { readPNG };
 
