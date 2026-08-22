@@ -4,15 +4,6 @@
 [submodule "third_party/glfw"]
 	path = third_party/glfw
 	url = https://github.com/glfw/glfw.git
-[submodule "third_party/quickjs"]
-	path = third_party/quickjs
-	url = https://github.com/bellard/quickjs.git
-[submodule "third_party/freetype"]
-	path = third_party/freetype
-	url = https://github.com/freetype/freetype.git
-[submodule "third_party/msdfgen"]
-	path = third_party/msdfgen
-	url = https://github.com/Chlumsky/msdfgen.git
 [submodule "third_party/spine-runtimes-3.8"]
 	path = third_party/spine-runtimes-3.8
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -37,9 +28,6 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
-[submodule "tools/mcp-server"]
-	path = tools/mcp-server
-	url = https://github.com/esengine/estella-mcp-server.git
 [submodule "third_party/basis_universal"]
 	path = third_party/basis_universal
 	url = https://github.com/BinomialLLC/basis_universal.git
