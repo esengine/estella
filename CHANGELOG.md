@@ -67,6 +67,21 @@ published separately; it ships inside the editor.
   listed rather than the field name dropped — dropping it to spare the sprite is
   what hid the volume.
 
+- **The navigation grid can be seen in the running game.** `NavDebugDraw` outlines
+  the walkable cells at the height of their own ground and marks the pairs the
+  step limit refuses — the only thing that explains a route going the long way
+  round, since both sides of a ledge are walkable cells. Until now `cellSize`,
+  `maxSlopeDegrees` and `agentHeight` were tuned by watching whether an agent
+  happened to move. Off by default, and capped at a few thousand cells: an overlay
+  that stops the game is not a diagnostic.
+
+- **A draw overlay does not throw a frame on a core that cannot draw.** Plugins
+  register their overlays when they are built, whether or not one is ever turned
+  on, and a core built without a Draw API has no batch to open — the render
+  pipeline opened one anyway and lost the frame to it. Both callback passes now
+  check first. Found by registering the navigation overlay, which broke a
+  minimal-core test that has nothing to do with navigation.
+
 - **A post-process volume is a volume.** `signedDistanceBox` and
   `signedDistanceSphere` measured in x and y, so a "sphere" was a column: a camera
   two floors above a graded room was inside it. Both take three axes now, and

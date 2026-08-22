@@ -9,7 +9,7 @@ import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
-import { Draw } from './draw';
+import { Draw, isDrawAPIReady } from './draw';
 import {
     getDrawCallbacks,
     unregisterDrawCallback,
@@ -176,7 +176,9 @@ export class RenderPipeline {
         elapsed: number,
     ): void {
         const cbs = getPreSceneDrawCallbacks();
-        if (cbs.size === 0) return;
+        // Same bargain as the post-scene pass: a core with no Draw API has no
+        // batch to open, and the callbacks would have nowhere to draw.
+        if (cbs.size === 0 || !isDrawAPIReady()) return;
         Draw.begin(viewProjection);
         const failed: string[] = [];
         for (const [id, fn] of cbs.entries()) {
@@ -195,7 +197,10 @@ export class RenderPipeline {
 
     private executeDrawCallbacks(viewProjection: Float32Array, elapsed: number): void {
         const cbs = getDrawCallbacks();
-        if (cbs.size > 0) {
+        // Plugins register overlays at build time whether one is ever turned on,
+        // and a core with no Draw API has no batch to open — opening one throws
+        // the frame away for a callback that would have drawn nothing.
+        if (cbs.size > 0 && isDrawAPIReady()) {
             Draw.begin(viewProjection);
             const failed: string[] = [];
             for (const [id, entry] of cbs.entries()) {

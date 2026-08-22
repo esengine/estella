@@ -40,6 +40,15 @@ const IDENTITY_TRANSFORM = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0,
 // =============================================================================
 
 /** @internal Wired by the engine plugins — not part of the public API. */
+/**
+ * Whether an engine core with a Draw API is installed. A core built without one
+ * (a headless or minimal build) still runs every plugin, and a plugin that
+ * registers a draw callback must not turn that into a thrown frame.
+ */
+export function isDrawAPIReady(): boolean {
+    return module !== null;
+}
+
 export function initDrawAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;

@@ -30,6 +30,7 @@ import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
 import { NavVolume } from './NavVolume';
 import { bakeNavGrid, type GroundProbe } from './bakeNavGrid';
+import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
@@ -167,6 +168,9 @@ export class NavPlugin implements Plugin {
 
     build(app: App): void {
         app.insertResource(Nav, new Navigation());
+        // Installed with the grid, drawn only once a game turns the resource on —
+        // the same bargain the 3D physics overlay makes.
+        setupNavDebugDraw(app);
 
         const runtimes = new Map<Entity, AgentRuntime>();
         const baked = new Set<Entity>();

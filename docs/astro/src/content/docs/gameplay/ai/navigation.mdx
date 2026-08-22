@@ -71,6 +71,21 @@ two into play, not at load.
 `bakeNavGrid` is also callable directly if a game wants to bake on its own terms;
 it takes any object with a `raycast`, which the `Physics3D` resource already is.
 
+### Seeing what was baked
+
+The volume's wireframe says where the bake looked. To see what it **found**, turn
+on the `NavDebugDraw` resource in the running game:
+
+```typescript
+app.getResource(NavDebugDraw).enabled = true;
+```
+
+Walkable cells are outlined at the height of their own ground, and the pairs the
+step limit refuses are marked in red — the only thing that explains a route going
+the long way round, since both sides of a ledge are walkable cells. Off by default
+(a grid is thousands of quads a frame), and it stops after a few thousand cells:
+`cellSize` is the knob for seeing more of a big world.
+
 <Aside type="tip">
   The `Nav` resource also answers one-off queries directly:
   `nav.findWorldPath(from, to)` returns an array of world-space waypoints (or

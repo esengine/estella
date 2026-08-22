@@ -673,6 +673,7 @@ export {
     stopNavAgent,
     NavPlugin,
     navPlugin,
+    NavDebugDraw,
     bakeNavGrid,
     type NavGridOptions,
     type NavPlane,
@@ -682,6 +683,7 @@ export {
     type NavAgentData,
     type NavVolumeData,
     type BakeNavGridOptions,
+    type NavDebugDrawConfig,
     type GroundProbe,
     type GroundHit,
 } from './ai';

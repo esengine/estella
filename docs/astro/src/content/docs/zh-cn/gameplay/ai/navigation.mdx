@@ -65,6 +65,18 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 `bakeNavGrid` 也可以直接调用,让游戏按自己的方式烘焙;它只要一个带 `raycast` 的对象,
 而 `Physics3D` 资源本身就是。
 
+### 看见烘出来的东西
+
+体积的线框说的是烘焙**往哪看**。想看它**找到了什么**,在运行中的游戏里打开 `NavDebugDraw`:
+
+```typescript
+app.getResource(NavDebugDraw).enabled = true;
+```
+
+可走的格子按各自地面的高度描边,被台阶限制拒绝的相邻对标成红色——这是唯一能解释
+「路线为什么绕远」的东西,因为台沿两边都是可走的格子。默认关闭(一张网格是每帧几千个
+四边形),而且画到几千格就停:想看清更大的世界,调 `cellSize`。
+
 <Aside type="tip">
   `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点
   (没有路线时返回 `null`),无需 `NavAgent`。

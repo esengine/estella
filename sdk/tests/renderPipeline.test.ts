@@ -49,6 +49,9 @@ vi.mock('../src/render/draw', () => ({
         begin: vi.fn(),
         end: vi.fn(),
     },
+    // These cases are about a core that HAS a Draw API; the one that has not is
+    // covered where the skip lives (nav-debug-draw).
+    isDrawAPIReady: () => true,
 }));
 
 const mockCallbacks = new Map<string, { fn: (elapsed: number) => void; scene: string }>();
