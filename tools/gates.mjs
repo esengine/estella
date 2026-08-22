@@ -94,6 +94,7 @@ export const GATES = [
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
+  { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
   { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs', needs: 'editor' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },
   { id: 'key-codes', run: 'node tools/check-key-codes.mjs' },

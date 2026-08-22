@@ -54,6 +54,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A component that describes a space is drawn, and a gate says so.** `NavAgent`'s
+  routing width and `ParticleForceField`'s reach were authorable numbers with
+  nothing on screen to show what they covered — the same gap the light gizmos had.
+  Both now draw a world radius ring, from one table rather than a gizmo path each:
+  a radius is a circle wherever it comes from, and what differs is what it means,
+  which is its colour. New gate `check-gizmo-coverage`: a component declaring a
+  spatial field (`halfExtents`, `radius`, `shapeRadius`, `halfHeight`, `extents`)
+  must be named in the viewport, because `gizmo-chrome`'s list is written by hand
+  and cannot notice a component nobody added to it.
+
 - **A navigation volume is visible while it is being placed.** Nothing renders a
   `NavVolume` and nothing collides with it, so the box that decides where agents
   may walk was invisible in the editor — the one thing about it worth checking.
