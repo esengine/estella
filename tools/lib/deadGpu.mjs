@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  deadGpu.mjs — telling "the GPU never came up" from "the game is wrong".
+ * @file  deadGpu.mjs — telling "the GPU never came up" from "the subject is wrong".
  *
- * A runner whose GPU process dies during init leaves a context-lost renderer
- * that cannot draw anything. That is not a verdict about the game: reporting it
- * as one says the frame was wrong when there was no frame. Observed on the FIRST
- * electron launch of a job, in run after run.
+ * A runner whose GPU process dies during init leaves a context-lost renderer that
+ * cannot draw anything. That is not a verdict about the subject: reporting it as
+ * one says the frame was wrong when there was no frame.
+ *
+ * The question is whether a MEASUREMENT HAPPENED, and the run itself is the only
+ * honest answer to that — `measured` below. Log text is not: this repo's Linux
+ * runner prints "Exiting GPU process due to errors during initialization" on runs
+ * that go on to succeed, so a policy keyed on that string reads every failure as
+ * a dead GPU, retries all six times, and buries the real reason. One job spent
+ * fourteen minutes and 71 retries that way, and the scene that actually broke was
+ * never named.
  *
  * One definition, because both pixel runners launch electron on the same runners
  * and a second copy would drift — verify-render had this and verify-golden did
@@ -14,7 +21,11 @@
  * the other.
  */
 
-/** Did the renderer never get a GPU, whatever it then said about pixels? */
+/**
+ * Log-text evidence that a runner never got a GPU. UNRELIABLE ALONE — see the
+ * file header — so this is the fallback for an attempt that cannot say whether it
+ * reached a verdict, never the primary answer.
+ */
 export function gpuNeverCameUp(output) {
     return /Exiting GPU process due to errors during initialization/.test(output)
         // A lost device, then resources it can no longer make — textures as well as
@@ -58,25 +69,41 @@ function backoff(attempt, stepMs) {
 const STEP_MS = 5000;
 
 /**
- * Run `attempt` (→ `{ ok, output }`) until it succeeds or fails with the GPU up.
+ * Whether this attempt reached a verdict at all. `measured` is the run's own
+ * answer and wins; without one the log text is all there is.
+ */
+function reachedNoVerdict(last) {
+    if (typeof last.measured === 'boolean') return !last.measured;
+    return gpuNeverCameUp(last.output ?? '');
+}
+
+/**
+ * Run `attempt` until it succeeds, or fails in a way that is the subject's own.
+ * `note(noVerdict)` announces each retry.
  *
- * A failure ANYWHERE after a death in this chain is inconclusive: a restarted GPU
- * process leaves the next launch context-lost, painting a blank frame and printing
- * nothing about why. A game that truly draws nothing still fails on the first
- * attempt, since no attempt reports a death. `note(died)` announces each retry.
+ * `attempt()` returns `{ ok, output }` plus, where it can tell: `measured` (did
+ * this run reach a verdict? one that did has measured something, and its failure
+ * is the subject's however loud the log is) and `drew` (did anything reach the
+ * screen? a blank frame right after an outage is that outage still settling).
  */
 export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
-    let sawDeath = false;
+    let sawOutage = false;
     let last;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         last = attempt();
         if (last.ok) return { ...last, retried: i > 0 };
-        const died = gpuNeverCameUp(last.output);
-        sawDeath = sawDeath || died;
-        // Nothing in this chain blamed the GPU, so the failure is the game's.
-        if (!sawDeath) return { ...last, retried: i > 0 };
+
+        const noVerdict = reachedNoVerdict(last);
+        if (noVerdict) sawOutage = true;
+        // `drew === true` is the only thing that rules out aftermath: an attempt
+        // that cannot say keeps the older, more cautious behaviour.
+        const aftermath = sawOutage && last.drew !== true;
+        // It measured, and what it measured was wrong. Retrying that is how a
+        // broken subject gets six chances to look like a flaky runner.
+        if (!noVerdict && !aftermath) return { ...last, retried: i > 0 };
+
         if (i < MAX_ATTEMPTS - 1) {
-            note(died);
+            note(noVerdict);
             backoff(i, stepMs);
         }
     }

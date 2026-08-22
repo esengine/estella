@@ -162,10 +162,22 @@ function runScene(scene) {
     },
   });
   const out = `${r.stdout || ''}${r.stderr || ''}`;
+  // DRIVE_RESULT is the run's own verdict: printed once the page loaded, the
+  // engine booted and the driver finished. Whether it is there answers "did a
+  // measurement happen" far better than anything in the log text can.
+  const drive = /^DRIVE_RESULT (\{.*\})$/m.exec(out);
+  let result = null;
+  try {
+    result = drive ? JSON.parse(drive[1]) : null;
+  } catch {
+    result = null; // truncated line — treat as no verdict
+  }
   return {
     ok: r.status === 0,
     out,
     ms: Date.now() - at,
+    measured: result !== null,
+    drew: result?.capture?.rendered,
     verdict: r.timedOut
       ? 'the run never reached its own watchdog and was killed'
       : ((r.stdout || '').match(/\[verify:render\][^\n]*/) ?? [''])[0].replace('[verify:render] ', ''),

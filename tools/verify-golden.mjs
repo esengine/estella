@@ -109,7 +109,9 @@ function captureEditorFrame(id, out) {
       },
     });
     const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-    if (!existsSync(out)) return { ok: false, output };
+    // The frame on disk is the verdict here: without one the editor never got
+    // far enough to judge anything, whatever the log says about the GPU.
+    if (!existsSync(out)) return { ok: false, output, measured: false };
     // A frame the editor was killed halfway through writing is not a frame, and
     // decoding it throws where a verdict belongs: one project's dead GPU took
     // the whole matrix's report with it.
@@ -117,7 +119,8 @@ function captureEditorFrame(id, out) {
       const png = readPNG(readFileSync(out));
       return { ok: true, output, w: png.w, h: png.h };
     } catch (e) {
-      return { ok: false, output: `${output}\nthe capture is not a whole PNG: ${e.message}` };
+      // Half a PNG is a run that was killed mid-write, not a frame to judge.
+      return { ok: false, output: `${output}\nthe capture is not a whole PNG: ${e.message}`, measured: false };
     }
   };
   const run = retryOnDeadGpu(attempt, (died) => console.log(`↻ ${id} — ${died
@@ -178,7 +181,16 @@ function launchPackage(id, target, args) {
     () => {
       const r = runTool('npx', ['electron', path.join('scripts', LAUNCHER(target)), ...args],
         { encoding: 'utf8', cwd: DESKTOP });
-      return { ok: r.status === 0, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, r };
+      // The launcher prints a ✓/✗ line once it has looked at the frame; that
+      // line existing is what says a measurement happened.
+      const verdictLine = (r.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗'));
+      return {
+        ok: r.status === 0,
+        output: `${r.stdout ?? ''}${r.stderr ?? ''}`,
+        measured: Boolean(verdictLine),
+        drew: verdictLine ? verdictLine.startsWith('✓') : undefined,
+        r,
+      };
     },
     (died) => console.log(`↻ ${id} ${target} — ${died
       ? 'the GPU process died before it drew'
