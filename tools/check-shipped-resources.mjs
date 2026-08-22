@@ -12,9 +12,9 @@
  * Nothing fails until someone installs a release and imports a model, which is
  * the worst moment to find out. Both halves are declarations, so this pairs them.
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,6 +22,16 @@ const BUILDER = path.join('desktop', 'electron-builder.yml');
 
 /** Trees whose code is bundled into the editor's main process. */
 const SHIPPED = ['pipeline/src', 'desktop/electron', 'desktop/src'];
+
+// This asks what the EDITOR's package stages, so it needs the editor. run-gates
+// declares that (needs: 'editor') and skips it; run directly, say why rather
+// than throwing ENOENT on the builder manifest.
+if (!existsSync(path.join(ROOT, BUILDER))) {
+    console.error('check-shipped-resources: the editor is not checked out, and its');
+    console.error(`  packaging manifest (${BUILDER}) is the subject of this check.`);
+    console.error('  git submodule update --init desktop   (private; you need access)');
+    process.exit(2);
+}
 
 /** `build-tools/<name>` referenced from a `from '…'` or `import('…')` specifier. */
 const REFERENCE = /(?:from\s*|import\s*\(\s*)['"][^'"]*build-tools\/([\w.-]+)\//g;
@@ -36,8 +46,14 @@ function hasBinary(name) {
     }
 }
 
-const files = execFileSync('git', ['ls-files', ...SHIPPED], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter((f) => /\.(ts|tsx|mts|mjs|js)$/.test(f));
+// Through the submodule's own index for the editor's half: this repo's
+// `git ls-files` does not list a submodule's contents, so asking it here would
+// judge the pipeline alone and still report on the package as a whole.
+const { files: tracked, missing } = listTrackedSources(SHIPPED);
+if (missing.length) {
+    console.log(`check-shipped-resources: no editor checkout — ${missing.join(', ')} not scanned.`);
+}
+const files = tracked.filter((f) => /\.(ts|tsx|mts|mjs|js)$/.test(f));
 
 /** name → the files that reach it. */
 const needed = new Map();

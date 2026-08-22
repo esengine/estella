@@ -11,8 +11,8 @@
  * A use that is NOT a boundary — classifying paths for a report, say — opts out
  * on the line above with `path-sandbox: <why>`.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,10 +27,16 @@ const IDIOMS = [
 ];
 const OPT_OUT = /path-sandbox:/;
 
-const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-  .split('\n')
+const { files: tracked, missing } = listTrackedSources(['desktop/electron', 'desktop/src', 'pipeline/src']);
+// A gate that scans the editor has to read the SUBMODULE's index: this repo's
+// `git ls-files` does not list a submodule's contents, so scanning that way
+// quietly dropped 90% of the files in scope and still printed green.
+if (missing.length) {
+  console.log(`check-path-sandbox: no editor checkout — ${missing.join(', ')} not scanned.`);
+}
+const files = tracked
   // `git ls-files` lists what is TRACKED, which includes a file deleted in the
-  // working tree: reading one throws and takes every later gate with it.
+  // working tree; reading one throws before any verdict is reached.
   .filter((f) => SCOPE.test(f) && f !== HOME && existsSync(path.join(ROOT, f)));
 
 const findings = [];
