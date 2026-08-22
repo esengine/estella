@@ -136,7 +136,7 @@ jobs:
         done
 
   test:
-    name: Tests (SDK + Desktop)
+    name: Tests (engine + SDK)
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -158,16 +158,6 @@ jobs:
     # are not ours. androguard decodes the binary manifest; bundletool is the App
     # Bundle format's own authority, and the runner has the JVM it needs — the
     # tests fall back to structural checks where either is absent, so this is the
-    # one place they run in full.
-    - name: Set up the Android packaging oracles
-      run: |
-        pip install --quiet androguard
-        curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
-          https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar
-        echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
-
-    - name: Run Desktop tests
-      run: pnpm --filter @estella/editor exec vitest run
 
   # The engine-coupled half of both suites. 25 test files load the built wasm and
   # `skipIf` themselves out when it is absent — which, in a job that never built
@@ -189,6 +179,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+
+    # Half of what this job runs is the EDITOR's engine-coupled suites, and
+    # `pnpm --filter` exits 0 when it matches nothing — without a checkout the
+    # job reported success having run none of them.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
 
     - uses: ./.github/actions/setup
 
@@ -357,6 +354,19 @@ jobs:
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build
+
+    # The editor's unit suites. They ran in the `test` job, which has no editor
+    # checkout — `pnpm --filter` prints "No projects matched" and exits 0, so the
+    # job reported success having run none of them.
+    - name: Set up the Android packaging oracles
+      run: |
+        pip install --quiet androguard
+        curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
+          https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar
+        echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
+
+    - name: Run Desktop tests
+      run: pnpm --filter @estella/editor exec vitest run
 
     - name: Run MCP end-to-end
       working-directory: desktop
