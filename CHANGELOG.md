@@ -69,6 +69,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Import settings are edited in batches.** Selecting several assets showed the
+  primary one's inspector, so "make every sprite in this folder nearest-filtered"
+  was one asset at a time. The Details panel now edits the whole asset selection
+  through the same reflection sections a multi-entity selection uses: a field the
+  selection disagrees on reads as mixed, typing one writes it to all of them, and
+  Save writes a PATCH — only the keys touched — so settings nobody edited are not
+  levelled onto each other. Assets of types that share one importer schema (a
+  sprite and a texture) batch together; a selection spanning two schemas says so
+  instead of offering fields half of it has no answer for. `ProjectStore
+  .setImportSettingsMany` is the batch door — one rescan, one re-import pass —
+  and `set_import_settings` / `select_asset` take an array of paths, so an agent
+  can do the same in one call. Content-browser Reimport and Copy Path follow the
+  selection too, the rule Delete already followed. New editor check
+  `batch-import-settings`.
+
 - **Gates hold up without the editor.** Nine gates whose subject IS the editor
   declare `needs: 'editor'` and are named when skipped. Gates spanning both
   (`cycles`, `component-fields`, `import-settings`, `component-reference`,

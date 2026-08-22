@@ -198,6 +198,12 @@ export function importerDefaults(type: string): Record<string, unknown> {
 /** True when a type exposes editable import settings. */
 export const hasImporterSettings = (type: string): boolean => (IMPORTER_SCHEMAS[type]?.length ?? 0) > 0;
 
+/** Whether two asset types are edited by the SAME settings — a sprite and a
+ *  texture are, so a selection spanning both is still one batch. Identity of the
+ *  spec array, not of the type name: the table above is what decides it. */
+export const sharesImporterSchema = (a: string, b: string): boolean =>
+  IMPORTER_SCHEMAS[a] !== undefined && IMPORTER_SCHEMAS[a] === IMPORTER_SCHEMAS[b];
+
 /** The texture cook settings a platform may override: size cap + whether/how to
  *  compress. sRGB is intrinsic to the asset's color rather than the target, so it
  *  is not overridable. `enabled` is the per-platform switch — an override applies
