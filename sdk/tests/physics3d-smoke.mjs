@@ -3,7 +3,7 @@
 // throwing proves nothing about where anything ended up.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { requireWasm } from './helpers/wasmDir.mjs';
+import { requireWasm } from '../../tools/lib/wasmDir.mjs';
 
 const wasmDir = requireWasm('physics3d.wasm');
 const factory = (await import('file://' + path.join(wasmDir, 'physics3d.js').replace(/\\/g, '/'))).default;

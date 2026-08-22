@@ -44,10 +44,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { glslToSpv } from '../build-tools/shader-twins/glslang.mjs';
+import { resolveWasmDir } from './lib/wasmDir.mjs';
 import { spvFileToWgsl } from '../build-tools/shader-twins/naga.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const WASM_GLUE = path.join(ROOT, 'desktop', 'public', 'wasm', 'esengine.js');
+const WASM_GLUE = path.join(resolveWasmDir('esengine.js'), 'esengine.js');
 
 // Engine group-0 UBO slots (Shader::compile / WebGPU bind conventions).
 const BLOCK_BINDINGS = {

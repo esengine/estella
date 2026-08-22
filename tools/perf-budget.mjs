@@ -30,6 +30,17 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runTool } from './lib/runTool.mjs';
 
+// The editor is an optional submodule and this verifier drives it. Saying so
+// beats the failure a missing checkout produces on its own ("Command vitest not
+// found"), which names neither the editor nor the reason it is wanted.
+function requireEditor(what) {
+    if (existsSync(join(ROOT, 'desktop', 'package.json'))) return;
+    console.error(`${what} measures the EDITOR, which is not checked out.`);
+    console.error('  git submodule update --init desktop   (private; you need access)');
+    process.exit(2);
+}
+
+
 import { generateStressProject, countAssets } from './stress-project.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,6 +71,7 @@ if (corpus.assets !== countAssets(1)) {
 // before writing anything.
 rmSync(REPORT, { force: true });
 
+requireEditor('The scale budget suite');
 const run = runTool('pnpm', ['exec', 'vitest', 'run', '--config', 'vitest.scale.config.ts'], {
     cwd: join(ROOT, 'desktop'),
     stdio: 'inherit',

@@ -18,7 +18,7 @@ import {
     createWebApp, setEditorMode, setPlayMode, Assets, acquireWebGPUDevice,
     loadSceneData, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
-    finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels,
+    finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
 } from 'esengine';
 import type { App, SceneData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -258,6 +258,17 @@ const api = {
         const dt = Number(dtIn) > 0 ? Number(dtIn) : 1 / 60;
         for (let i = 0; i < frames; i++) await app?.tick(dt);
         return { world: 'engine', frames, dt };
+    },
+
+    /**
+     * The frame as the ENGINE holds it, whichever backend drew it. captureViewport
+     * reads the page instead, which on WebGPU is a compositor copy — blank in a
+     * hidden window. Null when the surface was not configured for readback, which
+     * has to be decided before anything is drawn.
+     */
+    async captureViewportPixels(): Promise<{ rgba: Uint8Array; width: number; height: number } | null> {
+        if (!canvas || !module) return null;
+        return captureFramePixels(module, canvas.width, canvas.height, async () => { await api.step(1, 1 / 60); });
     },
 
     captureViewport(): { rgba: Uint8Array; width: number; height: number } {

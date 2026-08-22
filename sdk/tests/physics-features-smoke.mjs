@@ -3,7 +3,7 @@
 // same pattern as mover-smoke.mjs / sensor-smoke.mjs.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { requireWasm } from './helpers/wasmDir.mjs';
+import { requireWasm } from '../../tools/lib/wasmDir.mjs';
 
 const wasmDir = requireWasm('physics.wasm');
 const factory = (await import('file://' + path.join(wasmDir, 'physics.js').replace(/\\/g, '/'))).default;

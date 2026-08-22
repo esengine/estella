@@ -233,6 +233,12 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
+    # The scale suite lives in the editor and imports its sources — the budgets
+    # are about what the EDITOR costs at 50k assets.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
     - uses: ./.github/actions/setup
 
     - name: Download web wasm artifact

@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  wasmDir.mjs — where the plain-node smoke scripts find the built WASM.
+ * @file  wasmDir.mjs — where plain-node tooling finds the built WASM.
  *
- * The .mjs smokes cannot import the TypeScript {@link ../loadWasm.ts}, so this
- * mirrors its resolution order. `build/wasm/web` is the authoritative build
- * output; `desktop/public/wasm` is a synced copy that only exists when the
- * editor submodule is checked out, so nothing engine-side may require it.
+ * Mirrors the resolution order of sdk/tests/helpers/loadWasm.ts, which the .mjs
+ * callers cannot import. `build/wasm/web` is the authoritative build output;
+ * `desktop/public/wasm` is a copy synced into the editor and only exists when
+ * that submodule is checked out, so nothing engine-side may REQUIRE it — a gate
+ * that names it directly fails on a checkout without the editor.
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../../..');
+const ROOT = path.resolve(HERE, '..', '..');
 
 /** First candidate that actually holds `probe`; falls back to the build output. */
 export function resolveWasmDir(probe = 'esengine.wasm') {
