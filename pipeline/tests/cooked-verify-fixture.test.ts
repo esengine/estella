@@ -47,7 +47,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     rmSync(OUT, { recursive: true, force: true });
 
     mkdirSync(path.join(SRC, 'assets'), { recursive: true });
-    copyFileSync(path.resolve(HERE, '..', 'public', 'scenes', 'ktx2-test', 'green.ktx2'),
+    copyFileSync(path.resolve(HERE, '..', '..', 'fixtures', 'scenes', 'ktx2-test', 'green.ktx2'),
       path.join(SRC, 'assets', 'green.ktx2'));
     writeFileSync(path.join(SRC, 'assets', 'green.ktx2.meta'), meta(TEX, 'texture'));
     writeFileSync(path.join(SRC, 'assets', 'tint.esshader'), TINT_SHADER);

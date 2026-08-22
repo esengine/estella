@@ -28,7 +28,9 @@
     "gate": "node tools/check-release-gate.mjs --report",
     "render-host": "node tools/render-host/build.mjs",
     "verify:render": "node tools/verify-render.mjs",
-    "test": "vitest run --config vitest.engine.config.ts"
+    "test": "vitest run --config vitest.engine.config.ts",
+    "verify:cooked": "ESTELLA_COOK_FIXTURE=1 pnpm --filter @estella/pipeline exec vitest run tests/cooked-verify-fixture.test.ts && pnpm exec electron tools/launchers/headless-cooked-verify.mjs",
+    "verify:hotupdate": "ESTELLA_HOTUPDATE_FIXTURE=1 pnpm --filter @estella/pipeline exec vitest run tests/hotupdate-verify-fixture.test.ts && pnpm exec electron tools/launchers/headless-hotupdate-verify.mjs"
   },
   "dependencies": {
     "chalk": "^5.3.0",

@@ -85,7 +85,7 @@ export const CRITERIA = [
     // manifests that lie, and reads the pixel after each.
     answeredBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
     needs: [
-      'desktop/scripts/headless-hotupdate-verify.mjs',
+      'tools/launchers/headless-hotupdate-verify.mjs',
       'pipeline/tests/hotupdate-verify-fixture.test.ts',
     ],
   },
