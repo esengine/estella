@@ -188,6 +188,8 @@ Some things live in **import settings**, not on a component — a texture's 9-sl
 border is the one that bites: a `UIVisual` set to NineSlice reads its border from
 texture metadata, so a frame or button authored without `set_import_settings`
 stretches its corners. `get_import_settings` shows every knob with its default.
+`set_import_settings` takes an **array** of paths for the same patch onto a whole
+folder in one call — each asset keeps the settings the patch does not name.
 </Aside>
 
 ## From the repository (contributors)

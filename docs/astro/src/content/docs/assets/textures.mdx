@@ -127,6 +127,19 @@ Browser — every sprite that uses the texture inherits them.
   colour edges are.
 </Aside>
 
+### Editing a whole folder at once
+
+Select several images (ctrl/cmd-click, shift-click, or Select All) and the inspector
+edits **all of them**. A setting they already agree on shows its value; one they
+disagree on shows a dash — type into it and every selected image takes that value.
+Save writes only the settings you touched, so the ones each image had its own answer
+for are left alone. Sprites and textures share a schema and batch together; a
+selection that mixes in an audio clip or a model says so instead, since there is no
+field they all have.
+
+The 9-slice border editor stays on a single selection — it draws one image, and there
+is no honest picture of forty.
+
 ### Per-platform overrides
 
 Max Size, Compress and Compress Format can be overridden **per platform** — the tabs
