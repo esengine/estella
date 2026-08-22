@@ -1148,41 +1148,57 @@
     },
     {
       "name": "Draggable",
-      "source": "ts",
+      "source": "cpp",
       "fields": [
         {
           "key": "enabled",
           "type": "boolean",
-          "default": "true"
+          "default": "true",
+          "doc": "Whether this entity can be dragged at all."
         },
         {
           "key": "dragThreshold",
           "type": "number",
-          "default": "5"
+          "default": "5",
+          "doc": "Pointer travel before a press becomes a drag.",
+          "range": "≥ 0"
         },
         {
           "key": "lockX",
           "type": "boolean",
-          "default": "false"
+          "default": "false",
+          "doc": "Pin the X axis; the drag only moves in Y."
         },
         {
           "key": "lockY",
           "type": "boolean",
-          "default": "false"
+          "default": "false",
+          "doc": "Pin the Y axis; the drag only moves in X."
+        },
+        {
+          "key": "constrainMin",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Apply the lower bound below."
         },
         {
           "key": "constraintMin",
-          "type": "unknown",
-          "default": "—"
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Lowest world position the drag may reach."
+        },
+        {
+          "key": "constrainMax",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Apply the upper bound below."
         },
         {
           "key": "constraintMax",
-          "type": "unknown",
-          "default": "—"
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Highest world position the drag may reach."
         }
-      ],
-      "animatable": [
-        "dragThreshold"
       ]
     },
     {

@@ -160,6 +160,19 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 13 },
         ],
     },
+    Draggable: {
+        ptrFn: 'getDraggablePtr',
+        fields: [
+            { name: 'enabled', type: 'bool', offset: 0 },
+            { name: 'dragThreshold', type: 'f32', offset: 4 },
+            { name: 'lockX', type: 'bool', offset: 8 },
+            { name: 'lockY', type: 'bool', offset: 9 },
+            { name: 'constrainMin', type: 'bool', offset: 10 },
+            { name: 'constraintMin', type: 'vec2', offset: 12 },
+            { name: 'constrainMax', type: 'bool', offset: 20 },
+            { name: 'constraintMax', type: 'vec2', offset: 24 },
+        ],
+    },
     DragonBonesAnimation: {
         ptrFn: 'getDragonBonesAnimationPtr',
         fields: [

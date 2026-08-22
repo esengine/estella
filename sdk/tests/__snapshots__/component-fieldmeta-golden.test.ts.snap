@@ -156,6 +156,40 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "How the canvas adapts the design resolution to the screen.",
     },
   },
+  "Draggable": {
+    "constrainMax": {
+      "category": "Bounds",
+      "tooltip": "Apply the upper bound below.",
+    },
+    "constrainMin": {
+      "category": "Bounds",
+      "tooltip": "Apply the lower bound below.",
+    },
+    "constraintMax": {
+      "category": "Bounds",
+      "tooltip": "Highest world position the drag may reach.",
+    },
+    "constraintMin": {
+      "category": "Bounds",
+      "tooltip": "Lowest world position the drag may reach.",
+    },
+    "dragThreshold": {
+      "min": 0,
+      "tooltip": "Pointer travel before a press becomes a drag.",
+      "unit": "px",
+    },
+    "enabled": {
+      "tooltip": "Whether this entity can be dragged at all.",
+    },
+    "lockX": {
+      "category": "Axis",
+      "tooltip": "Pin the X axis; the drag only moves in Y.",
+    },
+    "lockY": {
+      "category": "Axis",
+      "tooltip": "Pin the Y axis; the drag only moves in X.",
+    },
+  },
   "DragonBonesAnimation": {
     "animation": {
       "enumSource": "dragonbonesAnimations",

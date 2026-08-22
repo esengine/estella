@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '4f073fe384c59476';
+export const ABI_LAYOUT_HASH = '1df12cb48da3bf45';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -318,6 +318,32 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             mesh: { tooltip: "Geometry (.esmesh) whose convex hull collides." },
             friction: { min: 0 },
             restitution: { min: 0, max: 1 },
+        },
+    },
+    Draggable: {
+        defaults: {
+            enabled: true,
+            dragThreshold: 5,
+            lockX: false,
+            lockY: false,
+            constrainMin: false,
+            constraintMin: { x: 0, y: 0 },
+            constrainMax: false,
+            constraintMax: { x: 0, y: 0 },
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            enabled: { tooltip: "Whether this entity can be dragged at all." },
+            dragThreshold: { min: 0, unit: "px", tooltip: "Pointer travel before a press becomes a drag." },
+            lockX: { tooltip: "Pin the X axis; the drag only moves in Y.", category: "Axis" },
+            lockY: { tooltip: "Pin the Y axis; the drag only moves in X.", category: "Axis" },
+            constrainMin: { tooltip: "Apply the lower bound below.", category: "Bounds" },
+            constraintMin: { tooltip: "Lowest world position the drag may reach.", category: "Bounds" },
+            constrainMax: { tooltip: "Apply the upper bound below.", category: "Bounds" },
+            constraintMax: { tooltip: "Highest world position the drag may reach.", category: "Bounds" },
         },
     },
     DragonBonesAnimation: {
@@ -1163,6 +1189,17 @@ export interface ConvexCollider3DData {
     restitution: number;
     isSensor: boolean;
     enabled: boolean;
+}
+
+export interface DraggableData {
+    enabled: boolean;
+    dragThreshold: number;
+    lockX: boolean;
+    lockY: boolean;
+    constrainMin: boolean;
+    constraintMin: Vec2;
+    constrainMax: boolean;
+    constraintMax: Vec2;
 }
 
 export interface DragonBonesAnimationData {

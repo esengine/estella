@@ -15,6 +15,7 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider.hpp"
+#include "../ecs/components/Draggable.hpp"
 #include "../ecs/components/DragonBonesAnimation.hpp"
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/Hierarchy.hpp"
@@ -1401,6 +1402,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("isSensor", &ConvexCollider3DJS::isSensor)
         .field("enabled", &ConvexCollider3DJS::enabled);
 
+    value_object<esengine::ecs::Draggable>("Draggable")
+        .field("enabled", &esengine::ecs::Draggable::enabled)
+        .field("dragThreshold", &esengine::ecs::Draggable::dragThreshold)
+        .field("lockX", &esengine::ecs::Draggable::lockX)
+        .field("lockY", &esengine::ecs::Draggable::lockY)
+        .field("constrainMin", &esengine::ecs::Draggable::constrainMin)
+        .field("constraintMin", &esengine::ecs::Draggable::constraintMin)
+        .field("constrainMax", &esengine::ecs::Draggable::constrainMax)
+        .field("constraintMax", &esengine::ecs::Draggable::constraintMax);
+
     value_object<esengine::ecs::DragonBonesAnimation>("DragonBonesAnimation")
         .field("skeletonPath", &esengine::ecs::DragonBonesAnimation::skeletonPath)
         .field("atlasPath", &esengine::ecs::DragonBonesAnimation::atlasPath)
@@ -1991,6 +2002,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::ConvexCollider3D>(entity)) return;
             r.remove<esengine::ecs::ConvexCollider3D>(entity);
+        }))
+
+        // Draggable
+        .function("hasDraggable", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Draggable>(static_cast<Entity>(e));
+        }))
+        .function("getDraggable", optional_override([](Registry& r, u32 e) -> esengine::ecs::Draggable& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Draggable s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Draggable>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Draggable>(entity);
+        }), allow_raw_pointers())
+        .function("addDraggable", optional_override([](Registry& r, u32 e, const esengine::ecs::Draggable& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Draggable>(entity, c);
+        }))
+        .function("removeDraggable", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Draggable>(entity)) return;
+            r.remove<esengine::ecs::Draggable>(entity);
         }))
 
         // DragonBonesAnimation
@@ -2633,6 +2665,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider")));
     arr.set(i++, val(std::string("ConvexCollider3D")));
+    arr.set(i++, val(std::string("Draggable")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
@@ -2757,6 +2790,14 @@ static_assert(offsetof(esengine::ecs::ConvexCollider3D, friction) == 4, "ABI off
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::ConvexCollider3D.restitution (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, isSensor) == 12, "ABI offset drift: esengine::ecs::ConvexCollider3D.isSensor (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, enabled) == 13, "ABI offset drift: esengine::ecs::ConvexCollider3D.enabled (EHT expected 13)");
+static_assert(offsetof(esengine::ecs::Draggable, enabled) == 0, "ABI offset drift: esengine::ecs::Draggable.enabled (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Draggable, dragThreshold) == 4, "ABI offset drift: esengine::ecs::Draggable.dragThreshold (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Draggable, lockX) == 8, "ABI offset drift: esengine::ecs::Draggable.lockX (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::Draggable, lockY) == 9, "ABI offset drift: esengine::ecs::Draggable.lockY (EHT expected 9)");
+static_assert(offsetof(esengine::ecs::Draggable, constrainMin) == 10, "ABI offset drift: esengine::ecs::Draggable.constrainMin (EHT expected 10)");
+static_assert(offsetof(esengine::ecs::Draggable, constraintMin) == 12, "ABI offset drift: esengine::ecs::Draggable.constraintMin (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::Draggable, constrainMax) == 20, "ABI offset drift: esengine::ecs::Draggable.constrainMax (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::Draggable, constraintMax) == 24, "ABI offset drift: esengine::ecs::Draggable.constraintMax (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::DragonBonesAnimation.timeScale (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, loop) == 52, "ABI offset drift: esengine::ecs::DragonBonesAnimation.loop (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::DragonBonesAnimation, playing) == 53, "ABI offset drift: esengine::ecs::DragonBonesAnimation.playing (EHT expected 53)");
@@ -3024,7 +3065,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "4f073fe384c59476";
+static const char* kEsAbiLayoutHash = "1df12cb48da3bf45";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

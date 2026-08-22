@@ -61,11 +61,13 @@ function applyConstraints(
     let x = draggable.lockX ? dragState.startWorldPos.x : newX;
     let y = draggable.lockY ? dragState.startWorldPos.y : newY;
 
-    if (draggable.constraintMin !== null) {
+    // A flag rather than a null bound: zero is a usable limit, so it cannot
+    // double as "no limit".
+    if (draggable.constrainMin) {
         x = Math.max(x, draggable.constraintMin.x);
         y = Math.max(y, draggable.constraintMin.y);
     }
-    if (draggable.constraintMax !== null) {
+    if (draggable.constrainMax) {
         x = Math.min(x, draggable.constraintMax.x);
         y = Math.min(y, draggable.constraintMax.y);
     }

@@ -14,7 +14,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // `esengine` import site is unchanged; Camera/ParticleEmitter add TS-only fields by
 // extending the generated base.
 import type {
-    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
+    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData, DraggableData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -768,7 +768,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // the generated module (the single source). Adding/removing a C++ field flows here
 // automatically; tsc then enforces every consumer matches.
 export type {
-    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
+    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData, DraggableData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -858,6 +858,16 @@ export const WorldTransform = Transform;
  */
 export const Sprite = defineBuiltin<SpriteData>('Sprite',
     metaDefaults<SpriteData>('Sprite')
+);
+
+/**
+ * Authored drag configuration, read by the drag system. Works on a UI node and
+ * on a plain world-space sprite alike — the hit test answers for both.
+ *
+ * @experimental
+ */
+export const Draggable = defineBuiltin<DraggableData>('Draggable',
+    metaDefaults<DraggableData>('Draggable')
 );
 
 // shapeType's dropdown is generated from the C++ ShapeType enum (ES_PROPERTY enum=).

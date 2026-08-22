@@ -336,6 +336,17 @@ export interface ConvexCollider3D {
     enabled: boolean;
 }
 
+export interface Draggable {
+    enabled: boolean;
+    dragThreshold: number;
+    lockX: boolean;
+    lockY: boolean;
+    constrainMin: boolean;
+    constraintMin: Vec2;
+    constrainMax: boolean;
+    constraintMax: Vec2;
+}
+
 export interface DragonBonesAnimation {
     skeletonPath: string;
     atlasPath: string;
@@ -739,6 +750,10 @@ export interface Registry {
     getConvexCollider3D(entity: Entity): ConvexCollider3D;
     addConvexCollider3D(entity: Entity, component: ConvexCollider3D): void;
     removeConvexCollider3D(entity: Entity): void;
+    hasDraggable(entity: Entity): boolean;
+    getDraggable(entity: Entity): Draggable;
+    addDraggable(entity: Entity, component: Draggable): void;
+    removeDraggable(entity: Entity): void;
     hasDragonBonesAnimation(entity: Entity): boolean;
     getDragonBonesAnimation(entity: Entity): DragonBonesAnimation;
     addDragonBonesAnimation(entity: Entity, component: DragonBonesAnimation): void;
@@ -872,6 +887,7 @@ export interface ESEngineModule {
     Children: new () => Children;
     CircleCollider: new () => CircleCollider;
     ConvexCollider3D: new () => ConvexCollider3D;
+    Draggable: new () => Draggable;
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;

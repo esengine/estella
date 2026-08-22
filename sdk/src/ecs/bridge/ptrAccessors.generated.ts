@@ -541,6 +541,58 @@ export function createConvexCollider3DData(): ConvexCollider3DPtrData {
     };
 }
 
+export interface DraggablePtrData {
+    enabled: boolean;
+    dragThreshold: number;
+    lockX: boolean;
+    lockY: boolean;
+    constrainMin: boolean;
+    constraintMin: Vec2;
+    constrainMax: boolean;
+    constraintMax: Vec2;
+}
+
+export function fillDraggable(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: DraggablePtrData,
+): void {
+    out.enabled = u8[ptr] !== 0;
+    out.dragThreshold = f32[(ptr + 4) >> 2];
+    out.lockX = u8[ptr + 8] !== 0;
+    out.lockY = u8[ptr + 9] !== 0;
+    out.constrainMin = u8[ptr + 10] !== 0;
+    const constraintMin_ = out.constraintMin; constraintMin_.x = f32[(ptr + 12) >> 2]; constraintMin_.y = f32[((ptr + 12) >> 2) + 1];
+    out.constrainMax = u8[ptr + 20] !== 0;
+    const constraintMax_ = out.constraintMax; constraintMax_.x = f32[(ptr + 24) >> 2]; constraintMax_.y = f32[((ptr + 24) >> 2) + 1];
+}
+
+export function writeDraggable(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: DraggablePtrData,
+): void {
+    u8[ptr] = data.enabled ? 1 : 0;
+    f32[(ptr + 4) >> 2] = data.dragThreshold;
+    u8[ptr + 8] = data.lockX ? 1 : 0;
+    u8[ptr + 9] = data.lockY ? 1 : 0;
+    u8[ptr + 10] = data.constrainMin ? 1 : 0;
+    f32[(ptr + 12) >> 2] = data.constraintMin.x; f32[((ptr + 12) >> 2) + 1] = data.constraintMin.y;
+    u8[ptr + 20] = data.constrainMax ? 1 : 0;
+    f32[(ptr + 24) >> 2] = data.constraintMax.x; f32[((ptr + 24) >> 2) + 1] = data.constraintMax.y;
+}
+
+export function createDraggableData(): DraggablePtrData {
+    return {
+        enabled: false,
+        dragThreshold: 0,
+        lockX: false,
+        lockY: false,
+        constrainMin: false,
+        constraintMin: { x: 0, y: 0 },
+        constrainMax: false,
+        constraintMax: { x: 0, y: 0 },
+    };
+}
+
 export interface DragonBonesAnimationPtrData {
     timeScale: number;
     loop: boolean;
@@ -2102,6 +2154,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CharacterController3D: { fill: fillCharacterController3D, write: writeCharacterController3D, create: createCharacterController3DData },
     CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
     ConvexCollider3D: { fill: fillConvexCollider3D, write: writeConvexCollider3D, create: createConvexCollider3DData },
+    Draggable: { fill: fillDraggable, write: writeDraggable, create: createDraggableData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },

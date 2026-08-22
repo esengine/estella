@@ -2583,13 +2583,15 @@ totalDeltaWorld: { x: number; y: number; }
 
 ## Draggable — const @experimental
 ```
-ComponentDef<DraggableData>
+BuiltinComponentDef<DraggableData>
 ```
 
 ## DraggableData — interface @experimental
 ```
-constraintMax: { x: number; y: number; } | null
-constraintMin: { x: number; y: number; } | null
+constrainMax: boolean
+constrainMin: boolean
+constraintMax: Vec2
+constraintMin: Vec2
 dragThreshold: number
 enabled: boolean
 lockX: boolean

@@ -5,7 +5,7 @@ Symbols: 113 public · 66 beta · 1481 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"4f073fe384c59476"
+"1df12cb48da3bf45"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -2588,13 +2588,15 @@ totalDeltaWorld: { x: number; y: number; }
 
 ## Draggable — const @experimental
 ```
-ComponentDef<DraggableData>
+BuiltinComponentDef<DraggableData>
 ```
 
 ## DraggableData — interface @experimental
 ```
-constraintMax: { x: number; y: number; } | null
-constraintMin: { x: number; y: number; } | null
+constrainMax: boolean
+constrainMin: boolean
+constraintMax: Vec2
+constraintMin: Vec2
 dragThreshold: number
 enabled: boolean
 lockX: boolean

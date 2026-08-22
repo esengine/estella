@@ -25,8 +25,10 @@ describe('ui2 behavior components', () => {
             expect(Focusable._name).toBe('Focusable');
         });
 
-        it('Draggable is a user component (ts-side)', () => {
-            expect(Draggable._builtin).toBe(false);
+        it('Draggable is an engine component', () => {
+            // It sank into C++ so it reaches the inspector and the scene file;
+            // this asserts the module still re-exports the same name.
+            expect(Draggable._builtin).toBe(true);
             expect(Draggable._name).toBe('Draggable');
         });
     });

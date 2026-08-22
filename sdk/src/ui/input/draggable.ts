@@ -7,23 +7,11 @@
  */
 import { defineComponent } from '../../ecs/component';
 
-export interface DraggableData {
-    enabled: boolean;
-    dragThreshold: number;
-    lockX: boolean;
-    lockY: boolean;
-    constraintMin: { x: number; y: number } | null;
-    constraintMax: { x: number; y: number } | null;
-}
-
-export const Draggable = defineComponent<DraggableData>('Draggable', {
-    enabled: true,
-    dragThreshold: 5,
-    lockX: false,
-    lockY: false,
-    constraintMin: null,
-    constraintMax: null,
-});
+// An engine component now, so it reaches the inspector, the scene file and the
+// reflection table like any other, and its defaults come from the C++ struct.
+// Defined with the rest of them; re-exported here so this stays the drag module.
+export { Draggable } from '../../ecs/component';
+export type { DraggableData } from '../../ecs/component';
 
 export interface DragStateData {
     isDragging: boolean;
@@ -35,7 +23,7 @@ export interface DragStateData {
 }
 
 // Per-frame drag state written by the drag system — never authored, never
-// persisted.
+// persisted, so it stays a script component and never crosses the wasm boundary.
 export const DragState = defineComponent<DragStateData>('DragState', {
     isDragging: false,
     startWorldPos: { x: 0, y: 0 },

@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **`Draggable` is an engine component.** It was a script component, so it never
+  reached the inspector's reflection table, the scene file or the editor's usual
+  component list the way engine components do. Its optional bounds changed shape
+  in the move: `constraintMin`/`constraintMax` were `{x, y} | null` and are now a
+  `Vec2` paired with a `constrainMin`/`constrainMax` flag, because zero is a
+  usable limit and cannot double as "no limit". `DragState` stays a script
+  component — it is per-frame state, never authored and never persisted.
+
 - **The visual editor is no longer open source.** It moved to a private repository
   (`esengine/estella-editor`) and is mounted back at `desktop/` as an **optional**
   submodule; the engine — runtime, SDK, asset pipeline, CLI, project templates and
