@@ -33,7 +33,8 @@ describe('ParticleEmitter Component', () => {
 
         expect(defaults.shape).toBe(3);
         expect(defaults.shapeRadius).toBe(100);
-        expect(defaults.shapeSize).toEqual({ x: 100, y: 100 });
+        // A BOX, whose depth of 0 is the flat rectangle a 2D emitter spawns from.
+        expect(defaults.shapeSize).toEqual({ x: 100, y: 100, z: 0 });
         expect(defaults.shapeAngle).toBe(25);
     });
 

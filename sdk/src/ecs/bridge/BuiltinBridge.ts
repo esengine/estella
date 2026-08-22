@@ -6,6 +6,7 @@
  */
 
 import { Entity } from '../../types';
+import { mergeIntoDefaults } from '../component';
 import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../../wasm';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from '../../util/validation';
@@ -594,7 +595,9 @@ export class BuiltinBridge {
                 throw new Error(formatValidationErrors(component._name, errors));
             }
         }
-        const merged = { ...component._default, ...filtered } as T;
+        // Merged one level in, as a script component's `create` is: a builtin whose
+        // field grew an axis still reads the data written before it did.
+        const merged = mergeIntoDefaults(component._default as object, filtered) as T;
 
         let isNew = true;
         if (this.cppRegistry_) {

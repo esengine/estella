@@ -237,16 +237,18 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         VertexLayoutDesc desc;
         desc.attributeCount = 8;
         desc.strides[0] = 16;
-        desc.strides[1] = 40;
+        desc.strides[1] = 44;
         desc.instanceStep[1] = true;
         desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
         desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
-        desc.attributes[2] = {2, 2, GfxDataType::Float, false, 0, 1};
-        desc.attributes[3] = {3, 2, GfxDataType::Float, false, 8, 1};
-        desc.attributes[4] = {4, 1, GfxDataType::Float, false, 16, 1};
-        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 20, 1};
-        desc.attributes[6] = {6, 2, GfxDataType::Float, false, 24, 1};
-        desc.attributes[7] = {7, 2, GfxDataType::Float, false, 32, 1};
+        // The instance position carries all three axes: a particle simulated in
+        // depth and uploaded as a pair is drawn on the plane it left.
+        desc.attributes[2] = {2, 3, GfxDataType::Float, false, 0, 1};
+        desc.attributes[3] = {3, 2, GfxDataType::Float, false, 12, 1};
+        desc.attributes[4] = {4, 1, GfxDataType::Float, false, 20, 1};
+        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 24, 1};
+        desc.attributes[6] = {6, 2, GfxDataType::Float, false, 28, 1};
+        desc.attributes[7] = {7, 2, GfxDataType::Float, false, 36, 1};
         s.vertex_stride = desc.strides[1];
         s.layout = device_.createVertexLayout(desc);
         return;

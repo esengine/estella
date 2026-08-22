@@ -5243,7 +5243,7 @@ enabled: boolean
 endColor: Color
 endSizeMax: number
 endSizeMin: number
-gravity: Vec2
+gravity: Vec3
 layer: number
 lifetimeMax: number
 lifetimeMin: number
@@ -5261,7 +5261,7 @@ rotationMin: number
 shape: number
 shapeAngle: number
 shapeRadius: number
-shapeSize: Vec2
+shapeSize: Vec3
 simulationSpace: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: number
@@ -5292,7 +5292,7 @@ BuiltinComponentDef<ParticleForceFieldData>
 
 ## ParticleForceFieldData — interface @experimental
 ```
-direction: Vec2
+direction: Vec3
 enabled: boolean
 falloff: boolean
 radius: number

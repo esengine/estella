@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '1df12cb48da3bf45';
+export const ABI_LAYOUT_HASH = 'dc813d9c5d77b235';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -532,7 +532,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             lifetimeMax: 5,
             shape: 3,
             shapeRadius: 100,
-            shapeSize: { x: 100, y: 100 },
+            shapeSize: { x: 100, y: 100, z: 0 },
             shapeAngle: 25,
             speedMin: 500,
             speedMax: 500,
@@ -550,7 +550,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             rotationMax: 0,
             angularVelocityMin: 0,
             angularVelocityMax: 0,
-            gravity: { x: 0, y: 0 },
+            gravity: { x: 0, y: 0, z: 0 },
             damping: 0,
             noiseStrength: 0,
             noiseFrequency: 0.01,
@@ -650,7 +650,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             type: 0,
             strength: 200,
             radius: 0,
-            direction: { x: 1, y: 0 },
+            direction: { x: 1, y: 0, z: 0 },
             falloff: true,
             enabled: true,
         },
@@ -1301,7 +1301,7 @@ export interface ParticleEmitterData {
     lifetimeMax: number;
     shape: number;
     shapeRadius: number;
-    shapeSize: Vec2;
+    shapeSize: Vec3;
     shapeAngle: number;
     speedMin: number;
     speedMax: number;
@@ -1319,7 +1319,7 @@ export interface ParticleEmitterData {
     rotationMax: number;
     angularVelocityMin: number;
     angularVelocityMax: number;
-    gravity: Vec2;
+    gravity: Vec3;
     damping: number;
     noiseStrength: number;
     noiseFrequency: number;
@@ -1354,7 +1354,7 @@ export interface ParticleForceFieldData {
     type: number;
     strength: number;
     radius: number;
-    direction: Vec2;
+    direction: Vec3;
     falloff: boolean;
     enabled: boolean;
 }

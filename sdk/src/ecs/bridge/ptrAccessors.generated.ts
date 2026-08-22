@@ -929,7 +929,7 @@ export interface ParticleEmitterPtrData {
     lifetimeMax: number;
     shape: number;
     shapeRadius: number;
-    shapeSize: Vec2;
+    shapeSize: Vec3;
     shapeAngle: number;
     speedMin: number;
     speedMax: number;
@@ -947,7 +947,7 @@ export interface ParticleEmitterPtrData {
     rotationMax: number;
     angularVelocityMin: number;
     angularVelocityMax: number;
-    gravity: Vec2;
+    gravity: Vec3;
     damping: number;
     noiseStrength: number;
     noiseFrequency: number;
@@ -993,53 +993,53 @@ export function fillParticleEmitter(
     out.lifetimeMax = f32[(ptr + 28) >> 2];
     out.shape = u32[(ptr + 32) >> 2] | 0;
     out.shapeRadius = f32[(ptr + 36) >> 2];
-    const shapeSize_ = out.shapeSize; shapeSize_.x = f32[(ptr + 40) >> 2]; shapeSize_.y = f32[((ptr + 40) >> 2) + 1];
-    out.shapeAngle = f32[(ptr + 48) >> 2];
-    out.speedMin = f32[(ptr + 52) >> 2];
-    out.speedMax = f32[(ptr + 56) >> 2];
-    out.angleSpreadMin = f32[(ptr + 60) >> 2];
-    out.angleSpreadMax = f32[(ptr + 64) >> 2];
-    out.startSizeMin = f32[(ptr + 68) >> 2];
-    out.startSizeMax = f32[(ptr + 72) >> 2];
-    out.endSizeMin = f32[(ptr + 76) >> 2];
-    out.endSizeMax = f32[(ptr + 80) >> 2];
-    out.sizeEasing = u32[(ptr + 84) >> 2] | 0;
-    const startColor_ = out.startColor; startColor_.r = f32[(ptr + 88) >> 2]; startColor_.g = f32[((ptr + 88) >> 2) + 1]; startColor_.b = f32[((ptr + 88) >> 2) + 2]; startColor_.a = f32[((ptr + 88) >> 2) + 3];
-    const endColor_ = out.endColor; endColor_.r = f32[(ptr + 104) >> 2]; endColor_.g = f32[((ptr + 104) >> 2) + 1]; endColor_.b = f32[((ptr + 104) >> 2) + 2]; endColor_.a = f32[((ptr + 104) >> 2) + 3];
-    out.colorEasing = u32[(ptr + 120) >> 2] | 0;
-    out.rotationMin = f32[(ptr + 124) >> 2];
-    out.rotationMax = f32[(ptr + 128) >> 2];
-    out.angularVelocityMin = f32[(ptr + 132) >> 2];
-    out.angularVelocityMax = f32[(ptr + 136) >> 2];
-    const gravity_ = out.gravity; gravity_.x = f32[(ptr + 140) >> 2]; gravity_.y = f32[((ptr + 140) >> 2) + 1];
-    out.damping = f32[(ptr + 148) >> 2];
-    out.noiseStrength = f32[(ptr + 152) >> 2];
-    out.noiseFrequency = f32[(ptr + 156) >> 2];
-    out.noiseScrollSpeed = f32[(ptr + 160) >> 2];
-    out.noiseOctaves = u32[(ptr + 164) >> 2] | 0;
-    out.texture = u32[(ptr + 168) >> 2];
-    out.spriteColumns = u32[(ptr + 172) >> 2] | 0;
-    out.spriteRows = u32[(ptr + 176) >> 2] | 0;
-    out.spriteFPS = f32[(ptr + 180) >> 2];
-    out.spriteLoop = u8[ptr + 184] !== 0;
-    out.blendMode = u32[(ptr + 188) >> 2] | 0;
-    out.layer = u32[(ptr + 192) >> 2] | 0;
-    out.material = u32[(ptr + 196) >> 2];
-    out.simulationSpace = u32[(ptr + 200) >> 2] | 0;
-    out.enabled = u8[ptr + 204] !== 0;
-    out.subEmitterTrigger = u32[(ptr + 208) >> 2] | 0;
-    out.subEmitterChance = f32[(ptr + 212) >> 2];
-    out.subEmitterInheritVelocity = f32[(ptr + 216) >> 2];
-    out.subEmitter = u32[(ptr + 220) >> 2];
-    out.trailEnabled = u8[ptr + 224] !== 0;
-    out.trailWidth = f32[(ptr + 228) >> 2];
-    out.trailPoints = u32[(ptr + 232) >> 2] | 0;
-    out.trailMinDistance = f32[(ptr + 236) >> 2];
-    out.collisionEnabled = u8[ptr + 240] !== 0;
-    out.collisionFloor = f32[(ptr + 244) >> 2];
-    out.collisionBounce = f32[(ptr + 248) >> 2];
-    out.collisionFriction = f32[(ptr + 252) >> 2];
-    out.collisionLifetimeLoss = f32[(ptr + 256) >> 2];
+    const shapeSize_ = out.shapeSize; shapeSize_.x = f32[(ptr + 40) >> 2]; shapeSize_.y = f32[((ptr + 40) >> 2) + 1]; shapeSize_.z = f32[((ptr + 40) >> 2) + 2];
+    out.shapeAngle = f32[(ptr + 52) >> 2];
+    out.speedMin = f32[(ptr + 56) >> 2];
+    out.speedMax = f32[(ptr + 60) >> 2];
+    out.angleSpreadMin = f32[(ptr + 64) >> 2];
+    out.angleSpreadMax = f32[(ptr + 68) >> 2];
+    out.startSizeMin = f32[(ptr + 72) >> 2];
+    out.startSizeMax = f32[(ptr + 76) >> 2];
+    out.endSizeMin = f32[(ptr + 80) >> 2];
+    out.endSizeMax = f32[(ptr + 84) >> 2];
+    out.sizeEasing = u32[(ptr + 88) >> 2] | 0;
+    const startColor_ = out.startColor; startColor_.r = f32[(ptr + 92) >> 2]; startColor_.g = f32[((ptr + 92) >> 2) + 1]; startColor_.b = f32[((ptr + 92) >> 2) + 2]; startColor_.a = f32[((ptr + 92) >> 2) + 3];
+    const endColor_ = out.endColor; endColor_.r = f32[(ptr + 108) >> 2]; endColor_.g = f32[((ptr + 108) >> 2) + 1]; endColor_.b = f32[((ptr + 108) >> 2) + 2]; endColor_.a = f32[((ptr + 108) >> 2) + 3];
+    out.colorEasing = u32[(ptr + 124) >> 2] | 0;
+    out.rotationMin = f32[(ptr + 128) >> 2];
+    out.rotationMax = f32[(ptr + 132) >> 2];
+    out.angularVelocityMin = f32[(ptr + 136) >> 2];
+    out.angularVelocityMax = f32[(ptr + 140) >> 2];
+    const gravity_ = out.gravity; gravity_.x = f32[(ptr + 144) >> 2]; gravity_.y = f32[((ptr + 144) >> 2) + 1]; gravity_.z = f32[((ptr + 144) >> 2) + 2];
+    out.damping = f32[(ptr + 156) >> 2];
+    out.noiseStrength = f32[(ptr + 160) >> 2];
+    out.noiseFrequency = f32[(ptr + 164) >> 2];
+    out.noiseScrollSpeed = f32[(ptr + 168) >> 2];
+    out.noiseOctaves = u32[(ptr + 172) >> 2] | 0;
+    out.texture = u32[(ptr + 176) >> 2];
+    out.spriteColumns = u32[(ptr + 180) >> 2] | 0;
+    out.spriteRows = u32[(ptr + 184) >> 2] | 0;
+    out.spriteFPS = f32[(ptr + 188) >> 2];
+    out.spriteLoop = u8[ptr + 192] !== 0;
+    out.blendMode = u32[(ptr + 196) >> 2] | 0;
+    out.layer = u32[(ptr + 200) >> 2] | 0;
+    out.material = u32[(ptr + 204) >> 2];
+    out.simulationSpace = u32[(ptr + 208) >> 2] | 0;
+    out.enabled = u8[ptr + 212] !== 0;
+    out.subEmitterTrigger = u32[(ptr + 216) >> 2] | 0;
+    out.subEmitterChance = f32[(ptr + 220) >> 2];
+    out.subEmitterInheritVelocity = f32[(ptr + 224) >> 2];
+    out.subEmitter = u32[(ptr + 228) >> 2];
+    out.trailEnabled = u8[ptr + 232] !== 0;
+    out.trailWidth = f32[(ptr + 236) >> 2];
+    out.trailPoints = u32[(ptr + 240) >> 2] | 0;
+    out.trailMinDistance = f32[(ptr + 244) >> 2];
+    out.collisionEnabled = u8[ptr + 248] !== 0;
+    out.collisionFloor = f32[(ptr + 252) >> 2];
+    out.collisionBounce = f32[(ptr + 256) >> 2];
+    out.collisionFriction = f32[(ptr + 260) >> 2];
+    out.collisionLifetimeLoss = f32[(ptr + 264) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -1057,53 +1057,53 @@ export function writeParticleEmitter(
     f32[(ptr + 28) >> 2] = data.lifetimeMax;
     u32[(ptr + 32) >> 2] = data.shape | 0;
     f32[(ptr + 36) >> 2] = data.shapeRadius;
-    f32[(ptr + 40) >> 2] = data.shapeSize.x; f32[((ptr + 40) >> 2) + 1] = data.shapeSize.y;
-    f32[(ptr + 48) >> 2] = data.shapeAngle;
-    f32[(ptr + 52) >> 2] = data.speedMin;
-    f32[(ptr + 56) >> 2] = data.speedMax;
-    f32[(ptr + 60) >> 2] = data.angleSpreadMin;
-    f32[(ptr + 64) >> 2] = data.angleSpreadMax;
-    f32[(ptr + 68) >> 2] = data.startSizeMin;
-    f32[(ptr + 72) >> 2] = data.startSizeMax;
-    f32[(ptr + 76) >> 2] = data.endSizeMin;
-    f32[(ptr + 80) >> 2] = data.endSizeMax;
-    u32[(ptr + 84) >> 2] = data.sizeEasing | 0;
-    f32[(ptr + 88) >> 2] = data.startColor.r; f32[((ptr + 88) >> 2) + 1] = data.startColor.g; f32[((ptr + 88) >> 2) + 2] = data.startColor.b; f32[((ptr + 88) >> 2) + 3] = data.startColor.a;
-    f32[(ptr + 104) >> 2] = data.endColor.r; f32[((ptr + 104) >> 2) + 1] = data.endColor.g; f32[((ptr + 104) >> 2) + 2] = data.endColor.b; f32[((ptr + 104) >> 2) + 3] = data.endColor.a;
-    u32[(ptr + 120) >> 2] = data.colorEasing | 0;
-    f32[(ptr + 124) >> 2] = data.rotationMin;
-    f32[(ptr + 128) >> 2] = data.rotationMax;
-    f32[(ptr + 132) >> 2] = data.angularVelocityMin;
-    f32[(ptr + 136) >> 2] = data.angularVelocityMax;
-    f32[(ptr + 140) >> 2] = data.gravity.x; f32[((ptr + 140) >> 2) + 1] = data.gravity.y;
-    f32[(ptr + 148) >> 2] = data.damping;
-    f32[(ptr + 152) >> 2] = data.noiseStrength;
-    f32[(ptr + 156) >> 2] = data.noiseFrequency;
-    f32[(ptr + 160) >> 2] = data.noiseScrollSpeed;
-    u32[(ptr + 164) >> 2] = data.noiseOctaves | 0;
-    u32[(ptr + 168) >> 2] = data.texture;
-    u32[(ptr + 172) >> 2] = data.spriteColumns | 0;
-    u32[(ptr + 176) >> 2] = data.spriteRows | 0;
-    f32[(ptr + 180) >> 2] = data.spriteFPS;
-    u8[ptr + 184] = data.spriteLoop ? 1 : 0;
-    u32[(ptr + 188) >> 2] = data.blendMode | 0;
-    u32[(ptr + 192) >> 2] = data.layer | 0;
-    u32[(ptr + 196) >> 2] = data.material;
-    u32[(ptr + 200) >> 2] = data.simulationSpace | 0;
-    u8[ptr + 204] = data.enabled ? 1 : 0;
-    u32[(ptr + 208) >> 2] = data.subEmitterTrigger | 0;
-    f32[(ptr + 212) >> 2] = data.subEmitterChance;
-    f32[(ptr + 216) >> 2] = data.subEmitterInheritVelocity;
-    u32[(ptr + 220) >> 2] = data.subEmitter;
-    u8[ptr + 224] = data.trailEnabled ? 1 : 0;
-    f32[(ptr + 228) >> 2] = data.trailWidth;
-    u32[(ptr + 232) >> 2] = data.trailPoints | 0;
-    f32[(ptr + 236) >> 2] = data.trailMinDistance;
-    u8[ptr + 240] = data.collisionEnabled ? 1 : 0;
-    f32[(ptr + 244) >> 2] = data.collisionFloor;
-    f32[(ptr + 248) >> 2] = data.collisionBounce;
-    f32[(ptr + 252) >> 2] = data.collisionFriction;
-    f32[(ptr + 256) >> 2] = data.collisionLifetimeLoss;
+    f32[(ptr + 40) >> 2] = data.shapeSize.x; f32[((ptr + 40) >> 2) + 1] = data.shapeSize.y; f32[((ptr + 40) >> 2) + 2] = data.shapeSize.z;
+    f32[(ptr + 52) >> 2] = data.shapeAngle;
+    f32[(ptr + 56) >> 2] = data.speedMin;
+    f32[(ptr + 60) >> 2] = data.speedMax;
+    f32[(ptr + 64) >> 2] = data.angleSpreadMin;
+    f32[(ptr + 68) >> 2] = data.angleSpreadMax;
+    f32[(ptr + 72) >> 2] = data.startSizeMin;
+    f32[(ptr + 76) >> 2] = data.startSizeMax;
+    f32[(ptr + 80) >> 2] = data.endSizeMin;
+    f32[(ptr + 84) >> 2] = data.endSizeMax;
+    u32[(ptr + 88) >> 2] = data.sizeEasing | 0;
+    f32[(ptr + 92) >> 2] = data.startColor.r; f32[((ptr + 92) >> 2) + 1] = data.startColor.g; f32[((ptr + 92) >> 2) + 2] = data.startColor.b; f32[((ptr + 92) >> 2) + 3] = data.startColor.a;
+    f32[(ptr + 108) >> 2] = data.endColor.r; f32[((ptr + 108) >> 2) + 1] = data.endColor.g; f32[((ptr + 108) >> 2) + 2] = data.endColor.b; f32[((ptr + 108) >> 2) + 3] = data.endColor.a;
+    u32[(ptr + 124) >> 2] = data.colorEasing | 0;
+    f32[(ptr + 128) >> 2] = data.rotationMin;
+    f32[(ptr + 132) >> 2] = data.rotationMax;
+    f32[(ptr + 136) >> 2] = data.angularVelocityMin;
+    f32[(ptr + 140) >> 2] = data.angularVelocityMax;
+    f32[(ptr + 144) >> 2] = data.gravity.x; f32[((ptr + 144) >> 2) + 1] = data.gravity.y; f32[((ptr + 144) >> 2) + 2] = data.gravity.z;
+    f32[(ptr + 156) >> 2] = data.damping;
+    f32[(ptr + 160) >> 2] = data.noiseStrength;
+    f32[(ptr + 164) >> 2] = data.noiseFrequency;
+    f32[(ptr + 168) >> 2] = data.noiseScrollSpeed;
+    u32[(ptr + 172) >> 2] = data.noiseOctaves | 0;
+    u32[(ptr + 176) >> 2] = data.texture;
+    u32[(ptr + 180) >> 2] = data.spriteColumns | 0;
+    u32[(ptr + 184) >> 2] = data.spriteRows | 0;
+    f32[(ptr + 188) >> 2] = data.spriteFPS;
+    u8[ptr + 192] = data.spriteLoop ? 1 : 0;
+    u32[(ptr + 196) >> 2] = data.blendMode | 0;
+    u32[(ptr + 200) >> 2] = data.layer | 0;
+    u32[(ptr + 204) >> 2] = data.material;
+    u32[(ptr + 208) >> 2] = data.simulationSpace | 0;
+    u8[ptr + 212] = data.enabled ? 1 : 0;
+    u32[(ptr + 216) >> 2] = data.subEmitterTrigger | 0;
+    f32[(ptr + 220) >> 2] = data.subEmitterChance;
+    f32[(ptr + 224) >> 2] = data.subEmitterInheritVelocity;
+    u32[(ptr + 228) >> 2] = data.subEmitter;
+    u8[ptr + 232] = data.trailEnabled ? 1 : 0;
+    f32[(ptr + 236) >> 2] = data.trailWidth;
+    u32[(ptr + 240) >> 2] = data.trailPoints | 0;
+    f32[(ptr + 244) >> 2] = data.trailMinDistance;
+    u8[ptr + 248] = data.collisionEnabled ? 1 : 0;
+    f32[(ptr + 252) >> 2] = data.collisionFloor;
+    f32[(ptr + 256) >> 2] = data.collisionBounce;
+    f32[(ptr + 260) >> 2] = data.collisionFriction;
+    f32[(ptr + 264) >> 2] = data.collisionLifetimeLoss;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -1119,7 +1119,7 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         lifetimeMax: 0,
         shape: 0,
         shapeRadius: 0,
-        shapeSize: { x: 0, y: 0 },
+        shapeSize: { x: 0, y: 0, z: 0 },
         shapeAngle: 0,
         speedMin: 0,
         speedMax: 0,
@@ -1137,7 +1137,7 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         rotationMax: 0,
         angularVelocityMin: 0,
         angularVelocityMax: 0,
-        gravity: { x: 0, y: 0 },
+        gravity: { x: 0, y: 0, z: 0 },
         damping: 0,
         noiseStrength: 0,
         noiseFrequency: 0,
@@ -1173,7 +1173,7 @@ export interface ParticleForceFieldPtrData {
     type: number;
     strength: number;
     radius: number;
-    direction: Vec2;
+    direction: Vec3;
     falloff: boolean;
     enabled: boolean;
 }
@@ -1185,9 +1185,9 @@ export function fillParticleForceField(
     out.type = u32[ptr >> 2] | 0;
     out.strength = f32[(ptr + 4) >> 2];
     out.radius = f32[(ptr + 8) >> 2];
-    const direction_ = out.direction; direction_.x = f32[(ptr + 12) >> 2]; direction_.y = f32[((ptr + 12) >> 2) + 1];
-    out.falloff = u8[ptr + 20] !== 0;
-    out.enabled = u8[ptr + 21] !== 0;
+    const direction_ = out.direction; direction_.x = f32[(ptr + 12) >> 2]; direction_.y = f32[((ptr + 12) >> 2) + 1]; direction_.z = f32[((ptr + 12) >> 2) + 2];
+    out.falloff = u8[ptr + 24] !== 0;
+    out.enabled = u8[ptr + 25] !== 0;
 }
 
 export function writeParticleForceField(
@@ -1197,9 +1197,9 @@ export function writeParticleForceField(
     u32[ptr >> 2] = data.type | 0;
     f32[(ptr + 4) >> 2] = data.strength;
     f32[(ptr + 8) >> 2] = data.radius;
-    f32[(ptr + 12) >> 2] = data.direction.x; f32[((ptr + 12) >> 2) + 1] = data.direction.y;
-    u8[ptr + 20] = data.falloff ? 1 : 0;
-    u8[ptr + 21] = data.enabled ? 1 : 0;
+    f32[(ptr + 12) >> 2] = data.direction.x; f32[((ptr + 12) >> 2) + 1] = data.direction.y; f32[((ptr + 12) >> 2) + 2] = data.direction.z;
+    u8[ptr + 24] = data.falloff ? 1 : 0;
+    u8[ptr + 25] = data.enabled ? 1 : 0;
 }
 
 export function createParticleForceFieldData(): ParticleForceFieldPtrData {
@@ -1207,7 +1207,7 @@ export function createParticleForceFieldData(): ParticleForceFieldPtrData {
         type: 0,
         strength: 0,
         radius: 0,
-        direction: { x: 0, y: 0 },
+        direction: { x: 0, y: 0, z: 0 },
         falloff: false,
         enabled: false,
     };

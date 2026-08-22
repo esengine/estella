@@ -16,6 +16,28 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Particles are simulated and drawn in three dimensions.** A particle's position
+  and velocity, an emitter's `gravity` and `shapeSize`, and a force field's
+  `direction` are all three-axis now, and the field's zone is a ball rather than a
+  column. The quad is a BILLBOARD: it faces the viewer wherever it is seen from,
+  built from the `viewDirection` helper both shader dialects already had — and
+  head-on under an orthographic camera those axes come out (1,0,0) and (0,1,0),
+  which is the flat quad every 2D scene has always drawn. A billboard is not a
+  second path; the flat quad is the corner of it a 2D scene sits in.
+
+  **Breaking for code, not for data.** `gravity` / `shapeSize` / `direction` are
+  `Vec3` in TypeScript, so `{ x, y }` written in a script no longer type-checks —
+  add `z: 0` for what it meant. Scenes, prefabs and saves already on disk are
+  unaffected: component data is now merged one level into nested objects, so a
+  pair written before the field grew an axis reads back with a zero depth.
+
+  What stayed two-dimensional, and why: the curl-noise field is a flow sampled on
+  the plane a particle is over, an emitter's own rotation is a turn about Z as a
+  flat scene's is, and a trail ribbon is widened in the scene's plane rather than
+  toward the eye (a per-segment billboard is a turn its vertex path has no room
+  for). Emission aims in the emitter's own plane; a 3D emitter is turned, not
+  given a second angle nobody authored.
+
 - **`Draggable` is an engine component.** It was a script component, so it never
   reached the inspector's reflection table, the scene file or the editor's usual
   component list the way engine components do. Its optional bounds changed shape
@@ -66,6 +88,23 @@ published separately; it ships inside the editor.
   `size` counts, with the components that ARE their own picture (a sprite, a shape)
   listed rather than the field name dropped — dropping it to spare the sprite is
   what hid the volume.
+
+- **Component data merges one level into nested objects.** A builtin's fields were
+  laid over their defaults with a shallow spread, so a value the data carried
+  replaced the default whole — and a `{x, y}` written before that field grew a `z`
+  arrived with no depth at all. Not an error, a silent zero: two of the engine's
+  own particle scenes rendered nothing the moment `gravity` became a `Vec3`. The
+  script path already merged this way through `create`; both now share
+  `mergeIntoDefaults`, which also copies nested defaults rather than handing every
+  entity the same array.
+
+- **Three particle fixtures had no check running them.** `particle-trail`,
+  `particle-collision` and `particle-forcefield` existed as scenes that nothing
+  loaded — the trail, floor-collision and force-field paths were unwatched, which
+  is where a simulation rewritten in three axes most easily stops producing a
+  frame. All three now run at PR tier, alongside a new `particles-billboard` that
+  views one particle from the side: a quad fixed in the x/y plane is edge-on there
+  and covers nothing.
 
 - **The navigation grid can be seen in the running game.** `NavDebugDraw` outlines
   the walkable cells at the height of their own ground and marks the pairs the

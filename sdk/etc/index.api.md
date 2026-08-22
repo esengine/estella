@@ -5,7 +5,7 @@ Symbols: 113 public · 66 beta · 1491 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"1df12cb48da3bf45"
+"dc813d9c5d77b235"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5003,7 +5003,7 @@ enabled: boolean
 endColor: Color
 endSizeMax: number
 endSizeMin: number
-gravity: Vec2
+gravity: Vec3
 layer: number
 lifetimeMax: number
 lifetimeMin: number
@@ -5021,7 +5021,7 @@ rotationMin: number
 shape: number
 shapeAngle: number
 shapeRadius: number
-shapeSize: Vec2
+shapeSize: Vec3
 simulationSpace: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: number
@@ -5052,7 +5052,7 @@ BuiltinComponentDef<ParticleForceFieldData>
 
 ## ParticleForceFieldData — interface @experimental
 ```
-direction: Vec2
+direction: Vec3
 enabled: boolean
 falloff: boolean
 radius: number

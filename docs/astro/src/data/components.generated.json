@@ -2155,8 +2155,8 @@
         },
         {
           "key": "shapeSize",
-          "type": "Vec2",
-          "default": "(100, 100)"
+          "type": "Vec3",
+          "default": "(100, 100, 0)"
         },
         {
           "key": "shapeAngle",
@@ -2261,8 +2261,8 @@
         },
         {
           "key": "gravity",
-          "type": "Vec2",
-          "default": "(0, 0)"
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
         },
         {
           "key": "damping",
@@ -2480,8 +2480,8 @@
         },
         {
           "key": "direction",
-          "type": "Vec2",
-          "default": "(1, 0)"
+          "type": "Vec3",
+          "default": "(1, 0, 0)"
         },
         {
           "key": "falloff",

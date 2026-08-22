@@ -82,7 +82,7 @@ struct ParticleEmitter {
     f32 shapeRadius{100.0f};
 
     ES_PROPERTY(category=Shape, shown_when=shape:Rectangle)
-    glm::vec2 shapeSize{100.0f, 100.0f};
+    glm::vec3 shapeSize{100.0f, 100.0f, 0.0f};
 
     ES_PROPERTY(unit="°", category=Shape, shown_when=shape:Cone)
     f32 shapeAngle{25.0f};
@@ -142,7 +142,7 @@ struct ParticleEmitter {
 
     // Forces (grouped under the Velocity category in the inspector)
     ES_PROPERTY(category=Velocity)
-    glm::vec2 gravity{0.0f, 0.0f};
+    glm::vec3 gravity{0.0f, 0.0f, 0.0f};
 
     ES_PROPERTY(min=0, category=Velocity)
     f32 damping{0.0f};

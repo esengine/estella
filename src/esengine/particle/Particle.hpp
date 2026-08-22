@@ -11,8 +11,8 @@
 namespace esengine::particle {
 
 struct Particle {
-    glm::vec2 position{0.0f};
-    glm::vec2 velocity{0.0f};
+    glm::vec3 position{0.0f};
+    glm::vec3 velocity{0.0f};
     f32 rotation = 0.0f;
     f32 angular_velocity = 0.0f;
     f32 lifetime = 1.0f;

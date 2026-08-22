@@ -37,8 +37,8 @@ inline constexpr int kMaxTrailPoints = 12;
 // once per update() so the hot loop touches no components.
 struct ForceFieldInstance {
     i32 type = 0;
-    glm::vec2 position{0.0f};
-    glm::vec2 direction{1.0f, 0.0f};  // pre-normalized (Directional only)
+    glm::vec3 position{0.0f};
+    glm::vec3 direction{1.0f, 0.0f, 0.0f};  // pre-normalized (Directional only)
     f32 strength = 0.0f;
     f32 radius = 0.0f;                 // 0 = unbounded
     f32 radiusSq = 0.0f;
@@ -60,7 +60,7 @@ struct EmitterState {
     // enables trails (free otherwise). trail_pos is a flat [capacity × kMaxTrailPoints]
     // ring of raw particle-space positions (oldest→newest); trail_count is how many
     // slots each particle has filled.
-    std::vector<glm::vec2> trail_pos;
+    std::vector<glm::vec3> trail_pos;
     std::vector<u8> trail_count;
 
     explicit EmitterState(u32 capacity) : pool(capacity) {}
@@ -108,8 +108,8 @@ private:
     // `allowBirthTrigger` records Birth events for a nested sub-emitter; false for a
     // sub-burst's own spawn so a drain can't re-enter the request buffer it's reading.
     void emitInto(const ecs::ParticleEmitter& emitter, EmitterState& state,
-                  glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace,
-                  glm::vec2 velocityBias, u32 count, bool allowBirthTrigger);
+                  glm::vec3 emitterPos, f32 emitterAngle, bool isWorldSpace,
+                  glm::vec3 velocityBias, u32 count, bool allowBirthTrigger);
 
     // Fire the referenced child emitter's burst at each pending sub-emit request.
     void drainSubEmitters(ecs::Registry& registry, Entity child,
@@ -117,15 +117,15 @@ private:
 
     void updateParticles(const ecs::ParticleEmitter& emitter, EmitterState& state, f32 dt,
                          const ColorLut* colorLut, const SizeLut* sizeLut,
-                         glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace);
+                         glm::vec3 emitterPos, f32 emitterAngle, bool isWorldSpace);
     f32 randomRange(f32 min, f32 max);
 
-    glm::vec2 randomDirection(f32 angleMin, f32 angleMax);
-    glm::vec2 randomShapeOffset(const ecs::ParticleEmitter& emitter);
+    glm::vec3 randomDirection(f32 angleMin, f32 angleMax);
+    glm::vec3 randomShapeOffset(const ecs::ParticleEmitter& emitter);
 
     // A parent particle's birth/death position + velocity, queued during a parent's
     // update and drained into its child sub-emitter right after.
-    struct SubEmitRequest { glm::vec2 position; glm::vec2 velocity; };
+    struct SubEmitRequest { glm::vec3 position; glm::vec3 velocity; };
     std::vector<SubEmitRequest> subemit_requests_;
 
     std::unordered_map<Entity, EmitterState> states_;

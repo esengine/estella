@@ -49,7 +49,7 @@ struct ParticleForceField {
     // Push direction for a Directional field (normalized at use). Point/Vortex/Drag
     // derive their direction from the field→particle vector and ignore this.
     ES_PROPERTY(category=Field)
-    glm::vec2 direction{1.0f, 0.0f};
+    glm::vec3 direction{1.0f, 0.0f, 0.0f};
 
     // Fade the force linearly to 0 at the radius edge (only meaningful when radius > 0).
     ES_PROPERTY(category=Field)

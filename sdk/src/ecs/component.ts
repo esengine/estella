@@ -229,6 +229,32 @@ export interface ComponentDef<T> {
     create(data?: Partial<T>): T;
 }
 
+/**
+ * `defaults` with `data` laid over it, ONE LEVEL INTO plain objects: a whole-object
+ * overwrite drops what the data does not carry, so a `{x, y}` written before that
+ * field grew a `z` would arrive with no depth. Arrays and nested defaults are
+ * copied, not shared — two entities taking the default would write into one array.
+ */
+export function mergeIntoDefaults<T extends object>(defaults: T, data?: Partial<T>): T {
+    const out = { ...defaults } as Record<string, unknown>;
+    const src = defaults as Record<string, unknown>;
+    for (const k of Object.keys(src)) {
+        const v = src[k];
+        if (Array.isArray(v)) out[k] = v.slice();
+        else if (v !== null && typeof v === 'object') out[k] = { ...(v as object) };
+    }
+    if (!data) return out as T;
+    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+        if (v === undefined) continue;
+        const base = out[k];
+        const nest = base !== null && typeof base === 'object' && !Array.isArray(base)
+            && v !== null && typeof v === 'object' && !Array.isArray(v);
+        if (nest) Object.assign(base as object, v);
+        else out[k] = v;
+    }
+    return out as T;
+}
+
 function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; arrayKeys: string[] } | null {
     const flatKeys: string[] = [];
     const objectKeys: string[] = [];
@@ -333,24 +359,8 @@ function createComponentDef<T extends object>(
         transient: metadata?.transient ?? false,
         renderableField: renderableField ?? null,
         create(data?: Partial<T>): T {
-            if (keyInfo) {
-                const result = { ...defaultsRec };
-                for (const k of keyInfo.objectKeys) result[k] = { ...(defaultsRec[k] as object) };
-                for (const k of keyInfo.arrayKeys) result[k] = (defaultsRec[k] as unknown[]).slice();
-                if (data) {
-                    const dataRec = data as Record<string, unknown>;
-                    for (const k of Object.keys(dataRec)) {
-                        if (dataRec[k] !== undefined) {
-                            if (keyInfo.objectKeys.includes(k) && typeof dataRec[k] === 'object' && dataRec[k] !== null && !Array.isArray(dataRec[k])) {
-                                Object.assign(result[k] as object, dataRec[k]);
-                            } else {
-                                result[k] = dataRec[k];
-                            }
-                        }
-                    }
-                }
-                return result as T;
-            }
+            // Flat defaults have nothing to merge into, so they take the cheap path.
+            if (keyInfo) return mergeIntoDefaults(defaults, data);
             return data ? { ...defaults, ...data } : { ...defaults };
         }
     };

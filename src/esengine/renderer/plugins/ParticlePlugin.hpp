@@ -31,7 +31,7 @@ private:
     resource::ShaderHandle particle_shader_handle_;
 
     // Reused per-frame scratch for per-particle trail ribbons.
-    std::vector<glm::vec2> trail_center_;   ///< Centerline (world), oldest→head.
+    std::vector<glm::vec3> trail_center_;   ///< Centerline (world), oldest→head.
     std::vector<BatchVertex> trail_verts_;  ///< 2 verts per centerline point.
     std::vector<u32> trail_indices_;        ///< 6 indices per segment.
 };

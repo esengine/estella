@@ -440,7 +440,7 @@ export interface ParticleEmitter {
     lifetimeMax: number;
     shape: number;
     shapeRadius: number;
-    shapeSize: Vec2;
+    shapeSize: Vec3;
     shapeAngle: number;
     speedMin: number;
     speedMax: number;
@@ -458,7 +458,7 @@ export interface ParticleEmitter {
     rotationMax: number;
     angularVelocityMin: number;
     angularVelocityMax: number;
-    gravity: Vec2;
+    gravity: Vec3;
     damping: number;
     noiseStrength: number;
     noiseFrequency: number;
@@ -493,7 +493,7 @@ export interface ParticleForceField {
     type: number;
     strength: number;
     radius: number;
-    direction: Vec2;
+    direction: Vec3;
     falloff: boolean;
     enabled: boolean;
 }

@@ -24,14 +24,14 @@ namespace {
 // (locations 2-7). The GPU expands the 4-vertex quad; the CPU only fills these 40 bytes
 // per particle (vs. the old 4 verts + 6 indices), which is the whole point of RC7-1.
 struct ParticleInstanceData {
-    f32 px, py;          // a_inst_position (world)
+    f32 px, py, pz;      // a_inst_position (world)
     f32 sx, sy;          // a_inst_size
     f32 rotation;        // a_inst_rotation
     u32 color;           // a_inst_color (RGBA8)
     f32 uvOffsetX, uvOffsetY;
     f32 uvScaleX, uvScaleY;
 };
-static_assert(sizeof(ParticleInstanceData) == 40, "instance stride must match the VAO layout");
+static_assert(sizeof(ParticleInstanceData) == 44, "instance stride must match the VAO layout");
 }  // namespace
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
@@ -116,15 +116,17 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
         u32 i = 0;
         state->pool.forEachAlive([&](const particle::Particle& p) {
-            glm::vec2 worldPos;
+            glm::vec3 worldPos;
             glm::vec2 size;
             if (isLocalSpace) {
-                glm::vec2 rel = p.position * emitterScale;
+                // The emitter's own turn is about Z, as a flat scene's is; depth
+                // rides through it untouched rather than being dropped.
+                glm::vec3 rel = p.position * glm::vec3(emitterScale, 1.0f);
                 if (std::abs(emitterAngle) > 0.001f) {
-                    worldPos = glm::vec2(emitterWorldPos) +
-                        glm::vec2(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA);
+                    worldPos = emitterWorldPos +
+                        glm::vec3(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA, rel.z);
                 } else {
-                    worldPos = glm::vec2(emitterWorldPos) + rel;
+                    worldPos = emitterWorldPos + rel;
                 }
                 size = glm::vec2(p.size) * emitterScale;
             } else {
@@ -141,7 +143,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             }
 
             ParticleInstanceData& d = inst[i++];
-            d.px = worldPos.x;       d.py = worldPos.y;
+            d.px = worldPos.x;       d.py = worldPos.y;       d.pz = worldPos.z;
             d.sx = size.x;           d.sy = size.y;
             d.rotation = p.rotation;
             d.color = packColor(p.color);
@@ -189,38 +191,41 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             };
             const int keep = std::min(std::max(emitter.trailPoints, 2), particle::kMaxTrailPoints);
             const auto& particles = state->pool.particles();
-            auto toWorld = [&](glm::vec2 pos) -> glm::vec2 {
+            auto toWorld = [&](glm::vec3 pos) -> glm::vec3 {
                 if (!isLocalSpace) return pos;
-                glm::vec2 rel = pos * emitterScale;
+                glm::vec3 rel = pos * glm::vec3(emitterScale, 1.0f);
                 if (std::abs(emitterAngle) > 0.001f)
-                    return glm::vec2(emitterWorldPos) +
-                           glm::vec2(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA);
-                return glm::vec2(emitterWorldPos) + rel;
+                    return emitterWorldPos +
+                           glm::vec3(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA, rel.z);
+                return emitterWorldPos + rel;
             };
 
             for (std::size_t idx = 0; idx < particles.size(); ++idx) {
                 const particle::Particle& p = particles[idx];
                 if (!p.alive || state->trail_count[idx] == 0) continue;
-                const glm::vec2* ring = &state->trail_pos[idx * particle::kMaxTrailPoints];
+                const glm::vec3* ring = &state->trail_pos[idx * particle::kMaxTrailPoints];
 
                 // Centerline: recorded points (oldest→newest) then the live head.
                 trail_center_.clear();
                 int m = std::min<int>(state->trail_count[idx], keep);
                 for (int k = 0; k < m; ++k) trail_center_.push_back(toWorld(ring[k]));
-                glm::vec2 head = toWorld(p.position);
-                glm::vec2 dHead = head - trail_center_.back();
+                glm::vec3 head = toWorld(p.position);
+                glm::vec3 dHead = head - trail_center_.back();
                 if (glm::dot(dHead, dHead) > 1e-4f) trail_center_.push_back(head);
                 const int n = static_cast<int>(trail_center_.size());
                 if (n < 2) continue;
 
                 // 2 verts per point: t runs 0 at the faded zero-width tail (oldest) → 1
                 // at the full-width head carrying the particle's current colour.
+                // Widened in the scene's own plane, not toward the eye: the
+                // centreline carries depth, but a billboarded ribbon is a
+                // per-segment turn this vertex path has no room for.
                 trail_verts_.clear();
                 glm::vec2 lastTangent(1.0f, 0.0f);
                 for (int j = 0; j < n; ++j) {
-                    const glm::vec2& a = trail_center_[j == 0 ? 0 : j - 1];
-                    const glm::vec2& b = trail_center_[j + 1 == n ? j : j + 1];
-                    glm::vec2 seg = b - a;
+                    const glm::vec3& a = trail_center_[j == 0 ? 0 : j - 1];
+                    const glm::vec3& b = trail_center_[j + 1 == n ? j : j + 1];
+                    glm::vec2 seg = glm::vec2(b) - glm::vec2(a);
                     f32 len = std::sqrt(seg.x * seg.x + seg.y * seg.y);
                     glm::vec2 tangent = len > 1e-6f ? seg / len : lastTangent;
                     lastTangent = tangent;
@@ -232,8 +237,9 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                     col.a *= t;
                     u32 packed = packColor(col);
 
-                    trail_verts_.push_back({{trail_center_[j] + perp * halfW, emitterWorldPos.z}, packed, glm::vec2(1.0f - t, 0.0f)});
-                    trail_verts_.push_back({{trail_center_[j] - perp * halfW, emitterWorldPos.z}, packed, glm::vec2(1.0f - t, 1.0f)});
+                    const glm::vec3& c = trail_center_[j];
+                    trail_verts_.push_back({{c.x + perp.x * halfW, c.y + perp.y * halfW, c.z}, packed, glm::vec2(1.0f - t, 0.0f)});
+                    trail_verts_.push_back({{c.x - perp.x * halfW, c.y - perp.y * halfW, c.z}, packed, glm::vec2(1.0f - t, 1.0f)});
                 }
 
                 trail_indices_.clear();

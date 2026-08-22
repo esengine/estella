@@ -587,7 +587,7 @@ inline constexpr const char* PARTICLE = R"esshader(#pragma shader "ParticleInsta
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec2 a_texCoord;
 
-layout(location = 2) in vec2 a_inst_position;
+layout(location = 2) in vec3 a_inst_position;
 layout(location = 3) in vec2 a_inst_size;
 layout(location = 4) in float a_inst_rotation;
 layout(location = 5) in vec4 a_inst_color;
@@ -596,6 +596,18 @@ layout(location = 7) in vec2 a_inst_uv_scale;
 
 out vec2 v_texCoord;
 out vec4 v_color;
+
+// The quad's own axes in world space: a particle faces the viewer wherever it is
+// seen from. Head-on and orthographic these come out (1,0,0) and (0,1,0), which
+// is the flat quad every 2D scene has always drawn — a billboard is not a second
+// path, it is the general case the flat one is a corner of.
+void billboardAxes(in highp vec3 worldCenter, out highp vec3 right, out highp vec3 up) {
+    highp vec3 fwd = viewDirection(worldCenter);
+    // Looking straight down the world up, that axis cannot orient the quad.
+    highp vec3 refUp = abs(fwd.y) > 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    right = normalize(cross(refUp, fwd));
+    up = cross(fwd, right);
+}
 
 void main() {
     vec2 scaled = a_position * a_inst_size;
@@ -607,8 +619,11 @@ void main() {
         scaled.x * sinR + scaled.y * cosR
     );
 
-    vec2 worldPos = rotated + a_inst_position;
-    gl_Position = u_projection * vec4(worldPos, 0.0, 1.0);
+    highp vec3 right;
+    highp vec3 up;
+    billboardAxes(a_inst_position, right, up);
+    vec3 worldPos = a_inst_position + right * rotated.x + up * rotated.y;
+    gl_Position = u_projection * vec4(worldPos, 1.0);
 
     v_texCoord = a_texCoord * a_inst_uv_scale + a_inst_uv_offset;
     v_color = a_inst_color;
@@ -635,7 +650,7 @@ void main() {
 struct VSIn {
     @location(0) a_position : vec2f,
     @location(1) a_texCoord : vec2f,
-    @location(2) a_inst_position : vec2f,
+    @location(2) a_inst_position : vec3f,
     @location(3) a_inst_size : vec2f,
     @location(4) a_inst_rotation : f32,
     @location(5) a_inst_color : vec4f,
@@ -658,10 +673,17 @@ struct VSOut {
         scaled.x * sinR + scaled.y * cosR
     );
 
-    let worldPos = rotated + v.a_inst_position;
+    // The GLSL stage's billboardAxes, in the dialect: face the viewer, and fall
+    // back to world +Z as the reference when looking straight down world up.
+    let fwd = viewDirection(v.a_inst_position);
+    var refUp = vec3f(0.0, 1.0, 0.0);
+    if (abs(fwd.y) > 0.999) { refUp = vec3f(0.0, 0.0, 1.0); }
+    let right = normalize(cross(refUp, fwd));
+    let up = cross(fwd, right);
+    let worldPos = v.a_inst_position + right * rotated.x + up * rotated.y;
 
     var out : VSOut;
-    out.pos = frame.projection * vec4f(worldPos, 0.0, 1.0);
+    out.pos = frame.projection * vec4f(worldPos, 1.0);
     out.v_texCoord = v.a_texCoord * v.a_inst_uv_scale + v.a_inst_uv_offset;
     out.v_color = v.a_inst_color;
     return out;
