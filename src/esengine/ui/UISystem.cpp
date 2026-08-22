@@ -15,6 +15,7 @@
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIVisual.hpp"
+#include "../ecs/components/Sprite.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -74,6 +75,53 @@ void UISystem::hitTestUpdate(
             return;
         }
     }
+
+    hitWorldSprites(registry, mouseWorldX, mouseWorldY);
+}
+
+/**
+ * World-space pick, for entities the layout tree does not contain.
+ *
+ * The loop above takes its geometry from UINode, so a Sprite without one can
+ * never be hit there. Its size and pivot are its visible extent, so that is the
+ * box; UI wins any overlap, hence running only after a miss.
+ */
+void UISystem::hitWorldSprites(Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
+    Entity best = INVALID_ENTITY;
+    i32 bestLayer = 0;
+    bool haveBest = false;
+
+    registry.eachLive<Sprite, Interactable>(
+        [&](Entity entity, Sprite& sprite, Interactable& interactable) {
+            if (!interactable.enabled || !interactable.raycastTarget) return;
+            // The layout tree owns anything with a UINode; this pass is for the rest.
+            if (registry.has<UINode>(entity)) return;
+            if (!registry.has<Transform>(entity)) return;
+
+            auto& t = registry.get<Transform>(entity);
+            t.ensureDecomposed();
+
+            if (!pointInOBB(
+                mouseWorldX, mouseWorldY,
+                t.worldPosition.x, t.worldPosition.y,
+                sprite.size.x * t.worldScale.x, sprite.size.y * t.worldScale.y,
+                sprite.pivot.x, sprite.pivot.y,
+                t.worldRotation.z, t.worldRotation.w
+            )) return;
+
+            // Draw order decides who is on top, and layer is what carries it. A tie
+            // goes to the later entity, which is the order the renderer batches in.
+            const i32 layer = static_cast<i32>(sprite.layer);
+            if (!haveBest || layer >= bestLayer) {
+                haveBest = true;
+                bestLayer = layer;
+                best = entity;
+            }
+        });
+
+    if (!haveBest) return;
+    registry.getOrEmplace<UIInteraction>(best);
+    hitResult.hit_entity = best;
 }
 
 u32 UISystem::pickAll(Registry& registry, f32 worldX, f32 worldY) {

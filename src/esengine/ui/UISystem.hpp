@@ -102,6 +102,9 @@ public:
     u32 getPrevHitEntity() const { return hitResult.prev_hit_entity.id(); }
 
 private:
+    /** @brief World-space pick for entities outside the layout tree (see .cpp) */
+    void hitWorldSprites(Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
+
     std::vector<Entity> pickResults_;
 
     // ---- Layout skip-when-clean gate (see layoutUpdate) ----

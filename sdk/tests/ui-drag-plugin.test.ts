@@ -51,6 +51,9 @@ function draggable(opts: Partial<{ enabled: boolean; dragThreshold: number; lock
     constraintMin: null,
     constraintMax: null,
   });
+  // hovered is set by hand here, which makes every test below about the drag
+  // LOGIC and none of them about whether such an entity can be hovered at all.
+  // That question is ui-pick-world.test.ts, against the real raycast.
   app.world.insert(e, UIInteraction, { hovered: opts.hovered ?? true });
   app.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 }, worldPosition: { x: 0, y: 0, z: 0 } });
   return e;
