@@ -351,6 +351,13 @@ check('a ray meets the ramp where it slopes', onRamp != null && onRamp.entity ==
       && near(onRamp.fraction, 0.3375, 0.02),
       `entity=${onRamp?.entity} fraction=${onRamp?.fraction?.toFixed(4)} want 0.3375`);
 
+// And it says HOW steep, not just how far: the up component of a hit normal is
+// the cosine of the slope, which is what a nav bake reads to tell ground from
+// wall. This ramp rises 1 over 4, so 4/sqrt(17).
+check('and reports the tilt in the normal it returns',
+      onRamp != null && near(onRamp.ny, 4 / Math.sqrt(17), 0.01) && onRamp.ny < 1,
+      `ny=${onRamp?.ny?.toFixed(4)} want ${(4 / Math.sqrt(17)).toFixed(4)}`);
+
 // Over x=32 the surface is at 3.5, so a half-metre box settles near 4; the floor
 // is at 0. A BOX, not a sphere — a sphere rolls off any slope, however shallow.
 const CRATE = 31;

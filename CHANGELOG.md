@@ -54,6 +54,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A navigation grid can be baked out of the 3D solver.** `bakeNavGrid` casts one
+  ray straight down per cell and reads three answers off it: whether there is
+  ground, how high it is, and how steeply it is tilted. No hit is a hole, ground
+  steeper than `maxSlopeDegrees` is a wall, and a ceiling closer than
+  `agentHeight` is a crawlspace. The bodies a scene already collides against are
+  the source, so the walkable surface cannot disagree with the one an agent
+  stands on. It takes a `GroundProbe` — an interface small enough that
+  `Physics3DQueries` satisfies it unchanged, and a test satisfies it with a
+  function. One surface per column: a bridge and the road under it collapse into
+  whichever the ray meets first, which is the whole of what a heightfield can
+  honestly answer.
+
 - **Navigation plans and walks in three dimensions.** `NavGrid` now knows which
   world plane its cells lie in — `xy` (a flat scene, the default and unchanged) or
   `xz`, the ground of a spatial one, where each cell also carries the height of

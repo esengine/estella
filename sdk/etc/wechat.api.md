@@ -4673,6 +4673,7 @@ targetZ: number
 
 ## NavGrid — class @experimental
 ```
+baseHeight: number
 canStep: (fromX: number, fromY: number, toX: number, toY: number) => boolean
 cellSize: number
 cellToWorld: (gx: number, gy: number) => Vec3
@@ -4682,9 +4683,8 @@ inBounds: (gx: number, gy: number) => boolean
 index: (gx: number, gy: number) => number
 isWalkable: (gx: number, gy: number) => boolean
 nearestWalkable: (gx: number, gy: number, maxRadius?: number, clearance?: number) => Cell | null
-originX: number
-originY: number
-originZ: number
+originU: number
+originV: number
 plane: NavPlane
 setWalkable: (gx: number, gy: number, walkable: boolean) => void
 stepHeight: number

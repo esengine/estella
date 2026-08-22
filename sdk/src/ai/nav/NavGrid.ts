@@ -40,7 +40,8 @@ export interface NavGridOptions {
     height: number;
     /** World pixels per cell (square). */
     cellSize: number;
-    /** World position of cell (0,0)'s center. Defaults to the world origin. */
+    /** WORLD position of cell (0,0)'s centre; the plane decides which of its axes
+     *  the cells run along. Defaults to the world origin. */
     origin?: { x: number; y: number; z?: number };
     /**
      * Walkability, row-major `width * height`, 1 = walkable / 0 = blocked.
@@ -73,26 +74,32 @@ export class NavGrid {
     readonly width: number;
     readonly height: number;
     readonly cellSize: number;
-    /** Cell (0,0)'s centre, on the plane's two axes. */
-    readonly originX: number;
-    readonly originY: number;
-    /** Where the plane itself sits on the axis it leaves out. */
-    readonly originZ: number;
+    /** Cell (0,0)'s centre along the plane's first and second axes — x and y for
+     *  an `xy` grid, x and z for an `xz` one. Named for the plane, not the world,
+     *  because which world axis `v` is depends on the plane. */
+    readonly originU: number;
+    readonly originV: number;
+    /** Where the ground sits on the axis the plane leaves out, for cells whose
+     *  own height is not given. */
+    readonly baseHeight: number;
     readonly plane: NavPlane;
     readonly stepHeight: number;
     /** Row-major walkability, 1 = walkable. Mutable via {@link setWalkable}. */
     readonly walkable: Uint8Array;
-    /** Row-major ground height, or null when every cell sits at `originZ`. */
+    /** Row-major ground height, or null when every cell sits at `baseHeight`. */
     readonly surface: Float32Array | null;
 
     constructor(opts: NavGridOptions) {
         this.width = opts.width;
         this.height = opts.height;
         this.cellSize = opts.cellSize;
-        this.originX = opts.origin?.x ?? 0;
-        this.originY = opts.origin?.y ?? 0;
-        this.originZ = opts.origin?.z ?? 0;
         this.plane = opts.plane ?? 'xy';
+        // The origin is a WORLD point; which of its axes the cells run along is
+        // the plane's business, so it is taken apart here rather than by callers.
+        const o = opts.origin;
+        this.originU = o?.x ?? 0;
+        this.originV = (this.plane === 'xy' ? o?.y : o?.z) ?? 0;
+        this.baseHeight = (this.plane === 'xy' ? o?.z : o?.y) ?? 0;
         this.stepHeight = opts.stepHeight ?? 0;
 
         const n = this.width * this.height;
@@ -139,7 +146,7 @@ export class NavGrid {
 
     /** Height of the ground in cell `(gx, gy)`, on the axis the plane leaves out. */
     surfaceAt(gx: number, gy: number): number {
-        if (!this.surface || !this.inBounds(gx, gy)) return this.originZ;
+        if (!this.surface || !this.inBounds(gx, gy)) return this.baseHeight;
         return this.surface[gy * this.width + gx];
     }
 
@@ -157,10 +164,10 @@ export class NavGrid {
 
     /** Centre of cell `(gx, gy)` in world space, on the grid's own plane. */
     cellToWorld(gx: number, gy: number): Vec3 {
-        const u = this.originX + gx * this.cellSize;
-        const v = this.originY + gy * this.cellSize;
+        const u = this.originU + gx * this.cellSize;
+        const v = this.originV + gy * this.cellSize;
         return this.plane === 'xy'
-            ? { x: u, y: v, z: this.originZ }
+            ? { x: u, y: v, z: this.baseHeight }
             : { x: u, y: this.surfaceAt(gx, gy), z: v };
     }
 
@@ -169,8 +176,8 @@ export class NavGrid {
         const u = p.x;
         const v = this.plane === 'xy' ? p.y : (p.z ?? 0);
         return {
-            x: Math.round((u - this.originX) / this.cellSize),
-            y: Math.round((v - this.originY) / this.cellSize),
+            x: Math.round((u - this.originU) / this.cellSize),
+            y: Math.round((v - this.originV) / this.cellSize),
         };
     }
 

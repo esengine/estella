@@ -5,13 +5,19 @@
  * @brief   Navigation barrel — grid, A*, tilemap builder, agent, plugin.
  */
 
-export { NavGrid, type NavGridOptions, type Cell } from './NavGrid';
+export { NavGrid, type NavGridOptions, type NavPlane, type Cell } from './NavGrid';
 export { findPath, pathToWorld, type PathfindOptions } from './pathfind';
 export {
     navGridFromTiles,
     navGridFromTilemapLayer,
     type BuildNavGridOptions,
 } from './navGridFromTilemap';
+export {
+    bakeNavGrid,
+    type BakeNavGridOptions,
+    type GroundProbe,
+    type GroundHit,
+} from './bakeNavGrid';
 export { Navigation, Nav } from './Navigation';
 export { NavAgent, type NavAgentData, setNavDestination, stopNavAgent } from './NavAgent';
 export { NavPlugin, navPlugin } from './NavPlugin';
