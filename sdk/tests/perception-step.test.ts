@@ -36,11 +36,11 @@ class FakeWorld implements PerceptionWorldView {
   }
 }
 
-const tf = (x: number, y: number) => ({ position: { x, y, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } });
-const spawnPerceiver = (w: FakeWorld, x: number, y: number, range = 200, fov = 360) =>
-  w.spawn([[Perceiver, Perceiver.create({ range, fovDegrees: fov })], [Transform, tf(x, y)]]);
-const spawnTarget = (w: FakeWorld, x: number, y: number) =>
-  w.spawn([[PerceptionTarget, {}], [Transform, tf(x, y)]]);
+const tf = (x: number, y: number, z = 0) => ({ position: { x, y, z }, rotation: { x: 0, y: 0, z: 0, w: 1 } });
+const spawnPerceiver = (w: FakeWorld, x: number, y: number, range = 200, fov = 360, z = 0) =>
+  w.spawn([[Perceiver, Perceiver.create({ range, fovDegrees: fov })], [Transform, tf(x, y, z)]]);
+const spawnTarget = (w: FakeWorld, x: number, y: number, z = 0) =>
+  w.spawn([[PerceptionTarget, {}], [Transform, tf(x, y, z)]]);
 
 describe('stepPerception', () => {
   it('writes a visible target into the Perception component', () => {
@@ -81,11 +81,43 @@ describe('stepPerception', () => {
     const p = spawnPerceiver(w, 0, 0);
     const t = spawnTarget(w, 80, 0);
     const ends: Array<[number, number]> = [];
-    stepPerception(w, (_ox, _oy, _tx, _ty, observer, target) => {
+    stepPerception(w, (_from, _to, observer, target) => {
       ends.push([observer, target]);
       return false;
     });
     expect(ends).toEqual([[p, t]]);
+  });
+
+  // The layer mask is the perceiver's, and it is the only thing standing between
+  // a 3D sight ray and the observer's own collider.
+  it('hands the perceiver own LOS layers to the occlusion check', () => {
+    const w = new FakeWorld();
+    w.spawn([[Perceiver, Perceiver.create({ losLayers: 0b110 })], [Transform, tf(0, 0)]]);
+    spawnTarget(w, 80, 0);
+    const seen: number[] = [];
+    stepPerception(w, (_from, _to, _o, _t, layers) => { seen.push(layers); return false; });
+    expect(seen).toEqual([0b110]);
+  });
+
+  it('sees, and reports, in three dimensions', () => {
+    const w = new FakeWorld();
+    const p = spawnPerceiver(w, 0, 0, 200);
+    spawnTarget(w, 0, 0, 100);
+    stepPerception(w);
+    const per = w.get(p, Perception);
+    expect(per.visible).toBe(true);
+    expect(per.targetZ).toBe(100);
+    expect(per.dirZ).toBeCloseTo(1);
+    expect(per.distance).toBeCloseTo(100);
+  });
+
+  // The one a flat range check gets wrong: same x/y, two floors apart.
+  it('does not see a target that is only out of range in depth', () => {
+    const w = new FakeWorld();
+    const p = spawnPerceiver(w, 0, 0, 100);
+    spawnTarget(w, 0, 0, 300);
+    stepPerception(w);
+    expect(w.get(p, Perception).visible).toBe(false);
   });
 
   it('picks the nearest visible target', () => {

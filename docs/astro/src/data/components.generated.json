@@ -2450,11 +2450,27 @@
           "type": "number",
           "default": "360",
           "range": "0–360"
+        },
+        {
+          "key": "facingAxis",
+          "type": "string",
+          "default": "\"x\"",
+          "doc": "'x' is screen-right (a flat scene); '-z' is where an imported model faces.",
+          "advanced": true
+        },
+        {
+          "key": "losLayers",
+          "type": "number",
+          "default": "0",
+          "doc": "3D layer mask the sight ray may hit; 0 = every layer.",
+          "range": "≥ 0",
+          "advanced": true
         }
       ],
       "animatable": [
         "range",
-        "fovDegrees"
+        "fovDegrees",
+        "losLayers"
       ]
     },
     {
@@ -2484,12 +2500,22 @@
           "default": "0"
         },
         {
+          "key": "targetZ",
+          "type": "number",
+          "default": "0"
+        },
+        {
           "key": "dirX",
           "type": "number",
           "default": "0"
         },
         {
           "key": "dirY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "dirZ",
           "type": "number",
           "default": "0"
         }
@@ -2499,8 +2525,10 @@
         "distance",
         "targetX",
         "targetY",
+        "targetZ",
         "dirX",
-        "dirY"
+        "dirY",
+        "dirZ"
       ]
     },
     {

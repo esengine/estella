@@ -785,7 +785,7 @@ export {
 
 export {
     senseTarget,
-    facingFromQuat,
+    facingFromRotation,
     normalizeAngle,
     Perceiver,
     Perception,

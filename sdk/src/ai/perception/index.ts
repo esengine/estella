@@ -5,7 +5,7 @@
  * @brief   Perception barrel — pure sensing core + components + plugin.
  */
 
-export { senseTarget, facingFromQuat, normalizeAngle, type SenseResult } from './sense';
+export { senseTarget, facingFromRotation, normalizeAngle, type SenseResult, type FacingAxis } from './sense';
 export {
     Perceiver, Perception, PerceptionTarget,
     type PerceiverData, type PerceptionData,

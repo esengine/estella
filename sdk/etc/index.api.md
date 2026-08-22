@@ -5019,7 +5019,9 @@ ComponentDef<PerceiverData>
 
 ## PerceiverData — interface @experimental
 ```
+facingAxis: FacingAxis
 fovDegrees: number
+losLayers: number
 range: number
 ```
 
@@ -5032,9 +5034,11 @@ ComponentDef<PerceptionData>
 ```
 dirX: number
 dirY: number
+dirZ: number
 distance: number
 targetX: number
 targetY: number
+targetZ: number
 visible: boolean
 ```
 
@@ -6830,8 +6834,7 @@ BuiltinComponentDef<SegmentColliderData>
 
 ## SenseResult — interface @experimental
 ```
-dirX: number
-dirY: number
+dir: Vec3
 distance: number
 visible: boolean
 ```
@@ -10127,9 +10130,9 @@ EventBindingPlugin
 (entities: readonly ExtractEntity[], rootId: number, name: string, makeId?: (sourceId: number) => PrefabEntityId): PrefabData
 ```
 
-## facingFromQuat — function @experimental
+## facingFromRotation — function @experimental
 ```
-(z: number, w: number): number
+(rot: Quat, axis?: FacingAxis): Vec3
 ```
 
 ## fetchDecodePixels — function @experimental
@@ -11564,7 +11567,7 @@ Plugin
 
 ## senseTarget — function @experimental
 ```
-(ox: number, oy: number, facing: number, tx: number, ty: number, range: number, halfFov: number, isBlocked?: (ox: number, oy: number, tx: number, ty: number) => boolean): SenseResult
+(observer: Vec3, facing: Vec3, target: Vec3, range: number, halfFov: number, isBlocked?: (from: Vec3, to: Vec3) => boolean): SenseResult
 ```
 
 ## serializeAnimClip — function @experimental

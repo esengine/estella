@@ -54,6 +54,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **AI sensing is three-dimensional.** A `Perceiver`'s range came from x and y,
+  its cone from `atan2` in the same plane, and its facing from the Z half of a
+  quaternion — so a guard saw through floors, and any rotation but a flat one
+  computed a facing out of nothing. Range and cone are now measured in all three
+  axes (the cone as a dot product, which is the same test where both lie in a
+  plane), and `Perception` reports `targetZ` / `dirZ`. Line of sight goes through
+  the 3D solver where a scene has one; `Perceiver.facingAxis` picks the entity
+  axis the cone points down (`x` — screen-right, what a flat scene means — or
+  `-z`, where an imported model faces), and `Perceiver.losLayers` is the layer
+  mask the 3D sight ray is cast against, since a ray from inside the observer's
+  own collider hits it first.
+
 - **Network interest is a sphere.** `radiusInterest` measured the distance to a
   connection's pawn in x and y, so two floors of a building were one place and
   every connection streamed both — the saving the policy exists to make is the one
