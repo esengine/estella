@@ -328,13 +328,13 @@ jobs:
     timeout-minutes: 30
 
     steps:
-    # The editor is a PRIVATE submodule, so the default token cannot read it.
-    # Without EDITOR_SUBMODULE_TOKEN this job fails at checkout — which is the
-    # honest outcome: it has nothing to check, and a green tick would say it did.
     - uses: actions/checkout@v7
+
+    # The editor is private; without its key this job fails here rather than
+    # reporting green about a checkout it never had.
+    - uses: ./.github/actions/editor-checkout
       with:
-        submodules: true
-        token: ${{ secrets.EDITOR_SUBMODULE_TOKEN || secrets.GITHUB_TOKEN }}
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
 
     - uses: ./.github/actions/setup
 
@@ -375,10 +375,11 @@ jobs:
         # …), which a shallow checkout has none of — the step failed on every run
         # that ever reached it.
         fetch-depth: 0
-        # The comparison frame is the EDITOR's, so this job needs its checkout —
-        # and it is a private submodule, so it needs a token that can read one.
-        submodules: true
-        token: ${{ secrets.EDITOR_SUBMODULE_TOKEN || secrets.GITHUB_TOKEN }}
+
+    # The comparison frame is the EDITOR's, so this job needs its checkout.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
 
     - uses: ./.github/actions/setup
 

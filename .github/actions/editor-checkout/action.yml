@@ -1,0 +1,42 @@
+name: Check out the editor submodule
+description: Fetch the private editor at desktop/ with a read-only deploy key.
+
+# The editor is a private repository, so the workflow token cannot read it and
+# `submodules: true` on checkout fails. A deploy key scoped to that one
+# repository is the smallest credential that works: read-only, and useless
+# against anything else if it leaks.
+#
+# Only desktop/ is fetched. `submodules: true` would also pull third_party's ten
+# vendored trees, which no job needing the editor has any use for.
+
+inputs:
+  ssh-key:
+    description: Private half of the estella-editor read-only deploy key.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch the editor
+      shell: bash
+      env:
+        EDITOR_SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        set -euo pipefail
+        if [ -z "${EDITOR_SSH_KEY}" ]; then
+          echo "::error::EDITOR_SSH_KEY is empty. This job drives the editor and has nothing to drive."
+          echo "::error::Set the EDITOR_SSH_KEY secret to the private half of estella-editor's deploy key."
+          exit 1
+        fi
+        mkdir -p ~/.ssh
+        printf '%s\n' "${EDITOR_SSH_KEY}" > ~/.ssh/estella_editor
+        chmod 600 ~/.ssh/estella_editor
+        # Pin the host key rather than accepting whatever answers: this runs on
+        # a fresh runner every time, where trust-on-first-use trusts anything.
+        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+        git config --global core.sshCommand 'ssh -i ~/.ssh/estella_editor -o IdentitiesOnly=yes'
+        # .gitmodules names the https URL so a developer with account access can
+        # clone it without a key; the deploy key is SSH-only, hence the rewrite.
+        git config --global url."git@github.com:esengine/estella-editor".insteadOf "https://github.com/esengine/estella-editor"
+        git submodule update --init --depth 1 desktop
+        test -f desktop/package.json
