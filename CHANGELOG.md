@@ -54,6 +54,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A navigation volume is visible while it is being placed.** Nothing renders a
+  `NavVolume` and nothing collides with it, so the box that decides where agents
+  may walk was invisible in the editor — the one thing about it worth checking.
+  It now draws its wireframe, axis-aligned as the bake samples it rather than
+  turned by the entity's rotation, which would draw a volume nothing is sampled
+  from. It joins `gizmo-chrome`, the gate that fails a gizmo which computes a
+  shape and does not draw it.
+
 - **A 3D scene authors where its agents may walk.** `NavVolume` is a box on an
   entity; the nav plugin bakes the grid inside it out of the running 3D world and
   installs it, so navigation is authored in the scene rather than written by every

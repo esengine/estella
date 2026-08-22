@@ -668,15 +668,22 @@ export {
     Navigation,
     Nav,
     NavAgent,
+    NavVolume,
     setNavDestination,
     stopNavAgent,
     NavPlugin,
     navPlugin,
+    bakeNavGrid,
     type NavGridOptions,
+    type NavPlane,
     type Cell,
     type PathfindOptions,
     type BuildNavGridOptions,
     type NavAgentData,
+    type NavVolumeData,
+    type BakeNavGridOptions,
+    type GroundProbe,
+    type GroundHit,
 } from './ai';
 
 // =============================================================================
