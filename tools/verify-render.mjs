@@ -112,6 +112,19 @@ const hostsUsed = new Set(scenes.map((s) => s.host));
 console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`
   + ` (host: ${[...hostsUsed].sort().join(' + ')})`);
 
+/**
+ * A host with no page serves 404s, the driving surface never appears, and every
+ * scene fails with "cannot read properties of undefined". Say which build is
+ * missing instead. `git submodule deinit` empties the editor's dist among other
+ * ignored output, so this is reachable without anyone deleting anything.
+ */
+function requirePage(page, host, build) {
+  if (existsSync(page)) return;
+  console.error(`verify-render: the ${host} host has no page at ${path.relative(ROOT, page)}.`);
+  console.error(`  build it:  ${build}`);
+  process.exit(2);
+}
+
 // Build each host this run needs, then check the wasm it will actually SERVE:
 // --no-build leaves a host's output as it stands, and a freshly built public/
 // copy it never staged is evidence about a binary no scene below is judging.
@@ -124,6 +137,8 @@ if (hostsUsed.has('engine')) {
     }
   }
   requireCurrentEngine(ROOT, path.join(ROOT, 'build', 'render-host', 'wasm'));
+  requirePage(path.join(ROOT, 'build', 'render-host', 'index.html'), 'engine',
+    'node tools/render-host/build.mjs');
 }
 if (hostsUsed.has('editor')) {
   if (!existsSync(DESKTOP)) {
@@ -139,6 +154,8 @@ if (hostsUsed.has('editor')) {
     }
   }
   requireCurrentEngine(ROOT, path.join(DESKTOP, NO_BUILD ? 'dist' : 'public', 'wasm'));
+  requirePage(path.join(DESKTOP, 'dist', 'headless.html'), 'editor',
+    'pnpm --filter @estella/editor exec vite build');
 }
 
 const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
