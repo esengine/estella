@@ -54,6 +54,9 @@ function createMockWorld() {
 // SystemRunner async tests
 // =============================================================================
 
+/** Drain the microtask queue and one macrotask turn — scheduling, not wall clock. */
+const flush = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve); });
+
 describe('SystemRunner async', () => {
     let mockWorld: ReturnType<typeof createMockWorld>;
     let world: World;
@@ -179,25 +182,46 @@ describe('App async systems', () => {
     // Systems that declare nothing they touch declare nothing about their order
     // either, so their waits may overlap and the shorter one lands first.
     // Ordering is something you say — see the next test.
-    it('lets unordered async systems overlap, so the shorter one lands first', async () => {
+    it('lets unordered async systems overlap, and finish in their own order', async () => {
         const app = App.new();
+        const started: string[] = [];
         const order: string[] = [];
+
+        // Gates, not durations: the claim needs BOTH systems to reach their wait
+        // before either finishes, which a serial scheduler could not do. Racing
+        // two setTimeouts said that only by implication, and lost the race.
+        let releaseA!: () => void;
+        let releaseB!: () => void;
+        const gateA = new Promise<void>((r) => { releaseA = r; });
+        const gateB = new Promise<void>((r) => { releaseB = r; });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [], async () => {
-                await new Promise(r => setTimeout(r, 10));
+                started.push('A');
+                await gateA;
                 order.push('A');
             }, { name: 'AsyncA' }
         ));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [], async () => {
-                await new Promise(r => setTimeout(r, 5));
+                started.push('B');
+                await gateB;
                 order.push('B');
             }, { name: 'AsyncB' }
         ));
 
-        await app.tick(1 / 60);
+        const ticking = app.tick(1 / 60);
+        await flush();
+
+        // The overlap itself: B began without waiting for A to finish.
+        expect(started).toEqual(['A', 'B']);
+        expect(order).toEqual([]);
+
+        releaseB();
+        await flush();
+        releaseA();
+        await ticking;
 
         expect(order).toEqual(['B', 'A']);
     });
