@@ -87,8 +87,10 @@ async function boot(): Promise<void> {
         canvas.style.top = '0';
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
+        document.body.appendChild(canvas);
     }
-    document.body.appendChild(canvas);
+    // WebGL2 leaves the canvas OUT of the document: the readback comes from the
+    // engine, not the page, so attaching it only gives the compositor work.
 
     module = await createModule(moduleArg);
 

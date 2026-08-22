@@ -197,6 +197,10 @@ for (const [index, scene] of scenes.entries()) {
   if (scene.env.ESTELLA_VERIFY_DEVICE_LOSS) {
     run = runScene(scene);
   } else {
+    // `gpuNeverCameUp` matches a message this runner prints on success too, so
+    // every failure reads as "the GPU died" and the real reason never reaches the
+    // log — a host failing half its launches looks exactly like a flaky runner.
+    let firstFailure = null;
     const attempt = retryOnDeadGpu(
       () => { const r = runScene(scene); return { ...r, output: r.out }; },
       (died) => {
@@ -206,6 +210,14 @@ for (const [index, scene] of scenes.entries()) {
           : 'a blank frame on the run after a GPU death'}; measuring again`);
       },
     );
+    if (attempt.retried && !firstFailure) {
+      firstFailure = (attempt.out || '').split('\n')
+        .filter((l) => /error|fail|refus|throw|undefined|cannot|timeout|watchdog/i.test(l))
+        .slice(-3);
+      if (firstFailure.length) {
+        console.log(`  └ what the retried run(s) said: ${firstFailure.join(' | ').slice(0, 400)}`);
+      }
+    }
     run = attempt;
   }
   if (run.ok) drewSomething = true; else failed.push(scene.id);

@@ -78,6 +78,10 @@ const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// CI's Linux runner has no GPU and rasterises in software, which is a different
+// machine from any developer's. Reproducing a CI-only failure needs that
+// machine, so ask for it explicitly rather than guessing from a log.
+if (process.env.ESTELLA_VERIFY_SOFTWARE_GPU) app.commandLine.appendSwitch('disable-gpu');
 // The GPU process runs its own sandbox, which ELECTRON_DISABLE_SANDBOX does not
 // reach: on a runner with no device it died before any scene drew, on every
 // retry. Harmless with a GPU — this is a headless verifier, not a shipped app.

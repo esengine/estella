@@ -10,7 +10,9 @@
     />
     <title>Estella Render Host</title>
     <style>
-      html, body { margin: 0; padding: 0; background: #000; }
+      /* No background: nothing should give the compositor work to do. The WebGPU
+         capture takes the page, so margins have to be zero for it to line up. */
+      html, body { margin: 0; padding: 0; }
     </style>
   </head>
   <body>
