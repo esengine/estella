@@ -92,9 +92,8 @@ jobs:
     steps:
       # With submodules: the host links box2d, spine and glm from third_party.
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
+      - uses: ./.github/actions/engine-submodules
       - uses: ./.github/actions/setup
 
       # The SDK bundle is compiled INTO the host binary, which is why a template

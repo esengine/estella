@@ -86,9 +86,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
+      - uses: ./.github/actions/engine-submodules
       - uses: ./.github/actions/setup
 
       - name: Setup Emscripten
@@ -146,9 +145,8 @@ jobs:
       # a checkout without them fails at configure with a directory that has no
       # CMakeLists.txt — which is exactly how this job failed the first time it ran.
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
+      - uses: ./.github/actions/engine-submodules
       - uses: ./.github/actions/setup
 
       # The SDK bundle is compiled INTO the host binary, which is why a template

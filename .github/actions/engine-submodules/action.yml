@@ -1,0 +1,22 @@
+name: Check out the engine's submodules
+description: Initialise every submodule except the private editor.
+
+# `submodules: recursive` on checkout tries to clone ALL of them, and the editor
+# is private — so a job that only wants third_party's vendored sources fails at
+# checkout with "repository not found". These jobs do not want the editor at all.
+#
+# Derived from .gitmodules rather than listed here: a new vendored dependency
+# would otherwise be silently left uninitialised by every job using this.
+
+runs:
+  using: composite
+  steps:
+    - name: Init the engine submodules
+      shell: bash
+      run: |
+        set -euo pipefail
+        paths=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+          | awk '{print $2}' | grep -vx 'desktop')
+        echo "initialising: $(echo "$paths" | tr '\n' ' ')"
+        # shellcheck disable=SC2086
+        git submodule update --init --recursive $paths

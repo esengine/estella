@@ -40,9 +40,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-      with:
-        submodules: recursive
 
+    - uses: ./.github/actions/engine-submodules
     - uses: ./.github/actions/setup
 
     - name: Setup Emscripten
@@ -108,9 +107,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-      with:
-        submodules: recursive
 
+    - uses: ./.github/actions/engine-submodules
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v16
       with:
@@ -459,9 +457,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
+      - uses: ./.github/actions/engine-submodules
       - uses: ./.github/actions/setup
 
       # The SDK bundle is compiled into the host binary.

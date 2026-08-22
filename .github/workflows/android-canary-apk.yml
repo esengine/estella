@@ -50,9 +50,8 @@ jobs:
       # carries its libraries already. Fetched unconditionally because a
       # conditional checkout is a second way for the two paths to diverge.
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
+      - uses: ./.github/actions/engine-submodules
       - uses: ./.github/actions/setup
 
       # The SDK bundle is compiled INTO the host binary, so a template built here
