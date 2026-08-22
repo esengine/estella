@@ -38,32 +38,43 @@ function newestSource(root) {
 }
 
 /**
- * A sentence naming the engine source that outran the binary, or null when the
- * binary is current (or when there is none to judge — that failure speaks for
- * itself downstream).
+ * When the binary of one build VARIANT was produced, from the manifest, or null
+ * when there is nothing to date it by. Per variant, because the variants are
+ * separate builds. A schema-1 manifest's single `builtAt` is the fallback: it is
+ * honest only for whichever variant was built last.
  */
-export function staleEngineBuild(root, wasmDir) {
+function variantBuiltAt(wasmDir, variant) {
   const manifest = path.join(wasmDir, 'wasm.manifest.json');
   if (!existsSync(manifest)) return null;
-  let builtAt;
-  try {
-    builtAt = Date.parse(JSON.parse(readFileSync(manifest, 'utf8')).builtAt);
-  } catch { return null; }
-  if (!Number.isFinite(builtAt)) return null;
+  let m;
+  try { m = JSON.parse(readFileSync(manifest, 'utf8')); } catch { return null; }
+  const own = m.variants?.[variant]?.builtAt;
+  const at = Date.parse(own ?? m.builtAt ?? '');
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
+ * A sentence naming the engine source that outran the binary, or null when the
+ * binary is current (or when there is none to judge — that failure speaks for
+ * itself downstream). `variant` is the build whose age is in question.
+ */
+export function staleEngineBuild(root, wasmDir, variant = 'web') {
+  const builtAt = variantBuiltAt(wasmDir, variant);
+  if (builtAt == null) return null;
 
   const newest = newestSource(root);
   if (!newest.file || newest.at <= builtAt) return null;
   const hours = Math.round((newest.at - builtAt) / 36e5);
   const behind = hours >= 1 ? `${hours}h` : `${Math.round((newest.at - builtAt) / 6e4)}min`;
-  return `the engine binary in ${path.relative(root, wasmDir).split(path.sep).join('/')} was built `
+  return `the ${variant} engine binary in ${path.relative(root, wasmDir).split(path.sep).join('/')} was built `
     + `${behind} before ${newest.file} was last changed — every pixel verdict below would be `
-    + `about an engine this checkout does not have.\nBuild it: node build-tools/cli.js build -t web`;
+    + `about an engine this checkout does not have.\nBuild it: node build-tools/cli.js build -t ${variant}`;
 }
 
 /** Exit unless the binary is current. `--allow-stale-engine` says you meant it. */
-export function requireCurrentEngine(root, wasmDir, argv = process.argv) {
+export function requireCurrentEngine(root, wasmDir, argv = process.argv, variant = 'web') {
   if (argv.includes('--allow-stale-engine')) return;
-  const stale = staleEngineBuild(root, wasmDir);
+  const stale = staleEngineBuild(root, wasmDir, variant);
   if (!stale) return;
   console.error(`\n✗ ${stale}\n`);
   process.exit(1);

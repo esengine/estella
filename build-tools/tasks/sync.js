@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
 import { mkdir, cp, readdir, rm, stat, readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { execSync } from 'child_process';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -62,16 +62,31 @@ export async function syncToDesktop(options = {}) {
     return { synced };
 }
 
-// Write wasm.manifest.json into each wasm dest dir: the ABI hash the binary was
-// built against, the build variant(s) present, and git/time provenance. The
-// abiHash is read from the freshly-built SDK metadata — the wasm and that
-// constant are generated together by the EHT pipeline, so it faithfully mirrors
-// the binary's getAbiLayoutHash(). Defensive: a failure here only warns.
+/** The newest artifact in a directory, in epoch ms — 0 for an empty/absent one.
+ *  Flat by design: a wasm output dir has no subdirectories. */
+function newestArtifact(dir) {
+    if (!existsSync(dir)) return 0;
+    let newest = 0;
+    for (const name of readdirSync(dir)) {
+        if (name === 'wasm.manifest.json') continue; // an output of this function
+        try {
+            const at = statSync(path.join(dir, name)).mtimeMs;
+            if (at > newest) newest = at;
+        } catch { /* raced with a rebuild — the other files still answer */ }
+    }
+    return newest;
+}
+
+// Write wasm.manifest.json into each wasm dir: ABI hash, per-variant build time,
+// git provenance. A variant is dated from ITS OWN newest artifact — they are
+// separate builds, so one `-t web` restamp would vouch for any age of wechat.
 async function writeWasmManifest(rootDir) {
     try {
-        const variants = [...new Set(Object.keys(config.sync.wasm).map((src) => path.basename(src)))].filter(
-            (v) => existsSync(path.join(rootDir, 'build/wasm', v)),
-        );
+        const variants = {};
+        for (const src of new Set(Object.keys(config.sync.wasm))) {
+            const at = newestArtifact(path.join(rootDir, src));
+            if (at > 0) variants[path.basename(src)] = { builtAt: new Date(at).toISOString() };
+        }
 
         const genPath = path.join(config.paths.sdk, 'src/ecs/component.generated.ts');
         const gen = await readFile(genPath, 'utf8');
@@ -86,24 +101,28 @@ async function writeWasmManifest(rootDir) {
         }
 
         const manifest = {
-            schema: 1,
+            schema: 2,
             abiHash,
             editorTarget: 'web',
             variants,
             gitSha,
-            builtAt: new Date().toISOString(),
+            stampedAt: new Date().toISOString(),
         };
 
-        const dests = [...new Set(Object.values(config.sync.wasm))];
-        for (const dest of dests) {
-            const destDir = path.join(rootDir, dest);
-            if (!existsSync(destDir)) continue;
+        // Both the build dirs and the synced ones: whoever asks how old a binary
+        // is asks the directory they are about to package FROM, and only half of
+        // those are the editor's.
+        const dirs = [...new Set([...Object.keys(config.sync.wasm), ...Object.values(config.sync.wasm)])];
+        for (const dir of dirs) {
+            const abs = path.join(rootDir, dir);
+            if (!existsSync(abs)) continue;
             await writeFile(
-                path.join(destDir, 'wasm.manifest.json'),
+                path.join(abs, 'wasm.manifest.json'),
                 JSON.stringify(manifest, null, 2) + '\n',
             );
         }
-        logger.debug(`Stamped wasm.manifest.json (abi=${abiHash} git=${gitSha} variants=${variants.join(',') || 'none'})`);
+        const ages = Object.entries(variants).map(([v, s]) => `${v}@${s.builtAt}`).join(' ');
+        logger.debug(`Stamped wasm.manifest.json (abi=${abiHash} git=${gitSha} ${ages || 'no variants'})`);
     } catch (err) {
         logger.warn(`Could not stamp wasm.manifest.json: ${err.message}`);
     }

@@ -47,7 +47,16 @@ const LAUNCHER = (target) => path.join(ROOT, 'tools', 'launchers',
 const COMPARABLE = OWNED;
 
 const DESKTOP = path.join(ROOT, 'desktop');
-requireCurrentEngine(ROOT, path.join(DESKTOP, 'public', 'wasm'));
+
+/**
+ * Where the engine binary a target packages comes from, and which build variant
+ * it is. Checked PER TARGET: the variants are separate builds, and a stale one
+ * does not announce itself — the package boots, fails its ABI handshake and
+ * reads as the game being broken.
+ */
+const ENGINE_OF = (target) => (target === 'wechat'
+  ? { dir: path.join(ROOT, 'build', 'wasm', 'wechat'), variant: 'wechat' }
+  : { dir: path.join(DESKTOP, 'public', 'wasm'), variant: 'web' });
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
@@ -203,6 +212,13 @@ function launchPackage(id, target, args) {
   // is reported as a game that draws nothing, which is the one confusion this
   // whole retry exists to prevent.
   return { ...run.r, gpuDied: Boolean(run.gpuDied) };
+}
+
+// Every engine build this tier's pairs will package, before any of them runs:
+// finding out at pair fourteen costs the thirteen packages before it.
+for (const key of new Set(pairs.map((p) => JSON.stringify(ENGINE_OF(p.target))))) {
+  const { dir, variant } = JSON.parse(key);
+  requireCurrentEngine(ROOT, dir, process.argv, variant);
 }
 
 const results = [];

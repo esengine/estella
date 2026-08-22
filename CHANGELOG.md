@@ -54,6 +54,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The engine-freshness gate answers per build variant.** `wasm.manifest.json`
+  carried one `builtAt`, stamped whenever the manifest was last written, and
+  listed the variants merely present on disk — so building `-t web` vouched for a
+  wechat binary of any age. A mini-game golden pair then failed its ABI handshake
+  and read as a component regression (`Draggable: missing addDraggable`) with the
+  freshness gate green. Each variant is now dated from its own newest artifact
+  (manifest schema 2, written into the build dirs as well as the synced ones),
+  `staleEngineBuild` takes the variant in question and names its build command,
+  and `verify-golden` checks the engine behind every target a tier will package
+  before it packages the first one.
+
 - **A drag turns the view the way it grabs it.** Dragging the editor eye moved the
   yaw one way and the pitch the other: a diagonal drag pulled the scene left while
   pulling it down, because only the vertical half followed the pointer. Both halves
