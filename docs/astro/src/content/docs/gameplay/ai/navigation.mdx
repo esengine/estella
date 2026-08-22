@@ -33,10 +33,43 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 | `cellSize` | number | World pixels per cell (square). |
 | `origin` | `Vec2` | World position of cell `(0,0)`'s center. Defaults to `(0,0)`. |
 | `walkable` | `Uint8Array` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. |
+| `plane` | `'xy' \| 'xz'` | Which world plane the cells lie in. `xy` (the default) is a flat scene's own plane; `xz` is the ground of a 3D one. |
+| `surface` | `Float32Array` | Ground height per cell, on the axis the plane leaves out. Omitted → every cell sits at the origin's third axis. |
+| `stepHeight` | number | Height difference between neighbours an agent can climb. `0` (the default) lets any difference through. |
 
 To derive a grid from a painted tilemap instead of hand-authoring the mask, use
 `navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
 `navGridFromTiles`.
+
+### A grid for a 3D scene
+
+A 3D scene has geometry rather than a tile mask, so its grid is **baked** from the
+bodies it already collides against — put a **`NavVolume`** on an entity and the nav
+plugin fills the box it describes:
+
+| `NavVolume` field | Description |
+|---|---|
+| `halfExtents` | Half the box to sample, in world pixels; the entity's Transform is its centre. |
+| `cellSize` | World pixels per cell. Smaller is a finer route and a slower bake. |
+| `maxSlopeDegrees` | Steepest ground an agent can stand on. Anything steeper is a wall. |
+| `agentHeight` | Headroom an agent needs — a cell with less is a crawlspace, not a corridor. `0` skips the check. |
+| `stepHeight` | How high a step the agent can climb between neighbouring cells. |
+| `layers` | Physics layers the ground rays are cast against; `0` = every layer. |
+
+One ray straight down per cell answers all of it: no hit is a hole, a tilted hit is
+a slope or a wall, and a hit with a ceiling too close above it is unwalkable. The
+bake waits for the 3D solver to create its bodies, so the grid appears a frame or
+two into play, not at load.
+
+<Aside type="caution">
+  **One surface per column.** A bridge and the road under it collapse into whichever
+  the ray meets first — the top of a wall becomes perfectly good ground two metres
+  up, and it is `stepHeight` (not walkability) that keeps agents off it. Multi-level
+  routing needs a real navmesh, which this is not.
+</Aside>
+
+`bakeNavGrid` is also callable directly if a game wants to bake on its own terms;
+it takes any object with a `raycast`, which the `Physics3D` resource already is.
 
 <Aside type="tip">
   The `Nav` resource also answers one-off queries directly:

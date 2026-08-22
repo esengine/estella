@@ -9,6 +9,10 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { bakeNavGrid, type GroundHit, type GroundProbe } from '../src/ai/nav/bakeNavGrid';
+import { bakeVolumes } from '../src/ai/nav/NavPlugin';
+import { NavVolume, type NavVolumeData } from '../src/ai/nav/NavVolume';
+import { Navigation } from '../src/ai/nav/Navigation';
+import { Transform } from '../src/ecs/component';
 import type { Physics3DQueries } from '../src/physics3d/Physics3DQueries';
 import type { Vec3 } from '../src/types';
 
@@ -112,5 +116,72 @@ describe('bakeNavGrid', () => {
         const raycast = vi.fn(() => null);
         bakeNavGrid({ raycast }, { ...BOX, layers: 0b101 });
         expect(raycast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 0b101);
+    });
+});
+
+/** The narrow world view `bakeVolumes` walks, with just enough store to answer. */
+class VolumeWorld {
+    private store = new Map<string, unknown>();
+    private ids: number[] = [];
+    spawn(comps: Array<[{ _name: string }, unknown]>): number {
+        const e = this.ids.length + 1;
+        for (const [def, data] of comps) this.store.set(`${e}:${def._name}`, data);
+        this.ids.push(e);
+        return e;
+    }
+    getEntitiesWithComponents(defs: readonly { _name: string }[]): number[] {
+        return this.ids.filter(e => defs.every(d => this.store.has(`${e}:${d._name}`)));
+    }
+    get(e: number, def: { _name: string }): never {
+        return this.store.get(`${e}:${def._name}`) as never;
+    }
+    set(): void { /* the bake writes nothing back */ }
+}
+
+describe('bakeVolumes', () => {
+    const spawnVolume = (w: VolumeWorld, over: Partial<NavVolumeData> = {}) => w.spawn([
+        [NavVolume, NavVolume.create({ halfExtents: { x: 20, y: 100, z: 20 }, cellSize: 10, ...over })],
+        [Transform, { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } }],
+    ]);
+
+    it('bakes an authored volume into the active grid, centred on its Transform', () => {
+        const w = new VolumeWorld();
+        spawnVolume(w);
+        const nav = new Navigation();
+        bakeVolumes(w as never, nav, probeOf(() => LEVEL(7)), new Set());
+        expect(nav.grid).not.toBeNull();
+        expect(nav.grid!.plane).toBe('xz');
+        expect(nav.grid!.width).toBe(5); // 40 across at 10 a cell, inclusive
+        expect(nav.grid!.surfaceAt(0, 0)).toBe(7);
+    });
+
+    // Bodies are created by the physics system on its first step; a bake that ran
+    // before it would sample an empty world and produce a grid of holes.
+    it('does nothing at all without a solver to ask', () => {
+        const w = new VolumeWorld();
+        spawnVolume(w);
+        const nav = new Navigation();
+        bakeVolumes(w as never, nav, null, new Set());
+        expect(nav.grid).toBeNull();
+    });
+
+    it('bakes each volume once, however many frames run', () => {
+        const w = new VolumeWorld();
+        spawnVolume(w);
+        const raycast = vi.fn((_o: Vec3, d: Vec3) => (d.y < 0 ? LEVEL(0) : null));
+        const baked = new Set<number>();
+        const nav = new Navigation();
+        bakeVolumes(w as never, nav, { raycast }, baked as never);
+        const afterFirst = raycast.mock.calls.length;
+        bakeVolumes(w as never, nav, { raycast }, baked as never);
+        expect(raycast.mock.calls.length).toBe(afterFirst);
+    });
+
+    it('carries the volume own settings into the grid', () => {
+        const w = new VolumeWorld();
+        spawnVolume(w, { stepHeight: 25 });
+        const nav = new Navigation();
+        bakeVolumes(w as never, nav, probeOf(() => LEVEL(0)), new Set());
+        expect(nav.grid!.stepHeight).toBe(25);
     });
 });

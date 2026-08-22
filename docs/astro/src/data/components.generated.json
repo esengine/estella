@@ -1990,6 +1990,60 @@
       ]
     },
     {
+      "name": "NavVolume",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(1000, 500, 1000)"
+        },
+        {
+          "key": "cellSize",
+          "type": "number",
+          "default": "50",
+          "range": "≥ 1"
+        },
+        {
+          "key": "maxSlopeDegrees",
+          "type": "number",
+          "default": "45",
+          "range": "0–89"
+        },
+        {
+          "key": "agentHeight",
+          "type": "number",
+          "default": "180",
+          "doc": "Headroom an agent needs; 0 skips the ceiling check.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "stepHeight",
+          "type": "number",
+          "default": "40",
+          "range": "≥ 0"
+        },
+        {
+          "key": "layers",
+          "type": "number",
+          "default": "0",
+          "doc": "Layer mask the ground rays are cast against; 0 = every layer.",
+          "range": "≥ 0",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "halfExtents.x",
+        "halfExtents.y",
+        "halfExtents.z",
+        "cellSize",
+        "maxSlopeDegrees",
+        "agentHeight",
+        "stepHeight",
+        "layers"
+      ]
+    },
+    {
       "name": "NetGhost",
       "source": "ts",
       "fields": [],

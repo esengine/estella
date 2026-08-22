@@ -20,4 +20,5 @@ export {
 } from './bakeNavGrid';
 export { Navigation, Nav } from './Navigation';
 export { NavAgent, type NavAgentData, setNavDestination, stopNavAgent } from './NavAgent';
+export { NavVolume, type NavVolumeData } from './NavVolume';
 export { NavPlugin, navPlugin } from './NavPlugin';

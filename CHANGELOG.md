@@ -54,6 +54,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A 3D scene authors where its agents may walk.** `NavVolume` is a box on an
+  entity; the nav plugin bakes the grid inside it out of the running 3D world and
+  installs it, so navigation is authored in the scene rather than written by every
+  game. It waits for the solver to create its bodies first — the queries resource
+  exists as soon as the module loads, and a bake against a world with no bodies in
+  it returns a grid of holes that one-bake-per-volume would never revisit. A volume
+  that finds no walkable ground says so in the log instead of leaving agents
+  standing still for no stated reason. New editor check `nav3d-play` walks an agent
+  round a wall in the running game, which is the only place the side module, the
+  plugin and the bodies all exist at once.
+
 - **A navigation grid can be baked out of the 3D solver.** `bakeNavGrid` casts one
   ray straight down per cell and reads three answers off it: whether there is
   ground, how high it is, and how steeply it is tilted. No hit is a hole, ground

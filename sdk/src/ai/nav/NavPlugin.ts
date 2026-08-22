@@ -22,8 +22,14 @@ import {
     type ComponentData,
 } from '../../ecs/component';
 import { playModeOnly } from '../../ecs/env';
+import {
+    Physics3D, Physics3DRuntime, type Physics3DRuntime as Physics3DRuntimeData,
+} from '../../physics3d/Physics3DPlugin';
+import { log } from '../../util/logger';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
+import { NavVolume } from './NavVolume';
+import { bakeNavGrid, type GroundProbe } from './bakeNavGrid';
 import { advanceAlongPath } from './follow';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
@@ -35,6 +41,47 @@ export interface AgentRuntime {
     plannedZ: number;
     repathTimer: number;
     reachable: boolean;
+}
+
+/**
+ * Bake the first NavVolume that has not been baked yet, and install its grid.
+ * `probe` is null until the caller has a world worth sampling (see the plugin):
+ * a bake against a solver with no bodies yet returns a grid of holes, and one
+ * bake per volume means it would stay that way.
+ */
+export function bakeVolumes(
+    world: NavWorldView,
+    nav: Navigation,
+    probe: GroundProbe | null,
+    baked: Set<Entity>,
+): void {
+    if (!probe) return;
+    for (const entity of world.getEntitiesWithComponents([NavVolume, Transform])) {
+        if (baked.has(entity)) continue;
+        const volume = world.get(entity, NavVolume);
+        const at = world.get(entity, Transform).position;
+        const h = volume.halfExtents;
+        nav.setGrid(bakeNavGrid(probe, {
+            min: { x: at.x - h.x, y: at.y - h.y, z: at.z - h.z },
+            max: { x: at.x + h.x, y: at.y + h.y, z: at.z + h.z },
+            cellSize: volume.cellSize,
+            maxSlopeDegrees: volume.maxSlopeDegrees,
+            agentHeight: volume.agentHeight,
+            stepHeight: volume.stepHeight,
+            layers: volume.layers,
+        }));
+        baked.add(entity);
+        // Baked once, so a volume that found nothing stays empty: say so rather
+        // than leave a scene with agents that never move and no reason given.
+        if (!nav.grid?.walkable.some(w => w === 1)) {
+            log.warn('nav', `NavVolume on entity ${entity} baked no walkable ground —`
+                + ' check that it covers the floor and that `layers` includes it');
+        }
+        // One grid is installed at a time, so a scene with two volumes would have
+        // the last one win. Bake one per frame and let the newest be the active
+        // one rather than silently merging boxes that may not touch.
+        return;
+    }
 }
 
 /** The slice of `World` the nav step needs — lets tests inject a fake. */
@@ -122,18 +169,34 @@ export class NavPlugin implements Plugin {
         app.insertResource(Nav, new Navigation());
 
         const runtimes = new Map<Entity, AgentRuntime>();
-        app.world.onDespawn((entity: Entity) => runtimes.delete(entity));
+        const baked = new Set<Entity>();
+        app.world.onDespawn((entity: Entity) => {
+            runtimes.delete(entity);
+            baked.delete(entity);
+        });
 
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
                 [Res(Nav), Res(Time), GetWorld()],
                 (nav: Navigation, time: TimeData, world) => {
+                    // A NavVolume takes its grid from the 3D solver. Waiting for a
+                    // BODY, not for the queries resource: that appears when the
+                    // module loads, bodies only when it first steps.
+                    const runtime = app.hasResource(Physics3DRuntime)
+                        ? app.getResource<Physics3DRuntimeData>(Physics3DRuntime) : null;
+                    const populated = (runtime?.bodies.size ?? 0) > 0;
+                    const probe = populated && app.hasResource(Physics3D)
+                        ? app.getResource<GroundProbe | null>(Physics3D) : null;
+                    bakeVolumes(world as NavWorldView, nav, probe, baked);
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
                 {
                     name: 'NavAgentSystem',
-                    touches: { writes: [NavAgent._name, Transform._name] },
+                    touches: {
+                        reads: [NavVolume._name],
+                        writes: [NavAgent._name, Transform._name],
+                    },
                     // Both move an entity; for one carrying both, the path is the
                     // intent and the drift is not, so the follow lands last. The
                     // order registration already produced — declared, not changed.

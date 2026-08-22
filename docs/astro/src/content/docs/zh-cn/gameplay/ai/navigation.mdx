@@ -32,9 +32,38 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 | `cellSize` | number | 每格的世界像素(正方形)。 |
 | `origin` | `Vec2` | 格子 `(0,0)` 中心的世界坐标。默认 `(0,0)`。 |
 | `walkable` | `Uint8Array` | 可选的行主序 `width*height` 掩码,`1` = 可走,`0` = 阻挡。省略则全部可走。 |
+| `plane` | `'xy' \| 'xz'` | 格子躺在哪个世界平面上。`xy`(默认)是平面场景自己的平面;`xz` 是 3D 场景的地面。 |
+| `surface` | `Float32Array` | 每格地面的高度,在平面留出的那个轴上。省略则每格都位于原点的第三轴。 |
+| `stepHeight` | number | 相邻格之间 agent 能爬上去的高度差。`0`(默认)表示任何高差都放行。 |
 
 若想从已绘制的瓦片地图推导网格,而不是手写掩码,用 `navGridFromTilemapLayer`(把某图层的
 实心瓦片视作阻挡)或 `navGridFromTiles`。
+
+### 3D 场景的网格
+
+3D 场景有的是几何而不是瓦片掩码,所以它的网格是从**它本来就在碰撞的那些刚体**上**烘焙**出来的
+——在一个实体上放 **`NavVolume`**,导航插件就会把它描述的那个盒子填满:
+
+| `NavVolume` 字段 | 说明 |
+|---|---|
+| `halfExtents` | 要采样的盒子半尺寸,单位世界像素;实体的 Transform 是盒子中心。 |
+| `cellSize` | 每格的世界像素。越小路线越细、烘焙越慢。 |
+| `maxSlopeDegrees` | agent 能站住的最陡地面。比这更陡的就是墙。 |
+| `agentHeight` | agent 需要的头顶空间——不够的格子是爬行空间不是走廊。`0` 跳过这项检查。 |
+| `stepHeight` | 相邻格之间 agent 能爬上去的台阶高度。 |
+| `layers` | 地面射线投射的物理层;`0` = 所有层。 |
+
+每格一条向下的射线就回答了全部:没命中是洞,命中面倾斜就是坡或墙,命中点上方净空不够就不可走。
+烘焙会等 3D 求解器把刚体建出来,所以网格是在开始运行后一两帧出现的,不是加载时。
+
+<Aside type="caution">
+  **每一列只有一个面。**桥和桥下的路会塌成射线先碰到的那一个——墙顶会变成两米高处一块
+  完全可站的地面,把 agent 挡在墙外的是 `stepHeight` 而不是可走性。多层路网需要真正的
+  navmesh,这里不是。
+</Aside>
+
+`bakeNavGrid` 也可以直接调用,让游戏按自己的方式烘焙;它只要一个带 `raycast` 的对象,
+而 `Physics3D` 资源本身就是。
 
 <Aside type="tip">
   `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点
