@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { Audio, AudioAPI } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 import { WorldTransform, type WorldTransformData } from '../ecs/component';
 import { platformCreateAudioBackend, platformOnMemoryWarning } from '../platform/base';
-import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
+import { q } from '../math/quat';
+import { calculateAttenuation, calculatePanning, spatialDistance, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
 import { isEditor, isPlayMode } from '../ecs/env';
 import { log } from '../util/logger';
@@ -99,16 +100,18 @@ export class AudioPlugin implements Plugin {
 
                     const world = app.world;
 
-                    let listenerX = 0;
-                    let listenerY = 0;
+                    let listenerAt: Vec3 = { x: 0, y: 0, z: 0 };
+                    // Which way is the listener's right, for the stereo image. Its own,
+                    // not the world's: turn the camera and the room turns with it.
+                    let listenerRight: Vec3 = { x: 1, y: 0, z: 0 };
                     let hasListener = false;
                     const listeners = world.getEntitiesWithComponents([AudioListener, WorldTransform]);
                     for (const entity of listeners) {
                         const listener = world.get(entity, AudioListener) as AudioListenerData;
                         if (listener.enabled) {
                             const wt = world.get(entity, WorldTransform) as WorldTransformData;
-                            listenerX = wt.position.x;
-                            listenerY = wt.position.y;
+                            listenerAt = wt.position;
+                            listenerRight = q.rotate(wt.rotation, { x: 1, y: 0, z: 0 });
                             hasListener = true;
                             break;
                         }
@@ -159,11 +162,8 @@ export class AudioPlugin implements Plugin {
                             }
 
                             const wt = world.tryGet?.(entity, WorldTransform) as WorldTransformData | undefined;
-                            const srcX = wt?.position.x ?? 0;
-                            const srcY = wt?.position.y ?? 0;
-                            const dx = srcX - listenerX;
-                            const dy = srcY - listenerY;
-                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            const sourceAt: Vec3 = wt?.position ?? { x: 0, y: 0, z: 0 };
+                            const distance = spatialDistance(sourceAt, listenerAt);
 
                             const spatialConfig: SpatialAudioConfig = {
                                 model: source.attenuationModel as AttenuationModel,
@@ -173,11 +173,7 @@ export class AudioPlugin implements Plugin {
                             };
 
                             const attenuation = calculateAttenuation(distance, spatialConfig);
-                            const pan = calculatePanning(
-                                srcX, srcY,
-                                listenerX, listenerY,
-                                source.maxDistance
-                            );
+                            const pan = calculatePanning(sourceAt, listenerAt, listenerRight, source.maxDistance);
 
                             handle.setVolume(source.volume * attenuation);
                             handle.setPan(pan);

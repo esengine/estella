@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  SpatialAudio.ts — where a sound is, relative to who is hearing it.
+ *
+ * Three-dimensional throughout. A scene has depth whether or not its art does,
+ * and a distance that drops z reports a source across the room as being in the
+ * listener's ear.
+ */
+import type { Vec3 } from '../types';
+
 export enum AttenuationModel {
     Linear = 0,
     Inverse,
@@ -50,12 +59,29 @@ export function calculateAttenuation(
     return Math.max(0, Math.min(1, result));
 }
 
+/** How far apart two points are, in the three dimensions a scene has. */
+export function spatialDistance(source: Vec3, listener: Vec3): number {
+    const dx = source.x - listener.x;
+    const dy = source.y - listener.y;
+    const dz = source.z - listener.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Stereo pan for a source heard by a listener whose own right points along
+ * `right`: how far along that right the source sits, over the audible radius.
+ * Against the LISTENER'S right, not world +X — a listener that has turned hears
+ * the world turn with it, and an unturned one's right IS world +X.
+ */
 export function calculatePanning(
-    sourceX: number, sourceY: number,
-    listenerX: number, listenerY: number,
+    source: Vec3,
+    listener: Vec3,
+    right: Vec3,
     maxDistance: number
 ): number {
-    const dx = sourceX - listenerX;
+    const along = (source.x - listener.x) * right.x
+        + (source.y - listener.y) * right.y
+        + (source.z - listener.z) * right.z;
     // Guard maxDistance: 0 would yield NaN, which StereoPannerNode.pan throws on.
-    return Math.max(-1, Math.min(1, dx / Math.max(maxDistance, 1e-3)));
+    return Math.max(-1, Math.min(1, along / Math.max(maxDistance, 1e-3)));
 }

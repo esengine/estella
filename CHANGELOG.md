@@ -54,6 +54,23 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Spatial audio and camera follow are three-dimensional.** Both measured the
+  world in x and y only, so in a 3D scene a source across the room was as loud as
+  one in your ear, and a camera lost its target the moment it walked in depth.
+  `spatialDistance` now takes all three axes, `calculatePanning` projects onto the
+  LISTENER'S own right (an unturned listener's right is world +X, so a flat scene
+  is unchanged) and `followStep` damps a 3D point through a spherical dead zone.
+  `FollowTarget` gains `offsetZ` and a `followZ` switch — off by default, because
+  a flat scene's camera z is how far back it stands, and following it would walk
+  the camera into the plane its content lives on.
+
+- **A gate that reads a build product says when that product is stale.**
+  `component-reference --check` re-derives field data from `sdk/dist` "when a
+  built SDK happens to be present", and never asked how old it was — two fields
+  added to a TS component read as clean against a dist that predated them. It now
+  compares the build against `sdk/src` and reports the field data as *not checked*
+  rather than passing. `newestSource` is shared with the wasm freshness gate.
+
 - **The engine-freshness gate answers per build variant.** `wasm.manifest.json`
   carried one `builtAt`, stamped whenever the manifest was last written, and
   listed the variants merely present on disk — so building `-t web` vouched for a

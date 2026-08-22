@@ -450,6 +450,7 @@ export {
     AttenuationModel,
     calculateAttenuation,
     calculatePanning,
+    spatialDistance,
     type AudioHandle,
     type AudioBufferHandle,
     type PlayConfig,

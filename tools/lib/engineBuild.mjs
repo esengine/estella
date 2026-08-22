@@ -15,22 +15,33 @@ import path from 'node:path';
 
 /** Compiled into the engine wasm. Tool-only trees (tools/*-wasm) are not. */
 const ENGINE_SOURCE = ['src'];
+const ENGINE_EXT = /\.(c|cc|cpp|h|hpp|inl|esshader|wgsl)$/;
 
-function newestSource(root) {
+/**
+ * The newest source file under `dirs` that a build takes as INPUT, `{ at, file }`
+ * — `at: 0` when there is none. Shared with every other "is this artifact older
+ * than what it was built from" check: the answer is the same question about a
+ * different tree, and a second copy is how one of them stops being maintained.
+ */
+export function newestSource(root, dirs = ENGINE_SOURCE, ext = ENGINE_EXT) {
   let newest = { at: 0, file: null };
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) { walk(full); continue; }
-      // A generated header is an output of the build, not an input to it: its
-      // mtime says when the build last ran, which would make every build stale.
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+        walk(full);
+        continue;
+      }
+      // A generated file is an output of the build, not an input to it: its mtime
+      // says when the build last ran, which would make every build stale.
       if (entry.name.includes('.generated.')) continue;
-      if (!/\.(c|cc|cpp|h|hpp|inl|esshader|wgsl)$/.test(entry.name)) continue;
+      if (!ext.test(entry.name)) continue;
       const at = statSync(full).mtimeMs;
       if (at > newest.at) newest = { at, file: path.relative(root, full).split(path.sep).join('/') };
     }
   };
-  for (const dir of ENGINE_SOURCE) {
+  for (const dir of dirs) {
     const abs = path.join(root, dir);
     if (existsSync(abs)) walk(abs);
   }

@@ -29,10 +29,11 @@
  * field data and diffs that too, so a changed field is caught wherever the
  * stronger check can run.
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { componentNamesFromSource } from './lib/componentNames.mjs';
+import { newestSource } from './lib/engineBuild.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
@@ -353,9 +354,18 @@ else {
   for (const n of dLink.extra) problems.push(`the editor links docs for "${n}", which is not a component`);
 }
 
-// The strongest check, where a built SDK makes it possible.
-let deep = 'names only (no built SDK)';
-if (existsSync(SDK_DIST)) {
+// The strongest check, where a built SDK makes it possible — and only while that
+// build is newer than what it came from: a stale one answers about components
+// nobody has. Not having checked is reported, never rounded down to a pass.
+const distAt = existsSync(SDK_DIST) ? statSync(SDK_DIST).mtimeMs : 0;
+const newestTs = newestSource(ROOT, ['sdk/src'], /\.ts$/);
+const distIsCurrent = distAt > 0 && newestTs.at <= distAt;
+if (distAt > 0 && !distIsCurrent) {
+  console.log(`component-reference: the built SDK predates ${newestTs.file} — field data NOT checked.`
+    + '\n  build it:  pnpm --filter ./sdk build');
+}
+let deep = distAt > 0 ? 'names only (the built SDK is stale)' : 'names only (no built SDK)';
+if (distIsCurrent) {
   const fresh = await snapshotFromSdk();
   const a = JSON.stringify(fresh.components), b = JSON.stringify(snap.components);
   if (a !== b) {

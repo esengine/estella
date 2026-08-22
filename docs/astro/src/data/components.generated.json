@@ -1433,6 +1433,16 @@
           "default": "0"
         },
         {
+          "key": "offsetZ",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "followZ",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
           "key": "deadzone",
           "type": "number",
           "default": "0"
@@ -1447,6 +1457,7 @@
         "target",
         "offsetX",
         "offsetY",
+        "offsetZ",
         "deadzone",
         "damping"
       ]
