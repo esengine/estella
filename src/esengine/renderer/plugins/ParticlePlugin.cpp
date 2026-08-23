@@ -15,6 +15,7 @@
 #include "../../particle/Particle.hpp"
 
 #include <algorithm>
+#include <string>
 #include <cmath>
 
 namespace esengine {
@@ -41,10 +42,13 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
     if (particle_shader_handle_.isValid()) ctx.resources.releaseShader(particle_shader_handle_);
     const auto target = ctx.resources.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
+    // The same feature a material's particle variant is compiled with, so the
+    // built-in fragment and an authored one sit on one vertex stage.
+    const std::vector<std::string> features{ "PARTICLE" };
     resource::ShaderHandle& handle = particle_shader_handle_;
     handle = ctx.resources.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
         {}, ctx.resources.preferredShaderLanguage());
     Shader* shader = ctx.resources.getShader(handle);
     if (shader && shader->isValid()) {
@@ -53,7 +57,9 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
             // Sampler seeding is a GLSL concept; on WGSL the texture rides the
             // bind group.
             shader->bind();
-            shader->setUniform("u_texture", 0);  // sampler unit 0
+            for (i32 unit = 0; unit < 8; ++unit) {
+                shader->setUniform("u_textures[" + std::to_string(unit) + "]", unit);
+            }
             shader->unbind();
         }
     }
@@ -152,11 +158,28 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             d.uvScaleY = sheet ? uvScaleY : 1.0f;
         });
 
+        // A material owns shading fully: its program is this one compiled for the
+        // particle vertex source, so the author's fragment sees the same quad the
+        // built-in one does. A handle nothing registered draws plainly.
+        u32 shaderId = particle_shader_id_;
+        u32 materialId = 0;
+        BlendMode blend = blendMode;
+        if (emitter.material != 0 && ctx.materials) {
+            if (const MaterialRecord* m = ctx.materials->find(emitter.material)) {
+                const u32 program = ctx.materials->particleProgram(emitter.material, ctx.resources);
+                if (program != 0) {
+                    shaderId = program;
+                    materialId = emitter.material;
+                    blend = m->blend;
+                }
+            }
+        }
+
         BatchDrawKey key{
             .stage = ctx.current_stage,
             .layer = emitter.layer,
-            .shaderId = particle_shader_id_,
-            .blend = blendMode,
+            .shaderId = shaderId,
+            .blend = blend,
             .textureId = textureId,
             .depth = collect_ctx.camera.viewDepth(emitterWorldPos),
             // Sorted by world Y like every other draw — a burst left at y = 0
@@ -165,6 +188,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             .y = emitterWorldPos.y,
             .entity = entity,
             .type = RenderType::Particle,
+            .materialId = materialId,
             .layoutId = LayoutId::ParticleInstance,
             .instanceCount = particleCount,
         };

@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A particle can be drawn with a material, and the billboard it is drawn on is
+  one piece of arithmetic.** `ParticleEmitter.material` was the last authorable
+  material field with nothing reading it. A material is compiled per vertex
+  source — the engine's canonical vertex stage under a feature, with the author's
+  fragment untouched — and that stage now has a `PARTICLE` shape beside `MESH`
+  and `SKINNED`, reading the instance's position, size, rotation, colour and
+  sheet frame. The built-in particle shader became fragment-only and goes through
+  the very same stage, so the billboard maths that faces a quad at the viewer
+  exists once rather than in the built-in shader and again in every material.
+  `MaterialStore` compiles both variants through one path now (`meshProgram` and
+  `particleProgram` differ only in which features they ask for).
+
 - **A skeleton can be drawn with a material.** `SpineAnimation.material` and
   `DragonBonesAnimation.material` were authorable and unread: a skeleton always
   drew with the built-in batch shader. Both now resolve the same way a `Sprite`'s

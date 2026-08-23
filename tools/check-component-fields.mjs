@@ -35,10 +35,6 @@ const DECLARED_GAPS = {
     'CacheAsBitmap.dirty': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.width': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.height': 'see CacheAsBitmap.enabled',
-    'ParticleEmitter.material': 'a particle is drawn from an instanced vertex source,'
-        + ' and a material is compiled per vertex source (MaterialStore::meshProgram takes'
-        + ' the mesh ones) — nothing compiles the instanced variant, so the table has no'
-        + ' program to hand back',
 };
 
 const components = JSON.parse(

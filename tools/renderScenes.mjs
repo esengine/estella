@@ -186,6 +186,10 @@ export const SCENES = [
   // A quad fixed in the x/y plane is edge-on from there and covers nothing; a
   // billboard faces the viewer wherever it stands, which is the whole claim.
   { id: "particles-billboard", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/particle-billboard.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/particle-billboard.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "20", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":90}]" } },
+  // A particle drawn by an AUTHORED material: the fixture's shader ignores the
+  // particle's own green and paints the material's red, so the two are told
+  // apart by the pixel rather than by both being plausible.
+  { id: "particles-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/particle-material.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/particle-material.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "20", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":90}]" } },
   // Trail, floor collision and force fields — fixtures that existed with nothing
   // running them. Probe-less for the reason `particles` is; each claims its path
   // still produces a frame. PR tier: half a second each, otherwise unwatched.

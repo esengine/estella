@@ -130,6 +130,18 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "#endif\n"
         "\n"
         "struct VSIn {\n"
+        // A particle's quad corner is the vertex; where that corner lands is on the
+        // instance, so this layout replaces the block rather than adding to it.
+        "#ifdef PARTICLE\n"
+        "    @location(0) a_position : vec2f,\n"
+        "    @location(1) a_texCoord : vec2f,\n"
+        "    @location(2) a_inst_position : vec3f,\n"
+        "    @location(3) a_inst_size : vec2f,\n"
+        "    @location(4) a_inst_rotation : f32,\n"
+        "    @location(5) a_inst_color : vec4f,\n"
+        "    @location(6) a_inst_uv_offset : vec2f,\n"
+        "    @location(7) a_inst_uv_scale : vec2f,\n"
+        "#else\n"
         "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
         "    @location(2) a_texCoord : vec2f,\n"
@@ -154,13 +166,31 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "    @location(15) a_nrm2 : vec3f,\n"
         "#endif\n"
         "#endif\n"
+        "#endif\n"
         "};\n"
         "\n"
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
+        // A particle faces the viewer wherever it is seen from; head-on and
+        // orthographic the axes come out (1,0,0) and (0,1,0), the flat quad a 2D
+        // scene has always drawn.
+        "#ifdef PARTICLE\n"
+        "    let scaled = v.a_position * v.a_inst_size;\n"
+        "    let cosR = cos(v.a_inst_rotation);\n"
+        "    let sinR = sin(v.a_inst_rotation);\n"
+        "    let rotated = vec2f(scaled.x * cosR - scaled.y * sinR,\n"
+        "                        scaled.x * sinR + scaled.y * cosR);\n"
+        "    let fwd = viewDirection(v.a_inst_position);\n"
+        // Looking straight down the world up, that axis cannot orient the quad.
+        "    var refUp = vec3f(0.0, 1.0, 0.0);\n"
+        "    if (abs(fwd.y) > 0.999) { refUp = vec3f(0.0, 0.0, 1.0); }\n"
+        "    let right = normalize(cross(refUp, fwd));\n"
+        "    let up = cross(fwd, right);\n"
+        "    let world = vec4f(v.a_inst_position + right * rotated.x + up * rotated.y, 1.0);\n"
+        "    out.v_color = v.a_inst_color;\n"
         // Bones are already world-space, so a skinned mesh's own transform is not
         // read — which is what glTF requires of one.
-        "#ifdef SKINNED\n"
+        "#elif defined(SKINNED)\n"
         "    let pose = v.a_weights.x * skin.bones[v.a_joints.x]\n"
         "             + v.a_weights.y * skin.bones[v.a_joints.y]\n"
         "             + v.a_weights.z * skin.bones[v.a_joints.z]\n"
@@ -175,7 +205,12 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "    out.v_color = v.a_color;\n"
         "#endif\n"
         "    out.pos = frame.projection * world;\n"
+        "#ifdef PARTICLE\n"
+        // A sheet animation moves the frame under the same quad.
+        "    out.v_texCoord = v.a_texCoord * v.a_inst_uv_scale + v.a_inst_uv_offset;\n"
+        "#else\n"
         "    out.v_texCoord = v.a_texCoord;\n"
+        "#endif\n"
         "#ifdef MESH_NORMALS\n"
         "#ifdef SKINNED\n"
         "    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * v.a_normal;\n"
@@ -243,6 +278,19 @@ std::string canonicalPPVertexStage() {
 // transform), skinned (posed by bones). One material serves all three.
 std::string canonicalVertexStage(bool lit) {
     std::string src =
+        // A particle's quad corner is the vertex; where that corner lands is on the
+        // instance. The layout differs from every other source, so it replaces the
+        // block rather than adding to it.
+        "#ifdef PARTICLE\n"
+        "layout(location = 0) in vec2 a_position;\n"
+        "layout(location = 1) in vec2 a_texCoord;\n"
+        "layout(location = 2) in vec3 a_inst_position;\n"
+        "layout(location = 3) in vec2 a_inst_size;\n"
+        "layout(location = 4) in float a_inst_rotation;\n"
+        "layout(location = 5) in vec4 a_inst_color;\n"
+        "layout(location = 6) in vec2 a_inst_uv_offset;\n"
+        "layout(location = 7) in vec2 a_inst_uv_scale;\n"
+        "#else\n"
         "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
         "layout(location = 2) in vec2 a_texCoord;\n"
@@ -271,6 +319,7 @@ std::string canonicalVertexStage(bool lit) {
         "layout(location = 15) in vec3 a_nrm2;\n"
         "#endif\n"
         "#endif\n"
+        "#endif\n"
         "\n"
         "out vec4 v_color;\n"
         "out vec2 v_texCoord;\n"
@@ -284,9 +333,25 @@ std::string canonicalVertexStage(bool lit) {
     src +=
         "\n"
         "void main() {\n"
+        // A particle faces the viewer wherever it is seen from; head-on and
+        // orthographic the axes come out (1,0,0) and (0,1,0), the flat quad a 2D
+        // scene has always drawn.
+        "#ifdef PARTICLE\n"
+        "    vec2 scaled = a_position * a_inst_size;\n"
+        "    float cosR = cos(a_inst_rotation);\n"
+        "    float sinR = sin(a_inst_rotation);\n"
+        "    vec2 rotated = vec2(scaled.x * cosR - scaled.y * sinR,\n"
+        "                        scaled.x * sinR + scaled.y * cosR);\n"
+        "    highp vec3 fwd = viewDirection(a_inst_position);\n"
+        // Looking straight down the world up, that axis cannot orient the quad.
+        "    highp vec3 refUp = abs(fwd.y) > 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);\n"
+        "    highp vec3 right = normalize(cross(refUp, fwd));\n"
+        "    highp vec3 up = cross(fwd, right);\n"
+        "    vec4 world = vec4(a_inst_position + right * rotated.x + up * rotated.y, 1.0);\n"
+        "    v_color = a_inst_color;\n"
         // Bones are already world-space, so a skinned mesh's own transform is not
         // read — which is what glTF requires of one.
-        "#ifdef SKINNED\n"
+        "#elif defined(SKINNED)\n"
         "    mat4 skin = a_weights.x * u_bones[a_joints.x]\n"
         "              + a_weights.y * u_bones[a_joints.y]\n"
         "              + a_weights.z * u_bones[a_joints.z]\n"
@@ -301,7 +366,12 @@ std::string canonicalVertexStage(bool lit) {
         "    v_color = a_color;\n"
         "#endif\n"
         "    gl_Position = u_projection * world;\n"
+        "#ifdef PARTICLE\n"
+        // A sheet animation moves the frame under the same quad.
+        "    v_texCoord = a_texCoord * a_inst_uv_scale + a_inst_uv_offset;\n"
+        "#else\n"
         "    v_texCoord = a_texCoord;\n"
+        "#endif\n"
         "#ifdef MESH_NORMALS\n"
         "#ifdef SKINNED\n"
         "    v_worldNormal = mat3(skin) * a_normal;\n"

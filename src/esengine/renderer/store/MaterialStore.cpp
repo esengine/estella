@@ -46,30 +46,12 @@ void MaterialStore::recreateGpuResources() {
 
 u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
                                bool withNormals, bool skinned, bool envMapped) const {
-    const MaterialRecord* rec = find(materialId);
-    if (!rec || !rec->shaderRef.isValid()) return 0;
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
-    const u64 key = static_cast<u64>(rec->shaderRef.id())
-                  | (withNormals ? (1ull << 32) : 0ull)
-                  | (skinned ? (1ull << 33) : 0ull)
-                  | (envMapped ? (1ull << 34) : 0ull);
-
-    auto cached = mesh_programs_.find(key);
-    if (cached != mesh_programs_.end()) return cached->second;
-
-    auto src = sources_.find(rec->shaderRef.id());
-    if (src == sources_.end()) {
-        mesh_programs_[key] = 0;
-        return 0;
-    }
-
-    // The SAME source and features plus MESH: the author's fragment is untouched
-    // and only the engine's vertex stage changes, which is what makes this one
-    // material rather than two that must be kept in step.
-    resource::ParsedShader parsed = resource::ShaderParser::parse(src->second.source);
-    std::vector<std::string> features = resource::ShaderParser::splitFeatures(src->second.features);
-    features.push_back("MESH");
+    const u64 shape = (withNormals ? (1ull << 32) : 0ull)
+                    | (skinned ? (1ull << 33) : 0ull)
+                    | (envMapped ? (1ull << 34) : 0ull);
+    std::vector<std::string> features{ "MESH" };
     if (withNormals) features.push_back("MESH_NORMALS");
     if (skinned) features.push_back("SKINNED");
     // Resident geometry carries the frame's shadow map on its own slot 2 and the
@@ -80,6 +62,35 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     // As above: this vertex source gives the fragment a real world position, so a
     // positional light is read from where it is rather than from the plane.
     features.push_back("ES_SURFACE_3D");
+    return variantProgram(materialId, resources, shape, features, "resident geometry");
+}
+
+u32 MaterialStore::particleProgram(u32 materialId, resource::ResourceManager& resources) const {
+    return variantProgram(materialId, resources, 1ull << 35, { "PARTICLE" }, "particles");
+}
+
+u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& resources,
+                                  u64 shape, std::vector<std::string> extraFeatures,
+                                  const char* what) const {
+    const MaterialRecord* rec = find(materialId);
+    if (!rec || !rec->shaderRef.isValid()) return 0;
+    const u64 key = static_cast<u64>(rec->shaderRef.id()) | shape;
+
+    auto cached = mesh_programs_.find(key);
+    if (cached != mesh_programs_.end()) return cached->second;
+
+    auto src = sources_.find(rec->shaderRef.id());
+    if (src == sources_.end()) {
+        mesh_programs_[key] = 0;
+        return 0;
+    }
+
+    // The SAME source and features plus this vertex source's: the author's
+    // fragment is untouched and only the engine's vertex stage changes, which is
+    // what makes this one material rather than two that must be kept in step.
+    resource::ParsedShader parsed = resource::ShaderParser::parse(src->second.source);
+    std::vector<std::string> features = resource::ShaderParser::splitFeatures(src->second.features);
+    for (auto& f : extraFeatures) features.push_back(std::move(f));
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);
@@ -90,13 +101,13 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     // would compile a program that still ignores the per-object transform.
     if (!parsed.vertexIsCanonical) {
         ES_LOG_WARN("MaterialStore: material {} writes its own vertex stage, so it cannot draw "
-                    "resident geometry (only a shader on the engine's vertex stage can)", materialId);
+                    "{} (only a shader on the engine's vertex stage can)", materialId, what);
         mesh_programs_[key] = 0;
         return 0;
     }
     if (!parsed.valid || vert.empty() || frag.empty()) {
-        ES_LOG_WARN("MaterialStore: no mesh variant for material {} ({})",
-                    materialId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);
+        ES_LOG_WARN("MaterialStore: no {} variant for material {} ({})",
+                    what, materialId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);
         mesh_programs_[key] = 0;
         return 0;
     }

@@ -176,6 +176,11 @@ public:
                     bool withNormals = false, bool skinned = false,
                     bool envMapped = false) const;
 
+    /// The program that draws @p materialId on PARTICLE geometry — the instanced
+    /// quad an emitter streams. Same source, same author's fragment, a different
+    /// engine vertex stage; 0 on the same terms as {@link meshProgram}.
+    u32 particleProgram(u32 materialId, resource::ResourceManager& resources) const;
+
     /// Registers (or replaces) a shader's MaterialConstants layout — called when a shader
     /// authored with #pragma param is compiled, so materials on it can pack their uniforms.
     /// Filed under the HANDLE, not the program id: rebuilding the program (a
@@ -290,10 +295,16 @@ private:
         std::string features;
     };
     std::unordered_map<u32, ShaderSource> sources_;
-    /// Handle → the program compiled for the mesh vertex source (0 = tried and
+    /// (Handle, vertex source) → the program compiled for it (0 = tried and
     /// failed). Mutable because compiling it is memoization: the collect path
     /// asks a read-only store, and the answer is the same every time.
     mutable std::unordered_map<u64, u32> mesh_programs_;
+
+    /// One material compiled for one vertex source: @p shape distinguishes the
+    /// cache entries, @p extraFeatures the engine vertex stage, @p what the log.
+    u32 variantProgram(u32 materialId, resource::ResourceManager& resources,
+                       u64 shape, std::vector<std::string> extraFeatures,
+                       const char* what) const;
     GfxDevice* device_ = nullptr;
     resource::ResourceManager* resources_ = nullptr;
     TextureHandle defaultWhite_ = TextureHandle::Invalid;

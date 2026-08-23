@@ -372,6 +372,29 @@ static void testFragmentOnly() {
           ppv.find("u_projection *") == std::string::npos,
           "PostProcess canonical vertex is the clip-space pass-through (no projection)");
 
+    // A particle is drawn from an instanced vertex source, so the canonical stage
+    // has a third shape. Both dialects: a twin that will not build is a pipeline
+    // the device refuses with no mention of a shader.
+    ParsedShader particle = ShaderParser::parse(
+        "#pragma shader \"P\"\n#pragma version 300 es\n#pragma domain Unlit\n"
+        "#pragma fragment\nvoid main() { fragColor = vec4(1.0); }\n#pragma end\n"
+        "#pragma fragment wgsl\n@fragment fn fs_main(v : VSOut) -> @location(0) vec4f "
+        "{ return vec4f(1.0); }\n#pragma end\n");
+    const std::string pVs = ShaderParser::assembleStage(particle, ShaderStage::Vertex, "", {"PARTICLE"});
+    CHECK(pVs.find("#define PARTICLE") != std::string::npos &&
+          pVs.find("in vec3 a_inst_position;") != std::string::npos,
+          "PARTICLE reaches the GLSL driver as a define, with the instance attributes");
+    CHECK(pVs.find("viewDirection(a_inst_position)") != std::string::npos,
+          "and billboards the quad from the instance's world position");
+    const std::string pVsW = ShaderParser::assembleStage(
+        particle, ShaderStage::Vertex, "", {"PARTICLE"}, ShaderTargetLanguage::WGSL);
+    CHECK(pVsW.find("a_inst_position : vec3f") != std::string::npos &&
+          pVsW.find("a_color : vec4f") == std::string::npos,
+          "the WGSL twin takes the same attributes");
+    CHECK(pVsW.find("fn viewDirection") != std::string::npos &&
+          pVsW.find("fn viewDirection") < pVsW.find("viewDirection(v.a_inst_position)"),
+          "and the helper it billboards with is declared before it is called");
+
     ParsedShader unknownDomain = ShaderParser::parse(FRAG_ONLY_UNKNOWN_DOMAIN);
     CHECK(!unknownDomain.valid, "a domain with no canonical vertex still errors");
 
