@@ -343,7 +343,9 @@ jobs:
     name: Editor authoring checks
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 30
+    # Forty-two authoring checks are sixteen minutes of it on their own, and four
+    # more steps follow. At 30 the job was killed mid-step rather than reporting.
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -378,10 +380,14 @@ jobs:
     # The pixel gates whose subject is an editor door — the reference grid, hit
     # testing, the editor eye, preview renders. They cannot run on the engine's
     # host, which deliberately has none of those.
+    # --budget for the reason the engine's tier has one: eight scenes cost two
+    # minutes, but six retries apiece at a 45s watchdog cost over an hour, and a
+    # step with no ceiling spent the job's whole 30 minutes and was killed with
+    # nothing written. A budget reports what it measured and names what it did not.
     - name: Run the editor's pixel gates
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build
+      run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
 
     # The editor's unit suites. They ran in the `test` job, which has no editor
     # checkout — `pnpm --filter` prints "No projects matched" and exits 0, so the
