@@ -193,6 +193,21 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **2D shadows had no pixel criterion at all.** Four fixture scenes exercise
+  `ShadowCaster2D` — a hard point-light shadow, a soft one, a directional one —
+  and nothing drove any of them: the criteria that once did are gone, and the
+  scenes staying behind made the coverage look whole. All four run now, on both
+  backends, probing either side of the occluder on the light's axis; removing the
+  caster turns the shadowed probe from black to lit, which is what says they are
+  looking at the shadow rather than at the scene.
+
+  New gate `check-fixture-scenes`: a fixture with no criterion behind it must be
+  named, with what it would prove. Nine are (UI layout and text, KTX2
+  orientation, parallax, pixel-perfect sampling) — that list is the work, and
+  empty is where it is meant to end. Two more were neither: `platformer.esscene`
+  and `space-shooter.esscene` were copies of golden project scenes, built out of
+  game script components that do not exist in the fixture corpus.
+
 - **The UI hit test took three mouse flags and threw them away.**
   `uiHitTestWorld(world, x, y, mouseDown, mousePressed, mouseReleased)` carried
   them into the engine, which `(void)`-ed all three: it is a raycast, and what a

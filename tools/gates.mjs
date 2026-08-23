@@ -33,6 +33,7 @@ export const GATES = [
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
   { id: 'sidemodule-gates', run: 'node tools/check-sidemodule-gates.mjs' },
   { id: 'engine-exports', run: 'node tools/check-engine-exports.mjs' },
+  { id: 'fixture-scenes', run: 'node tools/check-fixture-scenes.mjs' },
   {
     id: 'native-bindings',
     run: 'node tools/check-native-bindings.mjs',
