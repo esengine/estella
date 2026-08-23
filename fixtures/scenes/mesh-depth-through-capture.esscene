@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshDepthThroughCapture",
   "entities": [
     {
@@ -22,7 +22,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 60 } } },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "builtin:cube",
             "color": { "r": 1, "g": 0, "b": 0, "a": 1 },
@@ -43,7 +43,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 40, "y": 0, "z": -60 } } },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "builtin:cube",
             "color": { "r": 0, "g": 1, "b": 0, "a": 1 },

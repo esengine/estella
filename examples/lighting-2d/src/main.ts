@@ -1,4 +1,4 @@
-// 2D Lighting — the engine's dynamic Light2D + ShadowCaster2D system shown
+// 2D Lighting — the engine's dynamic Light + ShadowCaster2D system shown
 // interactively. The scene is a near-black room whose walls and props have
 // `lit: true` on their Sprite, so they are only visible where light reaches them.
 //

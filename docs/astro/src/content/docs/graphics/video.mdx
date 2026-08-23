@@ -14,7 +14,7 @@ the **identical** texture pump on every device — phone, PC, and headless alike
 ## How it works
 
 Add a `Video` component to an entity that also has a renderable — a `Sprite`,
-`UIVisual`, or `Mesh2D` — and the video system decodes `source` into a texture and
+`UIVisual`, or `MeshRenderer` — and the video system decodes `source` into a texture and
 writes that texture handle onto the renderable every frame. The frame texture is
 **pathless** (never evicted) and stable, so a handle written once stays live for
 the life of the stream.
@@ -26,7 +26,7 @@ no plugin to add.
 <Aside type="note">
   Muted clips autoplay everywhere. Unmuted autoplay is blocked until a user
   gesture (browser policy), so start sound-on playback from a tap or key. A
-  `Video` needs a `Sprite` / `UIVisual` / `Mesh2D` sibling to show on — on its own
+  `Video` needs a `Sprite` / `UIVisual` / `MeshRenderer` sibling to show on — on its own
   it decodes but has nothing to draw to.
 </Aside>
 
@@ -58,8 +58,8 @@ const spawnScreen = defineSystem([Commands()], (cmds) => {
 | `enabled` | boolean | `true` | Disable to stop and release the stream without removing the component. |
 
 The same component drives whichever renderable it finds, in order **`Sprite` →
-`UIVisual` → `Mesh2D`**: put a `Video` on a `UIVisual` for a video panel in your
-HUD, or on a `Mesh2D` to map a clip onto custom geometry.
+`UIVisual` → `MeshRenderer`**: put a `Video` on a `UIVisual` for a video panel in your
+HUD, or on a `MeshRenderer` to map a clip onto custom geometry.
 
 ## One stream, many surfaces
 
@@ -99,7 +99,7 @@ import { defineSystem, Res, VideoPlayer } from 'esengine';
 const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
   const stream = video.play('assets/intro.mp4', { loop: false, muted: true });
   stream.onEnded = () => { /* advance past the intro */ };
-  // assign stream.textureHandle onto a Sprite/Mesh2D once stream.isReady
+  // assign stream.textureHandle onto a Sprite/MeshRenderer once stream.isReady
 });
 ```
 
@@ -153,7 +153,7 @@ same component, the same handle sharing — only the decoder differs:
 - **Share one stream** across many surfaces via the texture handle +
   `uvOffset` / `uvScale`, rather than many `Video` components decoding the same clip.
 - **Give the Video a renderable** — a `Sprite` (world), `UIVisual` (HUD), or
-  `Mesh2D` (custom geometry) — to actually show a frame.
+  `MeshRenderer` (custom geometry) — to actually show a frame.
 - **Mind `fitSize`** — it snaps the Sprite to the clip's native pixels on the first
   frame; turn it off when you set an explicit size (e.g. a fixed screen).
 - **Target WeChat early** — the cook handles the MPEG-1 transcode for you, but keep

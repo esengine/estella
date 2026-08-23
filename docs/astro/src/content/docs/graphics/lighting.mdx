@@ -1,27 +1,27 @@
 ---
 title: 2D Lighting & Shadows
-description: Light a 2D scene with directional, point, spot, and ambient Light2D sources — color and intensity, normal-mapped surfaces, and soft shadows cast by ShadowCaster2D — all through the Lit-2D material domain.
+description: Light a 2D scene with directional, point, spot, and ambient Light sources — color and intensity, normal-mapped surfaces, and soft shadows cast by ShadowCaster2D — all through the Lit-2D material domain.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella lights 2D scenes with **`Light2D`** sources and **`ShadowCaster2D`** occluders.
-A light is just an entity with a `Light2D` component; a renderer receives light only
+Estella lights 2D scenes with **`Light`** sources and **`ShadowCaster2D`** occluders.
+A light is just an entity with a `Light` component; a renderer receives light only
 when it's drawn with a **Lit-2D material**. This keeps lighting opt-in and cheap — most
 sprites stay unlit, and the ones you want lit get a lit material.
 
 <Aside type="note">
-  Lighting is built into the renderer (no plugin to add). `Light2D` and
+  Lighting is built into the renderer (no plugin to add). `Light` and
   `ShadowCaster2D` are built-in components — attach them from code or in the editor's
   Details panel like any other.
 </Aside>
 
 ## Adding a light
 
-Give an entity a `Light2D` component and pick a type:
+Give an entity a `Light` component and pick a type:
 
 ```typescript
-import { defineSystem, Commands, Transform, Light2D, Light2DType, lightAimRotation } from 'esengine';
+import { defineSystem, Commands, Transform, Light, LightType, lightAimRotation } from 'esengine';
 
 const addSun = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
@@ -30,19 +30,19 @@ const addSun = defineSystem([Commands()], (cmds) => {
       position: { x: 0, y: 0, z: 0 },
       rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
     })
-    .insert(Light2D, {
-      type: Light2DType.Directional,
+    .insert(Light, {
+      type: LightType.Directional,
       color: { r: 1, g: 0.95, b: 0.8, a: 1 },
       intensity: 1.2,
     });
 });
 ```
 
-`Light2D` fields (with defaults):
+`Light` fields (with defaults):
 
 | Field | Default | Description |
 |---|---|---|
-| `type` | `Point` | `Light2DType`: `Point`, `Directional`, `Ambient`, or `Spot`. |
+| `type` | `Point` | `LightType`: `Point`, `Directional`, `Ambient`, or `Spot`. |
 | `color` | `{1,1,1,1}` | Light color, RGBA 0..1. |
 | `intensity` | `1` | Brightness multiplier. |
 | `radius` | `200` | Falloff reach in world units (Point / Spot). |
@@ -63,16 +63,16 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 ```typescript
 // A warm point light
-.insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
+.insert(Light, { type: LightType.Point, radius: 320, intensity: 1.5,
                    color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
 
 // A flashlight cone, aimed down the screen by the entity it sits on
 .insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
-.insert(Light2D, { type: Light2DType.Spot,
+.insert(Light, { type: LightType.Spot,
                    innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
 
 // A dim ambient fill so nothing is fully black
-.insert(Light2D, { type: Light2DType.Ambient, intensity: 0.25 });
+.insert(Light, { type: LightType.Ambient, intensity: 0.25 });
 ```
 
 ## Making a renderer receive light
@@ -137,7 +137,7 @@ You can also build a lit material visually — set the **Material Graph**'s doma
 
 <Aside type="tip">
   Every renderer that takes a `material` — `Sprite`, `SpineAnimation`,
-  `ParticleEmitter`, `Mesh2D`, and `UIVisual` — can be lit the same way: give it a
+  `ParticleEmitter`, `MeshRenderer`, and `UIVisual` — can be lit the same way: give it a
   Lit-2D material. (`Sprite` also has the one-flag `lit` toggle for the common case.)
 </Aside>
 
@@ -179,7 +179,7 @@ orthographic camera returns a constant and a perspective one varies per pixel.
 
 A metal has no diffuse term at all — it only reflects. What it reflects is the
 scene's **ambient** light, treated as an environment arriving equally from every
-direction, so an `Ambient` `Light2D` is what keeps a metal from being black
+direction, so an `Ambient` `Light` is what keeps a metal from being black
 everywhere no light happens to point. Raise its color to give metals something to
 show.
 
@@ -204,8 +204,8 @@ its fill light from the direction it faces, and a metal reflects the panorama
 rather than one flat colour.
 
 ```typescript
-cmds.spawn().insert(Light2D, {
-  type: Light2DType.Ambient,
+cmds.spawn().insert(Light, {
+  type: LightType.Ambient,
   environment: 'assets/sky.esenv',
   intensity: 1,
 });
@@ -232,14 +232,14 @@ mesh standing above another darkens it.
 ```typescript
 cmds.spawn()
   .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // where the rays lean
-  .insert(Light2D, {
-    type: Light2DType.Directional,
+  .insert(Light, {
+    type: LightType.Directional,
     meshShadows: true,
   });
 ```
 
 - One light per frame casts a map — the first that asks for one.
-- Only `Mesh2D` geometry the GPU holds casts and receives. Sprites are lit by the same
+- Only `MeshRenderer` geometry the GPU holds casts and receives. Sprites are lit by the same
   light but shadow through `ShadowCaster2D`, which is the 2D answer.
 - Coverage follows the camera. `shadowExtent` fixes it to a radius instead, trading
   sharpness for reach.
@@ -304,9 +304,9 @@ const app = createWebApp(module, { colorSpace: 'linear' });
 
 ![A 2D light in the editor viewport — its reach and the shadows its casters throw](@/assets/guides/en/lighting.png)
 
-*A `Light2D` previewed in the editor — its reach pool and the shadows the pillars cast (turn on **Preview FX** to light the scene in edit mode).*
+*A `Light` previewed in the editor — its reach pool and the shadows the pillars cast (turn on **Preview FX** to light the scene in edit mode).*
 
-- **Add a light** via **Create… → Light**, or add a `Light2D` component to an existing
+- **Add a light** via **Create… → Light**, or add a `Light` component to an existing
   entity in the Details panel.
 - Lights are drawn as **gizmos** in edit mode — an icon plus the reach circle and the
   direction / cone — so you can aim and size them by eye. See [The Editor](/docs/editor/overview/).

@@ -167,7 +167,7 @@ describe('Assets: mesh references in a scene', () => {
             version: '1.0', name: 'meshscene',
             entities: [{
                 id: 1, name: 'e1', parent: null, children: [],
-                components: [{ type: 'Mesh2D', data: { mesh: 'ship.esmesh' } }],
+                components: [{ type: 'MeshRenderer', data: { mesh: 'ship.esmesh' } }],
             }],
         } as unknown as SceneData;
 

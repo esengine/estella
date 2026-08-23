@@ -4,7 +4,7 @@
  * @file    LightStore.hpp
  * @brief   Engine-side 2D light registry — the per-frame LightConstants UBO and its CPU mirror.
  * @details The render collect path clears this each frame, then accumulates the scene's enabled
- *          Light2D components into it (point/directional into the lights array, ambient summed
+ *          Light components into it (point/directional into the lights array, ambient summed
  *          into the ambient term). flush() uploads the mirror once and binds it at
  *          LIGHT_CONSTANTS_BINDING, so every Lit2D shader reads the same lighting UBO. Owned by
  *          RenderContext so both the render path and any future SDK push reach one store / one UBO.

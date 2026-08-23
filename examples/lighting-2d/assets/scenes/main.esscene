@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "Main",
   "entities": [
     {
@@ -37,7 +37,7 @@
       "children": [],
       "components": [
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 2,
             "color": {
@@ -70,7 +70,7 @@
           }
         },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 0,
             "color": {

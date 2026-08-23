@@ -33,7 +33,7 @@ const SPATIAL_FIELDS = new Set(['halfExtents', 'radius', 'shapeRadius', 'halfHei
  * needs no outline) and a post-process volume (drawn by nothing at all), and
  * dropping the name to avoid the first hid the second for as long as it existed.
  */
-const DRAWS_ITSELF = new Set(['Sprite', 'ShapeRenderer', 'Mesh2D', 'BitmapText', 'UIVisual', 'UINode']);
+const DRAWS_ITSELF = new Set(['Sprite', 'ShapeRenderer', 'MeshRenderer', 'BitmapText', 'UIVisual', 'UINode']);
 
 /** Components whose extent is deliberately not drawn, and why. */
 const DECLARED_GAPS = {};

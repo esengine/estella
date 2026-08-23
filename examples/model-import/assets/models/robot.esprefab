@@ -44,7 +44,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/robot_0_0.esmesh",
             "lit": true,
@@ -85,7 +85,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/robot_1_0.esmesh",
             "lit": true,

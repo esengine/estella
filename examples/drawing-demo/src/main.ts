@@ -4,8 +4,8 @@
 //     bounding boxes) re-issued from scratch every frame in a draw callback.
 //   • Graphics — retained path recorder: a star built once and replayed with
 //     flush(); G clears and re-records it with new parameters.
-//   • Mesh2D   — component mesh: a scene-authored ribbon whose vertices are
-//     regenerated each frame and re-uploaded through the Meshes2D resource.
+//   • MeshRenderer   — component mesh: a scene-authored ribbon whose vertices are
+//     regenerated each frame and re-uploaded through the MeshRenderers resource.
 //
 // Importing radar.ts / star.ts registers their draw callbacks
 // (registerDrawCallback) as a side effect; systems only feed them data.

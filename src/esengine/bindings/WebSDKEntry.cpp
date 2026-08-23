@@ -521,18 +521,18 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
 #endif
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
-    emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
+    emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
     emscripten::function("mesh_create", &esengine::mesh_create);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
     emscripten::function("environment_release", &esengine::environment_release);
-    emscripten::function("mesh2d_setMesh", &esengine::mesh2d_setMesh);
-    emscripten::function("mesh2d_localBounds", &esengine::mesh2d_localBounds);
-    emscripten::function("mesh2d_makeResident", &esengine::mesh2d_makeResident);
-    emscripten::function("mesh2d_makeAllResident", &esengine::mesh2d_makeAllResident);
-    emscripten::function("mesh2d_setMeshAll", &esengine::mesh2d_setMeshAll);
-    emscripten::function("mesh2d_setMaterialAll", &esengine::mesh2d_setMaterialAll);
+    emscripten::function("meshRenderer_setMesh", &esengine::meshRenderer_setMesh);
+    emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
+    emscripten::function("meshRenderer_makeResident", &esengine::meshRenderer_makeResident);
+    emscripten::function("meshRenderer_makeAllResident", &esengine::meshRenderer_makeAllResident);
+    emscripten::function("meshRenderer_setMeshAll", &esengine::meshRenderer_setMeshAll);
+    emscripten::function("meshRenderer_setMaterialAll", &esengine::meshRenderer_setMaterialAll);
 
     emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);

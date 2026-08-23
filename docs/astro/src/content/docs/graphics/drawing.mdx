@@ -1,6 +1,6 @@
 ---
 title: Custom Drawing
-description: Draw beyond components — immediate-mode primitives with Draw, vector paths with Graphics, custom triangle meshes with Mesh2D and the Geometry API, and offscreen render textures.
+description: Draw beyond components — immediate-mode primitives with Draw, vector paths with Graphics, custom triangle meshes with MeshRenderer and the Geometry API, and offscreen render textures.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -15,7 +15,7 @@ shapes, custom geometry — the engine exposes its drawing layer directly.
 |---|---|---|
 | `Draw` | **Immediate**, global — commands batch and clear every frame. | Debug overlays, gizmos, anything redrawn from scratch each frame. |
 | `Graphics` | **Retained** path recorder — build once, replay through `Draw` with `flush()`. | Vector shapes with paths/béziers/arcs you don't want to re-tessellate per frame. |
-| `ShapeRenderer` / `Mesh2D` | **Components** — entities with sorting layers, materials, editor gizmos. | Shapes/meshes that are part of the scene (see [Sprites](/docs/graphics/sprites/)). |
+| `ShapeRenderer` / `MeshRenderer` | **Components** — entities with sorting layers, materials, editor gizmos. | Shapes/meshes that are part of the scene (see [Sprites](/docs/graphics/sprites/)). |
 
 Rule of thumb: if the visual belongs to the *scene* (sorted, saved, inspectable),
 make it a component; if it belongs to a *frame* (debug, HUD-ish overlays,
@@ -88,9 +88,9 @@ Path methods: `moveTo` / `lineTo`, `curveTo` (quadratic) / `cubicCurveTo`,
 fill **rects and circles** (path outlines stay strokes). The path is retained —
 build it once, `flush()` it every frame.
 
-## Custom meshes: `Mesh2D`
+## Custom meshes: `MeshRenderer`
 
-`Mesh2D` is a component that renders an arbitrary indexed triangle list — 
+`MeshRenderer` is a component that renders an arbitrary indexed triangle list — 
 procedural terrain slices, radial health arcs, water surfaces. Author the
 geometry on the component (positions as x,y pairs; optional per-vertex UVs and
 colors):
@@ -98,7 +98,7 @@ colors):
 ```typescript
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-  .insert(Mesh2D, {
+  .insert(MeshRenderer, {
     geometry: {
       positions: [0, 0,  100, 0,  50, 80],
       colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
@@ -109,14 +109,14 @@ cmds.spawn()
 
 The mesh shares the standard renderable surface: `texture`, `color`, `layer`,
 `lit`, `parallax`, and `material`. Geometry set in a scene (or at spawn) uploads
-automatically; to **mutate it at runtime**, go through the `Meshes2D` resource —
+automatically; to **mutate it at runtime**, go through the `MeshRenderers` resource —
 `setGeometry(entity, geometry)` re-uploads (indices are validated engine-side),
 `getGeometry` / `clearGeometry` round it out. Direct writes to the `geometry`
 field alone are not change-detected.
 
 ## Custom geometry: the `Geometry` API
 
-Where `Mesh2D` is the *component* path, `Geometry` is the *immediate* one: it
+Where `MeshRenderer` is the *component* path, `Geometry` is the *immediate* one: it
 uploads an indexed vertex buffer and hands back a **handle** you draw yourself —
 paired with a [material](/docs/graphics/materials/) via
 `Draw.drawMeshWithMaterial(geometry, material, transform?)` (or a raw shader via

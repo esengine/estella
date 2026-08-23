@@ -1,25 +1,25 @@
 ---
 title: 2D 光照与阴影
-description: 用方向光、点光、聚光和环境光 Light2D 光源照亮 2D 场景——颜色与强度、法线贴图表面、以及 ShadowCaster2D 投出的柔和阴影,全部经由 Lit-2D 材质域实现。
+description: 用方向光、点光、聚光和环境光 Light 光源照亮 2D 场景——颜色与强度、法线贴图表面、以及 ShadowCaster2D 投出的柔和阴影,全部经由 Lit-2D 材质域实现。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 用 **`Light2D`** 光源和 **`ShadowCaster2D`** 遮挡体照亮 2D 场景。一个光源就是一个带
-`Light2D` 组件的实体;而一个渲染器只有在用 **Lit-2D 材质**绘制时才会被照亮。这让光照是可选的、
+Estella 用 **`Light`** 光源和 **`ShadowCaster2D`** 遮挡体照亮 2D 场景。一个光源就是一个带
+`Light` 组件的实体;而一个渲染器只有在用 **Lit-2D 材质**绘制时才会被照亮。这让光照是可选的、
 且开销低——大多数精灵保持不受光,你想照亮的那些才配一个受光材质。
 
 <Aside type="note">
-  光照内建于渲染器(无需加插件)。`Light2D` 和 `ShadowCaster2D` 是内建组件——像其他组件一样,
+  光照内建于渲染器(无需加插件)。`Light` 和 `ShadowCaster2D` 是内建组件——像其他组件一样,
   从代码或在编辑器 Details 面板里挂上它们。
 </Aside>
 
 ## 添加光源
 
-给一个实体加 `Light2D` 组件并选一个类型:
+给一个实体加 `Light` 组件并选一个类型:
 
 ```typescript
-import { defineSystem, Commands, Transform, Light2D, Light2DType, lightAimRotation } from 'esengine';
+import { defineSystem, Commands, Transform, Light, LightType, lightAimRotation } from 'esengine';
 
 const addSun = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
@@ -28,19 +28,19 @@ const addSun = defineSystem([Commands()], (cmds) => {
       position: { x: 0, y: 0, z: 0 },
       rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
     })
-    .insert(Light2D, {
-      type: Light2DType.Directional,
+    .insert(Light, {
+      type: LightType.Directional,
       color: { r: 1, g: 0.95, b: 0.8, a: 1 },
       intensity: 1.2,
     });
 });
 ```
 
-`Light2D` 字段(含默认值):
+`Light` 字段(含默认值):
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `type` | `Point` | `Light2DType`:`Point`、`Directional`、`Ambient` 或 `Spot`。 |
+| `type` | `Point` | `LightType`:`Point`、`Directional`、`Ambient` 或 `Spot`。 |
 | `color` | `{1,1,1,1}` | 光颜色,RGBA 0..1。 |
 | `intensity` | `1` | 亮度倍数。 |
 | `radius` | `200` | 衰减半径,世界单位(Point / Spot)。 |
@@ -61,16 +61,16 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 ```typescript
 // 一盏暖色点光
-.insert(Light2D, { type: Light2DType.Point, radius: 320, intensity: 1.5,
+.insert(Light, { type: LightType.Point, radius: 320, intensity: 1.5,
                    color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
 
 // 一束手电锥,由它所在的实体朝下瞄准
 .insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
-.insert(Light2D, { type: Light2DType.Spot,
+.insert(Light, { type: LightType.Spot,
                    innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
 
 // 一点微弱环境光,让画面不至于全黑
-.insert(Light2D, { type: Light2DType.Ambient, intensity: 0.25 });
+.insert(Light, { type: LightType.Ambient, intensity: 0.25 });
 ```
 
 ## 让渲染器接受光照
@@ -133,7 +133,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 [材质图](/docs/zh-cn/graphics/materials/)一节。
 
 <Aside type="tip">
-  每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`、`Mesh2D`
+  每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`、`MeshRenderer`
   和 `UIVisual`——都能用同样方式受光:给它一个 Lit-2D 材质。(`Sprite` 常见场景还可用一键
   `lit` 开关。)
 </Aside>
@@ -171,7 +171,7 @@ highp vec3 lit = applyLightingPBR(
 所以正交相机返回一个常量,透视相机逐像素变化。
 
 金属完全没有漫反射项 —— 它只反射。它反射的是场景的**环境光**(ambient),被当作从各个
-方向等量到达的环境:所以一盏 `Ambient` 的 `Light2D` 正是让金属在没有灯照到的地方不至于
+方向等量到达的环境:所以一盏 `Ambient` 的 `Light` 正是让金属在没有灯照到的地方不至于
 全黑的东西。把它的颜色调亮,金属才有东西可显。
 
 
@@ -193,8 +193,8 @@ highp vec3 lit = applyLightingPBR(
 而金属反射的是这张全景图,不再是一个平坦的颜色。
 
 ```typescript
-cmds.spawn().insert(Light2D, {
-  type: Light2DType.Ambient,
+cmds.spawn().insert(Light, {
+  type: LightType.Ambient,
   environment: 'assets/sky.esenv',
   intensity: 1,
 });
@@ -218,14 +218,14 @@ mesh 再画一遍,于是站得高的 mesh 会让下面的暗下来。
 ```typescript
 cmds.spawn()
   .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // 光线偏向哪边
-  .insert(Light2D, {
-    type: Light2DType.Directional,
+  .insert(Light, {
+    type: LightType.Directional,
     meshShadows: true,
   });
 ```
 
 - 每帧只有一盏灯投出这张图 —— 第一盏要求它的。
-- 只有 GPU 持有的 `Mesh2D` 几何参与投射与接收。精灵被同一盏灯照亮,但它们的阴影走
+- 只有 GPU 持有的 `MeshRenderer` 几何参与投射与接收。精灵被同一盏灯照亮,但它们的阴影走
   `ShadowCaster2D`,那才是 2D 的答案。
 - 覆盖范围跟着相机走。`shadowExtent` 把它固定成一个半径,用锐度换范围。
 
@@ -283,9 +283,9 @@ const app = createWebApp(module, { colorSpace: 'linear' });
 
 ![编辑器视口里的 2D 光——它的照射范围与投射的阴影](@/assets/guides/zh/lighting.png)
 
-*编辑器里预览的 `Light2D`——它的照射光池,以及柱子投出的阴影(开 **Preview FX** 可在编辑态点亮场景)。*
+*编辑器里预览的 `Light`——它的照射光池,以及柱子投出的阴影(开 **Preview FX** 可在编辑态点亮场景)。*
 
-- 通过 **创建… → 光** 添加光源,或在 Details 面板里给已有实体加一个 `Light2D` 组件。
+- 通过 **创建… → 光** 添加光源,或在 Details 面板里给已有实体加一个 `Light` 组件。
 - 光源在编辑模式下画成 **gizmo**——图标加上其范围圈和朝向/锥——所以你能凭眼睛瞄准和调尺寸。见
   [编辑器](/docs/zh-cn/editor/overview/)。
 - 在 Details 里实时调 `color`(取色器)、`intensity`、`radius` 和聚光角度;结果在视口里即时更新。

@@ -181,7 +181,7 @@ public:
 
     /**
      * @brief The engine-side per-frame 2D light registry (binding 2 LightConstants UBO).
-     * @details Filled by the render collect path from the scene's Light2D components and uploaded
+     * @details Filled by the render collect path from the scene's Light components and uploaded
      *          once per frame; Lit2D material shaders read it. Lives here next to materials() so
      *          the render path reaches one store / one UBO without a global lookup.
      */

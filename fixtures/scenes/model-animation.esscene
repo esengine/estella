@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "ModelAnimation",
   "entities": [
     {
@@ -30,7 +30,7 @@
           "data": { "position": { "x": 150, "y": 0, "z": 0 } }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/moving-quad.esmesh",
             "color": { "r": 0, "g": 1, "b": 0, "a": 1 },

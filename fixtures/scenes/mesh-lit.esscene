@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "name": "MeshLit",
  "entities": [
   {
@@ -47,7 +47,7 @@
      }
     },
     {
-     "type": "Light2D",
+     "type": "Light",
      "data": {
       "type": 1,
       "color": {
@@ -84,7 +84,7 @@
      }
     },
     {
-     "type": "Mesh2D",
+     "type": "MeshRenderer",
      "data": {
       "color": {
        "r": 1,

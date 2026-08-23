@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "PointShadow",
   "entities": [
     {
@@ -13,28 +13,28 @@
       "id": 1, "name": "Ground", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -100 }, "scale": { "x": 800, "y": 800, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 2, "name": "BlockerLeft", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": -50 }, "scale": { "x": 50, "y": 50, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 3, "name": "BlockerBelow", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": -100, "z": -50 }, "scale": { "x": 50, "y": 50, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 4, "name": "Lamp", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Light2D", "data": { "type": 0, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "radius": 2000, "meshShadows": true } }
+        { "type": "Light", "data": { "type": 0, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "radius": 2000, "meshShadows": true } }
       ]
     }
   ]

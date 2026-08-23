@@ -212,7 +212,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
     },
   },
-  "Light2D": {
+  "Light": {
     "drawEnvironment": {
       "shownWhen": {
         "field": "type",
@@ -350,7 +350,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Point, Directional, Ambient, or Spot.",
     },
   },
-  "Mesh2D": {
+  "MeshRenderer": {
     "color": {
       "tooltip": "Tint multiplied into the vertex colors (white = unchanged).",
     },
@@ -363,7 +363,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Sorting layer — controls draw order across renderables.",
     },
     "lit": {
-      "tooltip": "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this.",
+      "tooltip": "Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this.",
     },
     "material": {
       "advanced": true,
@@ -883,7 +883,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Sorting layer — controls draw order across sprites.",
     },
     "lit": {
-      "tooltip": "Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this.",
+      "tooltip": "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this.",
     },
     "material": {
       "advanced": true,

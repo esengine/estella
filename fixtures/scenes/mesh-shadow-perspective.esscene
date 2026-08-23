@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshShadowPerspective",
   "entities": [
     {
@@ -35,7 +35,7 @@
           "data": { "position": { "x": 0, "y": 0, "z": -200 }, "scale": { "x": 600, "y": 600, "z": 1 } }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/shadow-quad.esmesh",
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -58,7 +58,7 @@
           "data": { "position": { "x": 0, "y": 0, "z": 0 }, "scale": { "x": 150, "y": 150, "z": 1 } }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/shadow-quad.esmesh",
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -78,7 +78,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 1,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },

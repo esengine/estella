@@ -1,6 +1,6 @@
 ---
 title: 自定义绘制
-description: 超出组件的绘制——用 Draw 画即时模式图元、用 Graphics 画矢量路径、用 Mesh2D 与 Geometry API 画自定义三角网格,以及离屏渲染纹理。
+description: 超出组件的绘制——用 Draw 画即时模式图元、用 Graphics 画矢量路径、用 MeshRenderer 与 Geometry API 画自定义三角网格,以及离屏渲染纹理。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -15,7 +15,7 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|
 | `Draw` | **即时模式**,全局——命令自动合批、每帧清空。 | 调试覆盖层、gizmo、任何每帧从头重画的东西。 |
 | `Graphics` | **保留式**路径记录器——构建一次,`flush()` 时经 `Draw` 回放。 | 带路径/贝塞尔/圆弧的矢量形状,不想每帧重新细分。 |
-| `ShapeRenderer` / `Mesh2D` | **组件**——带排序层、材质、编辑器 gizmo 的实体。 | 属于场景的形状/网格(见[精灵](/docs/zh-cn/graphics/sprites/))。 |
+| `ShapeRenderer` / `MeshRenderer` | **组件**——带排序层、材质、编辑器 gizmo 的实体。 | 属于场景的形状/网格(见[精灵](/docs/zh-cn/graphics/sprites/))。 |
 
 经验法则:视觉属于*场景*(参与排序、保存、可检视)就做成组件;属于*某一帧*
 (调试、类 HUD 覆盖、程序化效果)就在回调里画。
@@ -83,15 +83,15 @@ registerDrawCallback('hud-shape', () => g.flush());
 `lineStyle(thickness, color)` 设描边;`beginFill(color)` / `endFill()` 的填充
 支持**矩形和圆**(路径轮廓保持描边)。路径是保留的——构建一次,每帧 `flush()`。
 
-## 自定义网格:`Mesh2D`
+## 自定义网格:`MeshRenderer`
 
-`Mesh2D` 组件渲染任意的索引三角形列表——程序化地形切片、径向血条弧、水面。
+`MeshRenderer` 组件渲染任意的索引三角形列表——程序化地形切片、径向血条弧、水面。
 在组件上编写几何(positions 是 x,y 对;逐顶点 UV 与颜色可选):
 
 ```typescript
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-  .insert(Mesh2D, {
+  .insert(MeshRenderer, {
     geometry: {
       positions: [0, 0,  100, 0,  50, 80],
       colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
@@ -102,12 +102,12 @@ cmds.spawn()
 
 网格共享标准渲染面:`texture`、`color`、`layer`、`lit`、`parallax` 和
 `material`。场景里(或生成时)设置的几何自动上传;要在**运行时改几何**,走
-`Meshes2D` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
+`MeshRenderers` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
 另有 `getGeometry` / `clearGeometry`。只改 `geometry` 字段本身不会被变更检测。
 
 ## 自定义几何:`Geometry` API
 
-`Mesh2D` 是*组件*路径,`Geometry` 则是*即时*路径:它上传一个索引顶点缓冲,交回
+`MeshRenderer` 是*组件*路径,`Geometry` 则是*即时*路径:它上传一个索引顶点缓冲,交回
 一个**句柄**由你自己绘制——配上[材质](/docs/zh-cn/graphics/materials/)用
 `Draw.drawMeshWithMaterial(geometry, material, transform?)`(或配原始着色器用
 `Draw.drawMesh(geometry, shader, transform)`)。

@@ -7,7 +7,7 @@
  * @details A Lit2D-domain material shader (#pragma domain Lit2D) gets a `layout(std140) uniform
  *          LightConstants { ... }` block auto-injected by ShaderParser, and Shader::compile links
  *          it to LIGHT_CONSTANTS_BINDING. LightStore (owned by RenderContext) collects the scene's
- *          Light2D components into this CPU mirror each frame and uploads it once. The GLSL struct
+ *          Light components into this CPU mirror each frame and uploads it once. The GLSL struct
  *          layout MUST match this std140 mirror exactly — a mismatch silently corrupts lighting.
  */
 #pragma once

@@ -24,7 +24,7 @@
 
 #include "esengine/ecs/TransformSystem.hpp"       // ecs::setParent
 #include "esengine/ecs/components/Hierarchy.hpp"  // Parent / Children
-#include "esengine/ecs/components/Mesh2D.hpp"     // MeshSkin
+#include "esengine/ecs/components/MeshRenderer.hpp"     // MeshSkin
 
 using namespace esengine;
 

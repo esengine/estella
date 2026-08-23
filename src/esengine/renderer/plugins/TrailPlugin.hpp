@@ -21,7 +21,7 @@ struct TrailCenter {
  * @brief Motion-trail renderer (TrailRenderer component).
  * @details Reads the per-entity point history from TrailSystem and turns it into a
  *          tapered, fading triangle-strip ribbon streamed through the unified Batch
- *          face each frame — CPU-generated verts, exactly like Mesh2D, so trails sort,
+ *          face each frame — CPU-generated verts, exactly like MeshRenderer, so trails sort,
  *          clip, and multi-texture-merge like sprites. The RHI is triangle-only, so a
  *          ribbon (not a GPU line-strip) is the whole trick: no bottom-layer changes.
  */

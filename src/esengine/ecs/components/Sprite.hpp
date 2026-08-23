@@ -73,8 +73,8 @@ struct Sprite {
     ES_PROPERTY(step=1, enum_source=sortingLayers, tooltip="Sorting layer — controls draw order across sprites.")
     i32 layer{0};
 
-    /** @brief Lit by the scene's 2D lights (Light2D), no material needed. Off = unlit. */
-    ES_PROPERTY(tooltip="Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this.")
+    /** @brief Lit by the scene's 2D lights (Light), no material needed. Off = unlit. */
+    ES_PROPERTY(tooltip="Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this.")
     bool lit{false};
 
     /** @brief Flip sprite horizontally */

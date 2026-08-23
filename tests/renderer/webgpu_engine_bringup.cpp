@@ -24,7 +24,7 @@
 #include "esengine/ecs/components/Transform.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
 #include "esengine/ecs/components/ShapeRenderer.hpp"
-#include "esengine/ecs/components/Light2D.hpp"
+#include "esengine/ecs/components/Light.hpp"
 #include "esengine/renderer/frame/RenderContext.hpp"
 #include "esengine/renderer/frame/RenderFrame.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
@@ -283,8 +283,8 @@ bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
         auto e = registry.create();
         auto& t = registry.emplace<ecs::Transform>(e);
         t.position = {64.0f, 80.0f, 0.0f};  // centered on the lit sprite: ndotl = 1, atten = 1
-        auto& l = registry.emplace<ecs::Light2D>(e);
-        l.type = static_cast<i32>(ecs::Light2DType::Point);
+        auto& l = registry.emplace<ecs::Light>(e);
+        l.type = static_cast<i32>(ecs::LightType::Point);
         l.color = {1.0f, 0.0f, 0.0f, 1.0f};
         l.intensity = 1.0f;
         l.radius = 200.0f;
@@ -292,8 +292,8 @@ bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
     {
         auto e = registry.create();
         registry.emplace<ecs::Transform>(e);
-        auto& l = registry.emplace<ecs::Light2D>(e);
-        l.type = static_cast<i32>(ecs::Light2DType::Ambient);
+        auto& l = registry.emplace<ecs::Light>(e);
+        l.type = static_cast<i32>(ecs::LightType::Ambient);
         l.color = {1.0f, 1.0f, 1.0f, 1.0f};
         l.intensity = 0.2f;
     }

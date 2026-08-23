@@ -12,7 +12,7 @@ Estella 通过声明式的 `Video` 组件把视频播放到任何可绘制的东
 
 ## 工作原理
 
-给一个同时带有可绘制组件(`Sprite`、`UIVisual` 或 `Mesh2D`)的实体加上 `Video` 组件,
+给一个同时带有可绘制组件(`Sprite`、`UIVisual` 或 `MeshRenderer`)的实体加上 `Video` 组件,
 视频系统就会把 `source` 解码成一张纹理,并每帧把该纹理句柄写到那个可绘制组件上。这张帧纹理
 是**无路径的**(永不淘汰)且稳定的,所以写一次的句柄在整条流的生命周期内一直有效。
 
@@ -21,7 +21,7 @@ Estella 通过声明式的 `Video` 组件把视频播放到任何可绘制的东
 
 <Aside type="note">
   静音的片段在任何地方都能自动播放。非静音的自动播放会被拦截,直到有用户手势(浏览器策略),
-  所以带声音的播放要从点击或按键开始。`Video` 需要一个 `Sprite` / `UIVisual` / `Mesh2D`
+  所以带声音的播放要从点击或按键开始。`Video` 需要一个 `Sprite` / `UIVisual` / `MeshRenderer`
   兄弟组件来显示——单独存在时它会解码,但没有可绘制的目标。
 </Aside>
 
@@ -52,8 +52,8 @@ const spawnScreen = defineSystem([Commands()], (cmds) => {
 | `fitSize` | boolean | `true` | 首帧时把 Sprite 调整为视频的原生像素尺寸。 |
 | `enabled` | boolean | `true` | 关闭即停止并释放流,而不移除组件。 |
 
-同一个组件会驱动它找到的第一个可绘制组件,顺序为 **`Sprite` → `UIVisual` → `Mesh2D`**:
-把 `Video` 放到 `UIVisual` 上做 HUD 里的视频面板,或放到 `Mesh2D` 上把片段映射到自定义几何。
+同一个组件会驱动它找到的第一个可绘制组件,顺序为 **`Sprite` → `UIVisual` → `MeshRenderer`**:
+把 `Video` 放到 `UIVisual` 上做 HUD 里的视频面板,或放到 `MeshRenderer` 上把片段映射到自定义几何。
 
 ## 一条流,多个表面
 
@@ -89,7 +89,7 @@ import { defineSystem, Res, VideoPlayer } from 'esengine';
 const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
   const stream = video.play('assets/intro.mp4', { loop: false, muted: true });
   stream.onEnded = () => { /* 跳过片头 */ };
-  // stream.isReady 后把 stream.textureHandle 赋到某个 Sprite/Mesh2D 上
+  // stream.isReady 后把 stream.textureHandle 赋到某个 Sprite/MeshRenderer 上
 });
 ```
 
@@ -137,7 +137,7 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 - **自动播放就保持 `muted: true`**——带声音的播放要从用户手势开始,否则浏览器会拦截。
 - **共享一条流**给多个表面(用纹理句柄 + `uvOffset` / `uvScale`),而不是用多个 `Video` 组件
   重复解码同一个片段。
-- **给 Video 一个可绘制组件**——`Sprite`(世界)、`UIVisual`(HUD)或 `Mesh2D`(自定义几何)
+- **给 Video 一个可绘制组件**——`Sprite`(世界)、`UIVisual`(HUD)或 `MeshRenderer`(自定义几何)
   ——才能真正显示帧。
 - **注意 `fitSize`**——它会在首帧把 Sprite 贴到片段的原生像素;当你设了明确尺寸(比如固定的
   屏幕)时把它关掉。

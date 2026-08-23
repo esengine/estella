@@ -473,31 +473,31 @@ window.__estellaHeadless = {
     // Nothing about the geometry changes — same entity, same vertices, the other
     // path — so the frame afterwards has to be the same frame.
     makeMeshesResident: () => {
-        const m = module as unknown as { mesh2d_makeAllResident?(registry: unknown): number } | null;
+        const m = module as unknown as { meshRenderer_makeAllResident?(registry: unknown): number } | null;
         const registry = app?.world.getCppRegistry();
-        if (!m?.mesh2d_makeAllResident || !registry) return 0;
-        return m.mesh2d_makeAllResident(registry);
+        if (!m?.meshRenderer_makeAllResident || !registry) return 0;
+        return m.meshRenderer_makeAllResident(registry);
     },
     // Through the asset layer, not a side door: the file goes through the same
     // load() every other asset type does, so what this proves is the format
     // reaching the screen rather than a decoder wired straight to the engine.
     loadMeshAsset: async (path: string) => {
         const assets = app?.getResource(Assets);
-        const m = module as unknown as { mesh2d_setMeshAll?(registry: unknown, handle: number): number } | null;
+        const m = module as unknown as { meshRenderer_setMeshAll?(registry: unknown, handle: number): number } | null;
         const registry = app?.world.getCppRegistry();
-        if (!assets || !m?.mesh2d_setMeshAll || !registry) return 0;
+        if (!assets || !m?.meshRenderer_setMeshAll || !registry) return 0;
         const mesh = await assets.load<{ handle: number }>('mesh', path);
         if (!mesh?.handle) return 0;
-        return m.mesh2d_setMeshAll(registry, mesh.handle);
+        return m.meshRenderer_setMeshAll(registry, mesh.handle);
     },
     loadMaterialAsset: async (path: string) => {
         const assets = app?.getResource(Assets);
-        const m = module as unknown as { mesh2d_setMaterialAll?(registry: unknown, id: number): number } | null;
+        const m = module as unknown as { meshRenderer_setMaterialAll?(registry: unknown, id: number): number } | null;
         const registry = app?.world.getCppRegistry();
-        if (!assets || !m?.mesh2d_setMaterialAll || !registry) return 0;
+        if (!assets || !m?.meshRenderer_setMaterialAll || !registry) return 0;
         const material = await assets.load<{ handle: number }>('material', path);
         if (!material?.handle) return 0;
-        return m.mesh2d_setMaterialAll(registry, material.handle);
+        return m.meshRenderer_setMaterialAll(registry, material.handle);
     },
     // A prefab brings its own asset refs, so this hands the file to the engine's
     // own instantiation and asserts nothing about what it names: the claim is

@@ -189,7 +189,7 @@ describe('native Assets mesh loading', () => {
                     id: 0, name: 'Block', parent: null, children: [], visible: true,
                     components: [
                         { type: 'Transform', data: {} },
-                        { type: 'Mesh2D', data: { mesh: 'builtin:cube' } },
+                        { type: 'MeshRenderer', data: { mesh: 'builtin:cube' } },
                     ],
                 }],
             };

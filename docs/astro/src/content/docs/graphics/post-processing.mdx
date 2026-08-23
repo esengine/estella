@@ -40,7 +40,7 @@ When the project renders in the **linear color space** (see
 [Lighting](/docs/graphics/lighting/)), the effect chain runs in **half-float HDR**
 wherever float render targets are available — always on WebGPU, and on WebGL2 with
 the near-universal `EXT_color_buffer_float`. Light accumulation past `1.0` (a
-`Light2D` with `intensity` above 1) then *survives* into the chain instead of
+`Light` with `intensity` above 1) then *survives* into the chain instead of
 clamping at the 8-bit store:
 
 - **`bloom` with `threshold` above 1** blooms only over-range energy — bright

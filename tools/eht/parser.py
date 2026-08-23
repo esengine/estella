@@ -64,7 +64,7 @@ class CppParser:
         # Enum::Member, or a braced vector `{100, 100}`.
         'editor_default',
         # `shown_when=<field>:<Name>|<Name>` scopes a field to the states of a sibling
-        # discriminator it means anything in — Light2D.radius to Point and Spot, a
+        # discriminator it means anything in — Light.radius to Point and Spot, a
         # trail's tuning to trailEnabled:true. The states are named, never numbered,
         # and resolved against that field's own enum when the metadata is generated,
         # so reordering the enum moves every rule with it.

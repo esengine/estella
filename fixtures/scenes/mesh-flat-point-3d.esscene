@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshFlatPoint3D",
   "entities": [
     {
@@ -48,7 +48,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/white-triangles.esmesh",
             "color": {
@@ -82,7 +82,7 @@
           }
         },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 0,
             "color": {

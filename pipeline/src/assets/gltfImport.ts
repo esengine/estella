@@ -433,7 +433,7 @@ function readSampler(ctx: MaterialContext, index: number | undefined,
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** Resolves a glTF texture index to the file a Mesh2D will sample, extracting inline images. */
+/** Resolves a glTF texture index to the file a MeshRenderer will sample, extracting inline images. */
 function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef | null>,
                      ref: GltfTextureRef, label: string): ImportedImageRef | null {
     if (ref.texCoord) ctx.warnings.push(`${label}: TEXCOORD_${ref.texCoord} is not imported (one UV set)`);

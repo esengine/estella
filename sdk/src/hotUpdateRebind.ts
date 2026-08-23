@@ -15,7 +15,7 @@
 import type { App } from './app/app';
 import { Schedule, defineSystem } from './ecs/system';
 import { Query, Mut } from './ecs/query';
-import { Sprite, Mesh2D } from './ecs/component';
+import { Sprite, MeshRenderer } from './ecs/component';
 import type { Assets } from './asset/Assets';
 
 export function installHotUpdateRebind(app: App, assets: Assets): void {
@@ -29,7 +29,7 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
     });
 
     app.addSystemToSchedule(Schedule.Update, defineSystem(
-        [Query(Mut(Sprite)), Query(Mut(Mesh2D))],
+        [Query(Mut(Sprite)), Query(Mut(MeshRenderer))],
         (sprites, meshes) => {
             // Kick a reload for each newly-invalidated ref; the async result (the
             // new handle) lands in `swaps` a frame or two later.

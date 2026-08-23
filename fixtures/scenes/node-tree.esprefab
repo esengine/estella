@@ -43,7 +43,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/node-tree_0_0.esmesh",
             "color": {
@@ -82,7 +82,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/node-tree_1_0.esmesh",
             "color": {

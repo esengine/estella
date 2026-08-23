@@ -9,7 +9,7 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { VideoPlayer, VideoAPI } from './VideoAPI';
 import { Video, type VideoData } from './VideoComponents';
-import { Sprite, Mesh2D, type SpriteData, type Mesh2DData } from '../ecs/component';
+import { Sprite, MeshRenderer, type SpriteData, type MeshRendererData } from '../ecs/component';
 import type { UIVisualData } from '../ecs/component.generated';
 import { UIVisual } from '../ui/core/ui-visual';
 import type { VideoStreamHandle } from './PlatformVideoBackend';
@@ -21,7 +21,7 @@ import { log } from '../util/logger';
 
 const UI_VISUAL_IMAGE = 2; // UIVisualType.Image — samples the texture
 
-// Drive the entity's renderable sibling (Sprite / UIVisual / Mesh2D) from the
+// Drive the entity's renderable sibling (Sprite / UIVisual / MeshRenderer) from the
 // current frame. Builtin get() is a snapshot copy, so mutations need world.insert;
 // the handle is stable, so we write back only on change. Returns false if the
 // entity has no renderable to show the video on.
@@ -50,9 +50,9 @@ function driveRenderable(world: World, entity: Entity, handle: VideoStreamHandle
         return true;
     }
 
-    const mesh = world.tryGet(entity, Mesh2D) as Mesh2DData | null;
+    const mesh = world.tryGet(entity, MeshRenderer) as MeshRendererData | null;
     if (mesh) {
-        if (mesh.texture !== tex) { mesh.texture = tex; world.insert(entity, Mesh2D, mesh); }
+        if (mesh.texture !== tex) { mesh.texture = tex; world.insert(entity, MeshRenderer, mesh); }
         return true;
     }
 
@@ -133,7 +133,7 @@ export class VideoPlugin implements Plugin {
 
                         const v = world.get(entity, Video) as VideoData;
                         if (!driveRenderable(world, entity, handle, v) && !warnedNoSprite.has(id)) {
-                            log.warn('video', `entity ${id} has a Video but no renderable (Sprite/UIVisual/Mesh2D) to show it on`);
+                            log.warn('video', `entity ${id} has a Video but no renderable (Sprite/UIVisual/MeshRenderer) to show it on`);
                             warnedNoSprite.add(id);
                         }
                     }

@@ -209,7 +209,7 @@ the download and swap.
 When a scene references an asset by `@uuid` and that asset lives in a remote
 group, `applyUpdate` does **everything** — it downloads the new bytes, swaps the
 manifest, and the built-in rebinder replaces the old texture in every live
-`Sprite` and `Mesh2D` on screen. The picture changes on its own; the scene author
+`Sprite` and `MeshRenderer` on screen. The picture changes on its own; the scene author
 writes nothing. (The `hot-update-demo` example's game code is literally empty.)
 
 For anything the built-in rebinder doesn't cover — a texture you bound manually, a

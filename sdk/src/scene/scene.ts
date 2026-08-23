@@ -301,8 +301,13 @@ export async function expandScenePrefabs(
  *
  * An integer, not semver: this number only has to answer "older, current, or
  * newer", and dotted ones cannot. `parseFloat` sorts "1.10" below "1.2".
+ *
+ * 2: `Light2D` and `Mesh2D` renamed to `Light` and `MeshRenderer`. An engine
+ *    from before the rename reads the new names as components it has never
+ *    heard of and drops them, which is a scene that loads and has no lights —
+ *    so it must refuse the file instead, and the version is what tells it to.
  */
-export const SCENE_FORMAT_VERSION = 1;
+export const SCENE_FORMAT_VERSION = 2;
 
 export interface SceneMigrationResult {
     /** A migrated *copy* — the input is never mutated. */

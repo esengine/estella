@@ -15,7 +15,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/white-triangles.esmesh",
             "enabled": true

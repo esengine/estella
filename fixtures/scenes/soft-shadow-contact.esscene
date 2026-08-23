@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "SoftShadowContact",
   "entities": [
     {
@@ -13,21 +13,21 @@
       "id": 1, "name": "Ground", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -200 }, "scale": { "x": 900, "y": 900, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 2, "name": "Blocker", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 80, "y": 0, "z": -160 }, "scale": { "x": 100, "y": 100, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 3, "name": "Lamp", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 200 } } },
-        { "type": "Light2D", "data": { "type": 3, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "radius": 3000, "innerAngle": 80, "outerAngle": 90, "meshShadows": true, "shadowSoftness": 40 } }
+        { "type": "Light", "data": { "type": 3, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "radius": 3000, "innerAngle": 80, "outerAngle": 90, "meshShadows": true, "shadowSoftness": 40 } }
       ]
     }
   ]

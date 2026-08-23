@@ -227,7 +227,7 @@ export interface ESEngineModule {
      * Upload geometry that STAYS on the GPU: interleaved f32 [x,y,z,u,v] per
      * vertex, optional RGBA8 colors, u32 triangle indices. Any number of entities
      * can draw the result, each with its own transform. Where the inline
-     * `mesh2d_setGeometry` payload is rewritten per frame, this is uploaded once.
+     * `meshRenderer_setGeometry` payload is rewritten per frame, this is uploaded once.
      */
     mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number,
                  indicesPtr: number, indexCount: number): number;
@@ -254,27 +254,27 @@ export interface ESEngineModule {
                         mipCount: number, maxRange: number): number;
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
-    /** Point a Mesh2D at a resident mesh; 0 returns it to its inline payload. */
-    mesh2d_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
+    /** Point a MeshRenderer at a resident mesh; 0 returns it to its inline payload. */
+    meshRenderer_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
     /**
-     * Freeze a Mesh2D's inline geometry onto the GPU — the same vertices, uploaded
+     * Freeze a MeshRenderer's inline geometry onto the GPU — the same vertices, uploaded
      * once and drawn with a per-object transform. Returns the mesh handle, 0 if
      * the entity had no geometry to freeze.
      */
-    mesh2d_makeResident?(registry: CppRegistry, entity: number): number;
-    /** The same for every Mesh2D in the world; returns how many were frozen. */
-    mesh2d_makeAllResident?(registry: CppRegistry): number;
+    meshRenderer_makeResident?(registry: CppRegistry, entity: number): number;
+    /** The same for every MeshRenderer in the world; returns how many were frozen. */
+    meshRenderer_makeAllResident?(registry: CppRegistry): number;
     /**
-     * Point every Mesh2D in the world at one resident mesh, clearing their
+     * Point every MeshRenderer in the world at one resident mesh, clearing their
      * inline payloads. Returns how many were pointed.
      */
-    mesh2d_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
-    /** Local XY bounds of what a Mesh2D draws — resident geometry, else its
+    meshRenderer_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
+    /** Local XY bounds of what a MeshRenderer draws — resident geometry, else its
      *  inline payload. Null when it draws nothing. */
-    mesh2d_localBounds?(registry: CppRegistry, entity: number):
+    meshRenderer_localBounds?(registry: CppRegistry, entity: number):
         { minX: number; minY: number; maxX: number; maxY: number } | null;
-    /** Point every Mesh2D in the world at one material; returns how many. */
-    mesh2d_setMaterialAll?(registry: CppRegistry, materialId: number): number;
+    /** Point every MeshRenderer in the world at one material; returns how many. */
+    meshRenderer_setMaterialAll?(registry: CppRegistry, materialId: number): number;
     recoverDevice?(): boolean;
     /**
      * Take up the replacement device left on `Module.pendingWebGPUDevice`. A
@@ -321,11 +321,11 @@ export interface ESEngineModule {
         entity: number, layer: number, depth: number, sdf: number, cullBit: number
     ): void;
     /**
-     * Upload a Mesh2D component's geometry: interleaved f32 [x,y,u,v] per vertex,
+     * Upload a MeshRenderer component's geometry: interleaved f32 [x,y,u,v] per vertex,
      * optional RGBA8 colors (colorsPtr 0 = all white), u32 triangle-list indices.
      * Validated engine-side: out-of-range indices reject the whole upload.
      */
-    mesh2d_setGeometry?(
+    meshRenderer_setGeometry?(
         registry: CppRegistry, entity: number,
         posUvPtr: number, vertexCount: number,
         colorsPtr: number,

@@ -16,8 +16,8 @@ import { Aside } from '@astrojs/starlight/components';
 ## 内置图元
 
 有七个形状不需要导入、也不需要文件。**Create → Cube**（以及 Sphere、Capsule、Cylinder、
-Cone、Plane、Quad）建出的实体，其 `Mesh2D.mesh` 里放的是一个 `builtin:` 引用；同样这七个
-也排在任何 `Mesh2D.mesh` 字段选择器的最前面。
+Cone、Plane、Quad）建出的实体，其 `MeshRenderer.mesh` 里放的是一个 `builtin:` 引用；同样这七个
+也排在任何 `MeshRenderer.mesh` 字段选择器的最前面。
 
 | 引用 | 形状 |
 |---|---|
@@ -38,7 +38,7 @@ Transform 给，和导入的模型一样。
 
 <Aside type="caution" title="被照亮的 mesh 需要一盏灯">
 图元建出来时是 `lit` 的，和带法线的导入几何一样。光照是乘性的、从零起算，所以场景里没有
-`Light2D` 时它们画出来是黑的 —— **Create → Sun** 会加上一盏有阴影场景想要的平行主光。
+`Light` 时它们画出来是黑的 —— **Create → Sun** 会加上一盏有阴影场景想要的平行主光。
 把 `lit` 关掉则得到不受光的平涂外观。
 </Aside>
 
@@ -65,11 +65,11 @@ Transform 给，和导入的模型一样。
 |---|---|
 | `robot_0_0.esmesh`、`robot_1_0.esmesh` | 每个 primitive 一个几何文件，命名 `<stem>_<mesh>_<primitive>`（只有一个时就是 `<stem>`）。 |
 | `robot_0.png` | 文件内嵌的图片。已经在磁盘上的图片只被引用，不会复制。 |
-| `robot_m0.esmaterial` | **仅当**源材质说了 `Mesh2D` 装不下的东西时才写 —— 见[材质](#材质)。 |
+| `robot_m0.esmaterial` | **仅当**源材质说了 `MeshRenderer` 装不下的东西时才写 —— 见[材质](#材质)。 |
 | `robot_Walk.estimeline` | 源里每个动画一个，命名 `<stem>_<动画名>` —— 见[动画](#动画)。 |
-| `robot.esprefab` | 各部分怎么组装：节点层级，每个 `Mesh2D` 带上自己的 mesh、贴图、tint 和开关。 |
+| `robot.esprefab` | 各部分怎么组装：节点层级，每个 `MeshRenderer` 带上自己的 mesh、贴图、tint 和开关。 |
 
-把 **prefab** 拖进场景。单个 `.esmesh` 也是资源（`Mesh2D.mesh` 字段可以直接引用），
+把 **prefab** 拖进场景。单个 `.esmesh` 也是资源（`MeshRenderer.mesh` 字段可以直接引用），
 但 prefab 才是作者组装好的那个模型。
 
 <Aside type="caution" title="产物会被重写">
@@ -102,7 +102,7 @@ Transform 给，和导入的模型一样。
 
 一个 glTF 材质按「谁装得下」拆开。
 
-**落在 `Mesh2D` 组件上** —— base color，因为引擎的 mesh 通路本来就是
+**落在 `MeshRenderer` 组件上** —— base color，因为引擎的 mesh 通路本来就是
 `texture(uv) × 顶点色 × tint`：
 
 | glTF | 组件字段 |

@@ -7,7 +7,7 @@
 #include "../rhi/Texture.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../ecs/components/Transform.hpp"
-#include "../../ecs/components/Mesh2D.hpp"
+#include "../../ecs/components/MeshRenderer.hpp"
 #include "../../resource/Mesh.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
@@ -167,12 +167,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
-    auto meshView = registry.view<ecs::Transform, ecs::Mesh2D>();
+    auto meshView = registry.view<ecs::Transform, ecs::MeshRenderer>();
 
     u32 litProgram = 0;
 
     for (auto entity : meshView) {
-        const auto& mesh = meshView.get<ecs::Mesh2D>(entity);
+        const auto& mesh = meshView.get<ecs::MeshRenderer>(entity);
         // Empty indices no longer mean "nothing to draw": a resident mesh keeps
         // its geometry on the GPU and its inline payload deliberately empty.
         if (!mesh.enabled || (mesh.indices.empty() && !mesh.mesh.isValid())) continue;
@@ -333,7 +333,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     if (materialProgram == 0) {
                         if (!warned_material_) {
                             warned_material_ = true;
-                            ES_LOG_WARN("Mesh2D: material {} has no mesh variant; using the mesh shader",
+                            ES_LOG_WARN("MeshRenderer: material {} has no mesh variant; using the mesh shader",
                                         key.materialId);
                         }
                         key.materialId = 0;

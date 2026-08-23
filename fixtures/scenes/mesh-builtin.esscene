@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshBuiltin",
   "entities": [
     {
@@ -39,7 +39,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "builtin:cube",
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -63,7 +63,7 @@
           "data": { "position": { "x": 75, "y": 0, "z": 0 } }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "builtin:sphere",
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -87,7 +87,7 @@
           "data": { "position": { "x": 0, "y": 0, "z": 0 } }
         },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 1,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },

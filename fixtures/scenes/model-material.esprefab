@@ -38,7 +38,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/model-material_0_0.esmesh",
             "lit": true,
@@ -68,7 +68,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/model-material_1_0.esmesh",
             "lit": true,
@@ -104,7 +104,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/model-material_2_0.esmesh",
             "lit": true,

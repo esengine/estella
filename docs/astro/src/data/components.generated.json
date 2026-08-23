@@ -1564,7 +1564,7 @@
       ]
     },
     {
-      "name": "Light2D",
+      "name": "Light",
       "source": "cpp",
       "fields": [
         {
@@ -1698,7 +1698,43 @@
       ]
     },
     {
-      "name": "Mesh2D",
+      "name": "MeshCollider3D",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "mesh",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "Geometry (.esmesh) to collide against."
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "range": "0–15",
+          "advanced": true
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3",
+          "range": "≥ 0"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0",
+          "range": "0–1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
+      "name": "MeshRenderer",
       "source": "cpp",
       "fields": [
         {
@@ -1741,7 +1777,7 @@
           "key": "lit",
           "type": "boolean",
           "default": "false",
-          "doc": "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this."
+          "doc": "Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this."
         },
         {
           "key": "parallax",
@@ -1777,42 +1813,6 @@
         "color.g",
         "color.b",
         "color.a"
-      ]
-    },
-    {
-      "name": "MeshCollider3D",
-      "source": "cpp",
-      "fields": [
-        {
-          "key": "mesh",
-          "type": "Asset<mesh>",
-          "default": "none",
-          "doc": "Geometry (.esmesh) to collide against."
-        },
-        {
-          "key": "layer",
-          "type": "number",
-          "default": "0",
-          "range": "0–15",
-          "advanced": true
-        },
-        {
-          "key": "friction",
-          "type": "number",
-          "default": "0.3",
-          "range": "≥ 0"
-        },
-        {
-          "key": "restitution",
-          "type": "number",
-          "default": "0",
-          "range": "0–1"
-        },
-        {
-          "key": "enabled",
-          "type": "boolean",
-          "default": "true"
-        }
       ]
     },
     {
@@ -3564,7 +3564,7 @@
           "key": "lit",
           "type": "boolean",
           "default": "false",
-          "doc": "Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this."
+          "doc": "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this."
         },
         {
           "key": "flipX",

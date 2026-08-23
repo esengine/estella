@@ -327,7 +327,7 @@ describe('glTF material products', () => {
     return { meshes, products: materialProducts(meshes, 'model', refs) };
   };
 
-  it('writes nothing for a material a Mesh2D already carries whole', async () => {
+  it('writes nothing for a material a MeshRenderer already carries whole', async () => {
     // baseColor is the component's own texture x colour, so a material here
     // would be a second file saying what the first one says.
     const { products } = await productsOf(withInlineImage());
@@ -364,9 +364,9 @@ describe('glTF material products', () => {
       { prefix: 'assets/models/' });
     expect(products[0]!.data.properties.u_normalMap).toBe('model_0.png');
     const prefab = assembleModelPrefab('model', meshes, { refs: { prefix: 'assets/models/' } });
-    const mesh2d = prefab.entities[1]!.components[1]!.data;
-    expect(mesh2d.material).toBe('assets/models/model_m0.esmaterial');
-    expect(mesh2d.normalMap).toBeUndefined();
+    const meshRenderer = prefab.entities[1]!.components[1]!.data;
+    expect(meshRenderer.material).toBe('assets/models/model_m0.esmaterial');
+    expect(meshRenderer.normalMap).toBeUndefined();
   });
 
   it('says the render state the draw would otherwise have said itself', async () => {
@@ -394,7 +394,7 @@ describe('glTF material products', () => {
     expect(materialProducts(meshes, 'model', refs)).toHaveLength(1);
     const prefab = assembleModelPrefab('model', meshes, { refs });
     const refsUsed = prefab.entities.flatMap(e => e.components
-      .filter(c => c.type === 'Mesh2D').map(c => c.data.material));
+      .filter(c => c.type === 'MeshRenderer').map(c => c.data.material));
     expect(refsUsed).toEqual(['assets/models/model_m0.esmaterial',
                               'assets/models/model_m0.esmaterial']);
   });
@@ -428,7 +428,7 @@ describe('glTF prefab assembly', () => {
     expect(prefab.entities).toHaveLength(1);
     expect(prefab.rootEntityId).toBe('n0');
     expect(prefab.entities[0]!.components[1]).toEqual({
-      type: 'Mesh2D',
+      type: 'MeshRenderer',
       data: {
         mesh: 'assets/models/model.esmesh',
         texture: 'assets/models/model_0.png',

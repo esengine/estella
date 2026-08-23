@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshPoint3D",
   "entities": [
     {
@@ -39,7 +39,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/shadow-quad.esmesh",
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -62,7 +62,7 @@
           "data": { "position": { "x": 0, "y": 0, "z": 120 } }
         },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 0,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },

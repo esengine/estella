@@ -64,7 +64,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/skinned-arm.esmesh",
             "enabled": true

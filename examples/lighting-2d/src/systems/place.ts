@@ -1,6 +1,6 @@
 import {
     defineSystem, Res, Input, Commands, UICameraInfo,
-    Transform, Sprite, Light2D, Light2DType, ShadowCaster2D,
+    Transform, Sprite, Light, LightType, ShadowCaster2D,
 } from 'esengine';
 import type { UICameraData } from 'esengine';
 import { Fading } from '../components';
@@ -32,8 +32,8 @@ export const placeSystem = defineSystem(
                 nextColor++;
                 const entity = cmds.spawn()
                     .insert(Transform, { position: { x, y, z: 0 } })
-                    .insert(Light2D, {
-                        type: Light2DType.Point,
+                    .insert(Light, {
+                        type: LightType.Point,
                         color,
                         intensity: PLACED_LIGHT_INTENSITY,
                         radius: PLACED_LIGHT_RADIUS,

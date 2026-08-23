@@ -71,7 +71,7 @@ const scene = JSON.stringify({
   entities: [
     {
       id: 1, name: 'Sky', parent: null, children: [],
-      components: [{ type: 'Light2D', data: { type: 2, environment: 'assets/env/sky.esenv' } }],
+      components: [{ type: 'Light', data: { type: 2, environment: 'assets/env/sky.esenv' } }],
     },
     {
       id: 2, name: 'Actor', parent: null, children: [],
@@ -160,7 +160,7 @@ describe('assets named only inside another document are cooked', () => {
         version: '1.0', name: 'm',
         entities: [{
           id: 1, name: 'Cube', parent: null, children: [],
-          components: [{ type: 'Mesh2D', data: { mesh: 'builtin:cube', lit: true } }],
+          components: [{ type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: true } }],
         }],
       }));
       const res = await cookAssets(lone, {
@@ -195,7 +195,7 @@ describe('assets named only inside another document are cooked', () => {
         version: '1.0', name: 'm',
         entities: [{
           id: 1, name: 'Sky', parent: null, children: [],
-          components: [{ type: 'Light2D', data: { type: 2, environment: 'assets/env/gone.esenv' } }],
+          components: [{ type: 'Light', data: { type: 2, environment: 'assets/env/gone.esenv' } }],
         }],
       }));
       const res = await cookAssets(lone, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });

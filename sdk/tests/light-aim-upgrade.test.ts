@@ -108,8 +108,8 @@ describe('a light aimed by fields becomes a light aimed by its entity', () => {
             { type: 'Transform', data: { rotation: turned } },
             { type: 'Light2D', data: { type: POINT, direction: { x: 1, y: 0 }, directionZ: -1 } },
         ]));
-        expect(find(data, 'Light2D')!.data['direction']).toBeUndefined();
-        expect(find(data, 'Light2D')!.data['directionZ']).toBeUndefined();
+        expect(find(data, 'Light')!.data['direction']).toBeUndefined();
+        expect(find(data, 'Light')!.data['directionZ']).toBeUndefined();
         expect(find(data, 'Transform')!.data['rotation']).toEqual(turned);
     });
 

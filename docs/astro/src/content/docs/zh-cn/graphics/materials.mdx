@@ -6,7 +6,7 @@ description: 自定义材质完整指南——用 #pragma param 反射 uniform �
 import { Aside } from '@astrojs/starlight/components';
 
 材质是**着色器加参数**。支持材质的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`、
-`Mesh2D` 和 `UIVisual`——都暴露一个 `material` 句柄字段;设置它就用你自己的着色器绘制,而非默认。
+`MeshRenderer` 和 `UIVisual`——都暴露一个 `material` 句柄字段;设置它就用你自己的着色器绘制,而非默认。
 
 ## 工作原理
 
@@ -289,7 +289,7 @@ Material.setUniform(mat, 'u_tint', [1, 0, 0, 1]);   // 图参数就是普通参�
 <Aside type="note">
   没有反射参数的原始着色器用 `Material.createShader(vertexSrc, fragmentSrc)` 而非
   `compileShader`。`ShapeRenderer` 和 `TilemapLayer` 没有 `material` 字段——只有 `Sprite`、
-  `SpineAnimation`、`ParticleEmitter`、`Mesh2D` 和 `UIVisual` 有。
+  `SpineAnimation`、`ParticleEmitter`、`MeshRenderer` 和 `UIVisual` 有。
 </Aside>
 
 ## 参见

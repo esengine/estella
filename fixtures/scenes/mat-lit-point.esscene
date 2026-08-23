@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "Main",
   "entities": [
     {
@@ -39,7 +39,7 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 0,
             "color": { "r": 0, "g": 1, "b": 0, "a": 1 },

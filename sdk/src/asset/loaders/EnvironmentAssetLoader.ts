@@ -18,7 +18,7 @@ interface EnvironmentAssetData {
     maxRange?: number;
 }
 
-/** A baked environment, named by the handle a Light2D references. */
+/** A baked environment, named by the handle a Light references. */
 export interface EnvironmentResult {
     handle: number;
     /** The atlas path, so unload releases the texture ref this load took. */

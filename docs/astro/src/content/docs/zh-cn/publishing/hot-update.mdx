@@ -164,7 +164,7 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 
 ### 零代码重绑
 
-当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进屏幕上每一个运行中的 `Sprite` 与 `Mesh2D`。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
+当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进屏幕上每一个运行中的 `Sprite` 与 `MeshRenderer`。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
 
 对于内建重绑器覆盖不到的东西——你手动绑定的贴图、一段音效、一个自定义系统——订阅 `onInvalidate` 自行重绑：
 

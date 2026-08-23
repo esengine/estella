@@ -72,10 +72,10 @@ describe('Entity visibility helpers', () => {
             ['DragonBonesAnimation', 'enabled'],
             ['ParticleEmitter', 'enabled'],
             ['UIVisual', 'enabled'],
-            ['Mesh2D', 'enabled'],
+            ['MeshRenderer', 'enabled'],
             ['TrailRenderer', 'enabled'],
             // Not drawn, but hiding an entity has to stop it lighting the scene.
-            ['Light2D', 'enabled'],
+            ['Light', 'enabled'],
             ['ShadowCaster2D', 'enabled'],
             // Its flag is `visible`, not `enabled` — which is why the declaration
             // names the field instead of assuming one.

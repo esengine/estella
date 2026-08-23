@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "SunShadow",
   "entities": [
     {
@@ -13,21 +13,21 @@
       "id": 1, "name": "Ground", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -100 }, "scale": { "x": 1000, "y": 1000, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 2, "name": "Blocker", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": -20, "y": 0, "z": 0 }, "scale": { "x": 20, "y": 20, "z": 1 } } },
-        { "type": "Mesh2D", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
       ]
     },
     {
       "id": 3, "name": "Sun", "parent": null, "children": [], "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Light2D", "data": { "type": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "direction": { "x": 0.25, "y": 0 }, "meshShadows": true, "shadowExtent": 500, "sourceAngle": 5.6 } }
+        { "type": "Light", "data": { "type": 1, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "intensity": 1, "direction": { "x": 0.25, "y": 0 }, "meshShadows": true, "shadowExtent": 500, "sourceAngle": 5.6 } }
       ]
     }
   ]

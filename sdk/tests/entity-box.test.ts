@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { entityWorldBox, entityBoxCorners, entityBoxRayHit, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
-import { Transform, Sprite, Mesh2D } from '../src/ecs/component';
+import { Transform, Sprite, MeshRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
 
@@ -34,7 +34,7 @@ const T = (x: number, y: number, sx = 1, sy = 1, angle = 0) => ({
 /** The engine side of a mesh box: the bounds of whichever geometry is live. */
 const meshBounds = (b: { minX: number; minY: number; maxX: number; maxY: number; minZ?: number; maxZ?: number } | null) => ({
     getCppRegistry: () => ({}),
-    getWasmModule: () => ({ mesh2d_localBounds: () => b }),
+    getWasmModule: () => ({ meshRenderer_localBounds: () => b }),
 });
 
 /** The engine side of a UI box: a resolved layout size, in the core's own tables. */
@@ -135,10 +135,10 @@ describe('an entity world box', () => {
 
 describe('a mesh world box', () => {
     it('is the geometry the engine reports, through the world scale', () => {
-        // A Mesh2D has no size field: the extent lives in its vertices, and for
+        // A MeshRenderer has no size field: the extent lives in its vertices, and for
         // resident geometry not even in the component. Only the engine can say.
         const world = {
-            ...fakeWorld({ 1: { [name(Transform)]: T(10, 20, 2, 3), [name(Mesh2D)]: {} } }),
+            ...fakeWorld({ 1: { [name(Transform)]: T(10, 20, 2, 3), [name(MeshRenderer)]: {} } }),
             ...meshBounds({ minX: -50, minY: -10, maxX: 50, maxY: 10 }),
         } as never;
         expect(meshWorldBox(world, ent(1))).toEqual({ cx: 10, cy: 20, cz: 0, hw: 100, hh: 30, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
@@ -146,7 +146,7 @@ describe('a mesh world box', () => {
 
     it('follows geometry authored off the origin', () => {
         const world = {
-            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(MeshRenderer)]: {} } }),
             ...meshBounds({ minX: 100, minY: 0, maxX: 300, maxY: 40 }),
         } as never;
         expect(meshWorldBox(world, ent(1))).toEqual({ cx: 200, cy: 20, cz: 0, hw: 100, hh: 20, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
@@ -154,7 +154,7 @@ describe('a mesh world box', () => {
 
     it('has none when the mesh draws nothing, and none for a non-mesh', () => {
         const empty = {
-            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(MeshRenderer)]: {} } }),
             ...meshBounds(null),
         } as never;
         expect(meshWorldBox(empty, ent(1))).toBeNull();
@@ -219,7 +219,7 @@ describe('a ray against an entity box', () => {
 
     it('takes the depth a mesh reports, so a model is not a card', () => {
         const world = {
-            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } }),
+            ...fakeWorld({ 1: { [name(Transform)]: T(0, 0), [name(MeshRenderer)]: {} } }),
             ...meshBounds({ minX: -50, minY: -50, maxX: 50, maxY: 50, minZ: -50, maxZ: 50 }),
         } as never;
         const box = meshWorldBox(world, ent(1))!;

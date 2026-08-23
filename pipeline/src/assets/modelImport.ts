@@ -44,7 +44,7 @@ export interface ImportedImageRef {
 
 /**
  * A material, split by what can carry it: baseColor is `texture(uv) *
- * vertexColor * tint`, which a Mesh2D's own fields say, and the shading around
+ * vertexColor * tint`, which a MeshRenderer's own fields say, and the shading around
  * it becomes an `.esmaterial` (@ref materialProducts). What neither can express
  * is reported, not dropped.
  */
@@ -76,7 +76,7 @@ export interface ImportedMaterial {
     cullBackfaces: boolean;
 }
 
-/** A material product: the shading a Mesh2D's own fields cannot say. */
+/** A material product: the shading a MeshRenderer's own fields cannot say. */
 export interface ImportedMaterialAsset {
     /** `<stem>_m<material index>` — stable across re-imports, so overrides keep matching. */
     name: string;
@@ -328,7 +328,7 @@ function materialImageRef(image: ImportedImageRef, refs: ProductRefs): string {
 }
 
 /**
- * Whether this material says anything a Mesh2D's own fields cannot: shading is
+ * Whether this material says anything a MeshRenderer's own fields cannot: shading is
  * per-material constants and samplers, and the component has neither. A metal-
  * roughness pair the engine's defaults already are needs nothing written — but
  * glTF defaults both factors to 1, so most materials do.
@@ -416,7 +416,7 @@ function meshComponent(mesh: ImportedMesh, stem: string, refs: ProductRefs): Com
     // unlit variant and the map would be a reference to nothing.
     const normalMap = !material && hasNormals && mesh.material?.normalTexture
         ? imageRef(mesh.material.normalTexture, refs) : null;
-    return { type: 'Mesh2D', data: {
+    return { type: 'MeshRenderer', data: {
         mesh: `${prefix}${mesh.name}.esmesh`,
         // Geometry that carries normals was authored to be shaded, so the product
         // says so. Written rather than assumed: `lit` is a field a user can turn
@@ -476,7 +476,7 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
     const emitNode = (node: ImportedNode, parent: string | null, rootScale?: number): string => {
         const id = `n${node.index}`;
         const drawn = node.meshes.map(i => meshes[i]).filter((m): m is ImportedMesh => !!m);
-        // One primitive rides the node itself; several cannot, since a Mesh2D
+        // One primitive rides the node itself; several cannot, since a MeshRenderer
         // draws one mesh — they become its children, at its own origin.
         const own = drawn.length === 1 && drawn[0]
             ? [meshComponent(drawn[0], name, refs), ...skinComponent(drawn[0])] : [];

@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'dc813d9c5d77b235';
+export const ABI_LAYOUT_HASH = '43f91684e5f3d3fb';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -412,7 +412,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    Light2D: {
+    Light: {
         defaults: {
             type: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
@@ -449,7 +449,26 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene.", shownWhen: { field: "type", values: [2] } },
         },
     },
-    Mesh2D: {
+    MeshCollider3D: {
+        defaults: {
+            mesh: 0,
+            friction: 0.3,
+            restitution: 0,
+            layer: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'mesh', type: 'mesh' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            mesh: { tooltip: "Geometry (.esmesh) to collide against." },
+            friction: { min: 0 },
+            restitution: { min: 0, max: 1 },
+            layer: { min: 0, max: 15, advanced: true },
+        },
+    },
+    MeshRenderer: {
         defaults: {
             texture: 0,
             normalMap: 0,
@@ -474,28 +493,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across renderables.", enumSource: "sortingLayers" },
             opaque: { tooltip: "Opaque: no blending; writes and tests depth, so meshes occlude each other." },
             cullBackfaces: { tooltip: "Cull back faces: triangles facing away from the camera are skipped." },
-            lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
+            lit: { tooltip: "Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this." },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
-        },
-    },
-    MeshCollider3D: {
-        defaults: {
-            mesh: 0,
-            friction: 0.3,
-            restitution: 0,
-            layer: 0,
-            enabled: true,
-        },
-        assetFields: [{ field: 'mesh', type: 'mesh' as AssetFieldType }],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-        fields: {
-            mesh: { tooltip: "Geometry (.esmesh) to collide against." },
-            friction: { min: 0 },
-            restitution: { min: 0, max: 1 },
-            layer: { min: 0, max: 15, advanced: true },
         },
     },
     MeshSkin: {
@@ -842,7 +842,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvOffset: { advanced: true },
             uvScale: { advanced: true },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },
-            lit: { tooltip: "Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this." },
+            lit: { tooltip: "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this." },
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
@@ -1236,7 +1236,7 @@ export interface InteractableData {
     raycastTarget: boolean;
 }
 
-export interface Light2DData {
+export interface LightData {
     type: number;
     color: Color;
     intensity: number;
@@ -1253,7 +1253,15 @@ export interface Light2DData {
     enabled: boolean;
 }
 
-export interface Mesh2DData {
+export interface MeshCollider3DData {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    layer: number;
+    enabled: boolean;
+}
+
+export interface MeshRendererData {
     texture: number;
     normalMap: number;
     color: Color;
@@ -1265,14 +1273,6 @@ export interface Mesh2DData {
     material: number;
     enabled: boolean;
     mesh: number;
-}
-
-export interface MeshCollider3DData {
-    mesh: number;
-    friction: number;
-    restitution: number;
-    layer: number;
-    enabled: boolean;
 }
 
 export interface MeshSkinData {

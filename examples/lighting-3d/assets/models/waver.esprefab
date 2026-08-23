@@ -39,7 +39,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/waver_0_0.esmesh",
             "lit": true,
@@ -145,7 +145,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/waver_1_0.esmesh",
             "lit": true,

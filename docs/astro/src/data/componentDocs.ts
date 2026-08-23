@@ -70,11 +70,11 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   FollowTarget: { category: 'graphics', summary: 'Makes a camera chase an entity, with an offset, a dead zone and eased catch-up.', doc: 'graphics/camera', anchor: 'follow-a-target', anchorZh: '跟随目标' },
   CameraBounds: { category: 'graphics', summary: 'The world rectangle a camera may not look outside of, so the level edge stays at the screen edge.', doc: 'graphics/camera', anchor: 'keep-the-camera-inside-the-level', anchorZh: '把相机限制在关卡内' },
   Canvas: { category: 'graphics', summary: 'The design resolution and scale mode a scene is authored against — one per scene root.', doc: 'core-concepts/screen', anchor: 'the-canvas-component', anchorZh: 'canvas-组件' },
-  Light2D: { category: 'graphics', summary: 'A 2D light — point, directional, spot or ambient — that lit renderers and Lit2D materials receive.', doc: 'graphics/lighting', anchor: 'light-types', anchorZh: '光源类型' },
+  Light: { category: 'graphics', summary: 'A light — point, directional, spot or ambient — read by lit renderers, Lit2D materials and mesh shadow maps.', doc: 'graphics/lighting', anchor: 'light-types', anchorZh: '光源类型' },
   ShadowCaster2D: { category: 'graphics', summary: 'Marks a renderer as an occluder, so 2D lights cast shadows from its silhouette.', doc: 'graphics/lighting', anchor: 'casting-shadows', anchorZh: '投射阴影' },
   PostProcessVolume: { category: 'graphics', summary: 'A stack of full-screen effects (bloom, vignette, colour grading) applied after the scene is drawn.', doc: 'graphics/post-processing', anchor: 'using-a-postprocessvolume', anchorZh: '使用-postprocessvolume' },
-  Mesh2D: { category: 'graphics', summary: 'Arbitrary 2D geometry — your own vertices, indices and material — drawn like any other renderer.', doc: 'graphics/drawing', anchor: 'custom-meshes-mesh2d', anchorZh: '自定义网格mesh2d' },
-  MeshSkin: { category: 'graphics', summary: 'The joint entities that deform a Mesh2D — an imported skin, in the order its bind matrices are in.', doc: 'assets/models', anchor: 'skinning', anchorZh: '蒙皮' },
+  MeshRenderer: { category: 'graphics', summary: 'Geometry drawn as an entity — your own vertices or an imported mesh, with a material and a sorting layer.', doc: 'graphics/drawing', anchor: 'custom-meshes-meshrenderer', anchorZh: '自定义网格meshrenderer' },
+  MeshSkin: { category: 'graphics', summary: 'The joint entities that deform a MeshRenderer — an imported skin, in the order its bind matrices are in.', doc: 'assets/models', anchor: 'skinning', anchorZh: '蒙皮' },
   Video: { category: 'graphics', summary: 'Plays a video stream onto a surface in the world or the UI.', doc: 'graphics/video', anchor: 'the-video-component', anchorZh: 'video-组件' },
 
   // ── UI ─────────────────────────────────────────────────────────────────────

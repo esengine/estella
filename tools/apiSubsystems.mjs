@@ -207,6 +207,6 @@ export const SUBSYSTEMS = [
         tier: 'experimental',
         why: 'as AI — and the render graph behind it is still moving',
         whyZh: '同 AI —— 而且它背后的 render graph 还在动',
-        entry: ['Material', 'Light2D', 'PostProcessStack'],
+        entry: ['Material', 'Light', 'PostProcessStack'],
     },
 ];

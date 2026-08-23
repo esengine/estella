@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "Camera.cullingMask drops whole layers: the HUD (its Canvas is on layer 1) and the blue sprite (layer 2) are cleared from the mask, leaving only the green world on layer 0.",
   "entities": [
     {

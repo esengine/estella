@@ -1,11 +1,11 @@
 import {
-    defineSystem, GetWorld, Res, Time, Meshes2D, type Entity,
+    defineSystem, GetWorld, Res, Time, MeshRenderers, type Entity,
 } from 'esengine';
 import { RIBBON, hsv } from '../config';
 
-// The Mesh2D tier: a component-owned triangle mesh. The Ribbon entity lives in
+// The MeshRenderer tier: a component-owned triangle mesh. The Ribbon entity lives in
 // the scene (sorted with sprites via `layer`, saved, inspectable); this system
-// regenerates its vertices every frame and re-uploads through the Meshes2D
+// regenerates its vertices every frame and re-uploads through the MeshRenderers
 // resource — the supported mutation path (direct writes to the component's
 // `geometry` field are not change-detected).
 
@@ -21,7 +21,7 @@ for (let i = 0; i < N; i++) {
 let ribbon: Entity | null = null;
 
 export const ribbonSystem = defineSystem(
-    [GetWorld(), Res(Meshes2D), Res(Time)],
+    [GetWorld(), Res(MeshRenderers), Res(Time)],
     (world, meshes, time) => {
         if (ribbon === null) ribbon = world.findEntityByName('Ribbon');
         if (ribbon === null) return;

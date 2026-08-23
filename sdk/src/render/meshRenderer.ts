@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Mesh2D geometry API — uploads a Mesh2D component's local-space geometry to the
- * engine (mesh2d_setGeometry) and carries it through scene save/load as an
+ * MeshRenderer geometry API — uploads a MeshRenderer component's local-space geometry to the
+ * engine (meshRenderer_setGeometry) and carries it through scene save/load as an
  * out-of-band field (variable-size payloads are not C++ component fields).
  */
 import type { App, Plugin } from '../app/app';
@@ -10,7 +10,7 @@ import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
-import type { Mesh2DGeometry } from '../ecs/component';
+import type { MeshRendererGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
 import { registerSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
@@ -23,9 +23,9 @@ function packRgba(colors: number[], v: number): number {
         | (clamp(colors[v * 4 + 3] ?? 1) << 24)) >>> 0;
 }
 
-export class Mesh2DAPI {
+export class MeshRendererAPI {
     /** Entity → authored geometry, so scene save round-trips what was uploaded. */
-    private readonly authored_ = new Map<number, Mesh2DGeometry>();
+    private readonly authored_ = new Map<number, MeshRendererGeometry>();
 
     constructor(
         /** Whichever engine core is present (see ecs/engineApi.ts). */
@@ -34,14 +34,14 @@ export class Mesh2DAPI {
     ) {}
 
     /**
-     * Upload geometry for an entity's Mesh2D component. Positions are x,y pairs in
+     * Upload geometry for an entity's MeshRenderer component. Positions are x,y pairs in
      * component-local space; uvs default to 0,0 (untextured meshes render vertex
      * colors on the white texture); colors are r,g,b,a floats per vertex.
      */
-    setGeometry(entity: Entity, geometry: Mesh2DGeometry): void {
+    setGeometry(entity: Entity, geometry: MeshRendererGeometry): void {
         const m = this.module_;
-        const upload = m.mesh2d_setGeometry;
-        // A core that compiles no mesh2d, or marshals no buffers, uploads nothing.
+        const upload = m.meshRenderer_setGeometry;
+        // A core that compiles no mesh renderer, or marshals no buffers, uploads nothing.
         // The heap is wasm linear memory on the web and the host's arena on a
         // device — the writes below are identical either way.
         if (!upload || !m._malloc || !m._free || !m.HEAPU8) return;
@@ -84,20 +84,20 @@ export class Mesh2DAPI {
 
     /** Clear an entity's mesh geometry (a valid state: the mesh renders nothing). */
     clearGeometry(entity: Entity): void {
-        this.module_.mesh2d_setGeometry?.(this.registry_, entity, 0, 0, 0, 0, 0);
+        this.module_.meshRenderer_setGeometry?.(this.registry_, entity, 0, 0, 0, 0, 0);
         this.authored_.delete(entity);
     }
 
     /** The last geometry uploaded for this entity (scene-export source). */
-    getGeometry(entity: Entity): Mesh2DGeometry | undefined {
+    getGeometry(entity: Entity): MeshRendererGeometry | undefined {
         return this.authored_.get(entity);
     }
 }
 
-export const Meshes2D = defineResource<Mesh2DAPI>(null!, 'Meshes2D');
+export const MeshRenderers = defineResource<MeshRendererAPI>(null!, 'MeshRenderers');
 
-export class Mesh2DPlugin implements Plugin {
-    name = 'mesh2d';
+export class MeshRendererPlugin implements Plugin {
+    name = 'meshRenderer';
     readonly profileDomain = 'render';
     private offDespawn_: (() => void) | null = null;
 
@@ -106,8 +106,8 @@ export class Mesh2DPlugin implements Plugin {
         // the resource, and every call through it no-ops.
         const engine = engineApi(app) ?? {};
         const registry = app.world.getCppRegistry() as CppRegistry;
-        const api = new Mesh2DAPI(engine, registry);
-        app.insertResource(Meshes2D, api);
+        const api = new MeshRendererAPI(engine, registry);
+        app.insertResource(MeshRenderers, api);
 
         this.offDespawn_ = app.world.onDespawn((entity: Entity) => {
             if (api.getGeometry(entity)) api.clearGeometry(entity);
@@ -116,10 +116,10 @@ export class Mesh2DPlugin implements Plugin {
         // The geometry payload is authored in the component data but isn't a C++
         // field — carry it out-of-band and upload it through the validated entry
         // point on load (the same pattern as particle gradients / tilemap chunks).
-        registerSceneComponentCodec('Mesh2D', {
+        registerSceneComponentCodec('MeshRenderer', {
             outOfBandFields: ['geometry'],
             importData: (entity, outOfBand) => {
-                const g = outOfBand.geometry as Mesh2DGeometry | undefined;
+                const g = outOfBand.geometry as MeshRendererGeometry | undefined;
                 if (g && g.positions?.length && g.indices?.length) {
                     api.setGeometry(entity, g);
                 } else {
@@ -139,4 +139,4 @@ export class Mesh2DPlugin implements Plugin {
     }
 }
 
-export const mesh2dPlugin = new Mesh2DPlugin();
+export const meshRendererPlugin = new MeshRendererPlugin();

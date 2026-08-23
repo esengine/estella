@@ -62,7 +62,7 @@ void renderer_submitTextBatch(
     u32 textureId, uintptr_t transformPtr,
     u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
 );
-void mesh2d_setGeometry(
+void meshRenderer_setGeometry(
     ecs::Registry& registry, u32 entity,
     uintptr_t posUvPtr, u32 vertexCount,
     uintptr_t colorsPtr,
@@ -87,16 +87,16 @@ void environment_release(u32 environmentHandle);
 /** @brief Uploads geometry that stays on the GPU; returns its handle, 0 on failure. */
 u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
                 uintptr_t indicesPtr, u32 indexCount);
-/** @brief Points a Mesh2D at resident geometry; 0 returns it to its inline payload. */
-void mesh2d_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle);
-/** @brief Freezes a Mesh2D's inline geometry onto the GPU; returns its handle. */
-u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity);
-/** @brief Freezes every Mesh2D in the world; returns how many were frozen. */
-u32 mesh2d_makeAllResident(ecs::Registry& registry);
-/** @brief Points every Mesh2D at one resident mesh; returns how many. */
-u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle);
-/** @brief Points every Mesh2D at one material; returns how many. */
-u32 mesh2d_setMaterialAll(ecs::Registry& registry, u32 materialId);
+/** @brief Points a MeshRenderer at resident geometry; 0 returns it to its inline payload. */
+void meshRenderer_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle);
+/** @brief Freezes a MeshRenderer's inline geometry onto the GPU; returns its handle. */
+u32 meshRenderer_makeResident(ecs::Registry& registry, u32 entity);
+/** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */
+u32 meshRenderer_makeAllResident(ecs::Registry& registry);
+/** @brief Points every MeshRenderer at one resident mesh; returns how many. */
+u32 meshRenderer_setMeshAll(ecs::Registry& registry, u32 meshHandle);
+/** @brief Points every MeshRenderer at one material; returns how many. */
+u32 meshRenderer_setMaterialAll(ecs::Registry& registry, u32 materialId);
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
 #endif
@@ -124,9 +124,9 @@ u32 renderer_getDrawCalls();
 /// GPU objects the device has not destroyed, for the resource census. Null when
 /// no device is initialized — absent counters, not zeroed ones.
 emscripten::val renderer_getLiveObjects();
-/// Local bounds of what a Mesh2D draws (resident geometry, else the inline
+/// Local bounds of what a MeshRenderer draws (resident geometry, else the inline
 /// payload). Null when it draws nothing — an editor boxes it by its icon then.
-emscripten::val mesh2d_localBounds(ecs::Registry& registry, u32 entity);
+emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity);
 #endif
 u32 renderer_getTriangles();
 u32 renderer_getSprites();

@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { pickEntitiesByRay } from '../src/ecs/entityPick';
-import { Transform, Sprite, Mesh2D } from '../src/ecs/component';
+import { Transform, Sprite, MeshRenderer } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
@@ -27,7 +27,7 @@ function fakeWorld(
         getAllEntities: () => Object.keys(rows).map((k) => ent(Number(k))),
         getCppRegistry: () => ({}),
         getWasmModule: () => ({
-            mesh2d_localBounds: (_r: unknown, e: number) => meshBounds[e] ?? null,
+            meshRenderer_localBounds: (_r: unknown, e: number) => meshBounds[e] ?? null,
         }),
     } as never;
 }
@@ -63,7 +63,7 @@ describe('picking entities by ray', () => {
     // an imported mesh landed on whatever was behind it.
     it('takes a mesh by its geometry, in a realm that draws no icons', () => {
         const world = fakeWorld(
-            { 1: { [name(Transform)]: T(0, 0), [name(Mesh2D)]: {} } },
+            { 1: { [name(Transform)]: T(0, 0), [name(MeshRenderer)]: {} } },
             { 1: { minX: -200, minY: -200, minZ: -200, maxX: 200, maxY: 200, maxZ: 200 } },
         );
         expect(pickEntitiesByRay(world, down(150, 150))).toEqual([ent(1)]);

@@ -43,7 +43,7 @@ describe('collectSubsystems', () => {
   });
 
   it('says nothing about a project that only uses what every target has', () => {
-    const scene = { entities: [{ components: [{ type: 'Sprite' }, { type: 'Light2D' }, { type: 'TrailRenderer' }] }] };
+    const scene = { entities: [{ components: [{ type: 'Sprite' }, { type: 'Light' }, { type: 'TrailRenderer' }] }] };
     expect(collectSubsystems(scene).size).toBe(0);
   });
 

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshSkinMaterial",
   "entities": [
     {
@@ -85,7 +85,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/skinned-arm.esmesh",
             "color": {

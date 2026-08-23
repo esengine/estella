@@ -20,8 +20,8 @@
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
-#include "../ecs/components/Light2D.hpp"
-#include "../ecs/components/Mesh2D.hpp"
+#include "../ecs/components/Light.hpp"
+#include "../ecs/components/MeshRenderer.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
 #include "../ecs/components/RigidBody.hpp"
@@ -159,11 +159,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("SpaceAround", esengine::ecs::JustifyContent::SpaceAround)
         .value("SpaceEvenly", esengine::ecs::JustifyContent::SpaceEvenly);
 
-    enum_<esengine::ecs::Light2DType>("Light2DType")
-        .value("Point", esengine::ecs::Light2DType::Point)
-        .value("Directional", esengine::ecs::Light2DType::Directional)
-        .value("Ambient", esengine::ecs::Light2DType::Ambient)
-        .value("Spot", esengine::ecs::Light2DType::Spot);
+    enum_<esengine::ecs::LightType>("LightType")
+        .value("Point", esengine::ecs::LightType::Point)
+        .value("Directional", esengine::ecs::LightType::Directional)
+        .value("Ambient", esengine::ecs::LightType::Ambient)
+        .value("Spot", esengine::ecs::LightType::Spot);
 
     enum_<esengine::ecs::MaskMode>("MaskMode")
         .value("Scissor", esengine::ecs::MaskMode::Scissor)
@@ -472,7 +472,7 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     return js;
 }
 
-struct Light2DJS {
+struct LightJS {
     i32 type;
     glm::vec4 color;
     f32 intensity;
@@ -489,7 +489,7 @@ struct Light2DJS {
     bool enabled;
 };
 
-void light2dApplyJS(esengine::ecs::Light2D& c, const Light2DJS& js) {
+void lightApplyJS(esengine::ecs::Light& c, const LightJS& js) {
     c.type = js.type;
     c.color = js.color;
     c.intensity = js.intensity;
@@ -506,14 +506,14 @@ void light2dApplyJS(esengine::ecs::Light2D& c, const Light2DJS& js) {
     c.enabled = js.enabled;
 }
 
-esengine::ecs::Light2D light2dFromJS(const Light2DJS& js) {
-    esengine::ecs::Light2D c;
-    light2dApplyJS(c, js);
+esengine::ecs::Light lightFromJS(const LightJS& js) {
+    esengine::ecs::Light c;
+    lightApplyJS(c, js);
     return c;
 }
 
-Light2DJS light2dToJS(const esengine::ecs::Light2D& c) {
-    Light2DJS js;
+LightJS lightToJS(const esengine::ecs::Light& c) {
+    LightJS js;
     js.type = c.type;
     js.color = c.color;
     js.intensity = c.intensity;
@@ -528,56 +528,6 @@ Light2DJS light2dToJS(const esengine::ecs::Light2D& c) {
     js.environment = c.environment.id();
     js.drawEnvironment = c.drawEnvironment;
     js.enabled = c.enabled;
-    return js;
-}
-
-struct Mesh2DJS {
-    u32 texture;
-    u32 normalMap;
-    glm::vec4 color;
-    i32 layer;
-    bool opaque;
-    bool cullBackfaces;
-    bool lit;
-    glm::vec2 parallax;
-    u32 material;
-    bool enabled;
-    u32 mesh;
-};
-
-void mesh2dApplyJS(esengine::ecs::Mesh2D& c, const Mesh2DJS& js) {
-    c.texture = resource::TextureHandle(js.texture);
-    c.normalMap = resource::TextureHandle(js.normalMap);
-    c.color = js.color;
-    c.layer = js.layer;
-    c.opaque = js.opaque;
-    c.cullBackfaces = js.cullBackfaces;
-    c.lit = js.lit;
-    c.parallax = js.parallax;
-    c.material = js.material;
-    c.enabled = js.enabled;
-    c.mesh = resource::MeshHandle(js.mesh);
-}
-
-esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
-    esengine::ecs::Mesh2D c;
-    mesh2dApplyJS(c, js);
-    return c;
-}
-
-Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
-    Mesh2DJS js;
-    js.texture = c.texture.id();
-    js.normalMap = c.normalMap.id();
-    js.color = c.color;
-    js.layer = c.layer;
-    js.opaque = c.opaque;
-    js.cullBackfaces = c.cullBackfaces;
-    js.lit = c.lit;
-    js.parallax = c.parallax;
-    js.material = c.material;
-    js.enabled = c.enabled;
-    js.mesh = c.mesh.id();
     return js;
 }
 
@@ -610,6 +560,56 @@ MeshCollider3DJS meshcollider3dToJS(const esengine::ecs::MeshCollider3D& c) {
     js.restitution = c.restitution;
     js.layer = c.layer;
     js.enabled = c.enabled;
+    return js;
+}
+
+struct MeshRendererJS {
+    u32 texture;
+    u32 normalMap;
+    glm::vec4 color;
+    i32 layer;
+    bool opaque;
+    bool cullBackfaces;
+    bool lit;
+    glm::vec2 parallax;
+    u32 material;
+    bool enabled;
+    u32 mesh;
+};
+
+void meshrendererApplyJS(esengine::ecs::MeshRenderer& c, const MeshRendererJS& js) {
+    c.texture = resource::TextureHandle(js.texture);
+    c.normalMap = resource::TextureHandle(js.normalMap);
+    c.color = js.color;
+    c.layer = js.layer;
+    c.opaque = js.opaque;
+    c.cullBackfaces = js.cullBackfaces;
+    c.lit = js.lit;
+    c.parallax = js.parallax;
+    c.material = js.material;
+    c.enabled = js.enabled;
+    c.mesh = resource::MeshHandle(js.mesh);
+}
+
+esengine::ecs::MeshRenderer meshrendererFromJS(const MeshRendererJS& js) {
+    esengine::ecs::MeshRenderer c;
+    meshrendererApplyJS(c, js);
+    return c;
+}
+
+MeshRendererJS meshrendererToJS(const esengine::ecs::MeshRenderer& c) {
+    MeshRendererJS js;
+    js.texture = c.texture.id();
+    js.normalMap = c.normalMap.id();
+    js.color = c.color;
+    js.layer = c.layer;
+    js.opaque = c.opaque;
+    js.cullBackfaces = c.cullBackfaces;
+    js.lit = c.lit;
+    js.parallax = c.parallax;
+    js.material = c.material;
+    js.enabled = c.enabled;
+    js.mesh = c.mesh.id();
     return js;
 }
 
@@ -1443,34 +1443,21 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
         .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
 
-    value_object<Light2DJS>("Light2D")
-        .field("type", &Light2DJS::type)
-        .field("color", &Light2DJS::color)
-        .field("intensity", &Light2DJS::intensity)
-        .field("radius", &Light2DJS::radius)
-        .field("innerAngle", &Light2DJS::innerAngle)
-        .field("outerAngle", &Light2DJS::outerAngle)
-        .field("shadowSoftness", &Light2DJS::shadowSoftness)
-        .field("sourceAngle", &Light2DJS::sourceAngle)
-        .field("shadowDistance", &Light2DJS::shadowDistance)
-        .field("meshShadows", &Light2DJS::meshShadows)
-        .field("shadowExtent", &Light2DJS::shadowExtent)
-        .field("environment", &Light2DJS::environment)
-        .field("drawEnvironment", &Light2DJS::drawEnvironment)
-        .field("enabled", &Light2DJS::enabled);
-
-    value_object<Mesh2DJS>("Mesh2D")
-        .field("texture", &Mesh2DJS::texture)
-        .field("normalMap", &Mesh2DJS::normalMap)
-        .field("color", &Mesh2DJS::color)
-        .field("layer", &Mesh2DJS::layer)
-        .field("opaque", &Mesh2DJS::opaque)
-        .field("cullBackfaces", &Mesh2DJS::cullBackfaces)
-        .field("lit", &Mesh2DJS::lit)
-        .field("parallax", &Mesh2DJS::parallax)
-        .field("material", &Mesh2DJS::material)
-        .field("enabled", &Mesh2DJS::enabled)
-        .field("mesh", &Mesh2DJS::mesh);
+    value_object<LightJS>("Light")
+        .field("type", &LightJS::type)
+        .field("color", &LightJS::color)
+        .field("intensity", &LightJS::intensity)
+        .field("radius", &LightJS::radius)
+        .field("innerAngle", &LightJS::innerAngle)
+        .field("outerAngle", &LightJS::outerAngle)
+        .field("shadowSoftness", &LightJS::shadowSoftness)
+        .field("sourceAngle", &LightJS::sourceAngle)
+        .field("shadowDistance", &LightJS::shadowDistance)
+        .field("meshShadows", &LightJS::meshShadows)
+        .field("shadowExtent", &LightJS::shadowExtent)
+        .field("environment", &LightJS::environment)
+        .field("drawEnvironment", &LightJS::drawEnvironment)
+        .field("enabled", &LightJS::enabled);
 
     value_object<MeshCollider3DJS>("MeshCollider3D")
         .field("mesh", &MeshCollider3DJS::mesh)
@@ -1478,6 +1465,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("restitution", &MeshCollider3DJS::restitution)
         .field("layer", &MeshCollider3DJS::layer)
         .field("enabled", &MeshCollider3DJS::enabled);
+
+    value_object<MeshRendererJS>("MeshRenderer")
+        .field("texture", &MeshRendererJS::texture)
+        .field("normalMap", &MeshRendererJS::normalMap)
+        .field("color", &MeshRendererJS::color)
+        .field("layer", &MeshRendererJS::layer)
+        .field("opaque", &MeshRendererJS::opaque)
+        .field("cullBackfaces", &MeshRendererJS::cullBackfaces)
+        .field("lit", &MeshRendererJS::lit)
+        .field("parallax", &MeshRendererJS::parallax)
+        .field("material", &MeshRendererJS::material)
+        .field("enabled", &MeshRendererJS::enabled)
+        .field("mesh", &MeshRendererJS::mesh);
 
     value_object<MeshSkinJS>("MeshSkin")
         .field("joints", &MeshSkinJS::joints);
@@ -2091,52 +2091,28 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Interactable>(entity);
         }))
 
-        // Light2D
-        .function("hasLight2D", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Light2D>(static_cast<Entity>(e));
+        // Light
+        .function("hasLight", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Light>(static_cast<Entity>(e));
         }))
-        .function("getLight2D", optional_override([](Registry& r, u32 e) {
+        .function("getLight", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Light2D>(entity)) return Light2DJS{};
-            return light2dToJS(r.get<esengine::ecs::Light2D>(entity));
+            if (!r.valid(entity) || !r.has<esengine::ecs::Light>(entity)) return LightJS{};
+            return lightToJS(r.get<esengine::ecs::Light>(entity));
         }))
-        .function("addLight2D", optional_override([](Registry& r, u32 e, const Light2DJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::Light2D>(entity)) {
-                light2dApplyJS(*existing, js);
-                return;
-            }
-            r.emplaceOrReplace<esengine::ecs::Light2D>(entity, light2dFromJS(js));
-        }))
-        .function("removeLight2D", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Light2D>(entity)) return;
-            r.remove<esengine::ecs::Light2D>(entity);
-        }))
-
-        // Mesh2D
-        .function("hasMesh2D", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::Mesh2D>(static_cast<Entity>(e));
-        }))
-        .function("getMesh2D", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Mesh2D>(entity)) return Mesh2DJS{};
-            return mesh2dToJS(r.get<esengine::ecs::Mesh2D>(entity));
-        }))
-        .function("addMesh2D", optional_override([](Registry& r, u32 e, const Mesh2DJS& js) {
+        .function("addLight", optional_override([](Registry& r, u32 e, const LightJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::Mesh2D>(entity)) {
-                mesh2dApplyJS(*existing, js);
+            if (auto* existing = r.tryGet<esengine::ecs::Light>(entity)) {
+                lightApplyJS(*existing, js);
                 return;
             }
-            r.emplaceOrReplace<esengine::ecs::Mesh2D>(entity, mesh2dFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::Light>(entity, lightFromJS(js));
         }))
-        .function("removeMesh2D", optional_override([](Registry& r, u32 e) {
+        .function("removeLight", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::Mesh2D>(entity)) return;
-            r.remove<esengine::ecs::Mesh2D>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Light>(entity)) return;
+            r.remove<esengine::ecs::Light>(entity);
         }))
 
         // MeshCollider3D
@@ -2161,6 +2137,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::MeshCollider3D>(entity)) return;
             r.remove<esengine::ecs::MeshCollider3D>(entity);
+        }))
+
+        // MeshRenderer
+        .function("hasMeshRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::MeshRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getMeshRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshRenderer>(entity)) return MeshRendererJS{};
+            return meshrendererToJS(r.get<esengine::ecs::MeshRenderer>(entity));
+        }))
+        .function("addMeshRenderer", optional_override([](Registry& r, u32 e, const MeshRendererJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::MeshRenderer>(entity)) {
+                meshrendererApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::MeshRenderer>(entity, meshrendererFromJS(js));
+        }))
+        .function("removeMeshRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshRenderer>(entity)) return;
+            r.remove<esengine::ecs::MeshRenderer>(entity);
         }))
 
         // MeshSkin
@@ -2669,9 +2669,9 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
-    arr.set(i++, val(std::string("Light2D")));
-    arr.set(i++, val(std::string("Mesh2D")));
+    arr.set(i++, val(std::string("Light")));
     arr.set(i++, val(std::string("MeshCollider3D")));
+    arr.set(i++, val(std::string("MeshRenderer")));
     arr.set(i++, val(std::string("MeshSkin")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
@@ -2819,36 +2819,36 @@ static_assert(offsetof(esengine::ecs::FlexContainer, padding) == 16, "ABI offset
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
-static_assert(offsetof(esengine::ecs::Light2D, type) == 0, "ABI offset drift: esengine::ecs::Light2D.type (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::Light2D, color) == 4, "ABI offset drift: esengine::ecs::Light2D.color (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::Light2D, intensity) == 20, "ABI offset drift: esengine::ecs::Light2D.intensity (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::Light2D, radius) == 24, "ABI offset drift: esengine::ecs::Light2D.radius (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::Light2D, innerAngle) == 28, "ABI offset drift: esengine::ecs::Light2D.innerAngle (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::Light2D, outerAngle) == 32, "ABI offset drift: esengine::ecs::Light2D.outerAngle (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::Light2D, shadowSoftness) == 36, "ABI offset drift: esengine::ecs::Light2D.shadowSoftness (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::Light2D, sourceAngle) == 40, "ABI offset drift: esengine::ecs::Light2D.sourceAngle (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::Light2D, shadowDistance) == 44, "ABI offset drift: esengine::ecs::Light2D.shadowDistance (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::Light2D, meshShadows) == 48, "ABI offset drift: esengine::ecs::Light2D.meshShadows (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::Light2D, shadowExtent) == 52, "ABI offset drift: esengine::ecs::Light2D.shadowExtent (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::Light2D, environment) == 56, "ABI offset drift: esengine::ecs::Light2D.environment (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Light2D, drawEnvironment) == 60, "ABI offset drift: esengine::ecs::Light2D.drawEnvironment (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::Light2D, enabled) == 61, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 61)");
-static_assert(offsetof(esengine::ecs::Mesh2D, texture) == 0, "ABI offset drift: esengine::ecs::Mesh2D.texture (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::Mesh2D, normalMap) == 4, "ABI offset drift: esengine::ecs::Mesh2D.normalMap (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::Mesh2D, color) == 8, "ABI offset drift: esengine::ecs::Mesh2D.color (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::Mesh2D, layer) == 24, "ABI offset drift: esengine::ecs::Mesh2D.layer (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::Mesh2D, opaque) == 28, "ABI offset drift: esengine::ecs::Mesh2D.opaque (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::Mesh2D, cullBackfaces) == 29, "ABI offset drift: esengine::ecs::Mesh2D.cullBackfaces (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::Mesh2D, lit) == 30, "ABI offset drift: esengine::ecs::Mesh2D.lit (EHT expected 30)");
-static_assert(offsetof(esengine::ecs::Mesh2D, parallax) == 32, "ABI offset drift: esengine::ecs::Mesh2D.parallax (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::Mesh2D, material) == 40, "ABI offset drift: esengine::ecs::Mesh2D.material (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::Mesh2D, enabled) == 44, "ABI offset drift: esengine::ecs::Mesh2D.enabled (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::Mesh2D, mesh) == 48, "ABI offset drift: esengine::ecs::Mesh2D.mesh (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::Light, type) == 0, "ABI offset drift: esengine::ecs::Light.type (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Light, color) == 4, "ABI offset drift: esengine::ecs::Light.color (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Light, intensity) == 20, "ABI offset drift: esengine::ecs::Light.intensity (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::Light, radius) == 24, "ABI offset drift: esengine::ecs::Light.radius (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::Light, innerAngle) == 28, "ABI offset drift: esengine::ecs::Light.innerAngle (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::Light, outerAngle) == 32, "ABI offset drift: esengine::ecs::Light.outerAngle (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::Light, shadowSoftness) == 36, "ABI offset drift: esengine::ecs::Light.shadowSoftness (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::Light, sourceAngle) == 40, "ABI offset drift: esengine::ecs::Light.sourceAngle (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 44, "ABI offset drift: esengine::ecs::Light.shadowDistance (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::Light, meshShadows) == 48, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 52, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::Light, environment) == 56, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 60, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::Light, enabled) == 61, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 61)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, layer) == 12, "ABI offset drift: esengine::ecs::MeshCollider3D.layer (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, enabled) == 16, "ABI offset drift: esengine::ecs::MeshCollider3D.enabled (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, texture) == 0, "ABI offset drift: esengine::ecs::MeshRenderer.texture (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, normalMap) == 4, "ABI offset drift: esengine::ecs::MeshRenderer.normalMap (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, color) == 8, "ABI offset drift: esengine::ecs::MeshRenderer.color (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, layer) == 24, "ABI offset drift: esengine::ecs::MeshRenderer.layer (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, opaque) == 28, "ABI offset drift: esengine::ecs::MeshRenderer.opaque (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, cullBackfaces) == 29, "ABI offset drift: esengine::ecs::MeshRenderer.cullBackfaces (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, lit) == 30, "ABI offset drift: esengine::ecs::MeshRenderer.lit (EHT expected 30)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, parallax) == 32, "ABI offset drift: esengine::ecs::MeshRenderer.parallax (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, material) == 40, "ABI offset drift: esengine::ecs::MeshRenderer.material (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, enabled) == 44, "ABI offset drift: esengine::ecs::MeshRenderer.enabled (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::MeshRenderer, mesh) == 48, "ABI offset drift: esengine::ecs::MeshRenderer.mesh (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -3065,7 +3065,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "dc813d9c5d77b235";
+static const char* kEsAbiLayoutHash = "43f91684e5f3d3fb";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

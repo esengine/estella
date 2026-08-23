@@ -326,7 +326,7 @@ void main() {
 
 // The shading a glTF material says beyond its base colour. Those channels are
 // per-material constants and per-material samplers, which is what a material has
-// and a component does not — a Mesh2D's per-object attributes are full.
+// and a component does not — a MeshRenderer's per-object attributes are full.
 const MODEL = `#pragma shader "Model"
 #pragma version 300 es
 #pragma domain Lit2D
@@ -357,7 +357,7 @@ uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
 // Base colour rides the draw itself (slot 0 x vertex colour) — glTF's baseColor
-// is what a Mesh2D already carries. Emission is added AFTER lighting (it is light
+// is what a MeshRenderer already carries. Emission is added AFTER lighting (it is light
 // this surface makes) and occlusion scales only the ambient term.
 // Metal-roughness packing is glTF's: roughness in green, metal in blue.
 void main() {

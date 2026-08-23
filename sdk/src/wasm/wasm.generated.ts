@@ -103,7 +103,7 @@ export enum JustifyContent {
     SpaceEvenly = 5,
 }
 
-export enum Light2DType {
+export enum LightType {
     Point = 0,
     Directional = 1,
     Ambient = 2,
@@ -381,7 +381,7 @@ export interface Interactable {
     raycastTarget: boolean;
 }
 
-export interface Light2D {
+export interface Light {
     type: number;
     color: Vec4;
     intensity: number;
@@ -398,7 +398,15 @@ export interface Light2D {
     enabled: boolean;
 }
 
-export interface Mesh2D {
+export interface MeshCollider3D {
+    mesh: number;
+    friction: number;
+    restitution: number;
+    layer: number;
+    enabled: boolean;
+}
+
+export interface MeshRenderer {
     texture: number;
     normalMap: number;
     color: Vec4;
@@ -410,14 +418,6 @@ export interface Mesh2D {
     material: number;
     enabled: boolean;
     mesh: number;
-}
-
-export interface MeshCollider3D {
-    mesh: number;
-    friction: number;
-    restitution: number;
-    layer: number;
-    enabled: boolean;
 }
 
 export interface MeshSkin {
@@ -766,18 +766,18 @@ export interface Registry {
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
     removeInteractable(entity: Entity): void;
-    hasLight2D(entity: Entity): boolean;
-    getLight2D(entity: Entity): Light2D;
-    addLight2D(entity: Entity, component: Light2D): void;
-    removeLight2D(entity: Entity): void;
-    hasMesh2D(entity: Entity): boolean;
-    getMesh2D(entity: Entity): Mesh2D;
-    addMesh2D(entity: Entity, component: Mesh2D): void;
-    removeMesh2D(entity: Entity): void;
+    hasLight(entity: Entity): boolean;
+    getLight(entity: Entity): Light;
+    addLight(entity: Entity, component: Light): void;
+    removeLight(entity: Entity): void;
     hasMeshCollider3D(entity: Entity): boolean;
     getMeshCollider3D(entity: Entity): MeshCollider3D;
     addMeshCollider3D(entity: Entity, component: MeshCollider3D): void;
     removeMeshCollider3D(entity: Entity): void;
+    hasMeshRenderer(entity: Entity): boolean;
+    getMeshRenderer(entity: Entity): MeshRenderer;
+    addMeshRenderer(entity: Entity, component: MeshRenderer): void;
+    removeMeshRenderer(entity: Entity): void;
     hasMeshSkin(entity: Entity): boolean;
     getMeshSkin(entity: Entity): MeshSkin;
     addMeshSkin(entity: Entity, component: MeshSkin): void;
@@ -891,9 +891,9 @@ export interface ESEngineModule {
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;
-    Light2D: new () => Light2D;
-    Mesh2D: new () => Mesh2D;
+    Light: new () => Light;
     MeshCollider3D: new () => MeshCollider3D;
+    MeshRenderer: new () => MeshRenderer;
     MeshSkin: new () => MeshSkin;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;

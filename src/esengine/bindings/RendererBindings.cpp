@@ -20,8 +20,8 @@
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
-#include "../ecs/components/Mesh2D.hpp"
-#include "../ecs/components/Light2D.hpp"
+#include "../ecs/components/MeshRenderer.hpp"
+#include "../ecs/components/Light.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../core/Log.hpp"
 #ifdef ES_ENABLE_PARTICLES
@@ -155,18 +155,18 @@ void renderer_submitTextBatch(
         textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0, cullBit);
 }
 
-// Mesh2D geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8
+// MeshRenderer geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8
 // colors (null = all white), u32 triangle-list indices. Validated here — the single
 // upload entry — so the render path can trust the payload: out-of-range indices or a
 // non-triangle count reject the whole upload instead of feeding the GPU garbage.
-void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
+void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
                         uintptr_t posUvPtr, u32 vertexCount,
                         uintptr_t colorsPtr,
                         uintptr_t indicesPtr, u32 indexCount) {
     const Entity ent = Entity::fromRaw(entity);
-    auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
     if (!mesh) {
-        ES_LOG_WARN("mesh2d_setGeometry: entity {} has no Mesh2D component", entity);
+        ES_LOG_WARN("meshRenderer_setGeometry: entity {} has no MeshRenderer component", entity);
         return;
     }
 
@@ -178,18 +178,18 @@ void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
         return;
     }
     if (indexCount % 3 != 0) {
-        ES_LOG_WARN("mesh2d_setGeometry: indexCount {} is not a triangle list; rejected", indexCount);
+        ES_LOG_WARN("meshRenderer_setGeometry: indexCount {} is not a triangle list; rejected", indexCount);
         return;
     }
 
-    const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 4, "mesh2d_setGeometry.posUv");
-    const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "mesh2d_setGeometry.colors") : nullptr;
-    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "mesh2d_setGeometry.indices");
+    const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 4, "meshRenderer_setGeometry.posUv");
+    const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "meshRenderer_setGeometry.colors") : nullptr;
+    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "meshRenderer_setGeometry.indices");
     if (!posUv || !indices || (colorsPtr && !colors)) return;
 
     for (u32 i = 0; i < indexCount; ++i) {
         if (indices[i] >= vertexCount) {
-            ES_LOG_WARN("mesh2d_setGeometry: index {} out of range (vertexCount {}); rejected",
+            ES_LOG_WARN("meshRenderer_setGeometry: index {} out of range (vertexCount {}); rejected",
                         indices[i], vertexCount);
             return;
         }
@@ -355,10 +355,10 @@ void environment_release(u32 environmentHandle) {
 }
 
 namespace {
-// Freezes a Mesh2D's inline geometry onto the GPU: the same vertices, uploaded
+// Freezes a MeshRenderer's inline geometry onto the GPU: the same vertices, uploaded
 // once and drawn with a per-object transform. The inline payload is cleared, so
 // the two can never disagree.
-u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
+u32 freezeMeshGeometry(ecs::MeshRenderer* mesh) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     if (!mesh || !rm || mesh->vertices.empty() || mesh->indices.empty()) return 0;
 
@@ -383,14 +383,14 @@ u32 freezeMeshGeometry(ecs::Mesh2D* mesh) {
 }
 }  // namespace
 
-u32 mesh2d_makeResident(ecs::Registry& registry, u32 entity) {
-    return freezeMeshGeometry(registry.tryGet<ecs::Mesh2D>(Entity::fromRaw(entity)));
+u32 meshRenderer_makeResident(ecs::Registry& registry, u32 entity) {
+    return freezeMeshGeometry(registry.tryGet<ecs::MeshRenderer>(Entity::fromRaw(entity)));
 }
 
-u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
+u32 meshRenderer_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
     u32 pointed = 0;
-    for (auto entity : registry.view<ecs::Mesh2D>()) {
-        auto* mesh = registry.tryGet<ecs::Mesh2D>(entity);
+    for (auto entity : registry.view<ecs::MeshRenderer>()) {
+        auto* mesh = registry.tryGet<ecs::MeshRenderer>(entity);
         if (!mesh) continue;
         mesh->mesh = resource::MeshHandle(meshHandle);
         // Cleared: an entity carrying both draws the resident geometry, so a
@@ -402,10 +402,10 @@ u32 mesh2d_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
     return pointed;
 }
 
-u32 mesh2d_setMaterialAll(ecs::Registry& registry, u32 materialId) {
+u32 meshRenderer_setMaterialAll(ecs::Registry& registry, u32 materialId) {
     u32 pointed = 0;
-    for (auto entity : registry.view<ecs::Mesh2D>()) {
-        if (auto* mesh = registry.tryGet<ecs::Mesh2D>(entity)) {
+    for (auto entity : registry.view<ecs::MeshRenderer>()) {
+        if (auto* mesh = registry.tryGet<ecs::MeshRenderer>(entity)) {
             mesh->material = materialId;
             ++pointed;
         }
@@ -413,20 +413,20 @@ u32 mesh2d_setMaterialAll(ecs::Registry& registry, u32 materialId) {
     return pointed;
 }
 
-u32 mesh2d_makeAllResident(ecs::Registry& registry) {
+u32 meshRenderer_makeAllResident(ecs::Registry& registry) {
     u32 frozen = 0;
-    for (auto entity : registry.view<ecs::Mesh2D>()) {
-        if (freezeMeshGeometry(registry.tryGet<ecs::Mesh2D>(entity)) != 0) ++frozen;
+    for (auto entity : registry.view<ecs::MeshRenderer>()) {
+        if (freezeMeshGeometry(registry.tryGet<ecs::MeshRenderer>(entity)) != 0) ++frozen;
     }
     return frozen;
 }
 
-/** @brief Points a Mesh2D at resident geometry; 0 returns it to its inline payload. */
-void mesh2d_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle) {
+/** @brief Points a MeshRenderer at resident geometry; 0 returns it to its inline payload. */
+void meshRenderer_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle) {
     const Entity ent = Entity::fromRaw(entity);
-    auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
     if (!mesh) {
-        ES_LOG_WARN("mesh2d_setMesh: entity {} has no Mesh2D component", entity);
+        ES_LOG_WARN("meshRenderer_setMesh: entity {} has no MeshRenderer component", entity);
         return;
     }
     mesh->mesh = resource::MeshHandle(meshHandle);
@@ -676,14 +676,14 @@ u32 renderer_getDrawCalls() {
 
 #ifdef __EMSCRIPTEN__
 /**
- * The local-space XY box of what a Mesh2D DRAWS — resident geometry when it has
+ * The local-space XY box of what a MeshRenderer DRAWS — resident geometry when it has
  * some, else the inline payload. Which of the two is live is the engine's to
  * know: an editor asking the component alone boxes a resident mesh at zero, and
  * then it cannot be clicked.
  */
-emscripten::val mesh2d_localBounds(ecs::Registry& registry, u32 entity) {
+emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity) {
     const Entity ent = Entity::fromRaw(entity);
-    const auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    const auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
     if (!mesh) return emscripten::val::null();
 
     // The inline payload is authored as 2D positions and has no third dimension;
@@ -1126,7 +1126,7 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
 
     auto light = reg.create();
     reg.emplace<ecs::Transform>(light);
-    reg.emplace<ecs::Light2D>(light).type = static_cast<i32>(ecs::Light2DType::Directional);
+    reg.emplace<ecs::Light>(light).type = static_cast<i32>(ecs::LightType::Directional);
 
     if (g_transformSystem) {
         esengine::World world{reg, ctx().services(), 0.0f};
@@ -1152,7 +1152,7 @@ void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
     ecs::Registry reg;
     auto entity = reg.create();
     reg.emplace<ecs::Transform>(entity);
-    auto& mesh = reg.emplace<ecs::Mesh2D>(entity);
+    auto& mesh = reg.emplace<ecs::MeshRenderer>(entity);
     mesh.mesh = resource::MeshHandle{meshId};
     mesh.lit = true;
     mesh.opaque = true;
@@ -1160,7 +1160,7 @@ void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
     auto light = reg.create();
     auto& lightTransform = reg.emplace<ecs::Transform>(light);
     lightTransform.position = glm::vec3(0.0f, 0.0f, 1.0f);
-    reg.emplace<ecs::Light2D>(light).type = static_cast<i32>(ecs::Light2DType::Directional);
+    reg.emplace<ecs::Light>(light).type = static_cast<i32>(ecs::LightType::Directional);
 
     if (g_transformSystem) {
         esengine::World world{reg, ctx().services(), 0.0f};

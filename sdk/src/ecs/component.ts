@@ -14,18 +14,18 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // `esengine` import site is unchanged; Camera/ParticleEmitter add TS-only fields by
 // extending the generated base.
 import type {
-    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData, DraggableData,
+    TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
-    Mesh2DData as Mesh2DDataCpp,
+    MeshRendererData as MeshRendererDataCpp,
 } from './component.generated';
 // Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
 // module (single source) and re-exported below, so a TS const cannot drift from the
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from '../wasm/wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing } from '../wasm/wasm.generated';
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
@@ -751,10 +751,10 @@ export function ensureBuiltinComponentsRegistered(): void {
 // =============================================================================
 
 // Single-sourced from C++ ES_ENUMs (see import above). ProjectionType, ClearFlags,
-// EmitterShape, SimulationSpace, Light2DType and ShapeType are re-exported from the
+// EmitterShape, SimulationSpace, LightType and ShapeType are re-exported from the
 // generated module; their values and the editor dropdowns built from them now have
 // one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, Light2DType, ShapeType };
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, ShapeType };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
@@ -778,7 +778,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // the generated module (the single source). Adding/removing a C++ field flows here
 // automatically; tsc then enforces every consumer matches.
 export type {
-    TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData, DraggableData,
+    TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -885,9 +885,9 @@ export const ShapeRenderer = defineBuiltin<ShapeRendererData>('ShapeRenderer',
     metaDefaults<ShapeRendererData>('ShapeRenderer')
 );
 
-// type's dropdown is generated from the C++ Light2DType enum (ES_PROPERTY enum=).
-export const Light2D = defineBuiltin<Light2DData>('Light2D',
-    metaDefaults<Light2DData>('Light2D')
+// type's dropdown is generated from the C++ LightType enum (ES_PROPERTY enum=).
+export const Light = defineBuiltin<LightData>('Light',
+    metaDefaults<LightData>('Light')
 );
 
 export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
@@ -982,28 +982,28 @@ export const DragonBonesAnimation = defineBuiltin<DragonBonesAnimationData>('Dra
 );
 
 /**
- * Local-space geometry of a Mesh2D renderable (triangle list, indexed).
+ * Local-space geometry of a MeshRenderer renderable (triangle list, indexed).
  * `positions` is x,y pairs; `uvs` is u,v pairs (default 0,0); `colors` is r,g,b,a
- * floats (0-1) per vertex (default white). Uploaded via mesh2d_setGeometry, which
+ * floats (0-1) per vertex (default white). Uploaded via meshRenderer_setGeometry, which
  * validates indices engine-side.
  */
-export interface Mesh2DGeometry {
+export interface MeshRendererGeometry {
     positions: number[];
     uvs?: number[];
     colors?: number[];
     indices: number[];
 }
 
-// Mesh2D = the generated C++ field shape + one out-of-band TS-only field: the
+// MeshRenderer = the generated C++ field shape + one out-of-band TS-only field: the
 // variable-size geometry payload has no fixed ABI offset, so it never crosses as a
-// component field — it is uploaded through mesh2d_setGeometry (see mesh2dPlugin's
+// component field — it is uploaded through meshRenderer_setGeometry (see meshRendererPlugin's
 // scene codec).
-export interface Mesh2DData extends Mesh2DDataCpp {
-    geometry: Mesh2DGeometry;
+export interface MeshRendererData extends MeshRendererDataCpp {
+    geometry: MeshRendererGeometry;
 }
 
-export const Mesh2D = defineBuiltin<Mesh2DData>('Mesh2D',
-    metaDefaults<Mesh2DData>('Mesh2D', { geometry: { positions: [], indices: [] } })
+export const MeshRenderer = defineBuiltin<MeshRendererData>('MeshRenderer',
+    metaDefaults<MeshRendererData>('MeshRenderer', { geometry: { positions: [], indices: [] } })
 );
 
 // Motion trail. Pure config — the point history is owned by the C++ TrailSystem and

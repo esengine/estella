@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    Light2D.hpp
+ * @file    Light.hpp
  * @brief   2D light source component for the Lit2D material domain.
- * @details A scene's Light2D components are gathered by the render collect path into the
+ * @details A scene's Light components are gathered by the render collect path into the
  *          per-frame LightConstants UBO (binding 2); Lit2D-domain material shaders read them
  *          via the injected applyLighting2D() helper. Point/Directional/Spot lights occupy a
  *          light slot; Ambient lights sum into the ambient term. This component carries only
@@ -33,7 +33,7 @@ namespace esengine::ecs {
  *        normal/position.
  */
 ES_ENUM()
-enum class Light2DType : i32 {
+enum class LightType : i32 {
     Point = 0,
     Directional = 1,
     Ambient = 2,
@@ -44,16 +44,16 @@ enum class Light2DType : i32 {
  * @brief A 2D light contributing to Lit2D-shaded materials.
  *
  * @code
- * auto& light = registry.emplace<Light2D>(e);
- * light.type = static_cast<i32>(Light2DType::Directional);
+ * auto& light = registry.emplace<Light>(e);
+ * light.type = static_cast<i32>(LightType::Directional);
  * light.color = {0, 1, 0};   // green
  * light.intensity = 1.0f;
  * @endcode
  */
 ES_COMPONENT(renderable=enabled)
-struct Light2D {
-    /** @brief Light kind: 0 = Point, 1 = Directional, 2 = Ambient (see Light2DType). */
-    ES_PROPERTY(enum=Light2DType, tooltip="Point, Directional, Ambient, or Spot.")
+struct Light {
+    /** @brief Light kind: 0 = Point, 1 = Directional, 2 = Ambient (see LightType). */
+    ES_PROPERTY(enum=LightType, tooltip="Point, Directional, Ambient, or Spot.")
     i32 type{0};
 
     /** @brief Light color, multiplied by intensity. RGBA for editor color-picker consistency

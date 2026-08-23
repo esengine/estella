@@ -31,6 +31,20 @@ export interface UpgradableEntity {
  */
 export const RETIRED_COMPONENT_TYPES: ReadonlySet<string> = new Set(['StateMachine', 'StateVisuals']);
 
+/**
+ * Components an engine upgrade renamed, old name to new. A name is the key a file
+ * stores a component under, so a rename is a migration: without one the loader
+ * reads the old name as a component it has never heard of.
+ */
+export const RENAMED_COMPONENT_TYPES: ReadonlyMap<string, string> = new Map([
+    ['LocalTransform', 'Transform'],
+    ['WorldTransform', 'Transform'],
+    // The engine's only light and mesh components; their names said 2D while 3D
+    // models, PBR, IBL and shadow maps all went through them.
+    ['Light2D', 'Light'],
+    ['Mesh2D', 'MeshRenderer'],
+]);
+
 /** Light kinds that aim: Directional (1) and Spot (3). Point and Ambient never did. */
 const AIMED_LIGHT_TYPES = new Set([1, 3]);
 
@@ -43,10 +57,9 @@ const IDENTITY = { w: 1, x: 0, y: 0, z: 0 };
  */
 export function needsComponentUpgrade(entity: UpgradableEntity): boolean {
     return entity.components.some((c) => RETIRED_COMPONENT_TYPES.has(c.type)
-        || c.type === 'LocalTransform'
-        || c.type === 'WorldTransform'
+        || RENAMED_COMPONENT_TYPES.has(c.type)
         || (c.type === 'UIMask' && typeof c.data['mode'] === 'string')
-        || (c.type === 'Light2D' && ('direction' in c.data || 'directionZ' in c.data)));
+        || (c.type === 'Light' && ('direction' in c.data || 'directionZ' in c.data)));
 }
 
 /**
@@ -56,7 +69,7 @@ export function needsComponentUpgrade(entity: UpgradableEntity): boolean {
  * Point and Ambient do not aim; their fields go and their rotation is left alone.
  */
 function upgradeLightAim(entity: UpgradableEntity): boolean {
-    const light = entity.components.find((c) => c.type === 'Light2D');
+    const light = entity.components.find((c) => c.type === 'Light');
     if (!light) return false;
     const data = light.data;
     if (!('direction' in data) && !('directionZ' in data)) return false;
@@ -90,8 +103,9 @@ function upgradeLightAim(entity: UpgradableEntity): boolean {
 /** Legacy spellings inside one component. */
 function upgradeComponent(component: UpgradableComponent): boolean {
     let changed = false;
-    if (component.type === 'LocalTransform' || component.type === 'WorldTransform') {
-        component.type = 'Transform';
+    const renamed = RENAMED_COMPONENT_TYPES.get(component.type);
+    if (renamed !== undefined) {
+        component.type = renamed;
         changed = true;
     }
     if (component.type === 'UIMask') {

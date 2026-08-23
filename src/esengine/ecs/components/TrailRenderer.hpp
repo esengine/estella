@@ -8,7 +8,7 @@
  *          history owned by TrailSystem (per-frame gameplay sim, like the particle
  *          system) — this component is PURE CONFIG. TrailPlugin turns that history
  *          into a triangle-strip ribbon each frame and streams it through the unified
- *          Batch face (CPU-generated verts, exactly like Mesh2D), so a trail sorts,
+ *          Batch face (CPU-generated verts, exactly like MeshRenderer), so a trail sorts,
  *          clips, and multi-texture-merges like every other 2D renderable. No new GPU
  *          path, no line-strip topology — a ribbon is triangles.
  *

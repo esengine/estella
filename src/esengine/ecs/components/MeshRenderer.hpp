@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    Mesh2D.hpp
+ * @file    MeshRenderer.hpp
  * @brief   Arbitrary-geometry 2D mesh renderable (deformed sprites, polygons, water
  *          surfaces, procedural shapes).
  * @details Vertices live in component-local space and stream through the unified
  *          Batch face each frame (CPU-transformed like every 2D renderable), so a
  *          mesh participates in sorting, clipping, and multi-texture merging exactly
- *          like a sprite. Geometry is set via mesh2d_setGeometry (bulk upload with
+ *          like a sprite. Geometry is set via meshRenderer_setGeometry (bulk upload with
  *          index validation), not per-field reflection.
  *
  * @author  ESEngine Team
@@ -39,11 +39,11 @@ struct MeshVertex2D {
 };
 
 // =============================================================================
-// Mesh2D Component
+// MeshRenderer Component
 // =============================================================================
 
 ES_COMPONENT(renderable=enabled)
-struct Mesh2D {
+struct MeshRenderer {
     /** @brief Texture sampled by the mesh UVs (invalid = untextured, vertex colors only) */
     ES_PROPERTY(asset = texture)
     resource::TextureHandle texture;
@@ -73,8 +73,8 @@ struct Mesh2D {
     ES_PROPERTY(tooltip="Cull back faces: triangles facing away from the camera are skipped.")
     bool cullBackfaces{false};
 
-    /** @brief Lit by the scene's 2D lights (Light2D). A custom material overrides this. */
-    ES_PROPERTY(tooltip="Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this.")
+    /** @brief Lit by the scene's 2D lights (Light). A custom material overrides this. */
+    ES_PROPERTY(tooltip="Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this.")
     bool lit{false};
 
     /** @brief Parallax scroll factor per axis. 1 = moves with the world (default, no
@@ -101,7 +101,7 @@ struct Mesh2D {
     resource::MeshHandle mesh;
 
     // -------------------------------------------------------------------------
-    // Geometry payload — set via mesh2d_setGeometry, streamed by MeshPlugin.
+    // Geometry payload — set via meshRenderer_setGeometry, streamed by MeshPlugin.
     // Deliberately un-annotated: variable-size data has no fixed ABI offset, so it
     // stays out of the EHT reflection/pointer layout (all annotated fields above
     // keep their asserted offsets because these members come last).
@@ -117,7 +117,7 @@ struct Mesh2D {
     glm::vec2 localMin{0.0f, 0.0f};
     glm::vec2 localMax{0.0f, 0.0f};
 
-    Mesh2D() = default;
+    MeshRenderer() = default;
 };
 
 // =============================================================================
@@ -125,9 +125,9 @@ struct Mesh2D {
 // =============================================================================
 
 /**
- * @brief What deforms a @ref Mesh2D: the entities its Joints channel indexes.
+ * @brief What deforms a @ref MeshRenderer: the entities its Joints channel indexes.
  *
- * @details Its own component because Mesh2D says WHAT is drawn and this says
+ * @details Its own component because MeshRenderer says WHAT is drawn and this says
  *          what moves it; entry i drives joint i of the mesh's own bind
  *          matrices. A skinned mesh's own transform is ignored (glTF requires
  *          it) — the joints are placed in the world, so the vertices are too.

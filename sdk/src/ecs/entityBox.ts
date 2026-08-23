@@ -11,7 +11,7 @@
  */
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from './world';
-import { Transform, Sprite, Mesh2D } from './component';
+import { Transform, Sprite, MeshRenderer } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { worldEngineApi } from './bridge/engineApi';
@@ -156,7 +156,7 @@ interface LocalBounds {
 }
 
 /**
- * The world box of a Mesh2D's geometry — {@link entityWorldBox} for a mesh,
+ * The world box of a MeshRenderer's geometry — {@link entityWorldBox} for a mesh,
  * whose extent is in its vertices rather than in a size field. The engine
  * answers: only it knows whether the live geometry is the resident one or the
  * inline payload. Null for anything else, and for a mesh that draws nothing.
@@ -164,16 +164,16 @@ interface LocalBounds {
  * @experimental
  */
 export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | null {
-    if (!world.valid(entity) || !world.has(entity, Mesh2D) || !world.has(entity, Transform)) return null;
+    if (!world.valid(entity) || !world.has(entity, MeshRenderer) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
     // The wasm module, not the shared engine api: this answer is a small object,
     // which is a shape only that binding surface carries.
     const module = world.getWasmModule() as {
-        mesh2d_localBounds?(registry: unknown, entity: number): LocalBounds | null;
+        meshRenderer_localBounds?(registry: unknown, entity: number): LocalBounds | null;
     } | null;
     const registry = world.getCppRegistry();
-    if (!registry || !module?.mesh2d_localBounds) return null;
-    const b = module.mesh2d_localBounds(registry, entity);
+    if (!registry || !module?.meshRenderer_localBounds) return null;
+    const b = module.meshRenderer_localBounds(registry, entity);
     if (!b) return null;
 
     const t = world.get(entity, Transform);

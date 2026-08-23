@@ -3,7 +3,7 @@
 /**
  * @file  A mesh's world box, against the real engine.
  *
- * The extent of a Mesh2D lives in its vertices — and for GPU-resident geometry
+ * The extent of a MeshRenderer lives in its vertices — and for GPU-resident geometry
  * not in the component at all — so the engine is what answers. An editor that
  * boxes a mesh by its component alone gets nothing to click.
  *
@@ -11,8 +11,8 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
-import { Transform, Mesh2D } from '../src/ecs/component';
-import { Mesh2DAPI } from '../src/render/mesh2d';
+import { Transform, MeshRenderer } from '../src/ecs/component';
+import { MeshRendererAPI } from '../src/render/meshRenderer';
 import { meshWorldBox } from '../src/ecs/entityBox';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -53,10 +53,10 @@ describe.skipIf(!HAS_WASM)('a mesh world box (WASM integration)', () => {
     it('is the uploaded geometry, taken through the world scale', () => {
         const { app, registry } = createApp();
         try {
-            const mesh = new Mesh2DAPI(module as never, registry);
+            const mesh = new MeshRendererAPI(module as never, registry);
             const e = app.world.spawn();
             app.world.insert(e, Transform, transform(10, 20, 2, 3));
-            app.world.insert(e, Mesh2D, {});
+            app.world.insert(e, MeshRenderer, {});
             mesh.setGeometry(e, {
                 positions: [-50, -10, 50, -10, 50, 10, -50, 10],
                 indices: [0, 1, 2, 0, 2, 3],
@@ -75,7 +75,7 @@ describe.skipIf(!HAS_WASM)('a mesh world box (WASM integration)', () => {
         try {
             const e = app.world.spawn();
             app.world.insert(e, Transform, transform());
-            app.world.insert(e, Mesh2D, {});
+            app.world.insert(e, MeshRenderer, {});
             app.tick(1 / 60);
             expect(meshWorldBox(app.world, e)).toBeNull();
         } finally {

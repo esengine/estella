@@ -5,7 +5,7 @@ Symbols: 113 public · 71 beta · 1534 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"dc813d9c5d77b235"
+"43f91684e5f3d3fb"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4040,12 +4040,12 @@ static prototype: LifecyclePlugin
 autoPause: boolean | undefined
 ```
 
-## Light2D — const @experimental
+## Light — const @experimental
 ```
-BuiltinComponentDef<Light2DData>
+BuiltinComponentDef<LightData>
 ```
 
-## Light2DData — interface @experimental
+## LightData — interface @experimental
 ```
 color: Color
 drawEnvironment: boolean
@@ -4063,7 +4063,7 @@ sourceAngle: number
 type: number
 ```
 
-## Light2DType — enum @experimental
+## LightType — enum @experimental
 ```
 Ambient = 2
 Directional = 1
@@ -4481,54 +4481,6 @@ static pair: (options?: MemoryTransportOptions) => [MemoryTransport, MemoryTrans
 static prototype: MemoryTransport
 ```
 
-## Mesh2D — const @experimental
-```
-BuiltinComponentDef<Mesh2DData>
-```
-
-## Mesh2DAPI — class @experimental
-```
-clearGeometry: (entity: Entity) => void
-getGeometry: (entity: Entity) => Mesh2DGeometry | undefined
-setGeometry: (entity: Entity, geometry: Mesh2DGeometry) => void
-static new (module_: NonNullable<EngineApi>, registry_: CppRegistry): Mesh2DAPI
-static prototype: Mesh2DAPI
-```
-
-## Mesh2DData — interface @experimental
-```
-color: Color
-cullBackfaces: boolean
-enabled: boolean
-geometry: Mesh2DGeometry
-layer: number
-lit: boolean
-material: number
-mesh: number
-normalMap: number
-opaque: boolean
-parallax: Vec2
-texture: number
-```
-
-## Mesh2DGeometry — interface @experimental
-```
-colors: number[] | undefined
-indices: number[]
-positions: number[]
-uvs: number[] | undefined
-```
-
-## Mesh2DPlugin — class @experimental
-```
-build: (app: App) => void
-cleanup: () => void
-name: string
-profileDomain: "render"
-static new (): Mesh2DPlugin
-static prototype: Mesh2DPlugin
-```
-
 ## MeshChannel — const @experimental
 ```
 { readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; readonly Joints: 5; readonly Weights: 6; }
@@ -4573,14 +4525,62 @@ vertexStride: number
 vertices: Uint8Array<ArrayBufferLike>
 ```
 
+## MeshRenderer — const @experimental
+```
+BuiltinComponentDef<MeshRendererData>
+```
+
+## MeshRendererAPI — class @experimental
+```
+clearGeometry: (entity: Entity) => void
+getGeometry: (entity: Entity) => MeshRendererGeometry | undefined
+setGeometry: (entity: Entity, geometry: MeshRendererGeometry) => void
+static new (module_: NonNullable<EngineApi>, registry_: CppRegistry): MeshRendererAPI
+static prototype: MeshRendererAPI
+```
+
+## MeshRendererData — interface @experimental
+```
+color: Color
+cullBackfaces: boolean
+enabled: boolean
+geometry: MeshRendererGeometry
+layer: number
+lit: boolean
+material: number
+mesh: number
+normalMap: number
+opaque: boolean
+parallax: Vec2
+texture: number
+```
+
+## MeshRendererGeometry — interface @experimental
+```
+colors: number[] | undefined
+indices: number[]
+positions: number[]
+uvs: number[] | undefined
+```
+
+## MeshRendererPlugin — class @experimental
+```
+build: (app: App) => void
+cleanup: () => void
+name: string
+profileDomain: "render"
+static new (): MeshRendererPlugin
+static prototype: MeshRendererPlugin
+```
+
+## MeshRenderers — const @experimental
+```
+ResourceDef<MeshRendererAPI>
+```
+
 ## MeshResult — interface @experimental
 ```
 handle: number
-```
-
-## Meshes2D — const @experimental
-```
-ResourceDef<Mesh2DAPI>
 ```
 
 ## MessageHandler — type @experimental
@@ -6797,7 +6797,7 @@ ComponentDef<{}>
 
 ## SCENE_FORMAT_VERSION — const @experimental
 ```
-1
+2
 ```
 
 ## SCREEN_FIT_OFF — const @experimental
@@ -11260,9 +11260,9 @@ Logger
 (text: string, opts: MeasureTextOptions): TextMetrics
 ```
 
-## mesh2dPlugin — const @experimental
+## meshRendererPlugin — const @experimental
 ```
-Mesh2DPlugin
+MeshRendererPlugin
 ```
 
 ## meshWorldBox — function @experimental

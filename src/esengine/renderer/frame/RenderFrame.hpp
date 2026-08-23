@@ -29,7 +29,7 @@
 
 namespace esengine {
 
-namespace ecs { struct Light2D; }
+namespace ecs { struct Light; }
 
 /// The one shadow texture every map a frame renders shares. One size for every
 /// scene: coverage adapts to the camera instead, so texel density is a property of
@@ -340,7 +340,7 @@ private:
      *          once anything does — culling would make a per-frame answer flap.
      */
     void applySceneDepthNeed();
-    /// Gathers the scene's enabled Light2D components into the per-frame LightConstants UBO
+    /// Gathers the scene's enabled Light components into the per-frame LightConstants UBO
     /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
     /// flush() uploads + binds the result so Lit2D material shaders read it.
     void collectLights(ecs::Registry& registry);
@@ -349,7 +349,7 @@ private:
     /// loaded. `scale` is the light's colour times its intensity, folded into the
     /// coefficients — an environment is what the light casts, not a second source.
     /// @return false when it names none, leaving the caller to add a flat term.
-    bool collectEnvironment(const ecs::Light2D& light, const glm::vec3& scale);
+    bool collectEnvironment(const ecs::Light& light, const glm::vec3& scale);
     /**
      * @brief Draws the scene's mesh occluders from the shadow-casting light, into a map
      *        the main pass samples.

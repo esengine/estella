@@ -520,15 +520,15 @@ export {
 } from './trail';
 
 // =============================================================================
-// Mesh2D
+// MeshRenderer
 // =============================================================================
 
 export {
-    Mesh2DAPI,
-    Meshes2D,
-    Mesh2DPlugin,
-    mesh2dPlugin,
-} from './render/mesh2d';
+    MeshRendererAPI,
+    MeshRenderers,
+    MeshRendererPlugin,
+    meshRendererPlugin,
+} from './render/meshRenderer';
 
 // =============================================================================
 // Tilemap

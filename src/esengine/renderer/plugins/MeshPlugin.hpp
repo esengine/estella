@@ -12,7 +12,7 @@
 namespace esengine {
 
 /**
- * @brief Scene-level 2D mesh renderer (Mesh2D component).
+ * @brief Scene-level 2D mesh renderer (MeshRenderer component).
  * @details Streams component-local geometry through the unified Batch face each
  *          frame — CPU-transformed like every 2D renderable — so meshes sort, clip,
  *          light, and multi-texture-merge exactly like sprites. The whole plugin is

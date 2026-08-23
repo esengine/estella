@@ -35,7 +35,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 
 当项目以**线性色彩空间**渲染时(见[光照](/docs/zh-cn/graphics/lighting/)),只要浮点渲染目标
 可用——WebGPU 恒可用,WebGL2 上是几乎无处不在的 `EXT_color_buffer_float`——效果链就跑在
-**半浮点 HDR** 上。超过 `1.0` 的光照累积(`intensity` 大于 1 的 `Light2D`)会*存活*进效果链,
+**半浮点 HDR** 上。超过 `1.0` 的光照累积(`intensity` 大于 1 的 `Light`)会*存活*进效果链,
 而不是在 8 位存储处被压平:
 
 - **`threshold` 大于 1 的 `bloom`** 只让超范围能量泛光——亮光发辉光,普通 LDR 美术保持锐利。

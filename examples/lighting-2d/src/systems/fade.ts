@@ -1,17 +1,17 @@
 import {
     defineSystem, Query, Mut, Res, Time, Commands,
-    Sprite, Light2D, ShadowCaster2D,
+    Sprite, Light, ShadowCaster2D,
 } from 'esengine';
 import { Fading } from '../components';
 import { PLACED_LIGHT_INTENSITY, FADE_DURATION } from '../config';
 
 // Dims placed entities to nothing over FADE_DURATION, then despawns them. The
-// two queries are disjoint: a placed light has Light2D (no ShadowCaster2D), an
-// obstacle has ShadowCaster2D (no Light2D), so each entity is ticked exactly
+// two queries are disjoint: a placed light has Light (no ShadowCaster2D), an
+// obstacle has ShadowCaster2D (no Light), so each entity is ticked exactly
 // once. The torch never gets a Fading component, so it is never matched here.
 export const fadeSystem = defineSystem(
     [
-        Query(Mut(Fading), Mut(Sprite), Mut(Light2D)),
+        Query(Mut(Fading), Mut(Sprite), Mut(Light)),
         Query(Mut(Fading), Mut(Sprite), ShadowCaster2D),
         Res(Time),
         Commands(),

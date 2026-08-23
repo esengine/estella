@@ -6,9 +6,9 @@
 #include "../store/LightStore.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../../ecs/components/Transform.hpp"
-#include "../../ecs/components/Light2D.hpp"
+#include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
-#include "../../ecs/components/Mesh2D.hpp"
+#include "../../ecs/components/MeshRenderer.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
@@ -687,17 +687,17 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // A light's Transform need is type-dependent. Ambient is a flat scene-wide term and
     // reads none of it; Directional takes only the rotation, so it works without one and
     // aims into the screen; Point/Spot need a position and are skipped without one.
-    auto view = registry.view<ecs::Light2D>();
+    auto view = registry.view<ecs::Light>();
     for (auto entity : view) {
         const auto& light = view.get(entity);
         if (!light.enabled || light.intensity <= 0.0f) continue;
 
-        const auto type = static_cast<ecs::Light2DType>(light.type);
+        const auto type = static_cast<ecs::LightType>(light.type);
         // color.a is unused; intensity carries the strength. Authored sRGB ->
         // linear when the frame lights in linear space.
         const glm::vec3 rgb = linear_color_ ? srgbToLinearCpu(glm::vec3{light.color})
                                             : glm::vec3{light.color};
-        if (type == ecs::Light2DType::Ambient) {
+        if (type == ecs::LightType::Ambient) {
             // An environment REPLACES this light's flat term rather than adding to
             // it: its coefficients already carry the same colour, and summing both
             // would light the scene twice from one source.
@@ -714,7 +714,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
         gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
                                std::max(light.shadowDistance, 0.0f), 0.0f, 0.0f);
-        if (type == ecs::Light2DType::Directional) {
+        if (type == ecs::LightType::Directional) {
             // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
             // component, which only a directional light has a use for — point and spot spend
             // that slot on their falloff radius.
@@ -739,13 +739,13 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             if (!transform) continue;  // a positional light with no position casts nothing
             transform->ensureDecomposed();
             const glm::vec3 p = transform->worldPosition;
-            const f32 typeId = (type == ecs::Light2DType::Spot) ? 2.0f : 0.0f;
+            const f32 typeId = (type == ecs::LightType::Spot) ? 2.0f : 0.0f;
             gpu.posDir = glm::vec4(p.x, p.y, typeId, light.radius);
             // The height a surface with real geometry measures against. A sprite has no
             // depth of its own and keeps the plane's convention, so this reaches only the
             // MESH_NORMALS half of the lighting loop.
             gpu.shadow.z = p.z;
-            if (type == ecs::Light2DType::Spot) {
+            if (type == ecs::LightType::Spot) {
                 // Split across two slots because the two shading halves read different
                 // parts: the plane's xy, and the whole of it in three.
                 const glm::vec3 aim = lightForward(transform);
@@ -763,7 +763,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // six times.
             if (light.meshShadows) {
                 castsMeshShadow = true;
-                caster.shape = type == ecs::Light2DType::Spot ? ShadowShape::Cone
+                caster.shape = type == ecs::LightType::Spot ? ShadowShape::Cone
                                                               : ShadowShape::Cube;
                 caster.pos = p;
                 caster.range = std::max(light.radius, 0.0f);
@@ -807,7 +807,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     }
 }
 
-bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3& scale) {
+bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale) {
     if (!light.environment.isValid()) return false;
     const Environment* environment = resource_manager_.getEnvironment(light.environment);
     if (!environment) return false;
@@ -835,10 +835,10 @@ bool RenderFrame::collectEnvironment(const ecs::Light2D& light, const glm::vec3&
 /// a shadow map has to cover, casters and receivers alike. Rotation is ignored,
 /// the same approximation MeshPlugin's own cull uses.
 bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax) {
-    auto meshes = registry.view<ecs::Transform, ecs::Mesh2D>();
+    auto meshes = registry.view<ecs::Transform, ecs::MeshRenderer>();
     bool any = false;
     for (auto entity : meshes) {
-        const auto& mesh = meshes.get<ecs::Mesh2D>(entity);
+        const auto& mesh = meshes.get<ecs::MeshRenderer>(entity);
         if (!mesh.enabled || !mesh.mesh.isValid()) continue;
         const Mesh* resident = resource_manager_.getMesh(mesh.mesh);
         if (!resident) continue;

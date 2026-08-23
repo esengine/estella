@@ -114,7 +114,7 @@ describe('fbx materials', () => {
     expect(externalFiles).toEqual(['textures/brick.png']);
   });
 
-  it('writes an .esmaterial for what a Mesh2D cannot say', async () => {
+  it('writes an .esmaterial for what a MeshRenderer cannot say', async () => {
     const { meshes } = await importFbxMeshes(texturedTriangle(), 'tri', 'tri.fbx');
     const products = materialProducts(meshes, 'tri');
     expect(products).toHaveLength(1);

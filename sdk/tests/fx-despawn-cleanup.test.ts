@@ -11,7 +11,7 @@ import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
-import { Mesh2DPlugin, Meshes2D } from '../src/render/mesh2d';
+import { MeshRendererPlugin, MeshRenderers } from '../src/render/meshRenderer';
 import { ParticlePlugin } from '../src/particle/ParticlePlugin';
 import { TrailPlugin } from '../src/trail/TrailPlugin';
 import { TrailRenderer } from '../src/ecs/component';
@@ -38,13 +38,13 @@ function withAllocator(module: ESEngineModule): void {
 }
 
 describe('FX per-entity state on despawn', () => {
-    it('Mesh2D: despawn drops the authored geometry entry', () => {
+    it('MeshRenderer: despawn drops the authored geometry entry', () => {
         const { app, module } = bootApp();
         withAllocator(module);
-        (module as unknown as Record<string, unknown>).mesh2d_setGeometry = vi.fn();
+        (module as unknown as Record<string, unknown>).meshRenderer_setGeometry = vi.fn();
 
-        app.addPlugin(new Mesh2DPlugin());
-        const api = app.getResource(Meshes2D);
+        app.addPlugin(new MeshRendererPlugin());
+        const api = app.getResource(MeshRenderers);
         const e = app.world.spawn();
         api.setGeometry(e, { positions: [0, 0, 1, 0, 0, 1], indices: [0, 1, 2] });
         expect(api.getGeometry(e)).toBeDefined();

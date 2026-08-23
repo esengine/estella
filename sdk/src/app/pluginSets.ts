@@ -26,7 +26,7 @@ import { audioPlugin } from '../audio';
 import { videoPlugin } from '../video';
 import { particlePlugin } from '../particle';
 import { trailPlugin } from '../trail';
-import { mesh2dPlugin } from '../render/mesh2d';
+import { meshRendererPlugin } from '../render/meshRenderer';
 import { tilemapPlugin } from '../tilemap';
 import { postProcessPlugin } from '../postprocess';
 import { timelinePlugin } from '../timeline';
@@ -59,7 +59,7 @@ export const simulationBasePlugins = (): Plugin[] => [
 
 /** What exists to be seen. Every entry drives the engine through `engineApi`. */
 export const presentationBasePlugins = (): Plugin[] => [
-    animationPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin,
+    animationPlugin, videoPlugin, particlePlugin, trailPlugin, meshRendererPlugin,
     tilemapPlugin, postProcessPlugin, timelinePlugin,
 ];
 
@@ -71,7 +71,7 @@ export const presentationBasePlugins = (): Plugin[] => [
 export const webBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
-    particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin,
+    particlePlugin, trailPlugin, meshRendererPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
     servicesPlugin,
 ];

@@ -19,8 +19,8 @@ That import is the subject of this page. For the component that draws the result
 ## Built-in primitives
 
 Seven shapes need no import and no file. **Create → Cube** (or Sphere, Capsule, Cylinder,
-Cone, Plane, Quad) makes an entity whose `Mesh2D.mesh` holds a `builtin:` ref, and the
-same seven appear at the top of the picker on any `Mesh2D.mesh` field.
+Cone, Plane, Quad) makes an entity whose `MeshRenderer.mesh` holds a `builtin:` ref, and the
+same seven appear at the top of the picker on any `MeshRenderer.mesh` field.
 
 | Ref | Shape |
 |---|---|
@@ -43,7 +43,7 @@ they stay two-sided and are still there when seen from behind.
 
 <Aside type="caution" title="A lit mesh needs a light">
 Primitives are created `lit`, like imported geometry carrying normals. Lighting is
-multiplicative and starts at zero, so a scene with no `Light2D` in it draws them black —
+multiplicative and starts at zero, so a scene with no `Light` in it draws them black —
 **Create → Sun** adds the directional key light a shaded scene wants. Clearing `lit` gives
 the flat, unshaded look instead.
 </Aside>
@@ -74,12 +74,12 @@ For `robot.gltf` with two primitives and one image:
 |---|---|
 | `robot_0_0.esmesh`, `robot_1_0.esmesh` | One per primitive — geometry, named `<stem>_<mesh>_<primitive>` (just `<stem>` for a single one). |
 | `robot_0.png` | Images the file carries inline. An image already on disk is referenced, never copied. |
-| `robot_m0.esmaterial` | Only when the source's material says something a `Mesh2D` cannot — see [Materials](#materials). |
+| `robot_m0.esmaterial` | Only when the source's material says something a `MeshRenderer` cannot — see [Materials](#materials). |
 | `robot_Walk.estimeline` | One per animation in the source, named `<stem>_<animation>` — see [Animations](#animations). |
-| `robot.esprefab` | How the pieces go together: the node hierarchy, each `Mesh2D` with its mesh, texture, tint and flags. |
+| `robot.esprefab` | How the pieces go together: the node hierarchy, each `MeshRenderer` with its mesh, texture, tint and flags. |
 
 Drag the **prefab** into a scene. The individual `.esmesh` files are assets too — a
-`Mesh2D.mesh` field takes one directly — but the prefab is the model as authored.
+`MeshRenderer.mesh` field takes one directly — but the prefab is the model as authored.
 
 <Aside type="caution" title="Products are rewritten">
 Re-importing replaces every product. Edits made to a generated `.esprefab` are lost;
@@ -113,7 +113,7 @@ Asset uuids survive, so scenes and prefabs that reference the products keep work
 
 A glTF material is split by what can carry it.
 
-**On the `Mesh2D` component** — base colour, because that is what the engine's mesh path
+**On the `MeshRenderer` component** — base colour, because that is what the engine's mesh path
 already is (`texture(uv) × vertexColor × tint`):
 
 | glTF | Component field |

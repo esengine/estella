@@ -16,6 +16,30 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The engine's light and mesh components are no longer named after a plane.**
+  `Light2D` is now `Light` and `Mesh2D` is now `MeshRenderer`. They were never a
+  second, flat pair of components — they are the *only* light and the only mesh
+  renderer the engine has, and PBR, IBL, cascaded shadow maps, imported glTF
+  models and GPU skinning all go through them. `Light2DType` is `LightType`, and
+  the resource, plugin and geometry types follow (`MeshRendererAPI`,
+  `MeshRenderers`, `MeshRendererPlugin`, `MeshRendererGeometry`). The mesh
+  component is not `Mesh`, because `Mesh`/`MeshData` already name the `.esmesh`
+  asset — `MeshRenderer` says which of the two it is, and matches the
+  `ShapeRenderer` / `TrailRenderer` the engine already had.
+
+  **Scenes and prefabs migrate themselves.** A component's name is the key its
+  data is stored under, so a rename is a change to every file holding one: the
+  loader now upgrades the old names on the way in, for scenes and prefabs alike,
+  and the scene format version is 2. An engine older than the rename REFUSES a
+  version-2 scene rather than reading `Light` as a component it has never heard
+  of and loading a level with no lights in it.
+
+  **Breaking for code.** A script that imports `Light2D` or `Mesh2D` from
+  `esengine` must import the new name. What the shader dialects inject is
+  untouched: a `.esshader` still declares `#pragma domain Lit2D` and still reads
+  a `Light2D` from the light block, because that is the GPU-side lighting model,
+  not the component.
+
 - **Particles are simulated and drawn in three dimensions.** A particle's position
   and velocity, an emitter's `gravity` and `shapeSize`, and a force field's
   `direction` are all three-axis now, and the field's zone is a ball rather than a

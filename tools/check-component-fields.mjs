@@ -4,7 +4,7 @@
  * @file  check-component-fields.mjs — a declared field has a reader.
  *
  * A component field is a knob in the inspector. One nothing reads is a knob that
- * does nothing, and it looks exactly like one that works: `Mesh2D.lit` sat there
+ * does nothing, and it looks exactly like one that works: `MeshRenderer.lit` sat there
  * for five bricks while the mesh path picked its shader from the geometry
  * instead, so imported models could not be drawn unlit and geometry without
  * normals could not be lit at all.

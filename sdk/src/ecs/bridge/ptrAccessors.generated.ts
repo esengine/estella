@@ -737,7 +737,7 @@ export function createInteractableData(): InteractablePtrData {
     };
 }
 
-export interface Light2DPtrData {
+export interface LightPtrData {
     type: number;
     color: Color;
     intensity: number;
@@ -754,9 +754,9 @@ export interface Light2DPtrData {
     enabled: boolean;
 }
 
-export function fillLight2D(
+export function fillLight(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: Light2DPtrData,
+    ptr: number, out: LightPtrData,
 ): void {
     out.type = u32[ptr >> 2] | 0;
     const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
@@ -774,9 +774,9 @@ export function fillLight2D(
     out.enabled = u8[ptr + 61] !== 0;
 }
 
-export function writeLight2D(
+export function writeLight(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: Light2DPtrData,
+    ptr: number, data: LightPtrData,
 ): void {
     u32[ptr >> 2] = data.type | 0;
     f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
@@ -794,7 +794,7 @@ export function writeLight2D(
     u8[ptr + 61] = data.enabled ? 1 : 0;
 }
 
-export function createLight2DData(): Light2DPtrData {
+export function createLightData(): LightPtrData {
     return {
         type: 0,
         color: { r: 0, g: 0, b: 0, a: 0 },
@@ -810,70 +810,6 @@ export function createLight2DData(): Light2DPtrData {
         environment: 0,
         drawEnvironment: false,
         enabled: false,
-    };
-}
-
-export interface Mesh2DPtrData {
-    texture: number;
-    normalMap: number;
-    color: Color;
-    layer: number;
-    opaque: boolean;
-    cullBackfaces: boolean;
-    lit: boolean;
-    parallax: Vec2;
-    material: number;
-    enabled: boolean;
-    mesh: number;
-}
-
-export function fillMesh2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: Mesh2DPtrData,
-): void {
-    out.texture = u32[ptr >> 2];
-    out.normalMap = u32[(ptr + 4) >> 2];
-    const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
-    out.layer = u32[(ptr + 24) >> 2] | 0;
-    out.opaque = u8[ptr + 28] !== 0;
-    out.cullBackfaces = u8[ptr + 29] !== 0;
-    out.lit = u8[ptr + 30] !== 0;
-    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 32) >> 2]; parallax_.y = f32[((ptr + 32) >> 2) + 1];
-    out.material = u32[(ptr + 40) >> 2];
-    out.enabled = u8[ptr + 44] !== 0;
-    out.mesh = u32[(ptr + 48) >> 2];
-}
-
-export function writeMesh2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: Mesh2DPtrData,
-): void {
-    u32[ptr >> 2] = data.texture;
-    u32[(ptr + 4) >> 2] = data.normalMap;
-    f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
-    u32[(ptr + 24) >> 2] = data.layer | 0;
-    u8[ptr + 28] = data.opaque ? 1 : 0;
-    u8[ptr + 29] = data.cullBackfaces ? 1 : 0;
-    u8[ptr + 30] = data.lit ? 1 : 0;
-    f32[(ptr + 32) >> 2] = data.parallax.x; f32[((ptr + 32) >> 2) + 1] = data.parallax.y;
-    u32[(ptr + 40) >> 2] = data.material;
-    u8[ptr + 44] = data.enabled ? 1 : 0;
-    u32[(ptr + 48) >> 2] = data.mesh;
-}
-
-export function createMesh2DData(): Mesh2DPtrData {
-    return {
-        texture: 0,
-        normalMap: 0,
-        color: { r: 0, g: 0, b: 0, a: 0 },
-        layer: 0,
-        opaque: false,
-        cullBackfaces: false,
-        lit: false,
-        parallax: { x: 0, y: 0 },
-        material: 0,
-        enabled: false,
-        mesh: 0,
     };
 }
 
@@ -914,6 +850,70 @@ export function createMeshCollider3DData(): MeshCollider3DPtrData {
         restitution: 0,
         layer: 0,
         enabled: false,
+    };
+}
+
+export interface MeshRendererPtrData {
+    texture: number;
+    normalMap: number;
+    color: Color;
+    layer: number;
+    opaque: boolean;
+    cullBackfaces: boolean;
+    lit: boolean;
+    parallax: Vec2;
+    material: number;
+    enabled: boolean;
+    mesh: number;
+}
+
+export function fillMeshRenderer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: MeshRendererPtrData,
+): void {
+    out.texture = u32[ptr >> 2];
+    out.normalMap = u32[(ptr + 4) >> 2];
+    const color_ = out.color; color_.r = f32[(ptr + 8) >> 2]; color_.g = f32[((ptr + 8) >> 2) + 1]; color_.b = f32[((ptr + 8) >> 2) + 2]; color_.a = f32[((ptr + 8) >> 2) + 3];
+    out.layer = u32[(ptr + 24) >> 2] | 0;
+    out.opaque = u8[ptr + 28] !== 0;
+    out.cullBackfaces = u8[ptr + 29] !== 0;
+    out.lit = u8[ptr + 30] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 32) >> 2]; parallax_.y = f32[((ptr + 32) >> 2) + 1];
+    out.material = u32[(ptr + 40) >> 2];
+    out.enabled = u8[ptr + 44] !== 0;
+    out.mesh = u32[(ptr + 48) >> 2];
+}
+
+export function writeMeshRenderer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: MeshRendererPtrData,
+): void {
+    u32[ptr >> 2] = data.texture;
+    u32[(ptr + 4) >> 2] = data.normalMap;
+    f32[(ptr + 8) >> 2] = data.color.r; f32[((ptr + 8) >> 2) + 1] = data.color.g; f32[((ptr + 8) >> 2) + 2] = data.color.b; f32[((ptr + 8) >> 2) + 3] = data.color.a;
+    u32[(ptr + 24) >> 2] = data.layer | 0;
+    u8[ptr + 28] = data.opaque ? 1 : 0;
+    u8[ptr + 29] = data.cullBackfaces ? 1 : 0;
+    u8[ptr + 30] = data.lit ? 1 : 0;
+    f32[(ptr + 32) >> 2] = data.parallax.x; f32[((ptr + 32) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 40) >> 2] = data.material;
+    u8[ptr + 44] = data.enabled ? 1 : 0;
+    u32[(ptr + 48) >> 2] = data.mesh;
+}
+
+export function createMeshRendererData(): MeshRendererPtrData {
+    return {
+        texture: 0,
+        normalMap: 0,
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        layer: 0,
+        opaque: false,
+        cullBackfaces: false,
+        lit: false,
+        parallax: { x: 0, y: 0 },
+        material: 0,
+        enabled: false,
+        mesh: 0,
     };
 }
 
@@ -2158,9 +2158,9 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
-    Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },
-    Mesh2D: { fill: fillMesh2D, write: writeMesh2D, create: createMesh2DData },
+    Light: { fill: fillLight, write: writeLight, create: createLightData },
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
+    MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },

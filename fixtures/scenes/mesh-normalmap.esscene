@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshNormalMap",
   "entities": [
     {
@@ -48,7 +48,7 @@
           }
         },
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 1,
             "color": {

@@ -209,8 +209,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'raycastTarget', type: 'bool', offset: 2 },
         ],
     },
-    Light2D: {
-        ptrFn: 'getLight2DPtr',
+    Light: {
+        ptrFn: 'getLightPtr',
         fields: [
             { name: 'type', type: 'i32', offset: 0 },
             { name: 'color', type: 'color', offset: 4 },
@@ -228,8 +228,18 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 61 },
         ],
     },
-    Mesh2D: {
-        ptrFn: 'getMesh2DPtr',
+    MeshCollider3D: {
+        ptrFn: 'getMeshCollider3DPtr',
+        fields: [
+            { name: 'mesh', type: 'u32', offset: 0 },
+            { name: 'friction', type: 'f32', offset: 4 },
+            { name: 'restitution', type: 'f32', offset: 8 },
+            { name: 'layer', type: 'u32', offset: 12 },
+            { name: 'enabled', type: 'bool', offset: 16 },
+        ],
+    },
+    MeshRenderer: {
+        ptrFn: 'getMeshRendererPtr',
         fields: [
             { name: 'texture', type: 'u32', offset: 0 },
             { name: 'normalMap', type: 'u32', offset: 4 },
@@ -242,16 +252,6 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'material', type: 'u32', offset: 40 },
             { name: 'enabled', type: 'bool', offset: 44 },
             { name: 'mesh', type: 'u32', offset: 48 },
-        ],
-    },
-    MeshCollider3D: {
-        ptrFn: 'getMeshCollider3DPtr',
-        fields: [
-            { name: 'mesh', type: 'u32', offset: 0 },
-            { name: 'friction', type: 'f32', offset: 4 },
-            { name: 'restitution', type: 'f32', offset: 8 },
-            { name: 'layer', type: 'u32', offset: 12 },
-            { name: 'enabled', type: 'bool', offset: 16 },
         ],
     },
     ParticleEmitter: {

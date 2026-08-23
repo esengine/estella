@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "MeshShadowAimed",
   "entities": [
     {
@@ -53,7 +53,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/shadow-quad.esmesh",
             "color": {
@@ -92,7 +92,7 @@
           }
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "/scenes/shadow-quad.esmesh",
             "color": {
@@ -116,7 +116,7 @@
       "visible": true,
       "components": [
         {
-          "type": "Light2D",
+          "type": "Light",
           "data": {
             "type": 1,
             "color": {

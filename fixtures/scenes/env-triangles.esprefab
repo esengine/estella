@@ -15,7 +15,7 @@
           "data": {}
         },
         {
-          "type": "Mesh2D",
+          "type": "MeshRenderer",
           "data": {
             "mesh": "scenes/env-triangles.esmesh",
             "lit": true,
