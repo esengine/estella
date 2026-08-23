@@ -176,6 +176,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The UI hit test took three mouse flags and threw them away.**
+  `uiHitTestWorld(world, x, y, mouseDown, mousePressed, mouseReleased)` carried
+  them into the engine, which `(void)`-ed all three: it is a raycast, and what a
+  press or a hover MEANS is the interaction system's, in TypeScript. The doc
+  comment said the flags "drive hover/press state", and a test asserted they
+  reached the engine — which is exactly what a test that checks the seam rather
+  than the behaviour can prove about a parameter nothing reads. The flags are
+  gone from the SDK function, the binding and the C++ method.
+
 - **The project's default font family never took effect.** It was written into
   `RuntimeConfig` and read by exactly one function — `applyRuntimeConfig`, which
   nothing called — so setting it changed no text anywhere. Two more places

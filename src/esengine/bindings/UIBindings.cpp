@@ -32,9 +32,8 @@ void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 bo
     ctx().require<ecs::UISystem>().layoutUpdate(registry, boxLeft, boxBottom, boxRight, boxTop, propertyDirty);
 }
 
-void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,
-                       bool mouseDown, bool mousePressed, bool mouseReleased) {
-    ctx().require<ecs::UISystem>().hitTestUpdate(registry, mouseWorldX, mouseWorldY, mouseDown, mousePressed, mouseReleased);
+void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
+    ctx().require<ecs::UISystem>().hitTestUpdate(registry, mouseWorldX, mouseWorldY);
 }
 
 u32 uiHitTest_getHitEntity() {

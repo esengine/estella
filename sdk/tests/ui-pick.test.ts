@@ -16,17 +16,11 @@ describe('uiHitTestWorld', () => {
   it('returns the hit entity', () => {
     const engine = hitTester(42);
     expect(uiHitTestWorld(world(engine), 10, 20)).toBe(42);
-    expect(engine.uiHitTest_update).toHaveBeenCalledWith(REGISTRY, 10, 20, false, false, false);
+    expect(engine.uiHitTest_update).toHaveBeenCalledWith(REGISTRY, 10, 20);
   });
 
   it('maps the no-hit sentinel to null', () => {
     expect(uiHitTestWorld(world(hitTester(0xffffffff)), 0, 0)).toBeNull();
-  });
-
-  it('passes mouse flags through (the input path)', () => {
-    const engine = hitTester(7);
-    uiHitTestWorld(world(engine), 1, 2, true, true, false);
-    expect(engine.uiHitTest_update).toHaveBeenCalledWith(REGISTRY, 1, 2, true, true, false);
   });
 
   it('answers null when the world has no engine core behind it', () => {

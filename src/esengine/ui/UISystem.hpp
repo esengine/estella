@@ -44,7 +44,7 @@ struct UIHitTestResult {
  * @code
  * auto& ui = ctx.require<ecs::UISystem>();
  * ui.layoutUpdate(registry, -960, -540, 960, 540);
- * ui.hitTestUpdate(registry, mouseX, mouseY, false, true, false);
+ * ui.hitTestUpdate(registry, mouseX, mouseY);
  * auto hitEntity = ui.getHitEntity();
  * @endcode
  */
@@ -77,10 +77,9 @@ public:
 
     // ---- Hit test pass (defined in UISystem.cpp) ----
 
-    /** @brief Run point-vs-UI hit-test, updating hitResult */
-    void hitTestUpdate(Registry& registry,
-                       f32 mouseWorldX, f32 mouseWorldY,
-                       bool mouseDown, bool mousePressed, bool mouseReleased);
+    /** @brief Run point-vs-UI hit-test, updating hitResult. A query: what a
+     *  press or a hover MEANS is the interaction system's, and it is in TS. */
+    void hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
 
     /** @brief Editor pick: the most specific UI entity under the point. Unlike
      *         hitTestUpdate it ignores Interactable and mutates no state. */

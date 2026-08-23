@@ -37,19 +37,12 @@ function core(world: PickableWorld) {
 /**
  * The topmost **interactable** entity at a world point — the same raycast the
  * interaction system runs, so a custom cursor agrees with the built-in one.
- * The mouse flags drive hover/press state; leave them false to only look.
+ * A query: what a press or a hover MEANS is the interaction system's business.
  */
-export function uiHitTestWorld(
-  world: PickableWorld,
-  worldX: number,
-  worldY: number,
-  mouseDown = false,
-  mousePressed = false,
-  mouseReleased = false,
-): Entity | null {
+export function uiHitTestWorld(world: PickableWorld, worldX: number, worldY: number): Entity | null {
   const c = core(world);
   if (!c?.engine.uiHitTest_update || !c.engine.uiHitTest_getHitEntity) return null;
-  c.engine.uiHitTest_update(c.registry, worldX, worldY, mouseDown, mousePressed, mouseReleased);
+  c.engine.uiHitTest_update(c.registry, worldX, worldY);
   const hit = c.engine.uiHitTest_getHitEntity();
   return hit === NO_HIT ? null : hit;
 }

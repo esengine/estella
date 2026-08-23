@@ -12170,7 +12170,7 @@ TrailPlugin
 
 ## uiHitTestWorld — function @experimental
 ```
-(world: PickableWorld, worldX: number, worldY: number, mouseDown?: boolean, mousePressed?: boolean, mouseReleased?: boolean): Entity | null
+(world: PickableWorld, worldX: number, worldY: number): Entity | null
 ```
 
 ## uiInteractionPlugin — const @experimental

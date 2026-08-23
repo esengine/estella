@@ -241,7 +241,7 @@ export interface NativeEngineApi {
     uiHitTest_pick?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
-    uiHitTest_update?(registry: unknown, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
+    uiHitTest_update?(registry: unknown, mouseWorldX: number, mouseWorldY: number): void;
     uiLayout_update?(registry: unknown, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
     uiNode_computedHeight?(registry: unknown, entity: number): number;
     uiNode_computedWidth?(registry: unknown, entity: number): number;

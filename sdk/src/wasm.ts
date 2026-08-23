@@ -570,7 +570,7 @@ export interface ESEngineModule {
 
     // UI Systems
     uiLayout_update(registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
-    uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number, mouseDown: boolean, mousePressed: boolean, mouseReleased: boolean): void;
+    uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number): void;
     uiHitTest_getHitEntity(): number;
     uiHitTest_getHitEntityPrev(): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;

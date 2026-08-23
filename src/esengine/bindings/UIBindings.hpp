@@ -28,8 +28,7 @@ namespace ecs {
 void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty);
 
-void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,
-                      bool mouseDown, bool mousePressed, bool mouseReleased);
+void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
 u32 uiHitTest_getHitEntity();
 u32 uiHitTest_getHitEntityPrev();
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);

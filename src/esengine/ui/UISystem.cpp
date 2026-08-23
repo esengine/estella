@@ -22,15 +22,7 @@
 
 namespace esengine::ecs {
 
-void UISystem::hitTestUpdate(
-    Registry& registry,
-    f32 mouseWorldX, f32 mouseWorldY,
-    bool mouseDown, bool mousePressed, bool mouseReleased
-) {
-    (void)mouseDown;
-    (void)mousePressed;
-    (void)mouseReleased;
-
+void UISystem::hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
     hitResult.prev_hit_entity = hitResult.hit_entity;
     hitResult.hit_entity = INVALID_ENTITY;
 
