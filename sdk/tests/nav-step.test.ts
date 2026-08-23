@@ -335,3 +335,144 @@ describe('a replan that finds nothing', () => {
         expect(world.pos(entity).x).toBe(0);
     });
 });
+
+/**
+ * A route is planned against a world that does not move. A dozen agents sent to
+ * one place all plan the same route and walk it as one body unless each of them
+ * gives way, which is what declaring a RADIUS asks for.
+ */
+describe('agents that are bodies', () => {
+    const room = (): Navigation => {
+        const nav = new Navigation();
+        nav.setSurface(new NavGrid({ width: 30, height: 30, cellSize: 10 }));
+        return nav;
+    };
+
+    it('walk past each other rather than through', () => {
+        const world = new FakeWorld();
+        const a = world.spawnAgent(20, 150, {
+            speed: 100, radius: 25, arriveRadius: 20, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        const b = world.spawnAgent(270, 150, {
+            speed: 100, radius: 25, arriveRadius: 20, hasTarget: true, targetX: 20, targetY: 150,
+        });
+        const nav = room();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        let closest = Infinity;
+        for (let i = 0; i < 200; i++) {
+            stepNavigation(world, nav, 1 / 30, runtimes);
+            const pa = world.pos(a);
+            const pb = world.pos(b);
+            closest = Math.min(closest, Math.hypot(pa.x - pb.x, pa.y - pb.y));
+        }
+        expect(closest).toBeGreaterThan(40); // their radii sum to 50, less the step
+        expect(world.pos(a).x).toBeGreaterThan(200);
+        expect(world.pos(b).x).toBeLessThan(90);
+    });
+
+    // An agent routed as a point declares no body: it neither gives way nor is
+    // given way to, and it walks the route it was handed exactly as before.
+    it('leave an agent routed as a point walking its route exactly', () => {
+        const world = new FakeWorld();
+        const point = world.spawnAgent(20, 150, {
+            speed: 100, radius: 0, arriveRadius: 0, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        world.spawnAgent(150, 150, { speed: 0, radius: 25 });
+        const nav = room();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        for (let i = 0; i < 60; i++) stepNavigation(world, nav, 1 / 30, runtimes);
+        // Straight down the row it was planned along, through where the body is.
+        expect(world.pos(point).y).toBeCloseTo(150, 1);
+    });
+
+    // Something standing in the way is still something to get round, and getting
+    // round it means keeping moving: an agent that reads a stationary body as
+    // "only I can avoid this" finds standing still the safest thing to do.
+    it('walk round a body standing in the way', () => {
+        const world = new FakeWorld();
+        const mover = world.spawnAgent(20, 150, {
+            speed: 100, radius: 25, arriveRadius: 20, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        const still = world.spawnAgent(150, 150, { speed: 0, radius: 25 });
+        const nav = room();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        let closest = Infinity;
+        for (let i = 0; i < 200; i++) {
+            stepNavigation(world, nav, 1 / 30, runtimes);
+            const pa = world.pos(mover);
+            const pb = world.pos(still);
+            closest = Math.min(closest, Math.hypot(pa.x - pb.x, pa.y - pb.y));
+        }
+        expect(world.pos(mover).x).toBeGreaterThan(200);
+        expect(closest).toBeGreaterThan(40);
+    });
+
+    // A point declares no body, so it is nothing to walk round either.
+    it('walk straight through an agent routed as a point', () => {
+        const world = new FakeWorld();
+        const mover = world.spawnAgent(20, 150, {
+            speed: 100, radius: 25, arriveRadius: 20, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        world.spawnAgent(150, 150, { speed: 0, radius: 0 });
+        const nav = room();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        for (let i = 0; i < 60; i++) stepNavigation(world, nav, 1 / 30, runtimes);
+        expect(world.pos(mover).y).toBeCloseTo(150, 0);
+    });
+
+    // What each of them is already doing is half of what the others are steering
+    // around, so the runtime carries it from frame to frame.
+    it('remember what they travelled at', () => {
+        const world = new FakeWorld();
+        const a = world.spawnAgent(20, 150, {
+            speed: 100, radius: 25, arriveRadius: 20, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        // Near enough to be a neighbour, nowhere near its path: the velocity to
+        // remember is then the one it wanted, which is what makes it readable.
+        world.spawnAgent(150, 280, { speed: 0, radius: 25 });
+        const runtimes = new Map<Entity, AgentRuntime>();
+        stepNavigation(world, room(), 1 / 30, runtimes);
+        const rt = runtimes.get(a)!;
+        expect(Math.hypot(rt.velocityA, rt.velocityB)).toBeCloseTo(100, 0);
+    });
+
+    // Steering is not a licence to leave the world. A corridor that fits one body
+    // does not fit two abreast, so two meeting in one do not get past — and an
+    // agent that got past anyway got past through the wall.
+    it('will not squeeze past each other through a wall', () => {
+        const grid = new NavGrid({ width: 30, height: 9, cellSize: 10 });
+        for (let x = 0; x < 30; x++) {
+            for (let y = 0; y < 9; y++) if (y < 2 || y > 6) grid.setWalkable(x, y, false);
+        }
+        const nav = new Navigation();
+        nav.setSurface(grid);
+        const world = new FakeWorld();
+        const a = world.spawnAgent(20, 40, {
+            speed: 100, radius: 20, arriveRadius: 15, hasTarget: true, targetX: 270, targetY: 40,
+        });
+        const b = world.spawnAgent(270, 40, {
+            speed: 100, radius: 20, arriveRadius: 15, hasTarget: true, targetX: 20, targetY: 40,
+        });
+        const runtimes = new Map<Entity, AgentRuntime>();
+        for (let i = 0; i < 300; i++) {
+            stepNavigation(world, nav, 1 / 30, runtimes);
+            for (const e of [a, b]) {
+                const p = world.pos(e);
+                expect(grid.isNavigable({ x: p.x, y: p.y, z: 0 })).toBe(true);
+            }
+        }
+        expect(world.pos(a).x).toBeLessThan(200);
+        expect(world.pos(b).x).toBeGreaterThan(90);
+    });
+
+    it('are not slowed by an empty room', () => {
+        const world = new FakeWorld();
+        const alone = world.spawnAgent(20, 150, {
+            speed: 100, radius: 25, arriveRadius: 0, hasTarget: true, targetX: 270, targetY: 150,
+        });
+        const nav = room();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        for (let i = 0; i < 30; i++) stepNavigation(world, nav, 1 / 30, runtimes);
+        expect(world.pos(alone).x).toBeCloseTo(120, 0);
+    });
+});

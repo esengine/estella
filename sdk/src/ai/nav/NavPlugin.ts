@@ -40,6 +40,7 @@ import { NavMesh, type NavLinkSegment } from './NavMesh';
 import { NavLink } from './NavLink';
 import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
+import { avoidVelocity, type AvoidanceNeighbour } from './avoidance';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
 export interface AgentRuntime {
@@ -50,6 +51,10 @@ export interface AgentRuntime {
     plannedZ: number;
     repathTimer: number;
     reachable: boolean;
+    /** What it travelled at last frame, on the two axes it steers on. Everyone
+     *  avoiding everyone needs to know what everyone is already doing. */
+    velocityA: number;
+    velocityB: number;
 }
 
 /** Where the bake gets its triangles. Null until the world can answer — a mesh
@@ -211,7 +216,13 @@ export function stepNavigation(
 ): void {
     if (dt <= 0) return;
 
-    for (const entity of world.getEntitiesWithComponents([NavAgent, Transform])) {
+    // Which two axes an agent steers on: the ones the surface's own up leaves out.
+    // A flat scene is walked in x/y; ground with height in it, in x/z.
+    const flat = Math.abs(nav.surface?.up.z ?? 0) > Math.abs(nav.surface?.up.y ?? 1);
+    const entities = world.getEntitiesWithComponents([NavAgent, Transform]);
+    const crowd = gatherCrowd(world, entities, runtimes, flat);
+
+    for (const entity of entities) {
         const agent = world.get(entity, NavAgent);
         if (!agent.hasTarget) {
             runtimes.delete(entity);
@@ -250,6 +261,8 @@ export function stepNavigation(
                     plannedZ: agent.targetZ,
                     repathTimer: agent.repathInterval,
                     reachable: path !== null,
+                    velocityA: rt?.velocityA ?? 0,
+                    velocityB: rt?.velocityB ?? 0,
                 };
             }
             runtimes.set(entity, rt);
@@ -264,9 +277,12 @@ export function stepNavigation(
         // falls; a follower writing the Transform would fight all three.
         const character = world.has(entity, CharacterController3D)
             ? world.get(entity, CharacterController3D) : null;
+        const steering = agent.radius > 0
+            ? neighboursOf(crowd, entity, tf.position, flat, agent.radius)
+            : null;
         const done = character && character.enabled !== false
-            ? steerCharacter(world, entity, agent, rt, character, dt)
-            : walkTransform(world, entity, agent, rt, tf, dt);
+            ? steerCharacter(world, entity, agent, rt, character, dt, flat, steering, nav)
+            : walkTransform(world, entity, agent, rt, tf, dt, flat, steering, nav);
 
         if (done) {
             agent.arrived = true;
@@ -277,13 +293,103 @@ export function stepNavigation(
     }
 }
 
+/**
+ * Everyone on the surface who is a BODY, in the two axes they steer on. An agent
+ * routed as a point declares no body and neither gives way nor is given way to.
+ */
+function gatherCrowd(
+    world: NavWorldView, entities: readonly Entity[],
+    runtimes: Map<Entity, AgentRuntime>, flat: boolean,
+): Array<AvoidanceNeighbour & { entity: Entity }> {
+    const out: Array<AvoidanceNeighbour & { entity: Entity }> = [];
+    for (const entity of entities) {
+        const agent = world.get(entity, NavAgent);
+        if (agent.radius <= 0) continue;
+        const at = world.get(entity, Transform).position;
+        const rt = runtimes.get(entity);
+        out.push({
+            entity,
+            x: at.x,
+            z: flat ? at.y : at.z,
+            vx: rt?.velocityA ?? 0,
+            vz: rt?.velocityB ?? 0,
+            radius: agent.radius,
+        });
+    }
+    return out;
+}
+
+/** How far away another body is worth steering round, as a multiple of the two
+ *  radii — past this the two cannot meet inside the horizon anyway. */
+const NEIGHBOUR_REACH = 6;
+
+function neighboursOf(
+    crowd: ReadonlyArray<AvoidanceNeighbour & { entity: Entity }>,
+    self: Entity, at: Vec3, flat: boolean, radius: number,
+): AvoidanceNeighbour[] | null {
+    const x = at.x;
+    const z = flat ? at.y : at.z;
+    const out: AvoidanceNeighbour[] = [];
+    for (const other of crowd) {
+        if (other.entity === self) continue;
+        const reach = (radius + other.radius) * NEIGHBOUR_REACH;
+        if (Math.hypot(other.x - x, other.z - z) > reach) continue;
+        out.push(other);
+    }
+    return out.length > 0 ? out : null;
+}
+
+/**
+ * The velocity to travel at this frame: straight at the next waypoint, bent round
+ * whoever else is walking there. Only a body steers — an agent routed as a point
+ * has nothing to be in the way of, and nothing to be in its way.
+ */
+function steerTo(
+    target: Vec3, at: Vec3, agent: ComponentData<typeof NavAgent>, rt: AgentRuntime,
+    flat: boolean, neighbours: AvoidanceNeighbour[] | null, nav: Navigation,
+): { a: number; b: number } {
+    const a = at.x;
+    const b = flat ? at.y : at.z;
+    const da = target.x - a;
+    const db = (flat ? target.y : target.z) - b;
+    const length = Math.hypot(da, db);
+    const want = {
+        x: length > 0 ? (da / length) * agent.speed : 0,
+        z: length > 0 ? (db / length) * agent.speed : 0,
+    };
+    if (!neighbours) return { a: want.x, b: want.z };
+
+    const surface = nav.surface;
+    const height = at.y;
+    const v = avoidVelocity(
+        { x: a, z: b, vx: rt.velocityA, vz: rt.velocityB, radius: agent.radius },
+        want, neighbours,
+        {
+            horizon: AVOID_HORIZON,
+            maxSpeed: agent.speed,
+            canStand: surface
+                ? (px, pz) => surface.isNavigable(
+                    flat ? { x: px, y: pz, z: height } : { x: px, y: height, z: pz })
+                : undefined,
+        },
+    );
+    return { a: v.x, b: v.z };
+}
+
+/** How far ahead a collision with another body is worth steering round. */
+const AVOID_HORIZON = 1.6;
+
 /** Move the Transform along the path directly. Returns whether the goal is reached. */
 function walkTransform(
     world: NavWorldView, entity: Entity, agent: ComponentData<typeof NavAgent>,
     rt: AgentRuntime, tf: ComponentData<typeof Transform>, dt: number,
+    flat: boolean, neighbours: AvoidanceNeighbour[] | null, nav: Navigation,
 ): boolean {
+    if (neighbours) return walkAmongBodies(world, entity, agent, rt, tf, dt, flat, neighbours, nav);
     const pos = { x: tf.position.x, y: tf.position.y, z: tf.position.z };
     rt.index = advanceAlongPath(pos, rt.waypoints, rt.index, agent.speed * dt);
+    rt.velocityA = 0;
+    rt.velocityB = 0;
     tf.position.x = pos.x;
     tf.position.y = pos.y;
     tf.position.z = pos.z;
@@ -299,6 +405,57 @@ function walkTransform(
 }
 
 /**
+ * A body walking among other bodies: it is steered rather than marched, because a
+ * route walked exactly is a route that goes through whoever is standing on it. The
+ * waypoint moves on by proximity, since a body cannot be snapped onto a point.
+ */
+function walkAmongBodies(
+    world: NavWorldView, entity: Entity, agent: ComponentData<typeof NavAgent>,
+    rt: AgentRuntime, tf: ComponentData<typeof Transform>, dt: number,
+    flat: boolean, neighbours: AvoidanceNeighbour[], nav: Navigation,
+): boolean {
+    const pos = tf.position;
+    const reach = Math.max(agent.speed * dt * 1.5, WAYPOINT_REACH);
+    while (rt.index < rt.waypoints.length) {
+        const wp = rt.waypoints[rt.index]!;
+        if (planeDistance(wp, pos, flat) > reach) break;
+        rt.index++;
+    }
+
+    const goal = rt.waypoints[rt.waypoints.length - 1];
+    const withinGoal = goal !== undefined && agent.arriveRadius > 0
+        && planeDistance(goal, pos, flat) <= agent.arriveRadius;
+    const target = rt.waypoints[rt.index];
+    if (rt.index >= rt.waypoints.length || withinGoal || target === undefined) {
+        rt.velocityA = 0;
+        rt.velocityB = 0;
+        return true;
+    }
+
+    const v = steerTo(target, pos, agent, rt, flat, neighbours, nav);
+    rt.velocityA = v.a;
+    rt.velocityB = v.b;
+    pos.x += v.a * dt;
+    if (flat) pos.y += v.b * dt;
+    else pos.z += v.b * dt;
+    // The axis the route carries is the ground's, followed rather than steered on.
+    const height = flat ? target.z : target.y;
+    const own = flat ? pos.z : pos.y;
+    const lifted = own + (height - own) * Math.min(1, dt * HEIGHT_FOLLOW);
+    if (flat) pos.z = lifted; else pos.y = lifted;
+    world.set(entity, Transform, tf);
+    return false;
+}
+
+/** How fast a steered agent settles onto the height of the ground it is over. */
+const HEIGHT_FOLLOW = 8;
+
+/** Distance in the two axes an agent steers on. */
+function planeDistance(a: Vec3, b: Vec3, flat: boolean): number {
+    return Math.hypot(a.x - b.x, (flat ? a.y : a.z) - (flat ? b.y : b.z));
+}
+
+/**
  * Point a character controller at the next waypoint and let its own solver move
  * it. Only the horizontal axes are written — the vertical one is the world's, and
  * that is what makes a route down a step a fall. Distances are in the ground plane
@@ -307,6 +464,7 @@ function walkTransform(
 function steerCharacter(
     world: NavWorldView, entity: Entity, agent: ComponentData<typeof NavAgent>,
     rt: AgentRuntime, character: ComponentData<typeof CharacterController3D>, dt: number,
+    flat: boolean, neighbours: AvoidanceNeighbour[] | null, nav: Navigation,
 ): boolean {
     const tf = world.get(entity, Transform);
     const pos = tf.position;
@@ -329,12 +487,14 @@ function steerCharacter(
     if (done) {
         character.velocity.x = 0;
         character.velocity.z = 0;
+        rt.velocityA = 0;
+        rt.velocityB = 0;
     } else {
-        const dx = target.x - pos.x;
-        const dz = target.z - pos.z;
-        const length = Math.hypot(dx, dz);
-        character.velocity.x = length > 0 ? (dx / length) * agent.speed : 0;
-        character.velocity.z = length > 0 ? (dz / length) * agent.speed : 0;
+        const v = steerTo(target, pos, agent, rt, flat, neighbours, nav);
+        character.velocity.x = v.a;
+        character.velocity.z = v.b;
+        rt.velocityA = v.a;
+        rt.velocityB = v.b;
     }
     world.set(entity, CharacterController3D, character);
     return done;

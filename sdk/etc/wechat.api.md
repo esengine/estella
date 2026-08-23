@@ -4727,6 +4727,7 @@ findWorldPath: (from: NavPoint, to: NavPoint, opts?: NavQueryOptions) => Vec3[] 
 height: number
 inBounds: (gx: number, gy: number) => boolean
 index: (gx: number, gy: number) => number
+isNavigable: (p: NavPoint) => boolean
 isWalkable: (gx: number, gy: number) => boolean
 nearestWalkable: (gx: number, gy: number, maxRadius?: number, clearance?: number) => Cell | null
 originX: number
@@ -4783,6 +4784,7 @@ describe: (sink: NavSurfaceSink) => void
 findPoly: (p: NavPoint, out?: Vec3, snap?: number) => number
 findWorldPath: (from: NavPoint, to: NavPoint, opts?: NavQueryOptions) => Vec3[] | null
 heightAt: (p: number, x: number, z: number) => number
+isNavigable: (p: NavPoint) => boolean
 linkCount: number
 maxVertsPerPoly: number
 neis: Int32Array<ArrayBufferLike>
@@ -4851,6 +4853,7 @@ radius: number | undefined
 ```
 describe: (sink: NavSurfaceSink) => void
 findWorldPath: (from: NavPoint, to: NavPoint, opts?: NavQueryOptions) => Vec3[] | null
+isNavigable: (p: NavPoint) => boolean
 up: Vec3
 ```
 

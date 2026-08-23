@@ -533,6 +533,10 @@ export class NavMesh implements NavSurface {
         return followGround(out, atPortal, left, right);
     }
 
+    isNavigable(p: NavPoint): boolean {
+        return this.findPoly(p) >= 0;
+    }
+
     describe(sink: NavSurfaceSink): void {
         for (const link of this.links_) sink.link(link.start, link.end);
         const corners: Vec3[] = [];

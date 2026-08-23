@@ -252,6 +252,33 @@ twice `halfHeight` plus the radius) so the mesh is the set of places that body f
 Without a controller the agent's Transform is moved along the path directly, which
 is what every flat game wants and what a 3D one gets before it has a body.
 
+## Agents give way to each other
+
+A route is planned against a world that does not move. Agents do, and a dozen of
+them sent to one place all plan the same route and walk it as one body. An agent
+whose `radius` is greater than zero declares that it IS a body, and from then on
+it steers round the other bodies walking the same ground:
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 300, radius: 40, arriveRadius: 60 });
+```
+
+Everyone assumes everyone else is doing the same, so each takes half the
+avoidance and two meeting head-on part rather than both dodging the same way and
+meeting again. Where that is not enough to break the tie — a perfect mirror —
+the convention is keep right.
+
+A step aside is checked against the navigable world before it is taken, so
+steering never walks an agent into a wall. Two bodies too wide to pass in one
+corridor therefore do not pass: waiting is the honest answer, and going through
+the wall is not.
+
+An agent with `radius` left at `0` is routed as a point, gives way to nobody and
+is given way to by nobody — which is what every flat game had before this, and
+what a scripted mover still wants.
+
 ## Agents have width
 
 On a **grid**, set `radius` to the body's actual half-width and planning keeps it

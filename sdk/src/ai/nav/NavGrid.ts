@@ -184,6 +184,11 @@ export class NavGrid implements NavSurface {
         return cells ? pathToWorld(this, shortenPath(this, cells, clearance)) : null;
     }
 
+    isNavigable(p: NavPoint): boolean {
+        const cell = this.worldToCell(p);
+        return this.isWalkable(cell.x, cell.y);
+    }
+
     /**
      * Every walkable cell as a quad, and every edge where the walkable world
      * stops. The corner array is reused between calls — see {@link NavSurfaceSink}.

@@ -170,6 +170,26 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **Agents give way to each other.** A route is planned against a world that does
+  not move; agents do, and a dozen sent to one place all planned the same route
+  and walked it as one body. An agent whose `radius` is greater than zero now
+  declares that it IS a body and steers round the other bodies on the same ground:
+  a spread of candidate velocities around the one it wanted, scored on how soon
+  each runs into somebody and how far it strays. Reciprocal — everyone assumes
+  everyone else is giving way too, so each takes half and two meeting head-on part
+  instead of both dodging the same way and meeting again. Where the arrangement is
+  a perfect mirror, the convention that parts them is keep right.
+
+  Sampled rather than solved, because a sample can be REFUSED: every candidate is
+  checked against the navigable world before it is taken, so steering never walks
+  an agent into a wall. Two bodies too wide to pass in one corridor therefore do
+  not pass — waiting is the honest answer and going through the wall is not.
+  `NavSurface` gained the question that makes it possible, `isNavigable`, which is
+  not the same question as "is there a route here". An agent with `radius` left at
+  `0` is routed as a point and neither gives way nor is given way to, which is what
+  every flat game had before this. New editor check `nav3d-crowd` walks four agents
+  across the same square and watches how close they ever come.
+
 - **A scene can say there is a way where the ground has none.** A mesh baked from
   what an agent can walk says two floors with a gap between them are two places,
   and it is right. `NavLink` is where a scene says what the floor does not: this

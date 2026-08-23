@@ -69,6 +69,13 @@ export interface NavSurface {
      */
     findWorldPath(from: NavPoint, to: NavPoint, opts?: NavQueryOptions): Vec3[] | null;
 
+    /**
+     * Whether an agent may stand at a world point. Asked of a place the agent has
+     * not been routed to — a step sideways to get round another body — which is
+     * why it is not the same question as "is there a route here".
+     */
+    isNavigable(p: NavPoint): boolean;
+
     /** Hand the shape of the walkable world to a drawer. */
     describe(sink: NavSurfaceSink): void;
 }
