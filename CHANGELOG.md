@@ -268,6 +268,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The navmesh is visible while a scene is being authored.** The volume's
+  wireframe said where the bake would LOOK; what it found could only be seen by
+  entering Play and turning on a runtime overlay, which is how `cellSize`,
+  `agentRadius` and `agentHeight` came to be tuned by watching whether an agent
+  happened to move. **View → Show Navigation Mesh** (and a viewport toolbar
+  button) bakes the scene's volume in the editor and draws the walkable faces
+  where they are, with the edges they stop at picked out. It rebakes as the scene
+  changes — at most a few times a second, since a bake is the most expensive thing
+  an edit can ask for — so widening `agentRadius` pulls the mesh back from the
+  walls in front of you. It is the same `buildNavMesh` the running game calls, so
+  the picture and the routes cannot be two different answers. New editor check
+  `navmesh-preview`, which asks for an AREA rather than ink (a box outline is ink)
+  and for the area to shrink when the agent is widened.
+
 - **Right-drag turns the editor eye.** It panned, like the middle button, so the
   only way to look around a 3D scene was Alt-drag. Right-drag now turns a view that
   has somewhere to turn to — a perspective one, or one already off head-on — and

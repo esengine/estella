@@ -102,8 +102,14 @@ on its own terms, and `collectNavGeometry(world, box)` is what gathers the trian
 
 ### Seeing what was baked
 
-The volume's wireframe says where the bake looked. To see what it **found**, turn
-on the `NavDebugDraw` resource in the running game:
+The volume's wireframe says where the bake looked. To see what it **found** while
+you are still authoring, turn on **View → Show Navigation Mesh** (or the Navigation
+button on the viewport toolbar): the editor bakes the scene's volume and draws the
+walkable faces where they are, with the edges they stop at picked out. It rebakes
+as the scene changes, so widening `agentRadius` pulls the mesh back from the walls
+in front of you.
+
+The same picture from inside a running game comes from the `NavDebugDraw` resource:
 
 ```typescript
 app.getResource(NavDebugDraw).enabled = true;

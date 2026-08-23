@@ -91,7 +91,12 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 
 ### 看见烘出来的东西
 
-体积的线框说的是烘焙**往哪看**。想看它**找到了什么**,在运行中的游戏里打开 `NavDebugDraw`:
+体积的线框说的是烘焙**往哪看**。想在还在编排场景的时候就看见它**找到了什么**,打开
+**视图 → 显示导航网格**(或视口工具栏上的「导航」按钮):编辑器会烘焙场景里的体积,
+把可走的面画在它们实际所在的位置,并把它们终止的那些边挑出来。场景一变它就重烘,
+所以把 `agentRadius` 调宽时,网格是当着你的面从墙上缩回去的。
+
+同一张图在运行中的游戏里由 `NavDebugDraw` 资源给出:
 
 ```typescript
 app.getResource(NavDebugDraw).enabled = true;
