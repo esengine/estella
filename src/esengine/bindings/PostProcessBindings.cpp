@@ -65,23 +65,6 @@ u32 postprocess_addPass(const std::string& name, u32 shaderHandle) {
     return g_postProcessPipeline->addPass(name, resource::ShaderHandle(shaderHandle));
 }
 
-void postprocess_removePass(const std::string& name) {
-    if (g_postProcessPipeline) {
-        g_postProcessPipeline->removePass(name);
-    }
-}
-
-void postprocess_setPassEnabled(const std::string& name, bool enabled) {
-    if (g_postProcessPipeline) {
-        g_postProcessPipeline->setPassEnabled(name, enabled);
-    }
-}
-
-bool postprocess_isPassEnabled(const std::string& name) {
-    if (!g_postProcessPipeline) return false;
-    return g_postProcessPipeline->isPassEnabled(name);
-}
-
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value) {
     if (g_postProcessPipeline) {
@@ -123,11 +106,6 @@ void postprocess_end() {
     }
 }
 
-u32 postprocess_getPassCount() {
-    if (!g_postProcessPipeline) return 0;
-    return g_postProcessPipeline->getPassCount();
-}
-
 bool postprocess_isInitialized() {
     if (!g_postProcessPipeline) return false;
     return g_postProcessPipeline->isInitialized();
@@ -139,20 +117,9 @@ void postprocess_setBypass(bool bypass) {
     }
 }
 
-bool postprocess_isBypassed() {
-    if (!g_postProcessPipeline) return true;
-    return g_postProcessPipeline->isBypassed();
-}
-
 void postprocess_clearPasses() {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->clearPasses();
-    }
-}
-
-void postprocess_setOutputTarget(u32 fboId) {
-    if (g_postProcessPipeline) {
-        g_postProcessPipeline->setOutputTarget(FramebufferHandle{fboId});
     }
 }
 

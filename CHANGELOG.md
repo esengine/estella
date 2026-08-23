@@ -16,6 +16,23 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Removed: 26 engine entry points no host called.** Five of them
+  (`renderer_submitSprites` / `submitUIElements` / `submitBitmapText` /
+  `submitShapes` / `submitParticles`) had bodies that were `(void)registry;` —
+  collection moved to `renderer_submitAll` and the per-type doors were left
+  standing. The rest were an internal mechanism exposed twice (the seven
+  clip-rect / stencil entries: UI masks are resolved inside the frame, never from
+  JS), a set of incremental post-process calls under a pipeline the SDK rebuilds
+  whole (`removePass` / `setPassEnabled` / `isPassEnabled` / `getPassCount` /
+  `isBypassed` / `setOutputTarget`), superseded entries (`initRendererWithCanvas`,
+  `renderFrameWithMatrix`, `mesh_create`, the per-entity `meshRenderer_setMesh` /
+  `makeResident` beside their `…All` forms), and three queries nothing read.
+
+  New gate `check-engine-exports`: every `emscripten::function` must have a
+  caller in the SDK, the editor, the tools or the tests — the pointer accessors
+  are exempted from the generated layout table itself, so a new component cannot
+  make one look dead.
+
 - **Removed: three machines nothing ever drove.** `SubmitSkipFlags` named two
   render plugins to skip — one of which (`Spine`) has had no plugin to skip
   since spine moved to side modules — and the only `submitAll` in the engine

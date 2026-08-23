@@ -193,47 +193,6 @@ void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
 // Geometry that STAYS on the GPU: interleaved f32 [x,y,z,u,v] plus optional RGBA8
 // colors, validated exactly as the inline path is. createMesh appends the
 // per-object transform, so nothing here knows how a mesh reaches the shader.
-u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
-                uintptr_t indicesPtr, u32 indexCount) {
-    auto* rm = ctx().tryGet<resource::ResourceManager>();
-    if (!rm || posUvPtr == 0 || indicesPtr == 0 || vertexCount == 0 || indexCount == 0) return 0;
-    if (indexCount % 3 != 0) {
-        ES_LOG_WARN("mesh_create: indexCount {} is not a triangle list; rejected", indexCount);
-        return 0;
-    }
-
-    const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 5, "mesh_create.posUv");
-    const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "mesh_create.colors") : nullptr;
-    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "mesh_create.indices");
-    if (!posUv || !indices || (colorsPtr && !colors)) return 0;
-
-    for (u32 i = 0; i < indexCount; ++i) {
-        if (indices[i] >= vertexCount) {
-            ES_LOG_WARN("mesh_create: index {} out of range (vertexCount {}); rejected",
-                        indices[i], vertexCount);
-            return 0;
-        }
-    }
-
-    struct MeshVertex { f32 x, y, z, u, v; u32 color; };
-    static_assert(sizeof(MeshVertex) == 24, "vertex stride must match the mesh layout");
-    std::vector<MeshVertex> verts(vertexCount);
-    glm::vec3 mn(posUv[0], posUv[1], posUv[2]);
-    glm::vec3 mx = mn;
-    for (u32 i = 0; i < vertexCount; ++i) {
-        const f32* p = posUv + i * 5;
-        verts[i] = { p[0], p[1], p[2], p[3], p[4], colors ? colors[i] : 0xFFFFFFFFu };
-        mn = glm::min(mn, glm::vec3(p[0], p[1], p[2]));
-        mx = glm::max(mx, glm::vec3(p[0], p[1], p[2]));
-    }
-
-    auto handle = rm->createMesh(
-        ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
-        ConstSpan<u32>(indices, indexCount),
-        ConstSpan<GfxVertexAttribute>(kStandardMeshChannels, 3), sizeof(MeshVertex), mn, mx);
-    return handle.id();
-}
-
 // Geometry from an .esmesh. The channel table arrives in the file's own layout
 // (8 bytes each), so the asset layer owns the FORMAT and the engine owns the
 // vertex layout it becomes. A channel's semantic is its attribute location.
@@ -362,10 +321,6 @@ u32 freezeMeshGeometry(ecs::MeshRenderer* mesh) {
 }
 }  // namespace
 
-u32 meshRenderer_makeResident(ecs::Registry& registry, u32 entity) {
-    return freezeMeshGeometry(registry.tryGet<ecs::MeshRenderer>(Entity::fromRaw(entity)));
-}
-
 u32 meshRenderer_setMeshAll(ecs::Registry& registry, u32 meshHandle) {
     u32 pointed = 0;
     for (auto entity : registry.view<ecs::MeshRenderer>()) {
@@ -401,49 +356,6 @@ u32 meshRenderer_makeAllResident(ecs::Registry& registry) {
 }
 
 /** @brief Points a MeshRenderer at resident geometry; 0 returns it to its inline payload. */
-void meshRenderer_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle) {
-    const Entity ent = Entity::fromRaw(entity);
-    auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
-    if (!mesh) {
-        ES_LOG_WARN("meshRenderer_setMesh: entity {} has no MeshRenderer component", entity);
-        return;
-    }
-    mesh->mesh = resource::MeshHandle(meshHandle);
-}
-
-void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
-                           uintptr_t matrixPtr) {
-    if (!g_initialized || !g_renderFrame) return;
-
-    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
-        rm->update();
-        const auto st = rm->getStats();
-        ES_PROFILE_COUNTER("res.textures", st.textureCount);
-        ES_PROFILE_COUNTER("res.cacheHits", st.cacheHits);
-        ES_PROFILE_COUNTER("res.cacheMisses", st.cacheMisses);
-    }
-
-    if (g_transformSystem) {
-        esengine::World w{registry, ctx().services(), 0.0f};
-        g_transformSystem->update(w);
-    }
-
-    ctx().state().viewport_width = static_cast<u32>(viewportWidth);
-    ctx().state().viewport_height = static_cast<u32>(viewportHeight);
-    g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
-
-    g_device->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-
-    const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "renderFrameWithMatrix.matrix");
-    if (!matrixData) return;
-    glm::mat4 viewProjection = glm::make_mat4(matrixData);
-
-    const auto& cc = ctx().state().clear_color;
-    g_renderFrame->begin(viewProjection, 0, RenderFrame::PassClear{true, true, cc});
-    g_renderFrame->collectAll(registry);
-    g_renderFrame->end();
-}
-
 void renderer_init(u32 width, u32 height) {
     if (!g_renderFrame) return;
     ctx().state().viewport_width = width;
@@ -505,29 +417,11 @@ static void ensureTransformsUpdated(ecs::Registry& registry) {
     }
 }
 
-void renderer_submitSprites(ecs::Registry& registry) {
-    (void)registry;
-}
-
-void renderer_submitUIElements(ecs::Registry& registry) {
-    (void)registry;
-}
-
 #ifdef ES_ENABLE_BITMAP_TEXT
-void renderer_submitBitmapText(ecs::Registry& registry) {
-    (void)registry;
-}
 #endif
-
-void renderer_submitShapes(ecs::Registry& registry) {
-    (void)registry;
-}
 
 
 #ifdef ES_ENABLE_PARTICLES
-void renderer_submitParticles(ecs::Registry& registry) {
-    (void)registry;
-}
 #endif
 
 void renderer_updateTransforms(ecs::Registry& registry) {
@@ -822,48 +716,6 @@ void renderer_diagnose() {
 
     while (g_device->getError() != 0) {}
     ES_LOG_INFO("[Diagnose] No pending GL errors (cleared)");
-}
-
-void renderer_setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
-    if (g_renderFrame) {
-        g_renderFrame->setEntityClipRect(entity, x, y, w, h);
-    }
-}
-
-void renderer_clearEntityClipRect(u32 entity) {
-    if (g_renderFrame) {
-        g_renderFrame->clearEntityClipRect(entity);
-    }
-}
-
-void renderer_clearAllClipRects() {
-    if (g_renderFrame) {
-        g_renderFrame->clearAllClipRects();
-    }
-}
-
-void renderer_setEntityStencilMask(u32 entity, i32 refValue) {
-    if (g_renderFrame) {
-        g_renderFrame->setEntityStencilMask(entity, refValue);
-    }
-}
-
-void renderer_setEntityStencilTest(u32 entity, i32 refValue) {
-    if (g_renderFrame) {
-        g_renderFrame->setEntityStencilTest(entity, refValue);
-    }
-}
-
-void renderer_clearEntityStencilMask(u32 entity) {
-    if (g_renderFrame) {
-        g_renderFrame->clearEntityStencilMask(entity);
-    }
-}
-
-void renderer_clearAllStencilMasks() {
-    if (g_renderFrame) {
-        g_renderFrame->clearAllStencilMasks();
-    }
 }
 
 void gl_enableErrorCheck(bool enabled) {

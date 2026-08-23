@@ -32,6 +32,7 @@ export const GATES = [
   { id: 'gl-boundary', run: 'node tools/check-gl-boundary.mjs' },
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
   { id: 'sidemodule-gates', run: 'node tools/check-sidemodule-gates.mjs' },
+  { id: 'engine-exports', run: 'node tools/check-engine-exports.mjs' },
   {
     id: 'native-bindings',
     run: 'node tools/check-native-bindings.mjs',

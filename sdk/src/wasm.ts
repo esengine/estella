@@ -161,7 +161,6 @@ export interface ESEngineModule {
     FS: EmscriptenFS;
 
     initRenderer(): void;
-    initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
     /**
      * Boot on the WebGPU backend. The host must acquire a GPUDevice and pass it
@@ -194,7 +193,6 @@ export interface ESEngineModule {
         /** Emscripten-internal: texture object pool keyed by handle id. */
         textures: Record<number, WebGLTexture>;
     };
-    renderFrameWithMatrix(registry: CppRegistry, width: number, height: number, matrixPtr: number): void;
     getResourceManager(): CppResourceManager;
     /**
      * Convert a Canvas2D-rasterized alpha bitmap to a signed distance field for
@@ -219,19 +217,6 @@ export interface ESEngineModule {
      */
     notifyDeviceLost?(reason: number, message: string): void;
     /**
-     * Rebuild the renderer after a loss. False means "not yet" — a browser
-     * restores a context when it is ready, so this is expected to be retried.
-     * On success the device is Recovering: drawing, with placeholder textures.
-     */
-    /**
-     * Upload geometry that STAYS on the GPU: interleaved f32 [x,y,z,u,v] per
-     * vertex, optional RGBA8 colors, u32 triangle indices. Any number of entities
-     * can draw the result, each with its own transform. Where the inline
-     * `meshRenderer_setGeometry` payload is rewritten per frame, this is uploaded once.
-     */
-    mesh_create?(posUvPtr: number, vertexCount: number, colorsPtr: number,
-                 indicesPtr: number, indexCount: number): number;
-    /**
      * Upload geometry described by an .esmesh channel table — 8 bytes per channel
      * (semantic, components, type, normalized, offset) in the file's own layout,
      * so the format stays the asset layer's and the vertex layout stays the
@@ -254,14 +239,6 @@ export interface ESEngineModule {
                         mipCount: number, maxRange: number): number;
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
-    /** Point a MeshRenderer at a resident mesh; 0 returns it to its inline payload. */
-    meshRenderer_setMesh?(registry: CppRegistry, entity: number, meshHandle: number): void;
-    /**
-     * Freeze a MeshRenderer's inline geometry onto the GPU — the same vertices, uploaded
-     * once and drawn with a per-object transform. Returns the mesh handle, 0 if
-     * the entity had no geometry to freeze.
-     */
-    meshRenderer_makeResident?(registry: CppRegistry, entity: number): number;
     /** The same for every MeshRenderer in the world; returns how many were frozen. */
     meshRenderer_makeAllResident?(registry: CppRegistry): number;
     /**
@@ -399,20 +376,14 @@ export interface ESEngineModule {
     postprocess_shutdown(): void;
     postprocess_resize(width: number, height: number): void;
     postprocess_addPass(name: string, shaderHandle: number): number;
-    postprocess_removePass(name: string): void;
-    postprocess_setPassEnabled(name: string, enabled: boolean): void;
-    postprocess_isPassEnabled(name: string): boolean;
     postprocess_setUniformFloat(passName: string, uniform: string, value: number): void;
     postprocess_setPassTexture(passName: string, uniform: string, textureHandle: number): void;
     postprocess_setUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     postprocess_begin(): void;
     postprocess_end(): void;
-    postprocess_getPassCount(): number;
     postprocess_isInitialized(): boolean;
     postprocess_setBypass(bypass: boolean): void;
-    postprocess_isBypassed(): boolean;
     postprocess_clearPasses(): void;
-    postprocess_setOutputTarget(fboId: number): void;
     postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
     postprocess_beginScreenCapture(): void;
     postprocess_endScreenCapture(): void;
@@ -435,11 +406,6 @@ export interface ESEngineModule {
                    clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_flush(): void;
     renderer_end(): void;
-    renderer_submitSprites(registry: CppRegistry): void;
-    renderer_submitUIElements(registry: CppRegistry): void;
-    renderer_submitBitmapText(registry: CppRegistry): void;
-    renderer_submitShapes?(registry: CppRegistry): void;
-    renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitAll(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_play?(registry: CppRegistry, entity: number): void;
@@ -513,16 +479,7 @@ export interface ESEngineModule {
     engine_setRandomSeed?(seed: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
 
-    // Clip Rect API
-    renderer_setEntityClipRect(entity: number, x: number, y: number, w: number, h: number): void;
-    renderer_clearEntityClipRect(entity: number): void;
-    renderer_clearAllClipRects(): void;
 
-    // Stencil API
-    renderer_setEntityStencilMask(entity: number, refValue: number): void;
-    renderer_setEntityStencilTest(entity: number, refValue: number): void;
-    renderer_clearEntityStencilMask(entity: number): void;
-    renderer_clearAllStencilMasks(): void;
 
     // ECS Query API
     registry_getCanvasEntity(registry: CppRegistry): number;
@@ -572,7 +529,6 @@ export interface ESEngineModule {
     uiLayout_update(registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
     uiHitTest_update(registry: CppRegistry, mouseWorldX: number, mouseWorldY: number): void;
     uiHitTest_getHitEntity(): number;
-    uiHitTest_getHitEntityPrev(): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
@@ -584,10 +540,7 @@ export interface ESEngineModule {
     getUINodeHiddenInTree?(registry: CppRegistry, entity: number): boolean;
     /** Subtree opacity resolved by the layout pass (UINode.opacity multiplied down). */
     getUINodeAlphaInTree?(registry: CppRegistry, entity: number): number;
-    /** True when this node or an ancestor set pointerEvents = None. */
-    getUINodePointerBlockedInTree?(registry: CppRegistry, entity: number): boolean;
     transform_update(registry: CppRegistry): void;
-    transform_patchPosition(registry: CppRegistry, entity: number, x: number, y: number, z: number): void;
 
     // Animation (Tween) API
     anim_createTween(registry: CppRegistry, entity: number, targetProp: number,

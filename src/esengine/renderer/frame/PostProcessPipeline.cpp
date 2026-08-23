@@ -203,31 +203,6 @@ void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     }
 }
 
-void PostProcessPipeline::removePass(const std::string& name) {
-    auto it = std::find_if(passes_.begin(), passes_.end(),
-        [&name](const PostProcessPass& p) { return p.name == name; });
-
-    if (it != passes_.end()) {
-        releasePassResources(*it);
-        passes_.erase(it);
-    }
-}
-
-void PostProcessPipeline::setPassEnabled(const std::string& name, bool enabled) {
-    if (auto* pass = findPass(name)) {
-        pass->enabled = enabled;
-    }
-}
-
-bool PostProcessPipeline::isPassEnabled(const std::string& name) const {
-    for (const auto& pass : passes_) {
-        if (pass.name == name) {
-            return pass.enabled;
-        }
-    }
-    return false;
-}
-
 void PostProcessPipeline::setPassUniformFloat(const std::string& passName,
                                                const std::string& uniform, f32 value) {
     if (auto* pass = findPass(passName)) {

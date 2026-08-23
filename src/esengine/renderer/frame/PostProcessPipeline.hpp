@@ -99,20 +99,8 @@ public:
      */
     u32 addPass(const std::string& name, resource::ShaderHandle shader);
 
-    /**
-     * @brief Removes a pass by name
-     */
-    void removePass(const std::string& name);
 
-    /**
-     * @brief Enables or disables a pass
-     */
-    void setPassEnabled(const std::string& name, bool enabled);
 
-    /**
-     * @brief Checks if a pass is enabled
-     */
-    bool isPassEnabled(const std::string& name) const;
 
     /**
      * @brief Sets a float uniform for a pass
@@ -280,7 +268,7 @@ private:
     void runChain(std::vector<PostProcessPass>& passes, TextureHandle sceneTexture);
     /// The chain's last pass: the copy into the output target's viewport.
     void blitPass();
-    /// Frees a pass's GPU-side param UBO (removePass/clearPasses/shutdown).
+    /// Frees a pass's GPU-side param UBO (clearPasses/shutdown).
     void releasePassResources(PostProcessPass& pass);
 
     GfxDevice& device_;

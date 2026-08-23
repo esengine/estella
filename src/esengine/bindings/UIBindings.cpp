@@ -40,10 +40,6 @@ u32 uiHitTest_getHitEntity() {
     return ctx().require<ecs::UISystem>().getHitEntity();
 }
 
-u32 uiHitTest_getHitEntityPrev() {
-    return ctx().require<ecs::UISystem>().getPrevHitEntity();
-}
-
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY) {
     return ctx().require<ecs::UISystem>().pick(registry, worldX, worldY);
 }
@@ -102,11 +98,6 @@ f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity) {
     return node ? node->alpha_in_tree_ : 1.0f;
 }
 
-bool getUINodePointerBlockedInTree(ecs::Registry& registry, u32 entity) {
-    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
-    return node && node->pointer_blocked_in_tree_;
-}
-
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
     if (!node) return 0.0f;
@@ -127,13 +118,6 @@ void transform_update(ecs::Registry& registry) {
         ecs::TransformSystem fallback;
         fallback.update(world);
     }
-}
-
-void transform_patchPosition(ecs::Registry& registry, u32 entity,
-                             f32 x, f32 y, f32 z) {
-    auto* transform = registry.tryGet<ecs::Transform>(Entity::fromRaw(entity));
-    if (!transform) return;
-    transform->position = {x, y, z};
 }
 
 }  // namespace esengine

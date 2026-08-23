@@ -21,8 +21,6 @@ namespace ecs {
     class Registry;
 }
 
-void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
-                            uintptr_t matrixPtr);
 
 void renderer_init(u32 width, u32 height);
 void renderer_resize(u32 width, u32 height);
@@ -32,12 +30,8 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
                     i32 clearX, i32 clearY, u32 clearW, u32 clearH);
 void renderer_flush();
 void renderer_end();
-void renderer_submitSprites(ecs::Registry& registry);
-void renderer_submitUIElements(ecs::Registry& registry);
 #ifdef ES_ENABLE_BITMAP_TEXT
-void renderer_submitBitmapText(ecs::Registry& registry);
 #endif
-void renderer_submitShapes(ecs::Registry& registry);
 /// Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
 /// vertex, drawn as @p entity's, with its material resolved as a Sprite's is.
 void renderer_submitSkeletalBatchByEntity(
@@ -76,13 +70,6 @@ u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mi
 
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);
-/** @brief Uploads geometry that stays on the GPU; returns its handle, 0 on failure. */
-u32 mesh_create(uintptr_t posUvPtr, u32 vertexCount, uintptr_t colorsPtr,
-                uintptr_t indicesPtr, u32 indexCount);
-/** @brief Points a MeshRenderer at resident geometry; 0 returns it to its inline payload. */
-void meshRenderer_setMesh(ecs::Registry& registry, u32 entity, u32 meshHandle);
-/** @brief Freezes a MeshRenderer's inline geometry onto the GPU; returns its handle. */
-u32 meshRenderer_makeResident(ecs::Registry& registry, u32 entity);
 /** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */
 u32 meshRenderer_makeAllResident(ecs::Registry& registry);
 /** @brief Points every MeshRenderer at one resident mesh; returns how many. */
@@ -90,7 +77,6 @@ u32 meshRenderer_setMeshAll(ecs::Registry& registry, u32 meshHandle);
 /** @brief Points every MeshRenderer at one material; returns how many. */
 u32 meshRenderer_setMaterialAll(ecs::Registry& registry, u32 materialId);
 #ifdef ES_ENABLE_PARTICLES
-void renderer_submitParticles(ecs::Registry& registry);
 #endif
 void renderer_updateTransforms(ecs::Registry& registry);
 void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr, u32 count);
@@ -145,14 +131,7 @@ void renderer_setCullingMask(u32 mask);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();
-void renderer_setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
-void renderer_clearEntityClipRect(u32 entity);
-void renderer_clearAllClipRects();
 
-void renderer_setEntityStencilMask(u32 entity, i32 refValue);
-void renderer_setEntityStencilTest(u32 entity, i32 refValue);
-void renderer_clearEntityStencilMask(u32 entity);
-void renderer_clearAllStencilMasks();
 
 void gl_enableErrorCheck(bool enabled);
 u32 gl_checkErrors(const std::string& context);

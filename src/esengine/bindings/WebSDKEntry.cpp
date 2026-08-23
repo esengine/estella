@@ -231,10 +231,6 @@ void initRenderer() {
     initRendererInternal("#canvas");
 }
 
-bool initRendererWithCanvas(const std::string& canvasSelector) {
-    return initRendererInternal(canvasSelector.c_str());
-}
-
 bool initRendererWithContext(int contextHandle) {
     if (g_initialized) return true;
     if (contextHandle <= 0) {
@@ -463,13 +459,11 @@ EMSCRIPTEN_BINDINGS(esengine_context) {
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
-    emscripten::function("initRendererWithCanvas", &esengine::initRendererWithCanvas);
     emscripten::function("initRendererWithContext", &esengine::initRendererWithContext);
     // Registered in every build variant; without ES_ENABLE_WEBGPU it reports
     // and returns false, so the JS surface never drifts across variants.
     emscripten::function("initRendererWebGPU", &esengine::initRendererWebGPU);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
-    emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
     emscripten::function("deviceStatus", &esengine::deviceStatus);
@@ -519,14 +513,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
-    emscripten::function("mesh_create", &esengine::mesh_create);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
     emscripten::function("environment_release", &esengine::environment_release);
-    emscripten::function("meshRenderer_setMesh", &esengine::meshRenderer_setMesh);
     emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
-    emscripten::function("meshRenderer_makeResident", &esengine::meshRenderer_makeResident);
     emscripten::function("meshRenderer_makeAllResident", &esengine::meshRenderer_makeAllResident);
     emscripten::function("meshRenderer_setMeshAll", &esengine::meshRenderer_setMeshAll);
     emscripten::function("meshRenderer_setMaterialAll", &esengine::meshRenderer_setMaterialAll);
@@ -572,20 +563,14 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_shutdown", &esengine::postprocess_shutdown);
     emscripten::function("postprocess_resize", &esengine::postprocess_resize);
     emscripten::function("postprocess_addPass", &esengine::postprocess_addPass);
-    emscripten::function("postprocess_removePass", &esengine::postprocess_removePass);
-    emscripten::function("postprocess_setPassEnabled", &esengine::postprocess_setPassEnabled);
-    emscripten::function("postprocess_isPassEnabled", &esengine::postprocess_isPassEnabled);
     emscripten::function("postprocess_setUniformFloat", &esengine::postprocess_setUniformFloat);
     emscripten::function("postprocess_setUniformVec4", &esengine::postprocess_setUniformVec4);
     emscripten::function("postprocess_setPassTexture", &esengine::postprocess_setPassTexture);
     emscripten::function("postprocess_begin", &esengine::postprocess_begin);
     emscripten::function("postprocess_end", &esengine::postprocess_end);
-    emscripten::function("postprocess_getPassCount", &esengine::postprocess_getPassCount);
     emscripten::function("postprocess_isInitialized", &esengine::postprocess_isInitialized);
     emscripten::function("postprocess_setBypass", &esengine::postprocess_setBypass);
-    emscripten::function("postprocess_isBypassed", &esengine::postprocess_isBypassed);
     emscripten::function("postprocess_clearPasses", &esengine::postprocess_clearPasses);
-    emscripten::function("postprocess_setOutputTarget", &esengine::postprocess_setOutputTarget);
     emscripten::function("postprocess_setOutputViewport", &esengine::postprocess_setOutputViewport);
     emscripten::function("postprocess_beginScreenCapture", &esengine::postprocess_beginScreenCapture);
     emscripten::function("postprocess_endScreenCapture", &esengine::postprocess_endScreenCapture);
@@ -635,15 +620,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_begin", &esengine::renderer_begin);
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
-    emscripten::function("renderer_submitSprites", &esengine::renderer_submitSprites);
-    emscripten::function("renderer_submitUIElements", &esengine::renderer_submitUIElements);
 #ifdef ES_ENABLE_BITMAP_TEXT
-    emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
 #endif
-    emscripten::function("renderer_submitShapes", &esengine::renderer_submitShapes);
 
 #ifdef ES_ENABLE_PARTICLES
-    emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
 #endif
     emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
@@ -685,14 +665,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setDepthLayers", &esengine::renderer_setDepthLayers);
     emscripten::function("renderer_setCullingMask", &esengine::renderer_setCullingMask);
     emscripten::function("renderer_setColorSpace", &esengine::renderer_setColorSpace);
-    emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
-    emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
-    emscripten::function("renderer_clearAllClipRects", &esengine::renderer_clearAllClipRects);
 
-    emscripten::function("renderer_setEntityStencilMask", &esengine::renderer_setEntityStencilMask);
-    emscripten::function("renderer_setEntityStencilTest", &esengine::renderer_setEntityStencilTest);
-    emscripten::function("renderer_clearEntityStencilMask", &esengine::renderer_clearEntityStencilMask);
-    emscripten::function("renderer_clearAllStencilMasks", &esengine::renderer_clearAllStencilMasks);
 
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
     emscripten::function("registry_getCanvasEntities", &esengine::registry_getCanvasEntities);
@@ -735,7 +708,6 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiLayout_update", &esengine::uiLayout_update);
     emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
-    emscripten::function("uiHitTest_getHitEntityPrev", &esengine::uiHitTest_getHitEntityPrev);
     emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
     emscripten::function("uiHitTest_pickAll", &esengine::uiHitTest_pickAll);
     emscripten::function("uiHitTest_pickResult", &esengine::uiHitTest_pickResult);
@@ -746,11 +718,9 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("ui_getCullBit", &esengine::ui_getCullBit);
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
-    emscripten::function("getUINodePointerBlockedInTree", &esengine::getUINodePointerBlockedInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
     emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
     emscripten::function("transform_update", &esengine::transform_update);
-    emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
 
     // Tweens (AnimationBindings.hpp) — the same declarations the native
     // wrappers are generated from.

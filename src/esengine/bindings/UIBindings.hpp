@@ -30,7 +30,6 @@ void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 bo
 
 void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
 u32 uiHitTest_getHitEntity();
-u32 uiHitTest_getHitEntityPrev();
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickResult(u32 index);
@@ -53,13 +52,10 @@ u32 ui_getCullBit(ecs::Registry& registry, u32 entity);
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity);
 /** Subtree opacity resolved by the layout pass (UINode.opacity multiplied down). */
 f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity);
-/** True when this node or an ancestor set pointerEvents = None. */
-bool getUINodePointerBlockedInTree(ecs::Registry& registry, u32 entity);
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity);
 f32 getUINodeComputedHeight(ecs::Registry& registry, u32 entity);
 
 /** Compose world transforms now (the UI layout pass reads them). */
 void transform_update(ecs::Registry& registry);
-void transform_patchPosition(ecs::Registry& registry, u32 entity, f32 x, f32 y, f32 z);
 
 }  // namespace esengine

@@ -591,10 +591,6 @@ void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
     clip_rects_[entity] = ScissorRect{x, y, w, h};
 }
 
-void RenderFrame::clearEntityClipRect(u32 entity) {
-    clip_rects_.erase(entity);
-}
-
 void RenderFrame::clearAllClipRects() {
     clip_rects_.clear();
 }
@@ -605,10 +601,6 @@ void RenderFrame::setEntityStencilMask(u32 entity, i32 refValue) {
 
 void RenderFrame::setEntityStencilTest(u32 entity, i32 refValue) {
     stencil_masks_[entity] = {refValue, false};
-}
-
-void RenderFrame::clearEntityStencilMask(u32 entity) {
-    stencil_masks_.erase(entity);
 }
 
 void RenderFrame::clearAllStencilMasks() {
