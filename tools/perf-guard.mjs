@@ -40,7 +40,8 @@
 // machine is ~1% median but reaches 14% on the smallest cases, and a ratio
 // compounds two of those. At 50% this cannot see a 5% slowdown — it is not meant
 // to. It is meant to catch the 2x-and-up kind, which is what an architectural
-// property looks like when it breaks.
+// property looks like when it breaks. A metric whose two sides do not scale
+// together across machines says so, and widens its own.
 //
 // Run: node tools/perf-guard.mjs --check    (CI: exit 1 on regression)
 //      node tools/perf-guard.mjs --update   (accept the new numbers)
@@ -71,6 +72,10 @@ const METRICS = [
         group: 'UI layout — 2000 nodes',
         of: 'one node resized',
         over: 'static frame (nothing changed)',
+        // Its denominator is 20us, twice the floor, and does not slow down with
+        // the machine the way the edit does: one commit measures 8.8 here and
+        // 13.1 on the runner, so at 50% this reports which machine ran it.
+        tolerance: 1.00,
     },
     {
         name: 'query: materialising vs visiting',
@@ -213,10 +218,14 @@ function main(report) {
     for (const [name, now] of Object.entries(measured.ratios)) {
         const was = snap.ratios?.[name];
         if (was === undefined) { improved.push(`new metric: ${name} = ${now}`); continue; }
-        const why = METRICS.find((m) => m.name === name)?.why ?? '';
-        if (now > was * (1 + tol)) {
-            problems.push(`${name}: ${was} → ${now} (+${pct(now / was - 1)})\n      ${why}`);
-        } else if (now < was * (1 - tol)) {
+        const metric = METRICS.find((m) => m.name === name);
+        // A metric may widen its own: one whose two sides do not scale together
+        // is measuring the machine at the shared tolerance, not the code.
+        const own = metric?.tolerance ?? tol;
+        if (now > was * (1 + own)) {
+            problems.push(`${name}: ${was} → ${now} (+${pct(now / was - 1)}, over ${pct(own)})`
+                + `\n      ${metric?.why ?? ''}`);
+        } else if (now < was * (1 - own)) {
             improved.push(`${name}: ${was} → ${now} (${pct(now / was - 1)})`);
         }
     }
@@ -231,7 +240,9 @@ function main(report) {
         console.error('\nIf this is intended, accept it: node tools/perf-guard.mjs --update');
         process.exit(1);
     }
-    console.log(`perf: ${Object.keys(measured.ratios).length} metrics within ${pct(tol)} of the snapshot; ${cases} cases measured.`);
+    const wider = METRICS.filter((m) => m.tolerance != null && measured.ratios[m.name] !== undefined).length;
+    console.log(`perf: ${Object.keys(measured.ratios).length} metrics within ${pct(tol)} of the snapshot`
+        + `${wider ? ` (${wider} carrying a wider one of its own)` : ''}; ${cases} cases measured.`);
 }
 
 // Declarations, not consts: main() runs at module top level (above), so an
