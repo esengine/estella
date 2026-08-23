@@ -44,14 +44,7 @@ u32 dsVariantOf(WGPUTextureFormat format) {
     return hasStencilPlanes(format) ? WebGPUDevice::kDsDepthStencil : WebGPUDevice::kDsDepthOnly;
 }
 
-u32 colorVariantOf(WGPUTextureFormat format) {
-    switch (format) {
-    case WGPUTextureFormat_RGBA8UnormSrgb: return WebGPUDevice::kColorSrgb8;
-    case WGPUTextureFormat_RGBA16Float:    return WebGPUDevice::kColorRgba16f;
-    case WGPUTextureFormat_BGRA8Unorm:     return WebGPUDevice::kColorBgra8;
-    default:                               return WebGPUDevice::kColorRgba8;
-    }
-}
+
 
 u8 packSamplerKey(TextureFilter minFilter, TextureFilter magFilter,
                   TextureWrap wrapS, TextureWrap wrapT) {
@@ -730,6 +723,15 @@ const PipelineDesc* WebGPUDevice::pipelineDesc(PipelineHandle handle) const {
 // Textures
 // =============================================================================
 
+u32 WebGPUDevice::colorVariantOf(WGPUTextureFormat format) {
+    switch (format) {
+    case WGPUTextureFormat_RGBA8UnormSrgb: return kColorSrgb8;
+    case WGPUTextureFormat_RGBA16Float:    return kColorRgba16f;
+    case WGPUTextureFormat_BGRA8Unorm:     return kColorBgra8;
+    default:                               return kColorRgba8;
+    }
+}
+
 TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* pixels) {
     if (!isDeviceUsable()) return TextureHandle::Invalid;
     if (!device_) {
@@ -831,9 +833,13 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
     return TextureHandle{id};
 }
 
-TextureHandle WebGPUDevice::importExternalTexture(u32, const TextureDesc&) {
-    // GL-id import has no WebGPU meaning; external surfaces arrive as WGPUTexture
-    // in a later slice (canvas/video import path).
+TextureHandle WebGPUDevice::importExternalTexture(u32 nativeId, const TextureDesc&) {
+    // A "native id" this backend already owns is one of ours — a render target's
+    // colour plane, adopted so a component can name it. On GL the two ids are the
+    // same number by construction; here the lookup is what makes them one.
+    if (textures_.count(nativeId) != 0) return TextureHandle{nativeId};
+    // A genuinely foreign surface (canvas, video frame) arrives as a WGPUTexture
+    // in a later slice, not as an integer.
     stubOnce("importExternalTexture");
     return TextureHandle::Invalid;
 }

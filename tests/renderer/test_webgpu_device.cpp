@@ -158,6 +158,21 @@ TEST_CASE("binding-mask scan mirrors the declarations an explicit layout carries
     CHECK(scanWGSLBindingMask("no bindings here", 0) == 0u);
 }
 
+TEST_CASE("colour formats that a pass validates apart get variant slots apart") {
+    // WebGPU validates a pipeline's colour format against the pass and rejects
+    // the command buffer when they differ. A surface is BGRA and a render target
+    // RGBA, so a shared slot takes the whole frame down.
+    CHECK(WebGPUDevice::colorVariantOf(WGPUTextureFormat_BGRA8Unorm)
+          != WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA8Unorm));
+    CHECK(WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA8UnormSrgb)
+          != WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA8Unorm));
+    CHECK(WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA16Float)
+          != WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA8Unorm));
+    // Every slot is inside the variant table the pipeline record allocates.
+    CHECK(WebGPUDevice::colorVariantOf(WGPUTextureFormat_BGRA8Unorm) < WebGPUDevice::kColorVariantCount);
+    CHECK(WebGPUDevice::colorVariantOf(WGPUTextureFormat_RGBA16Float) < WebGPUDevice::kColorVariantCount);
+}
+
 TEST_CASE("pass load-ops: full-target clear is a real load-op, a scoped clear is not") {
     CHECK(toWGPULoadOp(/*clear*/ true, /*scoped*/ false) == WGPULoadOp_Clear);
     CHECK(toWGPULoadOp(true, true) == WGPULoadOp_Load);   // region clear → emulate, load first

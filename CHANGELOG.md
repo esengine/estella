@@ -27,9 +27,10 @@ published separately; it ships inside the editor.
   the target, whose own size sets the resolution, and a released target falls back
   to the screen rather than drawing nowhere.
 
-  WebGL2 today. The WebGPU backend cannot yet adopt a device texture into the
-  resource table (`importExternalTexture`), so the target a camera fills there
-  cannot be handed to a `Sprite`.
+  WebGL2 today. On WebGPU the target now reaches a `Sprite` — adopting a texture
+  the backend already owns is a lookup, not an import, and that stub is gone —
+  but the frame readback returns nothing when one frame holds both an offscreen
+  and a surface pass, so the pixel criterion runs on WebGL2 until that is found.
 
 - **Removed: 26 engine entry points no host called.** Five of them
   (`renderer_submitSprites` / `submitUIElements` / `submitBitmapText` /

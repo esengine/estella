@@ -57,6 +57,11 @@ public:
         kColorRgba8 = 0, kColorBgra8 = 1, kColorSrgb8 = 2, kColorRgba16f = 3, kColorVariantCount = 4,
     };
 
+    /** @brief Which variant slot a pass's colour format uses. Beside the enum
+     *         because the two are one decision: a format that shares a slot with
+     *         another is a pipeline handed to a pass that rejects it. */
+    static u32 colorVariantOf(WGPUTextureFormat format);
+
     /** @brief @p device may be null for bookkeeping-only use (tests, bring-up).
      *  @param instance  The host's WGPUInstance to share. Web/emscripten passes
      *         null and the device creates its own (the emscripten singleton). A
