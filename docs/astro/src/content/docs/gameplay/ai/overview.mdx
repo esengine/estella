@@ -14,7 +14,8 @@ Estella's AI layer turns an entity into an actor that **senses**, **decides**, a
     what it sees into a `Perception` component.
   </Card>
   <Card title="Navigation" icon="rocket">
-    A `NavGrid` + A\* pathfinding moves a `NavAgent` to any world point, replanning
+    A grid of cells or a navmesh baked from geometry moves a `NavAgent` to any
+    world point, replanning
     as the target moves.
   </Card>
   <Card title="State machines" icon="list-format">
@@ -177,7 +178,7 @@ unlocks when it completes, and R replays it — with zero registered actions.
 
 <CardGrid>
   <LinkCard title="Perception" href="/docs/gameplay/ai/perception/" description="Sight cones, and what an agent currently sees." />
-  <LinkCard title="Navigation" href="/docs/gameplay/ai/navigation/" description="A navigation grid, A* paths, and moving an agent along one." />
+  <LinkCard title="Navigation" href="/docs/gameplay/ai/navigation/" description="A grid for cells, a baked mesh for geometry, and moving an agent over either." />
   <LinkCard title="State machines" href="/docs/gameplay/ai/state-machines/" description="States, guarded transitions, and one-shot triggers." />
   <LinkCard title="Behavior trees" href="/docs/gameplay/ai/behavior-trees/" description="Selectors, sequences, decorators and leaves." />
   <LinkCard title="The blackboard" href="/docs/gameplay/ai/blackboard/" description="The per-agent data plane both paradigms read and write." />
@@ -210,7 +211,7 @@ registerAction('patrol', () => { /* hold position until the player is seen */ })
 
 // One open nav grid over the arena.
 export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
-  nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
+  nav.setSurface(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
 }, { name: 'SetupNavGrid' });
 ```
 

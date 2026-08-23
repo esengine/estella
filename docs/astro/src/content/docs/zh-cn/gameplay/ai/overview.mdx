@@ -13,7 +13,8 @@ Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移�
     `Perceiver` 在视野锥内感知附近的 `PerceptionTarget`,把看到的东西写进 `Perception` 组件。
   </Card>
   <Card title="导航 Navigation" icon="rocket">
-    `NavGrid` + A\* 寻路把 `NavAgent` 移动到任意世界坐标,并随目标移动而重新规划。
+    格子网格,或从几何烘焙出来的导航网格,把 `NavAgent` 移动到任意世界坐标,
+    并随目标移动而重新规划。
   </Card>
   <Card title="状态机 FSM" icon="list-format">
     `StateMachineAgent` 运行一个 `.esfsm` 图——带进入/更新/退出钩子和带守卫的转移的状态。
@@ -157,7 +158,7 @@ registerFsm('intro', {
 
 <CardGrid>
   <LinkCard title="感知" href="/docs/zh-cn/gameplay/ai/perception/" description="视锥,以及一个 agent 此刻看到了什么。" />
-  <LinkCard title="导航" href="/docs/zh-cn/gameplay/ai/navigation/" description="导航网格、A* 路径,以及让 agent 沿路径移动。" />
+  <LinkCard title="导航" href="/docs/zh-cn/gameplay/ai/navigation/" description="格子给瓦片、烘焙出来的网格给几何,以及在两者上移动 agent。" />
   <LinkCard title="状态机" href="/docs/zh-cn/gameplay/ai/state-machines/" description="状态、带守卫的转移,以及一次性触发器。" />
   <LinkCard title="行为树" href="/docs/zh-cn/gameplay/ai/behavior-trees/" description="选择、序列、装饰器与叶子。" />
   <LinkCard title="黑板" href="/docs/zh-cn/gameplay/ai/blackboard/" description="两种范式共同读写的每-agent 数据面。" />
@@ -189,7 +190,7 @@ registerAction('patrol', () => { /* 在看见玩家之前保持原地 */ });
 
 // 一张覆盖竞技场的开阔导航网格。
 export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
-  nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
+  nav.setSurface(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
 }, { name: 'SetupNavGrid' });
 ```
 
