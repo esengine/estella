@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { CanvasScaleMode } from './wasm/wasm.generated';
 import { COMPONENT_META } from './ecs/component.generated';
 import { getResourceManager, setTextureBudget } from './wasm/resourceManager';
 
@@ -30,9 +29,8 @@ export const DEFAULT_SPINE_SKIN = 'default';
 export const RuntimeConfig = {
     sceneTransitionDuration: 0.3,
     sceneTransitionColor: { r: 0, g: 0, b: 0, a: 1 } as { r: number; g: number; b: number; a: number },
-    defaultFontFamily: 'Arial',
-    canvasScaleMode: 1,
-    canvasMatchWidthOrHeight: 0.5,
+    /** The family a Text with no `fontFamily` of its own rasterizes with. */
+    defaultFontFamily: DEFAULT_FONT_FAMILY,
     maxDeltaTime: 0.25,
     maxFixedSteps: 8,
     textCanvasSize: 512,
@@ -55,19 +53,6 @@ export const RuntimeConfig = {
     audioCacheBudget: 32 * 1024 * 1024,
 };
 
-export function applyRuntimeConfig(components: {
-    Text?: { _default: Record<string, unknown> };
-    TextInput?: { _default: Record<string, unknown> };
-    Canvas?: { _default: Record<string, unknown> };
-}): void {
-    if (components.Text) components.Text._default.fontFamily = RuntimeConfig.defaultFontFamily;
-    if (components.TextInput) components.TextInput._default.fontFamily = RuntimeConfig.defaultFontFamily;
-    if (components.Canvas) {
-        components.Canvas._default.scaleMode = RuntimeConfig.canvasScaleMode;
-        components.Canvas._default.matchWidthOrHeight = RuntimeConfig.canvasMatchWidthOrHeight;
-    }
-}
-
 // =============================================================================
 // Build Runtime Config
 // =============================================================================
@@ -76,8 +61,6 @@ export interface RuntimeBuildConfig {
     sceneTransitionDuration?: number;
     sceneTransitionColor?: string;
     defaultFontFamily?: string;
-    canvasScaleMode?: string;
-    canvasMatchWidthOrHeight?: number;
     maxDeltaTime?: number;
     maxFixedSteps?: number;
     textCanvasSize?: number;
@@ -85,16 +68,6 @@ export interface RuntimeBuildConfig {
     assetFailureCooldown?: number;
     textureCacheBudget?: number;
     audioCacheBudget?: number;
-}
-
-/** Canvas scale-mode name → value. Canonical names are single-sourced from the
- *  C++ CanvasScaleMode enum; ShowAll/NoBorder are Cocos-compat aliases with no C++
- *  member. Unknown names fall back to FixedHeight (the C++ default). */
-function canvasScaleModeValue(name: string): number {
-    if (name === 'ShowAll') return CanvasScaleMode.Expand;
-    if (name === 'NoBorder') return CanvasScaleMode.Shrink;
-    const v = (CanvasScaleMode as unknown as Record<string, number>)[name];
-    return typeof v === 'number' ? v : CanvasScaleMode.FixedHeight;
 }
 
 export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
@@ -123,12 +96,6 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
             b: parseInt(hex.substring(4, 6), 16) / 255,
             a: 1,
         };
-    }
-    if (config.canvasScaleMode !== undefined) {
-        RuntimeConfig.canvasScaleMode = canvasScaleModeValue(config.canvasScaleMode);
-    }
-    if (config.canvasMatchWidthOrHeight !== undefined) {
-        RuntimeConfig.canvasMatchWidthOrHeight = config.canvasMatchWidthOrHeight;
     }
     if (config.assetLoadTimeout !== undefined) {
         RuntimeConfig.assetLoadTimeout = config.assetLoadTimeout;

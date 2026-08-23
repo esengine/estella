@@ -24,6 +24,8 @@
  * project font that happens to share a small integer.
  */
 
+import { RuntimeConfig } from '../../defaults';
+
 /** Distinct from any ResourceManager handle (those count up from small ints). */
 const HANDLE_BASE = 0x4000_0000;
 
@@ -74,10 +76,12 @@ export function unregisterProjectFont(path: string): void {
 
 /**
  * The family a `Text` should rasterize with: its project font when `font` names
- * one, else the authored `fontFamily`. The single place that precedence lives.
+ * one, else the authored `fontFamily`, else the project's default family. The
+ * single place that precedence lives — an empty `fontFamily` is how a Text says
+ * "whatever this project uses", which is what makes that project setting real.
  */
 export function resolveTextFamily(font: number | undefined, fontFamily: string): string {
-    return (font ? projectFontFamily(font) : null) ?? fontFamily;
+    return (font ? projectFontFamily(font) : null) ?? (fontFamily || RuntimeConfig.defaultFontFamily);
 }
 
 /** Test seam: drop every registration. */

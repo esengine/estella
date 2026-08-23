@@ -77,7 +77,7 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
         value: opts.value ?? '',
         placeholder: opts.placeholder ?? '',
         placeholderColor: opts.placeholderColor ?? { ...c.text, a: c.text.a * 0.5 },
-        fontFamily: opts.fontFamily ?? 'Arial',
+        fontFamily: opts.fontFamily ?? '',
         fontSize: opts.fontSize ?? themeType().label,
         color: opts.color ?? { ...c.text },
         backgroundColor: opts.backgroundColor ?? { ...c.control },

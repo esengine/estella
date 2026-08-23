@@ -16,6 +16,17 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A `Text` that names no family is drawn in the project's.** `fontFamily`
+  defaults to empty now, and empty means "whatever this project uses" — resolved
+  where the family is already decided (`resolveTextFamily`), so the measured wrap
+  and the rendered glyphs cannot end up on different fonts. A scene that stored
+  `"Arial"` still asks for Arial; nothing on disk changes meaning.
+
+  `RuntimeConfig.canvasScaleMode` and `canvasMatchWidthOrHeight` are **removed**,
+  along with `applyRuntimeConfig` and the two matching `RuntimeBuildConfig`
+  fields: the project's canvas fit reaches a runtime as `screenFit`, and these
+  were the leftovers of the path it replaced.
+
 - **`AudioSource.priority` decides something now: there is a voice ceiling.**
   Nothing limited how many sounds played at once, so the field described an
   ordering that never happened. 32 voices by default (`features.audio.maxVoices`
@@ -152,6 +163,14 @@ published separately; it ships inside the editor.
   may not be checked out.
 
 ### Fixed
+
+- **The project's default font family never took effect.** It was written into
+  `RuntimeConfig` and read by exactly one function — `applyRuntimeConfig`, which
+  nothing called — so setting it changed no text anywhere. Two more places
+  answered "which font" with their own hard-coded `'Arial'` (widget composition,
+  text measurement), which is how it stayed unnoticed: everything looked right
+  because everything independently agreed on Arial. There is one default now,
+  and it is the configurable one.
 
 - **An `AudioSource` in the scene was outside everything the audio API decides.**
   It was played straight at the backend, so on a backend with no mixer graph —

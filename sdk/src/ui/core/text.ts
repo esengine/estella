@@ -133,7 +133,7 @@ export const Text = defineComponent<TextData>('Text', {
     content: '',
     i18nKey: '',
     font: 0,
-    fontFamily: 'Arial',
+    fontFamily: '',
     fontSize: 24,
     color: { r: 1, g: 1, b: 1, a: 1 },
     align: TextAlign.Left,

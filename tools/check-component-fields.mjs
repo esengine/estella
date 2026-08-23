@@ -28,8 +28,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * intended state: a field that earns an entry here is work, not permission.
  */
 const DECLARED_GAPS = {
-    'CacheAsBitmap.enabled': 'the component is declared and nothing renders a subtree to a'
-        + ' texture to draw it as one quad — the four fields below are the same gap',
+    'CacheAsBitmap.enabled': 'the bookkeeping half on purpose (docs graphics/sprites):'
+        + ' the engine ships no system that walks the scene and caches subtrees, because'
+        + ' it has no way to render ONE subtree to a target — a game drives the refresh'
+        + ' with CacheBitmap. An example using it would read these and close all four.',
     'CacheAsBitmap.dirty': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.width': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.height': 'see CacheAsBitmap.enabled',

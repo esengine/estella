@@ -38,7 +38,7 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
     placeholder: '',
     placeholderColor: { r: 0.6, g: 0.6, b: 0.6, a: 1 },
     font: 0,
-    fontFamily: 'Arial',
+    fontFamily: '',
     fontSize: 16,
     color: { r: 1, g: 1, b: 1, a: 1 },
     backgroundColor: { r: 0.15, g: 0.15, b: 0.15, a: 1 },

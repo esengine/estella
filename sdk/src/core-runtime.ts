@@ -27,7 +27,6 @@ export {
     DEFAULT_GRAVITY,
     DEFAULT_FIXED_TIMESTEP,
     DEFAULT_SPINE_SKIN,
-    applyRuntimeConfig,
 } from './defaults';
 
 // =============================================================================

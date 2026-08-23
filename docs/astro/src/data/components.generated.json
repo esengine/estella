@@ -3709,7 +3709,7 @@
         {
           "key": "fontFamily",
           "type": "string",
-          "default": "\"Arial\"",
+          "default": "empty",
           "doc": "A font the HOST already has (system or page-loaded). Ignored when Font is set."
         },
         {
@@ -3887,7 +3887,7 @@
         {
           "key": "fontFamily",
           "type": "string",
-          "default": "\"Arial\"",
+          "default": "empty",
           "doc": "A font the HOST already has (system or page-loaded). Ignored when Font is set."
         },
         {

@@ -370,7 +370,7 @@
             "content": "Button",
             "i18nKey": "",
             "font": 0,
-            "fontFamily": "Arial",
+            "fontFamily": "",
             "fontSize": 14,
             "color": {
               "r": 0.92,

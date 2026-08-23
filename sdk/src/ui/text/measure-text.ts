@@ -13,7 +13,7 @@
  * {@link wrapByMeasure}, the one wrap algorithm the renderer uses. Only a host
  * with neither (headless/logic-only) falls back to an average-glyph estimate.
  */
-import { DEFAULT_FONT_FAMILY, DEFAULT_LINE_HEIGHT } from '../../defaults';
+import { DEFAULT_LINE_HEIGHT, RuntimeConfig } from '../../defaults';
 import { platformHasGlyphRasterizer, platformRasterizeGlyph } from '../../platform';
 import { FONT_STYLE_BOLD, FONT_STYLE_ITALIC } from './glyph-rasterizer';
 import { wrapByMeasure } from './layout';
@@ -72,7 +72,7 @@ function platformAdvance(
  *  renderer draws with, so a measured wrap still matches the rendered one), and
  *  an average-advance estimate only where there is neither (headless). */
 function measurer(opts: MeasureTextOptions): Measurer {
-    const family = opts.fontFamily ?? DEFAULT_FONT_FAMILY;
+    const family = opts.fontFamily || RuntimeConfig.defaultFontFamily;
     const spacing = opts.letterSpacing ?? 0;
     if (ctx_ === undefined) {
         ctx_ = typeof document !== 'undefined' && document.createElement
