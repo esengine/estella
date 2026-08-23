@@ -33,11 +33,13 @@ import { buildNavMesh } from './navmesh/build';
 import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
 import {
     applyObstaclesToGrid, collectNavObstacles, navObstacleDigest,
-    collectNavLinks, navLinkDigest, type NavObstacleBox,
+    collectNavLinks, navLinkDigest, collectNavAreas, navAreaDigest, applyAreasToGrid, FIRST_AREA,
+    type NavObstacleBox, type NavAreaBox,
 } from './navObstacles';
 import { NavGrid } from './NavGrid';
 import { NavMesh, type NavLinkSegment } from './NavMesh';
 import { NavLink } from './NavLink';
+import { NavArea } from './NavArea';
 import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
 import { avoidVelocity, type AvoidanceNeighbour } from './avoidance';
@@ -74,6 +76,7 @@ export function bakeVolumes(
     baked: Set<Entity>,
     obstacles: readonly NavObstacleBox[] = [],
     links: readonly NavLinkSegment[] = [],
+    areas: readonly NavAreaBox[] = [],
 ): void {
     if (!geometry) return;
     const volumes = world.getEntitiesWithComponents([NavVolume, Transform]);
@@ -99,6 +102,7 @@ export function bakeVolumes(
             stepHeight: volume.stepHeight,
             obstacles,
             links,
+            areas,
         });
         nav.setSurface(mesh);
 
@@ -187,6 +191,32 @@ export interface ObstacleState {
 export interface LinkState {
     digest: number;
     mesh: NavMesh | null;
+}
+
+/**
+ * Tell the surface what each priced patch costs, and say whether one of them
+ * MOVED — the price is a lookup and the place is a bake, which is why they are
+ * two answers and not one.
+ */
+export function updateAreas(
+    nav: Navigation, areas: ReadonlyArray<NavAreaBox & { cost: number }>, state: AreaState,
+): boolean {
+    const surface = nav.surface;
+    if (surface instanceof NavMesh) {
+        for (let id = FIRST_AREA; id < 256; id++) surface.setAreaCost(id, 1);
+        for (const area of areas) surface.setAreaCost(area.area, area.cost);
+    } else if (surface instanceof NavGrid) {
+        applyAreasToGrid(surface, areas);
+    }
+    const digest = navAreaDigest(areas);
+    if (digest === state.digest) return false;
+    state.digest = digest;
+    return true;
+}
+
+/** Where the priced patches were when the world was last built for them. */
+export interface AreaState {
+    digest: number;
 }
 
 /** The shortest gap between two rebuilds. A door should shut at once; something
@@ -517,6 +547,7 @@ export class NavPlugin implements Plugin {
         const baked = new Set<Entity>();
         const obstacleState: ObstacleState = { digest: 0, at: 0, deferred: 0, grid: null };
         const linkState: LinkState = { digest: 0, mesh: null };
+        const areaState: AreaState = { digest: 0 };
         app.world.onDespawn((entity: Entity) => {
             runtimes.delete(entity);
             baked.delete(entity);
@@ -536,15 +567,19 @@ export class NavPlugin implements Plugin {
                         : null;
                     const obstacles = collectNavObstacles(app.world);
                     const links = collectNavLinks(app.world);
+                    const areas = collectNavAreas(app.world);
                     if (updateObstacles(nav, obstacles, obstacleState, Date.now())) baked.clear();
-                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles, links);
+                    if (updateAreas(nav, areas, areaState)) baked.clear();
+                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles, links, areas);
                     updateLinks(nav, links, linkState);
+                    // The mesh a bake just installed has never been told the prices.
+                    updateAreas(nav, areas, areaState);
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
                 {
                     name: 'NavAgentSystem',
                     touches: {
-                        reads: [NavVolume._name, NavObstacle._name, NavLink._name],
+                        reads: [NavVolume._name, NavObstacle._name, NavLink._name, NavArea._name],
                         writes: [NavAgent._name, Transform._name, CharacterController3D._name],
                     },
                     // Both move an entity; for one carrying both, the path is the

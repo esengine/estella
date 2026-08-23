@@ -24,6 +24,8 @@ import type { NavCompactField } from './compact';
 export interface NavContour {
     verts: Int32Array;
     reg: number;
+    /** What crossing this patch costs — the area its cells were marked with. */
+    area: number;
 }
 
 /**
@@ -81,7 +83,7 @@ export function buildContours(
                 removeDegenerateSegments(simplified);
                 if (simplified.length / 4 < 3) continue;
 
-                contours.push({ verts: windCorrectly(simplified), reg });
+                contours.push({ verts: windCorrectly(simplified), reg, area: chf.areas[i]! });
             }
         }
     }

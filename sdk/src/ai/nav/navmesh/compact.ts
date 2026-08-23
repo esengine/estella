@@ -156,41 +156,66 @@ export interface NavObstacleBox {
     rotation: Quat;
 }
 
+/** The same box, marking ground that costs something other than open ground. */
+export interface NavAreaBox extends NavObstacleBox {
+    /** Which area id the cells inside it take, 2 upwards. */
+    area: number;
+}
+
+/** Walk the cells of `chf` a box covers, in the box's own frame. */
+function forEachCellIn(
+    chf: NavCompactField, box: NavObstacleBox,
+    visit: (span: number) => void,
+): void {
+    const cs = chf.cellSize;
+    const ch = chf.cellHeight;
+    const reach = Math.abs(box.halfExtents.x) + Math.abs(box.halfExtents.y)
+        + Math.abs(box.halfExtents.z);
+    const x0 = Math.max(0, Math.floor((box.center.x - reach - chf.min.x) / cs));
+    const x1 = Math.min(chf.width - 1, Math.ceil((box.center.x + reach - chf.min.x) / cs));
+    const z0 = Math.max(0, Math.floor((box.center.z - reach - chf.min.z) / cs));
+    const z1 = Math.min(chf.depth - 1, Math.ceil((box.center.z + reach - chf.min.z) / cs));
+    const inverse = { x: -box.rotation.x, y: -box.rotation.y, z: -box.rotation.z, w: box.rotation.w };
+
+    for (let z = z0; z <= z1; z++) {
+        for (let x = x0; x <= x1; x++) {
+            const c = x + z * chf.width;
+            const start = chf.cellIndex[c]!;
+            const end = start + chf.cellCount[c]!;
+            const wx = chf.min.x + (x + 0.5) * cs - box.center.x;
+            const wz = chf.min.z + (z + 0.5) * cs - box.center.z;
+            for (let i = start; i < end; i++) {
+                if (chf.areas[i] === NAV_AREA_NULL) continue;
+                const wy = chf.min.y + chf.y[i]! * ch - box.center.y;
+                const local = q.rotate(inverse, { x: wx, y: wy, z: wz });
+                if (Math.abs(local.x) > box.halfExtents.x) continue;
+                if (Math.abs(local.y) > box.halfExtents.y) continue;
+                if (Math.abs(local.z) > box.halfExtents.z) continue;
+                visit(i);
+            }
+        }
+    }
+}
+
+/**
+ * Give the ground inside each box its own area id. Areas do not block, so this
+ * runs AFTER the erosion: pulling the walkable world back from a swamp would put
+ * a wall round it, and a swamp is something to wade through.
+ */
+export function markAreas(chf: NavCompactField, areas: readonly NavAreaBox[]): void {
+    for (const box of areas) {
+        forEachCellIn(chf, box, (i) => { chf.areas[i] = box.area; });
+    }
+}
+
 /**
  * Take the ground inside each box away, BEFORE the erosion — so the mesh pulls
  * back from an obstacle by the agent's width, exactly as it does from a wall. An
  * obstacle marked after eroding would leave routes scraping along its face.
  */
 export function markObstacles(chf: NavCompactField, obstacles: readonly NavObstacleBox[]): void {
-    const cs = chf.cellSize;
-    const ch = chf.cellHeight;
     for (const box of obstacles) {
-        const reach = Math.abs(box.halfExtents.x) + Math.abs(box.halfExtents.y)
-            + Math.abs(box.halfExtents.z);
-        const x0 = Math.max(0, Math.floor((box.center.x - reach - chf.min.x) / cs));
-        const x1 = Math.min(chf.width - 1, Math.ceil((box.center.x + reach - chf.min.x) / cs));
-        const z0 = Math.max(0, Math.floor((box.center.z - reach - chf.min.z) / cs));
-        const z1 = Math.min(chf.depth - 1, Math.ceil((box.center.z + reach - chf.min.z) / cs));
-        const inverse = { x: -box.rotation.x, y: -box.rotation.y, z: -box.rotation.z, w: box.rotation.w };
-
-        for (let z = z0; z <= z1; z++) {
-            for (let x = x0; x <= x1; x++) {
-                const c = x + z * chf.width;
-                const start = chf.cellIndex[c]!;
-                const end = start + chf.cellCount[c]!;
-                const wx = chf.min.x + (x + 0.5) * cs - box.center.x;
-                const wz = chf.min.z + (z + 0.5) * cs - box.center.z;
-                for (let i = start; i < end; i++) {
-                    if (chf.areas[i] === NAV_AREA_NULL) continue;
-                    const wy = chf.min.y + chf.y[i]! * ch - box.center.y;
-                    const local = q.rotate(inverse, { x: wx, y: wy, z: wz });
-                    if (Math.abs(local.x) > box.halfExtents.x) continue;
-                    if (Math.abs(local.y) > box.halfExtents.y) continue;
-                    if (Math.abs(local.z) > box.halfExtents.z) continue;
-                    chf.areas[i] = NAV_AREA_NULL;
-                }
-            }
-        }
+        forEachCellIn(chf, box, (i) => { chf.areas[i] = NAV_AREA_NULL; });
     }
 }
 

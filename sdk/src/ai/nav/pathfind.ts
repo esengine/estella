@@ -100,7 +100,7 @@ export function findPath(
             const nIdx = ny * width + nx;
             if (closed[nIdx]) continue;
 
-            const step = i < 4 ? 1 : SQRT2;
+            const step = (i < 4 ? 1 : SQRT2) * grid.costAt(nx, ny);
             const tentative = baseG + step;
             if (tentative < gScore[nIdx]) {
                 gScore[nIdx] = tentative;
@@ -137,10 +137,13 @@ export function shortenPath(grid: NavGrid, path: Cell[], clearance = 0): Cell[] 
     return out;
 }
 
-/** Whether every cell between two cells fits the body, walking the same steps. */
+/** Whether every cell between two cells fits the body, walking the same steps.
+ *  Ground that costs something other than what the shortcut starts on is refused:
+ *  a route that went round the mud must not be straightened back into it. */
 function clearLine(grid: NavGrid, from: Cell, to: Cell, clearance: number): boolean {
     let x = from.x;
     let y = from.y;
+    const price = grid.costAt(from.x, from.y);
     const dx = Math.abs(to.x - x);
     const dy = Math.abs(to.y - y);
     const sx = x < to.x ? 1 : -1;
@@ -148,6 +151,7 @@ function clearLine(grid: NavGrid, from: Cell, to: Cell, clearance: number): bool
     let err = dx - dy;
     for (;;) {
         if (!fits(grid, x, y, clearance)) return false;
+        if (grid.costAt(x, y) !== price) return false;
         if (x === to.x && y === to.y) return true;
         const e2 = err * 2;
         const stepX = e2 > -dy;

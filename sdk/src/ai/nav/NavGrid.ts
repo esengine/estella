@@ -65,6 +65,8 @@ export class NavGrid implements NavSurface {
     /** Cells an obstacle is standing on, or null while nothing blocks. Kept apart
      *  from `walkable` so a door closing and reopening cannot erase the map. */
     private obstructed_: Uint8Array | null = null;
+    /** What crossing each cell costs, or null while it all costs the same. */
+    private cost_: Float32Array | null = null;
 
     constructor(opts: NavGridOptions) {
         this.width = opts.width;
@@ -123,6 +125,31 @@ export class NavGrid implements NavSurface {
         if (!this.obstructed_) return;
         this.obstructed_.fill(0);
         this.clearance_ = null;
+    }
+
+    /**
+     * What crossing a cell costs, against 1 for open ground. Cheap makes a route
+     * prefer it and dear makes it go round; it never blocks, because a price an
+     * agent will not pay when there is another way is still one it pays when
+     * there is not.
+     */
+    costAt(gx: number, gy: number): number {
+        if (!this.cost_ || !this.inBounds(gx, gy)) return 1;
+        return this.cost_[gy * this.width + gx]!;
+    }
+
+    setCost(gx: number, gy: number, cost: number): void {
+        if (!this.inBounds(gx, gy)) return;
+        if (!this.cost_) {
+            if (cost === 1) return;
+            this.cost_ = new Float32Array(this.width * this.height).fill(1);
+        }
+        this.cost_[gy * this.width + gx] = cost > 0 ? cost : 1;
+    }
+
+    /** Put every cell back to open-ground price, before the areas are re-marked. */
+    clearCosts(): void {
+        this.cost_?.fill(1);
     }
 
     /**

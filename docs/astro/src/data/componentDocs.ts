@@ -147,6 +147,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   NavVolume: { category: 'gameplay', summary: 'The box a navigation mesh is baked over, out of the scene\u2019s own collision geometry.', doc: 'gameplay/ai/navigation' },
   NavObstacle: { category: 'gameplay', summary: 'A box that blocks without being geometry \u2014 a door, a gate, a placed building.', doc: 'gameplay/ai/navigation' },
   NavLink: { category: 'gameplay', summary: 'A way between two places the ground does not join \u2014 a drop, a ladder, a plank.', doc: 'gameplay/ai/navigation' },
+  NavArea: { category: 'gameplay', summary: 'A box of ground that costs more or less to cross \u2014 mud, water, a road.', doc: 'gameplay/ai/navigation' },
   Perceiver: { category: 'gameplay', summary: 'Senses nearby perception targets within a sight cone and range.', doc: 'gameplay/ai/perception' },
   Perception: { category: 'gameplay', summary: "What a perceiver currently sees — written each frame for the entity's own logic to read.", doc: 'gameplay/ai/perception' },
   PerceptionTarget: { category: 'gameplay', summary: 'Tag: perceivers can see this entity.', doc: 'gameplay/ai/perception' },

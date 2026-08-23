@@ -31,6 +31,8 @@ export interface NavPolyMesh {
     neis: Int32Array;
     polyCount: number;
     maxVertsPerPoly: number;
+    /** What crossing each polygon costs, as the area its contour carried. */
+    areas: Uint8Array;
 }
 
 /**
@@ -46,6 +48,7 @@ export function buildPolyMesh(contours: NavContour[], maxVertsPerPoly: number): 
 
     const indices: number[] = [];
     const tris: number[] = [];
+    const areas: number[] = [];
 
     for (const contour of contours) {
         const n = contour.verts.length / 3;
@@ -81,6 +84,7 @@ export function buildPolyMesh(contours: NavContour[], maxVertsPerPoly: number): 
         }
 
         mergePolygons(local, verts, nvp);
+        for (let i = 0; i < local.length / nvp; i++) areas.push(contour.area);
         for (const v of local) polys.push(v);
     }
 
@@ -92,6 +96,7 @@ export function buildPolyMesh(contours: NavContour[], maxVertsPerPoly: number): 
         neis: new Int32Array(polyCount * nvp).fill(NAV_NO_NEIGHBOUR),
         polyCount,
         maxVertsPerPoly: nvp,
+        areas: Uint8Array.from(areas),
     };
     buildAdjacency(mesh);
     return mesh;

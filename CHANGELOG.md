@@ -170,6 +170,21 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **Ground can cost something.** The mesh answers where an agent CAN walk;
+  `NavArea` is where a scene says what it would rather walk on. A box, a `cost`
+  against 1 for open ground, and routes that go out of their way for a road at
+  half price and round a swamp at four times. It never BLOCKS — an agent with
+  nowhere else to go wades through, which is the difference between a swamp and a
+  fence, and the difference between this and `NavObstacle`.
+
+  Both surfaces answer to it: a mesh gives every polygon the area its patch marked
+  and multiplies each step by what that area costs, a grid prices the cells. Which
+  patch a polygon belongs to is baked; what the patch costs is read fresh every
+  search, so a price can change for nothing and only moving one rebuilds anything.
+  The string-pull respects it too: a shortcut may not cross ground priced
+  differently from the ground it starts on, because straightening a route back
+  through the mud it had just gone round undoes the only reason it went round.
+
 - **An agent sent somewhere it cannot reach walks to the door.** `findWorldPath`
   and `findPath` returned nothing at all when the goal could not be reached, so an
   agent whose target was behind a shut door — or momentarily on the far side of

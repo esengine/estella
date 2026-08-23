@@ -24,7 +24,8 @@ import {
 } from './heightfield';
 import { log } from '../../../util/logger';
 import {
-    NavCompactField, erodeWalkableArea, markObstacles, type NavObstacleBox,
+    NavCompactField, erodeWalkableArea, markObstacles, markAreas,
+    type NavObstacleBox, type NavAreaBox,
 } from './compact';
 import { buildRegionsMonotone } from './regions';
 import { buildContours } from './contours';
@@ -63,6 +64,8 @@ export interface BuildNavMeshOptions {
     obstacles?: readonly NavObstacleBox[];
     /** Ways between places the ground does not join — see `NavLink`. */
     links?: readonly NavLinkSegment[];
+    /** Boxes of ground that cost more or less to cross — see `NavArea`. */
+    areas?: readonly NavAreaBox[];
 }
 
 export function buildNavMesh(
@@ -97,6 +100,9 @@ export function buildNavMesh(
 
     const chf = new NavCompactField(hf, walkableHeight, walkableClimb);
     if (opts.obstacles?.length) markObstacles(chf, opts.obstacles);
+    // An obstacle takes ground away and an area only prices it, so this one does
+    // not erode anything and only ever writes over ground that is already walkable.
+    if (opts.areas?.length) markAreas(chf, opts.areas);
     erodeWalkableArea(chf, walkableRadius);
     buildRegionsMonotone(chf, minRegionArea);
 
@@ -116,6 +122,7 @@ export function buildNavMesh(
         neis: mesh.neis,
         polyCount: mesh.polyCount,
         maxVertsPerPoly: mesh.maxVertsPerPoly,
+        areas: mesh.areas,
         agentRadius,
         // A point is only ever off the mesh by what the bake took away: the
         // erosion, plus the cell the voxel grid rounded it into.
@@ -142,6 +149,7 @@ function emptyMesh(agentRadius: number, cellSize: number): NavMesh {
         neis: new Int32Array(0),
         polyCount: 0,
         maxVertsPerPoly: 6,
+        areas: new Uint8Array(0),
         agentRadius,
         snapDistance: agentRadius + cellSize,
         verticalReach: 0,

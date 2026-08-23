@@ -133,6 +133,33 @@ one is cheap to animate and the other is not.
   itself halfway.
 </Aside>
 
+### Ground that costs something
+
+The mesh answers where an agent CAN walk. **`NavArea`** is where a scene says what
+it would rather walk on:
+
+| `NavArea` field | Default | Description |
+|---|---|---|
+| `halfExtents` | `200, 100, 200` | Half the box, in world pixels; the Transform is its centre. It turns with the entity. |
+| `cost` | `3` | What a unit of distance inside it costs, against `1` for open ground. |
+| `enabled` | `true` | Whether the price applies right now. |
+
+Under 1 is preferred and over 1 is avoided — a road at half price is worth going
+out of the way for, a swamp at four times is walked round if there is any way
+round. It never **blocks**: an agent with nowhere else to go wades through, which
+is the difference between a swamp and a fence.
+
+Moving or resizing a patch rebuilds the navigable world, the way an obstacle does.
+Changing its `cost` does not: the mesh carries which patch a polygon belongs to,
+and what that patch costs is read fresh on every search.
+
+<Aside type="note">
+  **The string-pull respects it.** A route over a grid is pulled taut afterwards,
+  and straightening one back through the mud it had just gone round would undo the
+  only reason it went round — so a shortcut may not cross ground priced
+  differently from the ground it starts on.
+</Aside>
+
 ### Doors, gates and things placed in the way
 
 Anything with a collider already blocks, because the mesh is baked from the

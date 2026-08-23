@@ -26,9 +26,11 @@ export { NavAgent, type NavAgentData, setNavDestination, stopNavAgent } from './
 export { NavVolume, type NavVolumeData } from './NavVolume';
 export { NavObstacle, type NavObstacleData } from './NavObstacle';
 export { NavLink, type NavLinkData } from './NavLink';
+export { NavArea, type NavAreaData } from './NavArea';
 export {
     collectNavObstacles, navObstacleDigest, applyObstaclesToGrid, type NavObstacleBox,
     collectNavLinks, navLinkDigest,
+    collectNavAreas, navAreaDigest, applyAreasToGrid, FIRST_AREA, type NavAreaBox,
 } from './navObstacles';
 export { NavPlugin, navPlugin } from './NavPlugin';
 export { NavDebugDraw, drawNavDebug, type NavDebugDrawConfig } from './NavDebugDraw';

@@ -1990,6 +1990,35 @@
       ]
     },
     {
+      "name": "NavArea",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(200, 100, 200)"
+        },
+        {
+          "key": "cost",
+          "type": "number",
+          "default": "3",
+          "doc": "What crossing it costs against 1 for open ground.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "halfExtents.x",
+        "halfExtents.y",
+        "halfExtents.z",
+        "cost"
+      ]
+    },
+    {
       "name": "NavLink",
       "source": "ts",
       "fields": [

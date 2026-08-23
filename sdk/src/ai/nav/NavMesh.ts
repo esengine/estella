@@ -58,6 +58,8 @@ export interface NavMeshData {
      * ever off by the grid it was voxelised on plus the erosion.
      */
     snapDistance: number;
+    /** What crossing each polygon costs, as an area id the cost table is read by. */
+    areas: Uint8Array;
     /**
      * How far above or below a point a floor may be and still be the one it
      * stands on. Over more than one floor the nearest wins; this is what makes a
@@ -84,6 +86,10 @@ export class NavMesh implements NavSurface {
     readonly agentRadius: number;
     readonly snapDistance: number;
     readonly verticalReach: number;
+    readonly areas: Uint8Array;
+    /** What a unit of distance costs in each area, 1 for open ground. Read every
+     *  search rather than baked in, so a swamp can dry out without a rebuild. */
+    private areaCost_ = new Float32Array(256).fill(1);
     /** Ways between polygons that share no edge, both directions listed separately. */
     private links_: NavLinkEdge[] = [];
     private linksFrom_: Map<number, number[]> = new Map();
@@ -107,6 +113,7 @@ export class NavMesh implements NavSurface {
         this.agentRadius = data.agentRadius;
         this.snapDistance = data.snapDistance;
         this.verticalReach = data.verticalReach;
+        this.areas = data.areas;
 
         this.bounds = new Float32Array(this.polyCount * 4);
         let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
@@ -153,6 +160,22 @@ export class NavMesh implements NavSurface {
             }
         }
         this.buckets = lists.map(l => Int32Array.from(l));
+    }
+
+    /**
+     * Say what an area costs to cross, against 1 for open ground. Cheap makes a
+     * route prefer it and dear makes it go round; nothing here BLOCKS, because a
+     * price an agent will not pay when there is another way is still a price it
+     * pays when there is not.
+     */
+    setAreaCost(area: number, cost: number): void {
+        if (area < 0 || area > 255) return;
+        this.areaCost_[area] = cost > 0 ? cost : 1;
+    }
+
+    /** What crossing polygon `p` costs a unit of distance. */
+    costOf(p: number): number {
+        return this.areaCost_[this.areas[p] ?? 1] ?? 1;
     }
 
     /**
@@ -414,7 +437,9 @@ export class NavMesh implements NavSurface {
                 const mx = (a.x + b.x) / 2;
                 const my = (a.y + b.y) / 2;
                 const mz = (a.z + b.z) / 2;
-                const g = cost[cur]! + distance(enterX[cur]!, enterY[cur]!, enterZ[cur]!, mx, my, mz);
+                const g = cost[cur]!
+                    + distance(enterX[cur]!, enterY[cur]!, enterZ[cur]!, mx, my, mz)
+                    * this.costOf(next);
                 if (g >= cost[next]!) continue;
                 cost[next] = g;
                 parent[next] = cur;
@@ -433,9 +458,9 @@ export class NavMesh implements NavSurface {
                 if (closed[next]) continue;
                 const g = cost[cur]!
                     + distance(enterX[cur]!, enterY[cur]!, enterZ[cur]!,
-                        link.start.x, link.start.y, link.start.z)
+                        link.start.x, link.start.y, link.start.z) * this.costOf(cur)
                     + distance(link.start.x, link.start.y, link.start.z,
-                        link.end.x, link.end.y, link.end.z);
+                        link.end.x, link.end.y, link.end.z) * this.costOf(next);
                 if (g >= cost[next]!) continue;
                 cost[next] = g;
                 parent[next] = cur;
