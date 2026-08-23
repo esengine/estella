@@ -10,7 +10,8 @@ import chalk from 'chalk';
 // editor keeps its own copy because electron-builder reads that one, and it is a
 // submodule that may not be checked out — so it is mirrored, never required.
 const PKG = 'package.json';
-const EDITOR_PKG = 'desktop/package.json';
+const EDITOR_DIR = 'desktop';
+const EDITOR_PKG = `${EDITOR_DIR}/package.json`;
 
 function run(cmd) {
     console.log(chalk.gray(`  $ ${cmd}`));
@@ -36,6 +37,8 @@ if (!version) {
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
     die(`Invalid version format: "${version}". Expected x.y.z`);
 }
+
+let editorBumped = false;
 
 const status = execSync('git status --porcelain').toString().trim();
 if (status) {
@@ -67,12 +70,21 @@ if (oldVersion === version) {
     let staged = PKG;
     if (existsSync(EDITOR_PKG)) {
         const editor = JSON.parse(readFileSync(EDITOR_PKG, 'utf8'));
-        editor.version = version;
-        writeFileSync(EDITOR_PKG, JSON.stringify(editor, null, 2) + '\n');
-        staged += ` ${EDITOR_PKG}`;
+        if (editor.version !== version) {
+            editor.version = version;
+            writeFileSync(EDITOR_PKG, JSON.stringify(editor, null, 2) + '\n');
+            // A submodule's file belongs to its own repository: `git add
+            // desktop/package.json` from here is fatal. This repo commits the
+            // gitlink, so the editor's commit must exist and be pushed.
+            run(`git -C ${EDITOR_DIR} add package.json`);
+            run(`git -C ${EDITOR_DIR} commit -m "chore: release v${version}"`);
+            editorBumped = true;
+        }
+        staged += ` ${EDITOR_DIR}`;
     }
     run(`git add ${staged}`);
     run(`git commit -m "chore: release v${version}"`);
+    if (editorBumped) run(`git -C ${EDITOR_DIR} push origin HEAD:master`);
 }
 
 console.log(chalk.cyan('▸'), `Creating tag v${version}`);
