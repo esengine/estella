@@ -86,6 +86,10 @@ if (process.env.ESTELLA_VERIFY_SOFTWARE_GPU) app.commandLine.appendSwitch('disab
 // reach: on a runner with no device it died before any scene drew, on every
 // retry. Harmless with a GPU — this is a headless verifier, not a shipped app.
 app.commandLine.appendSwitch('disable-gpu-sandbox');
+// ...and on Linux there is no GPU process at all. One Electron per scene meant
+// 85 races between the page asking for WebGL2 and the service able to answer,
+// and two in three lost. Same SwiftShader in-process, so the same pixels.
+if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 // Pins the profile for anything that goes through the compositor (a screenshot
 // for a human). The pixel assertions do not: a composited read is colour
 // managed, turning rgb(0,255,0) into rgb(58,254,32) switch or no switch.
