@@ -236,6 +236,26 @@ export const SCENES = [
   // light-aim migration in a real frame too. Lit at 180, not 255: a directional
   // light carries its Lambert term.
   { id: "shadow2d-directional", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-dir.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-dir.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,180,0],\"tol\":40},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // The same red-over-blue image as a PNG and as a KTX2, side by side: a
+  // transcode that arrives upside down swaps the KTX2 pair and nothing else,
+  // which a criterion probing only one half — or only the colours — cannot see.
+  { id: "ktx2-orientation", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ktx2-orientation.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ktx2-orientation.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.2333,\"y\":0.35,\"rgb\":[220,20,20],\"tol\":25},{\"x\":0.7667,\"y\":0.35,\"rgb\":[220,20,20],\"tol\":25},{\"x\":0.2333,\"y\":0.65,\"rgb\":[20,20,220],\"tol\":25},{\"x\":0.7667,\"y\":0.65,\"rgb\":[20,20,220],\"tol\":25}]" } },
+  // parallax 1 = the sprite belongs to the world, so a camera 200 to its right
+  // leaves it 200 to the left of centre. Read as 0 it would be pinned to the
+  // camera and sit in the middle, which is what the second probe refuses.
+  { id: "parallax-control", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/parallax-control.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/parallax-control.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.1667,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // Three absolutely-positioned boxes inside one flex panel, each a different
+  // colour in a different corner: an inset read off the wrong edge moves one of
+  // them onto the panel's grey, which no single-corner probe would notice.
+  { id: "ui-absolute", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-node-absolute.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-node-absolute.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.05,\"y\":0.1,\"rgb\":[217,64,64],\"tol\":25},{\"x\":0.95,\"y\":0.1,\"rgb\":[64,204,89],\"tol\":25},{\"x\":0.5,\"y\":0.95,\"rgb\":[77,115,230],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[31,31,38],\"tol\":20}]" } },
+  // Four anchored panels, one per edge, each its own colour: an anchor resolved
+  // against the wrong edge moves one onto the black behind it. The probes avoid
+  // the labels — what this proves is where a box lands, not how a glyph looks.
+  { id: "ui-anchor-layout", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-layout.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-layout.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.08,\"y\":0.08,\"rgb\":[41,82,143],\"tol\":25},{\"x\":0.78,\"y\":0.08,\"rgb\":[143,41,82],\"tol\":25},{\"x\":0.5,\"y\":0.92,\"rgb\":[41,122,62],\"tol\":25},{\"x\":0.36,\"y\":0.78,\"rgb\":[102,41,122],\"tol\":25}]" } },
+  // A Text sized by its UINode box: the box is what is checked, across its width
+  // and just outside it, so a box that collapsed or grew is caught without
+  // asking a glyph to land on a given pixel.
+  { id: "ui-text-box", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-text-uinode.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-uinode.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.36,\"y\":0.36,\"rgb\":[46,51,71],\"tol\":20},{\"x\":0.64,\"y\":0.36,\"rgb\":[46,51,71],\"tol\":20},{\"x\":0.5,\"y\":0.7,\"rgb\":[0,0,0],\"tol\":15}]" } },
   { id: "material-lit", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
   { id: "material-lit-point", tier: "pr", webgpu: { ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,253,0],\"tol\":25},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,52,0],\"tol\":25}]" }, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-point.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-point.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,64,0],\"tol\":60}]" } },
   { id: "material-lit-normal", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },

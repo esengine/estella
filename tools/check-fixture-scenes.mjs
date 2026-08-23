@@ -24,15 +24,15 @@ const SCENES = 'fixtures/scenes';
  * entry here is a scene someone drew and nothing looks at.
  */
 const UNDRIVEN = {
-    'ui-layout.esscene': 'flex layout across 25 nodes — no criterion since the layout gates moved to the editor checks',
-    'ui-node-absolute.esscene': 'absolute positioning inside a flex parent; see ui-layout',
-    'ui-text-effects.esscene': 'outline / shadow text styling; see ui-layout',
-    'ui-text-uinode.esscene': 'text sized by its UINode box; see ui-layout',
-    'ui-text-zorder.esscene': 'text drawn over and under its siblings; see ui-layout',
-    'ui-textinput.esscene': 'a focused TextInput with a caret; see ui-layout',
-    'ktx2-orientation.esscene': 'whether a transcoded KTX2 arrives the right way up — the ktx2 criterion checks colour, not orientation',
-    'parallax-control.esscene': 'a sprite parallax factor driven per axis',
-    'pixel-perfect.esscene': 'a texture sampled 1:1 at an integer camera position',
+    // Each of these would prove something about a GLYPH, and a probe on a glyph
+    // reads the host's font — it says as much about the machine as the engine.
+    // They need a criterion shaped for text, not a point.
+    'ui-text-effects.esscene': 'outline and shadow on a glyph',
+    'ui-text-zorder.esscene': 'a text drawn over the panel it sits on',
+    'ui-textinput.esscene': 'the glyphs and caret inside an SDF input field',
+    // Pixel-perfect snapping moves a solid-colour sprite by less than a fifth of
+    // a pixel here: the fixture has no texture whose sampling would show it.
+    'pixel-perfect.esscene': 'a camera at a fractional position snapped to whole pixels',
 };
 
 const drivers = [];

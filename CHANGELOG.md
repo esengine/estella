@@ -202,11 +202,16 @@ published separately; it ships inside the editor.
   looking at the shadow rather than at the scene.
 
   New gate `check-fixture-scenes`: a fixture with no criterion behind it must be
-  named, with what it would prove. Nine are (UI layout and text, KTX2
-  orientation, parallax, pixel-perfect sampling) — that list is the work, and
-  empty is where it is meant to end. Two more were neither: `platformer.esscene`
-  and `space-shooter.esscene` were copies of golden project scenes, built out of
-  game script components that do not exist in the fixture corpus.
+  named, with what it would prove. Four more of those fixtures now run: a KTX2
+  transcode is checked against the same image as a PNG, half by half, so one
+  arriving upside down is caught (the existing KTX2 criterion reads colour, which
+  a flip does not change); a parallax factor of 1 must leave a sprite where the
+  world put it; anchored UI panels must land on the edge they name; and a Text's
+  UINode box must keep its width. Four remain, three because what they would
+  prove is a glyph — a probe on one reads the host's font, not the engine. Two
+  other fixtures were neither driven nor worth driving: `platformer.esscene` and
+  `space-shooter.esscene` were copies of golden project scenes, built out of game
+  script components that do not exist in the fixture corpus.
 
 - **The UI hit test took three mouse flags and threw them away.**
   `uiHitTestWorld(world, x, y, mouseDown, mousePressed, mouseReleased)` carried
