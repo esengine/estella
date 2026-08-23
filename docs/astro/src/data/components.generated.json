@@ -2005,6 +2005,13 @@
           "range": "≥ 1"
         },
         {
+          "key": "cellHeight",
+          "type": "number",
+          "default": "10",
+          "doc": "Vertical voxel size; what separates one level from the one above it.",
+          "range": "≥ 1"
+        },
+        {
           "key": "maxSlopeDegrees",
           "type": "number",
           "default": "45",
@@ -2014,7 +2021,14 @@
           "key": "agentHeight",
           "type": "number",
           "default": "180",
-          "doc": "Headroom an agent needs; 0 skips the ceiling check.",
+          "doc": "Headroom an agent needs to walk somewhere.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "agentRadius",
+          "type": "number",
+          "default": "30",
+          "doc": "How wide the agent is; the mesh is pulled back from walls by this.",
           "range": "≥ 0"
         },
         {
@@ -2027,7 +2041,7 @@
           "key": "layers",
           "type": "number",
           "default": "0",
-          "doc": "Layer mask the ground rays are cast against; 0 = every layer.",
+          "doc": "Layer mask the ground is taken from; 0 = every layer.",
           "range": "≥ 0",
           "advanced": true
         }
@@ -2037,8 +2051,10 @@
         "halfExtents.y",
         "halfExtents.z",
         "cellSize",
+        "cellHeight",
         "maxSlopeDegrees",
         "agentHeight",
+        "agentRadius",
         "stepHeight",
         "layers"
       ]

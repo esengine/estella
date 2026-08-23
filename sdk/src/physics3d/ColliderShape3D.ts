@@ -280,3 +280,75 @@ export function placeCollider3DWireframe(lines: Vec3[][], position: Vec3, rotati
         return { x: position.x + r.x, y: position.y + r.y, z: position.z + r.z };
     }));
 }
+
+/** Points around a sphere or capsule when it is turned into triangles. Coarser
+ *  than the wireframe: this feeds a voxeliser, which rounds everything onto its
+ *  own grid anyway, and every extra ring is triangles it has to rasterise. */
+const SOLID_SEGMENTS = 8;
+
+/**
+ * The shape as a closed triangle soup in entity-local space, wound so a face's
+ * normal points OUT — which way a face points is part of the answer to a caller
+ * like a navigation bake, where an upward normal is what makes a triangle ground
+ * rather than wall. The sibling of {@link collider3DWireframe}, in triangles.
+ */
+export function collider3DTriangles(
+    shape: Collider3DShape,
+): { positions: Float32Array; indices: Uint32Array } {
+    if (shape.kind === 'box') {
+        const { center: c, halfExtents: h } = shape;
+        const positions = new Float32Array(8 * 3);
+        let n = 0;
+        for (const sy of [-1, 1] as const) {
+            for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+                positions[n++] = c.x + sx * h.x;
+                positions[n++] = c.y + sy * h.y;
+                positions[n++] = c.z + sz * h.z;
+            }
+        }
+        return { positions, indices: Uint32Array.from(BOX_INDICES) };
+    }
+
+    // A capsule is a sphere cut at its equator and pulled apart, so both are the
+    // same stack of rings with the two halves offset — and the equator ring
+    // appears twice, which is what makes the straight wall between them.
+    const radius = shape.radius;
+    const halfHeight = shape.kind === 'capsule' ? shape.halfHeight : 0;
+    const rings = SOLID_SEGMENTS;
+    const segs = SOLID_SEGMENTS;
+    const rows = rings + 2;
+    const positions = new Float32Array(rows * (segs + 1) * 3);
+    let n = 0;
+    for (let r = 0; r < rows; r++) {
+        const upper = r <= rings / 2;
+        const phi = ((upper ? r : r - 1) / rings) * Math.PI;
+        const y = Math.cos(phi) * radius + (upper ? halfHeight : -halfHeight);
+        const ringRadius = Math.sin(phi) * radius;
+        for (let s = 0; s <= segs; s++) {
+            const theta = (s / segs) * Math.PI * 2;
+            positions[n++] = Math.cos(theta) * ringRadius;
+            positions[n++] = y;
+            positions[n++] = Math.sin(theta) * ringRadius;
+        }
+    }
+    const indices: number[] = [];
+    for (let r = 0; r + 1 < rows; r++) {
+        for (let s = 0; s < segs; s++) {
+            const a = r * (segs + 1) + s;
+            const b = a + segs + 1;
+            indices.push(a, a + 1, b, a + 1, b + 1, b);
+        }
+    }
+    return { positions, indices: Uint32Array.from(indices) };
+}
+
+/** The twelve triangles over the eight corners emitted above, every one of them
+ *  wound counter-clockwise seen from outside the box. */
+const BOX_INDICES: readonly number[] = [
+    0, 1, 2, 0, 2, 3,
+    4, 6, 5, 4, 7, 6,
+    0, 4, 5, 0, 5, 1,
+    1, 5, 6, 1, 6, 2,
+    2, 6, 7, 2, 7, 3,
+    3, 7, 4, 3, 4, 0,
+];

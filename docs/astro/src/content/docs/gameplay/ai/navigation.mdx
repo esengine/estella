@@ -1,23 +1,29 @@
 ---
 title: Navigation
-description: "A navigation grid and A* pathfinding — building the grid, and moving a NavAgent to any world point with replanning."
+description: "Two shapes of navigable world — a grid for cells, a baked polygon mesh for geometry — and moving a NavAgent over either."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Navigation moves an agent to a world point along a route that avoids blocked cells,
-using A\* over a **`NavGrid`**.
+Navigation moves an agent to a world point along a route that goes round whatever
+is in the way. The route is planned over the **`Nav`** resource's active *surface*,
+and there are two of them:
+
+- **`NavGrid`** — a rectangular mask of walkable and blocked cells. What a tilemap
+  already is, and the one you can flip a cell of while the game runs.
+- **`NavMesh`** — convex polygons **baked** out of a scene's own collision geometry.
+  It follows sloped and stacked ground, which no single grid can.
+
+Everything above them — the agent, the overlay, `nav.findWorldPath` — asks the same
+questions of either, so nothing in a game has to know which one it was handed.
 
 ### Building a grid
-
-A `NavGrid` is a rectangular grid of walkable/blocked cells. Install it on the `Nav`
-resource so agents can path against it:
 
 ```typescript
 import { defineSystem, Res, Nav, NavGrid } from 'esengine';
 
 export const setupNav = defineSystem([Res(Nav)], (nav) => {
-  nav.setGrid(new NavGrid({
+  nav.setSurface(new NavGrid({
     width: 60,          // columns
     height: 44,         // rows
     cellSize: 20,       // world pixels per cell
@@ -31,45 +37,54 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 | `width` | number | Cell columns. |
 | `height` | number | Cell rows. |
 | `cellSize` | number | World pixels per cell (square). |
-| `origin` | `Vec2` | World position of cell `(0,0)`'s center. Defaults to `(0,0)`. |
+| `origin` | `Vec3` | World position of cell `(0,0)`'s center. Its `z` is the depth every waypoint comes back at. Defaults to `(0,0,0)`. |
 | `walkable` | `Uint8Array` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. |
-| `plane` | `'xy' \| 'xz'` | Which world plane the cells lie in. `xy` (the default) is a flat scene's own plane; `xz` is the ground of a 3D one. |
-| `surface` | `Float32Array` | Ground height per cell, on the axis the plane leaves out. Omitted → every cell sits at the origin's third axis. |
-| `stepHeight` | number | Height difference between neighbours an agent can climb. `0` (the default) lets any difference through. |
 
 To derive a grid from a painted tilemap instead of hand-authoring the mask, use
 `navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
-`navGridFromTiles`.
+`navGridFromTiles`. `grid.setWalkable(x, y, false)` closes a cell at any time — a
+door shuts, a tower goes up — and the next plan routes around it.
 
-### A grid for a 3D scene
+### A mesh for a 3D scene
 
-A 3D scene has geometry rather than a tile mask, so its grid is **baked** from the
-bodies it already collides against — put a **`NavVolume`** on an entity and the nav
-plugin fills the box it describes:
+A 3D scene has geometry rather than a tile mask, so its surface is **baked** from
+the bodies it already collides against. Put a **`NavVolume`** on an entity and the
+nav plugin fills the box it describes:
 
-| `NavVolume` field | Description |
-|---|---|
-| `halfExtents` | Half the box to sample, in world pixels; the entity's Transform is its centre. |
-| `cellSize` | World pixels per cell. Smaller is a finer route and a slower bake. |
-| `maxSlopeDegrees` | Steepest ground an agent can stand on. Anything steeper is a wall. |
-| `agentHeight` | Headroom an agent needs — a cell with less is a crawlspace, not a corridor. `0` skips the check. |
-| `stepHeight` | How high a step the agent can climb between neighbouring cells. |
-| `layers` | Physics layers the ground rays are cast against; `0` = every layer. |
+| `NavVolume` field | Default | Description |
+|---|---|---|
+| `halfExtents` | `1000, 500, 1000` | Half the box to bake, in world pixels; the entity's Transform is its centre. |
+| `cellSize` | `50` | Voxel size in the ground plane. Smaller hugs the geometry more closely and bakes more slowly. |
+| `cellHeight` | `10` | Voxel size vertically — what decides whether a balcony and the floor under it are two levels or one. |
+| `maxSlopeDegrees` | `45` | Steepest ground an agent can stand on. Anything steeper is a wall. |
+| `agentHeight` | `180` | Headroom an agent needs. Ground with less is a crawlspace, not a corridor. |
+| `agentRadius` | `30` | How wide the agent is. The mesh is pulled back from every wall by this. |
+| `stepHeight` | `40` | How high a step the agent can climb rather than walk round. |
+| `layers` | `0` | Physics layers the ground is taken from; `0` = every layer. |
 
-One ray straight down per cell answers all of it: no hit is a hole, a tilted hit is
-a slope or a wall, and a hit with a ceiling too close above it is unwalkable. The
-bake waits for the 3D solver to create its bodies, so the grid appears a frame or
-two into play, not at load.
+The bake voxelises the collision triangles in the box, keeps the surfaces an agent
+of that size could stand on, and turns what is left into convex polygons. Every
+column of the world keeps **all** of its floors, so a bridge and the road under it
+are two places and a route can use either.
 
-<Aside type="caution">
-  **One surface per column.** A bridge and the road under it collapse into whichever
-  the ray meets first — the top of a wall becomes perfectly good ground two metres
-  up, and it is `stepHeight` (not walkability) that keeps agents off it. Multi-level
-  routing needs a real navmesh, which this is not.
+<Aside type="note">
+  **Static bodies only.** A crate that is about to be pushed is not floor, and a
+  mesh baked over one would describe the world for exactly as long as nobody
+  touched it. Give anything that should be walked on (or walked round) a
+  `RigidBody3D` with its body type set to **Static**.
 </Aside>
 
-`bakeNavGrid` is also callable directly if a game wants to bake on its own terms;
-it takes any object with a `raycast`, which the `Physics3D` resource already is.
+Each volume is baked once, on the first frame its geometry is available — a mesh
+collider contributes nothing until its asset has loaded, so the bake waits for it.
+`buildNavMesh(verts, indices, options)` is callable directly if a game wants to bake
+on its own terms, and `collectNavGeometry(world, box)` is what gathers the triangles.
+
+<Aside type="caution">
+  **One agent size per mesh.** `agentRadius` is baked in, not applied per query: the
+  mesh *is* the set of places a body that wide may stand. A `NavAgent` wider than
+  the volume it walks on is routed as if it were the narrower one, and says so once
+  in the log.
+</Aside>
 
 ### Seeing what was baked
 
@@ -80,11 +95,12 @@ on the `NavDebugDraw` resource in the running game:
 app.getResource(NavDebugDraw).enabled = true;
 ```
 
-Walkable cells are outlined at the height of their own ground, and the pairs the
-step limit refuses are marked in red — the only thing that explains a route going
-the long way round, since both sides of a ledge are walkable cells. Off by default
-(a grid is thousands of quads a frame), and it stops after a few thousand cells:
-`cellSize` is the knob for seeing more of a big world.
+Every walkable face is outlined where it actually is — at the height of the ground
+for a mesh, in the scene's own plane for a grid — and every edge the walkable world
+**stops** at is marked in red. Those edges are the only thing that explains a route
+going the long way round. Off by default (a surface is thousands of loops a frame),
+and it stops after a few thousand faces: `cellSize` is the knob for seeing more of a
+big world.
 
 <Aside type="tip">
   The `Nav` resource also answers one-off queries directly:
@@ -113,11 +129,11 @@ stopNavAgent(world, entity);
 | `NavAgent` field | Default | Description |
 |---|---|---|
 | `speed` | `120` | Movement speed in world pixels per second. |
-| `radius` | `0` | How wide the body is, in pixels. Planning routes it around anything it would not fit through; `0` routes it as a point. |
+| `radius` | `0` | How wide the body is, in pixels. On a grid, planning routes it around anything it would not fit through; on a mesh this is the volume's `agentRadius` instead. |
 | `arriveRadius` | `6` | Stop distance from the final goal. |
 | `repathInterval` | `0.5` | Seconds between replans while moving; `0` = replan only when the target changes. |
 | `hasTarget` | `false` | Whether a destination is set (managed for you). |
-| `targetX`, `targetY` | `0` | Current destination in world pixels. |
+| `targetX`, `targetY`, `targetZ` | `0` | Current destination in world pixels. |
 | `arrived` | `false` | Set true the frame the agent reaches its goal. |
 
 `setNavDestination` is safe to call every frame to chase a moving target — the agent
@@ -126,12 +142,15 @@ only replans when the target actually moves or `repathInterval` elapses. Read
 
 ## Agents have width
 
-Set `radius` to the body's actual half-width and planning keeps it out of gaps
-it cannot fit through. Left at `0` an agent is routed as a point, which is what
-you want for something that has no collider — and what produces the classic
+On a **grid**, set `radius` to the body's actual half-width and planning keeps it
+out of gaps it cannot fit through. Left at `0` an agent is routed as a point, which
+is what you want for something that has no collider — and what produces the classic
 sight of an enemy walking confidently into a doorway and stopping there, because
-the cell it was routed to is walkable and the half of it hanging over the next
-one is not.
+the cell it was routed to is walkable and the half of it hanging over the next one
+is not.
 
-A goal the body cannot stand on (a pickup in a corner) is still reached: the
-plan ends as close as the body fits, and `arriveRadius` covers the rest.
+On a **mesh** the same thing is settled at bake time by `agentRadius`, which is why
+a route over one is already clear of the walls with nothing asked of the planner.
+
+A goal the body cannot stand on (a pickup in a corner) is still reached either way:
+the plan ends as close as the body fits, and `arriveRadius` covers the rest.

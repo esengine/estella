@@ -656,11 +656,15 @@ export type {
 } from './physics';
 
 // =============================================================================
-// AI — Navigation (grid A* today; state machines / behavior trees to come)
+// AI — Navigation (a grid for cells, a polygon mesh for geometry)
 // =============================================================================
 
 export {
     NavGrid,
+    NavMesh,
+    buildNavMesh,
+    collectNavGeometry,
+    navGeometryReady,
     findPath,
     pathToWorld,
     navGridFromTiles,
@@ -674,18 +678,21 @@ export {
     NavPlugin,
     navPlugin,
     NavDebugDraw,
-    bakeNavGrid,
+    type NavSurface,
+    type NavSurfaceSink,
+    type NavQueryOptions,
+    type NavPoint,
     type NavGridOptions,
-    type NavPlane,
+    type NavMeshData,
+    type BuildNavMeshOptions,
+    type NavGeometry,
+    type CollectNavGeometryOptions,
     type Cell,
     type PathfindOptions,
     type BuildNavGridOptions,
     type NavAgentData,
     type NavVolumeData,
-    type BakeNavGridOptions,
     type NavDebugDrawConfig,
-    type GroundProbe,
-    type GroundHit,
 } from './ai';
 
 // =============================================================================

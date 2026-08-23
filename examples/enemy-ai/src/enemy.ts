@@ -22,7 +22,7 @@ registerAction('patrol', () => { /* hold position until the player is seen */ })
 export const setupNavGridSystem = defineSystem(
     [Res(Nav)],
     (nav) => {
-        nav.setGrid(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
+        nav.setSurface(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
     },
     { name: 'SetupNavGridSystem' },
 );

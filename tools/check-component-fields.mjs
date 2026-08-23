@@ -40,9 +40,9 @@ const DECLARED_GAPS = {
         + ' own built-in shader and never consult the table',
     'SpineAnimation.material': 'see ParticleEmitter.material',
     'DragonBonesAnimation.material': 'see ParticleEmitter.material',
-    'Perception.targetZ': 'sensing is three-dimensional and nothing ACTS on the third'
-        + ' axis yet: the navigation the built-in chase drives is a 2D grid, so a game'
-        + ' reads the pair it can walk to. Closed by 3D navigation (a navmesh)',
+    'Perception.targetZ': 'sensing is three-dimensional and the navigation under it now'
+        + ' is too, but the chase itself is a game\'s to write and the one example that'
+        + ' writes it is a flat scene. Closed by an example that chases through a NavVolume',
     'Perception.dirZ': 'see Perception.targetZ',
 };
 

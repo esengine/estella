@@ -3,7 +3,7 @@ import {
     Transform, Camera, FollowTarget, TilemapLayer, RuntimeOnly, Text, Sprite, Prefabs,
     Nav, navGridFromTilemapLayer, SceneManager, transitionTo,
 } from 'esengine';
-import type { NavGrid } from 'esengine';
+import { NavGrid } from 'esengine';
 import { Area, AreaLabel, Player, Gate, NavGridBuilt, Spawner, Spawned } from '../components';
 import { session } from '../state';
 
@@ -40,7 +40,7 @@ export const navFromTerrainSystem = defineSystem(
             const width = Math.round((-transform.position.x * 2) / cell);
             const height = Math.round((transform.position.y * 2) / cell);
             if (width <= 0 || height <= 0) continue;
-            nav.setGrid(navGridFromTilemapLayer(entity, {
+            nav.setSurface(navGridFromTilemapLayer(entity, {
                 width,
                 height,
                 cellSize: cell,
@@ -146,8 +146,8 @@ export const spawnerSystem = defineSystem(
         // Nothing may be placed before the terrain has said where the ground is:
         // the grid is derived from the tilemap by a system that runs just ahead
         // of this one, but not on the frame the area arrives.
-        if (!nav.hasGrid()) return;
-        const grid = nav.grid;
+        if (!(nav.surface instanceof NavGrid)) return;
+        const grid = nav.surface;
         for (const [entity, transform, spawner] of spawners) {
             commands.entity(entity).insert(Spawned, {}).insert(RuntimeOnly, {});
             if (!spawner.prefab) continue;

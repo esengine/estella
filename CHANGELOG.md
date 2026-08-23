@@ -106,13 +106,14 @@ published separately; it ships inside the editor.
   views one particle from the side: a quad fixed in the x/y plane is edge-on there
   and covers nothing.
 
-- **The navigation grid can be seen in the running game.** `NavDebugDraw` outlines
-  the walkable cells at the height of their own ground and marks the pairs the
-  step limit refuses — the only thing that explains a route going the long way
-  round, since both sides of a ledge are walkable cells. Until now `cellSize`,
-  `maxSlopeDegrees` and `agentHeight` were tuned by watching whether an agent
-  happened to move. Off by default, and capped at a few thousand cells: an overlay
-  that stops the game is not a diagnostic.
+- **What a scene can be navigated over can be seen in the running game.**
+  `NavDebugDraw` outlines every walkable face where it actually is — at the height
+  of the ground for a mesh, in the scene's own plane for a grid — and marks in red
+  every edge the walkable world stops at, which is the only thing that explains a
+  route going the long way round. Until now `cellSize`, `agentRadius` and
+  `agentHeight` were tuned by watching whether an agent happened to move. One
+  drawer for both kinds of surface, off by default, and capped at a few thousand
+  faces: an overlay that stops the game is not a diagnostic.
 
 - **A draw overlay does not throw a frame on a core that cannot draw.** Plugins
   register their overlays when they are built, whether or not one is ever turned
@@ -137,38 +138,52 @@ published separately; it ships inside the editor.
   shape and does not draw it.
 
 - **A 3D scene authors where its agents may walk.** `NavVolume` is a box on an
-  entity; the nav plugin bakes the grid inside it out of the running 3D world and
-  installs it, so navigation is authored in the scene rather than written by every
-  game. It waits for the solver to create its bodies first — the queries resource
-  exists as soon as the module loads, and a bake against a world with no bodies in
-  it returns a grid of holes that one-bake-per-volume would never revisit. A volume
-  that finds no walkable ground says so in the log instead of leaving agents
-  standing still for no stated reason. New editor check `nav3d-play` walks an agent
-  round a wall in the running game, which is the only place the side module, the
-  plugin and the bodies all exist at once.
+  entity; the nav plugin bakes the navmesh inside it out of the scene's own
+  collision geometry and installs it, so navigation is authored in the scene rather
+  than written by every game. Its fields are all facts about the agent or about how
+  finely the world is measured — `cellSize`, `cellHeight`, `agentHeight`,
+  `agentRadius`, `stepHeight`, `maxSlopeDegrees`, `layers` — never about the route,
+  which is what the bake works out from them. Only STATIC bodies count: a crate
+  about to be pushed is not floor. A volume that finds no walkable ground says so
+  in the log instead of leaving agents standing still for no stated reason, and one
+  too big to voxelise at its own `cellSize` says that rather than freezing. New
+  editor check `nav3d-play` walks an agent round a wall in the running game and
+  reads the two floors of a column it never walks on.
 
-- **A navigation grid can be baked out of the 3D solver.** `bakeNavGrid` casts one
-  ray straight down per cell and reads three answers off it: whether there is
-  ground, how high it is, and how steeply it is tilted. No hit is a hole, ground
-  steeper than `maxSlopeDegrees` is a wall, and a ceiling closer than
-  `agentHeight` is a crawlspace. The bodies a scene already collides against are
-  the source, so the walkable surface cannot disagree with the one an agent
-  stands on. It takes a `GroundProbe` — an interface small enough that
-  `Physics3DQueries` satisfies it unchanged, and a test satisfies it with a
-  function. One surface per column: a bridge and the road under it collapse into
-  whichever the ray meets first, which is the whole of what a heightfield can
-  honestly answer.
+- **A 3D scene's navigation is a real navmesh.** `buildNavMesh` voxelises the
+  scene's collision triangles into a solid heightfield, keeps the surfaces an agent
+  of a given size could stand on, and turns what is left into convex polygons that
+  know their neighbours — the Recast pipeline, in TypeScript beside the grid A\*
+  rather than through a second wasm module. Every column of the world keeps **all**
+  of its floors, so a bridge and the road under it are two places and an agent can
+  be on either; a route is planned polygon to polygon and then pulled taut through
+  the doorways it crosses, so crossing an open floor is one straight line rather
+  than a staircase of cells. Four things can take ground away and each is asked for
+  the one answer only it has: too steep, no headroom, on the lip of a drop, or
+  closer to a wall than the agent is wide. `agentRadius` is baked in rather than
+  applied per query — the mesh *is* the set of places a body that wide may stand,
+  which is why a route over one is already clear of the walls.
 
-- **Navigation plans and walks in three dimensions.** `NavGrid` now knows which
-  world plane its cells lie in — `xy` (a flat scene, the default and unchanged) or
-  `xz`, the ground of a spatial one, where each cell also carries the height of
-  the ground there. A* honours a `stepHeight`, so a kerb is a route and a ledge of
-  the same width is not, and a route that ends up cut in two reports no path
-  rather than one that walks through a wall. Paths, `NavAgent` (`targetZ`) and the
-  kinematic follower are three-dimensional throughout — a slope is longer than its
-  shadow, and spending a frame's budget on the shadow walked agents uphill faster
-  than along the flat. One grid class rather than two: a second would be this one
-  with two axes renamed.
+  `collectNavGeometry` gathers the triangles from the collider components the
+  editor gizmo and the physics overlay already read, so a mesh cannot be baked from
+  a shape nobody can see, and a mesh collider contributes its own triangles rather
+  than the box around them. Nothing waits for the solver any more: the geometry is
+  in the scene from the first frame.
+
+- **Navigation plans and walks in three dimensions.** Paths, `NavAgent`
+  (`targetZ`) and the kinematic follower carry all three axes — a slope is longer
+  than its shadow, and spending a frame's budget on the shadow walked agents uphill
+  faster than along the flat.
+
+  **Breaking.** There is now one interface, `NavSurface`, and two shapes behind it:
+  `NavGrid` for a world that already IS cells (a tilemap, and the only one a game
+  can flip a cell of while it runs) and `NavMesh` for a world made of geometry.
+  `Navigation.grid` / `setGrid` / `hasGrid` are `surface` / `setSurface` /
+  `hasSurface`, and the agent, the overlay and `findWorldPath` never learn which
+  kind they were handed. `NavGrid` is a flat grid again — `plane`, `surface`,
+  `stepHeight` and `canStep` are gone with the ray-cast heightfield they were added
+  for, which the navmesh answers everything of and more. `NavDebugDraw`'s
+  `showCells` / `showLedges` are `showFaces` / `showBorders`.
 
 - **AI sensing is three-dimensional.** A `Perceiver`'s range came from x and y,
   its cone from `atan2` in the same plane, and its facing from the Z half of a

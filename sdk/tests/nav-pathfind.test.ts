@@ -43,31 +43,6 @@ describe('NavGrid', () => {
         expect(grid.worldToCell({ x: 170, y: 210 })).toEqual({ x: 2, y: 0 });
     });
 
-    // The same grid, laid in the ground plane of a spatial scene: the cells map
-    // to x/z and the axis they leave out carries the height of the ground.
-    it('maps cells to the ground plane, at the height of each cell', () => {
-        const grid = new NavGrid({
-            width: 2, height: 2, cellSize: 10, plane: 'xz', origin: { x: 0, y: 0, z: 0 },
-            surface: [0, 0, 5, 40],
-        });
-        expect(grid.cellToWorld(0, 0)).toEqual({ x: 0, y: 0, z: 0 });
-        expect(grid.cellToWorld(1, 1)).toEqual({ x: 10, y: 40, z: 10 });
-        // The cell is named by x/z; the height is an answer, never a question.
-        expect(grid.worldToCell({ x: 10, y: 999, z: 10 })).toEqual({ x: 1, y: 1 });
-    });
-
-    // A step an agent can walk up is a route; a wall of the same width is not.
-    // With no surface (or no limit) nothing here can say no — a flat grid's rule.
-    it('lets a small step through and a tall one not', () => {
-        const opts = { width: 2, height: 1, cellSize: 10, plane: 'xz' as const, stepHeight: 10 };
-        const kerb = new NavGrid({ ...opts, surface: [0, 6] });
-        const wall = new NavGrid({ ...opts, surface: [0, 60] });
-        expect(kerb.canStep(0, 0, 1, 0)).toBe(true);
-        expect(wall.canStep(0, 0, 1, 0)).toBe(false);
-        expect(new NavGrid({ ...opts, surface: [0, 60], stepHeight: 0 }).canStep(0, 0, 1, 0)).toBe(true);
-        expect(new NavGrid(opts).canStep(0, 0, 1, 0)).toBe(true);
-    });
-
     it('reports bounds and walkability', () => {
         const grid = new NavGrid({ width: 3, height: 3, cellSize: 10 });
         expect(grid.isWalkable(0, 0)).toBe(true);
@@ -174,36 +149,5 @@ describe('findPath', () => {
         expect(pathToWorld(grid, path)).toEqual([
             { x: 5, y: 5, z: 0 }, { x: 25, y: 5, z: 0 }, { x: 45, y: 5, z: 0 },
         ]);
-    });
-
-    // A ledge is not a wall — every cell here is walkable — but it is not a route
-    // either, and only the step limit can tell the search that.
-    it('routes around a ledge it cannot climb, and over one it can', () => {
-        // A tall ridge down the middle column, open along the top row:
-        //   row 2: . . .   row 1: . ^ .   row 0: S ^ G
-        const ridge = () => [
-            0, 90, 0,
-            0, 90, 0,
-            0, 0, 0,
-        ];
-        const spatial = { width: 3, height: 3, cellSize: 10, plane: 'xz' as const };
-        const blocked = new NavGrid({ ...spatial, surface: ridge(), stepHeight: 20 });
-        const path = findPath(blocked, { x: 0, y: 0 }, { x: 2, y: 0 }, { diagonal: false })!;
-        expect(path).not.toBeNull();
-        // It went the long way: through the open row rather than over the ridge.
-        expect(path.some(c => c.y === 2)).toBe(true);
-
-        // The same ridge, an agent that can climb it: straight across.
-        const climbable = new NavGrid({ ...spatial, surface: ridge(), stepHeight: 100 });
-        const over = findPath(climbable, { x: 0, y: 0 }, { x: 2, y: 0 }, { diagonal: false })!;
-        expect(over).toEqual([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]);
-    });
-
-    it('reports no route when the ledge cuts the grid in two', () => {
-        const grid = new NavGrid({
-            width: 3, height: 1, cellSize: 10, plane: 'xz',
-            surface: [0, 90, 0], stepHeight: 20,
-        });
-        expect(findPath(grid, { x: 0, y: 0 }, { x: 2, y: 0 })).toBeNull();
     });
 });

@@ -2,18 +2,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    NavPlugin.ts
- * @brief   Drives NavAgents: plan-on-demand + kinematic path following.
+ * @brief   Bakes NavVolumes and drives NavAgents: plan-on-demand + kinematic
+ *          path following.
  *
  * One system, gated to play mode. Per-entity runtime path lives in a closure
  * Map (the `defineBehavior` pattern) so the NavAgent component stays purely
  * authorable/serializable. The per-frame logic is `stepNavigation`, extracted
  * so it unit-tests against a fake world. MVP integrates the Transform directly
  * (kinematic); physics `moveCharacter` avoidance is a later stage
- * (REARCH_GAMEPLAY_AI.md AI4) — the grid path already clears static blockers.
+ * (REARCH_GAMEPLAY_AI.md AI4) — the planned route already clears static blockers.
  */
 
 import type { App, Plugin } from '../../app/app';
-import type { Entity } from '../../types';
+import type { Entity, Vec3 } from '../../types';
 import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import {
@@ -22,20 +23,18 @@ import {
     type ComponentData,
 } from '../../ecs/component';
 import { playModeOnly } from '../../ecs/env';
-import {
-    Physics3D, Physics3DRuntime, type Physics3DRuntime as Physics3DRuntimeData,
-} from '../../physics3d/Physics3DPlugin';
 import { log } from '../../util/logger';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
 import { NavVolume } from './NavVolume';
-import { bakeNavGrid, type GroundProbe } from './bakeNavGrid';
+import { buildNavMesh } from './navmesh/build';
+import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
 import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
 export interface AgentRuntime {
-    waypoints: import('../../types').Vec3[];
+    waypoints: Vec3[];
     index: number;
     plannedX: number;
     plannedY: number;
@@ -44,41 +43,51 @@ export interface AgentRuntime {
     reachable: boolean;
 }
 
+/** Where the bake gets its triangles. Null until the world can answer — a mesh
+ *  collider has none until its asset has loaded, and a volume is baked once. */
+export type NavGeometryProvider = (min: Vec3, max: Vec3, layers: number) => NavGeometry;
+
 /**
- * Bake the first NavVolume that has not been baked yet, and install its grid.
- * `probe` is null until the caller has a world worth sampling (see the plugin):
- * a bake against a solver with no bodies yet returns a grid of holes, and one
- * bake per volume means it would stay that way.
+ * Bake the first NavVolume that has not been baked yet, and install its mesh.
  */
 export function bakeVolumes(
     world: NavWorldView,
     nav: Navigation,
-    probe: GroundProbe | null,
+    geometry: NavGeometryProvider | null,
     baked: Set<Entity>,
 ): void {
-    if (!probe) return;
+    if (!geometry) return;
     for (const entity of world.getEntitiesWithComponents([NavVolume, Transform])) {
         if (baked.has(entity)) continue;
         const volume = world.get(entity, NavVolume);
+        // The volume is placed in the same space the geometry is collected in.
         const at = world.get(entity, Transform).position;
         const h = volume.halfExtents;
-        nav.setGrid(bakeNavGrid(probe, {
-            min: { x: at.x - h.x, y: at.y - h.y, z: at.z - h.z },
-            max: { x: at.x + h.x, y: at.y + h.y, z: at.z + h.z },
+        const min = { x: at.x - h.x, y: at.y - h.y, z: at.z - h.z };
+        const max = { x: at.x + h.x, y: at.y + h.y, z: at.z + h.z };
+
+        const geo = geometry(min, max, volume.layers);
+        baked.add(entity);
+
+        const mesh = buildNavMesh(geo.verts, geo.indices, {
+            min, max,
             cellSize: volume.cellSize,
+            cellHeight: volume.cellHeight,
             maxSlopeDegrees: volume.maxSlopeDegrees,
             agentHeight: volume.agentHeight,
+            agentRadius: volume.agentRadius,
             stepHeight: volume.stepHeight,
-            layers: volume.layers,
-        }));
-        baked.add(entity);
+        });
+        nav.setSurface(mesh);
+
         // Baked once, so a volume that found nothing stays empty: say so rather
         // than leave a scene with agents that never move and no reason given.
-        if (!nav.grid?.walkable.some(w => w === 1)) {
-            log.warn('nav', `NavVolume on entity ${entity} baked no walkable ground —`
-                + ' check that it covers the floor and that `layers` includes it');
+        if (mesh.polyCount === 0) {
+            log.warn('nav', `NavVolume on entity ${entity} baked no walkable ground from `
+                + `${geo.bodyCount} static bodies — check that it covers the floor, that the`
+                + ' floor is a STATIC RigidBody3D, and that `layers` includes it');
         }
-        // One grid is installed at a time, so a scene with two volumes would have
+        // One mesh is installed at a time, so a scene with two volumes would have
         // the last one win. Bake one per frame and let the newest be the active
         // one rather than silently merging boxes that may not touch.
         return;
@@ -126,7 +135,7 @@ export function stepNavigation(
             );
             rt = {
                 waypoints: path ?? [],
-                // Skip the start cell center to avoid backtracking toward it.
+                // Skip the start point to avoid stepping back toward it.
                 index: path && path.length > 1 ? 1 : 0,
                 plannedX: agent.targetX,
                 plannedY: agent.targetY,
@@ -168,8 +177,8 @@ export class NavPlugin implements Plugin {
 
     build(app: App): void {
         app.insertResource(Nav, new Navigation());
-        // Installed with the grid, drawn only once a game turns the resource on —
-        // the same bargain the 3D physics overlay makes.
+        // Installed with the surface, drawn only once a game turns the resource
+        // on — the same bargain the 3D physics overlay makes.
         setupNavDebugDraw(app);
 
         const runtimes = new Map<Entity, AgentRuntime>();
@@ -184,15 +193,14 @@ export class NavPlugin implements Plugin {
             defineSystem(
                 [Res(Nav), Res(Time), GetWorld()],
                 (nav: Navigation, time: TimeData, world) => {
-                    // A NavVolume takes its grid from the 3D solver. Waiting for a
-                    // BODY, not for the queries resource: that appears when the
-                    // module loads, bodies only when it first steps.
-                    const runtime = app.hasResource(Physics3DRuntime)
-                        ? app.getResource<Physics3DRuntimeData>(Physics3DRuntime) : null;
-                    const populated = (runtime?.bodies.size ?? 0) > 0;
-                    const probe = populated && app.hasResource(Physics3D)
-                        ? app.getResource<GroundProbe | null>(Physics3D) : null;
-                    bakeVolumes(world as NavWorldView, nav, probe, baked);
+                    // A NavVolume is baked from the colliders a scene authors, so
+                    // there is no solver to wait for — only the mesh assets some
+                    // of those colliders read, which arrive when they arrive.
+                    const provider = navGeometryReady(app.world)
+                        ? (min: Vec3, max: Vec3, layers: number) =>
+                            collectNavGeometry(app.world, { min, max, layers })
+                        : null;
+                    bakeVolumes(world as NavWorldView, nav, provider, baked);
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
                 {

@@ -58,7 +58,7 @@ describe('enemy AI (FSM + navigation)', () => {
   it('patrols while the player is far, then chases via the nav agent when sensed', () => {
     const world = new FakeWorld();
     const nav = new Navigation();
-    nav.setGrid(new NavGrid({ width: 40, height: 40, cellSize: 20 })); // open 800x800 grid
+    nav.setSurface(new NavGrid({ width: 40, height: 40, cellSize: 20 })); // open 800x800 grid
     const fsmStates = new Map();
     const navRuntimes = new Map<Entity, AgentRuntime>();
 
@@ -119,7 +119,7 @@ describe('enemy AI (FSM + navigation)', () => {
   it('breaks off the chase and returns to patrol when the player escapes', () => {
     const world = new FakeWorld();
     const nav = new Navigation();
-    nav.setGrid(new NavGrid({ width: 40, height: 40, cellSize: 20 }));
+    nav.setSurface(new NavGrid({ width: 40, height: 40, cellSize: 20 }));
     const fsmStates = new Map();
     const navRuntimes = new Map<Entity, AgentRuntime>();
 

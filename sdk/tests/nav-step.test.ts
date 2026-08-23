@@ -51,7 +51,7 @@ class FakeWorld implements NavWorldView {
 
 function openNav(width = 10, height = 3, cellSize = 10): Navigation {
     const nav = new Navigation();
-    nav.setGrid(new NavGrid({ width, height, cellSize }));
+    nav.setSurface(new NavGrid({ width, height, cellSize }));
     return nav;
 }
 
@@ -83,7 +83,7 @@ describe('stepNavigation', () => {
         const grid = new NavGrid({ width: 10, height: 3, cellSize: 10 });
         grid.setWalkable(5, 0, false);
         grid.setWalkable(5, 1, false);
-        nav.setGrid(grid);
+        nav.setSurface(grid);
         const world = new FakeWorld();
         const runtimes = new Map<Entity, AgentRuntime>();
         const e = world.spawnAgent(0, 0, { speed: 150, repathInterval: 0, hasTarget: true, targetX: 90, targetY: 0 });
@@ -103,7 +103,7 @@ describe('stepNavigation', () => {
         // The field is the whole point: an agent chasing something must be able
         // to stop short of it rather than walk onto it.
         const nav = new Navigation();
-        nav.setGrid(new NavGrid({ width: 20, height: 3, cellSize: 10 }));
+        nav.setSurface(new NavGrid({ width: 20, height: 3, cellSize: 10 }));
         const world = new FakeWorld();
         const runtimes = new Map<Entity, AgentRuntime>();
         const e = world.spawnAgent(0, 0, {
@@ -126,7 +126,7 @@ describe('stepNavigation', () => {
         const nav = new Navigation();
         const grid = new NavGrid({ width: 10, height: 3, cellSize: 10 });
         for (let y = 0; y < 3; y++) grid.setWalkable(5, y, false);
-        nav.setGrid(grid);
+        nav.setSurface(grid);
         const world = new FakeWorld();
         const runtimes = new Map<Entity, AgentRuntime>();
         const e = world.spawnAgent(0, 0, { speed: 100, repathInterval: 0, hasTarget: true, targetX: 90, targetY: 0 });
