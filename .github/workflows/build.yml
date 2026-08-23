@@ -389,16 +389,26 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
 
+    # Both are DEEPER oracles the Android tests skip when absent, so fetching them
+    # must not be able to cost more than they are worth. Unbounded, this step hung
+    # for 38 minutes and took the job's whole budget with it — and a job killed at
+    # its ceiling writes no log. Each failure now says which assertions it costs.
+    - name: Set up the Android packaging oracles
+      timeout-minutes: 6
+      run: |
+        pip install --quiet --timeout 30 --retries 2 androguard \
+          || echo "::warning::androguard unavailable — the Android manifest tests run structural-only"
+        if curl -fsSL --connect-timeout 20 --max-time 180 --retry 2 \
+             -o "$RUNNER_TEMP/bundletool.jar" \
+             https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar; then
+          echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
+        else
+          echo "::warning::bundletool unavailable — the .aab tests run structural-only"
+        fi
+
     # The editor's unit suites. They ran in the `test` job, which has no editor
     # checkout — `pnpm --filter` prints "No projects matched" and exits 0, so the
     # job reported success having run none of them.
-    - name: Set up the Android packaging oracles
-      run: |
-        pip install --quiet androguard
-        curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
-          https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar
-        echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
-
     - name: Run Desktop tests
       run: pnpm --filter @estella/editor exec vitest run
 
