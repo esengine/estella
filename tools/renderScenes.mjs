@@ -39,6 +39,19 @@ export const WEBGPU_GAP = 'CI runs the pr tier of them on a runner of its own,'
 export const SCENE_WATCHDOG_MS = { webgl2: 45_000, webgpu: 120_000 };
 
 /**
+ * A floor for a host that starts slower than the one the 45s above was measured
+ * on. Booting the engine through the whole editor costs 12s on the CI runner
+ * (`createWebApp` alone measured 9.8s) against the engine host's ~1s, and two
+ * scenes were failed at 45s while the ones after them passed at 50.
+ */
+export const HOST_WATCHDOG_MS = { editor: 150_000 };
+
+/** How long one scene gets, for the host that draws it on the backend it names. */
+export function sceneWatchdogMs(backend, host) {
+    return Math.max(SCENE_WATCHDOG_MS[backend] ?? 45_000, HOST_WATCHDOG_MS[host] ?? 0);
+}
+
+/**
  * Every pixel gate. `env` is handed to desktop/scripts/headless-verify.mjs
  * verbatim — an empty one is the default sprite scene.
  */

@@ -14,7 +14,7 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { TIERS, SCENES, scenesAtTier, SCENE_WATCHDOG_MS } from './renderScenes.mjs';
+import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
@@ -71,7 +71,7 @@ if (BUDGET && !(Number(BUDGET) > 0)) {
 // measured. A tier that outgrows its runner is a report either way; without one
 // the report is a killed process, which names no scene at all.
 const BUDGET_MS = Number(BUDGET || 0) * 60_000;
-const WATCHDOG_MS = SCENE_WATCHDOG_MS[BACKEND];
+const watchdogFor = (host) => sceneWatchdogMs(BACKEND, host);
 // The scene's own watchdog produces a verdict, so this kill is for the launch
 // that never reaches it — a whole electron start-up beyond.
 const LAUNCH_MARGIN_MS = 30_000;
@@ -162,6 +162,7 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
 function runScene(scene) {
   const RUNNER = 'tools/render-host/run.mjs';
+  const watchdog = watchdogFor(scene.host);
   const args = XVFB
     ? ['-a', 'pnpm', 'exec', 'electron', RUNNER]
     : ['exec', 'electron', RUNNER];
@@ -169,11 +170,11 @@ function runScene(scene) {
   const r = runTool(XVFB ? 'xvfb-run' : 'pnpm', args, {
     cwd: ROOT,
     encoding: 'utf8',
-    timeout: WATCHDOG_MS + LAUNCH_MARGIN_MS,
+    timeout: watchdog + LAUNCH_MARGIN_MS,
     env: {
       ...process.env,
       ELECTRON_DISABLE_SANDBOX: '1',
-      ESTELLA_VERIFY_TIMEOUT_MS: String(WATCHDOG_MS),
+      ESTELLA_VERIFY_TIMEOUT_MS: String(watchdog),
       ESTELLA_VERIFY_HOST: scene.host,
       ...scene.env,
     },
