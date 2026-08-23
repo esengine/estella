@@ -170,6 +170,19 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **An agent sent somewhere it cannot reach walks to the door.** `findWorldPath`
+  and `findPath` returned nothing at all when the goal could not be reached, so an
+  agent whose target was behind a shut door — or momentarily on the far side of
+  one — stood exactly where it was and waited. They now answer with the route to
+  the nearest place that CAN be reached, which is what every game wants and what
+  the docs already promised for a goal standing in a wall. `null` is left meaning
+  one thing: the agent itself is nowhere.
+
+  Whether it got there stays visible, because the caller named the goal and the
+  last waypoint either is at it or is not — no flag, and no second question to
+  ask. A goal off the mesh entirely is a direction too: the walk toward it is
+  still a walk, round the wall rather than through it.
+
 - **A 3D AI example, and the last thing sensing could not act on.** `Perception`
   has reported where a target is on all three axes since sensing became
   three-dimensional, and `targetZ` / `dirZ` had no reader anywhere: the chase a

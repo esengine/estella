@@ -42,9 +42,10 @@ const DIAG: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
- * Find a grid path from `start` to `goal`, inclusive of both endpoints.
- * Returns null if unreachable (or if either endpoint can't be snapped to a
- * walkable cell). A start equal to goal yields a single-cell path.
+ * Find a grid path from `start` to `goal`, inclusive of both endpoints. A goal
+ * that cannot be reached yields the route to the reachable cell NEAREST it, and
+ * the caller sees it fell short because it named the goal. Null means the START
+ * is nowhere: a cell off the grid has no route from it.
  */
 export function findPath(
     grid: NavGrid,
@@ -71,8 +72,12 @@ export function findPath(
     const closed = new Uint8Array(n);
     gScore[startIdx] = 0;
 
+    // The nearest the search ever got, in case it never gets there.
+    let nearestIdx = startIdx;
+    let nearestScore = heuristic(s.x, s.y, g.x, g.y, diagonal);
+
     const heap = new MinHeap(n);
-    heap.push(startIdx, heuristic(s.x, s.y, g.x, g.y, diagonal));
+    heap.push(startIdx, nearestScore);
 
     while (heap.size > 0) {
         const current = heap.pop();
@@ -100,12 +105,17 @@ export function findPath(
             if (tentative < gScore[nIdx]) {
                 gScore[nIdx] = tentative;
                 cameFrom[nIdx] = current;
-                heap.push(nIdx, tentative + heuristic(nx, ny, g.x, g.y, diagonal));
+                const toGoal = heuristic(nx, ny, g.x, g.y, diagonal);
+                if (toGoal < nearestScore) {
+                    nearestScore = toGoal;
+                    nearestIdx = nIdx;
+                }
+                heap.push(nIdx, tentative + toGoal);
             }
         }
     }
 
-    return null;
+    return reconstruct(cameFrom, nearestIdx, width);
 }
 
 /**

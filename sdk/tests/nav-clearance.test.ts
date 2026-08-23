@@ -68,7 +68,9 @@ describe('findPath with clearance', () => {
     });
 
     it('refuses the pinch for a body that does not fit', () => {
-        expect(findPath(pinch, { x: 3, y: 0 }, { x: 3, y: 4 }, { clearance: 2 })).toBeNull();
+        const body = findPath(pinch, { x: 3, y: 0 }, { x: 3, y: 4 }, { clearance: 2 })!;
+        // It walks up to the gap and no further: the far side is not reached.
+        expect(body[body.length - 1]!.y).toBeLessThan(2);
     });
 
     it('routes a body the long way round when there is one', () => {
@@ -81,11 +83,11 @@ describe('findPath with clearance', () => {
             '..........',
             '..........',
         ]);
-        const point = findPath(room, { x: 1, y: 1 }, { x: 1, y: 5 });
-        const body = findPath(room, { x: 1, y: 1 }, { x: 1, y: 5 }, { clearance: 2 });
-        expect(point).not.toBeNull();
-        // The only gap is one cell wide, so a two-cell body has nowhere to go.
-        expect(body).toBeNull();
+        const point = findPath(room, { x: 1, y: 1 }, { x: 1, y: 5 })!;
+        const body = findPath(room, { x: 1, y: 1 }, { x: 1, y: 5 }, { clearance: 2 })!;
+        expect(point[point.length - 1]).toEqual({ x: 1, y: 5 });
+        // The only gap is one cell wide, so a two-cell body never crosses the row.
+        expect(body[body.length - 1]!.y).toBeLessThan(3);
     });
 
     // Goals are where the game put them, which is often against a wall. A body

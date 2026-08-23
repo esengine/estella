@@ -15,6 +15,7 @@ import { Navigation } from '../src/ai/nav/Navigation';
 import { updateObstacles, type ObstacleState } from '../src/ai/nav/NavPlugin';
 import { applyObstaclesToGrid, navObstacleDigest } from '../src/ai/nav/navObstacles';
 import type { NavObstacleBox } from '../src/ai/nav/navmesh/compact';
+import type { Vec3 } from '../src/types';
 
 const NO_TURN = { x: 0, y: 0, z: 0, w: 1 };
 const QUARTER_TURN = { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 };
@@ -90,8 +91,8 @@ describe('an obstacle in a baked mesh', () => {
         const open = bake([]);
         const from = { x: -500, y: 0, z: 0 };
         const to = { x: 500, y: 0, z: 0 };
-        expect(open.findWorldPath(from, to)).not.toBeNull();
-        expect(shut.findWorldPath(from, to)).toBeNull();
+        expect(reaches(open.findWorldPath(from, to), to)).toBe(true);
+        expect(reaches(shut.findWorldPath(from, to), to)).toBe(false);
     });
 });
 
@@ -170,3 +171,11 @@ describe('updateObstacles', () => {
         expect(grid.isWalkable(4, 4)).toBe(false);
     });
 });
+
+/** Whether a route actually got where it was sent — a route that could not is
+ *  answered with the way to the nearest place it could, not with nothing. */
+function reaches(path: Vec3[] | null, to: Vec3, slack = 120): boolean {
+    if (!path || path.length === 0) return false;
+    const end = path[path.length - 1]!;
+    return Math.hypot(end.x - to.x, end.y - to.y, end.z - to.z) < slack;
+}

@@ -99,7 +99,10 @@ describe('findPath', () => {
         for (const c of path) expect(grid.isWalkable(c.x, c.y)).toBe(true);
     });
 
-    it('returns null for an unreachable goal', () => {
+    // A goal nothing can reach is answered with the route to the nearest cell that
+    // can be. Whether it got there is the caller's to see: it named the goal, and
+    // the last cell either is that goal or is not.
+    it('stops at the wall when the goal is on the far side of it', () => {
         const grid = gridFromAscii([
             '..#..',
             '..#..',
@@ -107,7 +110,10 @@ describe('findPath', () => {
             '..#..',
             '..#..',
         ]);
-        expect(findPath(grid, { x: 0, y: 0 }, { x: 4, y: 0 }, { snapRadius: 0 })).toBeNull();
+        const path = findPath(grid, { x: 0, y: 0 }, { x: 4, y: 0 }, { snapRadius: 0 })!;
+        expect(path).not.toBeNull();
+        expect(path[path.length - 1]).toEqual({ x: 1, y: 0 }); // against the wall
+        for (const c of path) expect(grid.isWalkable(c.x, c.y)).toBe(true);
     });
 
     it('does not cut diagonal corners', () => {
@@ -117,8 +123,10 @@ describe('findPath', () => {
             '.#',
             '#.',
         ]);
-        // With a 2x2 fully pinched map there is no path at all.
-        expect(findPath(grid, { x: 0, y: 0 }, { x: 1, y: 1 }, { snapRadius: 0 })).toBeNull();
+        // With a 2x2 fully pinched map there is nowhere to go: the route is the
+        // cell it started on and nothing more.
+        expect(findPath(grid, { x: 0, y: 0 }, { x: 1, y: 1 }, { snapRadius: 0 }))
+            .toEqual([{ x: 0, y: 0 }]);
     });
 
     it('4-connected paths never move diagonally', () => {

@@ -137,7 +137,9 @@ describe('stepNavigation', () => {
         expect(150 - stopped.x).toBeGreaterThan(20);
     });
 
-    it('does not move an agent toward an unreachable target', () => {
+    // An agent sent somewhere it cannot get to walks to the door rather than
+    // standing where it was told, and stops on the near side of the wall.
+    it('walks an agent as close to an unreachable target as it can get', () => {
         // Full wall column with no gap.
         const nav = new Navigation();
         const grid = new NavGrid({ width: 10, height: 3, cellSize: 10 });
@@ -147,10 +149,9 @@ describe('stepNavigation', () => {
         const runtimes = new Map<Entity, AgentRuntime>();
         const e = world.spawnAgent(0, 0, { speed: 100, repathInterval: 0, hasTarget: true, targetX: 90, targetY: 0 });
 
-        stepNavigation(world, nav, 0.1, runtimes);
-        expect(world.pos(e)).toEqual({ x: 0, y: 0 });
-        expect(world.agent(e).arrived).toBe(false);
-        expect(runtimes.get(e)?.reachable).toBe(false);
+        for (let i = 0; i < 20; i++) stepNavigation(world, nav, 0.1, runtimes);
+        expect(world.pos(e).x).toBeGreaterThan(30);
+        expect(world.pos(e).x).toBeLessThan(50); // the wall stands at x = 50
     });
 
     it('replans when the target moves', () => {

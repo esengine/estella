@@ -192,8 +192,16 @@ big world.
 
 <Aside type="tip">
   The `Nav` resource also answers one-off queries directly:
-  `nav.findWorldPath(from, to)` returns an array of world-space waypoints (or
-  `null` if there's no route) without needing a `NavAgent`.
+  `nav.findWorldPath(from, to)` returns an array of world-space waypoints without
+  needing a `NavAgent`.
+
+  A goal it cannot reach — behind a shut door, on an island, off the mesh
+  entirely — is answered with the route to the nearest place it CAN reach, because
+  an agent sent somewhere it cannot get to should walk to the door rather than
+  stand where it was told. Whether it got there is yours to see: you named the
+  goal, and the last waypoint either is at it or is not. `null` means the agent
+  itself is nowhere — there is no route from a point that is not on the navigable
+  world at all.
 </Aside>
 
 ### Moving an agent

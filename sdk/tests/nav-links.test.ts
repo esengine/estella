@@ -57,8 +57,8 @@ const HIGH: Vec3 = { x: 500, y: 300, z: 0 };
 
 describe('a link between two floors', () => {
     it('is what makes the two of them one navigable world', () => {
-        expect(bake().findWorldPath(LOW, HIGH)).toBeNull();
-        expect(bake([LADDER]).findWorldPath(LOW, HIGH)).not.toBeNull();
+        expect(reaches(bake().findWorldPath(LOW, HIGH), HIGH)).toBe(false);
+        expect(reaches(bake([LADDER]).findWorldPath(LOW, HIGH), HIGH)).toBe(true);
     });
 
     // The route has to go THROUGH the link, not across the gap it spans: a funnel
@@ -75,8 +75,8 @@ describe('a link between two floors', () => {
 
     it('is one way when the scene says so', () => {
         const drop = bake([{ ...LADDER, bidirectional: false }]);
-        expect(drop.findWorldPath(LOW, HIGH)).not.toBeNull();
-        expect(drop.findWorldPath(HIGH, LOW)).toBeNull();
+        expect(reaches(drop.findWorldPath(LOW, HIGH), HIGH)).toBe(true);
+        expect(reaches(drop.findWorldPath(HIGH, LOW), LOW)).toBe(false);
     });
 
     // A link is a claim about ground at both ends. One end over nothing joins
@@ -84,7 +84,7 @@ describe('a link between two floors', () => {
     it('joins nothing when an end reaches no ground', () => {
         const intoTheAir: NavLinkSegment = { ...LADDER, end: { x: 200, y: 1000, z: 0 } };
         expect(bake([intoTheAir]).linkCount).toBe(0);
-        expect(bake([intoTheAir]).findWorldPath(LOW, HIGH)).toBeNull();
+        expect(reaches(bake([intoTheAir]).findWorldPath(LOW, HIGH), HIGH)).toBe(false);
     });
 
     it('counts both directions of a two-way one, and one of a one-way', () => {
@@ -137,3 +137,11 @@ describe('updateLinks', () => {
         expect((nav.surface as NavMesh).linkCount).toBe(before);
     });
 });
+
+/** Whether a route actually got where it was sent — a route that could not is
+ *  answered with the way to the nearest place it could, not with nothing. */
+function reaches(path: Vec3[] | null, to: Vec3, slack = 120): boolean {
+    if (!path || path.length === 0) return false;
+    const end = path[path.length - 1]!;
+    return Math.hypot(end.x - to.x, end.y - to.y, end.z - to.z) < slack;
+}

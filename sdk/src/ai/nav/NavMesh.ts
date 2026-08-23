@@ -335,13 +335,15 @@ export class NavMesh implements NavSurface {
         const start: Vec3 = { x: 0, y: 0, z: 0 };
         const end: Vec3 = { x: 0, y: 0, z: 0 };
         const startPoly = this.findPoly(from, start);
+        // A goal off the mesh is still a direction to walk in. Only an agent that
+        // is itself nowhere has no route at all.
         const endPoly = this.findPoly(to, end);
-        if (startPoly < 0 || endPoly < 0) return null;
+        if (startPoly < 0) return null;
+        if (endPoly < 0) { end.x = to.x; end.y = to.y; end.z = to.z ?? 0; }
         if (startPoly === endPoly) return [start, end];
 
         const polyPath = this.findPolyPath(startPoly, endPoly, start, end);
-        if (!polyPath) return null;
-        return this.routeThroughLinks(polyPath, start, end);
+        return this.routeThroughLinks(polyPath, start, polyPath.end);
     }
 
     /**
@@ -367,8 +369,13 @@ export class NavMesh implements NavSurface {
         return out;
     }
 
-    /** A* over the polygon graph, keyed on where each doorway is crossed. */
-    private findPolyPath(startPoly: number, endPoly: number, start: Vec3, end: Vec3): PolyPath | null {
+    /**
+     * A* over the polygon graph, keyed on where each doorway is crossed. A goal it
+     * cannot reach yields the route to the polygon it got NEAREST: an agent sent
+     * somewhere it cannot get to walks to the door, and the caller sees it fell
+     * short because it named the goal itself.
+     */
+    private findPolyPath(startPoly: number, endPoly: number, start: Vec3, end: Vec3): PolyPath {
         const n = this.polyCount;
         const cost = new Float64Array(n).fill(Infinity);
         const parent = new Int32Array(n).fill(-1);
@@ -384,8 +391,10 @@ export class NavMesh implements NavSurface {
 
         cost[startPoly] = 0;
         enterX[startPoly] = start.x; enterY[startPoly] = start.y; enterZ[startPoly] = start.z;
+        let nearest = startPoly;
+        let nearestScore = distance(start.x, start.y, start.z, end.x, end.y, end.z);
         const heap = new MinHeap(n);
-        heap.push(startPoly, distance(start.x, start.y, start.z, end.x, end.y, end.z));
+        heap.push(startPoly, nearestScore);
 
         const a: Vec3 = { x: 0, y: 0, z: 0 };
         const b: Vec3 = { x: 0, y: 0, z: 0 };
@@ -411,7 +420,9 @@ export class NavMesh implements NavSurface {
                 parent[next] = cur;
                 via[next] = -1;
                 enterX[next] = mx; enterY[next] = my; enterZ[next] = mz;
-                heap.push(next, g + heuristic(mx, my, mz, end));
+                const toGoal = distance(mx, my, mz, end.x, end.y, end.z);
+                if (toGoal < nearestScore) { nearestScore = toGoal; nearest = next; }
+                heap.push(next, g + toGoal * HEURISTIC_SCALE);
             }
 
             // The ways the ground does not join: crossing one costs getting to the
@@ -430,14 +441,22 @@ export class NavMesh implements NavSurface {
                 parent[next] = cur;
                 via[next] = li;
                 enterX[next] = link.end.x; enterY[next] = link.end.y; enterZ[next] = link.end.z;
-                heap.push(next, g + heuristic(link.end.x, link.end.y, link.end.z, end));
+                const toGoal = distance(link.end.x, link.end.y, link.end.z, end.x, end.y, end.z);
+                if (toGoal < nearestScore) { nearestScore = toGoal; nearest = next; }
+                heap.push(next, g + toGoal * HEURISTIC_SCALE);
             }
         }
 
-        if (parent[endPoly] === -1 && endPoly !== startPoly) return null;
+        // Where the route actually finishes: the goal if it was reached, and the
+        // nearest the search ever came to it if it was not.
+        const reached = endPoly >= 0 && cost[endPoly]! < Infinity;
+        const last = reached ? endPoly : nearest;
+        const finish: Vec3 = reached
+            ? end
+            : { x: enterX[last]!, y: enterY[last]!, z: enterZ[last]! };
         const polys: number[] = [];
         const links: number[] = [];
-        for (let p = endPoly; p !== -1; p = parent[p]!) {
+        for (let p = last; p !== -1; p = parent[p]!) {
             polys.push(p);
             // The link recorded on a polygon is the one taken to REACH it, so it
             // belongs to the step out of the polygon before it.
@@ -449,7 +468,7 @@ export class NavMesh implements NavSurface {
         // Shift by one: `links[i]` is now the step from `polys[i]` to `polys[i+1]`.
         links.shift();
         links.push(-1);
-        return polys[0] === startPoly ? { polys, links } : null;
+        return { polys, links, end: finish };
     }
 
     /**
@@ -568,6 +587,8 @@ export class NavMesh implements NavSurface {
 interface PolyPath {
     polys: number[];
     links: number[];
+    /** Where the route finishes, which is the goal only when it was reached. */
+    end: Vec3;
 }
 
 const EMPTY_LINKS: readonly number[] = [];
@@ -582,10 +603,6 @@ function append(out: Vec3[], points: readonly Vec3[]): void {
     }
 }
 
-/** Straight-line distance to the goal, trusted as Detour trusts it. */
-function heuristic(x: number, y: number, z: number, end: Vec3): number {
-    return distance(x, y, z, end.x, end.y, end.z) * HEURISTIC_SCALE;
-}
 
 /**
  * Put the taut route back on the ground. The funnel answers in the ground plane,

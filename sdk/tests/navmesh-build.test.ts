@@ -176,10 +176,12 @@ describe('buildNavMesh', () => {
             return s;
         };
         const low = bake(stepped(30));
-        expect(low.findWorldPath({ x: -300, y: 0, z: 0 }, { x: 300, y: 30, z: 0 })).not.toBeNull();
+        expect(reaches(low.findWorldPath({ x: -300, y: 0, z: 0 }, { x: 300, y: 30, z: 0 }),
+            { x: 300, y: 30, z: 0 })).toBe(true);
 
         const high = bake(stepped(200));
-        expect(high.findWorldPath({ x: -300, y: 0, z: 0 }, { x: 300, y: 200, z: 0 })).toBeNull();
+        expect(reaches(high.findWorldPath({ x: -300, y: 0, z: 0 }, { x: 300, y: 200, z: 0 }),
+            { x: 300, y: 200, z: 0 })).toBe(false);
     });
 
     // Two floors with the SAME outline, one over the other: their corners land on
@@ -199,13 +201,17 @@ describe('buildNavMesh', () => {
         expect(upper.y).toBeGreaterThan(290);
     });
 
-    // Two levels with no way between them: the mesh has both, and no route.
-    it('reports no route from the ground to a deck nothing reaches', () => {
+    // Two levels with no way between them: the mesh has both, and the route to the
+    // deck gets no further than the ground under it.
+    it('gets no further than the ground when nothing reaches the deck', () => {
         const s = soup();
         addBox(s, { x: 0, y: -20, z: 0 }, { x: 400, y: 20, z: 400 });
         addBox(s, { x: 0, y: 300, z: 0 }, { x: 400, y: 20, z: 200 });
         const mesh = bake(s);
-        expect(mesh.findWorldPath({ x: 0, y: 0, z: -350 }, { x: 0, y: 320, z: 0 })).toBeNull();
+        const goal = { x: 0, y: 320, z: 0 };
+        const path = mesh.findWorldPath({ x: 0, y: 0, z: -350 }, goal)!;
+        expect(reaches(path, goal)).toBe(false);
+        expect(path[path.length - 1]!.y).toBeLessThan(50);
     });
 
     // A volume covering a city at a centimetre a cell is not a slow bake, it is
@@ -218,6 +224,37 @@ describe('buildNavMesh', () => {
             min: { x: -1e5, y: -100, z: -1e5 }, max: { x: 1e5, y: 400, z: 1e5 },
         });
         expect(huge.polyCount).toBe(0);
+    });
+
+    // A goal that is not on the mesh at all is still a direction to walk in, and
+    // the walk still has to be a walk: round the wall, not through it.
+    it('walks round the wall toward a goal off the mesh entirely', () => {
+        const s = soup();
+        addBox(s, { x: 0, y: -20, z: 0 }, { x: 500, y: 20, z: 500 });
+        // A wall across all but the east end of the floor.
+        addBox(s, { x: -150, y: 80, z: 0 }, { x: 350, y: 100, z: 20 });
+        const mesh = bake(s);
+
+        const goal = { x: -300, y: 0, z: 900 }; // beyond the floor, past the wall
+        const path = mesh.findWorldPath({ x: -300, y: 0, z: -300 }, goal)!;
+        expect(path).not.toBeNull();
+        expect(Math.hypot(path[path.length - 1]!.x - goal.x,
+            path[path.length - 1]!.z - goal.z)).toBeGreaterThan(200);
+        // Every step of it is somewhere an agent may stand — a route that gave up
+        // and pointed at the nearest place would cut straight through the wall.
+        for (let i = 1; i < path.length; i++) {
+            const a = path[i - 1]!;
+            const b = path[i]!;
+            const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 20));
+            for (let t = 0; t <= steps; t++) {
+                const at = {
+                    x: a.x + (b.x - a.x) * (t / steps),
+                    y: a.y + (b.y - a.y) * (t / steps),
+                    z: a.z + (b.z - a.z) * (t / steps),
+                };
+                expect(mesh.findPoly(at)).toBeGreaterThanOrEqual(0);
+            }
+        }
     });
 
     it('hands its shape to a drawer as faces and the edges they stop at', () => {
@@ -244,4 +281,12 @@ function pathLength(path: Vec3[]): number {
             path[i]!.y - path[i - 1]!.y, path[i]!.z - path[i - 1]!.z);
     }
     return total;
+}
+
+/** Whether a route actually got where it was sent — a route that could not is
+ *  answered with the way to the nearest place it could, not with nothing. */
+function reaches(path: Vec3[] | null, to: Vec3, slack = 120): boolean {
+    if (!path || path.length === 0) return false;
+    const end = path[path.length - 1]!;
+    return Math.hypot(end.x - to.x, end.y - to.y, end.z - to.z) < slack;
 }

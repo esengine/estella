@@ -165,8 +165,13 @@ app.getResource(NavDebugDraw).enabled = true;
 (一个 surface 是每帧几千个环),而且画到几千个面就停:想看清更大的世界,调 `cellSize`。
 
 <Aside type="tip">
-  `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点
-  (没有路线时返回 `null`),无需 `NavAgent`。
+  `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点,
+  无需 `NavAgent`。
+
+  **到不了的目标**——门关着、在另一座岛上、根本不在网格上——回答的是「到它**最近**的那个
+  到得了的地方」的路线:被派往一个到不了的地方的 agent,应该走到门口,而不是站在原地。
+  它到没到是**你**该看的:目标是你给的,最后一个路点要么在它上面,要么不在。返回 `null`
+  只有一种意思——**agent 自己不在任何地方**,一个不在可走世界上的点没有任何路线可言。
 </Aside>
 
 ### 移动 agent
