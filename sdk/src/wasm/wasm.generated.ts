@@ -263,6 +263,7 @@ export interface Camera {
     clearFlags: number;
     pixelPerfect: boolean;
     cullingMask: number;
+    renderTarget: number;
 }
 
 export interface Canvas {

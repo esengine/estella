@@ -183,6 +183,7 @@ app.whenReady().then(async () => {
     let deviceLoss = null;
     let meshResident = null;
     let meshAsset = null;
+    let cameraTarget = null;
     let meshMaterial = null;
     let meshPrefab = null;
     let setField = null;
@@ -279,6 +280,18 @@ app.whenReady().then(async () => {
           ${JSON.stringify(process.env.ESTELLA_VERIFY_MESH_ASSET)});
         await window.__estellaHeadless.api.step(2, 1 / 60);
         return { pointed };
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_CAMERA_TARGET={"camera","sprite","width","height"}: point a
+    // camera at an offscreen texture and show that texture on a sprite. Nothing
+    // else can produce the probe's colour, so it says the camera drew there.
+    if (process.env.ESTELLA_VERIFY_CAMERA_TARGET) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_CAMERA_TARGET);
+      cameraTarget = await exec(`(async () => {
+        const out = window.__estellaHeadless.renderToTexture(${JSON.stringify(spec)});
+        await window.__estellaHeadless.api.step(3, 1 / 60);
+        return out;
       })()`);
     }
 
@@ -634,7 +647,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

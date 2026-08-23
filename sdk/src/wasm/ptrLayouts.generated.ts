@@ -79,6 +79,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'clearFlags', type: 'u8', offset: 48 },
             { name: 'pixelPerfect', type: 'bool', offset: 49 },
             { name: 'cullingMask', type: 'u32', offset: 52 },
+            { name: 'renderTarget', type: 'u32', offset: 56 },
         ],
     },
     Canvas: {

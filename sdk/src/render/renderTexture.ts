@@ -27,6 +27,18 @@ export interface RenderTextureHandle {
     _filter: 'nearest' | 'linear';
 }
 
+/**
+ * Handle → the size of the target behind it. A `Camera.renderTarget` is a bare
+ * handle (a component holds no object), and what decides that camera's
+ * resolution is the target's own size — so the one place that knows it says so.
+ */
+const sizes = new Map<RenderTargetHandle, { width: number; height: number }>();
+
+/** The size of a live render target, or null once it has been released. */
+export function renderTargetSize(handle: RenderTargetHandle): { width: number; height: number } | null {
+    return sizes.get(handle) ?? null;
+}
+
 export const RenderTexture = {
     create(options: RenderTextureOptions): RenderTextureHandle {
         const depth = options.depth ?? true;
@@ -41,6 +53,7 @@ export const RenderTexture = {
             ? getResourceManager()?.registerExternalTexture(textureId, options.width, options.height) ?? 0
             : 0;
 
+        sizes.set(handle, { width: options.width, height: options.height });
         return {
             _handle: handle,
             textureId,
@@ -54,6 +67,7 @@ export const RenderTexture = {
 
     release(rt: RenderTextureHandle): void {
         if (rt.texture !== 0) getResourceManager()?.releaseTexture(rt.texture);
+        sizes.delete(rt._handle);
         Renderer.releaseRenderTarget(rt._handle);
     },
 

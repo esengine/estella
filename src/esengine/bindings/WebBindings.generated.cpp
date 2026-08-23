@@ -316,6 +316,7 @@ struct CameraJS {
     i32 clearFlags;
     bool pixelPerfect;
     u32 cullingMask;
+    u32 renderTarget;
 };
 
 void cameraApplyJS(esengine::ecs::Camera& c, const CameraJS& js) {
@@ -331,6 +332,7 @@ void cameraApplyJS(esengine::ecs::Camera& c, const CameraJS& js) {
     c.clearFlags = static_cast<ClearFlags>(js.clearFlags);
     c.pixelPerfect = js.pixelPerfect;
     c.cullingMask = js.cullingMask;
+    c.renderTarget = js.renderTarget;
 }
 
 esengine::ecs::Camera cameraFromJS(const CameraJS& js) {
@@ -353,6 +355,7 @@ CameraJS cameraToJS(const esengine::ecs::Camera& c) {
     js.clearFlags = static_cast<i32>(c.clearFlags);
     js.pixelPerfect = c.pixelPerfect;
     js.cullingMask = c.cullingMask;
+    js.renderTarget = c.renderTarget;
     return js;
 }
 
@@ -1336,7 +1339,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("viewport", &CameraJS::viewport)
         .field("clearFlags", &CameraJS::clearFlags)
         .field("pixelPerfect", &CameraJS::pixelPerfect)
-        .field("cullingMask", &CameraJS::cullingMask);
+        .field("cullingMask", &CameraJS::cullingMask)
+        .field("renderTarget", &CameraJS::renderTarget);
 
     value_object<CanvasJS>("Canvas")
         .field("designResolution", &CanvasJS::designResolution)
@@ -2741,6 +2745,7 @@ static_assert(offsetof(esengine::ecs::Camera, viewport) == 32, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Camera, clearFlags) == 48, "ABI offset drift: esengine::ecs::Camera.clearFlags (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Camera, pixelPerfect) == 49, "ABI offset drift: esengine::ecs::Camera.pixelPerfect (EHT expected 49)");
 static_assert(offsetof(esengine::ecs::Camera, cullingMask) == 52, "ABI offset drift: esengine::ecs::Camera.cullingMask (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::Camera, renderTarget) == 56, "ABI offset drift: esengine::ecs::Camera.renderTarget (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::Canvas, designResolution) == 0, "ABI offset drift: esengine::ecs::Canvas.designResolution (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Canvas, pixelsPerUnit) == 8, "ABI offset drift: esengine::ecs::Canvas.pixelsPerUnit (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::Canvas, scaleMode) == 12, "ABI offset drift: esengine::ecs::Canvas.scaleMode (EHT expected 12)");
@@ -3065,7 +3070,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "43f91684e5f3d3fb";
+static const char* kEsAbiLayoutHash = "f4ba1e6b5d361dee";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

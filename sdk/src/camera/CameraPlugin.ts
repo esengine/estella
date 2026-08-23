@@ -22,6 +22,7 @@ import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewClipFar,
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../render/renderPipeline';
+import { renderTargetSize } from '../render/renderTexture';
 import { Renderer } from '../render/renderer';
 import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
@@ -45,6 +46,8 @@ interface CameraInfo {
     cameraX: number;
     cameraY: number;
     cullingMask: number;
+    /** Offscreen target this camera draws into; 0 = the screen. */
+    renderTarget: number;
 }
 
 function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
@@ -62,6 +65,7 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
         cameraX: 0,
         cameraY: 0,
         cullingMask: 0xFFFFFFFF,
+        renderTarget: 0,
     };
     pool.push(info);
     return info;
@@ -174,6 +178,8 @@ export interface CameraPOV {
     pixelPerfect: boolean;
     /** Sorting layers this camera renders; bit i = layer i. */
     cullingMask: number;
+    /** Offscreen target this camera draws into; 0 = the screen. */
+    renderTarget: number;
 }
 
 /**
@@ -206,6 +212,8 @@ export interface CameraFields {
     pixelPerfect: boolean;
     /** Absent on a core built before the field; that camera drew every layer. */
     cullingMask?: number;
+    /** Absent on a core built before the field; that camera drew to the screen. */
+    renderTarget?: number;
 }
 
 /**
@@ -248,6 +256,7 @@ function readCameraPOV(
         pixelPerfect: camera.pixelPerfect,
         // A core built before the field answers undefined; that camera drew everything.
         cullingMask: camera.cullingMask ?? 0xFFFFFFFF,
+        renderTarget: camera.renderTarget ?? 0,
     };
 }
 
@@ -321,6 +330,7 @@ export function buildCameraInfo(
     cam.cameraX = camX;
     cam.cameraY = camY;
     cam.cullingMask = pov.cullingMask;
+    cam.renderTarget = pov.renderTarget;
     return cam;
 }
 
@@ -447,6 +457,7 @@ export function editorCameraInfo(
         // The editor's own eye is not a game camera: it shows every layer, so a
         // culled scene camera never hides content from authoring.
         cullingMask: 0xFFFFFFFF,
+        renderTarget: 0,
     };
     return buildCameraInfo(pov, width, height, null, pool, 0);
 }
@@ -506,10 +517,16 @@ function resolveCameras(
     const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
     if (povs.length === 0) return [];
     const canvas = resolveFitSource(app, findCanvasData(module, cppRegistry, world, activeScenes));
-    const fullFrame = povs.filter((p) => isFullFrame(p.viewport));
-    const overlays = povs.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
+    // A camera drawing into a texture is not a candidate for the screen: it does
+    // not compete with the main view, and it renders BEFORE it, because what it
+    // draws is usually what the main view is about to sample.
+    const offscreen = povs.filter((p) => p.renderTarget !== 0).sort((a, b) => a.priority - b.priority);
+    const onScreen = povs.filter((p) => p.renderTarget === 0);
+    const fullFrame = onScreen.filter((p) => isFullFrame(p.viewport));
+    const overlays = onScreen.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
 
     const out: CameraInfo[] = [];
+    for (const p of offscreen) out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
     // The director resolves ONE main view from the full-frame candidates (active
     // camera + view-target blending); index 0 → it also drives screen<->world.
     if (fullFrame.length > 0 && app.hasResource(CameraDirector)) {
@@ -685,10 +702,17 @@ export function cameraPlugin(
                             pipeline.beginScreenCapture();
                             for (const cam of cameras) {
                                 const vp = cam.viewportRect;
-                                const px = Math.round(vp.x * width);
-                                const py = Math.round((1 - vp.y - vp.h) * height);
-                                const pw = Math.round(vp.w * width);
-                                const ph = Math.round(vp.h * height);
+                                // A camera drawing into a texture is measured against
+                                // THAT surface: its viewport rect is a fraction, and
+                                // the fraction is of the target it draws to.
+                                const target = cam.renderTarget !== 0
+                                    ? renderTargetSize(cam.renderTarget) : null;
+                                const w = target?.width ?? width;
+                                const h = target?.height ?? height;
+                                const px = Math.round(vp.x * w);
+                                const py = Math.round((1 - vp.y - vp.h) * h);
+                                const pw = Math.round(vp.w * w);
+                                const ph = Math.round(vp.h * h);
                                 pipeline.renderCamera({
                                     registry: { _cpp: cppRegistry },
                                     viewProjection: cam.viewProjection,
@@ -698,6 +722,9 @@ export function cameraPlugin(
                                     cameraEntity: cam.entity,
                                     clearColor,
                                     cullingMask: cam.cullingMask,
+                                    // A released target leaves the handle behind; drawing
+                                    // to it would draw nowhere, so it falls to the screen.
+                                    renderTarget: target ? cam.renderTarget : 0,
                                 });
                             }
                             pipeline.endScreenCapture();

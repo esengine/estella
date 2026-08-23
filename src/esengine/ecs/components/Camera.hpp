@@ -121,6 +121,13 @@ struct Camera {
     ES_PROPERTY(bitmask_source=sortingLayers, tooltip="Which sorting layers this camera renders.")
     u32 cullingMask{0xFFFFFFFFu};
 
+    /** @brief Offscreen target this camera draws into; 0 = the screen. A RenderTexture
+     *         handle, so it is created at run time and set from a script — a minimap,
+     *         a mirror, a portrait rendered once. The camera's viewport covers the
+     *         whole target, whose own size decides the resolution. */
+    ES_PROPERTY(advanced, tooltip="Render into a RenderTexture instead of the screen (0 = screen). Set at run time.")
+    u32 renderTarget{0};
+
     Camera() = default;
 };
 

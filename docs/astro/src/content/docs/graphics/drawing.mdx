@@ -165,7 +165,15 @@ For minimaps, portraits, mirrors — and as the backing of
 [cache-as-bitmap](/docs/graphics/sprites/) — `RenderTexture` allocates an offscreen
 render target. Wrap draw commands in `begin`/`end` to render into it; the
 resulting `texture` is an ordinary texture handle usable anywhere (a
-`Sprite.texture`, `Draw.texture`, a material texture param):
+`Sprite.texture`, `Draw.texture`, a material texture param).
+
+A whole **scene** goes into one by pointing a camera at it: set
+`Camera.renderTarget` to the target's handle and that camera draws there instead
+of the screen, before the screen cameras and without competing to be the main
+view. Its own sorting layers (`Camera.cullingMask`) decide what it sees, so a
+minimap camera and the player's camera can look at the same world and show
+different parts of it. On WebGL2 today; the WebGPU backend cannot yet hand a
+render target's texture to a `Sprite`:
 
 ```typescript
 import { RenderTexture, Draw } from 'esengine';

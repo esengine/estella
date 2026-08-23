@@ -9,9 +9,9 @@
 //     768×480 at a fixed display size — resize() returns a NEW handle whose
 //     textureId the sprite must be re-pointed at.
 //
-// RenderTexture is a low-level surface: a camera cannot target it, and it does
-// not re-render the scene. It redirects Draw commands issued between begin()
-// and end() into an offscreen target, under a view-projection you supply.
+// RenderTexture is the low-level surface: Draw commands issued between begin()
+// and end() go into an offscreen target under a view-projection you supply.
+// A whole SCENE goes into one through Camera.renderTarget.
 import { addStartupSystem, addSystemToSchedule, Schedule } from 'esengine';
 
 import './components';

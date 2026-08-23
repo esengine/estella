@@ -5,7 +5,7 @@ Symbols: 113 public · 66 beta · 1507 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"43f91684e5f3d3fb"
+"f4ba1e6b5d361dee"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1535,6 +1535,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projectionType: number
+renderTarget: number
 showFrustum: boolean
 viewport: Vec4
 ```
@@ -1582,6 +1583,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projectionType: number
+renderTarget: number | undefined
 viewport: { x: number; y: number; z: number; w: number; }
 ```
 
@@ -1599,6 +1601,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projection: number
+renderTarget: number
 rotation: number
 tilt: { x: number; y: number; z: number; w: number; } | undefined
 viewport: { x: number; y: number; z: number; w: number; }
@@ -1615,6 +1618,7 @@ clearFlags: number
 cullingMask: number | undefined
 elapsed: number
 registry: { _cpp: CppRegistry; }
+renderTarget: number | undefined
 viewProjection: Float32Array<ArrayBufferLike>
 viewportPixels: Viewport
 ```

@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A camera can render into a texture.** `Camera.renderTarget` takes a
+  `RenderTexture` handle and that camera draws there instead of the screen — a
+  minimap, a mirror, a portrait, the scene half of cache-as-bitmap. The engine
+  could always open a pass on an offscreen target; what was missing is that no
+  camera ever named one, so `Renderer.begin` was called with 0 every time. Such a
+  camera does not compete to be the main view (a camera drawing elsewhere is not a
+  candidate for the screen) and renders BEFORE the screen cameras, because what it
+  draws is usually what they are about to sample. Its viewport fractions are of
+  the target, whose own size sets the resolution, and a released target falls back
+  to the screen rather than drawing nowhere.
+
+  WebGL2 today. The WebGPU backend cannot yet adopt a device texture into the
+  resource table (`importExternalTexture`), so the target a camera fills there
+  cannot be handed to a `Sprite`.
+
 - **Removed: 26 engine entry points no host called.** Five of them
   (`renderer_submitSprites` / `submitUIElements` / `submitBitmapText` /
   `submitShapes` / `submitParticles`) had bodies that were `(void)registry;` —
@@ -192,6 +207,13 @@ published separately; it ships inside the editor.
   may not be checked out.
 
 ### Fixed
+
+- **WebGPU reused one pipeline for two different colour formats.** The pipeline
+  variant key mapped every 8-bit unorm format to one slot, so a pipeline built for
+  the surface (`BGRA8Unorm`) was handed to a pass on a render target
+  (`RGBA8Unorm`) — which WebGPU rejects outright, taking the whole command buffer
+  with it. Nothing had drawn a scene into an offscreen target on that backend
+  before, so nothing had asked.
 
 - **The manual taught an import that does not exist.** `facingFromQuat` was
   removed when perception moved to a dot-product cone, and four pages went on

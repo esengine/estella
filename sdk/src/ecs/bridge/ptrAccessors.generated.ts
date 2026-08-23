@@ -170,6 +170,7 @@ export interface CameraPtrData {
     clearFlags: number;
     pixelPerfect: boolean;
     cullingMask: number;
+    renderTarget: number;
 }
 
 export function fillCamera(
@@ -188,6 +189,7 @@ export function fillCamera(
     out.clearFlags = u8[ptr + 48];
     out.pixelPerfect = u8[ptr + 49] !== 0;
     out.cullingMask = u32[(ptr + 52) >> 2];
+    out.renderTarget = u32[(ptr + 56) >> 2];
 }
 
 export function writeCamera(
@@ -206,6 +208,7 @@ export function writeCamera(
     u8[ptr + 48] = data.clearFlags;
     u8[ptr + 49] = data.pixelPerfect ? 1 : 0;
     u32[(ptr + 52) >> 2] = data.cullingMask;
+    u32[(ptr + 56) >> 2] = data.renderTarget;
 }
 
 export function createCameraData(): CameraPtrData {
@@ -222,6 +225,7 @@ export function createCameraData(): CameraPtrData {
         clearFlags: 0,
         pixelPerfect: false,
         cullingMask: 0,
+        renderTarget: 0,
     };
 }
 

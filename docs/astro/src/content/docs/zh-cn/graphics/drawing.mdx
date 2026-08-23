@@ -154,7 +154,13 @@ registerDrawCallback('custom-mesh', () => {
 小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/graphics/sprites/)的底层——
 `RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
 进去;得到的 `texture` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
-`Draw.texture`、材质纹理参数):
+`Draw.texture`、材质纹理参数)。
+
+要把**整个场景**画进去,让一台相机指向它:把 `Camera.renderTarget` 设成目标的句柄,
+那台相机就画到那里而不是屏幕——在屏幕相机之前渲染,也不参与「谁是主视图」的竞争。
+它看见什么由自己的排序层(`Camera.cullingMask`)决定,所以小地图相机和玩家相机可以
+看同一个世界、显示不同的部分。目前仅 WebGL2:WebGPU 后端还不能把渲染目标的纹理
+交给 `Sprite`:
 
 ```typescript
 import { RenderTexture, Draw } from 'esengine';

@@ -109,6 +109,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       ],
       "tooltip": "Orthographic (2D) or Perspective projection.",
     },
+    "renderTarget": {
+      "advanced": true,
+      "tooltip": "Render into a RenderTexture instead of the screen (0 = screen). Set at run time.",
+    },
     "showFrustum": {
       "advanced": true,
       "tooltip": "Draw this camera's whole view volume in the editor, not just what it frames on the content plane.",

@@ -46,6 +46,8 @@ export interface CameraRenderParams {
     clearColor?: { x: number; y: number; z: number; w: number };
     /** Sorting layers this camera draws (`Camera.cullingMask`); omitted = all. */
     cullingMask?: number;
+    /** Offscreen target to draw into; 0 (default) is the screen. */
+    renderTarget?: number;
 }
 
 export class RenderPipeline {
@@ -158,7 +160,7 @@ export class RenderPipeline {
         Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
         // The camera's clear rides begin as a region-scoped load-op — no scissor
         // dance, no sticky clear state at the boundary.
-        Renderer.begin(viewProjection, 0, clearFlags, params.clearColor, vp);
+        Renderer.begin(viewProjection, params.renderTarget ?? 0, clearFlags, params.clearColor, vp);
         // Set after begin (which clears the draw list) and before the collect it gates.
         Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
         this.submitScene(registry, viewProjection, vp, elapsed);

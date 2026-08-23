@@ -49,8 +49,13 @@ public:
     enum DsVariant : u32 { kDsNone = 0, kDsDepthOnly = 1, kDsDepthStencil = 2, kDsVariantCount = 3 };
 
     /** @brief Color attachment format of a pass — like DsVariant, WebGPU
-     *         validates the pipeline's color target format against the pass. */
-    enum ColorVariant : u32 { kColorRgba8 = 0, kColorSrgb8 = 1, kColorRgba16f = 2, kColorVariantCount = 3 };
+     *         validates the pipeline's color target format against the pass, and
+     *         BGRA is a DIFFERENT format from RGBA to that check even though both
+     *         are 8-bit unorm: a surface is usually the former, a render target
+     *         the latter, so they cannot share a slot. */
+    enum ColorVariant : u32 {
+        kColorRgba8 = 0, kColorBgra8 = 1, kColorSrgb8 = 2, kColorRgba16f = 3, kColorVariantCount = 4,
+    };
 
     /** @brief @p device may be null for bookkeeping-only use (tests, bring-up).
      *  @param instance  The host's WGPUInstance to share. Web/emscripten passes

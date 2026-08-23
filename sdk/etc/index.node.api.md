@@ -1530,6 +1530,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projectionType: number
+renderTarget: number
 showFrustum: boolean
 viewport: Vec4
 ```
@@ -1577,6 +1578,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projectionType: number
+renderTarget: number | undefined
 viewport: { x: number; y: number; z: number; w: number; }
 ```
 
@@ -1594,6 +1596,7 @@ orthoSize: number
 pixelPerfect: boolean
 priority: number
 projection: number
+renderTarget: number
 rotation: number
 tilt: { x: number; y: number; z: number; w: number; } | undefined
 viewport: { x: number; y: number; z: number; w: number; }
@@ -1610,6 +1613,7 @@ clearFlags: number
 cullingMask: number | undefined
 elapsed: number
 registry: { _cpp: CppRegistry; }
+renderTarget: number | undefined
 viewProjection: Float32Array<ArrayBufferLike>
 viewportPixels: Viewport
 ```

@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '43f91684e5f3d3fb';
+export const ABI_LAYOUT_HASH = 'f4ba1e6b5d361dee';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -160,6 +160,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             clearFlags: 3,
             pixelPerfect: false,
             cullingMask: 4294967295,
+            renderTarget: 0,
         },
         editorDefaults: {
             projectionType: 1,
@@ -182,6 +183,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             clearFlags: { tooltip: "Which buffers to clear before rendering this camera." },
             pixelPerfect: { tooltip: "Snap the camera to the pixel grid for crisp pixel-art (Orthographic).", advanced: true, shownWhen: { field: "projectionType", values: [1] } },
             cullingMask: { tooltip: "Which sorting layers this camera renders.", bitmask: { source: "sortingLayers" } },
+            renderTarget: { tooltip: "Render into a RenderTexture instead of the screen (0 = screen). Set at run time.", advanced: true },
         },
     },
     Canvas: {
@@ -1112,6 +1114,7 @@ export interface CameraData {
     clearFlags: number;
     pixelPerfect: boolean;
     cullingMask: number;
+    renderTarget: number;
 }
 
 export interface CanvasData {

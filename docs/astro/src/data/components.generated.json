@@ -403,6 +403,13 @@
           "doc": "Which sorting layers this camera renders."
         },
         {
+          "key": "renderTarget",
+          "type": "number",
+          "default": "0",
+          "doc": "Render into a RenderTexture instead of the screen (0 = screen). Set at run time.",
+          "advanced": true
+        },
+        {
           "key": "showFrustum",
           "type": "boolean",
           "default": "false",

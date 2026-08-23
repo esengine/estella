@@ -19,6 +19,7 @@ import {
     loadSceneData, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
     finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
+    RenderTexture, Camera, Sprite,
 } from 'esengine';
 import type { App, SceneData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -489,6 +490,35 @@ window.__estellaHeadless = {
         const mesh = await assets.load<{ handle: number }>('mesh', path);
         if (!mesh?.handle) return 0;
         return m.meshRenderer_setMeshAll(registry, mesh.handle);
+    },
+    /**
+     * Point a camera at an offscreen target and show that target on a sprite.
+     * The whole claim in one hop: what the first camera drew has to arrive as the
+     * second camera's texture, so the probe reads a colour that only exists
+     * because a camera rendered somewhere other than the screen.
+     */
+    renderToTexture: (spec: { camera: number; sprite: number; width: number; height: number }) => {
+        if (!app) return null;
+        // By the order the scene lists them: a loaded entity's handle carries a
+        // generation, so the ids in a scene file are not the World's.
+        const loaded = [...app.world.getAllEntities()];
+        const camEntity = loaded[spec.camera];
+        const spriteEntity = loaded[spec.sprite];
+        if (camEntity === undefined || spriteEntity === undefined) return { error: 'entity index out of range' };
+
+        const rt = RenderTexture.create({ width: spec.width, height: spec.height, depth: true });
+        const cam = app.world.get(camEntity, Camera) as { renderTarget: number };
+        cam.renderTarget = rt._handle;
+        app.world.insert(camEntity, Camera, cam as never);
+        const sprite = app.world.get(spriteEntity, Sprite) as { texture: number };
+        sprite.texture = rt.texture;
+        app.world.insert(spriteEntity, Sprite, sprite as never);
+        return {
+            target: rt._handle,
+            texture: rt.texture,
+            appliedTarget: (app.world.get(camEntity, Camera) as { renderTarget: number }).renderTarget,
+            appliedTexture: (app.world.get(spriteEntity, Sprite) as { texture: number }).texture,
+        };
     },
     loadMaterialAsset: async (path: string) => {
         const assets = app?.getResource(Assets);
