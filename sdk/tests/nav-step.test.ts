@@ -302,3 +302,36 @@ describe('an agent with a body', () => {
         expect(world.pos(entity).x).toBeGreaterThan(0);
     });
 });
+
+/**
+ * A replan is asked from wherever the agent has got to, and that is not always
+ * somewhere the navigable world has an answer for — halfway across a link, or
+ * standing where a door has just shut.
+ */
+describe('a replan that finds nothing', () => {
+    it('leaves the agent walking the route it already had', () => {
+        const world = new FakeWorld();
+        const entity = world.spawnAgent(0, 0, {
+            speed: 100, arriveRadius: 0, repathInterval: 0.1, hasTarget: true, targetX: 80, targetY: 0,
+        });
+        const nav = openNav();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        stepNavigation(world, nav, 0.05, runtimes);
+        const after = world.pos(entity).x;
+        expect(after).toBeGreaterThan(0);
+
+        // Nowhere to plan from any more, and the timer is up.
+        nav.setSurface(new NavGrid({ width: 10, height: 3, cellSize: 10, walkable: new Uint8Array(30) }));
+        stepNavigation(world, nav, 0.2, runtimes);
+        expect(world.pos(entity).x).toBeGreaterThan(after);
+    });
+
+    it('does not move an agent that never had one', () => {
+        const world = new FakeWorld();
+        const entity = world.spawnAgent(0, 0, { speed: 100, hasTarget: true, targetX: 80, targetY: 0 });
+        const nav = new Navigation();
+        nav.setSurface(new NavGrid({ width: 10, height: 3, cellSize: 10, walkable: new Uint8Array(30) }));
+        stepNavigation(world, nav, 0.05, new Map());
+        expect(world.pos(entity).x).toBe(0);
+    });
+});

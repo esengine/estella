@@ -170,6 +170,25 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **A scene can say there is a way where the ground has none.** A mesh baked from
+  what an agent can walk says two floors with a gap between them are two places,
+  and it is right. `NavLink` is where a scene says what the floor does not: this
+  ledge is a drop, this ladder climbs, this plank reaches the roof. Both ends are
+  offsets in the entity's own frame, so a link travels and turns with whatever
+  carries it, and one whose end reaches no ground joins nothing — a route ending in
+  the air is worse than no route. Moving or switching one costs a lookup rather
+  than a bake, because it joins polygons that already exist.
+
+  The route BREAKS at both ends of a link: pulling a funnel taut over a ladder
+  would plan a walk through the air beside it, so the search is run over each run
+  of polygons and the runs are joined end to end. Which uncovered the other half —
+  an agent crossing a link is not standing on the navigable world, so the replan it
+  asks for there has no answer and it used to strand itself mid-air. A plan that
+  cannot be replaced now beats no plan: a failed replan keeps the route the agent
+  was already walking, which is also the right answer for one standing where a door
+  has just shut. New editor check `nav3d-link` switches a link on in a running game
+  and watches an agent climb it.
+
 - **A door can shut.** `NavObstacle` is a box that takes ground away from the
   navigable world without being geometry — a door, a gate, a tower just built —
   and `enabled` is what opens it again. Blocking is a BAKE input rather than a

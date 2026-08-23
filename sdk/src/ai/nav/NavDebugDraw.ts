@@ -28,6 +28,8 @@ export interface NavDebugDrawConfig {
     showFaces: boolean;
     /** Mark the edges the walkable world stops at, which is where a route turns. */
     showBorders: boolean;
+    /** Draw the ways between places the ground does not join. */
+    showLinks: boolean;
 }
 
 /** Off until a game turns it on: a surface is thousands of faces and each is a loop. */
@@ -35,10 +37,13 @@ export const NavDebugDraw = defineResource<NavDebugDrawConfig>({
     enabled: false,
     showFaces: true,
     showBorders: true,
+    showLinks: true,
 }, 'NavDebugDraw');
 
 const FACE: Color = { r: 0.3, g: 0.9, b: 0.5, a: 0.55 };
 const BORDER: Color = { r: 1.0, g: 0.35, b: 0.3, a: 0.9 };
+/** Its own colour: a link is the one thing here that is not ground. */
+const LINK: Color = { r: 0.45, g: 0.7, b: 1.0, a: 0.95 };
 /** World units, at 100 to the metre — thin enough to read a surface through. */
 const LINE_THICKNESS = 1.5;
 /** How far off the ground the overlay floats, so its lines do not fight the floor
@@ -80,12 +85,19 @@ export function drawNavDebug(surface: NavSurface | null, cfg: NavDebugDrawConfig
             b.x = q.x + lx; b.y = q.y + ly; b.z = q.z + lz;
             Draw.line3D(a, b, BORDER, LINE_THICKNESS);
         },
+        link(p, q) {
+            if (!cfg.showLinks) return;
+            a.x = p.x + lx; a.y = p.y + ly; a.z = p.z + lz;
+            b.x = q.x + lx; b.y = q.y + ly; b.z = q.z + lz;
+            Draw.line3D(a, b, LINK, LINE_THICKNESS * 2);
+        },
     });
 }
 
 /** Install the overlay. Off until a game turns the resource on. */
 export function setupNavDebugDraw(app: App): void {
-    app.insertResource(NavDebugDraw, { enabled: false, showFaces: true, showBorders: true });
+    app.insertResource(NavDebugDraw,
+        { enabled: false, showFaces: true, showBorders: true, showLinks: true });
     registerDrawCallback('nav-debug-draw', () => {
         const cfg = app.getResource<NavDebugDrawConfig>(NavDebugDraw);
         if (!cfg?.enabled) return;

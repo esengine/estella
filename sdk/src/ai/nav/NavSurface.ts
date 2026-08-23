@@ -46,6 +46,9 @@ export interface NavSurfaceSink {
     face(corners: readonly Vec3[]): void;
     /** An edge the walkable world STOPS at: a wall, a ledge, a drop. */
     border(a: Vec3, b: Vec3): void;
+    /** A way between two places the ground does not join — see `NavLink`. A
+     *  surface with no such thing simply never calls it. */
+    link(a: Vec3, b: Vec3): void;
 }
 
 /** The active navigable world, however it was built. */

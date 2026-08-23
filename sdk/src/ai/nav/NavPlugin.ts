@@ -32,9 +32,12 @@ import { NavObstacle } from './NavObstacle';
 import { buildNavMesh } from './navmesh/build';
 import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
 import {
-    applyObstaclesToGrid, collectNavObstacles, navObstacleDigest, type NavObstacleBox,
+    applyObstaclesToGrid, collectNavObstacles, navObstacleDigest,
+    collectNavLinks, navLinkDigest, type NavObstacleBox,
 } from './navObstacles';
 import { NavGrid } from './NavGrid';
+import { NavMesh, type NavLinkSegment } from './NavMesh';
+import { NavLink } from './NavLink';
 import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
 
@@ -65,6 +68,7 @@ export function bakeVolumes(
     geometry: NavGeometryProvider | null,
     baked: Set<Entity>,
     obstacles: readonly NavObstacleBox[] = [],
+    links: readonly NavLinkSegment[] = [],
 ): void {
     if (!geometry) return;
     const volumes = world.getEntitiesWithComponents([NavVolume, Transform]);
@@ -89,6 +93,7 @@ export function bakeVolumes(
             agentRadius: volume.agentRadius,
             stepHeight: volume.stepHeight,
             obstacles,
+            links,
         });
         nav.setSurface(mesh);
 
@@ -148,12 +153,35 @@ export function updateObstacles(
     return changed;
 }
 
+/**
+ * Re-join a mesh's links when the scene's have changed. Separate from the
+ * obstacles because it is a different KIND of change: a link joins polygons that
+ * already exist, so moving one costs a lookup rather than a bake, and paying a
+ * bake for it would be the reason nobody moves one.
+ */
+export function updateLinks(
+    nav: Navigation, links: readonly NavLinkSegment[], state: LinkState,
+): void {
+    const digest = navLinkDigest(links);
+    const mesh = nav.surface instanceof NavMesh ? nav.surface : null;
+    if (digest === state.digest && mesh === state.mesh) return;
+    state.digest = digest;
+    state.mesh = mesh;
+    if (mesh) mesh.connect(links);
+}
+
 /** What the obstacles were when the world was last built for them. */
 export interface ObstacleState {
     digest: number;
     at: number;
     deferred: number;
     grid: NavGrid | null;
+}
+
+/** What the links were when the mesh was last joined for them. */
+export interface LinkState {
+    digest: number;
+    mesh: NavMesh | null;
 }
 
 /** The shortest gap between two rebuilds. A door should shut at once; something
@@ -202,16 +230,28 @@ export function stepNavigation(
                 { x: agent.targetX, y: agent.targetY, z: agent.targetZ },
                 { radius: agent.radius },
             );
-            rt = {
-                waypoints: path ?? [],
-                // Skip the start point to avoid stepping back toward it.
-                index: path && path.length > 1 ? 1 : 0,
-                plannedX: agent.targetX,
-                plannedY: agent.targetY,
-                plannedZ: agent.targetZ,
-                repathTimer: agent.repathInterval,
-                reachable: path !== null,
-            };
+            // A plan that cannot be replaced beats no plan: an agent crossing a
+            // link is not standing on the navigable world, so the replan it asks
+            // for there has no answer and dropping the route strands it mid-air.
+            const keep = path === null && rt !== undefined && rt.reachable
+                && rt.index < rt.waypoints.length;
+            if (keep && rt) {
+                rt.plannedX = agent.targetX;
+                rt.plannedY = agent.targetY;
+                rt.plannedZ = agent.targetZ;
+                rt.repathTimer = agent.repathInterval;
+            } else {
+                rt = {
+                    waypoints: path ?? [],
+                    // Skip the start point to avoid stepping back toward it.
+                    index: path && path.length > 1 ? 1 : 0,
+                    plannedX: agent.targetX,
+                    plannedY: agent.targetY,
+                    plannedZ: agent.targetZ,
+                    repathTimer: agent.repathInterval,
+                    reachable: path !== null,
+                };
+            }
             runtimes.set(entity, rt);
         }
 
@@ -316,6 +356,7 @@ export class NavPlugin implements Plugin {
         const runtimes = new Map<Entity, AgentRuntime>();
         const baked = new Set<Entity>();
         const obstacleState: ObstacleState = { digest: 0, at: 0, deferred: 0, grid: null };
+        const linkState: LinkState = { digest: 0, mesh: null };
         app.world.onDespawn((entity: Entity) => {
             runtimes.delete(entity);
             baked.delete(entity);
@@ -334,14 +375,16 @@ export class NavPlugin implements Plugin {
                             collectNavGeometry(app.world, { min, max, layers })
                         : null;
                     const obstacles = collectNavObstacles(app.world);
+                    const links = collectNavLinks(app.world);
                     if (updateObstacles(nav, obstacles, obstacleState, Date.now())) baked.clear();
-                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles);
+                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles, links);
+                    updateLinks(nav, links, linkState);
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
                 {
                     name: 'NavAgentSystem',
                     touches: {
-                        reads: [NavVolume._name, NavObstacle._name],
+                        reads: [NavVolume._name, NavObstacle._name, NavLink._name],
                         writes: [NavAgent._name, Transform._name, CharacterController3D._name],
                     },
                     // Both move an entity; for one carrying both, the path is the

@@ -17,7 +17,7 @@
  */
 
 import type { Vec3 } from '../../../types';
-import { NavMesh } from '../NavMesh';
+import { NavMesh, type NavLinkSegment } from '../NavMesh';
 import {
     NavHeightfield, heightfieldColumns, rasterizeTriangles,
     filterLowHangingWalkableObstacles, filterLedgeSpans, filterWalkableLowHeightSpans,
@@ -61,6 +61,8 @@ export interface BuildNavMeshOptions {
     maxVertsPerPoly?: number;
     /** Boxes that block without being geometry — see `NavObstacle`. */
     obstacles?: readonly NavObstacleBox[];
+    /** Ways between places the ground does not join — see `NavLink`. */
+    links?: readonly NavLinkSegment[];
 }
 
 export function buildNavMesh(
@@ -108,7 +110,7 @@ export function buildNavMesh(
         world[i * 3 + 2] = opts.min.z + mesh.verts[i * 3 + 2]! * cs;
     }
 
-    return new NavMesh({
+    const built = new NavMesh({
         verts: world,
         polys: mesh.polys,
         neis: mesh.neis,
@@ -122,6 +124,8 @@ export function buildNavMesh(
         // be standing on; anything further is a different storey.
         verticalReach: Math.max((opts.agentHeight ?? 0) + (opts.stepHeight ?? 0), ch * 4),
     });
+    if (opts.links?.length) built.connect(opts.links);
+    return built;
 }
 
 /**

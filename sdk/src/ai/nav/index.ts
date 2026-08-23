@@ -15,7 +15,7 @@ export {
     navGridFromTilemapLayer,
     type BuildNavGridOptions,
 } from './navGridFromTilemap';
-export { NavMesh, type NavMeshData } from './NavMesh';
+export { NavMesh, type NavMeshData, type NavLinkSegment } from './NavMesh';
 export { buildNavMesh, type BuildNavMeshOptions } from './navmesh/build';
 export {
     collectNavGeometry, navGeometryReady,
@@ -25,8 +25,10 @@ export { Navigation, Nav } from './Navigation';
 export { NavAgent, type NavAgentData, setNavDestination, stopNavAgent } from './NavAgent';
 export { NavVolume, type NavVolumeData } from './NavVolume';
 export { NavObstacle, type NavObstacleData } from './NavObstacle';
+export { NavLink, type NavLinkData } from './NavLink';
 export {
     collectNavObstacles, navObstacleDigest, applyObstaclesToGrid, type NavObstacleBox,
+    collectNavLinks, navLinkDigest,
 } from './navObstacles';
 export { NavPlugin, navPlugin } from './NavPlugin';
 export { NavDebugDraw, drawNavDebug, type NavDebugDrawConfig } from './NavDebugDraw';

@@ -1990,6 +1990,49 @@
       ]
     },
     {
+      "name": "NavLink",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "start",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "end",
+          "type": "Vec3",
+          "default": "(0, 0, 150)"
+        },
+        {
+          "key": "bidirectional",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether it can be taken both ways — a drop off a ledge cannot."
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "50",
+          "doc": "How far from each end ground may be and still be joined.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "start.x",
+        "start.y",
+        "start.z",
+        "end.x",
+        "end.y",
+        "end.z",
+        "radius"
+      ]
+    },
+    {
       "name": "NavObstacle",
       "source": "ts",
       "fields": [

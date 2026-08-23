@@ -16,6 +16,8 @@ import type { World } from '../../ecs/world';
 import { Transform } from '../../ecs/component';
 import { q } from '../../math/quat';
 import { NavObstacle, type NavObstacleData } from './NavObstacle';
+import { NavLink, type NavLinkData } from './NavLink';
+import type { NavLinkSegment } from './NavMesh';
 import type { NavGrid } from './NavGrid';
 import type { NavObstacleBox } from './navmesh/compact';
 
@@ -38,6 +40,44 @@ export function collectNavObstacles(world: World): NavObstacleBox[] {
         });
     }
     return out;
+}
+
+/** Every link a scene declares, with both ends placed in the world. */
+export function collectNavLinks(world: World): NavLinkSegment[] {
+    const out: NavLinkSegment[] = [];
+    for (const entity of world.getEntitiesWithComponents([NavLink, Transform])) {
+        const link = world.get(entity, NavLink) as NavLinkData;
+        if (link.enabled === false) continue;
+        const tf = world.get(entity, Transform);
+        const at = tf.position as Vec3;
+        const rot = tf.rotation as Quat;
+        const place = (offset: Vec3): Vec3 => {
+            const r = q.rotate(rot, offset);
+            return { x: at.x + r.x, y: at.y + r.y, z: at.z + r.z };
+        };
+        out.push({
+            start: place(link.start),
+            end: place(link.end),
+            bidirectional: link.bidirectional !== false,
+            radius: Math.max(1, link.radius),
+        });
+    }
+    return out;
+}
+
+/** A number that differs whenever the links do. Same shape as the obstacles'
+ *  digest, and separate because re-joining a mesh is cheap and re-baking is not. */
+export function navLinkDigest(links: readonly NavLinkSegment[]): number {
+    let hash = 2166136261;
+    const mix = (v: number): void => {
+        hash = Math.imul(hash ^ (Math.round(v * 10) | 0), 16777619);
+    };
+    for (const link of links) {
+        mix(link.start.x); mix(link.start.y); mix(link.start.z);
+        mix(link.end.x); mix(link.end.y); mix(link.end.z);
+        mix(link.radius); mix(link.bidirectional ? 1 : 0);
+    }
+    return hash;
 }
 
 /**

@@ -229,6 +229,7 @@ describe('buildNavMesh', () => {
         mesh.describe({
             face: (corners) => { expect(corners.length).toBeGreaterThanOrEqual(3); faces++; },
             border: () => { borders++; },
+            link: () => {},
         });
         expect(faces).toBe(mesh.polyCount);
         // A single floor is one island: every edge of its outline is a border.

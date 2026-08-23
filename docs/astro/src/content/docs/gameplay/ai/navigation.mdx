@@ -100,6 +100,39 @@ on its own terms, and `collectNavGeometry(world, box)` is what gathers the trian
   in the log.
 </Aside>
 
+### Ways the ground does not provide
+
+A mesh is baked from what an agent can WALK, so two floors with a gap between them
+are two places — which is the honest answer and not the whole one. A scene knows
+things the floor does not: that this ledge can be dropped off, that this ladder is
+climbable, that this plank reaches the roof. **`NavLink`** is where it says them.
+
+| `NavLink` field | Default | Description |
+|---|---|---|
+| `start` | `0, 0, 0` | Where the way starts, as an offset in the entity's own frame. |
+| `end` | `0, 0, 150` | Where it comes out. |
+| `bidirectional` | `true` | Whether it can be taken both ways. A drop off a ledge cannot. |
+| `radius` | `50` | How far from each end ground may be and still be joined. |
+| `enabled` | `true` | Whether the way exists right now. |
+
+Both ends are offsets in the entity's frame, so a link travels and turns with
+whatever carries it — a ladder inside a prefab is a ladder wherever the prefab is
+put down. A link whose end reaches no ground joins nothing at all: a route that
+ended in the air would be worse than no route.
+
+Moving or switching a link costs a **lookup**, not a bake — it joins polygons that
+already exist. That is the difference between it and an obstacle, and the reason
+one is cheap to animate and the other is not.
+
+<Aside type="note">
+  **The route breaks at both ends of a link.** A funnel pulled taut over a ladder
+  would plan a walk through the air beside it, so the waypoints always include the
+  two points the link joins, and a following agent goes through them. While it is
+  crossing, it is not standing on the navigable world at all — a replan asked there
+  has no answer, so the agent keeps the route it already had rather than stranding
+  itself halfway.
+</Aside>
+
 ### Doors, gates and things placed in the way
 
 Anything with a collider already blocks, because the mesh is baked from the

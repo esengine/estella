@@ -19,6 +19,24 @@ import type { NavPoint, NavQueryOptions, NavSurface, NavSurfaceSink } from './Na
 import { MinHeap } from './minHeap';
 import { log } from '../../util/logger';
 
+/** A way between two places the ground does not join, in world space. */
+export interface NavLinkSegment {
+    start: Vec3;
+    end: Vec3;
+    /** Whether it can be taken from `end` back to `start`. */
+    bidirectional: boolean;
+    /** How far from each end ground may be and still be joined. */
+    radius: number;
+}
+
+/** One resolved link: the polygons it joins, and the two points it joins them at. */
+interface NavLinkEdge {
+    from: number;
+    to: number;
+    start: Vec3;
+    end: Vec3;
+}
+
 export interface NavMeshData {
     /** `vertCount * 3` world-space floats. */
     verts: Float32Array;
@@ -66,6 +84,9 @@ export class NavMesh implements NavSurface {
     readonly agentRadius: number;
     readonly snapDistance: number;
     readonly verticalReach: number;
+    /** Ways between polygons that share no edge, both directions listed separately. */
+    private links_: NavLinkEdge[] = [];
+    private linksFrom_: Map<number, number[]> = new Map();
 
     /** Polygon bounds in the ground plane, four floats each — the whole of what
      *  the lookup below needs, and cheaper to scan than the vertices. */
@@ -132,6 +153,39 @@ export class NavMesh implements NavSurface {
             }
         }
         this.buckets = lists.map(l => Int32Array.from(l));
+    }
+
+    /**
+     * Join places the ground does not. Each segment is resolved to the polygons
+     * under its two ends; one that reaches no ground at either end joins nothing
+     * and is dropped, because a link to nowhere is a route that ends in the air.
+     */
+    connect(segments: readonly NavLinkSegment[]): void {
+        this.links_ = [];
+        this.linksFrom_ = new Map();
+        const at = { x: 0, y: 0, z: 0 };
+        for (const segment of segments) {
+            const from = this.findPoly(segment.start, at, segment.radius);
+            const start = { ...at };
+            const to = this.findPoly(segment.end, at, segment.radius);
+            if (from < 0 || to < 0 || from === to) continue;
+            this.addLink({ from, to, start, end: { ...at } });
+            if (segment.bidirectional) {
+                this.addLink({ from: to, to: from, start: { ...at }, end: start });
+            }
+        }
+    }
+
+    /** How many links this mesh carries, counting each direction of a two-way one. */
+    get linkCount(): number {
+        return this.links_.length;
+    }
+
+    private addLink(edge: NavLinkEdge): void {
+        const index = this.links_.push(edge) - 1;
+        const list = this.linksFrom_.get(edge.from);
+        if (list) list.push(index);
+        else this.linksFrom_.set(edge.from, [index]);
     }
 
     /** How many corners polygon `p` actually has. */
@@ -201,13 +255,14 @@ export class NavMesh implements NavSurface {
     /**
      * The polygon a world point stands on, or -1. A point over more than one —
      * under a bridge, on a balcony — belongs to the floor nearest its own height,
-     * which is the whole reason this mesh exists.
+     * which is the whole reason this mesh exists. `snap` overrides how far off the
+     * mesh the point may be, for a caller that has its own idea of near.
      */
-    findPoly(p: NavPoint, out?: Vec3): number {
+    findPoly(p: NavPoint, out?: Vec3, snap?: number): number {
         const x = p.x;
         const z = p.z ?? 0;
         const y = p.y;
-        const reach = this.snapDistance;
+        const reach = snap ?? this.snapDistance;
         let best = -1;
         let bestScore = Infinity;
         let bestY = 0;
@@ -286,14 +341,39 @@ export class NavMesh implements NavSurface {
 
         const polyPath = this.findPolyPath(startPoly, endPoly, start, end);
         if (!polyPath) return null;
-        return this.straightPath(polyPath, start, end);
+        return this.routeThroughLinks(polyPath, start, end);
+    }
+
+    /**
+     * The taut route, broken at every link. A link joins two points and nothing
+     * between them, so the funnel is run over each RUN of polygons the route walks
+     * and the runs are joined end to end — pulling one taut across a link would cut
+     * the corner off a ladder.
+     */
+    private routeThroughLinks(path: PolyPath, start: Vec3, end: Vec3): Vec3[] {
+        const out: Vec3[] = [];
+        let runFrom = 0;
+        let runStart = start;
+        for (let i = 0; i <= path.polys.length; i++) {
+            const link = i < path.polys.length ? path.links[i]! : null;
+            if (link === null || link < 0) continue;
+            const edge = this.links_[link]!;
+            append(out, this.straightPath(path.polys.slice(runFrom, i + 1), runStart, edge.start));
+            append(out, [edge.end]);
+            runFrom = i + 1;
+            runStart = edge.end;
+        }
+        append(out, this.straightPath(path.polys.slice(runFrom), runStart, end));
+        return out;
     }
 
     /** A* over the polygon graph, keyed on where each doorway is crossed. */
-    private findPolyPath(startPoly: number, endPoly: number, start: Vec3, end: Vec3): number[] | null {
+    private findPolyPath(startPoly: number, endPoly: number, start: Vec3, end: Vec3): PolyPath | null {
         const n = this.polyCount;
         const cost = new Float64Array(n).fill(Infinity);
         const parent = new Int32Array(n).fill(-1);
+        /** Which link was taken to reach each polygon, or -1 for a shared edge. */
+        const via = new Int32Array(n).fill(-1);
         const closed = new Uint8Array(n);
         // Where the search entered each polygon — a doorway midpoint, or the
         // start itself. Costs measured between these are what a route through
@@ -329,22 +409,47 @@ export class NavMesh implements NavSurface {
                 if (g >= cost[next]!) continue;
                 cost[next] = g;
                 parent[next] = cur;
+                via[next] = -1;
                 enterX[next] = mx; enterY[next] = my; enterZ[next] = mz;
-                const h = next === endPoly
-                    ? distance(mx, my, mz, end.x, end.y, end.z)
-                    : distance(mx, my, mz, end.x, end.y, end.z) * HEURISTIC_SCALE;
-                heap.push(next, g + h);
+                heap.push(next, g + heuristic(mx, my, mz, end));
+            }
+
+            // The ways the ground does not join: crossing one costs getting to the
+            // near end and then the span itself.
+            for (const li of this.linksFrom_.get(cur) ?? EMPTY_LINKS) {
+                const link = this.links_[li]!;
+                const next = link.to;
+                if (closed[next]) continue;
+                const g = cost[cur]!
+                    + distance(enterX[cur]!, enterY[cur]!, enterZ[cur]!,
+                        link.start.x, link.start.y, link.start.z)
+                    + distance(link.start.x, link.start.y, link.start.z,
+                        link.end.x, link.end.y, link.end.z);
+                if (g >= cost[next]!) continue;
+                cost[next] = g;
+                parent[next] = cur;
+                via[next] = li;
+                enterX[next] = link.end.x; enterY[next] = link.end.y; enterZ[next] = link.end.z;
+                heap.push(next, g + heuristic(link.end.x, link.end.y, link.end.z, end));
             }
         }
 
         if (parent[endPoly] === -1 && endPoly !== startPoly) return null;
-        const path: number[] = [];
+        const polys: number[] = [];
+        const links: number[] = [];
         for (let p = endPoly; p !== -1; p = parent[p]!) {
-            path.push(p);
+            polys.push(p);
+            // The link recorded on a polygon is the one taken to REACH it, so it
+            // belongs to the step out of the polygon before it.
+            links.push(via[p]!);
             if (p === startPoly) break;
         }
-        path.reverse();
-        return path[0] === startPoly ? path : null;
+        polys.reverse();
+        links.reverse();
+        // Shift by one: `links[i]` is now the step from `polys[i]` to `polys[i+1]`.
+        links.shift();
+        links.push(-1);
+        return polys[0] === startPoly ? { polys, links } : null;
     }
 
     /**
@@ -353,7 +458,7 @@ export class NavMesh implements NavSurface {
      * visit; with it, it is the shortest line that stays inside them, and the
      * only corners left are the ones an agent really has to turn at.
      */
-    private straightPath(polyPath: number[], start: Vec3, end: Vec3): Vec3[] {
+    private straightPath(polyPath: readonly number[], start: Vec3, end: Vec3): Vec3[] {
         const left: Vec3[] = [{ ...start }];
         const right: Vec3[] = [{ ...start }];
         for (let i = 0; i + 1 < polyPath.length; i++) {
@@ -429,6 +534,7 @@ export class NavMesh implements NavSurface {
     }
 
     describe(sink: NavSurfaceSink): void {
+        for (const link of this.links_) sink.link(link.start, link.end);
         const corners: Vec3[] = [];
         for (let p = 0; p < this.polyCount; p++) {
             const n = this.vertexCount(p);
@@ -453,7 +559,29 @@ export class NavMesh implements NavSurface {
     }
 }
 
+/** A route as the search found it: the polygons walked, and for each step the
+ *  link that made it, or -1 where the two polygons share an edge. */
+interface PolyPath {
+    polys: number[];
+    links: number[];
+}
+
+const EMPTY_LINKS: readonly number[] = [];
 const EDGE_HIT = new Float64Array(3);
+
+/** Add waypoints, dropping one that repeats the point already there. */
+function append(out: Vec3[], points: readonly Vec3[]): void {
+    for (const p of points) {
+        const last = out[out.length - 1];
+        if (last && same(last, p) && Math.abs(last.y - p.y) < 1e-4) continue;
+        out.push(p);
+    }
+}
+
+/** Straight-line distance to the goal, trusted as Detour trusts it. */
+function heuristic(x: number, y: number, z: number, end: Vec3): number {
+    return distance(x, y, z, end.x, end.y, end.z) * HEURISTIC_SCALE;
+}
 
 /**
  * Put the taut route back on the ground. The funnel answers in the ground plane,
