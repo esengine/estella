@@ -13,8 +13,6 @@ export type EditorAssetType =
     | 'tilemap' | 'tileset' | 'timeline' | 'mesh'
     | 'unknown';
 
-export type AssetBuildTransform = (content: string, context: unknown) => string;
-
 export interface AssetTypeEntry {
     extensions: string[];
     /**
@@ -29,7 +27,6 @@ export interface AssetTypeEntry {
     addressableType: AddressableAssetType | null;
     wechatPackInclude: boolean;
     hasTransitiveDeps: boolean;
-    buildTransform?: AssetBuildTransform;
 }
 
 const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
@@ -226,14 +223,3 @@ export function toBuildPath(path: string): string {
     return dotIndex >= 0 ? path.substring(0, dotIndex) + '.json' : path;
 }
 
-export function registerAssetBuildTransform(editorType: EditorAssetType, transform: AssetBuildTransform): void {
-    for (const entry of ASSET_TYPE_REGISTRY) {
-        if (entry.editorType === editorType) {
-            (entry as AssetTypeEntry).buildTransform = transform;
-        }
-    }
-}
-
-export function getAssetBuildTransform(extensionOrPath: string): AssetBuildTransform | undefined {
-    return getAssetTypeEntry(extensionOrPath)?.buildTransform;
-}

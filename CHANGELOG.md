@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Removed: three machines nothing ever drove.** `SubmitSkipFlags` named two
+  render plugins to skip — one of which (`Spine`) has had no plugin to skip
+  since spine moved to side modules — and the only `submitAll` in the engine
+  passed 0; the C++ side of it (`RenderTypePlugin::skipFlag`, and the parameter)
+  is gone with it, so `renderer_submitAll` takes a viewport and nothing else.
+  `registerAssetBuildTransform` / `getAssetBuildTransform` were a registry with
+  no registrar and no reader — what actually transforms an asset for a build is
+  the cook pipeline. `sceneErrors` filtered diagnostics for no one.
+
 - **A `Text` that names no family is drawn in the project's.** `fontFamily`
   defaults to empty now, and empty means "whatever this project uses" — resolved
   where the family is already decided (`resolveTextFamily`), so the measured wrap

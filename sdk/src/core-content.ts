@@ -22,7 +22,6 @@ export {
     type AddressableAssetType,
     type EditorAssetType,
     type AssetTypeEntry,
-    type AssetBuildTransform,
     getAssetTypeEntry,
     getEditorType,
     getAddressableType,
@@ -35,8 +34,6 @@ export {
     getAssetMimeType,
     isCustomExtension,
     toBuildPath,
-    registerAssetBuildTransform,
-    getAssetBuildTransform,
 } from './assetTypes';
 
 // =============================================================================
@@ -170,7 +167,7 @@ export {
  *
  * @experimental Pre-1.0: diagnostic codes may gain members as checks are added.
  */
-export { validateScene, sceneErrors } from './scene/validateScene';
+export { validateScene } from './scene/validateScene';
 export type {
     DocumentDiagnostic,
     DocumentDiagnosticSeverity,

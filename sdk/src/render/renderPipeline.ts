@@ -117,7 +117,7 @@ export class RenderPipeline {
         this.executePreSceneDrawCallbacks(viewProjection, viewport, _elapsed);
 
         Renderer.updateTransforms(registry);
-        Renderer.submitAll(registry, 0, viewport.x, viewport.y, viewport.w, viewport.h);
+        Renderer.submitAll(registry, viewport.x, viewport.y, viewport.w, viewport.h);
         this.runPreFlushCallbacks(registry);
         Renderer.flush();
 

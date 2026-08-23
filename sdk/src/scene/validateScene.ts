@@ -73,7 +73,3 @@ export function validateScene(scene: SceneData): DocumentDiagnostic[] {
 
     return diags;
 }
-
-/** The findings that make a scene unloadable as written. */
-export const sceneErrors = (diags: readonly DocumentDiagnostic[]): DocumentDiagnostic[] =>
-    diags.filter((d) => d.severity === 'error');

@@ -1213,7 +1213,7 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
                       BATCH_QUAD_INDICES, 6, key);
 }
 
-void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
+void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
     buildClipState();
     collectLights(registry);
@@ -1224,10 +1224,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
     RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
                                     computeCameraView(ctx.view_projection)};
     collectSky(collectCtx);
-    for (auto& plugin : plugins_) {
-        if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
-        plugin->collect(collectCtx);
-    }
+    for (auto& plugin : plugins_) plugin->collect(collectCtx);
 
     // OR-ed across the frame's cameras, applied at the next beginFrame and never
     // mid-frame: the capture is scratch each camera composites out of, and the

@@ -59,8 +59,8 @@ export function createNativeRendererBackend(
             hostCall(scope, RENDERER_BINDINGS.begin,
                 [viewProjection, target, clearFlags, r, g, b, a, clearX, clearY, clearW, clearH]);
         },
-        submitAll: (_registry: CppRegistry, skipFlags, vpX, vpY, vpW, vpH): void => {
-            hostCall(scope, RENDERER_BINDINGS.submitAll, [skipFlags, vpX, vpY, vpW, vpH]);
+        submitAll: (_registry: CppRegistry, vpX, vpY, vpW, vpH): void => {
+            hostCall(scope, RENDERER_BINDINGS.submitAll, [vpX, vpY, vpW, vpH]);
         },
         flush: (): void => {
             hostCall(scope, RENDERER_BINDINGS.flush, []);

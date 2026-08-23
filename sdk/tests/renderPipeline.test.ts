@@ -109,7 +109,7 @@ describe('RenderPipeline', () => {
             expect(Renderer.setViewport).toHaveBeenCalledWith(0, 0, 800, 600);
             // The clear rides begin as a load-op: color+depth (3), default color.
             expect(Renderer.begin).toHaveBeenCalledWith(viewProjection, 0, 3, undefined);
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 800, 600);
         });
     });
 
@@ -155,9 +155,9 @@ describe('RenderPipeline', () => {
     });
 
     describe('submitScene', () => {
-        it('calls submitAll with skipFlags=0 (all plugins participate)', () => {
+        it('submits every plugin, with the camera\'s viewport', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 800, 600);
         });
     });
 
@@ -246,7 +246,7 @@ describe('RenderPipeline', () => {
 
         it('passes viewport params to submitAll', () => {
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
-            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 10, 20, 400, 300);
+            expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 10, 20, 400, 300);
         });
 
         it('executes draw callbacks in renderCamera', () => {

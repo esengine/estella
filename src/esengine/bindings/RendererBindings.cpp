@@ -550,12 +550,12 @@ void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr,
     ecs::applySceneEntityOrder(registry, order.data(), order.size());
 }
 
-void renderer_submitAll(ecs::Registry& registry, u32 skipFlags, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
+void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
 
-    g_renderFrame->collectAll(registry, skipFlags);
+    g_renderFrame->collectAll(registry);
 }
 
 #ifdef ES_ENABLE_PARTICLES

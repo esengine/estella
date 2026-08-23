@@ -149,7 +149,7 @@ describe('Renderer API', () => {
         });
 
         it('should no-op submitAll when uninitialized', () => {
-            Renderer.submitAll({ _cpp: 1 as any }, 0, 0, 0, 800, 600);
+            Renderer.submitAll({ _cpp: 1 as any }, 0, 0, 800, 600);
             expect(mock.renderer_submitAll).not.toHaveBeenCalled();
         });
     });
@@ -266,8 +266,8 @@ describe('Renderer API', () => {
     describe('Renderer.submitAll', () => {
         it('should call renderer_submitAll with registry and viewport', () => {
             const registry = { _cpp: 55 as any };
-            Renderer.submitAll(registry, 0, 10, 20, 800, 600);
-            expect(mock.renderer_submitAll).toHaveBeenCalledWith(55, 0, 10, 20, 800, 600);
+            Renderer.submitAll(registry, 10, 20, 800, 600);
+            expect(mock.renderer_submitAll).toHaveBeenCalledWith(55, 10, 20, 800, 600);
         });
     });
 

@@ -168,7 +168,7 @@ export interface NativeEngineApi {
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
     renderer_setYSortLayers?(mask: number): void;
-    renderer_submitAll?(registry: unknown, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
+    renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitBitmapText?(registry: unknown): void;
     renderer_submitParticles?(registry: unknown): void;
     renderer_submitShapes?(registry: unknown): void;

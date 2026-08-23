@@ -16,12 +16,6 @@ export enum RenderStage {
     Overlay = 3,
 }
 
-export const SubmitSkipFlags = {
-    None: 0,
-    Spine: 1,
-    Particles: 2,
-} as const;
-
 export type RenderTargetHandle = number;
 
 export interface RenderStats {
@@ -55,7 +49,7 @@ export interface RendererBackend {
     begin(viewProjection: Float32Array, target: number, clearFlags: number,
           r: number, g: number, b: number, a: number,
           clearX: number, clearY: number, clearW: number, clearH: number): void;
-    submitAll(registry: CppRegistry, skipFlags: number,
+    submitAll(registry: CppRegistry,
               vpX: number, vpY: number, vpW: number, vpH: number): void;
     flush(): void;
     end(): void;
@@ -97,9 +91,9 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 handleWasmError(e, 'Renderer.begin');
             }
         },
-        submitAll: (registry, skipFlags, vpX, vpY, vpW, vpH) => {
+        submitAll: (registry, vpX, vpY, vpW, vpH) => {
             try {
-                m.renderer_submitAll(registry, skipFlags, vpX, vpY, vpW, vpH);
+                m.renderer_submitAll(registry, vpX, vpY, vpW, vpH);
             } catch (e) {
                 handleWasmError(e, 'Renderer.submitAll');
             }
@@ -363,8 +357,8 @@ export const Renderer = {
         backend?.end();
     },
 
-    submitAll(registry: { _cpp: CppRegistry }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void {
-        backend?.submitAll(registry._cpp, skipFlags, vpX, vpY, vpW, vpH);
+    submitAll(registry: { _cpp: CppRegistry }, vpX: number, vpY: number, vpW: number, vpH: number): void {
+        backend?.submitAll(registry._cpp, vpX, vpY, vpW, vpH);
     },
 
     setStage(stage: RenderStage): void {

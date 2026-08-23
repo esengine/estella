@@ -163,7 +163,6 @@ export {
 export {
     Renderer,
     RenderStage,
-    SubmitSkipFlags,
     shutdownRendererAPI,
     type RenderTargetHandle,
     type RenderStats,

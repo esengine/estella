@@ -250,7 +250,7 @@ public:
     i32 pollPreviewReadback();
 
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
-    void collectAll(ecs::Registry& registry, u32 skipFlags = 0);
+    void collectAll(ecs::Registry& registry);
 
     /**
      * Compiled program id for a batch-shader feature variant, compiled+cached on

@@ -440,7 +440,7 @@ export interface ESEngineModule {
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitShapes?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
-    renderer_submitAll(registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
+    renderer_submitAll(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_play?(registry: CppRegistry, entity: number): void;
     particle_stop?(registry: CppRegistry, entity: number): void;
