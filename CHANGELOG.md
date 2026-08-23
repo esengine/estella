@@ -638,11 +638,16 @@ published separately; it ships inside the editor.
   removed, and about 700MB a run shares a disk with two checkouts, two
   `node_modules`, electron and the wasm. That disk ran out — and a runner with no
   disk cannot write its own log, so the failure arrived empty.
-- **Two checks waited for a machine that was not the one running them.** The
+- **Four waits were written for a machine other than the one running them.** The
   editor's pixel gates had no budget, so a bad run spent the whole job and was
   killed mid-step; `starter-3d` gave play, step and probe 180 seconds each and left
   the three calls between them on the 30-second default, though the same editor
-  answers all of them with the same frame queue in front.
+  answers all of them with the same frame queue in front; the 45-second scene
+  watchdog was measured on the engine's host and applied to the editor's, which
+  spends 12 of those booting the engine through the whole editor before a scene is
+  loaded; and fetching two optional Android oracles — deeper checks the tests skip
+  when absent — was bounded by nothing, hung for 38 minutes, and took the ceiling
+  of a job whose other nine were green, which is a job that writes no log.
 - **One performance ratio was measuring the machine.** `ui-layout: editing a field
   vs an idle frame` failed at exactly +50% against the shared 50% tolerance on a
   commit that changed only a workflow file. Its denominator is the idle frame, 20µs
