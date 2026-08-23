@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **`AudioSource.priority` decides something now: there is a voice ceiling.**
+  Nothing limited how many sounds played at once, so the field described an
+  ordering that never happened. 32 voices by default (`features.audio.maxVoices`
+  in `project.esproject` sets your own; 0 = no cap). When the pool is full the
+  sound worth least is dropped for one worth more, ties go to the older voice —
+  which is what keeps a repeated sound audible — and a new sound worth less than
+  everything already playing is simply not started, returning a handle that
+  reports itself as not playing rather than throwing.
+
 - **A particle can be drawn with a material, and the billboard it is drawn on is
   one piece of arithmetic.** `ParticleEmitter.material` was the last authorable
   material field with nothing reading it. A material is compiled per vertex
@@ -143,6 +152,13 @@ published separately; it ships inside the editor.
   may not be checked out.
 
 ### Fixed
+
+- **An `AudioSource` in the scene was outside everything the audio API decides.**
+  It was played straight at the backend, so on a backend with no mixer graph —
+  WeChat, a device — the bus volume and mute the API folds into each voice never
+  reached it: turning the sfx bus down left every scene sound at full volume. It
+  goes through `Audio.playBuffer` now, the same door a scripted `playSFX` comes
+  through, which is also how it came to be counted against the voice cap.
 
 - **A build with DragonBones but no Spine had no way to draw a skeleton.** The
   binding every skeletal runtime submits its posed geometry through was compiled

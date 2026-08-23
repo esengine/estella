@@ -25,6 +25,9 @@ export interface AudioBusDecl {
 
 export interface AudioProjectConfig {
     buses?: AudioBusDecl[];
+    /** How many voices may sound at once before `priority` decides which is
+     *  dropped. 0 or less means no cap. */
+    maxVoices?: number;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -54,7 +57,12 @@ export function parseAudioProjectConfig(raw: unknown): AudioProjectConfig {
         }
         buses.push(decl);
     }
-    return buses.length > 0 ? { buses } : {};
+    const config: AudioProjectConfig = buses.length > 0 ? { buses } : {};
+    const maxVoices = (raw as { maxVoices?: unknown } | undefined)?.maxVoices;
+    if (typeof maxVoices === 'number' && Number.isFinite(maxVoices)) {
+        config.maxVoices = Math.floor(maxVoices);
+    }
+    return config;
 }
 
 /**
@@ -63,6 +71,9 @@ export function parseAudioProjectConfig(raw: unknown): AudioProjectConfig {
  * bus with no `duck` clears any prior rule, so the editor can re-apply live.
  */
 export function applyAudioProjectConfig(audio: AudioAPI, config: AudioProjectConfig | undefined): void {
+    // Before the buses: the cap is the API's own and applies on every backend,
+    // while the loop below returns early where there is no mixer graph.
+    if (config?.maxVoices !== undefined) audio.setMaxVoices(config.maxVoices);
     for (const bus of config?.buses ?? []) {
         if (!audio.ensureBus(bus.name, bus.parent)) return; // no mixer: nothing applies
         if (bus.volume !== undefined) audio.setBusVolume(bus.name, bus.volume);

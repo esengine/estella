@@ -313,7 +313,11 @@ const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
 - **Separate buses** (`music` / `sfx` / `ui` / `voice`) so players can mix them,
   and drive everything from `master`.
 - **Cap simultaneous sounds** with `priority` on `AudioSource` so important sounds
-  win when the voice pool is full.
+  win when the voice pool is full. The ceiling is 32 voices by default; set your
+  own with `features.audio.maxVoices` in `project.esproject` (0 = no cap). When
+  the pool is full the sound worth least is dropped for one worth more, ties go
+  to the older voice, and a new sound worth less than everything playing is
+  simply not started.
 - **Use `AudioSource` (declarative)** for world/object sounds and `playSFX` for
   fire-and-forget UI/gameplay one-shots.
 

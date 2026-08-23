@@ -40,11 +40,36 @@ export interface AudioBufferStats {
  * grab it with `app.getResource(Audio)` outside ECS code.
  */
 /** A playing voice this API owns the volume of: base × bus gain × fade. */
+/**
+ * How many voices sound at once before `priority` decides. Beyond a couple of
+ * dozen a listener hears loudness, not sounds, and a phone pays for every one.
+ */
+const DEFAULT_MAX_VOICES = 32;
+
+/** The answer to "play this" when the pool is full and this voice lost: a handle
+ *  that behaves like one whose sound already ended, so no caller special-cases it. */
+function silentHandle(): AudioHandle {
+    return {
+        id: 0,
+        stop() {}, pause() {}, resume() {},
+        setVolume() {}, setPan() {}, setLoop() {}, setPlaybackRate() {},
+        get isPlaying() { return false; },
+        get currentTime() { return 0; },
+        get duration() { return 0; },
+    };
+}
+
 interface SoftVoice {
     handle: AudioHandle;
     bus: string;
     base: number;
     fade: number;
+    /** What this voice is worth when the pool is full — higher survives. */
+    priority: number;
+    /** Play order. A counter, not a clock: "older" has to be answered the same
+     *  way twice for a test to pin the rule down, and two voices started in one
+     *  frame share a timestamp. */
+    seq: number;
 }
 
 /** One volume ramp in flight: a linear interpolation the frame loop advances. */
@@ -85,6 +110,13 @@ export class AudioAPI {
     private readonly softBuses_ = new Map<string, { volume: number; muted: boolean }>();
     /** Voices whose volume this API computes: base × bus gain × fade. */
     private softVoices_: SoftVoice[] = [];
+    /**
+     * How many voices may sound at once. There has to be a ceiling for
+     * `priority` to mean anything: without one nothing is ever dropped, and the
+     * field only describes an ordering that never happens.
+     */
+    private maxVoices_ = DEFAULT_MAX_VOICES;
+    private voiceSeq_ = 0;
     // Handles mid fade-out. A cancelled fade RAF never reaches its handle.stop(),
     // so a rapid crossfade would orphan the outgoing track (playing forever) —
     // {@link cancelFades_} stops these when it tears the animations down.
@@ -530,15 +562,57 @@ export class AudioAPI {
 
     /** Play through the backend as a tracked voice, so bus gain and fades have
      *  one place to act — on every platform, mixer graph or not. */
+    /**
+     * Play an already-resolved buffer. The one door every voice comes through —
+     * a scripted `playSFX`, a `playBGM`, an `AudioSource` in the scene — so the
+     * bus gain a backend without a mixer graph cannot apply, and the voice cap
+     * `priority` is measured against, are decided once for all of them.
+     */
+    playBuffer(buffer: AudioBufferHandle, config?: PlayConfig): AudioHandle {
+        if (config?.bus) this.ensureBus(config.bus);
+        return this.playVoice_(buffer, config ?? {});
+    }
+
+    /** The voice ceiling; 0 or less means no cap. @see playBuffer */
+    setMaxVoices(max: number): void {
+        this.maxVoices_ = Number.isFinite(max) ? Math.floor(max) : DEFAULT_MAX_VOICES;
+    }
+
+    get maxVoices(): number { return this.maxVoices_; }
+
     private playVoice_(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle {
         const bus = config.bus ?? 'sfx';
         const base = config.volume ?? 1;
+        const priority = config.priority ?? 0;
+        if (!this.makeRoomForVoice_(priority)) return silentHandle();
         const handle = this.backend_.play(buffer, { ...config, volume: base * this.softGain_(bus) });
-        this.softVoices_.push({ handle, bus, base, fade: 1 });
-        if (this.softVoices_.length > 64) {
-            this.softVoices_ = this.softVoices_.filter((v) => v.handle.isPlaying);
-        }
+        this.softVoices_.push({ handle, bus, base, fade: 1, priority, seq: this.voiceSeq_++ });
         return handle;
+    }
+
+    /**
+     * Drop the least valuable voice if the pool is full, so a new one of
+     * @p priority can sound. False when the new voice is the least valuable
+     * itself. Ties go to the OLDER voice, which is what keeps a repeated sound
+     * audible: every shot of a machine gun is worth the same.
+     */
+    private makeRoomForVoice_(priority: number): boolean {
+        this.softVoices_ = this.softVoices_.filter(
+            (v) => v.handle.isPlaying || this.fadeOf_(v) !== null,
+        );
+        if (this.maxVoices_ <= 0 || this.softVoices_.length < this.maxVoices_) return true;
+
+        let weakest: SoftVoice | null = null;
+        for (const v of this.softVoices_) {
+            if (!weakest || v.priority < weakest.priority
+                || (v.priority === weakest.priority && v.seq < weakest.seq)) {
+                weakest = v;
+            }
+        }
+        if (!weakest || weakest.priority > priority) return false;
+        weakest.handle.stop();
+        this.softVoices_ = this.softVoices_.filter((v) => v !== weakest);
+        return true;
     }
 
     muteBus(busName: string, muted: boolean): void {
@@ -665,7 +739,7 @@ export class AudioAPI {
     private voiceOf_(handle: AudioHandle, base: number, bus: string): SoftVoice {
         const found = this.softVoices_.find((v) => v.handle === handle);
         if (found) return found;
-        const voice: SoftVoice = { handle, bus, base, fade: 1 };
+        const voice: SoftVoice = { handle, bus, base, fade: 1, priority: 0, seq: this.voiceSeq_++ };
         this.softVoices_.push(voice);
         return voice;
     }

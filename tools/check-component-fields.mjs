@@ -28,8 +28,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * intended state: a field that earns an entry here is work, not permission.
  */
 const DECLARED_GAPS = {
-    'AudioSource.priority': 'nothing limits how many sources play at once, so there is'
-        + ' never a moment where one has to be dropped in favour of another',
     'CacheAsBitmap.enabled': 'the component is declared and nothing renders a subtree to a'
         + ' texture to draw it as one quad — the four fields below are the same gap',
     'CacheAsBitmap.dirty': 'see CacheAsBitmap.enabled',

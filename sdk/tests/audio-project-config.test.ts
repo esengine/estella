@@ -16,6 +16,7 @@ function mockAudioApi() {
         muteBus: vi.fn(),
         setBusEffects: vi.fn(() => true),
         setBusDucking: vi.fn(() => true),
+        setMaxVoices: vi.fn(),
     } as unknown as AudioAPI;
 }
 
@@ -84,5 +85,20 @@ describe('applyAudioProjectConfig', () => {
         const audio = mockAudioApi();
         applyAudioProjectConfig(audio, undefined);
         expect(audio.ensureBus).not.toHaveBeenCalled();
+    });
+
+    // The cap is the API's own, not the mixer graph's — a project that declares
+    // one gets it on WeChat and on a device, where the bus loop returns early.
+    it('applies the voice cap even where there is no mixer to apply a bus with', () => {
+        const audio = mockAudioApi();
+        (audio.ensureBus as ReturnType<typeof vi.fn>).mockReturnValue(false);
+        applyAudioProjectConfig(audio, { maxVoices: 8, buses: [{ name: 'music', volume: 0.5 }] });
+        expect(audio.setMaxVoices).toHaveBeenCalledWith(8);
+        expect(audio.setBusVolume).not.toHaveBeenCalled();
+    });
+
+    it('reads a declared voice cap and ignores a junk one', () => {
+        expect(parseAudioProjectConfig({ maxVoices: 12 }).maxVoices).toBe(12);
+        expect(parseAudioProjectConfig({ maxVoices: 'lots' }).maxVoices).toBeUndefined();
     });
 });

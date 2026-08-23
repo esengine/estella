@@ -292,6 +292,9 @@ const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
 - **在手势上开始**——浏览器在第一次用户输入前会屏蔽音频。
 - **分开总线**(`music` / `sfx` / `ui` / `voice`)让玩家能各自调节,并统一由 `master` 驱动。
 - 用 `AudioSource` 上的 `priority` **限制同时播放的声音数**,声部池满时重要的声音才胜出。
+  上限默认 32 个声部,可用 `project.esproject` 的 `features.audio.maxVoices` 自己定(0 = 不限)。
+  池满时最不值钱的那个被让位给更重要的,同优先级让位给更早的;比场上任何一个都不值钱的新声音,
+  则根本不会开始。
 - 世界/物体声音**用 `AudioSource`(声明式)**,一次性的 UI/玩法音效用 `playSFX`。
 
 ## 参见

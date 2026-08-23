@@ -845,8 +845,10 @@ getSpectrum: (out: Uint8Array) => boolean
 getUIVolume: () => number
 invalidateBuffer: (url: string) => boolean
 isBusMuted: (busName: string) => boolean
+maxVoices: number
 muteBus: (busName: string, muted: boolean) => void
 playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; }) => void
+playBuffer: (buffer: AudioBufferHandle, config?: PlayConfig) => AudioHandle
 playSFX: (url: string, config?: { volume?: number; pitch?: number; pan?: number; priority?: number; }) => AudioHandle
 playTrack: (url: string, config?: PlayConfig) => Promise<AudioHandle | null>
 preload: (url: string) => Promise<void>
@@ -861,6 +863,7 @@ setBusDucking: (target: string, rule: BusDuckRule | null) => boolean
 setBusEffects: (busName: string, effects: BusEffectDef[]) => boolean
 setBusVolume: (busName: string, volume: number) => void
 setMasterVolume: (volume: number) => void
+setMaxVoices: (max: number) => void
 setMusicVolume: (volume: number) => void
 setRefResolver: (resolver: ((ref: string) => string) | null) => void
 setSFXVolume: (volume: number) => void
@@ -1013,6 +1016,7 @@ static prototype: AudioPool
 ## AudioProjectConfig — interface @experimental
 ```
 buses: AudioBusDecl[] | undefined
+maxVoices: number | undefined
 ```
 
 ## AudioSource — const @experimental

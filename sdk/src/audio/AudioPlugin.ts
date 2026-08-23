@@ -129,11 +129,15 @@ export class AudioPlugin implements Plugin {
                         if (source.playOnAwake && !playedEntities.has(id) && !activeSourceHandles.has(id) && backend.isReady) {
                             const buffer = audioAPI.getBufferHandle(source.clip);
                             if (buffer) {
-                                const handle = backend.play(buffer, {
+                                // Through the API, not straight at the backend: the
+                                // voice cap and the soft bus gain are decided there,
+                                // and a sound outside that door gets neither.
+                                const handle = audioAPI.playBuffer(buffer, {
                                     bus: source.bus,
                                     volume: source.volume,
                                     loop: source.loop,
                                     playbackRate: source.pitch,
+                                    priority: source.priority,
                                 });
                                 activeSourceHandles.set(id, handle);
                                 playedEntities.add(id);
