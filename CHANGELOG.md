@@ -12,7 +12,7 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
-## [Unreleased]
+## [0.56.0] - 2026-08-23
 
 ### Changed
 
@@ -606,6 +606,49 @@ published separately; it ships inside the editor.
 - `check-physics3d` and `verify-desktop-render` were engine checks reading out of the
   editor's directory; the four SDK physics smokes hard-coded `desktop/public/wasm`
   rather than the engine's own build output.
+- **Two C++ harnesses had stopped agreeing with the engine.** Particles gained a
+  third dimension and neither was rebuilt against it: `test_particle` still assigned
+  `vec2` to a `vec3` gravity — a compile error, so the web and sanitizer jobs stopped
+  there and the six jobs that need their artifact did not run for a day — and
+  `test_batch_builder` asserted a 40-byte particle instance slot the engine's own
+  `static_assert` already calls 44. The stride is now mirrored the way the shape
+  stream's already was, so the next field is a compile error in one place rather
+  than a magic number that drifts.
+- **An export only the editor calls is not an export nobody calls.**
+  `check-engine-exports` named the roots it could not scan and then judged the
+  exports anyway, so `engine_getGpuScopes` — reached from the editor's `EngineHost`
+  and `playHost` — failed CI while every checkout with the submodule stayed green.
+  Unscannable roots now make a verdict *unverified* rather than dead, as
+  `check-component-fields` already did for fields, and the summary counts what it
+  actually judged.
+- **The pixel runner stopped racing a GPU process that never arrived.** It launches
+  one Electron per scene, and on the Linux runner two launches in three lost the
+  race between the page asking for WebGL2 and the GPU service being able to answer;
+  the retries for the rest spent the budget, so 62 of 85 scenes never ran. Linux now
+  hosts the GPU in-process — the same SwiftShader, so the same pixels — and the tier
+  is back to 85/85 in about two minutes.
+- **A gizmo the size of the viewport is no longer judged by a box inside it.**
+  `gizmo-chrome` measured each gizmo's ink inside the viewport region *and* a 300px
+  box around the entity. The Camera's shape is not a reach around its entity: the
+  rect it frames is the design rect, which the editor's own framing fits to the
+  viewport, so its edges sit at about half a viewport away at any zoom. They measure
+  299px; the box ended at 300. The viewport is now the only bound.
+- **The editor's check runner takes its projects back.** Every check writes a temp
+  project and opens it in a real editor, which imports into it; none was ever
+  removed, and about 700MB a run shares a disk with two checkouts, two
+  `node_modules`, electron and the wasm. That disk ran out — and a runner with no
+  disk cannot write its own log, so the failure arrived empty.
+- **Two checks waited for a machine that was not the one running them.** The
+  editor's pixel gates had no budget, so a bad run spent the whole job and was
+  killed mid-step; `starter-3d` gave play, step and probe 180 seconds each and left
+  the three calls between them on the 30-second default, though the same editor
+  answers all of them with the same frame queue in front.
+- **One performance ratio was measuring the machine.** `ui-layout: editing a field
+  vs an idle frame` failed at exactly +50% against the shared 50% tolerance on a
+  commit that changed only a workflow file. Its denominator is the idle frame, 20µs
+  — twice the floor below which this gate already refuses to read a sample — and it
+  does not slow down with the machine the way the edit beside it does. It carries
+  its own tolerance now, and a regression names the one it broke.
 
 ### Added
 
@@ -8605,7 +8648,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.55.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.56.0...HEAD
+[0.56.0]: https://github.com/esengine/estella/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/esengine/estella/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/esengine/estella/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/esengine/estella/compare/v0.52.0...v0.53.0
