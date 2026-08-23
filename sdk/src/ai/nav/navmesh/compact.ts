@@ -189,27 +189,44 @@ export function erodeWalkableArea(chf: NavCompactField, radius: number): void {
  * Two sweeps of a 3-4 weighted chamfer transform over the connection graph — the
  * same approximation of euclidean distance the grid uses, but following reachable
  * neighbours rather than the raster, so a cell across a wall is not "one away".
+ *
+ * Written out rather than driven by a table of directions: this is the single
+ * hottest loop of the bake, and one iterator per span per direction was costing
+ * more than the arithmetic it was iterating over.
  */
 function chamfer(chf: NavCompactField, dist: Int32Array): void {
     const { width: w, depth: d } = chf;
-    const relax = (i: number, from: number, cost: number): void => {
-        const nd = Math.min(dist[from]! + cost, 0xff);
-        if (nd < dist[i]!) dist[i] = nd;
+    const cellIndex = chf.cellIndex;
+    const cellCount = chf.cellCount;
+    const con = chf.con;
+
+    /** The span reached from `i` in `dir`, or -1, without the method call. */
+    const step = (x: number, z: number, i: number, dir: number): number => {
+        const c = (con[i]! >> (dir * 6)) & 0x3f;
+        if (c === NAV_NOT_CONNECTED) return -1;
+        return cellIndex[x + DIR_X[dir]! + (z + DIR_Z[dir]!) * w]! + c;
     };
 
     for (let z = 0; z < d; z++) {
         for (let x = 0; x < w; x++) {
             const c = x + z * w;
-            const start = chf.cellIndex[c]!;
-            const end = start + chf.cellCount[c]!;
-            for (let i = start; i < end; i++) {
-                for (const [dir, diag] of BACKWARD) {
-                    const ni = chf.neighbourSpan(x, z, i, dir);
-                    if (ni < 0) continue;
-                    relax(i, ni, 2);
-                    const nj = chf.neighbourSpan(x + DIR_X[dir]!, z + DIR_Z[dir]!, ni, diag);
-                    if (nj >= 0) relax(i, nj, 3);
+            const end = cellIndex[c]! + cellCount[c]!;
+            for (let i = cellIndex[c]!; i < end; i++) {
+                let best = dist[i]!;
+                // The two directions already swept, and the diagonal behind each.
+                const a = step(x, z, i, 0);
+                if (a >= 0) {
+                    if (dist[a]! + 2 < best) best = dist[a]! + 2;
+                    const aa = step(x - 1, z, a, 3);
+                    if (aa >= 0 && dist[aa]! + 3 < best) best = dist[aa]! + 3;
                 }
+                const b = step(x, z, i, 3);
+                if (b >= 0) {
+                    if (dist[b]! + 2 < best) best = dist[b]! + 2;
+                    const bb = step(x, z - 1, b, 2);
+                    if (bb >= 0 && dist[bb]! + 3 < best) best = dist[bb]! + 3;
+                }
+                dist[i] = best > 0xff ? 0xff : best;
             }
         }
     }
@@ -217,22 +234,24 @@ function chamfer(chf: NavCompactField, dist: Int32Array): void {
     for (let z = d - 1; z >= 0; z--) {
         for (let x = w - 1; x >= 0; x--) {
             const c = x + z * w;
-            const start = chf.cellIndex[c]!;
-            const end = start + chf.cellCount[c]!;
-            for (let i = end - 1; i >= start; i--) {
-                for (const [dir, diag] of FORWARD) {
-                    const ni = chf.neighbourSpan(x, z, i, dir);
-                    if (ni < 0) continue;
-                    relax(i, ni, 2);
-                    const nj = chf.neighbourSpan(x + DIR_X[dir]!, z + DIR_Z[dir]!, ni, diag);
-                    if (nj >= 0) relax(i, nj, 3);
+            const start = cellIndex[c]!;
+            for (let i = start + cellCount[c]! - 1; i >= start; i--) {
+                let best = dist[i]!;
+                const a = step(x, z, i, 2);
+                if (a >= 0) {
+                    if (dist[a]! + 2 < best) best = dist[a]! + 2;
+                    const aa = step(x + 1, z, a, 1);
+                    if (aa >= 0 && dist[aa]! + 3 < best) best = dist[aa]! + 3;
                 }
+                const b = step(x, z, i, 1);
+                if (b >= 0) {
+                    if (dist[b]! + 2 < best) best = dist[b]! + 2;
+                    const bb = step(x, z + 1, b, 0);
+                    if (bb >= 0 && dist[bb]! + 3 < best) best = dist[bb]! + 3;
+                }
+                dist[i] = best > 0xff ? 0xff : best;
             }
         }
     }
 }
 
-/** The two orthogonal directions each sweep comes FROM, each paired with the turn
- *  that reaches the diagonal behind it. */
-const BACKWARD: ReadonlyArray<readonly [number, number]> = [[0, 3], [3, 2]];
-const FORWARD: ReadonlyArray<readonly [number, number]> = [[2, 1], [1, 0]];

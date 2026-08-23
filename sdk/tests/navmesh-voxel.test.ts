@@ -172,9 +172,14 @@ describe('the compact field', () => {
         const chf = new NavCompactField(hf, 5, 4);
         erodeWalkableArea(chf, 2);
         const areaAt = (x: number, z: number): number => chf.areas[chf.cellIndex[x + z * 10]!]!;
-        // Two cells in from every edge is gone; the middle is untouched.
+        // Two cells in from EVERY edge is gone, the far ones included: a distance
+        // transform swept one way only measures the corner it started from.
         expect(areaAt(0, 5)).toBe(NAV_AREA_NULL);
         expect(areaAt(1, 5)).toBe(NAV_AREA_NULL);
+        expect(areaAt(9, 5)).toBe(NAV_AREA_NULL);
+        expect(areaAt(8, 5)).toBe(NAV_AREA_NULL);
+        expect(areaAt(5, 9)).toBe(NAV_AREA_NULL);
+        expect(areaAt(5, 8)).toBe(NAV_AREA_NULL);
         expect(areaAt(5, 5)).toBe(NAV_AREA_WALKABLE);
     });
 });
