@@ -23,7 +23,10 @@ published separately; it ships inside the editor.
   is gone with it, so `renderer_submitAll` takes a viewport and nothing else.
   `registerAssetBuildTransform` / `getAssetBuildTransform` were a registry with
   no registrar and no reader — what actually transforms an asset for a build is
-  the cook pipeline. `sceneErrors` filtered diagnostics for no one.
+  the cook pipeline. `sceneErrors` filtered diagnostics for no one. `PreviewPlugin`
+  / `previewPlugin` fetched a scene over HTTP and watched it over an EventSource:
+  the editor previews through `EngineHost` in-process, and nothing had assembled
+  this one since.
 
 - **A `Text` that names no family is drawn in the project's.** `fontFamily`
   defaults to empty now, and empty means "whatever this project uses" — resolved
