@@ -193,6 +193,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A C++ harness that had never been compiled.** `test_bitmap_font` asserts the
+  guard on `BitmapFont::createLabelAtlas` against degenerate dimensions — a
+  divide-by-zero that traps on wasm and fills the atlas with garbage where it does
+  not — and its own header explained it was left out of CMake because the
+  BitmapFont TU references the resource stack. It references exactly two symbols
+  from it, through a loader this never calls; the harness stubs them, and it
+  builds, runs and passes with the rest. `check-cpp-tests` now also compares the
+  harness SOURCES against what CMake declares: it used to compare CI's list with
+  CMake's list, and a file neither mentions is invisible to both.
+
 - **Three physics smokes had nothing to run them.** The 2D character mover
   (resting height, skin width, floor snap, ceiling), the joint and mouse-drag
   features, and sensor overlap each had a headless smoke sitting in `sdk/tests`

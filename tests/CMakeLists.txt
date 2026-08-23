@@ -327,6 +327,20 @@ if(ES_ENABLE_BOX2D)
     add_test(NAME test_physics_interpolation COMMAND test_physics_interpolation)
 endif()
 
+# The bitmap-font atlas guard. Compiled in rather than linked, like the shader
+# harnesses: BitmapFont's only tie to the resource stack is a loader this never
+# calls, and the harness stubs those two symbols itself.
+add_executable(test_bitmap_font
+    text/test_bitmap_font.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/text/BitmapFont.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_bitmap_font PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_bitmap_font COMMAND test_bitmap_font)
+
 # The desktop text-editing model. It lives in the native host rather than in the
 # engine, and it is compiled in directly (not linked) because the host is not a
 # library — which is fine, since the model is pure by construction: no SDL, no

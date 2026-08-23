@@ -20,7 +20,7 @@
  * shift-left convenience, not a claim about the machine it did not run on.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +42,27 @@ function harnessTargets() {
 function declaredHarnesses() {
     const cmake = readFileSync(path.join(ROOT, 'tests', 'CMakeLists.txt'), 'utf8');
     return [...cmake.matchAll(/add_test\(NAME\s+(\w+)/g)].map((m) => m[1]);
+}
+
+/**
+ * Harnesses compiled on purpose and never run — a link is the whole claim.
+ * Anything else on disk with no `add_test` is a harness nobody schedules, which
+ * is what both lists above are blind to: they compare two DECLARATIONS.
+ */
+const COMPILE_ONLY = new Set(['webgpu_bringup', 'webgpu_engine_bringup']);
+
+/** Harness sources on disk, by the name their target would carry. */
+function harnessSources() {
+    const out = [];
+    const walk = (dir) => {
+        for (const e of readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, e.name);
+            if (e.isDirectory()) walk(p);
+            else if (e.name.endsWith('.cpp')) out.push(e.name.replace(/\.cpp$/, ''));
+        }
+    };
+    walk(path.join(ROOT, 'tests'));
+    return out;
 }
 
 /**
@@ -95,7 +116,21 @@ const targets = harnessTargets();
 // The other direction: a harness the test tree declares and CI's list omits is
 // built by nobody and run by nobody — the failure that list exists to end,
 // from the side it never looks at. No compiler needed, so this half always runs.
-const uncovered = declaredHarnesses().filter((t) => !targets.includes(t));
+// A source with no add_test is invisible to both lists — that is how
+// test_bitmap_font sat unbuilt for as long as it did.
+const declared = declaredHarnesses();
+const unscheduled = harnessSources()
+    .filter((n) => !declared.includes(n) && !COMPILE_ONLY.has(n))
+    // `add_executable(test_ecs ecs/test_registry.cpp)`: a target may be named
+    // for what it covers rather than for its file.
+    .filter((n) => !readFileSync(path.join(ROOT, 'tests', 'CMakeLists.txt'), 'utf8').includes(`${n}.cpp`));
+if (unscheduled.length) {
+    console.error(`check-cpp-tests: ${unscheduled.join(', ')} — harness source(s) tests/CMakeLists.txt`
+        + ' never builds, so nothing runs them and neither list can see it.');
+    process.exit(1);
+}
+
+const uncovered = declared.filter((t) => !targets.includes(t));
 if (uncovered.length) {
     console.error(`check-cpp-tests: tests/CMakeLists.txt declares ${uncovered.join(', ')},`
         + " which build.yml's CPP_TESTS does not name — CI builds and runs neither.");

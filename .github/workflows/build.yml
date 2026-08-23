@@ -31,6 +31,7 @@ env:
     test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
     test_clip_depth test_shadow_atlas
     test_text_edit test_render_graph test_device_loss test_physics_interpolation
+    test_bitmap_font
 
 jobs:
   build-emscripten:

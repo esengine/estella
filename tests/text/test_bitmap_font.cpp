@@ -10,15 +10,18 @@
 // empty atlas distinguishes fixed-from-unfixed WITHOUT depending on a trap — which
 // the earlier "did not crash" version did not.
 //
-// Not wired into CMake/CTest: the BitmapFont TU references ResourceManager
-// (loadFromFntText), which would drag in the whole resource stack. Run standalone:
-//   clang++ -std=c++20 -I src -I third_party/glm -Wl,-undefined,dynamic_lookup \
-//     tests/text/test_bitmap_font.cpp src/esengine/text/BitmapFont.cpp \
-//     src/esengine/core/Log.cpp -o /tmp/test_bf && /tmp/test_bf
-
 #include "esengine/text/BitmapFont.hpp"
+#include "esengine/resource/ResourceManager.hpp"
 
 #include <cstdio>
+
+// loadFromFntText is the BitmapFont TU's only tie to the resource stack, and the
+// atlas guard under test never calls it. These stubs close the link without
+// dragging that stack in.
+namespace esengine::resource {
+TextureHandle ResourceManager::loadTexture(const std::string&) { return {}; }
+Texture* ResourceManager::getTexture(TextureHandle) { return nullptr; }
+}  // namespace esengine::resource
 
 static int g_failures = 0;
 #define CHECK(cond, msg)                                                        \
