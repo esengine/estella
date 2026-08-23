@@ -108,6 +108,47 @@ export function findPath(
     return null;
 }
 
+/**
+ * Drop the waypoints a straight line can skip, leaving only the cells a route has
+ * to turn at — what the funnel does over a mesh. A shortcut is taken only along a
+ * line the search itself could have walked: every cell it touches fits the body,
+ * and a diagonal needs both of its shared orthogonals.
+ */
+export function shortenPath(grid: NavGrid, path: Cell[], clearance = 0): Cell[] {
+    if (path.length <= 2) return path;
+    const out: Cell[] = [path[0]!];
+    let anchor = path[0]!;
+    for (let i = 2; i < path.length; i++) {
+        if (clearLine(grid, anchor, path[i]!, clearance)) continue;
+        anchor = path[i - 1]!;
+        out.push(anchor);
+    }
+    out.push(path[path.length - 1]!);
+    return out;
+}
+
+/** Whether every cell between two cells fits the body, walking the same steps. */
+function clearLine(grid: NavGrid, from: Cell, to: Cell, clearance: number): boolean {
+    let x = from.x;
+    let y = from.y;
+    const dx = Math.abs(to.x - x);
+    const dy = Math.abs(to.y - y);
+    const sx = x < to.x ? 1 : -1;
+    const sy = y < to.y ? 1 : -1;
+    let err = dx - dy;
+    for (;;) {
+        if (!fits(grid, x, y, clearance)) return false;
+        if (x === to.x && y === to.y) return true;
+        const e2 = err * 2;
+        const stepX = e2 > -dy;
+        const stepY = e2 < dx;
+        if (stepX && stepY
+            && (!fits(grid, x + sx, y, clearance) || !fits(grid, x, y + sy, clearance))) return false;
+        if (stepX) { err -= dy; x += sx; }
+        if (stepY) { err += dx; y += sy; }
+    }
+}
+
 /** Convert a cell path to world-space waypoints (cell centres, on the grid's plane). */
 export function pathToWorld(grid: NavGrid, path: Cell[]): Vec3[] {
     return path.map(c => grid.cellToWorld(c.x, c.y));

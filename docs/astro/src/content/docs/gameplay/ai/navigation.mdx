@@ -45,6 +45,13 @@ To derive a grid from a painted tilemap instead of hand-authoring the mask, use
 `navGridFromTiles`. `grid.setWalkable(x, y, false)` closes a cell at any time — a
 door shuts, a tower goes up — and the next plan routes around it.
 
+A route over a grid is **string-pulled** before it is handed back: A\* answers in
+steps of one cell, and only the cells where the route actually has to turn survive.
+A shortcut is taken only along a line the search itself could have walked — every
+cell it touches fits the body, and a diagonal needs both of its shared orthogonals
+— so a smoothed route is exactly as legal as the staircase it replaced, and the
+same shape of route a mesh gives.
+
 ### A mesh for a 3D scene
 
 A 3D scene has geometry rather than a tile mask, so its surface is **baked** from
@@ -66,6 +73,13 @@ The bake voxelises the collision triangles in the box, keeps the surfaces an age
 of that size could stand on, and turns what is left into convex polygons. Every
 column of the world keeps **all** of its floors, so a bridge and the road under it
 are two places and a route can use either.
+
+<Aside type="note">
+  **One volume per scene.** A scene has one navigable world, so the first volume is
+  the one that is baked and any others are named in the log. What a box decides is
+  where to *look*; walkability comes from the geometry inside it, so one box big
+  enough to hold the level costs voxels and never costs correctness.
+</Aside>
 
 <Aside type="note">
   **Static bodies only.** A crate that is about to be pushed is not floor, and a

@@ -100,6 +100,22 @@ describe('bakeVolumes', () => {
         expect((nav.surface as NavMesh).findPoly({ x: 395, y: 0, z: 0 })).toBe(-1);
     });
 
+    // A scene has one navigable world, and which volume supplies it may not be an
+    // accident of iteration order.
+    it('bakes the first volume and says the others were not', () => {
+        const w = new VolumeWorld();
+        spawnVolume(w);
+        spawnVolume(w, { halfExtents: { x: 100, y: 100, z: 100 } });
+        const geometry = vi.fn(floorGeometry());
+        const baked = new Set<number>();
+        const nav = new Navigation();
+        bakeVolumes(w as never, nav, geometry, baked as never);
+        bakeVolumes(w as never, nav, geometry, baked as never);
+        expect(geometry).toHaveBeenCalledTimes(1);
+        // The one that was baked is the first, not whichever came last.
+        expect((nav.surface as NavMesh).findPoly({ x: 300, y: 0, z: 300 })).toBeGreaterThanOrEqual(0);
+    });
+
     it('asks only for the layers the volume names', () => {
         const w = new VolumeWorld();
         spawnVolume(w, { layers: 0b1010 });

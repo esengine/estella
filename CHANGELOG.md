@@ -170,6 +170,21 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **A route over a grid is pulled taut, like a route over a mesh.** A\* answers in
+  steps of one cell, so crossing open ground came back as a staircase and an agent
+  walking it wobbled down every diagonal. `shortenPath` keeps only the cells where
+  the route has to turn, and takes a shortcut only along a line the search itself
+  could have walked: every cell it touches fits the body, and a diagonal needs both
+  of its shared orthogonals. Both shapes of `NavSurface` now hand back the same
+  shape of route, so moving a game from a tilemap to geometry does not change how
+  its agents move.
+
+- **A scene has one navigable world.** Two `NavVolume`s were baked a frame apart
+  with the last one silently winning, which made which mesh a scene got an accident
+  of iteration order. The first is baked and any others are named in the log: a box
+  decides where to LOOK, walkability comes from the geometry inside it, and one box
+  big enough to hold the level costs voxels and never costs correctness.
+
 - **Navigation plans and walks in three dimensions.** Paths, `NavAgent`
   (`targetZ`) and the kinematic follower carry all three axes — a slope is longer
   than its shadow, and spending a frame's budget on the shadow walked agents uphill

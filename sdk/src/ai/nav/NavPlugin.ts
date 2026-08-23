@@ -48,7 +48,10 @@ export interface AgentRuntime {
 export type NavGeometryProvider = (min: Vec3, max: Vec3, layers: number) => NavGeometry;
 
 /**
- * Bake the first NavVolume that has not been baked yet, and install its mesh.
+ * Bake the scene's NavVolume and install the mesh. A scene has ONE navigable
+ * world, so the first volume is baked and the rest are named in the log: a box
+ * decides where to LOOK, walkability comes from the geometry in it, and one box
+ * big enough for the level costs voxels rather than correctness.
  */
 export function bakeVolumes(
     world: NavWorldView,
@@ -57,7 +60,8 @@ export function bakeVolumes(
     baked: Set<Entity>,
 ): void {
     if (!geometry) return;
-    for (const entity of world.getEntitiesWithComponents([NavVolume, Transform])) {
+    const volumes = world.getEntitiesWithComponents([NavVolume, Transform]);
+    for (const entity of volumes) {
         if (baked.has(entity)) continue;
         const volume = world.get(entity, NavVolume);
         // The volume is placed in the same space the geometry is collected in.
@@ -87,9 +91,12 @@ export function bakeVolumes(
                 + `${geo.bodyCount} static bodies — check that it covers the floor, that the`
                 + ' floor is a STATIC RigidBody3D, and that `layers` includes it');
         }
-        // One mesh is installed at a time, so a scene with two volumes would have
-        // the last one win. Bake one per frame and let the newest be the active
-        // one rather than silently merging boxes that may not touch.
+        if (volumes.length > 1) {
+            for (const other of volumes) baked.add(other);
+            log.warn('nav', `${volumes.length} NavVolumes in this scene — only the first is`
+                + ' baked, since a scene has one navigable world; make one box big enough'
+                + ' to hold the level instead');
+        }
         return;
     }
 }

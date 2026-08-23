@@ -18,7 +18,7 @@
 
 import type { Vec3 } from '../../types';
 import type { NavPoint, NavQueryOptions, NavSurface, NavSurfaceSink } from './NavSurface';
-import { findPath, pathToWorld } from './pathfind';
+import { findPath, pathToWorld, shortenPath } from './pathfind';
 
 /** Integer grid coordinate. Its own type rather than a world vector, so a cell
  *  coordinate cannot be passed where world pixels are expected. */
@@ -152,10 +152,9 @@ export class NavGrid implements NavSurface {
 
     findWorldPath(from: NavPoint, to: NavPoint, opts?: NavQueryOptions): Vec3[] | null {
         const radius = opts?.radius ?? 0;
-        const cells = findPath(this, this.worldToCell(from), this.worldToCell(to), {
-            clearance: radius > 0 ? Math.ceil(radius / this.cellSize) : 0,
-        });
-        return cells ? pathToWorld(this, cells) : null;
+        const clearance = radius > 0 ? Math.ceil(radius / this.cellSize) : 0;
+        const cells = findPath(this, this.worldToCell(from), this.worldToCell(to), { clearance });
+        return cells ? pathToWorld(this, shortenPath(this, cells, clearance)) : null;
     }
 
     /**
