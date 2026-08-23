@@ -233,7 +233,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, materialBlock, MATERIAL_CONSTANTS_BINDING);
     }
 
-    // Same for the per-frame 2D light block (ShaderParser injects it for Lit2D-domain shaders);
+    // Same for the per-frame 2D light block (ShaderParser injects it for Lit-domain shaders);
     // the render path uploads + binds the shared LightConstants UBO here once per frame.
     u32 lightBlock = device_->getUniformBlockIndex(program_, LIGHT_CONSTANTS_BLOCK);
     if (lightBlock != GFX_INVALID_UNIFORM_BLOCK) {
@@ -260,7 +260,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     }
 
     // Engine-injected samplers sit on fixed units, pinned here for the same reason the
-    // blocks above are: the header reaches every Lit2D shader, so a compile site that
+    // blocks above are: the header reaches every Lit shader, so a compile site that
     // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
     if (hasUniform(SHADOW_MAP_SAMPLER) || hasUniform(ENV_MAP_SAMPLER)) {
         bind();

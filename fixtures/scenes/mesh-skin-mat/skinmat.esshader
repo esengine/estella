@@ -1,6 +1,6 @@
 #pragma shader "SkinnedMaterial"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_tint color default(1,1,1,1)
 
 #pragma fragment

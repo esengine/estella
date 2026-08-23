@@ -1116,7 +1116,7 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
     if (!g_renderFrame || w <= 0 || h <= 0) return;
 
     // A throwaway one-sprite scene: a 2×2 quad filling the ortho [-1,1] with the material, lit by
-    // one white directional light so Lit2D materials preview lit (Unlit2D ignores it).
+    // one white directional light so Lit materials preview lit (Unlit ignores it).
     ecs::Registry reg;
     auto quad = reg.create();
     reg.emplace<ecs::Transform>(quad);

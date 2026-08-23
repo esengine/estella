@@ -6,7 +6,7 @@
  * @details Each template carries a `#pragma fragment wgsl` twin so it compiles
  *          on the WebGPU backend. Twins run under the canonical fragment-only
  *          contract: `fs_main(v : VSOut)` with v.v_color / v.v_texCoord
- *          (+ v.v_worldPos on Lit2D), the batch textures as t0..t7 / s0..s7,
+ *          (+ v.v_worldPos on Lit), the batch textures as t0..t7 / s0..s7,
  *          params as mc.<name>, texture params as <name> + <name>_s, and the
  *          frame clock as tc.u_time / tc.u_viewport.
  */
@@ -50,7 +50,7 @@ const template = (id: string, label: string, description: string, source: string
 
 const SPRITE_UNLIT = `#pragma shader "Sprite Unlit"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_tint color default(1,1,1,1)
 
 #pragma fragment
@@ -77,7 +77,7 @@ void main() {
 
 const SPRITE_LIT = `#pragma shader "Sprite Lit"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
 #pragma param u_normalMap texture default(flatnormal)
 
@@ -127,7 +127,7 @@ void main() {
 
 const SPRITE_HIT_FLASH = `#pragma shader "Hit Flash"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_flash float default(0) range(0,1) ui(slider)
 #pragma param u_flashColor color default(1,1,1,1)
 
@@ -158,7 +158,7 @@ void main() {
 
 const SPRITE_OUTLINE = `#pragma shader "Outline"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_outlineColor color default(1,1,1,1)
 #pragma param u_outlineWidth float default(1) range(0,8)
 
@@ -208,7 +208,7 @@ void main() {
 
 const SPRITE_DISSOLVE = `#pragma shader "Dissolve"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_progress float default(0) range(0,1) ui(slider)
 #pragma param u_edgeColor color default(1,0.5,0,1)
 #pragma param u_edgeWidth float default(0.08) range(0,0.5)
@@ -267,7 +267,7 @@ fn noise2d(p : vec2f) -> f32 {
 
 const SPRITE_PIXELATE = `#pragma shader "Pixelate"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_pixels float default(32) range(2,256)
 
 #pragma fragment
@@ -296,7 +296,7 @@ void main() {
 
 const SPRITE_UV_SCROLL = `#pragma shader "UV Scroll"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_scrollSpeed vec2 default(0.1,0)
 
 #pragma fragment
@@ -329,7 +329,7 @@ void main() {
 // and a component does not — a MeshRenderer's per-object attributes are full.
 const MODEL = `#pragma shader "Model"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
 #pragma param u_normalMap texture default(flatnormal)
 #pragma param u_emissive color default(0,0,0,1)

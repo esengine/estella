@@ -4,7 +4,7 @@
  * @file    LightConstants.hpp
  * @brief   Per-frame 2D lighting constants — the third tier of the engine's constant-buffer
  *          layering (after per-frame FrameConstants at 0 and per-material MaterialConstants at 1).
- * @details A Lit2D-domain material shader (#pragma domain Lit2D) gets a `layout(std140) uniform
+ * @details A Lit-domain material shader (#pragma domain Lit) gets a `layout(std140) uniform
  *          LightConstants { ... }` block auto-injected by ShaderParser, and Shader::compile links
  *          it to LIGHT_CONSTANTS_BINDING. LightStore (owned by RenderContext) collects the scene's
  *          Light components into this CPU mirror each frame and uploads it once. The GLSL struct
@@ -26,7 +26,7 @@ inline constexpr const char* LIGHT_CONSTANTS_BLOCK = "LightConstants";
 
 /**
  * @brief The injected shadow-map sampler, and the texture unit Shader::compile pins it to.
- * @details Every Lit2D shader gets the sampler from the injected header, so the unit is a
+ * @details Every Lit shader gets the sampler from the injected header, so the unit is a
  *          contract rather than something each compile site repeats. Slot 2 sits after the
  *          draw's own two (base colour, normal map) — see BatchBuilder's slot assembly.
  */
@@ -42,7 +42,7 @@ inline constexpr u32 ENV_MAP_TEXTURE_UNIT = 3;
  *        bound; inactive slots are zeroed (intensity 0) so they contribute nothing. Must match
  *        the `u_lights[..]` array size in ShaderParser's injected GLSL.
  */
-inline constexpr u32 MAX_LIGHTS_2D = 16;
+inline constexpr u32 MAX_LIGHTS = 16;
 
 /**
  * @brief Max 2D shadow occluders packed into the UBO (axis-aligned boxes in world space).
@@ -93,7 +93,7 @@ inline constexpr u32 MAX_SHADOW_TILES = 16;
  *          only a surface with real geometry measures against (MESH_NORMALS); w = a spot's
  *          cone-axis third component. Read by shadowFactor2D and lightVector/spotCone.
  */
-struct GpuLight2D {
+struct GpuLight {
     glm::vec4 posDir{0.0f};
     glm::vec4 color{0.0f};
     glm::vec4 spot{0.0f};
@@ -109,14 +109,14 @@ struct GpuLight2D {
 /**
  * @brief CPU mirror of the GLSL LightConstants block (std140).
  * @details ambient: rgb = summed ambient color, a = active light count (informational).
- *          std140 array-of-struct stride is 80 (each GpuLight2D is five 16-aligned vec4s), so
- *          lights start at offset 16 and the lights array spans 80*MAX_LIGHTS_2D bytes.
+ *          std140 array-of-struct stride is 80 (each GpuLight is five 16-aligned vec4s), so
+ *          lights start at offset 16 and the lights array spans 80*MAX_LIGHTS bytes.
  */
 struct LightConstants {
     glm::vec4 ambient{0.0f};
-    GpuLight2D lights[MAX_LIGHTS_2D];
+    GpuLight lights[MAX_LIGHTS];
     /// x = active occluder count; yzw unused. Appended after `lights` so existing std140
-    /// offsets (ambient, lights) are unchanged — old Lit2D shaders keep reading the same bytes.
+    /// offsets (ambient, lights) are unchanged — old Lit shaders keep reading the same bytes.
     glm::vec4 occluderCount{0.0f};
     /// World-space AABBs: (minX, minY, maxX, maxY). A light is shadowed at a fragment when the
     /// fragment→light segment (or, for directional, the fragment→far-along-light-dir segment)
@@ -146,8 +146,8 @@ struct LightConstants {
     glm::vec4 envTint{0.0f};
 };
 
-static_assert(sizeof(GpuLight2D) == 80, "GpuLight2D must be std140-tight (five vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS_2D + 16 + 16 * MAX_OCCLUDERS_2D
+static_assert(sizeof(GpuLight) == 80, "GpuLight must be std140-tight (five vec4s)");
+static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS + 16 + 16 * MAX_OCCLUDERS_2D
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");

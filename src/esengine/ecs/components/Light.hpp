@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    Light.hpp
- * @brief   2D light source component for the Lit2D material domain.
+ * @brief   2D light source component for the Lit material domain.
  * @details A scene's Light components are gathered by the render collect path into the
- *          per-frame LightConstants UBO (binding 2); Lit2D-domain material shaders read them
+ *          per-frame LightConstants UBO (binding 2); Lit-domain material shaders read them
  *          via the injected applyLighting2D() helper. Point/Directional/Spot lights occupy a
  *          light slot; Ambient lights sum into the ambient term. This component carries only
  *          the light's intrinsic parameters. Where a light sits and where it aims are the
@@ -41,7 +41,7 @@ enum class LightType : i32 {
 };
 
 /**
- * @brief A 2D light contributing to Lit2D-shaded materials.
+ * @brief A 2D light contributing to Lit-shaded materials.
  *
  * @code
  * auto& light = registry.emplace<Light>(e);

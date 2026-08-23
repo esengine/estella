@@ -78,10 +78,10 @@ void renderFrame() {
 }
 
 // Dual-emission compile probe (REARCH_WGSL Phase 3): ONE ParsedShader —
-// Lit2D domain + block params + a texture param + a feature — assembled and
+// Lit domain + block params + a texture param + a feature — assembled and
 // compiled in each backend's language. It exercises every WGSL injection the
 // emitter owns (canonical vertex, VSOut, batch texture contract, Time/
-// Material constants, material texture bindings, the Lit2D header, and the
+// Material constants, material texture bindings, the Lit header, and the
 // assembly-time feature preprocessor) plus the language constructs the SDK's
 // template/filter twins rely on (sampleNormal, textureDimensions, nested
 // loops with continue, select) against the REAL compiler: a WGSL error
@@ -89,7 +89,7 @@ void renderFrame() {
 // error fails shader creation here.
 const char* kEmitterProbe = R"(#pragma shader "EmitterProbe"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 #pragma feature GLOW
 #pragma param u_progress float default(0.5)
 #pragma param u_tint color default(1,1,1,1)

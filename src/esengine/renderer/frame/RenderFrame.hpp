@@ -342,7 +342,7 @@ private:
     void applySceneDepthNeed();
     /// Gathers the scene's enabled Light components into the per-frame LightConstants UBO
     /// (point/directional into the light array, ambient summed). Run each frame in collectAll;
-    /// flush() uploads + binds the result so Lit2D material shaders read it.
+    /// flush() uploads + binds the result so Lit material shaders read it.
     void collectLights(ecs::Registry& registry);
 
     /// Makes this ambient light the frame's environment, when it names one that is
@@ -396,7 +396,7 @@ private:
     /// inside the GPU struct, because the cap sort reorders these and the answer has
     /// to travel with the light.
     struct CollectedLight {
-        GpuLight2D gpu;
+        GpuLight gpu;
         bool castsMeshShadow;
         ShadowCaster caster;
     };

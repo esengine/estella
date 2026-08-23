@@ -18,6 +18,8 @@
 /** A node's GLSL output type. Determines how it combines and how it promotes to fragColor. */
 export type GraphType = 'float' | 'vec2' | 'vec3' | 'vec4';
 
+import { RENAMED_DOMAINS } from './shaderReflect';
+
 export type GraphNodeType =
   | 'output' // the root: its `color` input becomes fragColor
   | 'uv' // v_texCoord
@@ -51,7 +53,7 @@ export interface MaterialGraphNode {
 
 export interface MaterialGraph {
   name?: string;
-  /** Material domain (Unlit2D default; Lit2D etc. flow through unchanged). */
+  /** Material domain (Unlit default; Lit etc. flow through unchanged, under its current name). */
   domain?: string;
   /** Id of the `output` node — the compile root. */
   output: string;
@@ -274,7 +276,7 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
   const result = emit(graph.output);
 
   const name = graph.name ?? 'Graph';
-  const domain = graph.domain ?? 'Unlit2D';
+  const domain = RENAMED_DOMAINS[graph.domain ?? ''] ?? graph.domain ?? 'Unlit';
   const paramBlock = params.length ? params.join('\n') + '\n' : '';
   const helperBlock = helpers.size ? [...helpers].join('\n') + '\n\n' : '';
   const whelperBlock = whelpers.size ? [...whelpers].join('\n') + '\n\n' : '';

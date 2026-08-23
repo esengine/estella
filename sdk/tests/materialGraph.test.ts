@@ -30,7 +30,7 @@ describe('compileMaterialGraph', () => {
     const src = compileMaterialGraph(tintGraph);
     expect(src).toContain('#pragma param u_albedo texture default(white)');
     expect(src).toContain('#pragma param u_tint color default(1,1,1,1)');
-    expect(src).toContain('#pragma domain Unlit2D');
+    expect(src).toContain('#pragma domain Unlit');
     expect(src).toContain('#pragma shader "GraphTint"');
   });
 
@@ -109,8 +109,9 @@ describe('compileMaterialGraph', () => {
     expect(compileMaterialGraph(g)).toContain('fragColor = vec4(vec3(u_g), 1.0);');
   });
 
-  it('passes a Lit2D domain through', () => {
-    expect(compileMaterialGraph({ ...tintGraph, domain: 'Lit2D' })).toContain('#pragma domain Lit2D');
+  it('passes a Lit domain through, and a graph saved under the old name compiles to the new one', () => {
+    expect(compileMaterialGraph({ ...tintGraph, domain: 'Lit' })).toContain('#pragma domain Lit');
+    expect(compileMaterialGraph({ ...tintGraph, domain: 'Lit2D' })).toContain('#pragma domain Lit');
   });
 
   it('emits oneMinus / saturate preserving the input type', () => {

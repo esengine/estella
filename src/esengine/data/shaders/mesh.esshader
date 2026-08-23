@@ -1,11 +1,11 @@
 #pragma shader "Mesh"
 #pragma version 300 es
-// Lit2D domain for the LIGHTING it injects (LightConstants + applyLighting2D),
+// Lit domain for the LIGHTING it injects (LightConstants + applyLighting2D),
 // not for its canonical vertex stage — that is only supplied to a shader which
 // writes none, and this one writes its own to place local vertices by a model
 // matrix. So the light math is shared with every 2D lit surface rather than
 // copied, and the std140 block stays the engine's to own.
-#pragma domain Lit2D
+#pragma domain Lit
 
 // What the GEOMETRY carries. A layout may not declare an attribute its shader
 // does not consume, so the normal channel and the per-object normal matrix are

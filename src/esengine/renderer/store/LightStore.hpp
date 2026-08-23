@@ -6,7 +6,7 @@
  * @details The render collect path clears this each frame, then accumulates the scene's enabled
  *          Light components into it (point/directional into the lights array, ambient summed
  *          into the ambient term). flush() uploads the mirror once and binds it at
- *          LIGHT_CONSTANTS_BINDING, so every Lit2D shader reads the same lighting UBO. Owned by
+ *          LIGHT_CONSTANTS_BINDING, so every Lit shader reads the same lighting UBO. Owned by
  *          RenderContext so both the render path and any future SDK push reach one store / one UBO.
  *
  * @author  ESEngine Team
@@ -60,10 +60,10 @@ public:
         dirty_ = true;
     }
 
-    /// Appends a point/directional light. Silently drops past MAX_LIGHTS_2D (the fixed shader loop
+    /// Appends a point/directional light. Silently drops past MAX_LIGHTS (the fixed shader loop
     /// bound); callers keep the most significant lights first if they exceed the cap.
-    void addLight(const GpuLight2D& light) {
-        if (count_ >= MAX_LIGHTS_2D) return;
+    void addLight(const GpuLight& light) {
+        if (count_ >= MAX_LIGHTS) return;
         data_.lights[count_++] = light;
         data_.ambient.w = static_cast<f32>(count_);
         dirty_ = true;

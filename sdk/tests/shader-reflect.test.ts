@@ -7,7 +7,7 @@ import { BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate } from '../src/render/b
 const SRC = `
 #pragma shader "ParamTest"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_strength float default(1) range(0,4) ui(slider)
 #pragma param u_tint color default(1,0.5,0.25,1)
 #pragma param u_offset vec2 default(3,4)
@@ -24,7 +24,7 @@ void main() {}
 describe('reflectEsshader', () => {
   it('parses domain and all params', () => {
     const r = reflectEsshader(SRC);
-    expect(r.domain).toBe('Unlit2D');
+    expect(r.domain).toBe('Unlit');
     expect(r.params.map((p) => p.name)).toEqual(['u_strength', 'u_tint', 'u_offset', 'u_noise']);
   });
 
@@ -68,7 +68,14 @@ describe('reflectEsshader', () => {
   });
 
   it('returns the default domain when none is declared', () => {
-    expect(reflectEsshader('#pragma param u_a float').domain).toBe('Unlit2D');
+    expect(reflectEsshader('#pragma param u_a float').domain).toBe('Unlit');
+  });
+
+  // A .esshader has no format version, so the old spelling is answered here or
+  // nowhere: a shader written before the rename reflects as the domain it means.
+  it('reads a domain written under its old name', () => {
+    expect(reflectEsshader('#pragma domain Lit2D').domain).toBe('Lit');
+    expect(reflectEsshader('#pragma domain Unlit2D').domain).toBe('Unlit');
   });
 });
 

@@ -39,7 +39,7 @@ const parser = readFileSync(path.join(ROOT, PARSER), 'utf8');
  * shader rather than a face both backends present, and pulling those in would
  * ask a vertex entry point to have a GLSL twin.
  */
-const HEADERS = ['kColorHelpers', 'kFrameHeader', 'kTimeHeader', 'kLit2DHeader'];
+const HEADERS = ['kColorHelpers', 'kFrameHeader', 'kTimeHeader', 'kLitHeader'];
 
 /**
  * One header's text as the shader receives it: raw strings taken whole,
@@ -101,7 +101,7 @@ const SIGNATURE_GAPS = {
 /** A field name as the comparison sees it: the `u_` a shader adds is not part of it. */
 const bare = (name) => name.replace(/^u_/, '');
 
-/** GLSL: `layout(std140) uniform Name { highp vec4 u_a; Light2D u_b[16]; };` */
+/** GLSL: `layout(std140) uniform Name { highp vec4 u_a; Light u_b[16]; };` */
 function glslBlock(name) {
     const m = new RegExp(`layout\\(std140\\)\\s+uniform\\s+${name}\\s*\\{([^}]*)\\}`, 'm').exec(text);
     if (!m) return null;
@@ -123,7 +123,7 @@ function wgslBlock(name) {
     }).filter(Boolean);
 }
 
-/** C++: `struct Name { glm::vec4 a{...}; GpuLight2D b[16]; };` — comments and all. */
+/** C++: `struct Name { glm::vec4 a{...}; GpuLight b[16]; };` — comments and all. */
 function cppBlock(name, file) {
     const source = readFileSync(path.join(ROOT, file), 'utf8');
     const m = new RegExp(`struct\\s+${name}\\s*\\{([\\s\\S]*?)\\n\\};`, 'm').exec(source);
@@ -133,7 +133,7 @@ function cppBlock(name, file) {
         .map((f) => `${bare(f[1])}${f[2] ? `[${f[2]}]` : ''}`);
 }
 
-/** `MAX_LIGHTS_2D` and friends, so a C++ array length compares as a number. */
+/** `MAX_LIGHTS` and friends, so a C++ array length compares as a number. */
 function constants() {
     const out = new Map();
     for (const file of new Set(Object.values(BLOCKS))) {

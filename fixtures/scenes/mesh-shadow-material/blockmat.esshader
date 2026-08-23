@@ -1,6 +1,6 @@
 #pragma shader "BlockerMaterial"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 
 #pragma fragment
 precision mediump float;

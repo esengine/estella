@@ -18,7 +18,7 @@
  *
  *          Grammar (matches ShaderParser):
  *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)]
- *            #pragma domain <Unlit2D|Lit2D|PostProcess|UI>
+ *            #pragma domain <Unlit|Lit|PostProcess|UI>
  */
 
 export type ShaderParamType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'color' | 'int' | 'texture';
@@ -119,10 +119,18 @@ export function paramDefaultValue(param: ShaderParam): unknown {
     return vec;
 }
 
+/**
+ * A domain a shader was authored against, under the name the engine uses now.
+ * The twin of the engine parser's own table: the two lit domains were named for
+ * a plane before either was the only one there is, and a `.esshader` carries no
+ * format version to migrate by, so the old spelling is answered on the way in.
+ */
+export const RENAMED_DOMAINS: Readonly<Record<string, string>> = { Lit2D: 'Lit', Unlit2D: 'Unlit' };
+
 /** Parse a `.esshader` source into its declared parameters and domain. */
 export function reflectEsshader(source: string): ShaderReflection {
     const params: ShaderParam[] = [];
-    let domain = 'Unlit2D';
+    let domain = 'Unlit';
 
     for (const raw of source.split('\n')) {
         const line = raw.trim();
@@ -136,7 +144,7 @@ export function reflectEsshader(source: string): ShaderReflection {
             const p = parseParam(arg);
             if (p) params.push(p);
         } else if (directive === 'domain' && arg) {
-            domain = arg;
+            domain = RENAMED_DOMAINS[arg] ?? arg;
         }
     }
 

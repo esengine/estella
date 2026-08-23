@@ -65,7 +65,7 @@ struct SourceLine {
  * @details Both languages assemble from one ParsedShader: GLSL stages carry the
  *          authored GLSL bodies; WGSL stages carry the file's `#pragma vertex
  *          wgsl` / `#pragma fragment wgsl` twin sections. The injected headers
- *          (TimeConstants/MaterialConstants/texture params/Lit2D) and the
+ *          (TimeConstants/MaterialConstants/texture params/Lit) and the
  *          canonical 2D vertex stage are emitted per language.
  */
 enum class ShaderTargetLanguage : u8 {
@@ -147,7 +147,7 @@ struct ParsedShader {
     std::vector<std::string> features;                        ///< Declared #pragma feature keywords (compile-time variants)
     std::vector<ShaderSwitch> switches;                       ///< Material-controlled #pragma switch toggles (name + default)
     std::vector<ShaderProperty> properties;                   ///< Exposed material params (#pragma param / properties block)
-    std::string domain = "Unlit2D";                           ///< #pragma domain (Unlit2D/Lit2D/PostProcess/UI)
+    std::string domain = "Unlit";                           ///< #pragma domain (Unlit/Lit/PostProcess/UI)
     /// std140 byte size of the generated MaterialConstants block (16-aligned), 0 if no
     /// non-texture params. The render path sizes the per-material UBO to this.
     u32 materialBlockSize = 0;

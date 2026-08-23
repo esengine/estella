@@ -45,7 +45,7 @@ void main() {
 // Fragment-only authoring: `#pragma vertex` is optional for 2D domains.
 static const char* FRAG_ONLY_UNLIT = R"(#pragma shader "FragOnly"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 
 #pragma fragment
 precision mediump float;
@@ -58,7 +58,7 @@ void main() { fragColor = v_color; }
 
 static const char* FRAG_ONLY_LIT = R"(#pragma shader "FragOnlyLit"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 #pragma fragment
 precision mediump float;
@@ -104,7 +104,7 @@ void main() { fragColor = vec4(1.0); }
 // feature permutation, and the batch texture contract.
 static const char* WGSL_TWIN_UNLIT = R"(#pragma shader "WgslTwin"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma feature GLOW
 #pragma param u_progress float default(0)
 #pragma param u_edgeColor color default(1,0.5,0,1)
@@ -135,7 +135,7 @@ void main() { fragColor = texture(u_textures[0], v_texCoord) * v_color * u_progr
 
 static const char* WGSL_TWIN_LIT = R"(#pragma shader "WgslLit"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 #pragma fragment
 precision mediump float;
@@ -204,7 +204,7 @@ static void testWGSLEmission() {
     CHECK(vs.find("@vertex fn vs_main") != std::string::npos, "canonical WGSL vertex emitted");
     CHECK(vs.find("@group(0) @binding(0) var<uniform> frame") != std::string::npos,
           "canonical WGSL vertex reads FrameConstants at binding 0");
-    CHECK(vs.find("v_worldPos") == std::string::npos, "Unlit2D WGSL vertex has no world-pos varying");
+    CHECK(vs.find("v_worldPos") == std::string::npos, "Unlit WGSL vertex has no world-pos varying");
 
     const std::string fs = wgsl(p, ShaderStage::Fragment);
     CHECK(fs.find("struct VSOut") != std::string::npos, "canonical varying interface injected");
@@ -225,7 +225,7 @@ static void testWGSLEmission() {
     CHECK(fs.find("c = c * m;") != std::string::npos &&
           fs.find("tc.u_time.x") == std::string::npos,
           "feature off: the #else branch survives");
-    CHECK(fs.find("LightConstants") == std::string::npos, "Unlit2D gets no lighting injection");
+    CHECK(fs.find("LightConstants") == std::string::npos, "Unlit gets no lighting injection");
 
     const std::string fsGlow = wgsl(p, ShaderStage::Fragment, {"GLOW"});
     CHECK(fsGlow.find("mc.u_edgeColor * tc.u_time.x") != std::string::npos &&
@@ -243,14 +243,14 @@ static void testWGSLEmission() {
     // sources, and under MESH the position is local until the model matrix has
     // been applied. .xy because 2D lighting works in that plane.
     CHECK(litVs.find("out.v_worldPos = world.xy;") != std::string::npos,
-          "Lit2D canonical WGSL vertex forwards world position");
+          "Lit canonical WGSL vertex forwards world position");
     const std::string litFs = wgsl(lit, ShaderStage::Fragment);
     CHECK(litFs.find("@location(2) v_worldPos : vec2f,") != std::string::npos,
-          "Lit2D VSOut carries the world-pos varying");
+          "Lit VSOut carries the world-pos varying");
     CHECK(litFs.find("fn applyLighting2D") != std::string::npos &&
           litFs.find("@group(0) @binding(2) var<uniform> lc : LightConstants;") != std::string::npos &&
-          litFs.find("array<Light2D, 16>") != std::string::npos,
-          "Lit2D WGSL injection: LightConstants at binding 2 + lighting helpers");
+          litFs.find("array<Light, 16>") != std::string::npos,
+          "Lit WGSL injection: LightConstants at binding 2 + lighting helpers");
 
     ParsedShader pair = ShaderParser::parse(WGSL_TWIN_AUTHORED);
     CHECK(pair.valid && !pair.wgslVertexIsCanonical, "authored twin pair skips canonical injection");
@@ -298,7 +298,7 @@ static void testWGSLEmission() {
     // assembly skips every injected header — no tc/mc/canonical prelude — and
     // returns the body as-is, features resolved.
     ParsedShader full = ShaderParser::parse(
-        "#pragma shader \"Full\"\n#pragma domain Unlit2D\n"
+        "#pragma shader \"Full\"\n#pragma domain Unlit\n"
         "#pragma param u_a float default(0)\n"
         "#pragma vertex\nvoid main() { gl_Position = vec4(0.0); }\n#pragma end\n"
         "#pragma fragment\nvoid main() {}\n#pragma end\n"
@@ -321,7 +321,7 @@ static void testWGSLEmission() {
 
     // A full twin on one stage composes with a normal twin on the other.
     ParsedShader mixed = ShaderParser::parse(
-        "#pragma shader \"Mixed\"\n#pragma domain Unlit2D\n"
+        "#pragma shader \"Mixed\"\n#pragma domain Unlit\n"
         "#pragma fragment\nvoid main() {}\n#pragma end\n"
         "#pragma fragment wgsl full\n"
         "@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n#pragma end\n");
@@ -335,7 +335,7 @@ static void testWGSLEmission() {
     // std140 offsets == WGSL uniform layout for the param type set: the two
     // backends read one buffer. float, vec3 (align 16), float (packs at 28).
     ParsedShader layout = ShaderParser::parse(
-        "#pragma shader \"L\"\n#pragma domain Unlit2D\n"
+        "#pragma shader \"L\"\n#pragma domain Unlit\n"
         "#pragma param u_a float default(0)\n"
         "#pragma param u_b vec3 default(0,0,0)\n"
         "#pragma param u_c float default(0)\n"
@@ -351,19 +351,19 @@ static void testWGSLEmission() {
 
 static void testFragmentOnly() {
     ParsedShader unlit = ShaderParser::parse(FRAG_ONLY_UNLIT);
-    CHECK(unlit.valid, "fragment-only Unlit2D shader parses");
+    CHECK(unlit.valid, "fragment-only Unlit shader parses");
     const std::string uv = ShaderParser::assembleStage(unlit, ShaderStage::Vertex);
     CHECK(uv.find("a_position") != std::string::npos, "canonical vertex stage injected");
     CHECK(uv.find("FrameConstants") != std::string::npos, "canonical vertex reads the FrameConstants UBO");
-    CHECK(uv.find("v_worldPos") == std::string::npos, "Unlit2D canonical vertex has no world-pos varying");
+    CHECK(uv.find("v_worldPos") == std::string::npos, "Unlit canonical vertex has no world-pos varying");
 
     ParsedShader lit = ShaderParser::parse(FRAG_ONLY_LIT);
-    CHECK(lit.valid, "fragment-only Lit2D shader parses");
+    CHECK(lit.valid, "fragment-only Lit shader parses");
     const std::string lv = ShaderParser::assembleStage(lit, ShaderStage::Vertex);
     CHECK(lv.find("v_worldPos = world.xy;") != std::string::npos,
-          "Lit2D canonical vertex forwards world position");
+          "Lit canonical vertex forwards world position");
     const std::string lf = ShaderParser::assembleStage(lit, ShaderStage::Fragment);
-    CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
+    CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit fragment gets the lighting helper injected");
 
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
     CHECK(pp.valid, "fragment-only PostProcess shader parses");
@@ -374,6 +374,23 @@ static void testFragmentOnly() {
 
     ParsedShader unknownDomain = ShaderParser::parse(FRAG_ONLY_UNKNOWN_DOMAIN);
     CHECK(!unknownDomain.valid, "a domain with no canonical vertex still errors");
+
+    // A .esshader carries no format version, so a shader written before the lit
+    // domains were renamed is answered at the parser or nowhere. It must arrive
+    // as the domain it means, canonical vertex and all — not merely parse.
+    ParsedShader legacyLit = ShaderParser::parse(
+        "#pragma shader \"Old\"\n#pragma version 300 es\n#pragma domain Lit2D\n"
+        "#pragma fragment\nvoid main() { fragColor = vec4(1.0); }\n#pragma end\n");
+    CHECK(legacyLit.valid && legacyLit.domain == "Lit",
+          "a shader authored as Lit2D arrives in the Lit domain");
+    CHECK(ShaderParser::assembleStage(legacyLit, ShaderStage::Fragment)
+              .find("applyLighting2D") != std::string::npos,
+          "and gets that domain's injection, not just its name");
+    ParsedShader legacyUnlit = ShaderParser::parse(
+        "#pragma shader \"OldU\"\n#pragma version 300 es\n#pragma domain Unlit2D\n"
+        "#pragma fragment\nvoid main() { fragColor = vec4(1.0); }\n#pragma end\n");
+    CHECK(legacyUnlit.valid && legacyUnlit.domain == "Unlit",
+          "a shader authored as Unlit2D arrives in the Unlit domain");
 
     ParsedShader authored = ShaderParser::parse(SRC);
     const std::string av = ShaderParser::assembleStage(authored, ShaderStage::Vertex);
@@ -386,7 +403,7 @@ static void testFragmentOnly() {
     CHECK(af.find("vec4 u_viewport") != std::string::npos, "u_viewport rides the injected block");
 
     ParsedShader reserved = ShaderParser::parse(
-        "#pragma shader \"R\"\n#pragma version 300 es\n#pragma domain Unlit2D\n"
+        "#pragma shader \"R\"\n#pragma version 300 es\n#pragma domain Unlit\n"
         "#pragma param u_time float default(0)\n"
         "#pragma fragment\nvoid main() {}\n#pragma end\n");
     CHECK(!reserved.valid && reserved.errorMessage.find("reserved") != std::string::npos,

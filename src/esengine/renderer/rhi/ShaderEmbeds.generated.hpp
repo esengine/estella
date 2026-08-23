@@ -11,7 +11,7 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 #pragma feature SDF
 
 // Compile-time variant: lit by the scene's 2D lights (Sprite.lit). Compiled as a
-// Lit2D-domain shader, so applyLighting2D + LightConstants are injected.
+// Lit-domain shader, so applyLighting2D + LightConstants are injected.
 #pragma feature LIT
 
 // Compile-time variant: discard fragments the sprite draws as (near-)transparent.
@@ -266,12 +266,12 @@ void main() {
 
 inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 #pragma version 300 es
-// Lit2D domain for the LIGHTING it injects (LightConstants + applyLighting2D),
+// Lit domain for the LIGHTING it injects (LightConstants + applyLighting2D),
 // not for its canonical vertex stage — that is only supplied to a shader which
 // writes none, and this one writes its own to place local vertices by a model
 // matrix. So the light math is shared with every 2D lit surface rather than
 // copied, and the std140 block stays the engine's to own.
-#pragma domain Lit2D
+#pragma domain Lit
 
 // What the GEOMETRY carries. A layout may not declare an attribute its shader
 // does not consume, so the normal channel and the per-object normal matrix are
@@ -829,7 +829,7 @@ struct VSOut {
 
 inline constexpr const char* SKY = R"esshader(#pragma shader "Sky"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 // The background half of an environment. The reflection in a metal ball and the
 // sky behind it are the same baked panorama; without this only one of them was

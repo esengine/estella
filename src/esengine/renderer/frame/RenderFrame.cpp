@@ -706,7 +706,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             continue;
         }
 
-        GpuLight2D gpu;
+        GpuLight gpu;
         bool castsMeshShadow = false;
         ShadowCaster caster;
         gpu.color = glm::vec4(rgb, light.intensity);
@@ -773,14 +773,14 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         collected.push_back({gpu, castsMeshShadow, caster});
     }
 
-    if (collected.size() > MAX_LIGHTS_2D) {
-        std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS_2D, collected.end(),
+    if (collected.size() > MAX_LIGHTS) {
+        std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS, collected.end(),
                           [](const CollectedLight& a, const CollectedLight& b) {
                               return a.gpu.color.a > b.gpu.color.a;
                           });
         ES_LOG_WARN("collectLights: {} lights exceed the {}-light cap; keeping the brightest",
-                    collected.size(), MAX_LIGHTS_2D);
-        collected.resize(MAX_LIGHTS_2D);
+                    collected.size(), MAX_LIGHTS);
+        collected.resize(MAX_LIGHTS);
     }
     for (u32 slot = 0; slot < collected.size(); ++slot) {
         if (collected[slot].castsMeshShadow) {
@@ -1127,7 +1127,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // it sits inside either clip volume as built, and the depths it writes are
             // compared against the copy of it the receiving shader holds.
             context_.updateFrameConstants(projection);
-            // The depth variant is still a Lit2D shader and still declares the light block,
+            // The depth variant is still a Lit shader and still declares the light block,
             // and a draw whose declared UBO is unbound is undefined behaviour that draws
             // nothing — the whole pass came back empty for exactly this.
             context_.lights().uploadAndBind();
@@ -1278,10 +1278,10 @@ resource::ShaderHandle RenderFrame::compileBatchVariant(const std::vector<std::s
     // preprocessor.
     const auto target = resource_manager_.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
-    // LIT is a Lit2D-domain variant: the domain drives the lighting injection,
-    // same path as Lit2D material shaders.
+    // LIT is a Lit-domain variant: the domain drives the lighting injection,
+    // same path as Lit material shaders.
     if (std::find(features.begin(), features.end(), "LIT") != features.end()) {
-        parsed.domain = "Lit2D";
+        parsed.domain = "Lit";
     }
     resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),

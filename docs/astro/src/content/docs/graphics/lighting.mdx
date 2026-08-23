@@ -97,7 +97,7 @@ you write only the fragment:
 ```glsl
 #pragma shader "MyLit"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 #pragma fragment
 precision mediump float;
@@ -107,7 +107,7 @@ in highp vec2 v_worldPos;
 uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
-// #pragma domain Lit2D makes the engine inject the LightConstants block and the
+// #pragma domain Lit makes the engine inject the LightConstants block and the
 // applyLighting2D() helper — you just call it with your base color and a normal.
 void main() {
   vec4 base = texture(u_textures[0], v_texCoord) * v_color;
@@ -133,7 +133,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 ```
 
 You can also build a lit material visually — set the **Material Graph**'s domain to
-`Lit2D` — see the [material graph](/docs/graphics/materials/) section.
+`Lit` — see the [material graph](/docs/graphics/materials/) section.
 
 <Aside type="tip">
   Every renderer that takes a `material` — `Sprite`, `SpineAnimation`,

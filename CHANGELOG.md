@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The lit material domains lose the plane from their names too.**
+  `#pragma domain Lit2D` is `Lit` and `Unlit2D` is `Unlit`. `Lit` was never the
+  flat half of anything either: a 3D mesh, its PBR shading, its environment
+  reflection and its shadow map all arrive through it, and its "2D vertex stage"
+  is the one that handles MESH, MESH_NORMALS and SKINNED. A `.esshader` carries
+  no format version to migrate by, so **the old spellings are still read as these
+  two** — normalized at the parser, in the engine and the SDK alike, so nothing
+  downstream sees two names for one domain. A material graph saved with the old
+  domain compiles to the new one.
+
+  The injected helpers keep their names: `applyLighting2D` and `shadowFactor2D`
+  really are the flat lighting model, and they sit beside `applyLightingPBR` and
+  `shadowFactor3D`, which are not. What changed is the GPU-side light record,
+  now `Light` rather than `Light2D` — the same one both models read.
+
 - **The engine's light and mesh components are no longer named after a plane.**
   `Light2D` is now `Light` and `Mesh2D` is now `MeshRenderer`. They were never a
   second, flat pair of components — they are the *only* light and the only mesh

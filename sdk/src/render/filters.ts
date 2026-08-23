@@ -8,7 +8,7 @@ import { Material, type ShaderHandle } from './material';
 // raw-GLSL form of this filter was unusable by construction).
 const COLOR_MATRIX_ESSHADER = `#pragma shader "ColorMatrixFilter"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_cmRow0 vec4 default(1,0,0,0)
 #pragma param u_cmRow1 vec4 default(0,1,0,0)
 #pragma param u_cmRow2 vec4 default(0,0,1,0)

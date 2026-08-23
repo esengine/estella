@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ShadowCaster2D.hpp
- * @brief   Marks an entity as a 2D shadow occluder for the Lit2D lighting path.
+ * @brief   Marks an entity as a 2D shadow occluder for the Lit lighting path.
  * @details The render collect path turns each enabled caster into a world-space AABB (centered
  *          on the entity's Transform, `size` wide/tall) and feeds it to LightStore as an occluder.
  *          A point/spot light is then blocked at any fragment whose segment to the light crosses

@@ -84,7 +84,7 @@ One file holds every stage plus its metadata, separated by pragmas:
 |---|---|
 | `#pragma shader "Name"` | Display name. |
 | `#pragma version 300 es` | GLSL version line for every stage. |
-| `#pragma domain <D>` | `Unlit2D` (default), `Lit2D`, `PostProcess`, `UI`. `Lit2D` injects the lighting uniforms + helpers. |
+| `#pragma domain <D>` | `Unlit` (default), `Lit`, `PostProcess`, `UI`. `Lit` injects the lighting uniforms + helpers. The older spellings `Unlit2D` / `Lit2D` still load as these. |
 | `#pragma param …` | A reflected material parameter (table below). |
 | `#pragma switch NAME [default(on)]` | Material-facing static permutation toggle (a `#define`). |
 | `#pragma feature NAME` | Engine-chosen compile-time variant keyword. |
@@ -101,7 +101,7 @@ varyings arrive ready to use:
 |---|---|---|
 | `v_color` | `vec4` | Per-instance tint (the sprite's `color`). |
 | `v_texCoord` | `vec2` | Texture UV. |
-| `v_worldPos` | `highp vec2` | World-space position (**Lit2D domain only**). |
+| `v_worldPos` | `highp vec2` | World-space position (**Lit domain only**). |
 
 The sprite's texture is `u_textures[0]` (declare `uniform sampler2D u_textures[8];`
 — units 0–7 belong to the batch; texture *params* bind above them automatically).
@@ -135,10 +135,10 @@ The engine injects these into every compiled `.esshader` — never declare them 
 | `u_time` | always | `vec4` frame clock: `.x` elapsed seconds, `.y` delta seconds. |
 | `u_viewport` | always | `vec4` canvas: `.xy` size in pixels, `.zw` = 1/size (screen UV = `gl_FragCoord.xy * u_viewport.zw`). |
 | MaterialConstants block | when the shader has params | Your `#pragma param` values. |
-| `applyLighting2D(albedo, N, worldPos)` | Lit2D | Applies every scene light (+shadows); returns the lit color. |
-| `applyLighting2DAO(albedo, N, worldPos, ao)` | Lit2D | The same, with the ambient term scaled by `ao` (1 = unoccluded). |
-| `sampleNormal(map, uv)` | Lit2D | Unpacks a tangent-space normal map (RGB → [-1,1], normalized). |
-| `shadowFactor2D(worldPos, target, softness)` | Lit2D | Occlusion factor toward a point (used by `applyLighting2D`). |
+| `applyLighting2D(albedo, N, worldPos)` | Lit | Applies every scene light (+shadows); returns the lit color. |
+| `applyLighting2DAO(albedo, N, worldPos, ao)` | Lit | The same, with the ambient term scaled by `ao` (1 = unoccluded). |
+| `sampleNormal(map, uv)` | Lit | Unpacks a tangent-space normal map (RGB → [-1,1], normalized). |
+| `shadowFactor2D(worldPos, target, softness)` | Lit | Occlusion factor toward a point (used by `applyLighting2D`). |
 
 A `#pragma switch` selects a static shader permutation baked into the material at
 compile time (via the `features` argument to `compileShader`).

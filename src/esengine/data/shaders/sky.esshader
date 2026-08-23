@@ -1,6 +1,6 @@
 #pragma shader "Sky"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 // The background half of an environment. The reflection in a metal ball and the
 // sky behind it are the same baked panorama; without this only one of them was

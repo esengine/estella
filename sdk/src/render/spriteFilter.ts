@@ -18,7 +18,7 @@ import { Material, type MaterialHandle, type ShaderHandle } from './material';
 // no attribute bindings, and its loose uniforms bypassed the material system.
 const OUTLINE_ESSHADER = `#pragma shader "SpriteOutlineFilter"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_outlineColor color default(1,1,1,1)
 #pragma param u_outlineWidth float default(1) range(0,8)
 #pragma param u_texelSize vec2 default(0.001953125,0.001953125)
@@ -71,7 +71,7 @@ void main() {
 
 const SHADOW_ESSHADER = `#pragma shader "SpriteShadowFilter"
 #pragma version 300 es
-#pragma domain Unlit2D
+#pragma domain Unlit
 #pragma param u_shadowColor color default(0,0,0,0.6)
 #pragma param u_shadowOffset vec2 default(3,3)
 #pragma param u_shadowBlur float default(2)

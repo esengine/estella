@@ -94,7 +94,7 @@ app.world.spawn()
 ```glsl
 #pragma shader "MyLit"
 #pragma version 300 es
-#pragma domain Lit2D
+#pragma domain Lit
 
 #pragma fragment
 precision mediump float;
@@ -104,7 +104,7 @@ in highp vec2 v_worldPos;
 uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
-// #pragma domain Lit2D 让引擎注入 LightConstants 块和 applyLighting2D() helper——
+// #pragma domain Lit 让引擎注入 LightConstants 块和 applyLighting2D() helper——
 // 你只需用你的基础色和一个法线调用它。
 void main() {
   vec4 base = texture(u_textures[0], v_texCoord) * v_color;
@@ -129,7 +129,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 });
 ```
 
-你也能可视化地做一个受光材质——把 **材质图** 的域设为 `Lit2D`——见
+你也能可视化地做一个受光材质——把 **材质图** 的域设为 `Lit`——见
 [材质图](/docs/zh-cn/graphics/materials/)一节。
 
 <Aside type="tip">
@@ -148,7 +148,7 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 ### 金属度、粗糙度与高光
 
 `applyLighting2D` 是"这个表面什么都不反射"的简写。它的一般形式让同样的灯走一遍微表面
-BRDF,Lit2D 着色器可以直接调用:
+BRDF,Lit 着色器可以直接调用:
 
 ```glsl
 highp vec3 P = vec3(v_worldPos, 0.0);

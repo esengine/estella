@@ -117,10 +117,10 @@ std::string wgslCanonicalVSOut(bool lit) {
     return src;
 }
 
-// WGSL twin of canonical2DVertexStage: same attribute locations, GLSL names
+// WGSL twin of canonicalVertexStage: same attribute locations, GLSL names
 // kept behind struct fields (a_position -> v.a_position) so the two stages diff
 // cleanly. FrameConstants arrives with the injected headers.
-std::string canonical2DVertexStageWGSL(bool lit) {
+std::string canonicalVertexStageWGSL(bool lit) {
     std::string src = wgslCanonicalVSOut(lit);
     src +=
         "\n"
@@ -241,7 +241,7 @@ std::string canonicalPPVertexStage() {
 // Canonical 2D vertex stage for fragment-only .esshaders, in its three VERTEX
 // SOURCES: batch (already world space), resident mesh (local + a per-object
 // transform), skinned (posed by bones). One material serves all three.
-std::string canonical2DVertexStage(bool lit) {
+std::string canonicalVertexStage(bool lit) {
     std::string src =
         "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
@@ -315,6 +315,18 @@ std::string canonical2DVertexStage(bool lit) {
     }
     src += "}\n";
     return src;
+}
+
+/**
+ * A domain a shader was authored against, under the name the engine uses now.
+ * A `.esshader` has no format version to migrate by, so the spelling from before
+ * the lit domains were renamed is answered here: one door, and nothing
+ * downstream sees two names.
+ */
+std::string normalizeDomain(const std::string& authored) {
+    if (authored == "Lit2D") return "Lit";
+    if (authored == "Unlit2D") return "Unlit";
+    return authored;
 }
 
 }  // namespace
@@ -412,7 +424,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         }
 
         if (directive == "domain") {
-            if (!argument.empty()) result.domain = argument;
+            if (!argument.empty()) result.domain = normalizeDomain(argument);
             continue;
         }
 
@@ -554,8 +566,8 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     if (result.stages.find(ShaderStage::Vertex) == result.stages.end()) {
         // Fragment-only authoring: 2D domains get the canonical batch-space
         // pass-through, PostProcess the canonical fullscreen pass-through.
-        if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
-            result.stages[ShaderStage::Vertex] = canonical2DVertexStage(result.domain == "Lit2D");
+        if (result.domain == "Unlit" || result.domain == "Lit") {
+            result.stages[ShaderStage::Vertex] = canonicalVertexStage(result.domain == "Lit");
             result.vertexIsCanonical = true;
         } else if (result.domain == "PostProcess") {
             result.stages[ShaderStage::Vertex] = canonicalPPVertexStage();
@@ -575,8 +587,8 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     // VSOut interface. A file with no wgsl sections simply has no twin.
     if (result.wgslStages.count(ShaderStage::Fragment) != 0 &&
         result.wgslStages.count(ShaderStage::Vertex) == 0) {
-        if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
-            result.wgslStages[ShaderStage::Vertex] = canonical2DVertexStageWGSL(result.domain == "Lit2D");
+        if (result.domain == "Unlit" || result.domain == "Lit") {
+            result.wgslStages[ShaderStage::Vertex] = canonicalVertexStageWGSL(result.domain == "Lit");
             result.wgslVertexIsCanonical = true;
         } else if (result.domain == "PostProcess") {
             result.wgslStages[ShaderStage::Vertex] = canonicalPPVertexStageWGSL();
@@ -711,9 +723,9 @@ std::string wgslMaterialTextureDecls(const ParsedShader& parsed) {
     return src;
 }
 
-// Lit2D injection twin: LightConstants (binding 2) + the lighting/shadow
-// helpers, ported line for line from the GLSL kLit2DHeader. Array strides
-// (Light2D = 64 bytes, vec4f = 16) satisfy WGSL's uniform layout rules, so the
+// Lit injection twin: LightConstants (binding 2) + the lighting/shadow
+// helpers, ported line for line from the GLSL kLitHeader. Array strides
+// (Light = 64 bytes, vec4f = 16) satisfy WGSL's uniform layout rules, so the
 // block matches renderer/LightConstants.hpp on both backends. sampleNormal
 // takes the de-combined texture+sampler pair and samples mip 0 explicitly,
 // keeping calls legal in non-uniform control flow.
@@ -725,10 +737,10 @@ fn linearToSrgb(c : vec3f) -> vec3f {
 }
 )";
 
-const char* kLit2DHeaderWGSL = R"(struct Light2D { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f };
+const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f };
 struct LightConstants {
     u_ambient : vec4f,
-    u_lights : array<Light2D, 16>,
+    u_lights : array<Light, 16>,
     u_occluderCount : vec4f,
     u_occluders : array<vec4f, 8>,
     u_shadowMatrix : array<mat4x4f, 16>,
@@ -1249,7 +1261,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         headerLines += countNewlines(s);
     };
 
-    const bool lit = parsed.domain == "Lit2D";
+    const bool lit = parsed.domain == "Lit";
     if (stage == ShaderStage::Fragment && parsed.wgslVertexIsCanonical) {
         // The canonical vertex's varying interface (domain-shaped) + the
         // engine texture contract — fragment-only twins run under the batch
@@ -1271,7 +1283,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     }
     if (stage == ShaderStage::Fragment) {
         inject(wgslMaterialTextureDecls(parsed));
-        if (lit) inject(kLit2DHeaderWGSL);
+        if (lit) inject(kLitHeaderWGSL);
         inject(kColorHelpersWGSL);
     }
 
@@ -1391,21 +1403,21 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         }
     }
 
-    // Lit2D domain: inject the shared LightConstants block (std140) + the applyLighting2D()
+    // Lit domain: inject the shared LightConstants block (std140) + the applyLighting2D()
     // helper into the fragment stage. Authors write the surface (albedo) and a world-position
     // varying, then call the helper — the engine owns the std140 layout so a hand-written struct
     // can't silently mismatch renderer/LightConstants.hpp and corrupt lighting. Members + locals
     // carry explicit highp for the same reason MaterialConstants does: a fragment shader has no
     // default float precision until its `precision` line, which follows this injected header.
-    // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS_2D,
-    // GpuLight2D = four vec4s).
-    if (stage == ShaderStage::Fragment && parsed.domain == "Lit2D") {
-        static const char* kLit2DHeader =
-            "struct Light2D { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow;"
+    // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS,
+    // GpuLight = four vec4s).
+    if (stage == ShaderStage::Fragment && parsed.domain == "Lit") {
+        static const char* kLitHeader =
+            "struct Light { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow;"
             " highp vec4 shadowMap; };\n"
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
-            "    Light2D u_lights[16];\n"
+            "    Light u_lights[16];\n"
             "    highp vec4 u_occluderCount;\n"   // x = active occluder count
             "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
             "    highp mat4 u_shadowMatrix[16];\n"  // world -> each atlas tile's clip
@@ -1573,7 +1585,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#endif\n"
             "}\n"
             // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
-            // Lit2D shader unpacks tangent-space normals the same way. 2D applies it screen-space
+            // Lit shader unpacks tangent-space normals the same way. 2D applies it screen-space
             // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
             "highp vec3 sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
             "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
@@ -1788,7 +1800,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // environment; a surface's own lights are unobstructed by it.
             "    highp vec3 lit = envIrradiance(N) * ao;\n"
             "    highp vec3 gloss = vec3(0.0);\n"
-            // A Light2D has no third coordinate, so distance stays in the plane and a
+            // A Light has no third coordinate, so distance stays in the plane and a
             // point light's height is its radius. Normal and view are the 3D part.
             "    for (int i = 0; i < 16; ++i) {\n"
             "        highp vec4 pd = u_lights[i].posDir;\n"
@@ -1864,8 +1876,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
             "}\n";
-        assembled << kLit2DHeader;
-        headerLines += countNewlines(kLit2DHeader);
+        assembled << kLitHeader;
+        headerLines += countNewlines(kLitHeader);
     }
 
     if (!platform.empty()) {
