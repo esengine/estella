@@ -170,6 +170,18 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **A 3D AI example, and the last thing sensing could not act on.** `Perception`
+  has reported where a target is on all three axes since sensing became
+  three-dimensional, and `targetZ` / `dirZ` had no reader anywhere: the chase a
+  game writes is what reads them, and the one example that wrote one was a flat
+  scene. `examples/enemy-ai-3d` is the other one — hunters that see the player
+  through a doorway, route round the wall between them, climb a terrace by a link
+  the ground does not provide, give way to each other on the way, and turn to look
+  at what they saw. Every navigation part in one project, which is also what the
+  new editor check `enemy-ai-3d` opens and watches: sabotaged by dropping the third
+  axis from the chase, the hunters walk to the spot 420 units short of the player,
+  which is exactly what the declared gap said would happen.
+
 - **Two characters no longer walk through each other.** A `CharacterVirtual` is
   swept against the WORLD, and the world does not contain characters — so nothing
   was ever checking one against another, and two of them met by occupying the same

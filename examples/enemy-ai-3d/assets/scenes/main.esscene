@@ -1,0 +1,454 @@
+{
+  "version": 1,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 700,
+              "z": 1000
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 55,
+            "nearPlane": 10,
+            "farPlane": 6000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -20,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 900,
+              "y": 20,
+              "z": 700
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Wall West",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -525,
+              "y": 100,
+              "z": -100
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 375,
+              "y": 100,
+              "z": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Wall East",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 525,
+              "y": 100,
+              "z": -100
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 375,
+              "y": 100,
+              "z": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Terrace",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 660,
+              "y": 130,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 320,
+              "y": 30,
+              "z": 300
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Terrace Steps",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 80,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "NavLink",
+          "data": {
+            "start": {
+              "x": 0,
+              "y": -80,
+              "z": 0
+            },
+            "end": {
+              "x": 460,
+              "y": 80,
+              "z": 0
+            },
+            "bidirectional": true,
+            "radius": 90,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Gate",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 100,
+              "z": -100
+            }
+          }
+        },
+        {
+          "type": "NavObstacle",
+          "data": {
+            "halfExtents": {
+              "x": 150,
+              "y": 100,
+              "z": 30
+            },
+            "enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Nav Volume",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "NavVolume",
+          "data": {
+            "halfExtents": {
+              "x": 1000,
+              "y": 500,
+              "z": 800
+            },
+            "cellSize": 40,
+            "cellHeight": 12,
+            "maxSlopeDegrees": 45,
+            "agentHeight": 160,
+            "agentRadius": 45,
+            "stepHeight": 45,
+            "layers": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Player",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 80,
+              "z": 420
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 35,
+            "halfHeight": 40,
+            "maxSlope": 0.87,
+            "stepHeight": 45,
+            "snapDown": 50,
+            "pushForce": 6000
+          }
+        },
+        {
+          "type": "PerceptionTarget",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Hunter A",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -600,
+              "y": 80,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 35,
+            "halfHeight": 40,
+            "maxSlope": 0.87,
+            "stepHeight": 45,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "NavAgent",
+          "data": {
+            "speed": 260,
+            "radius": 45,
+            "arriveRadius": 110,
+            "repathInterval": 0.4
+          }
+        },
+        {
+          "type": "Perceiver",
+          "data": {
+            "range": 1200,
+            "fovDegrees": 360,
+            "facingAxis": "-z",
+            "losLayers": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Hunter B",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -200,
+              "y": 80,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 35,
+            "halfHeight": 40,
+            "maxSlope": 0.87,
+            "stepHeight": 45,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "NavAgent",
+          "data": {
+            "speed": 260,
+            "radius": 45,
+            "arriveRadius": 110,
+            "repathInterval": 0.4
+          }
+        },
+        {
+          "type": "Perceiver",
+          "data": {
+            "range": 1200,
+            "fovDegrees": 360,
+            "facingAxis": "-z",
+            "losLayers": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Hunter C",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 80,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 35,
+            "halfHeight": 40,
+            "maxSlope": 0.87,
+            "stepHeight": 45,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "NavAgent",
+          "data": {
+            "speed": 260,
+            "radius": 45,
+            "arriveRadius": 110,
+            "repathInterval": 0.4
+          }
+        },
+        {
+          "type": "Perceiver",
+          "data": {
+            "range": 1200,
+            "fovDegrees": 360,
+            "facingAxis": "-z",
+            "losLayers": 0
+          }
+        }
+      ]
+    }
+  ]
+}
