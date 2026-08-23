@@ -294,7 +294,7 @@ TEST_CASE("system_gravity_affects_velocity") {
     emitter.maxParticles = 100;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f, -100.0f);
+    emitter.gravity = glm::vec3(0.0f, -100.0f, 0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -323,7 +323,7 @@ TEST_CASE("system_noise_off_leaves_ballistic_motion_untouched") {
     emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
     emitter.maxParticles = 100;
     emitter.speedMin = emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f, 0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
     emitter.noiseStrength = 0.0f;
     emitter.enabled = true;
@@ -352,10 +352,10 @@ TEST_CASE("system_noise_advects_otherwise_static_particles") {
     emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
     emitter.maxParticles = 200;
     emitter.speedMin = emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f, 0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     // Spread the spawn across the field so particles sample varied, non-zero curl.
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
-    emitter.shapeSize = glm::vec2(800.0f, 800.0f);
+    emitter.shapeSize = glm::vec3(800.0f, 800.0f, 0.0f);
     emitter.noiseStrength = 500.0f;
     emitter.noiseFrequency = 0.01f;
     emitter.noiseOctaves = 2;
@@ -364,7 +364,7 @@ TEST_CASE("system_noise_advects_otherwise_static_particles") {
 
     system.update(registry, 0.01f);  // spawn spread across the rectangle
 
-    std::vector<glm::vec2> spawnPos;
+    std::vector<glm::vec3> spawnPos;
     system.forEachParticle(e, [&](const Particle& p) { spawnPos.push_back(p.position); });
 
     for (int i = 0; i < 20; ++i) system.update(registry, 0.05f);
@@ -529,7 +529,7 @@ static Entity makeStillEmitter(ecs::Registry& registry) {
     emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
     emitter.maxParticles = 50;
     emitter.speedMin = emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
     emitter.playOnStart = true;
     return e;
@@ -544,7 +544,7 @@ TEST_CASE("system_force_field_directional_pushes_particles") {
     auto& ff = registry.emplace<ecs::ParticleForceField>(field);
     ff.type = static_cast<i32>(ecs::ForceFieldType::Directional);
     ff.strength = 500.0f;
-    ff.direction = glm::vec2(1.0f, 0.0f);  // rightward wind, unbounded
+    ff.direction = glm::vec3(1.0f, 0.0f, 0.0f);  // rightward wind, unbounded
 
     Entity e = makeStillEmitter(registry);
     system.update(registry, 0.05f);
@@ -589,7 +589,7 @@ TEST_CASE("system_force_field_radius_excludes_distant_particles") {
     auto& ff = registry.emplace<ecs::ParticleForceField>(field);
     ff.type = static_cast<i32>(ecs::ForceFieldType::Directional);
     ff.strength = 500.0f;
-    ff.direction = glm::vec2(1.0f, 0.0f);
+    ff.direction = glm::vec3(1.0f, 0.0f, 0.0f);
     ff.radius = 100.0f;  // small zone the origin particles are outside of
 
     Entity e = makeStillEmitter(registry);
@@ -613,7 +613,7 @@ static Entity makeFallingEmitter(ecs::Registry& registry, bool collision) {
     emitter.maxParticles = 30;
     emitter.speedMin = emitter.speedMax = 0.0f;
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);  // spawn at (0,0)
-    emitter.gravity = glm::vec2(0.0f, -600.0f);                  // fall down
+    emitter.gravity = glm::vec3(0.0f, -600.0f, 0.0f);                  // fall down
     emitter.collisionEnabled = collision;
     emitter.collisionFloor = -100.0f;
     emitter.collisionBounce = 0.6f;
@@ -799,7 +799,7 @@ TEST_CASE("shape_point_spawns_at_origin") {
     emitter.maxParticles = 100;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -830,7 +830,7 @@ TEST_CASE("shape_circle_within_radius") {
     emitter.maxParticles = 200;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -860,14 +860,14 @@ TEST_CASE("shape_rectangle_within_bounds") {
     registry.emplace<ecs::Transform>(e);
     auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
-    emitter.shapeSize = glm::vec2(10.0f, 6.0f);
+    emitter.shapeSize = glm::vec3(10.0f, 6.0f, 0.0f);
     emitter.rate = 1000.0f;
     emitter.lifetimeMin = 10.0f;
     emitter.lifetimeMax = 10.0f;
     emitter.maxParticles = 200;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -907,7 +907,7 @@ TEST_CASE("shape_cone_position_within_angle") {
     emitter.maxParticles = 200;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -927,7 +927,7 @@ TEST_CASE("shape_cone_position_within_angle") {
             allWithinCone = false;
             return;
         }
-        glm::vec2 dir = glm::normalize(p.position);
+        glm::vec3 dir = glm::normalize(p.position);
         if (dir.y < cosHalf - 0.01f) {
             allWithinCone = false;
         }
@@ -956,7 +956,7 @@ TEST_CASE("system_color_interpolation") {
     emitter.colorEasing = static_cast<i32>(EasingType::Linear);
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -995,7 +995,7 @@ TEST_CASE("system_angular_velocity") {
     emitter.angularVelocityMax = 90.0f;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1031,7 +1031,7 @@ TEST_CASE("system_damping_reduces_velocity") {
     emitter.angleSpreadMin = 90.0f;
     emitter.angleSpreadMax = 90.0f;
     emitter.damping = 5.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1072,7 +1072,7 @@ TEST_CASE("system_sprite_animation_loop") {
     emitter.spriteLoop = true;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1105,7 +1105,7 @@ TEST_CASE("system_sprite_animation_clamp") {
     emitter.spriteLoop = false;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1141,7 +1141,7 @@ TEST_CASE("system_local_space_ignores_emitter_position") {
     emitter.maxParticles = 100;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1173,7 +1173,7 @@ TEST_CASE("system_world_space_uses_emitter_position") {
     emitter.maxParticles = 100;
     emitter.speedMin = 0.0f;
     emitter.speedMax = 0.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.enabled = true;
     emitter.playOnStart = true;
 
@@ -1290,7 +1290,7 @@ TEST_CASE("system_angle_spread_constrains_direction") {
     emitter.speedMax = 100.0f;
     emitter.angleSpreadMin = 80.0f;
     emitter.angleSpreadMax = 100.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.damping = 0.0f;
     emitter.enabled = true;
     emitter.playOnStart = true;
@@ -1301,7 +1301,7 @@ TEST_CASE("system_angle_spread_constrains_direction") {
     bool allPositiveY = true;
     system.forEachParticle(e, [&](const Particle& p) {
         if (glm::length(p.velocity) < 0.001f) return;
-        glm::vec2 dir = glm::normalize(p.velocity);
+        glm::vec3 dir = glm::normalize(p.velocity);
         if (dir.y < 0.0f) {
             allPositiveY = false;
         }
@@ -1328,7 +1328,7 @@ TEST_CASE("shape_circle_direction_radial_outward") {
     emitter.maxParticles = 200;
     emitter.speedMin = 10.0f;
     emitter.speedMax = 10.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.damping = 0.0f;
     emitter.enabled = true;
     emitter.playOnStart = true;
@@ -1343,8 +1343,8 @@ TEST_CASE("shape_circle_direction_radial_outward") {
         if (posDist < 0.5f) return;
         f32 velLen = glm::length(p.velocity);
         if (velLen < 0.001f) return;
-        glm::vec2 posDir = glm::normalize(p.position);
-        glm::vec2 velDir = glm::normalize(p.velocity);
+        glm::vec3 posDir = glm::normalize(p.position);
+        glm::vec3 velDir = glm::normalize(p.velocity);
         if (glm::dot(posDir, velDir) < 0.7f) {
             allRadial = false;
         }
@@ -1362,7 +1362,7 @@ TEST_CASE("shape_rectangle_direction_follows_angle_spread") {
     registry.emplace<ecs::Transform>(e);
     auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
     emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
-    emitter.shapeSize = glm::vec2(10.0f, 6.0f);
+    emitter.shapeSize = glm::vec3(10.0f, 6.0f, 0.0f);
     emitter.rate = 1000.0f;
     emitter.lifetimeMin = 10.0f;
     emitter.lifetimeMax = 10.0f;
@@ -1373,7 +1373,7 @@ TEST_CASE("shape_rectangle_direction_follows_angle_spread") {
     // spawn; direction comes from angleSpread, exactly like a point. Aim down.
     emitter.angleSpreadMin = 260.0f;
     emitter.angleSpreadMax = 280.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.damping = 0.0f;
     emitter.enabled = true;
     emitter.playOnStart = true;
@@ -1385,7 +1385,7 @@ TEST_CASE("shape_rectangle_direction_follows_angle_spread") {
     int checked = 0;
     system.forEachParticle(e, [&](const Particle& p) {
         if (glm::length(p.velocity) < 0.001f) return;
-        glm::vec2 dir = glm::normalize(p.velocity);
+        glm::vec3 dir = glm::normalize(p.velocity);
         if (dir.y > -0.9f) {
             allDownward = false;
         }
@@ -1411,7 +1411,7 @@ TEST_CASE("shape_cone_direction_within_angle") {
     emitter.maxParticles = 200;
     emitter.speedMin = 10.0f;
     emitter.speedMax = 10.0f;
-    emitter.gravity = glm::vec2(0.0f);
+    emitter.gravity = glm::vec3(0.0f);
     emitter.damping = 0.0f;
     emitter.enabled = true;
     emitter.playOnStart = true;
@@ -1425,7 +1425,7 @@ TEST_CASE("shape_cone_direction_within_angle") {
     bool allWithinCone = true;
     system.forEachParticle(e, [&](const Particle& p) {
         if (glm::length(p.velocity) < 0.001f) return;
-        glm::vec2 dir = glm::normalize(p.velocity);
+        glm::vec3 dir = glm::normalize(p.velocity);
         if (dir.y < cosHalf - 0.01f) {
             allWithinCone = false;
         }

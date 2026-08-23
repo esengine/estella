@@ -55,13 +55,25 @@ struct TestShapeVertex {
 };
 static_assert(sizeof(TestShapeVertex) == 48, "shape record must match the Shape stream stride");
 
+// The per-instance slot the ParticleInstance stream is laid out for (mirrors ParticlePlugin's).
+struct TestParticleInstance {
+    f32 px, py, pz;
+    f32 sx, sy;
+    f32 rotation;
+    u32 color;
+    f32 uvOffsetX, uvOffsetY;
+    f32 uvScaleX, uvScaleY;
+};
+static_assert(sizeof(TestParticleInstance) == 44,
+              "instance record must match the ParticleInstance stream stride");
+
 }  // namespace
 
 TEST_CASE("pool reports each stream's vertex stride (single source for baseVertex math)") {
     Harness h;
     CHECK(h.pool.vertexStride(LayoutId::Batch) == sizeof(BatchVertex));
     CHECK(h.pool.vertexStride(LayoutId::Shape) == sizeof(TestShapeVertex));
-    CHECK(h.pool.vertexStride(LayoutId::ParticleInstance) == 40);  // per-instance slot
+    CHECK(h.pool.vertexStride(LayoutId::ParticleInstance) == sizeof(TestParticleInstance));
 }
 
 TEST_CASE("appendQuad: Batch command with baseVertex-offset indices and one texture slot") {

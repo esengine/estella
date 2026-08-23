@@ -22,7 +22,7 @@ namespace esengine {
 
 namespace {
 // One record per live particle, matching the PARTICLE_INSTANCE vertex attributes
-// (locations 2-7). The GPU expands the 4-vertex quad; the CPU only fills these 40 bytes
+// (locations 2-7). The GPU expands the 4-vertex quad; the CPU only fills these 44 bytes
 // per particle (vs. the old 4 verts + 6 indices), which is the whole point of RC7-1.
 struct ParticleInstanceData {
     f32 px, py, pz;      // a_inst_position (world)
