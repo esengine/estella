@@ -220,6 +220,7 @@ void physics3d_shutdown() {
     g().system = nullptr;
     g().jobs = nullptr;
     g().temp = nullptr;
+    g().characterVsCharacter.mCharacters.clear();
     g().characters.clear();
     g().sensorBodies.clear();
     g().contactEnterBuffer.clear();
@@ -484,6 +485,10 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
     settings->mSupportingVolume = Plane(Vec3::sAxisY(), -radius);
     auto character = std::make_unique<CharacterVirtual>(
         settings, RVec3(px, py, pz), Quat::sIdentity(), g().system);
+    // Every character checks against every other one. Brute force, which is what
+    // Jolt offers and what a crowd of the size a scene authors costs nothing at.
+    character->SetCharacterVsCharacterCollision(&g().characterVsCharacter);
+    g().characterVsCharacter.Add(character.get());
     const uint32_t id = g().nextCharacterId++;
     g().characterLayers[id] = layer;
     g().characters[id] = std::move(character);
@@ -493,6 +498,8 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
 
 EMSCRIPTEN_KEEPALIVE
 void physics3d_removeCharacter(uint32_t characterId) {
+    auto found = g().characters.find(characterId);
+    if (found != g().characters.end()) g().characterVsCharacter.Remove(found->second.get());
     g().characters.erase(characterId);
     g().characterLayers.erase(characterId);
     g().entityOf.erase(characterId | CHARACTER_ID_TAG);

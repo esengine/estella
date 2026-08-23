@@ -25,14 +25,13 @@
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-namespace JPH { class CharacterVirtual; }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -158,6 +157,10 @@ struct Context {
     /// A character is not a body, so its layer is not stored in one.
     std::unordered_map<uint32_t, uint32_t> characterLayers;
     uint32_t nextCharacterId = 1;
+    /// Characters are swept against the WORLD, and the world does not contain
+    /// them: without this they walk through each other, which is the one pair of
+    /// shapes a player notices passing through.
+    JPH::CharacterVsCharacterCollisionSimple characterVsCharacter;
 
     bool isValid() const { return system != nullptr; }
 };

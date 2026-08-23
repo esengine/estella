@@ -236,6 +236,27 @@ check('a character shoves a crate out of its way', shoved && shoved.x > -38.0,
 check('and one with no push force does not', unmoved && unmoved.x < -38.35,
       `x=${unmoved?.x.toFixed(3)} from -38.5`);
 
+// ★ A character is swept against the WORLD, and the world holds no characters —
+// so without a character-vs-character check two of them pass straight through,
+// which is the one pair of shapes a player is sure to notice interpenetrating.
+const LEFT_WALKER = 16, RIGHT_WALKER = 17;
+const leftWalker = m._physics3d_addCharacter(LEFT_WALKER, 0.3, 0.5, -45, 0.8, -30, 0.87, 70, 0, 0);
+const rightWalker = m._physics3d_addCharacter(RIGHT_WALKER, 0.3, 0.5, -41, 0.8, -30, 0.87, 70, 0, 0);
+for (let i = 0; i < 150; i++) {
+    m._physics3d_moveCharacter(leftWalker, 2, 0, 0, 1 / 60, 0.4, 0.5);
+    m._physics3d_moveCharacter(rightWalker, -2, 0, 0, 1 / 60, 0.4, 0.5);
+}
+const left = moveCharacter(leftWalker, 0, 0, 0, 1);
+const right = moveCharacter(rightWalker, 0, 0, 0, 1);
+check('two characters meet rather than pass through each other', right.x > left.x,
+      `left=${left.x.toFixed(3)} right=${right.x.toFixed(3)}`);
+// Two capsules of radius 0.3 touch at 0.6 apart; they walked at each other for
+// two and a half seconds, so anything less is one standing inside the other.
+check('and they stop a body apart', right.x - left.x > 0.5,
+      `apart=${(right.x - left.x).toFixed(3)}`);
+m._physics3d_removeCharacter(leftWalker);
+m._physics3d_removeCharacter(rightWalker);
+
 m._physics3d_removeCharacter(strongHero);
 m._physics3d_removeCharacter(weakHero);
 

@@ -170,6 +170,15 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **Two characters no longer walk through each other.** A `CharacterVirtual` is
+  swept against the WORLD, and the world does not contain characters — so nothing
+  was ever checking one against another, and two of them met by occupying the same
+  space. Jolt's own character-vs-character check is registered now, which is the
+  one pair of shapes a player is sure to notice interpenetrating. Two new
+  behaviours in the 3D physics gate: they meet rather than pass, and they stop a
+  body apart. Found while giving NavAgents avoidance — steering kept them from
+  aiming at each other, and nothing underneath would have stopped them arriving.
+
 - **Agents give way to each other.** A route is planned against a world that does
   not move; agents do, and a dozen sent to one place all planned the same route
   and walked it as one body. An agent whose `radius` is greater than zero now
