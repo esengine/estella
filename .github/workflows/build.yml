@@ -219,6 +219,11 @@ jobs:
         ESTELLA_REQUIRE_WASM: '1'
       run: node tools/check-physics3d.mjs
 
+    - name: Check the 2D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics2d.mjs
+
     - name: Check performance snapshot
       env:
         ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web

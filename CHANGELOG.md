@@ -193,6 +193,16 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Three physics smokes had nothing to run them.** The 2D character mover
+  (resting height, skin width, floor snap, ceiling), the joint and mouse-drag
+  features, and sensor overlap each had a headless smoke sitting in `sdk/tests`
+  that no gate, script or workflow scheduled — 30 assertions against the real
+  wasm, none of them ever asked. They all pass, which is the point: nothing was
+  checking, so the day they stopped passing would have been a day nobody noticed.
+  New gate `check-physics2d` runs them, in CI where the binary is. It also
+  refuses a smoke that no gate names, so the same hole cannot reopen by someone
+  adding a fourth file.
+
 - **2D shadows had no pixel criterion at all.** Four fixture scenes exercise
   `ShadowCaster2D` — a hard point-light shadow, a soft one, a directional one —
   and nothing drove any of them: the criteria that once did are gone, and the

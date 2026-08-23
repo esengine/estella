@@ -120,6 +120,12 @@ export const GATES = [
   { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs', needs: 'editor' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
   {
+    id: 'physics2d',
+    run: 'node tools/check-physics2d.mjs',
+    where: 'local',
+    why: 'it runs the built 2D physics wasm and skips a machine without one; the engine-coupled CI job runs it where the binary is, under ESTELLA_REQUIRE_WASM',
+  },
+  {
     id: 'physics3d',
     run: 'node tools/check-physics3d.mjs',
     where: 'local',
