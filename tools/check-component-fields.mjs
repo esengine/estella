@@ -35,11 +35,10 @@ const DECLARED_GAPS = {
     'CacheAsBitmap.dirty': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.width': 'see CacheAsBitmap.enabled',
     'CacheAsBitmap.height': 'see CacheAsBitmap.enabled',
-    'ParticleEmitter.material': 'only the mesh path resolves a material into a program'
-        + ' (MaterialStore::meshProgram); particles, spine and dragonbones draw with their'
-        + ' own built-in shader and never consult the table',
-    'SpineAnimation.material': 'see ParticleEmitter.material',
-    'DragonBonesAnimation.material': 'see ParticleEmitter.material',
+    'ParticleEmitter.material': 'a particle is drawn from an instanced vertex source,'
+        + ' and a material is compiled per vertex source (MaterialStore::meshProgram takes'
+        + ' the mesh ones) — nothing compiles the instanced variant, so the table has no'
+        + ' program to hand back',
 };
 
 const components = JSON.parse(

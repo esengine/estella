@@ -3,6 +3,7 @@
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { Entity } from '../types';
+import type { SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { wrapSpineModule } from './SpineModuleLoader';
@@ -101,9 +102,9 @@ export class SpineManager {
         }
     }
 
-    submitMeshes(registry: CppRegistry): void {
+    submitMeshes(registry: CppRegistry, materialOf?: SkeletalMaterialOf): void {
         for (const backend of this.backends_.values()) {
-            backend.extractAndSubmitMeshes(this.coreModule_, registry);
+            backend.extractAndSubmitMeshes(this.coreModule_, registry, materialOf);
         }
     }
 

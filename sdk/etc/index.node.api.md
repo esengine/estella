@@ -3334,7 +3334,7 @@ fps: number
 frameTimeMs: number
 meshes: number
 phaseTimings: Map<string, number>
-spine: number
+skeletal: number
 sprites: number
 systemTimings: Map<string, number>
 text: number
@@ -6271,7 +6271,7 @@ Transparent = 2
 culled: number
 drawCalls: number
 meshes: number
-spine: number
+skeletal: number
 sprites: number
 text: number
 triangles: number

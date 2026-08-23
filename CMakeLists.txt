@@ -8,7 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
-option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
+# Which spine{NN}.wasm side modules to build. The core links no spine code and no
+# longer compiles differently for it: posed geometry from ANY skeletal runtime
+# comes through renderer_submitSkeletalBatchByEntity, which is always there.
+option(ES_ENABLE_SPINE "Build the Spine runtime side modules" ON)
 # OFF by default: only the DragonBones side module turns it on, and nothing in the
 # main engine links it (see third_party/CMakeLists.txt).
 option(ES_ENABLE_DRAGONBONES "Build the DragonBones runtime (side module only)" OFF)
@@ -259,13 +262,6 @@ endif()
 
 if(ES_ENABLE_BITMAP_TEXT)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_BITMAP_TEXT)
-endif()
-
-if(ES_ENABLE_SPINE)
-    # Core links no spine runtime — spine is fully side-module (spine{NN}.wasm).
-    # ES_ENABLE_SPINE still gates the renderer's spine RenderItem plumbing and the
-    # side-module mesh-submit binding (renderer_submitSpineBatch).
-    target_compile_definitions(esengine PUBLIC ES_ENABLE_SPINE)
 endif()
 
 # ESEngine is a web-only engine: it targets Emscripten (WebGL2 / GLES3) and ships

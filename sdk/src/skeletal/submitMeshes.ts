@@ -26,6 +26,14 @@ export interface SkeletalSubmitProps {
     layer: number;
 }
 
+/**
+ * The material a skeleton is drawn with, as the engine knows it (0 = none).
+ * Read per frame from the entity's own component rather than mirrored into the
+ * manager: a material handle is whatever the component says this frame, and a
+ * copy kept beside the pose would answer with the previous one.
+ */
+export type SkeletalMaterialOf = (entity: Entity) => number;
+
 /** The slice of the engine core this needs. */
 export interface SkeletalSubmitCore {
     renderer_submitSkeletalBatchByEntity?(
@@ -34,7 +42,7 @@ export interface SkeletalSubmitCore {
         indicesPtr: number, indexCount: number,
         textureId: number, blendMode: number,
         entity: number, skeletonScale: number, flipX: boolean, flipY: boolean,
-        layer: number, depth: number,
+        layer: number, depth: number, materialId: number,
     ): void;
     _malloc?(size: number): number;
     _free?(ptr: number): void;
@@ -56,12 +64,14 @@ export function submitEntityMeshes(
     entity: Entity,
     props: SkeletalSubmitProps,
     walk: MeshBatchWalker,
+    materialOf?: SkeletalMaterialOf,
 ): boolean {
     const submit = core.renderer_submitSkeletalBatchByEntity;
     const heap = core.HEAPU8;
     if (!submit || !heap || !core._malloc || !core._free) return false;
 
     const allocator = { _malloc: core._malloc, _free: core._free };
+    const materialId = materialOf?.(entity) ?? 0;
     withScratch(allocator, alloc => {
         walk((vertBytes, idxBytes, vertexCount, indexCount, textureId, blendMode) => {
             const dstVert = alloc(vertBytes.byteLength);
@@ -71,7 +81,7 @@ export function submitEntityMeshes(
             submit.call(core, registry,
                 dstVert, vertexCount, dstIdx, indexCount,
                 textureId, blendMode, entity as number,
-                props.skeletonScale, props.flipX, props.flipY, props.layer, 0);
+                props.skeletonScale, props.flipX, props.flipY, props.layer, 0, materialId);
         });
     });
     return true;

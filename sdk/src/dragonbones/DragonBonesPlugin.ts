@@ -98,7 +98,8 @@ export class DragonBonesPlugin implements Plugin {
             this.submitWired_ = true;
             const core = engineApi(app);
             app.pipeline?.addPreFlushCallback(registry => {
-                if (core) this.manager_?.submitMeshes(core, registry._cpp);
+                if (core) this.manager_?.submitMeshes(core, registry._cpp, (e) =>
+                    (app.world.tryGet(e, DragonBonesAnimation)?.material as number | undefined) ?? 0);
             });
         }
 

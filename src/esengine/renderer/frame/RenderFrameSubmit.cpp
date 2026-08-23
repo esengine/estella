@@ -3,6 +3,7 @@
 #include "./RenderFrame.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../draw/BatchVertex.hpp"
+#include "./RenderContext.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -79,13 +80,12 @@ void RenderFrame::submitTextBatch(
     });
 }
 
-#ifdef ES_ENABLE_SPINE
-void RenderFrame::submitSpineBatch(
+void RenderFrame::submitSkeletalBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
     u32 textureId, i32 blendMode,
     const f32* transform16,
-    Entity entity, i32 layer, f32 depth
+    Entity entity, i32 layer, f32 depth, u32 materialId
 ) {
     if (vertexCount <= 0 || indexCount <= 0) return;
 
@@ -106,8 +106,7 @@ void RenderFrame::submitSpineBatch(
         dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]} };
     }
 
-    pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
-                     static_cast<u32>(indexCount), BatchDrawKey{
+    BatchDrawKey key{
         .stage = current_stage_,
         .layer = layer,
         .shaderId = batch_shader_id_,
@@ -115,9 +114,24 @@ void RenderFrame::submitSpineBatch(
         .textureId = textureId,
         .depth = depth,
         .entity = entity,
-        .type = RenderType::Spine,
-    });
+        .type = RenderType::Skeletal,
+    };
+    // The same resolution a Sprite gets: a material owns shading fully, and a
+    // handle nothing registered falls back to the batch shader rather than
+    // binding a program that was never built.
+    if (materialId != 0) {
+        if (const MaterialRecord* m = context_.materials().find(materialId)) {
+            key.shaderId = (m->shader != 0) ? m->shader : batch_shader_id_;
+            key.blend = m->blend;
+            key.materialId = materialId;
+            key.depthTest = m->depthTest;
+            key.depthWrite = m->depthWrite;
+            key.cull = static_cast<u8>(m->cull);
+        }
+    }
+
+    pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
+                     static_cast<u32>(indexCount), key);
 }
-#endif
 
 }  // namespace esengine

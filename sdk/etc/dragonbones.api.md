@@ -53,7 +53,7 @@ setEnabled: (entity: Entity, enabled: boolean) => void
 setEntityProps: (entity: Entity, props: Partial<Pick<EntityInfo, "skeletonScale" | "flipX" | "flipY" | "layer" | "playing">> & { timeScale?: number; color?: { r: number; g: number; b: number; a: number; }; }) => void
 setTimeScale: (entity: Entity, scale: number) => void
 stop: (entity: Entity, animation?: string) => void
-submitMeshes: (core: SkeletalSubmitCore, registry: unknown) => void
+submitMeshes: (core: SkeletalSubmitCore, registry: unknown, materialOf?: SkeletalMaterialOf) => void
 updateAnimations: (dt: number) => void
 static new (controller: DragonBonesModuleController): DragonBonesManager
 static prototype: DragonBonesManager

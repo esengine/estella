@@ -16,7 +16,7 @@ export interface FrameStats {
     triangles: number;
     sprites: number;
     text: number;
-    spine: number;
+    skeletal: number;
     meshes: number;
     culled: number;
 }
@@ -32,7 +32,7 @@ export function defaultFrameStats(): FrameStats {
         triangles: 0,
         sprites: 0,
         text: 0,
-        spine: 0,
+        skeletal: 0,
         meshes: 0,
         culled: 0,
     };
@@ -206,7 +206,7 @@ export class StatsPlugin implements Plugin {
                 stats.triangles = renderStats.triangles;
                 stats.sprites = renderStats.sprites;
                 stats.text = renderStats.text;
-                stats.spine = renderStats.spine;
+                stats.skeletal = renderStats.skeletal;
                 stats.meshes = renderStats.meshes;
                 stats.culled = renderStats.culled;
 

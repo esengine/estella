@@ -38,24 +38,16 @@ void renderer_submitUIElements(ecs::Registry& registry);
 void renderer_submitBitmapText(ecs::Registry& registry);
 #endif
 void renderer_submitShapes(ecs::Registry& registry);
-#ifdef ES_ENABLE_SPINE
-void renderer_submitSpine(ecs::Registry& registry);
-void renderer_submitSpineBatch(
-    uintptr_t verticesPtr, i32 vertexCount,
-    uintptr_t indicesPtr, i32 indexCount,
-    u32 textureId, i32 blendMode,
-    uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth
-);
+/// Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
+/// vertex, drawn as @p entity's, with its material resolved as a Sprite's is.
 void renderer_submitSkeletalBatchByEntity(
     ecs::Registry& registry,
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     u32 entity, f32 skelScale, bool flipX, bool flipY,
-    i32 layer, f32 depth
+    i32 layer, f32 depth, u32 materialId
 );
-#endif
 void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
@@ -130,9 +122,7 @@ emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity);
 #endif
 u32 renderer_getTriangles();
 u32 renderer_getSprites();
-#ifdef ES_ENABLE_SPINE
-u32 renderer_getSpine();
-#endif
+u32 renderer_getSkeletal();
 u32 renderer_getText();
 u32 renderer_getMeshes();
 u32 renderer_getCulled();

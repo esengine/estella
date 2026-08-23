@@ -97,7 +97,7 @@ export function createNativeRendererBackend(
                 triangles: read(RENDERER_STATS_BINDINGS.triangles),
                 sprites: read(RENDERER_STATS_BINDINGS.sprites),
                 text: read(RENDERER_STATS_BINDINGS.text),
-                spine: 0,   // the spine module has no native counterpart yet
+                skeletal: 0,   // the skeletal runtimes have no native counterpart yet
                 meshes: read(RENDERER_STATS_BINDINGS.meshes),
                 culled: read(RENDERER_STATS_BINDINGS.culled),
             };

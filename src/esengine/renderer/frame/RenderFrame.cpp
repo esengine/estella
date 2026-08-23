@@ -392,9 +392,7 @@ void RenderFrame::flush() {
         case RenderType::Particle: stats_.particles += cmd.entity_count; break;
 #endif
         case RenderType::Shape:    stats_.shapes += cmd.entity_count; break;
-#ifdef ES_ENABLE_SPINE
-        case RenderType::Spine:    stats_.spine += cmd.entity_count; break;
-#endif
+        case RenderType::Skeletal: stats_.skeletal += cmd.entity_count; break;
         default: break;
         }
     }

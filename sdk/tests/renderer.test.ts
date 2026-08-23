@@ -50,7 +50,7 @@ function createRendererMockModule() {
         renderer_getTriangles: vi.fn(() => 500),
         renderer_getSprites: vi.fn(() => 25),
         renderer_getText: vi.fn(() => 5),
-        renderer_getSpine: vi.fn(() => 3),
+        renderer_getSkeletal: vi.fn(() => 3),
         renderer_getMeshes: vi.fn(() => 8),
         renderer_getCulled: vi.fn(() => 12),
 
@@ -127,7 +127,7 @@ describe('Renderer API', () => {
                 triangles: 0,
                 sprites: 0,
                 text: 0,
-                spine: 0,
+                skeletal: 0,
                 meshes: 0,
                 culled: 0,
             });
@@ -372,7 +372,7 @@ describe('Renderer API', () => {
                 triangles: 500,
                 sprites: 25,
                 text: 5,
-                spine: 3,
+                skeletal: 3,
                 meshes: 8,
                 culled: 12,
             });
@@ -384,7 +384,7 @@ describe('Renderer API', () => {
             expect(mock.renderer_getTriangles).toHaveBeenCalledOnce();
             expect(mock.renderer_getSprites).toHaveBeenCalledOnce();
             expect(mock.renderer_getText).toHaveBeenCalledOnce();
-            expect(mock.renderer_getSpine).toHaveBeenCalledOnce();
+            expect(mock.renderer_getSkeletal).toHaveBeenCalledOnce();
             expect(mock.renderer_getMeshes).toHaveBeenCalledOnce();
             expect(mock.renderer_getCulled).toHaveBeenCalledOnce();
         });

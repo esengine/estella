@@ -31,6 +31,7 @@ export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
   { id: 'gl-boundary', run: 'node tools/check-gl-boundary.mjs' },
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
+  { id: 'sidemodule-gates', run: 'node tools/check-sidemodule-gates.mjs' },
   {
     id: 'native-bindings',
     run: 'node tools/check-native-bindings.mjs',

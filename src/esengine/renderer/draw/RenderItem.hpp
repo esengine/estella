@@ -16,9 +16,9 @@ struct ScissorRect {
 
 enum class RenderType : u8 {
     Sprite = 0,
-#ifdef ES_ENABLE_SPINE
-    Spine = 1,
-#endif
+    /// Posed geometry from a skeletal runtime — Spine or DragonBones. Neither is
+    /// linked here: both are side modules that hand over batch vertices.
+    Skeletal = 1,
     Mesh = 2,
     ExternalMesh = 3,
     Text = 4,

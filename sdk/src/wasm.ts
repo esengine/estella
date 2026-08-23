@@ -295,20 +295,17 @@ export interface ESEngineModule {
     ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
     ui_getCullBit?(registry: CppRegistry, entity: number): number;
 
-    renderer_submitSpineBatch?(
-        verticesPtr: number, vertexCount: number,
-        indicesPtr: number, indexCount: number,
-        textureId: number, blendMode: number,
-        transformPtr: number,
-        entity: number, layer: number, depth: number
-    ): void;
+    /**
+     * Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
+     * vertex, drawn as `entity`'s, with `materialId` resolved as a Sprite's is.
+     */
     renderer_submitSkeletalBatchByEntity?(
         registry: CppRegistry,
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
         textureId: number, blendMode: number,
         entity: number, skelScale: number, flipX: boolean, flipY: boolean,
-        layer: number, depth: number
+        layer: number, depth: number, materialId: number
     ): void;
     /**
      * Submit pre-laid-out glyph quads. Vertex format x,y,u,v,r,g,b,a; `sdf` (1/0)
@@ -442,7 +439,6 @@ export interface ESEngineModule {
     renderer_submitUIElements(registry: CppRegistry): void;
     renderer_submitBitmapText(registry: CppRegistry): void;
     renderer_submitShapes?(registry: CppRegistry): void;
-    renderer_submitSpine?(registry: CppRegistry): void;
     renderer_submitParticles?(registry: CppRegistry): void;
     renderer_submitAll(registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
@@ -491,7 +487,7 @@ export interface ESEngineModule {
     renderer_getTriangles(): number;
     renderer_getSprites(): number;
     renderer_getText(): number;
-    renderer_getSpine?(): number;
+    renderer_getSkeletal?(): number;
     renderer_getMeshes(): number;
     renderer_getCulled(): number;
     /** Last frame's GPU time (ms) via EXT_disjoint_timer_query, or -1 if unavailable. */

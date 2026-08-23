@@ -16,6 +16,23 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A skeleton can be drawn with a material.** `SpineAnimation.material` and
+  `DragonBonesAnimation.material` were authorable and unread: a skeleton always
+  drew with the built-in batch shader. Both now resolve the same way a `Sprite`'s
+  material does — its program, blend mode, depth flags and cull, plus its
+  `#pragma param` values — because posed geometry arrives in the very same batch
+  vertex format a sprite does. The material is read from the entity per frame, not
+  mirrored into the runtime, so writing the field takes effect on the next frame.
+  `ParticleEmitter.material` is still unread and still declared as a gap: a
+  particle is drawn from an instanced vertex source, and nothing compiles a
+  material for that one yet.
+
+- **Render stats count skeletal triangles, not "spine" ones.** `RenderStats.spine`
+  is `RenderStats.skeletal`, and the wasm export behind it is `renderer_getSkeletal`
+  — DragonBones geometry was always counted there too. Two dead exports went with
+  it: `renderer_submitSpine` (an empty function) and `renderer_submitSpineBatch`
+  (no caller since spine moved to side modules).
+
 - **The lit material domains lose the plane from their names too.**
   `#pragma domain Lit2D` is `Lit` and `Unlit2D` is `Unlit`. `Lit` was never the
   flat half of anything either: a 3D mesh, its PBR shading, its environment
@@ -114,6 +131,16 @@ published separately; it ships inside the editor.
   may not be checked out.
 
 ### Fixed
+
+- **A build with DragonBones but no Spine had no way to draw a skeleton.** The
+  binding every skeletal runtime submits its posed geometry through was compiled
+  only when `ES_ENABLE_SPINE` was on — so with Spine off, DragonBones handed its
+  vertices to an export that was not there and drew nothing, silently. The core
+  links neither runtime (each is a standalone side module), so that door is now
+  always open, and a new gate `check-sidemodule-gates` refuses any side module's
+  build option that decides how the core compiles. No released build is affected:
+  every shipping configuration has Spine on. The one that does not — CMake's
+  `esengine-core` — has never been built.
 
 - **A component that describes a region of world is drawn, and a gate says so.**
   `NavAgent`'s routing width, `ParticleForceField`'s reach, `ShadowCaster2D`'s

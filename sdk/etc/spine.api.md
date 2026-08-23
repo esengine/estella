@@ -16,7 +16,7 @@ collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 controller: SpineModuleController
 enableEvents: (entity: Entity) => void
 entityCount: number
-extractAndSubmitMeshes: (core: NonNullable<EngineApi>, registry: CppRegistry) => void
+extractAndSubmitMeshes: (core: NonNullable<EngineApi>, registry: CppRegistry, materialOf?: SkeletalMaterialOf) => void
 getAnimations: (entity: Entity) => string[]
 getBounds: (entity: Entity) => { x: number; y: number; width: number; height: number; } | null
 getPathConstraintMix: (entity: Entity, name: string) => PathMixData | null
@@ -130,7 +130,7 @@ setSlotColor: (entity: Entity, slotName: string, r: number, g: number, b: number
 setTrackAlpha: (entity: Entity, track: number, alpha: number) => void
 setTransformConstraintMix: (entity: Entity, name: string, mix: TransformMixData) => boolean
 shutdown: () => void
-submitMeshes: (registry: CppRegistry) => void
+submitMeshes: (registry: CppRegistry, materialOf?: SkeletalMaterialOf) => void
 updateAnimations: (dt: number) => void
 static detectVersion: (data: Uint8Array) => SpineVersion | null
 static detectVersionJson: (json: string) => SpineVersion | null

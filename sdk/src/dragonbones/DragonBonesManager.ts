@@ -16,7 +16,7 @@
  *          honest fallback for a caller that cannot say when two are the same.
  */
 import type { Entity } from '../types';
-import { submitEntityMeshes, type SkeletalSubmitCore } from '../skeletal/submitMeshes';
+import { submitEntityMeshes, type SkeletalMaterialOf, type SkeletalSubmitCore } from '../skeletal/submitMeshes';
 import type { SkeletalBounds } from '../skeletal/types';
 import { DragonBonesModuleController } from './DragonBonesController';
 import { log } from '../util/logger';
@@ -230,13 +230,13 @@ export class DragonBonesManager {
         }
     }
 
-    submitMeshes(core: SkeletalSubmitCore, registry: unknown): void {
+    submitMeshes(core: SkeletalSubmitCore, registry: unknown, materialOf?: SkeletalMaterialOf): void {
         for (const [entity, info] of this.entities_) {
             if (this.disabled_.has(entity)) continue;
             // False means the core cannot take geometry at all, so asking again for
             // the next entity would only repeat the same check.
             const accepted = submitEntityMeshes(core, registry, entity, info, cb =>
-                this.controller_.forEachMeshBatch(info.instanceId, cb));
+                this.controller_.forEachMeshBatch(info.instanceId, cb), materialOf);
             if (!accepted) return;
         }
     }

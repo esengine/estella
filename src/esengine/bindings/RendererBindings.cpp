@@ -76,36 +76,16 @@ static u32 checkGLErrors(const char* context) {
     return errorCount;
 }
 
-// Spine renders fully through the side modules now: the SDK SpineManager
-// computes meshes in spine{NN}.wasm and submits each batch here. The old native
-// spine_* accessors (driven by a core spine-cpp runtime) are gone.
-#ifdef ES_ENABLE_SPINE
-void renderer_submitSpineBatch(
-    uintptr_t verticesPtr, i32 vertexCount,
-    uintptr_t indicesPtr, i32 indexCount,
-    u32 textureId, i32 blendMode,
-    uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth
-) {
-    if (!g_initialized || !g_renderFrame) return;
-    if (vertexCount < 0 || indexCount < 0) return;
-    // Spine vertex format is x,y,u,v,r,g,b,a (8 floats per vertex).
-    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSpineBatch.vertices");
-    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSpineBatch.indices");
-    auto* transform = boundarySpan<f32>(transformPtr, 16, "renderer_submitSpineBatch.transform");
-    if (!vertices || !indices || !transform) return;
-    g_renderFrame->submitSpineBatch(
-        vertices, vertexCount, indices, indexCount,
-        textureId, blendMode, transform, Entity::fromRaw(entity), layer, depth);
-}
-
+// Geometry posed by a skeletal runtime — Spine and DragonBones both come through
+// here. Ungated on purpose: the core links neither, so neither runtime's build
+// option may decide whether this door exists.
 void renderer_submitSkeletalBatchByEntity(
     ecs::Registry& registry,
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, i32 blendMode,
     u32 entity, f32 skelScale, bool flipX, bool flipY,
-    i32 layer, f32 depth
+    i32 layer, f32 depth, u32 materialId
 ) {
     if (!g_initialized || !g_renderFrame) return;
     const Entity ent = Entity::fromRaw(entity);
@@ -125,15 +105,14 @@ void renderer_submitSkeletalBatchByEntity(
                      * glm::scale(glm::mat4(1.0f), s);
 
     if (vertexCount < 0 || indexCount < 0) return;
+    // Skeletal vertex format is x,y,u,v,r,g,b,a (8 floats per vertex).
     auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSkeletalBatchByEntity.vertices");
     auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSkeletalBatchByEntity.indices");
     if (!vertices || !indices) return;
-    g_renderFrame->submitSpineBatch(
+    g_renderFrame->submitSkeletalBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, blendMode, &model[0][0], ent, layer, depth);
+        textureId, blendMode, &model[0][0], ent, layer, depth, materialId);
 }
-
-#endif
 
 // TS lays out glyph quads against the dynamic SDF atlas and
 // submits them here (ungated — text is core, unlike spine).
@@ -544,11 +523,6 @@ void renderer_submitShapes(ecs::Registry& registry) {
     (void)registry;
 }
 
-#ifdef ES_ENABLE_SPINE
-void renderer_submitSpine(ecs::Registry& registry) {
-    (void)registry;
-}
-#endif
 
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry) {
@@ -738,12 +712,10 @@ u32 renderer_getSprites() {
     return g_renderFrame->stats().sprites;
 }
 
-#ifdef ES_ENABLE_SPINE
-u32 renderer_getSpine() {
+u32 renderer_getSkeletal() {
     if (!g_renderFrame) return 0;
-    return g_renderFrame->stats().spine;
+    return g_renderFrame->stats().skeletal;
 }
-#endif
 
 u32 renderer_getText() {
     if (!g_renderFrame) return 0;

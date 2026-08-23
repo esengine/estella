@@ -514,12 +514,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #endif
         ;
 
-#ifdef ES_ENABLE_SPINE
-    // Spine renders via the side modules — only the mesh-submit bindings the
-    // SDK SpineManager calls remain. Native spine_* / spine_native_* are gone.
-    emscripten::function("renderer_submitSpineBatch", &esengine::renderer_submitSpineBatch);
+    // Every skeletal runtime is a side module; this is the one door their posed
+    // geometry comes through, so it belongs to neither of their build flags.
     emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
-#endif
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
     emscripten::function("mesh_create", &esengine::mesh_create);
@@ -644,9 +641,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitBitmapText", &esengine::renderer_submitBitmapText);
 #endif
     emscripten::function("renderer_submitShapes", &esengine::renderer_submitShapes);
-#ifdef ES_ENABLE_SPINE
-    emscripten::function("renderer_submitSpine", &esengine::renderer_submitSpine);
-#endif
+
 #ifdef ES_ENABLE_PARTICLES
     emscripten::function("renderer_submitParticles", &esengine::renderer_submitParticles);
 #endif
@@ -673,9 +668,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getLiveObjects", &esengine::renderer_getLiveObjects);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
     emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);
-#ifdef ES_ENABLE_SPINE
-    emscripten::function("renderer_getSpine", &esengine::renderer_getSpine);
-#endif
+    emscripten::function("renderer_getSkeletal", &esengine::renderer_getSkeletal);
     emscripten::function("renderer_getText", &esengine::renderer_getText);
     emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
     emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);

@@ -88,9 +88,7 @@ public:
         u32 draw_calls = 0;
         u32 triangles = 0;
         u32 sprites = 0;
-#ifdef ES_ENABLE_SPINE
-        u32 spine = 0;
-#endif
+        u32 skeletal = 0;
         u32 meshes = 0;
         u32 text = 0;
         u32 particles = 0;
@@ -173,15 +171,19 @@ public:
         Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit = 0
     );
 
-#ifdef ES_ENABLE_SPINE
-    void submitSpineBatch(
+    /**
+     * @brief Batch vertices posed by a skeletal runtime, drawn as one entity's geometry.
+     * @details Serves every such runtime — Spine and DragonBones both arrive here — and
+     *          links none of them: what crosses is x,y,u,v,r,g,b,a per vertex. @p materialId
+     *          is the entity's material, resolved the way a Sprite's is (0 = the batch shader).
+     */
+    void submitSkeletalBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, i32 blendMode,
         const f32* transform16,
-        Entity entity, i32 layer, f32 depth
+        Entity entity, i32 layer, f32 depth, u32 materialId = 0
     );
-#endif
 
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }

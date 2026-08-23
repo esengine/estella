@@ -136,10 +136,10 @@ export interface NativeEngineApi {
     renderer_getPreviewHeight?(): number;
     renderer_getPreviewSize?(): number;
     renderer_getPreviewWidth?(): number;
+    renderer_getSkeletal?(): number;
     renderer_getSnapshotHeight?(): number;
     renderer_getSnapshotSize?(): number;
     renderer_getSnapshotWidth?(): number;
-    renderer_getSpine?(): number;
     renderer_getSprites?(): number;
     renderer_getTargetDepthTexture?(handle: number): number;
     renderer_getTargetTexture?(handle: number): number;
@@ -172,9 +172,7 @@ export interface NativeEngineApi {
     renderer_submitBitmapText?(registry: unknown): void;
     renderer_submitParticles?(registry: unknown): void;
     renderer_submitShapes?(registry: unknown): void;
-    renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number): void;
-    renderer_submitSpine?(registry: unknown): void;
-    renderer_submitSpineBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, entity: number, layer: number, depth: number): void;
+    renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
     renderer_submitSprites?(registry: unknown): void;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
     renderer_submitUIElements?(registry: unknown): void;
@@ -388,10 +386,10 @@ export function createNativeEngineApi(
     bind('renderer_getPreviewHeight', 'es_renderer_getPreviewHeight', false);
     bind('renderer_getPreviewSize', 'es_renderer_getPreviewSize', false);
     bind('renderer_getPreviewWidth', 'es_renderer_getPreviewWidth', false);
+    bind('renderer_getSkeletal', 'es_renderer_getSkeletal', false);
     bind('renderer_getSnapshotHeight', 'es_renderer_getSnapshotHeight', false);
     bind('renderer_getSnapshotSize', 'es_renderer_getSnapshotSize', false);
     bind('renderer_getSnapshotWidth', 'es_renderer_getSnapshotWidth', false);
-    bind('renderer_getSpine', 'es_renderer_getSpine', false);
     bind('renderer_getSprites', 'es_renderer_getSprites', false);
     bind('renderer_getTargetDepthTexture', 'es_renderer_getTargetDepthTexture', false);
     bind('renderer_getTargetTexture', 'es_renderer_getTargetTexture', false);
@@ -425,8 +423,6 @@ export function createNativeEngineApi(
     bind('renderer_submitParticles', 'es_renderer_submitParticles', true);
     bind('renderer_submitShapes', 'es_renderer_submitShapes', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);
-    bind('renderer_submitSpine', 'es_renderer_submitSpine', true);
-    bind('renderer_submitSpineBatch', 'es_renderer_submitSpineBatch', false);
     bind('renderer_submitSprites', 'es_renderer_submitSprites', true);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_submitUIElements', 'es_renderer_submitUIElements', true);

@@ -6,7 +6,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { log } from '../util/logger';
-import { submitEntityMeshes } from '../skeletal/submitMeshes';
+import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
 
 interface EntityInfo {
     skelHandle: number;
@@ -237,7 +237,8 @@ export class ModuleBackend {
     /** @param core whichever engine core is present (see ecs/engineApi.ts) — the
      *  batches cross through its heap, which is wasm linear memory on the web and the
      *  host arena on a device. */
-    extractAndSubmitMeshes(core: NonNullable<EngineApi>, registry: CppRegistry): void {
+    extractAndSubmitMeshes(core: NonNullable<EngineApi>, registry: CppRegistry,
+                           materialOf?: SkeletalMaterialOf): void {
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
             // Shared with every skeletal runtime (skeletal/submitMeshes): the core's
@@ -245,7 +246,7 @@ export class ModuleBackend {
             // what posed them. A false means the core cannot take geometry at all,
             // so there is no point asking again for the next entity.
             const accepted = submitEntityMeshes(core, registry, entity, info, cb =>
-                this.controller_.forEachMeshBatch(info.instanceId, cb));
+                this.controller_.forEachMeshBatch(info.instanceId, cb), materialOf);
             if (!accepted) return;
         }
     }

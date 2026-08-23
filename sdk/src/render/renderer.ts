@@ -29,7 +29,8 @@ export interface RenderStats {
     triangles: number;
     sprites: number;
     text: number;
-    spine: number;
+    /// Triangles posed by a skeletal runtime — Spine and DragonBones both count here.
+    skeletal: number;
     meshes: number;
     culled: number;
 }
@@ -66,7 +67,7 @@ export interface RendererBackend {
     getStats(): RenderStats;
 }
 
-const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0, spine: 0, meshes: 0, culled: 0 };
+const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 };
 
 const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
@@ -127,7 +128,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
             triangles: m.renderer_getTriangles(),
             sprites: m.renderer_getSprites(),
             text: m.renderer_getText(),
-            spine: m.renderer_getSpine?.() ?? 0,
+            skeletal: m.renderer_getSkeletal?.() ?? 0,
             meshes: m.renderer_getMeshes(),
             culled: m.renderer_getCulled(),
         }),

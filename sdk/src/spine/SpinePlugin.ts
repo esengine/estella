@@ -96,7 +96,8 @@ export class SpinePlugin implements Plugin {
         if (this.submitWired_) return;
         this.submitWired_ = true;
         app.pipeline?.addPreFlushCallback((registry) => {
-            this.spineManager_?.submitMeshes(registry._cpp);
+            this.spineManager_?.submitMeshes(registry._cpp, (e: Entity) =>
+                (app.world.tryGet(e, SpineAnimation)?.material as number | undefined) ?? 0);
         });
     }
 

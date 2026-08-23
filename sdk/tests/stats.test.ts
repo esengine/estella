@@ -149,7 +149,7 @@ describe('defaultFrameStats', () => {
         expect(stats.triangles).toBe(0);
         expect(stats.sprites).toBe(0);
         expect(stats.text).toBe(0);
-        expect(stats.spine).toBe(0);
+        expect(stats.skeletal).toBe(0);
         expect(stats.meshes).toBe(0);
         expect(stats.culled).toBe(0);
     });
@@ -579,7 +579,7 @@ await app.tick(1 / 60);
         it('should copy all render stats fields', async () => {
             const mockStats: rendererModule.RenderStats = {
                 drawCalls: 42, triangles: 8400, sprites: 100,
-                text: 12, spine: 3, meshes: 5, culled: 7,
+                text: 12, skeletal: 3, meshes: 5, culled: 7,
             };
             vi.spyOn(rendererModule.Renderer, 'getStats').mockReturnValue(mockStats);
 
@@ -592,7 +592,7 @@ await app.tick(1 / 60);
             expect(stats.triangles).toBe(8400);
             expect(stats.sprites).toBe(100);
             expect(stats.text).toBe(12);
-            expect(stats.spine).toBe(3);
+            expect(stats.skeletal).toBe(3);
             expect(stats.meshes).toBe(5);
             expect(stats.culled).toBe(7);
         });
@@ -600,11 +600,11 @@ await app.tick(1 / 60);
         it('should update render stats each tick', async () => {
             const tick1: rendererModule.RenderStats = {
                 drawCalls: 10, triangles: 2000, sprites: 50,
-                text: 5, spine: 1, meshes: 2, culled: 3,
+                text: 5, skeletal: 1, meshes: 2, culled: 3,
             };
             const tick2: rendererModule.RenderStats = {
                 drawCalls: 20, triangles: 4000, sprites: 80,
-                text: 8, spine: 2, meshes: 4, culled: 6,
+                text: 8, skeletal: 2, meshes: 4, culled: 6,
             };
 
             const spy = vi.spyOn(rendererModule.Renderer, 'getStats');
@@ -626,7 +626,7 @@ await app.tick(1 / 60);
             expect(stats.triangles).toBe(4000);
             expect(stats.sprites).toBe(80);
             expect(stats.text).toBe(8);
-            expect(stats.spine).toBe(2);
+            expect(stats.skeletal).toBe(2);
             expect(stats.meshes).toBe(4);
             expect(stats.culled).toBe(6);
         });
@@ -641,7 +641,7 @@ await app.tick(1 / 60);
             expect(stats.triangles).toBe(0);
             expect(stats.sprites).toBe(0);
             expect(stats.text).toBe(0);
-            expect(stats.spine).toBe(0);
+            expect(stats.skeletal).toBe(0);
             expect(stats.meshes).toBe(0);
             expect(stats.culled).toBe(0);
         });
@@ -698,7 +698,7 @@ describe('StatsOverlay', () => {
             systemTimings: new Map(),
             phaseTimings: new Map(),
             drawCalls: 0, triangles: 0, sprites: 0,
-            text: 0, spine: 0, meshes: 0, culled: 0,
+            text: 0, skeletal: 0, meshes: 0, culled: 0,
             ...overrides,
         };
     }
