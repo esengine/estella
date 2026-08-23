@@ -68,7 +68,8 @@ export type {
 export { initMiniGameRuntime, type MiniGameRuntimeConfig } from './runtime/miniGameRuntime';
 
 // The family backends, exported so a profile can wrap or replace one rather than
-// write it from scratch.
+// write it from scratch — with what a replacement is handed at construction.
+export type { VideoBackendContext } from './video/PlatformVideoBackend';
 export { MiniGameAudioBackend } from './audio/MiniGameAudioBackend';
 export { MiniGameSocket } from './net/MiniGameSocket';
 export { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from './sideModules';

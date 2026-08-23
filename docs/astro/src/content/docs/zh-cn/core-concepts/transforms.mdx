@@ -143,7 +143,6 @@ const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 | 辅助函数 | 签名 | 说明 |
 |---|---|---|
 | `quaternionToAngle2D` | `(rz, rw) => number` | 由四元数的 `z`/`w` 求 Z 角度(弧度)。 |
-| `facingFromQuat` | `(z, w) => number` | 同样的数学;AI/感知模块的写法。 |
 | `normalizeAngle` | `(a) => number` | 把任意角度归一到 `(-π, π]`——用于最短转向差值。 |
 
 完整示例——炮塔跟踪光标:
@@ -151,7 +150,7 @@ const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 ```typescript
 import {
   defineSystem, defineTag, Query, Mut, Res,
-  Transform, CameraView, quat, facingFromQuat, normalizeAngle,
+  Transform, CameraView, quat, quaternionToAngle2D, normalizeAngle,
 } from 'esengine';
 
 const Turret = defineTag('Turret');
@@ -167,7 +166,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
     t.rotation = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 
     // Or, to turn gradually: read the current facing and step toward the target.
-    const facing = facingFromQuat(t.rotation.z, t.rotation.w);
+    const facing = quaternionToAngle2D(t.rotation.z, t.rotation.w);
     const delta = normalizeAngle(angle - facing); // shortest signed turn
   }
 });

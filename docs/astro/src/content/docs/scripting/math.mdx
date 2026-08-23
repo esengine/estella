@@ -79,7 +79,7 @@ Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
 handful of exports cover the angle ↔ quaternion round trip:
 
 ```typescript
-import { quat, quaternionToAngle2D, facingFromQuat, normalizeAngle } from 'esengine';
+import { quat, quaternionToAngle2D, normalizeAngle } from 'esengine';
 
 // Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
 const a = Math.PI / 3;
@@ -87,7 +87,6 @@ const rot = quat(Math.cos(a / 2), 0, 0, Math.sin(a / 2));
 
 // Quaternion -> angle (radians), from the z/w components.
 const facing = quaternionToAngle2D(rot.z, rot.w);   // Math.PI / 3
-facingFromQuat(rot.z, rot.w);                       // same math, the AI/perception spelling
 
 // Wrap to (-π, π] — the shortest signed turn from facing toward a target angle.
 const delta = normalizeAngle(targetAngle - facing);
@@ -97,7 +96,6 @@ const delta = normalizeAngle(targetAngle - facing);
 |---|---|
 | `quat(w?, x?, y?, z?)` | Quaternion factory; no arguments gives the identity `{w: 1, x: 0, y: 0, z: 0}`. |
 | `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z`/`w` (`2 * atan2(z, w)`). |
-| `facingFromQuat(z, w)` | Identical math under its AI/perception name. |
 | `normalizeAngle(a)` | Wrap any angle to `(-π, π]` for shortest-turn comparisons. |
 
 For direction *vectors* instead of rotations, stay in `v2`: `fromAngle` /

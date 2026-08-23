@@ -193,6 +193,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The manual taught an import that does not exist.** `facingFromQuat` was
+  removed when perception moved to a dot-product cone, and four pages went on
+  importing it — including a complete turret example a reader would copy. It is
+  `quaternionToAngle2D`, the same arithmetic under the name that survived. Two
+  more imports named symbols that exist but were never exported:
+  `VideoBackendContext` (what a replacement video backend is handed) and
+  `wechatProfile` (the host profile you spread to change one thing) — both are
+  extension points the same pages teach, so they are exported now rather than
+  written out of the docs. New gate `check-doc-imports`: an import line in the
+  manual must name something the SDK exports, because a reader copies it
+  verbatim.
+
 - **A C++ harness that had never been compiled.** `test_bitmap_font` asserts the
   guard on `BitmapFont::createLabelAtlas` against degenerate dimensions — a
   divide-by-zero that traps on wasm and fills the atlas with garbage where it does

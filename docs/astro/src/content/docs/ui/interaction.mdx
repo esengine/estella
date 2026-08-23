@@ -222,7 +222,7 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 | Helper | Returns | Use |
 |---|---|---|
-| `uiHitTestWorld(world, x, y, …)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
+| `uiHitTestWorld(world, x, y)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
 | `uiPickWorld(world, x, y)` | Topmost UI entity or `null` | Editor-style pick, ignores `Interactable`. |
 | `uiPickAllWorld(world, x, y)` | All UI entities under the point, most specific first | Pick-through menus, debug overlays. |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` world point | Project a GL-oriented screen point through the UI camera. |

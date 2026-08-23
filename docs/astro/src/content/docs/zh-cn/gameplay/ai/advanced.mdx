@@ -66,7 +66,7 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
 - **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`**——纯几何:
   先查距离,再查视野锥(`halfFov` 是锥角的*一半*,弧度;≥ π 表示全向),最后走可选的
   遮挡回调。
-- **`facingFromQuat(z, w)`**——从 `Transform` 旋转四元数的 z/w 分量求 2D 朝向角
+- **`quaternionToAngle2D(z, w)`**——从 `Transform` 旋转四元数的 z/w 分量求 2D 朝向角
   (弧度)。
 - **`makeLosCheck(physics)`**——用物理射线构建遮挡回调:任何命中明显落在目标之前
   (`fraction < 0.98`——最后约 2% 是目标自己)即视为遮挡。
@@ -75,12 +75,12 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
   `Perception` 组件。
 
 ```typescript
-import { senseTarget, facingFromQuat, Transform, registerCondition } from 'esengine';
+import { senseTarget, quaternionToAngle2D, Transform, registerCondition } from 'esengine';
 
 // A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
   const tf = ctx.get(Transform);
-  const facing = facingFromQuat(tf.rotation.z, tf.rotation.w);
+  const facing = quaternionToAngle2D(tf.rotation.z, tf.rotation.w);
   return senseTarget(
     tf.position.x, tf.position.y, facing,
     SHRINE.x, SHRINE.y,

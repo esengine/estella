@@ -38,3 +38,6 @@ export {
     initWeChatRuntime,
     type WeChatRuntimeConfig,
 } from './runtime/wechatRuntime';
+
+// The host as data: spread it to keep everything but the one thing you replace.
+export { wechatProfile } from './platform/wechat';

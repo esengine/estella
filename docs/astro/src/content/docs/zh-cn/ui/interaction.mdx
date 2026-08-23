@@ -207,7 +207,7 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 | 辅助函数 | 返回 | 用途 |
 |---|---|---|
-| `uiHitTestWorld(world, x, y, …)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
+| `uiHitTestWorld(world, x, y)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
 | `uiPickWorld(world, x, y)` | 最顶层 UI 实体或 `null` | 编辑器式拾取,无视 `Interactable`。 |
 | `uiPickAllWorld(world, x, y)` | 该点下全部 UI 实体,最具体的在前 | 穿透式菜单、调试叠层。 |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` 世界点 | 把 GL 朝向的屏幕点经 UI 相机投到世界。 |

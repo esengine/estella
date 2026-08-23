@@ -71,7 +71,7 @@ targets), or unit tests against a fake world:
 - **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`** — the pure
   geometry: a range check, a FOV cone check (`halfFov` is *half* the cone in
   radians; ≥ π means omnidirectional), then the optional occlusion callback.
-- **`facingFromQuat(z, w)`** — 2D facing angle in radians from a `Transform`
+- **`quaternionToAngle2D(z, w)`** — 2D facing angle in radians from a `Transform`
   rotation quaternion's z/w components.
 - **`makeLosCheck(physics)`** — builds the occlusion callback from a physics
   raycast: occluded when any hit lands clearly short of the target
@@ -81,12 +81,12 @@ targets), or unit tests against a fake world:
   the nearest visible one, and write the `Perception` component.
 
 ```typescript
-import { senseTarget, facingFromQuat, Transform, registerCondition } from 'esengine';
+import { senseTarget, quaternionToAngle2D, Transform, registerCondition } from 'esengine';
 
 // A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
   const tf = ctx.get(Transform);
-  const facing = facingFromQuat(tf.rotation.z, tf.rotation.w);
+  const facing = quaternionToAngle2D(tf.rotation.z, tf.rotation.w);
   return senseTarget(
     tf.position.x, tf.position.y, facing,
     SHRINE.x, SHRINE.y,

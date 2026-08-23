@@ -153,12 +153,11 @@ const angle = Math.PI / 4;                                   // 45° CCW
 const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 ```
 
-To read the angle back, two equivalent helpers compute `2 * atan2(z, w)`:
+To read the angle back, `2 * atan2(z, w)`:
 
 | Helper | Signature | Notes |
 |---|---|---|
 | `quaternionToAngle2D` | `(rz, rw) => number` | Z angle in radians from a quaternion's `z`/`w`. |
-| `facingFromQuat` | `(z, w) => number` | Same math; the AI/perception spelling. |
 | `normalizeAngle` | `(a) => number` | Wrap any angle to `(-π, π]` — for shortest-turn deltas. |
 
 A complete example — turrets tracking the cursor:
@@ -166,7 +165,7 @@ A complete example — turrets tracking the cursor:
 ```typescript
 import {
   defineSystem, defineTag, Query, Mut, Res,
-  Transform, CameraView, quat, facingFromQuat, normalizeAngle,
+  Transform, CameraView, quat, quaternionToAngle2D, normalizeAngle,
 } from 'esengine';
 
 const Turret = defineTag('Turret');
@@ -182,7 +181,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
     t.rotation = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 
     // Or, to turn gradually: read the current facing and step toward the target.
-    const facing = facingFromQuat(t.rotation.z, t.rotation.w);
+    const facing = quaternionToAngle2D(t.rotation.z, t.rotation.w);
     const delta = normalizeAngle(angle - facing); // shortest signed turn
   }
 });
