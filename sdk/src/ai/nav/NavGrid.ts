@@ -62,6 +62,9 @@ export class NavGrid implements NavSurface {
     readonly originZ: number;
     /** Row-major walkability, 1 = walkable. Mutable via {@link setWalkable}. */
     readonly walkable: Uint8Array;
+    /** Cells an obstacle is standing on, or null while nothing blocks. Kept apart
+     *  from `walkable` so a door closing and reopening cannot erase the map. */
+    private obstructed_: Uint8Array | null = null;
 
     constructor(opts: NavGridOptions) {
         this.width = opts.width;
@@ -89,12 +92,36 @@ export class NavGrid implements NavSurface {
     }
 
     isWalkable(gx: number, gy: number): boolean {
-        return this.inBounds(gx, gy) && this.walkable[gy * this.width + gx] === 1;
+        if (!this.inBounds(gx, gy)) return false;
+        const i = gy * this.width + gx;
+        return this.walkable[i] === 1 && (this.obstructed_ === null || this.obstructed_[i] === 0);
     }
 
     setWalkable(gx: number, gy: number, walkable: boolean): void {
         if (!this.inBounds(gx, gy)) return;
         this.walkable[gy * this.width + gx] = walkable ? 1 : 0;
+        this.clearance_ = null;
+    }
+
+    /**
+     * Put something in the way of a cell, or take it out again. The map's own
+     * walkability is untouched: an obstacle is a thing standing ON the ground, and
+     * lifting it has to give back exactly the ground that was there.
+     */
+    setObstructed(gx: number, gy: number, obstructed: boolean): void {
+        if (!this.inBounds(gx, gy)) return;
+        if (!this.obstructed_) {
+            if (!obstructed) return;
+            this.obstructed_ = new Uint8Array(this.width * this.height);
+        }
+        this.obstructed_[gy * this.width + gx] = obstructed ? 1 : 0;
+        this.clearance_ = null;
+    }
+
+    /** Lift everything off the ground at once, before the obstacles are re-marked. */
+    clearObstructions(): void {
+        if (!this.obstructed_) return;
+        this.obstructed_.fill(0);
         this.clearance_ = null;
     }
 

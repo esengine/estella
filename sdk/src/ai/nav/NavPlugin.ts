@@ -28,8 +28,13 @@ import { log } from '../../util/logger';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
 import { NavVolume } from './NavVolume';
+import { NavObstacle } from './NavObstacle';
 import { buildNavMesh } from './navmesh/build';
 import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
+import {
+    applyObstaclesToGrid, collectNavObstacles, navObstacleDigest, type NavObstacleBox,
+} from './navObstacles';
+import { NavGrid } from './NavGrid';
 import { setupNavDebugDraw } from './NavDebugDraw';
 import { advanceAlongPath } from './follow';
 
@@ -59,6 +64,7 @@ export function bakeVolumes(
     nav: Navigation,
     geometry: NavGeometryProvider | null,
     baked: Set<Entity>,
+    obstacles: readonly NavObstacleBox[] = [],
 ): void {
     if (!geometry) return;
     const volumes = world.getEntitiesWithComponents([NavVolume, Transform]);
@@ -82,6 +88,7 @@ export function bakeVolumes(
             agentHeight: volume.agentHeight,
             agentRadius: volume.agentRadius,
             stepHeight: volume.stepHeight,
+            obstacles,
         });
         nav.setSurface(mesh);
 
@@ -101,6 +108,59 @@ export function bakeVolumes(
         return;
     }
 }
+
+/**
+ * Take the obstacles as they are now, and say whether the surface had to be
+ * rebuilt for them. Blocking is a bake input, not a query filter — one marked
+ * after the erosion would leave routes scraping its face — so a door opening is a
+ * bake, throttled to one per NAV_REBAKE_MS. `state` is carried across frames.
+ */
+export function updateObstacles(
+    nav: Navigation, obstacles: readonly NavObstacleBox[], state: ObstacleState, now: number,
+): boolean {
+    const digest = navObstacleDigest(obstacles);
+    const grid = nav.surface instanceof NavGrid ? nav.surface : null;
+    const changed = digest !== state.digest;
+    // A grid the game only just installed has never had the obstacles put on it,
+    // however long they have stood still.
+    const unmarked = grid !== null && grid !== state.grid;
+    if (!changed && !unmarked) return false;
+    if (changed && now - state.at < NAV_REBAKE_MS) {
+        // Something is still moving. Say so ONCE: an obstacle that never settles
+        // rebuilds the world several times a second, which is a scene to fix
+        // rather than a cost to absorb.
+        if (++state.deferred === REBAKE_COMPLAINT) {
+            log.warn('nav', 'a NavObstacle keeps moving, so the navigable world keeps being'
+                + ' rebuilt — an obstacle is for something that blocks and then stops,'
+                + ' not for something that travels');
+        }
+        return false;
+    }
+    state.digest = digest;
+    state.at = now;
+    state.deferred = 0;
+    // A grid blocks by the cell and can be re-marked in place; a mesh has to be
+    // baked again, which is what the caller does with a `true`.
+    if (grid) {
+        applyObstaclesToGrid(grid, obstacles);
+        state.grid = grid;
+    }
+    return changed;
+}
+
+/** What the obstacles were when the world was last built for them. */
+export interface ObstacleState {
+    digest: number;
+    at: number;
+    deferred: number;
+    grid: NavGrid | null;
+}
+
+/** The shortest gap between two rebuilds. A door should shut at once; something
+ *  that keeps moving must not take the frame rate with it. */
+const NAV_REBAKE_MS = 200;
+/** How many deferred rebuilds in a row are worth a word about the scene. */
+const REBAKE_COMPLAINT = 8;
 
 /** The slice of `World` the nav step needs — lets tests inject a fake. */
 export interface NavWorldView {
@@ -255,6 +315,7 @@ export class NavPlugin implements Plugin {
 
         const runtimes = new Map<Entity, AgentRuntime>();
         const baked = new Set<Entity>();
+        const obstacleState: ObstacleState = { digest: 0, at: 0, deferred: 0, grid: null };
         app.world.onDespawn((entity: Entity) => {
             runtimes.delete(entity);
             baked.delete(entity);
@@ -272,13 +333,15 @@ export class NavPlugin implements Plugin {
                         ? (min: Vec3, max: Vec3, layers: number) =>
                             collectNavGeometry(app.world, { min, max, layers })
                         : null;
-                    bakeVolumes(world as NavWorldView, nav, provider, baked);
+                    const obstacles = collectNavObstacles(app.world);
+                    if (updateObstacles(nav, obstacles, obstacleState, Date.now())) baked.clear();
+                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles);
                     stepNavigation(world as NavWorldView, nav, time.delta, runtimes);
                 },
                 {
                     name: 'NavAgentSystem',
                     touches: {
-                        reads: [NavVolume._name],
+                        reads: [NavVolume._name, NavObstacle._name],
                         writes: [NavAgent._name, Transform._name, CharacterController3D._name],
                     },
                     // Both move an entity; for one carrying both, the path is the

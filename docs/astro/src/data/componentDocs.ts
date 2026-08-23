@@ -144,7 +144,8 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
 
   // ── Gameplay ───────────────────────────────────────────────────────────────
   NavAgent: { category: 'gameplay', summary: 'Steers an entity along a path found on the navigation grid.', doc: 'gameplay/ai/navigation' },
-  NavVolume: { category: 'gameplay', summary: 'The box a navigation grid is baked over, sampled out of the 3D world.', doc: 'gameplay/ai/navigation' },
+  NavVolume: { category: 'gameplay', summary: 'The box a navigation mesh is baked over, out of the scene\u2019s own collision geometry.', doc: 'gameplay/ai/navigation' },
+  NavObstacle: { category: 'gameplay', summary: 'A box that blocks without being geometry \u2014 a door, a gate, a placed building.', doc: 'gameplay/ai/navigation' },
   Perceiver: { category: 'gameplay', summary: 'Senses nearby perception targets within a sight cone and range.', doc: 'gameplay/ai/perception' },
   Perception: { category: 'gameplay', summary: "What a perceiver currently sees — written each frame for the entity's own logic to read.", doc: 'gameplay/ai/perception' },
   PerceptionTarget: { category: 'gameplay', summary: 'Tag: perceivers can see this entity.', doc: 'gameplay/ai/perception' },

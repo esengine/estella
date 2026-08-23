@@ -24,5 +24,9 @@ export {
 export { Navigation, Nav } from './Navigation';
 export { NavAgent, type NavAgentData, setNavDestination, stopNavAgent } from './NavAgent';
 export { NavVolume, type NavVolumeData } from './NavVolume';
+export { NavObstacle, type NavObstacleData } from './NavObstacle';
+export {
+    collectNavObstacles, navObstacleDigest, applyObstaclesToGrid, type NavObstacleBox,
+} from './navObstacles';
 export { NavPlugin, navPlugin } from './NavPlugin';
 export { NavDebugDraw, drawNavDebug, type NavDebugDrawConfig } from './NavDebugDraw';

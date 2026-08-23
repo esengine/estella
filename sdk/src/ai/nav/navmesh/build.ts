@@ -23,7 +23,9 @@ import {
     filterLowHangingWalkableObstacles, filterLedgeSpans, filterWalkableLowHeightSpans,
 } from './heightfield';
 import { log } from '../../../util/logger';
-import { NavCompactField, erodeWalkableArea } from './compact';
+import {
+    NavCompactField, erodeWalkableArea, markObstacles, type NavObstacleBox,
+} from './compact';
 import { buildRegionsMonotone } from './regions';
 import { buildContours } from './contours';
 import { buildPolyMesh } from './polymesh';
@@ -57,6 +59,8 @@ export interface BuildNavMeshOptions {
     minRegionArea?: number;
     /** Corners a polygon may have. Six is the default this is tuned around. */
     maxVertsPerPoly?: number;
+    /** Boxes that block without being geometry — see `NavObstacle`. */
+    obstacles?: readonly NavObstacleBox[];
 }
 
 export function buildNavMesh(
@@ -90,6 +94,7 @@ export function buildNavMesh(
     filterWalkableLowHeightSpans(hf, walkableHeight);
 
     const chf = new NavCompactField(hf, walkableHeight, walkableClimb);
+    if (opts.obstacles?.length) markObstacles(chf, opts.obstacles);
     erodeWalkableArea(chf, walkableRadius);
     buildRegionsMonotone(chf, minRegionArea);
 

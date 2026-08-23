@@ -1990,6 +1990,28 @@
       ]
     },
     {
+      "name": "NavObstacle",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(50, 100, 50)"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether it blocks right now — a door that opens."
+        }
+      ],
+      "animatable": [
+        "halfExtents.x",
+        "halfExtents.y",
+        "halfExtents.z"
+      ]
+    },
+    {
       "name": "NavVolume",
       "source": "ts",
       "fields": [

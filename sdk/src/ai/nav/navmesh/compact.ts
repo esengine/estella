@@ -18,7 +18,8 @@
 import {
     DIR_X, DIR_Z, NAV_AREA_NULL, NAV_SPAN_MAX_HEIGHT, type NavHeightfield,
 } from './heightfield';
-import type { Vec3 } from '../../../types';
+import type { Quat, Vec3 } from '../../../types';
+import { q } from '../../../math/quat';
 
 /** A direction with no reachable neighbour. Six bits per direction, so 63 is the
  *  one value that cannot also be a span offset. */
@@ -142,6 +143,51 @@ export class NavCompactField {
                             break;
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** A box that blocks, in world space, turned by its own rotation. */
+export interface NavObstacleBox {
+    center: Vec3;
+    halfExtents: Vec3;
+    rotation: Quat;
+}
+
+/**
+ * Take the ground inside each box away, BEFORE the erosion — so the mesh pulls
+ * back from an obstacle by the agent's width, exactly as it does from a wall. An
+ * obstacle marked after eroding would leave routes scraping along its face.
+ */
+export function markObstacles(chf: NavCompactField, obstacles: readonly NavObstacleBox[]): void {
+    const cs = chf.cellSize;
+    const ch = chf.cellHeight;
+    for (const box of obstacles) {
+        const reach = Math.abs(box.halfExtents.x) + Math.abs(box.halfExtents.y)
+            + Math.abs(box.halfExtents.z);
+        const x0 = Math.max(0, Math.floor((box.center.x - reach - chf.min.x) / cs));
+        const x1 = Math.min(chf.width - 1, Math.ceil((box.center.x + reach - chf.min.x) / cs));
+        const z0 = Math.max(0, Math.floor((box.center.z - reach - chf.min.z) / cs));
+        const z1 = Math.min(chf.depth - 1, Math.ceil((box.center.z + reach - chf.min.z) / cs));
+        const inverse = { x: -box.rotation.x, y: -box.rotation.y, z: -box.rotation.z, w: box.rotation.w };
+
+        for (let z = z0; z <= z1; z++) {
+            for (let x = x0; x <= x1; x++) {
+                const c = x + z * chf.width;
+                const start = chf.cellIndex[c]!;
+                const end = start + chf.cellCount[c]!;
+                const wx = chf.min.x + (x + 0.5) * cs - box.center.x;
+                const wz = chf.min.z + (z + 0.5) * cs - box.center.z;
+                for (let i = start; i < end; i++) {
+                    if (chf.areas[i] === NAV_AREA_NULL) continue;
+                    const wy = chf.min.y + chf.y[i]! * ch - box.center.y;
+                    const local = q.rotate(inverse, { x: wx, y: wy, z: wz });
+                    if (Math.abs(local.x) > box.halfExtents.x) continue;
+                    if (Math.abs(local.y) > box.halfExtents.y) continue;
+                    if (Math.abs(local.z) > box.halfExtents.z) continue;
+                    chf.areas[i] = NAV_AREA_NULL;
                 }
             }
         }

@@ -673,6 +673,10 @@ export {
     Nav,
     NavAgent,
     NavVolume,
+    NavObstacle,
+    collectNavObstacles,
+    navObstacleDigest,
+    applyObstaclesToGrid,
     setNavDestination,
     stopNavAgent,
     NavPlugin,
@@ -692,6 +696,8 @@ export {
     type BuildNavGridOptions,
     type NavAgentData,
     type NavVolumeData,
+    type NavObstacleData,
+    type NavObstacleBox,
     type NavDebugDrawConfig,
 } from './ai';
 

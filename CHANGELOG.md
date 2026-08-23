@@ -170,6 +170,20 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **A door can shut.** `NavObstacle` is a box that takes ground away from the
+  navigable world without being geometry — a door, a gate, a tower just built —
+  and `enabled` is what opens it again. Blocking is a BAKE input rather than a
+  filter over the answer: the ground goes before the walkable area is eroded, so a
+  route keeps the agent's full width clear of an obstacle instead of scraping its
+  face. Changing one rebuilds the world, at most a few times a second, and an
+  obstacle that never stops moving says so once rather than taking the frame rate
+  with it. Both surfaces answer to it: a mesh is baked again, a grid has the cells
+  under the box marked — in a mask of its own, so a door closing and opening gives
+  back exactly the ground that was there, including the ground the map itself said
+  was blocked. Unlike the volume it turns with its entity, because a volume IS the
+  voxel grid and this only marks cells in one. New editor check `nav3d-obstacle`
+  shuts a doorway in a running game and opens it again.
+
 - **A NavAgent with a body is steered, not moved.** The follower wrote the
   Transform, which is right for a marker and wrong for a character: a
   `CharacterController3D` has a solver of its own that collides, steps up and
