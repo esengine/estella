@@ -160,6 +160,30 @@ stopNavAgent(world, entity);
 only replans when the target actually moves or `repathInterval` elapses. Read
 `agent.arrived` (or `Perception`) to know when to switch behavior.
 
+## Agents with a body
+
+An agent whose entity also carries a **`CharacterController3D`** is **steered**
+rather than moved: the plugin writes the controller's horizontal velocity toward
+the next waypoint and lets the character's own solver do the walking, so the agent
+collides with the world, steps up what it can and falls where it should. The
+vertical axis is never written — that one belongs to the world, which is what makes
+a route down a step a fall rather than a glide.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 200, z: 0 } })
+  .insert(CharacterController3D, { radius: 30, halfHeight: 50 })
+  .insert(NavAgent, { speed: 400, arriveRadius: 90 });
+```
+
+Distances are measured in the ground plane for such an agent, because a character
+stands with its capsule's centre above the floor the route was planned on. Set the
+volume's `agentRadius` to the controller's `radius` (and `agentHeight` to roughly
+twice `halfHeight` plus the radius) so the mesh is the set of places that body fits.
+
+Without a controller the agent's Transform is moved along the path directly, which
+is what every flat game wants and what a 3D one gets before it has a body.
+
 ## Agents have width
 
 On a **grid**, set `radius` to the body's actual half-width and planning keeps it

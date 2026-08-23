@@ -29,8 +29,21 @@ class FakeWorld implements NavWorldView {
         return e;
     }
 
+    /** Give an agent a body, so the follower steers it instead of moving it. */
+    giveCharacter(entity: Entity, over: Record<string, unknown> = {}): void {
+        this.store.set(`${entity}:CharacterController3D`, {
+            velocity: { x: 0, y: 0, z: 0 }, enabled: true, ...over,
+        });
+    }
+    character(entity: Entity): { velocity: { x: number; y: number; z: number }; enabled: boolean } {
+        return this.store.get(`${entity}:CharacterController3D`) as never;
+    }
+
     getEntitiesWithComponents(): Entity[] {
         return this.entities;
+    }
+    has(entity: Entity, component: { _name: string }): boolean {
+        return this.store.has(`${entity}:${component._name}`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     get(entity: Entity, component: { _name: string }): any {
@@ -40,6 +53,9 @@ class FakeWorld implements NavWorldView {
         this.store.set(`${entity}:${component._name}`, data);
     }
 
+    place(entity: Entity, x: number, y: number): void {
+        this.store.set(`${entity}:Transform`, { position: { x, y, z: 0 } });
+    }
     pos(entity: Entity): { x: number; y: number } {
         const tf = this.store.get(`${entity}:Transform`) as { position: { x: number; y: number } };
         return { x: tf.position.x, y: tf.position.y };
@@ -237,5 +253,52 @@ describe('navGridFromTilemapLayer', () => {
         // The tilemap draws its row 0 at the top: origin.y + (height-1)*cellSize.
         expect(blocked.y).toBe(-16 + 2 * cellSize);
         expect(grid.isWalkable(1, 2)).toBe(false);
+    });
+});
+
+// A character has a solver of its own — it collides, steps up and falls. A
+// follower that wrote the Transform would undo all three every frame, so what
+// it writes instead is where the body should be TRYING to go.
+describe('an agent with a body', () => {
+    const walker = (): { world: FakeWorld; nav: Navigation; entity: Entity } => {
+        const world = new FakeWorld();
+        const entity = world.spawnAgent(0, 0, { speed: 100, arriveRadius: 0, hasTarget: true, targetX: 80, targetY: 0 });
+        world.giveCharacter(entity);
+        return { world, nav: openNav(), entity };
+    };
+
+    it('is steered rather than moved', () => {
+        const { world, nav, entity } = walker();
+        stepNavigation(world, nav, 1 / 60, new Map());
+        expect(world.pos(entity)).toEqual({ x: 0, y: 0 });
+        expect(world.character(entity).velocity.x).toBeCloseTo(100, 3);
+    });
+
+    // The world carries the vertical axis: a zero written there is "walk", and
+    // a follower that wrote one would hold the body up in the air.
+    it('never writes the axis the world carries', () => {
+        const { world, nav, entity } = walker();
+        world.character(entity).velocity.y = -320;
+        stepNavigation(world, nav, 1 / 60, new Map());
+        expect(world.character(entity).velocity.y).toBe(-320);
+    });
+
+    it('stops the body when it arrives', () => {
+        const { world, nav, entity } = walker();
+        const runtimes = new Map<Entity, AgentRuntime>();
+        stepNavigation(world, nav, 1 / 60, runtimes);
+        // Put it on the goal; a body is not snapped there, it walks there.
+        world.place(entity, 80, 0);
+        stepNavigation(world, nav, 1 / 60, runtimes);
+        expect(world.agent(entity).arrived).toBe(true);
+        expect(world.character(entity).velocity.x).toBe(0);
+        expect(world.character(entity).velocity.z).toBe(0);
+    });
+
+    it('is moved like anything else when its body is switched off', () => {
+        const { world, nav, entity } = walker();
+        world.character(entity).enabled = false;
+        stepNavigation(world, nav, 1 / 60, new Map());
+        expect(world.pos(entity).x).toBeGreaterThan(0);
     });
 });

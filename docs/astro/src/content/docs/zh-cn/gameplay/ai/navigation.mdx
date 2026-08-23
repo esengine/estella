@@ -143,6 +143,27 @@ stopNavAgent(world, entity);
 `repathInterval` 到点时,agent 才重新规划。读 `agent.arrived`(或 `Perception`)来判断何时
 切换行为。
 
+## 有身体的 agent
+
+如果 agent 所在实体同时带着 **`CharacterController3D`**,插件就**操舵**它而不是搬动它:
+把控制器的水平速度指向下一个路点,由角色自己的求解器去走——于是它会和世界碰撞、爬得上去的
+台阶就爬、该掉下去的地方就掉。垂直轴永远不写,那个轴是世界的,正是它让「下一级台阶」是掉
+下去而不是滑下去。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 200, z: 0 } })
+  .insert(CharacterController3D, { radius: 30, halfHeight: 50 })
+  .insert(NavAgent, { speed: 400, arriveRadius: 90 });
+```
+
+这种 agent 的距离都在地平面上量,因为角色是**胶囊中心**悬在路线所在的地面之上的。把体积的
+`agentRadius` 设成控制器的 `radius`(`agentHeight` 大致设成 `halfHeight` 的两倍加半径),
+网格才是「这个身体站得下的所有位置」。
+
+没有控制器时,agent 的 Transform 会被直接沿路径推进——平面游戏要的就是这个,3D 游戏在还没有
+身体之前拿到的也是这个。
+
 ## agent 是有宽度的
 
 在**格子**上,把 `radius` 设成身体的实际半宽,寻路就会绕开它挤不过去的缝隙。留在 `0` 表示

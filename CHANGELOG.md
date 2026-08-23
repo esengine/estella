@@ -170,6 +170,19 @@ published separately; it ships inside the editor.
   than the box around them. Nothing waits for the solver any more: the geometry is
   in the scene from the first frame.
 
+- **A NavAgent with a body is steered, not moved.** The follower wrote the
+  Transform, which is right for a marker and wrong for a character: a
+  `CharacterController3D` has a solver of its own that collides, steps up and
+  falls, and a Transform written from outside it fights that solver and loses —
+  measured, an agent driven that way does not move at all. An entity carrying one
+  now has its horizontal velocity written toward the next waypoint instead, and
+  the vertical axis is left alone, because that one is the world's and writing a
+  zero there would hold the body in the air. Distances for such an agent are
+  measured in the ground plane: a character stands with its capsule's centre above
+  the floor its route was planned on. New editor check `nav3d-character`, the one
+  place the mesh, the character solver and the follower between them all exist at
+  once.
+
 - **A route over a grid is pulled taut, like a route over a mesh.** A\* answers in
   steps of one cell, so crossing open ground came back as a staircase and an agent
   walking it wobbled down every diagonal. `shortenPath` keeps only the cells where

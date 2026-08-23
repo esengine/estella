@@ -23,6 +23,7 @@ import {
     type ComponentData,
 } from '../../ecs/component';
 import { playModeOnly } from '../../ecs/env';
+import { CharacterController3D } from '../../physics3d/Physics3DComponents';
 import { log } from '../../util/logger';
 import { Navigation, Nav } from './Navigation';
 import { NavAgent } from './NavAgent';
@@ -104,6 +105,7 @@ export function bakeVolumes(
 /** The slice of `World` the nav step needs — lets tests inject a fake. */
 export interface NavWorldView {
     getEntitiesWithComponents(components: readonly AnyComponentDef[]): readonly Entity[];
+    has<C extends AnyComponentDef>(entity: Entity, component: C): boolean;
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C>;
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void;
 }
@@ -157,20 +159,16 @@ export function stepNavigation(
         // change or repath timer) rather than churning it every frame.
         if (!rt.reachable) continue;
 
-        const pos = { x: tf.position.x, y: tf.position.y, z: tf.position.z };
-        rt.index = advanceAlongPath(pos, rt.waypoints, rt.index, agent.speed * dt);
-        tf.position.x = pos.x;
-        tf.position.y = pos.y;
-        tf.position.z = pos.z;
-        world.set(entity, Transform, tf);
+        // A body walks; anything else is moved, and which one an entity is, is
+        // what it CARRIES. A character has a solver that collides, steps up and
+        // falls; a follower writing the Transform would fight all three.
+        const character = world.has(entity, CharacterController3D)
+            ? world.get(entity, CharacterController3D) : null;
+        const done = character && character.enabled !== false
+            ? steerCharacter(world, entity, agent, rt, character, dt)
+            : walkTransform(world, entity, agent, rt, tf, dt);
 
-        // Arrival is a DISTANCE, not the end of the list: an agent that has to
-        // stop short of what it is chasing never reaches the last waypoint, and
-        // one that walks the path exactly stands on top of its target.
-        const goal = rt.waypoints[rt.waypoints.length - 1];
-        const withinGoal = goal !== undefined && agent.arriveRadius > 0
-            && Math.hypot(goal.x - pos.x, goal.y - pos.y, goal.z - pos.z) <= agent.arriveRadius;
-        if (rt.index >= rt.waypoints.length || withinGoal) {
+        if (done) {
             agent.arrived = true;
             agent.hasTarget = false;
             world.set(entity, NavAgent, agent);
@@ -178,6 +176,73 @@ export function stepNavigation(
         }
     }
 }
+
+/** Move the Transform along the path directly. Returns whether the goal is reached. */
+function walkTransform(
+    world: NavWorldView, entity: Entity, agent: ComponentData<typeof NavAgent>,
+    rt: AgentRuntime, tf: ComponentData<typeof Transform>, dt: number,
+): boolean {
+    const pos = { x: tf.position.x, y: tf.position.y, z: tf.position.z };
+    rt.index = advanceAlongPath(pos, rt.waypoints, rt.index, agent.speed * dt);
+    tf.position.x = pos.x;
+    tf.position.y = pos.y;
+    tf.position.z = pos.z;
+    world.set(entity, Transform, tf);
+
+    // Arrival is a DISTANCE, not the end of the list: an agent that has to stop
+    // short of what it is chasing never reaches the last waypoint, and one that
+    // walks the path exactly stands on top of its target.
+    const goal = rt.waypoints[rt.waypoints.length - 1];
+    const withinGoal = goal !== undefined && agent.arriveRadius > 0
+        && Math.hypot(goal.x - pos.x, goal.y - pos.y, goal.z - pos.z) <= agent.arriveRadius;
+    return rt.index >= rt.waypoints.length || withinGoal;
+}
+
+/**
+ * Point a character controller at the next waypoint and let its own solver move
+ * it. Only the horizontal axes are written — the vertical one is the world's, and
+ * that is what makes a route down a step a fall. Distances are in the ground plane
+ * for the same reason: a capsule stands with its CENTRE above the floor.
+ */
+function steerCharacter(
+    world: NavWorldView, entity: Entity, agent: ComponentData<typeof NavAgent>,
+    rt: AgentRuntime, character: ComponentData<typeof CharacterController3D>, dt: number,
+): boolean {
+    const tf = world.get(entity, Transform);
+    const pos = tf.position;
+    // A body cannot be snapped onto a waypoint, so one counts as reached when it
+    // is closer than the step this frame would have taken — otherwise an agent
+    // orbits the waypoint it can never land exactly on.
+    const reach = Math.max(agent.speed * dt * 1.5, WAYPOINT_REACH);
+    while (rt.index < rt.waypoints.length) {
+        const wp = rt.waypoints[rt.index]!;
+        if (Math.hypot(wp.x - pos.x, wp.z - pos.z) > reach) break;
+        rt.index++;
+    }
+
+    const goal = rt.waypoints[rt.waypoints.length - 1];
+    const withinGoal = goal !== undefined && agent.arriveRadius > 0
+        && Math.hypot(goal.x - pos.x, goal.z - pos.z) <= agent.arriveRadius;
+    const target = rt.waypoints[rt.index];
+    const done = rt.index >= rt.waypoints.length || withinGoal || target === undefined;
+
+    if (done) {
+        character.velocity.x = 0;
+        character.velocity.z = 0;
+    } else {
+        const dx = target.x - pos.x;
+        const dz = target.z - pos.z;
+        const length = Math.hypot(dx, dz);
+        character.velocity.x = length > 0 ? (dx / length) * agent.speed : 0;
+        character.velocity.z = length > 0 ? (dz / length) * agent.speed : 0;
+    }
+    world.set(entity, CharacterController3D, character);
+    return done;
+}
+
+/** How close a body has to get to a waypoint before the route moves on, in world
+ *  pixels, for an agent too slow for its own step to be the answer. */
+const WAYPOINT_REACH = 8;
 
 export class NavPlugin implements Plugin {
     name = 'nav';
@@ -214,7 +279,7 @@ export class NavPlugin implements Plugin {
                     name: 'NavAgentSystem',
                     touches: {
                         reads: [NavVolume._name],
-                        writes: [NavAgent._name, Transform._name],
+                        writes: [NavAgent._name, Transform._name, CharacterController3D._name],
                     },
                     // Both move an entity; for one carrying both, the path is the
                     // intent and the drift is not, so the follow lands last. The
