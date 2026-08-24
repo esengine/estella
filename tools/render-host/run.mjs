@@ -603,12 +603,12 @@ app.whenReady().then(async () => {
     let grid = null;
     if (process.env.ESTELLA_VERIFY_GRID) {
       const spacing = Number(process.env.ESTELLA_VERIFY_GRID) || 64;
-      // What the grid owes this view. A plane the eye lies IN is edge-on through
-      // the eye's own point: it has no picture, and "none" is the answer rather
-      // than a frame nobody can read.
+      // "nothing": a plane the eye lies IN meets every ray at its own point and
+      // has no picture. "grazing": a plane the eye looks ALONG lights one half far
+      // more than the other, where one it FACES lights the frame evenly.
       const wantGrid = process.env.ESTELLA_VERIFY_GRID_EXPECT ?? 'frame';
-      if (wantGrid !== 'frame' && wantGrid !== 'nothing') {
-        throw new Error(`ESTELLA_VERIFY_GRID_EXPECT is "frame" or "nothing", not "${wantGrid}"`);
+      if (!['frame', 'nothing', 'grazing'].includes(wantGrid)) {
+        throw new Error(`ESTELLA_VERIFY_GRID_EXPECT is "frame", "grazing" or "nothing", not "${wantGrid}"`);
       }
       await exec(`window.__estellaHeadless.api.setGrid(true, ${spacing})`);
       await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
@@ -644,10 +644,16 @@ app.whenReady().then(async () => {
         // A grid is there everywhere you look, so every quarter of the frame has
         // some of it. A plane seen edge-on lights one band and passes a total.
         const covers = differing > 300 && quadrants.every((q) => q > 20);
+        // Lopsided by half the frame: 1.4 sits between what the two cases measure
+        // (a floor at 4 degrees is ~1.7, a plane turned to face the eye ~1.1).
+        const top = quadrants[0] + quadrants[1];
+        const bottom = quadrants[2] + quadrants[3];
+        const lopsided = differing > 300 && Math.min(top, bottom) > 0
+          && Math.max(top, bottom) >= 1.4 * Math.min(top, bottom);
         const want = ${JSON.stringify(wantGrid)};
         return {
-          differingPixels: differing, quadrants, want,
-          ok: want === 'nothing' ? differing === 0 : covers,
+          differingPixels: differing, quadrants, want, halves: [top, bottom],
+          ok: want === 'nothing' ? differing === 0 : want === 'grazing' ? lopsided : covers,
         };
       `);
     }

@@ -2,15 +2,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    editorGridRenderer.ts
- * @brief   Infinite world-space editor grid, drawn on the view's work plane.
+ * @brief   Infinite world-space editor grid, drawn on the plane the view is about.
  *
  * `installEditorGrid(app)` registers a pre-scene draw callback (see customDraw /
  * RenderPipeline): each editor frame, when `EditorGrid.enabled` and the
  * `EditorView` is active, it draws one full-screen quad whose fragment shader
- * intersects that pixel's world ray with the plane the view works on
- * (`editorViewWorkPlane`) and paints minor / major / axis lines there. Because it
- * runs in the pre-scene pass, scene entities draw over it (UE5 / Unity
- * behaviour).
+ * intersects that pixel's world ray with the plane the view is about
+ * (`editorViewGridPlane` — the ground in a 3D view, the 2D plane in a flat one,
+ * at every angle) and paints minor / major / axis lines there. Because it runs in
+ * the pre-scene pass, scene entities draw over it (UE5 / Unity behaviour).
  *
  * The ray is built from the view's own basis rather than from a matrix inverse:
  * four vec4 params carry the eye, the two screen axes scaled to what the view
@@ -37,7 +37,7 @@ import { BlendMode } from '../render/blend';
 import { registerPreSceneDrawCallback } from '../render/customDraw';
 import {
   EditorView, editorViewHalfHeight, editorViewBasis, editorViewEye,
-  editorViewStandoff, editorViewWorkPlane, worldAxisVector,
+  editorViewStandoff, editorViewGridPlane, worldAxisVector,
 } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
 
@@ -257,7 +257,7 @@ export function installEditorGrid(app: App): void {
     if (!grid.enabled || !view.active || grid.spacing <= 0) return;
     if (!ensureResources()) return;
 
-    const plane = editorViewWorkPlane(view);
+    const plane = editorViewGridPlane(view);
     const u = worldAxisVector(plane.u);
     const v = worldAxisVector(plane.v);
     const basis = editorViewBasis(view);

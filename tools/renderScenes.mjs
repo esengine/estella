@@ -58,13 +58,17 @@ export function sceneWatchdogMs(backend, host) {
 export const SCENES = [
   { id: "sprite-default", tier: "pr", webgpu: true, env: {  } },
     // Editor grid on/off pixel diff — guards the custom-draw reflected material path (drawMeshWithMaterial + MaterialConstants UBO).
-  { id: "editor-grid", tier: "pr", host: "editor", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_STEPS: "3" } },
+  { id: "editor-grid", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_STEPS: "3" } },
     // The same grid from straight above a 3D view. It stands on the ground there, so it fills the frame; the 2D plane would be edge-on and light one band.
-  { id: "editor-grid-3d", tier: "pr", host: "editor", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,90", ESTELLA_VERIFY_STEPS: "3" } },
-  // The same 3D view head-on. A plane within ~6 degrees of edge-on hands over to the
-  // plane the eye most faces, which head-on is the 2D plane — so the grid covers the
-  // frame instead of collapsing to the one stroke an edge-on plane draws.
-  { id: "editor-grid-head-on", tier: "pr", host: "editor", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,0", ESTELLA_VERIFY_STEPS: "3" } },
+  { id: "editor-grid-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,90", ESTELLA_VERIFY_STEPS: "3" } },
+  // The same 3D view head-on, where this fixture's eye lies IN the ground: every
+  // ray meets it at the eye's own point, so it has no picture. The grid does NOT
+  // hand over to the plane the eye most faces — that hand-over is for gestures.
+  { id: "editor-grid-head-on", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_GRID_EXPECT: "nothing", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,0", ESTELLA_VERIFY_STEPS: "3" } },
+  // Just off head-on: the ground, bottom-heavy the way a floor receding to a
+  // horizon is. A plane turned to meet the eye lights the frame evenly and passes
+  // the coverage check, so "grazing" is what tells the two apart.
+  { id: "editor-grid-grazing", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_GRID_EXPECT: "grazing", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,4", ESTELLA_VERIFY_STEPS: "3" } },
   { id: "mesh-renderer", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "parallax-shape", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/parallax-shape.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/parallax-shape.textures.json", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.25,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "tilemap-flip", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },

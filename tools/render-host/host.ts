@@ -9,10 +9,12 @@
  * there is no authoring model between the scene file and the World.
  *
  * It publishes `window.__estellaHeadless`, the same shape the editor's host
- * does, so one runner drives either. Doors that only exist inside an editor
- * (the reference grid, hit-testing, the editor eye, material/mesh preview
- * renders) are absent rather than faked: a gate that needs one names the editor
- * host, and asking for one here fails with which door and why.
+ * does, so one runner drives either. Doors that need an editor SESSION —
+ * hit-testing over the authoring model, the asset previews it renders — are
+ * absent rather than faked: a gate that needs one names the editor host, and
+ * asking for one here fails with which door and why. The editor EYE and its
+ * reference grid are not among them: both are SDK resources, so the host that
+ * verifies the renderer verifies them too.
  */
 import {
     createWebApp, setEditorMode, setPlayMode, Assets, acquireWebGPUDevice,
@@ -20,6 +22,7 @@ import {
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
     finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
     RenderTexture, Camera, Sprite,
+    EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
 } from 'esengine';
 import type { App, SceneData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -132,6 +135,11 @@ async function boot(): Promise<void> {
     // ESTELLA_VERIFY_PLAY flips this per gate via setRunMode.
     setEditorMode(true);
     setPlayMode(false);
+
+    // The reference grid is SDK code drawn through an SDK resource, so the engine's
+    // own host can verify it. It stays dark until a gate asks: the renderer self-
+    // gates on EditorGrid.enabled and EditorView.active, and this host leaves both off.
+    installEditorGrid(app);
 }
 
 /**
@@ -354,15 +362,77 @@ const api = {
         return nodes.filter((e) => e.parent === null || e.parent === undefined).map((e) => build(e.id));
     },
 
-    // Editor doors, absent by design.
-    setGrid: () => editorOnly('set_grid'),
+    /**
+     * The editor's eye, which is an SDK resource and not an editor session: the
+     * camera plugin inserts `EditorView` into every App, and `installEditorGrid`
+     * draws through it. Seeded from the scene's own camera on the way on, as the
+     * editor's door does, so a gate frames what the scene frames.
+     */
+    useEditorView(on: boolean): void {
+        if (!app) throw new Error('use_editor_view before boot');
+        const view = app.getResource(EditorView);
+        if (on) seedEditorViewFromScene();
+        view.active = on;
+    },
+
+    /** Turn the eye: yaw about world +Y, pitch above the ground, in degrees. */
+    setViewOrbit(yaw: number, pitch: number): void {
+        if (!app) throw new Error('set_view_orbit before boot');
+        const view = app.getResource(EditorView);
+        view.yaw = Number(yaw) || 0;
+        view.pitch = Number(pitch) || 0;
+    },
+
+    /** Look at the scene as a 3D one, keeping the framing: the two projections
+     *  zoom with different fields, so flipping the flag alone jumps the zoom. */
+    setViewPerspective(on: boolean): void {
+        if (!app) throw new Error('set_view_perspective before boot');
+        const view = app.getResource(EditorView);
+        if (view.perspective === on) return;
+        const seen = editorViewHalfHeight(view);
+        view.perspective = on;
+        setEditorViewHalfHeight(view, seen);
+    },
+
+    /** The reference grid. Enabling seeds and activates the eye it draws through,
+     *  because this host boots with that eye inactive. */
+    setGrid(enabled: boolean, spacing?: number): void {
+        if (!app) throw new Error('set_grid before boot');
+        if (enabled) {
+            seedEditorViewFromScene();
+            app.getResource(EditorView).active = true;
+        }
+        const grid = app.getResource(EditorGrid);
+        grid.enabled = enabled;
+        if (spacing != null && Number(spacing) > 0) grid.spacing = Number(spacing);
+    },
+
+    // Editor doors, absent by design: these need an editor SESSION (a hit test
+    // over the authoring model, the asset previews it renders), not a resource.
     pick: () => editorOnly('pick'),
-    useEditorView: () => editorOnly('use_editor_view'),
-    setViewOrbit: () => editorOnly('set_view_orbit'),
-    setViewPerspective: () => editorOnly('set_view_perspective'),
     renderSceneMaterialPreview: () => editorOnly('render_scene_material_preview'),
     renderSceneMeshPreview: () => editorOnly('render_scene_mesh_preview'),
 };
+
+/**
+ * Point the editor eye where the scene's own camera looks, at the extent it sees.
+ * Not the camera's z: that is where its EYE stands, and adopting it as a focus
+ * would put everything the camera frames behind the editor's own.
+ */
+function seedEditorViewFromScene(): void {
+    if (!app) return;
+    const view = app.getResource(EditorView);
+    for (const e of app.world.getAllEntities()) {
+        const cam = app.world.get(e, Camera) as { isActive?: boolean; orthoSize?: number } | undefined;
+        if (!cam?.isActive) continue;
+        const t = app.world.get(e, Transform) as { position?: { x: number; y: number } } | undefined;
+        view.x = t?.position?.x ?? 0;
+        view.y = t?.position?.y ?? 0;
+        view.z = 0;
+        if (cam.orthoSize) setEditorViewHalfHeight(view, cam.orthoSize);
+        return;
+    }
+}
 
 /** Reads `path` ("a.b.c") out of `obj`, or undefined at the first missing hop. */
 function readFieldPath(obj: unknown, path: string): unknown {

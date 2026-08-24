@@ -14,6 +14,35 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The editor grid stops changing plane mid-orbit.** Turning a 3D view down
+  toward the horizon used to swap the grid off the ground and onto a vertical
+  plane as it passed about 6 degrees: the frame you judge a scene against turned
+  over under the drag. One function was answering two questions. A GESTURE does
+  need to hand over — a drag on a plane seen edge-on turns a pixel of cursor
+  travel into unbounded world motion — and `editorViewWorkPlane` still does,
+  unchanged. The grid now asks `editorViewGridPlane`, which is the plane the view
+  is about and nothing else: the ground in a 3D view, the 2D plane in a flat one,
+  at every angle. Held edge-on it converges into the horizon and the shader's
+  existing fade takes it, which is what every editor does and what the plane
+  saying where you are standing looks like.
+
+  Measured across the old threshold, quadrant by quadrant: at 4° above the ground
+  the grid was near-uniform (a plane turned to meet the eye) and is now
+  bottom-heavy by 1.7× (a floor receding to a horizon); exactly head-on, where
+  this scene's eye lies IN the ground, it drew a full frame and now correctly
+  draws nothing.
+
+  The three grid pixel gates moved from the editor host to the engine's own —
+  the grid is SDK code (`installEditorGrid` draws through the `EditorView`
+  resource), so `tools/render-host` opens those doors now and the gates run
+  without a private editor checkout, on both backends. A fourth
+  (`editor-grid-grazing`) pins the angle the bug lived at, with a `grazing`
+  verdict that tells a lopsided floor from an evenly-lit wall — the old
+  behaviour passed the frame-coverage check, so nothing in the suite could have
+  caught this.
+
 ### Changed
 
 - **The flat physics components take the `2D` suffix the solid ones already had.**

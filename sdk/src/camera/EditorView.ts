@@ -282,18 +282,28 @@ export interface EditorWorkPlane {
 }
 
 /**
- * Which plane that is.
+ * The plane this view is ABOUT: the ground under a 3D scene (perspective is the
+ * editor's word for looking at one), the plane 2D content lives on otherwise.
  *
- * The perspective toggle is the editor's word for "this view is looking at a 3D
- * scene", and a 3D scene stands on the ground (y = 0); orthographic is the 2D
- * editor, whose plane is the one 2D content lives on. A plane the eye looks ALONG
- * offers nothing to work on, so there the plane the eye most faces answers instead
- * — which is how a perspective view held head-on is the 2D one again.
+ * Answered by the view alone, at every angle — what the GRID draws. A grid is the
+ * frame the eye judges the scene against, so one that changes plane partway
+ * through an orbit moves the frame itself; edge-on it converges into the horizon
+ * and the shader's fade takes it.
  */
-export function editorViewWorkPlane(view: EditorViewData): EditorWorkPlane {
-  const nominal: EditorWorkPlane = view.perspective
+export function editorViewGridPlane(view: EditorViewData): EditorWorkPlane {
+  return view.perspective
     ? { u: 0, v: 2, normal: 1 }
     : { u: 0, v: 1, normal: 2 };
+}
+
+/**
+ * The plane a GESTURE acts on: {@link editorViewGridPlane}, handed over to the
+ * plane the eye most faces where it would otherwise look along it — a drag on a
+ * plane seen edge-on turns a pixel of cursor travel into unbounded world motion.
+ * Input only; the grid asks the other one.
+ */
+export function editorViewWorkPlane(view: EditorViewData): EditorWorkPlane {
+  const nominal = editorViewGridPlane(view);
   const screen = editorViewAxes(view);
   const depth = (a: WorldAxis): number =>
     Math.abs((a === 0 ? screen.x : a === 1 ? screen.y : screen.z).depth);

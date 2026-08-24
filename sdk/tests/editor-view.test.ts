@@ -69,6 +69,7 @@ import {
   editorViewBoxExtent,
   editorViewEye,
   editorViewWorkPlane,
+  editorViewGridPlane,
   moveEditorViewFocus,
   worldAxisVector,
 } from '../src/camera/EditorView';
@@ -269,6 +270,43 @@ describe('the work plane', () => {
     const p = editorViewWorkPlane(view({ pitch: 90 }));
     expect(worldAxisVector(p.normal)).toEqual({ x: 0, y: 1, z: 0 });
     expect(new Set([p.u, p.v, p.normal]).size).toBe(3);
+  });
+});
+
+describe('the grid plane', () => {
+  it('is the 2D plane in the 2D view and the ground in the 3D one', () => {
+    expect(worldAxisVector(editorViewGridPlane(view({})).normal)).toEqual({ x: 0, y: 0, z: 1 });
+    expect(worldAxisVector(editorViewGridPlane(view({ perspective: true, pitch: 40 })).normal))
+      .toEqual({ x: 0, y: 1, z: 0 });
+  });
+
+  // Straight through the angle the work plane hands over at: a reference that
+  // changes plane mid-orbit turns the frame the eye judges the scene against.
+  it('stays the ground through the angle the work plane hands over at', () => {
+    for (const pitch of [40, 12, 6, 3, 0, -3, -12]) {
+      const p = editorViewGridPlane(view({ perspective: true, pitch }));
+      expect({ pitch, normal: worldAxisVector(p.normal) })
+        .toEqual({ pitch, normal: { x: 0, y: 1, z: 0 } });
+    }
+  });
+
+  it('stays the 2D plane through a top-down orthographic orbit', () => {
+    for (const pitch of [0, 45, 85, 90]) {
+      const p = editorViewGridPlane(view({ pitch }));
+      expect({ pitch, normal: worldAxisVector(p.normal) })
+        .toEqual({ pitch, normal: { x: 0, y: 0, z: 1 } });
+    }
+  });
+
+  // Where they differ is the whole point: a gesture cannot be aimed on a plane
+  // seen edge-on, and a reference must not move. Same view, two answers.
+  it('parts from the work plane exactly where the eye looks along it', () => {
+    const headOn = view({ perspective: true });
+    expect(editorViewGridPlane(headOn).normal).toBe(1);
+    expect(editorViewWorkPlane(headOn).normal).toBe(2);
+
+    const tilted = view({ perspective: true, pitch: 40 });
+    expect(editorViewWorkPlane(tilted)).toEqual(editorViewGridPlane(tilted));
   });
 });
 
