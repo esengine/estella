@@ -4,7 +4,7 @@ import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import type { UICameraData } from '../core/ui-camera-info';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
-import { screenToWorld, worldToScreen, createInvVPCache } from './math';
+import { screenToWorld, worldToScreen, createInvVPCache, screenRay, type WorldRay } from './math';
 
 const NO_HIT = 0xffffffff;
 const vpCache = createInvVPCache();
@@ -13,6 +13,18 @@ export function screenToUiWorld(camera: UICameraData, screenGLX: number, screenG
   vpCache.update(camera.viewProjection);
   const invVP = vpCache.getInverse(camera.viewProjection);
   return screenToWorld(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+}
+
+/**
+ * The world ray a screen point names, through the UI camera.
+ *
+ * @details {@link screenToUiWorld} answers with this ray meeting ONE plane, which
+ *          picking cannot use: a mesh is a solid and a sprite stands at any depth.
+ */
+export function uiPointerRay(camera: UICameraData, screenGLX: number, screenGLY: number): WorldRay {
+  vpCache.update(camera.viewProjection);
+  const invVP = vpCache.getInverse(camera.viewProjection);
+  return screenRay(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
 }
 
 export function uiWorldToScreen(camera: UICameraData, worldX: number, worldY: number): { x: number; y: number } {
@@ -35,14 +47,16 @@ function core(world: PickableWorld) {
 }
 
 /**
- * The topmost **interactable** entity at a world point — the same raycast the
+ * The topmost **interactable** entity along a pointer ray — the same raycast the
  * interaction system runs, so a custom cursor agrees with the built-in one.
  * A query: what a press or a hover MEANS is the interaction system's business.
  */
-export function uiHitTestWorld(world: PickableWorld, worldX: number, worldY: number): Entity | null {
+export function uiHitTestWorld(world: PickableWorld, ray: WorldRay): Entity | null {
   const c = core(world);
   if (!c?.engine.uiHitTest_update || !c.engine.uiHitTest_getHitEntity) return null;
-  c.engine.uiHitTest_update(c.registry, worldX, worldY);
+  c.engine.uiHitTest_update(c.registry,
+                            ray.origin.x, ray.origin.y, ray.origin.z,
+                            ray.dir.x, ray.dir.y, ray.dir.z);
   const hit = c.engine.uiHitTest_getHitEntity();
   return hit === NO_HIT ? null : hit;
 }

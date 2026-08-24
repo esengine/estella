@@ -12,23 +12,28 @@ const world = (engine: unknown, registry: unknown = REGISTRY) =>
 const hitTester = (hit: number) =>
   ({ uiHitTest_update: vi.fn(), uiHitTest_getHitEntity: () => hit }) as any;
 
+/** A pointer straight down -Z, which is what an orthographic camera casts. */
+const rayAt = (x: number, y: number) =>
+  ({ origin: { x, y, z: 1000 }, dir: { x: 0, y: 0, z: -1 } });
+
 describe('uiHitTestWorld', () => {
   it('returns the hit entity', () => {
     const engine = hitTester(42);
-    expect(uiHitTestWorld(world(engine), 10, 20)).toBe(42);
-    expect(engine.uiHitTest_update).toHaveBeenCalledWith(REGISTRY, 10, 20);
+    expect(uiHitTestWorld(world(engine), rayAt(10, 20))).toBe(42);
+    // Six floats, not two: the engine is handed the ray, not a plane point.
+    expect(engine.uiHitTest_update).toHaveBeenCalledWith(REGISTRY, 10, 20, 1000, 0, 0, -1);
   });
 
   it('maps the no-hit sentinel to null', () => {
-    expect(uiHitTestWorld(world(hitTester(0xffffffff)), 0, 0)).toBeNull();
+    expect(uiHitTestWorld(world(hitTester(0xffffffff)), rayAt(0, 0))).toBeNull();
   });
 
   it('answers null when the world has no engine core behind it', () => {
-    expect(uiHitTestWorld(world(null), 1, 2)).toBeNull();
+    expect(uiHitTestWorld(world(null), rayAt(1, 2))).toBeNull();
   });
 
   it('answers null when the engine is there but no registry is bound', () => {
-    expect(uiHitTestWorld(world(hitTester(42), null), 1, 2)).toBeNull();
+    expect(uiHitTestWorld(world(hitTester(42), null), rayAt(1, 2))).toBeNull();
   });
 });
 

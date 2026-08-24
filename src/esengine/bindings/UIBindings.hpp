@@ -28,7 +28,13 @@ namespace ecs {
 void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty);
 
-void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
+/** The runtime raycast. The pointer is a RAY — a screen point names one, and
+ *  only a chosen plane turns it into a position — so content away from z = 0
+ *  (a mesh, a sprite on another layer) can be hit at all. `pick`/`pickAll`
+ *  below stay a point: the editor asks about the flat design surface. */
+void uiHitTest_update(ecs::Registry& registry,
+                      f32 originX, f32 originY, f32 originZ,
+                      f32 dirX, f32 dirY, f32 dirZ);
 u32 uiHitTest_getHitEntity();
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY);

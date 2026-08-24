@@ -16,6 +16,7 @@
 #include "../core/World.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ui/UISystem.hpp"
+#include "../resource/ResourceManager.hpp"
 #include "../ui/UIRenderOrderSystem.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -32,8 +33,12 @@ void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 bo
     ctx().require<ecs::UISystem>().layoutUpdate(registry, boxLeft, boxBottom, boxRight, boxTop, propertyDirty);
 }
 
-void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
-    ctx().require<ecs::UISystem>().hitTestUpdate(registry, mouseWorldX, mouseWorldY);
+void uiHitTest_update(ecs::Registry& registry,
+                      f32 originX, f32 originY, f32 originZ,
+                      f32 dirX, f32 dirY, f32 dirZ) {
+    const ecs::PickRay ray{{originX, originY, originZ}, {dirX, dirY, dirZ}};
+    ctx().require<ecs::UISystem>().hitTestUpdate(registry, ray,
+                                                 ctx().tryGet<resource::ResourceManager>());
 }
 
 u32 uiHitTest_getHitEntity() {

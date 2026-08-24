@@ -12193,7 +12193,7 @@ TrailPlugin
 
 ## uiHitTestWorld — function @experimental
 ```
-(world: PickableWorld, worldX: number, worldY: number): Entity | null
+(world: PickableWorld, ray: WorldRay): Entity | null
 ```
 
 ## uiInteractionPlugin — const @experimental

@@ -16,9 +16,12 @@
 #include "../ecs/Entity.hpp"
 #include "../ecs/Registry.hpp"
 #include "./UITree.hpp"
+#include "./UIHitTestSystem.hpp"
 
 #include <memory>
 #include <vector>
+
+namespace esengine::resource { class ResourceManager; }
 
 namespace esengine::ecs {
 
@@ -44,7 +47,7 @@ struct UIHitTestResult {
  * @code
  * auto& ui = ctx.require<ecs::UISystem>();
  * ui.layoutUpdate(registry, -960, -540, 960, 540);
- * ui.hitTestUpdate(registry, mouseX, mouseY);
+ * ui.hitTestUpdate(registry, PickRay{cameraPos, pointerDir}, &resources);
  * auto hitEntity = ui.getHitEntity();
  * @endcode
  */
@@ -77,9 +80,15 @@ public:
 
     // ---- Hit test pass (defined in UISystem.cpp) ----
 
-    /** @brief Run point-vs-UI hit-test, updating hitResult. A query: what a
-     *  press or a hover MEANS is the interaction system's, and it is in TS. */
-    void hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
+    /**
+     * @brief Run ray-vs-content hit-test, updating hitResult. A query: what a
+     *        press or a hover MEANS is the interaction system's, and it is in TS.
+     * @details UI wins any overlap, topmost first; below it world content ranks
+     *          by distance along the ray, sorting layer breaking a flat scene's
+     *          tie. Without @p resources only inline mesh geometry can be hit.
+     */
+    void hitTestUpdate(Registry& registry, const PickRay& ray,
+                       const resource::ResourceManager* resources = nullptr);
 
     /** @brief Editor pick: the most specific UI entity under the point. Unlike
      *         hitTestUpdate it ignores Interactable and mutates no state. */
@@ -102,7 +111,8 @@ public:
 
 private:
     /** @brief World-space pick for entities outside the layout tree (see .cpp) */
-    void hitWorldSprites(Registry& registry, f32 mouseWorldX, f32 mouseWorldY);
+    void hitWorldContent(Registry& registry, const PickRay& ray,
+                         const resource::ResourceManager* resources);
 
     std::vector<Entity> pickResults_;
 

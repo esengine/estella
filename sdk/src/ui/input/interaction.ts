@@ -17,7 +17,7 @@ import { ensureEntityEvents } from '../../ecs/entityEvents';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
-import { screenToUiWorld, uiHitTestWorld } from '../util/ui-pick';
+import { screenToUiWorld, uiPointerRay, uiHitTestWorld } from '../util/ui-pick';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { CppRegistry } from '../../wasm';
@@ -106,7 +106,7 @@ export class UIInteractionPlugin implements Plugin {
 
                 let hitEntity: Entity | null = hoveredEntity;
                 if (needsHitTest) {
-                    hitEntity = uiHitTestWorld(world, worldMouse.x, worldMouse.y);
+                    hitEntity = uiHitTestWorld(world, uiPointerRay(camera, mouseGLX, mouseGLY));
                 }
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {

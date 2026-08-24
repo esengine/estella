@@ -16,13 +16,16 @@
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/MeshRenderer.hpp"
+#include "../resource/ResourceManager.hpp"
 
 #include <algorithm>
 #include <cstdint>
 
 namespace esengine::ecs {
 
-void UISystem::hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
+void UISystem::hitTestUpdate(Registry& registry, const PickRay& ray,
+                             const resource::ResourceManager* resources) {
     hitResult.prev_hit_entity = hitResult.hit_entity;
     hitResult.hit_entity = INVALID_ENTITY;
 
@@ -39,6 +42,11 @@ void UISystem::hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorld
 
         auto& t = registry.get<Transform>(entity);
         t.ensureDecomposed();
+
+        // Each node answers on the plane it stands on. Orthographically that is
+        // the same point for every node, so a flat UI picks exactly as before.
+        f32 mouseWorldX = 0.0f, mouseWorldY = 0.0f, hitT = 0.0f;
+        if (!rayHitsPlaneZ(ray, t.worldPosition.z, mouseWorldX, mouseWorldY, hitT)) continue;
 
         // Hit geometry from the UINode (CSS box, pivot-centered).
         auto* node = registry.tryGet<UINode>(entity);
@@ -68,20 +76,38 @@ void UISystem::hitTestUpdate(Registry& registry, f32 mouseWorldX, f32 mouseWorld
         }
     }
 
-    hitWorldSprites(registry, mouseWorldX, mouseWorldY);
+    hitWorldContent(registry, ray, resources);
 }
 
 /**
- * World-space pick, for entities the layout tree does not contain.
+ * World-space pick, for entities the layout tree does not contain — it takes its
+ * geometry from UINode, leaving a bare Sprite and every MeshRenderer unreachable.
+ * UI wins any overlap, hence running only after a miss.
  *
- * The loop above takes its geometry from UINode, so a Sprite without one can
- * never be hit there. Its size and pivot are its visible extent, so that is the
- * box; UI wins any overlap, hence running only after a miss.
+ * Sprites answer on their own plane, meshes against their oriented bounds, both
+ * ranked by distance along the ray. A flat scene puts every sprite at the same
+ * distance, so there the sorting layer decides alone.
  */
-void UISystem::hitWorldSprites(Registry& registry, f32 mouseWorldX, f32 mouseWorldY) {
+void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
+                               const resource::ResourceManager* resources) {
     Entity best = INVALID_ENTITY;
+    f32 bestT = 0.0f;
     i32 bestLayer = 0;
     bool haveBest = false;
+
+    // Nearer wins; at the same distance the higher sorting layer does, and a tie
+    // there goes to the later entity — the order the renderer batches in.
+    const auto consider = [&](Entity entity, f32 t, i32 layer) {
+        if (haveBest) {
+            const bool sameDepth = std::abs(t - bestT) <= 1e-4f;
+            if (!sameDepth && t > bestT) return;
+            if (sameDepth && layer < bestLayer) return;
+        }
+        haveBest = true;
+        bestT = t;
+        bestLayer = layer;
+        best = entity;
+    };
 
     registry.eachLive<Sprite, Interactable>(
         [&](Entity entity, Sprite& sprite, Interactable& interactable) {
@@ -93,22 +119,46 @@ void UISystem::hitWorldSprites(Registry& registry, f32 mouseWorldX, f32 mouseWor
             auto& t = registry.get<Transform>(entity);
             t.ensureDecomposed();
 
+            f32 px = 0.0f, py = 0.0f, hitT = 0.0f;
+            if (!rayHitsPlaneZ(ray, t.worldPosition.z, px, py, hitT)) return;
+
             if (!pointInOBB(
-                mouseWorldX, mouseWorldY,
+                px, py,
                 t.worldPosition.x, t.worldPosition.y,
                 sprite.size.x * t.worldScale.x, sprite.size.y * t.worldScale.y,
                 sprite.pivot.x, sprite.pivot.y,
                 t.worldRotation.z, t.worldRotation.w
             )) return;
 
-            // Draw order decides who is on top, and layer is what carries it. A tie
-            // goes to the later entity, which is the order the renderer batches in.
-            const i32 layer = static_cast<i32>(sprite.layer);
-            if (!haveBest || layer >= bestLayer) {
-                haveBest = true;
-                bestLayer = layer;
-                best = entity;
-            }
+            consider(entity, hitT, static_cast<i32>(sprite.layer));
+        });
+
+    registry.eachLive<MeshRenderer, Interactable>(
+        [&](Entity entity, MeshRenderer& mesh, Interactable& interactable) {
+            if (!interactable.enabled || !interactable.raycastTarget) return;
+            if (!mesh.enabled) return;
+            if (registry.has<UINode>(entity)) return;
+            if (!registry.has<Transform>(entity)) return;
+
+            // Bounds come from whichever geometry this is, the same way the cull
+            // reads them: a resident mesh keeps its own and leaves the component's
+            // empty, so reading the component's would test an empty box.
+            const Mesh* resident =
+                (resources && mesh.mesh.isValid()) ? resources->getMesh(mesh.mesh) : nullptr;
+            if (!resident && mesh.indices.empty()) return;
+            const glm::vec3 localMin = resident ? resident->localMin
+                                                : glm::vec3(mesh.localMin, 0.0f);
+            const glm::vec3 localMax = resident ? resident->localMax
+                                                : glm::vec3(mesh.localMax, 0.0f);
+
+            auto& t = registry.get<Transform>(entity);
+            t.ensureDecomposed();
+
+            f32 hitT = 0.0f;
+            if (!rayHitsOBB(ray, t.worldPosition, t.worldRotation, t.worldScale,
+                            localMin, localMax, hitT)) return;
+
+            consider(entity, hitT, static_cast<i32>(mesh.layer));
         });
 
     if (!haveBest) return;
