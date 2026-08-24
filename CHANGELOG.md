@@ -16,6 +16,24 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Every rasterizer draws the same penumbra, and `sun-shadow` now says so.** A
+  sample step of disagreement on a wide sun disc had been recorded rather than
+  hidden — the gate carried tolerances wide enough to hold whichever rasterizer
+  ran, and its comment said as much. Re-measured on all three: webgl2, webgpu and
+  the software rasterizer CI runs on read the ramp `0 / 70 / 116 / 170 / 209 / 247`
+  to the value. The shadow-pass work is the only thing that has touched where an
+  ortho map lands in the atlas since, so that is where the credit goes.
+
+  So the tolerance sized to that divergence was the thing left to fix: it was
+  hiding a real invariant. The gate pins the whole ramp now — the two midpoints
+  are new — at ±10 instead of ±35 and ±25.
+
+  What that buys, measured by sabotaging the fixture rather than argued: a sun a
+  quarter narrower (`sourceAngle` 5.6 → 4.2) reshapes the penumbra to
+  `0 / 46 / 116 / 186 / 224 / 247` and **the old gate passes it** — every probe it
+  had stayed inside tolerance. The new one fails at two points. A third wider
+  (7.5) is caught squarely in the ramp rather than by the umbra probe alone.
+
 - **A new 3D project starts in linear light with an ACES output transform.** The
   `3d-starter` template ships `rendering.colorSpace: linear` and
   `rendering.outputTransform: aces`, and its two lights are re-authored for that
