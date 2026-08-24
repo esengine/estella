@@ -14,7 +14,58 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **3D physics had no door.** A scene could hold a `RigidBody3D` and a collider,
+  and the runtime loader wired a world behind it — but `Physics3DPlugin`, the
+  `Physics3D` queries resource and `Physics3DEvents` reached no entry point, so a
+  game could drop a body on the floor and had no way to cast a ray at it or hear
+  it land. Every spatial query the 3D solver gained was unreachable from user
+  code. `esengine/physics3d` now mirrors `esengine/physics` entry for entry, and
+  the new `check-plugin-door` gate holds every plugin the SDK defines to reaching
+  an entry or being composed by one that does.
+
+- **A `MeshRenderer` could not be clicked.** Runtime hit testing took a world
+  point resolved on the z = 0 plane, matched it against UI boxes and then sprite
+  boxes, and had no mesh pass at all. `uiHitTest_update` takes the world ray a
+  screen point names: UI nodes and sprites resolve it against their own plane,
+  meshes against their oriented bounds, and world content ranks by distance along
+  the ray. Orthographically every plane gives the same answer, so a flat game
+  picks exactly as it did. `Camera.screenRay` finally has a consumer.
+
+- **Six subsystems had no published maturity verdict**, all of them the engine's
+  newer half: 3D physics, 3D models, DragonBones, math, localization and platform
+  services. The table said what a creator can build on and its gate read it only
+  forwards, so a whole dimension could ship with no row naming it.
+
 ### Fixed
+
+- **A motion trail was drawn flat, at the wrong depth.** `TrailPoint` stored a
+  `vec2` sampled from `worldPosition.x/y`, and every ribbon vertex was then given
+  the emitter's *current* z — so a trail on anything moving in depth was flattened
+  and dragged its whole history through depth each frame. The centreline is a
+  `vec3` now, `minVertexDistance` measures the distance actually travelled, and
+  both ribbon paths widen along a side vector perpendicular to the path and the
+  viewer instead of an XY perpendicular each computed for itself.
+
+- **Scene streaming measured proximity in the plane**, so every floor of a tower
+  was the same place and a world stacked in depth held all of it resident at once.
+  `StreamCell` takes a `z` and `setFocus` a third coordinate, both defaulting to
+  the plane a flat game sits on.
+
+- **Fourteen components promised something their fields did not.** Each was
+  `@beta` while the `<Name>Data` interface holding its fields was
+  `@experimental` — and none of the fourteen was a decision, since untagged is
+  Experimental by design. `check-data-tiers` holds the pair together now. 3D
+  physics carried `@beta` on whichever of its symbols happened to have a doc
+  comment, which made the least-exercised half of the engine the one with the
+  stronger promise; the family reads `@experimental` throughout.
+
+- **The ACES tone curve had no criterion left.** The only assertion on it looked
+  for the Narkowicz constant in an effect's authored source, which stopped being
+  true when the curve moved behind one injected `acesFilmic()` definition — so it
+  had been failing, and the obvious fix would have removed the operator's last
+  check. Pinned where the curve is now defined, in both dialects.
 
 - **`ResourceStats.cacheHits` and `.cacheMisses` counted a loading path the
   engine no longer takes.** They are written by `loadTexture`, `loadShader` and
