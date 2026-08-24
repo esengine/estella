@@ -72,7 +72,10 @@ published separately; it ships inside the editor.
 
   **Breaking for code.** A script importing any of these from `esengine` must
   import the new name; the data interfaces follow their component
-  (`RigidBodyData` → `RigidBody2DData`).
+  (`RigidBodyData` → `RigidBody2DData`). The three hand-written pointer
+  accessors follow their component too — `getRigidBodyPtr` is
+  `getRigidBody2DPtr`, and the box and circle collider ones with it — so the
+  zero-copy path reaches the same names the generated layout table asks for.
 
 - **The SDK's flat physics surface follows, spelled the way `physics3d/` already
   spells its own.** `Physics` → `Physics2D`, `PhysicsAPI` → `Physics2DAPI`,

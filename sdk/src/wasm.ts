@@ -562,9 +562,9 @@ export interface ESEngineModule {
     getSpritePtr(registry: CppRegistry, entity: number): number;
     getVelocityPtr(registry: CppRegistry, entity: number): number;
     getCameraPtr(registry: CppRegistry, entity: number): number;
-    getRigidBodyPtr(registry: CppRegistry, entity: number): number;
-    getBoxColliderPtr(registry: CppRegistry, entity: number): number;
-    getCircleColliderPtr(registry: CppRegistry, entity: number): number;
+    getRigidBody2DPtr(registry: CppRegistry, entity: number): number;
+    getBoxCollider2DPtr(registry: CppRegistry, entity: number): number;
+    getCircleCollider2DPtr(registry: CppRegistry, entity: number): number;
 
     _malloc(size: number): number;
     _free(ptr: number): void;

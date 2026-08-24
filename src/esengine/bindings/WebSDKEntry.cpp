@@ -405,19 +405,19 @@ int getCameraPtr(ecs::Registry& r, u32 e) {
     return static_cast<int>(reinterpret_cast<uintptr_t>(c));
 }
 
-int getRigidBodyPtr(ecs::Registry& r, u32 e) {
+int getRigidBody2DPtr(ecs::Registry& r, u32 e) {
     auto* rb = r.tryGet<ecs::RigidBody2D>(Entity::fromRaw(e));
     if (!rb) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(rb));
 }
 
-int getBoxColliderPtr(ecs::Registry& r, u32 e) {
+int getBoxCollider2DPtr(ecs::Registry& r, u32 e) {
     auto* bc = r.tryGet<ecs::BoxCollider2D>(Entity::fromRaw(e));
     if (!bc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(bc));
 }
 
-int getCircleColliderPtr(ecs::Registry& r, u32 e) {
+int getCircleCollider2DPtr(ecs::Registry& r, u32 e) {
     auto* cc = r.tryGet<ecs::CircleCollider2D>(Entity::fromRaw(e));
     if (!cc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(cc));
@@ -430,9 +430,9 @@ EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
     emscripten::function("getSpritePtr", &esengine::getSpritePtr);
     emscripten::function("getVelocityPtr", &esengine::getVelocityPtr);
     emscripten::function("getCameraPtr", &esengine::getCameraPtr);
-    emscripten::function("getRigidBodyPtr", &esengine::getRigidBodyPtr);
-    emscripten::function("getBoxColliderPtr", &esengine::getBoxColliderPtr);
-    emscripten::function("getCircleColliderPtr", &esengine::getCircleColliderPtr);
+    emscripten::function("getRigidBody2DPtr", &esengine::getRigidBody2DPtr);
+    emscripten::function("getBoxCollider2DPtr", &esengine::getBoxCollider2DPtr);
+    emscripten::function("getCircleCollider2DPtr", &esengine::getCircleCollider2DPtr);
 }
 
 // Engine instancing: expose EstellaContext as

@@ -306,11 +306,11 @@ describe('Ptr-based getter vs embind - Camera', () => {
 });
 
 describe('Ptr-based getter vs embind - RigidBody2D', () => {
-    bench('embind: getRigidBody x100', () => {
+    bench('embind: getRigidBody2D x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        (reg as any).addRigidBody(e, RIGIDBODY_DATA);
-        for (let i = 0; i < 100; i++) (reg as any).getRigidBody(e);
+        (reg as any).addRigidBody2D(e, RIGIDBODY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getRigidBody2D(e);
         reg.delete();
     });
 
@@ -327,11 +327,11 @@ describe('Ptr-based getter vs embind - RigidBody2D', () => {
 });
 
 describe('Ptr-based getter vs embind - BoxCollider2D', () => {
-    bench('embind: getBoxCollider x100', () => {
+    bench('embind: getBoxCollider2D x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        (reg as any).addBoxCollider(e, BOXCOLLIDER_DATA);
-        for (let i = 0; i < 100; i++) (reg as any).getBoxCollider(e);
+        (reg as any).addBoxCollider2D(e, BOXCOLLIDER_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getBoxCollider2D(e);
         reg.delete();
     });
 
@@ -348,11 +348,11 @@ describe('Ptr-based getter vs embind - BoxCollider2D', () => {
 });
 
 describe('Ptr-based getter vs embind - CircleCollider2D', () => {
-    bench('embind: getCircleCollider x100', () => {
+    bench('embind: getCircleCollider2D x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        (reg as any).addCircleCollider(e, CIRCLECOLLIDER_DATA);
-        for (let i = 0; i < 100; i++) (reg as any).getCircleCollider(e);
+        (reg as any).addCircleCollider2D(e, CIRCLECOLLIDER_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).getCircleCollider2D(e);
         reg.delete();
     });
 
@@ -436,11 +436,11 @@ describe('Ptr-based setter vs embind - Velocity write', () => {
 });
 
 describe('Ptr-based setter vs embind - RigidBody2D write', () => {
-    bench('embind: addRigidBody (set) x100', () => {
+    bench('embind: addRigidBody2D (set) x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
-        (reg as any).addRigidBody(e, RIGIDBODY_DATA);
-        for (let i = 0; i < 100; i++) (reg as any).addRigidBody(e, RIGIDBODY_DATA);
+        (reg as any).addRigidBody2D(e, RIGIDBODY_DATA);
+        for (let i = 0; i < 100; i++) (reg as any).addRigidBody2D(e, RIGIDBODY_DATA);
         reg.delete();
     });
 
