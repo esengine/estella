@@ -56,8 +56,8 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIVisual.hpp"
-#include "../ecs/components/RigidBody.hpp"
-#include "../ecs/components/Collider.hpp"
+#include "../ecs/components/RigidBody2D.hpp"
+#include "../ecs/components/Collider2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
 #ifdef ES_ENABLE_PARTICLES
@@ -406,19 +406,19 @@ int getCameraPtr(ecs::Registry& r, u32 e) {
 }
 
 int getRigidBodyPtr(ecs::Registry& r, u32 e) {
-    auto* rb = r.tryGet<ecs::RigidBody>(Entity::fromRaw(e));
+    auto* rb = r.tryGet<ecs::RigidBody2D>(Entity::fromRaw(e));
     if (!rb) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(rb));
 }
 
 int getBoxColliderPtr(ecs::Registry& r, u32 e) {
-    auto* bc = r.tryGet<ecs::BoxCollider>(Entity::fromRaw(e));
+    auto* bc = r.tryGet<ecs::BoxCollider2D>(Entity::fromRaw(e));
     if (!bc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(bc));
 }
 
 int getCircleColliderPtr(ecs::Registry& r, u32 e) {
-    auto* cc = r.tryGet<ecs::CircleCollider>(Entity::fromRaw(e));
+    auto* cc = r.tryGet<ecs::CircleCollider2D>(Entity::fromRaw(e));
     if (!cc) return 0;
     return static_cast<int>(reinterpret_cast<uintptr_t>(cc));
 }

@@ -6,7 +6,7 @@
  * `PhysicsWasmModule` is a TypeScript interface and therefore gone at run time.
  * A `physics.wasm` built before the JS that drives it installed happily and then
  * threw `_physics_capturePoses is not a function` twice a frame for the length
- * of the session — for anyone who put a RigidBody in a scene and pressed Play.
+ * of the session — for anyone who put a RigidBody2D in a scene and pressed Play.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { PhysicsPlugin } from '../src/physics/PhysicsPlugin';

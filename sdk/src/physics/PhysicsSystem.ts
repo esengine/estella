@@ -6,7 +6,7 @@
  *          step, transform readback, event collection.
  *
  * `registerPhysicsSystem` owns all closure state (tracked bodies, joint
- * cache, cached RigidBody props). `PhysicsPlugin.build()` calls it once
+ * cache, cached RigidBody2D props). `PhysicsPlugin.build()` calls it once
  * the wasm module finishes loading.
  */
 
@@ -20,15 +20,15 @@ import { playModeOnly } from '../ecs/env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { Physics } from './Physics';
 import {
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
-    SegmentCollider, PolygonCollider, ChainCollider, OneWayPlatform,
-    RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
+    RigidBody2D, BoxCollider2D, CircleCollider2D, CapsuleCollider2D,
+    SegmentCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D,
+    RevoluteJoint2D, DistanceJoint2D, PrismaticJoint2D, WeldJoint2D, WheelJoint2D, MotorJoint2D,
     BodyType, activeCollider,
-    type RigidBodyData, type BoxColliderData, type CircleColliderData,
-    type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
-    type ChainColliderData, type OneWayPlatformData, type RevoluteJointData,
-    type DistanceJointData, type PrismaticJointData, type WeldJointData, type WheelJointData,
-    type MotorJointData,
+    type RigidBody2DData, type BoxCollider2DData, type CircleCollider2DData,
+    type CapsuleCollider2DData, type SegmentCollider2DData, type PolygonCollider2DData,
+    type ChainCollider2DData, type OneWayPlatform2DData, type RevoluteJoint2DData,
+    type DistanceJoint2DData, type PrismaticJoint2DData, type WeldJoint2DData, type WheelJoint2DData,
+    type MotorJoint2DData,
 } from './PhysicsComponents';
 import {
     PhysicsEvents,
@@ -96,7 +96,7 @@ function resolveCollisionMask(categoryBits: number, maskBits: number, layerMasks
 export function addShapeForEntity(
     world: App['world'], module: PhysicsWasmModule, entity: Entity, layerMasks?: number[],
 ): void {
-    const box = activeCollider(world, entity, BoxCollider) as BoxColliderData | null;
+    const box = activeCollider(world, entity, BoxCollider2D) as BoxCollider2DData | null;
     if (box) {
         const category = box.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, box.maskBits ?? 0xFFFF, layerMasks);
@@ -108,7 +108,7 @@ export function addShapeForEntity(
         );
     }
 
-    const circle = activeCollider(world, entity, CircleCollider) as CircleColliderData | null;
+    const circle = activeCollider(world, entity, CircleCollider2D) as CircleCollider2DData | null;
     if (circle) {
         const category = circle.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, circle.maskBits ?? 0xFFFF, layerMasks);
@@ -120,7 +120,7 @@ export function addShapeForEntity(
         );
     }
 
-    const capsule = activeCollider(world, entity, CapsuleCollider) as CapsuleColliderData | null;
+    const capsule = activeCollider(world, entity, CapsuleCollider2D) as CapsuleCollider2DData | null;
     if (capsule) {
         const category = capsule.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, capsule.maskBits ?? 0xFFFF, layerMasks);
@@ -132,7 +132,7 @@ export function addShapeForEntity(
         );
     }
 
-    const seg = activeCollider(world, entity, SegmentCollider) as SegmentColliderData | null;
+    const seg = activeCollider(world, entity, SegmentCollider2D) as SegmentCollider2DData | null;
     if (seg) {
         const category = seg.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, seg.maskBits ?? 0xFFFF, layerMasks);
@@ -143,7 +143,7 @@ export function addShapeForEntity(
         );
     }
 
-    const poly = activeCollider(world, entity, PolygonCollider) as PolygonColliderData | null;
+    const poly = activeCollider(world, entity, PolygonCollider2D) as PolygonCollider2DData | null;
     if (poly) {
         const category = poly.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, poly.maskBits ?? 0xFFFF, layerMasks);
@@ -164,7 +164,7 @@ export function addShapeForEntity(
         });
     }
 
-    const chain = activeCollider(world, entity, ChainCollider) as ChainColliderData | null;
+    const chain = activeCollider(world, entity, ChainCollider2D) as ChainCollider2DData | null;
     if (chain) {
         const pts = chain.points;
         if (pts.length < 4) return;
@@ -195,11 +195,11 @@ function createPendingJoints(
     trackedJoints: Set<Entity>,
     invPpu: number,
 ): void {
-    const jointEntities = world.getEntitiesWithComponents([RevoluteJoint, RigidBody]);
+    const jointEntities = world.getEntitiesWithComponents([RevoluteJoint2D, RigidBody2D]);
     for (const entity of jointEntities) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const joint = world.get(entity, RevoluteJoint) as RevoluteJointData;
+        const joint = world.get(entity, RevoluteJoint2D) as RevoluteJoint2DData;
         if (!joint.enabled) continue;
         const connected = joint.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -214,10 +214,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([DistanceJoint, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([DistanceJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, DistanceJoint) as DistanceJointData;
+        const j = world.get(entity, DistanceJoint2D) as DistanceJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -234,10 +234,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([PrismaticJoint, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([PrismaticJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, PrismaticJoint) as PrismaticJointData;
+        const j = world.get(entity, PrismaticJoint2D) as PrismaticJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -254,10 +254,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([WeldJoint, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([WeldJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, WeldJoint) as WeldJointData;
+        const j = world.get(entity, WeldJoint2D) as WeldJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -272,10 +272,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([WheelJoint, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([WheelJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, WheelJoint) as WheelJointData;
+        const j = world.get(entity, WheelJoint2D) as WheelJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -292,10 +292,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([MotorJoint, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([MotorJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, MotorJoint) as MotorJointData;
+        const j = world.get(entity, MotorJoint2D) as MotorJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -326,9 +326,9 @@ function syncOneWayPlatforms(
     trackedOneWay: Set<Entity>,
 ): void {
     const seen = new Set<Entity>();
-    for (const entity of world.getEntitiesWithComponents([OneWayPlatform, RigidBody])) {
+    for (const entity of world.getEntitiesWithComponents([OneWayPlatform2D, RigidBody2D])) {
         if (!trackedEntities.has(entity)) continue;
-        const ow = world.get(entity, OneWayPlatform) as OneWayPlatformData;
+        const ow = world.get(entity, OneWayPlatform2D) as OneWayPlatform2DData;
         module._physics_setOneWayPlatform(entity, ow.normal.x, ow.normal.y, ow.enabled ? 1 : 0);
         trackedOneWay.add(entity);
         seen.add(entity);
@@ -609,7 +609,7 @@ interface CachedBodyProps {
     angularDamping: number;
     fixedRotation: boolean;
     bullet: boolean;
-    /** Last-applied RigidBody.enabled — drives in-place enable/disable. */
+    /** Last-applied RigidBody2D.enabled — drives in-place enable/disable. */
     enabled: boolean;
     /** Bitmask of present collider components — drives shape rebuild on change. */
     colliderSig: number;
@@ -619,10 +619,10 @@ interface CachedBodyProps {
 // in the per-entity collider signature (presence) — a change in the set, or any
 // present collider's fields, triggers an in-place shape rebuild.
 const COLLIDER_TYPES = [
-    BoxCollider, CircleCollider, CapsuleCollider, SegmentCollider, PolygonCollider, ChainCollider,
+    BoxCollider2D, CircleCollider2D, CapsuleCollider2D, SegmentCollider2D, PolygonCollider2D, ChainCollider2D,
 ] as const;
 
-const JOINT_TYPES = [RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint] as const;
+const JOINT_TYPES = [RevoluteJoint2D, DistanceJoint2D, PrismaticJoint2D, WeldJoint2D, WheelJoint2D, MotorJoint2D] as const;
 
 /** Bitmask of which collider components an entity currently has. @internal */
 export function colliderSignature(world: App['world'], entity: Entity): number {
@@ -656,7 +656,7 @@ export function jointChangedOrGone(world: App['world'], entity: Entity, sinceTic
 
 /**
  * For a tracked joint entity: whether its connected partner body is no longer
- * tracked (despawned, or its RigidBody removed). Box2D auto-destroys a joint
+ * tracked (despawned, or its RigidBody2D removed). Box2D auto-destroys a joint
  * when either connected body dies, but the owner keeps its unchanged joint
  * component and stays in `trackedJoints` — so without re-establishing it here the
  * joint is silently dead forever, even after the partner respawns.
@@ -699,7 +699,7 @@ export function registerPhysicsSystem(
     // state (no structural change + no physics-component edit). Kinematic bodies
     // are driven by their Transform, so they're tracked separately and pushed every
     // step regardless of whether the reconcile ran.
-    const physicsComponents = [RigidBody, ...COLLIDER_TYPES, ...JOINT_TYPES, OneWayPlatform];
+    const physicsComponents = [RigidBody2D, ...COLLIDER_TYPES, ...JOINT_TYPES, OneWayPlatform2D];
     for (const c of physicsComponents) app.world.enableChangeTracking(c);
     const kinematicEntities = new Set<Entity>();
     let lastStructuralVersion = -1;
@@ -761,7 +761,7 @@ export function registerPhysicsSystem(
                     }
                 }
                 if (needReconcile) {
-                const entities = world.getEntitiesWithComponents([RigidBody, Transform]);
+                const entities = world.getEntitiesWithComponents([RigidBody2D, Transform]);
                 const currentEntities = new Set<Entity>();
 
                 // ── Unified body + collider reconcile ───────────────────────
@@ -771,7 +771,7 @@ export function registerPhysicsSystem(
                 // preserve simulation state — never destroy-and-rebuild.
                 for (const entity of entities) {
                     currentEntities.add(entity);
-                    const rb = world.get(entity, RigidBody) as RigidBodyData;
+                    const rb = world.get(entity, RigidBody2D) as RigidBody2DData;
 
                     if (!trackedEntities.has(entity)) {
                         if (!rb.enabled) continue; // lazy-create on first enable
@@ -813,7 +813,7 @@ export function registerPhysicsSystem(
                     }
 
                     // 2. body properties.
-                    if (world.isChangedSince(entity, RigidBody, lastEntitySyncTick) &&
+                    if (world.isChangedSince(entity, RigidBody2D, lastEntitySyncTick) &&
                         (cached.bodyType !== rb.bodyType ||
                          cached.gravityScale !== rb.gravityScale ||
                          cached.linearDamping !== rb.linearDamping ||

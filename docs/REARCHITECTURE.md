@@ -233,13 +233,17 @@ CHANGELOG 和提交信息里，这里只写**从那里读不出来的结构性�
   loader 自升级，格式 v2；旧引擎**拒绝** v2 而不是把 `Light` 当没听说过的组件读成一关没有灯。
 - **验证面**：123 个像素门禁中 121 个双后端断言；`tools/render-host/` 让 100 个门禁在**引擎自己的**
   无头宿主上跑，而不是经编辑器——门禁断言的是出货游戏看到的渲染器。
-- **仍开着的一处**：物理是唯一真有两个世界的地方，而无后缀的名字（`RigidBody` / `BoxCollider` /
-  `CircleCollider` / `CapsuleCollider`）现在归了**平面**那套，3D 那套反而带 `3D` 后缀。在一个默认
-  世界是三维的引擎里这是反的：用户给 mesh 挂 `BoxCollider` 拿到的是平面盒子，`CapsuleCollider`
-  与 `CapsuleCollider3D` 并排尤其危险。**已拍板：给平面那套加 `2D` 后缀**（`RigidBody2D` /
-  `BoxCollider2D` / `CircleCollider2D` / `CapsuleCollider2D`），走 `Light`/`MeshRenderer` 同款做法——
-  loader 升级旧名、场景格式版本再进一格、SDK 破坏性改名进 CHANGELOG。SDK 面同时收口：2D 有
-  `Physics` facade 而 3D 是 `Physics3DQueries`，两者从同一个 `esengine` 面导出却不同形。
+- **最后一处命名割裂已收口（2026-08-23）**：物理是唯一真有两个世界的地方，而无后缀的名字曾经归了
+  **平面**那套——用户给 mesh 挂一个 `BoxCollider` 拿到的是平面盒子，`CapsuleCollider` 与
+  `CapsuleCollider3D` 并排尤其危险。现在两边都按平面命名：`RigidBody2D` + 四个 `*Collider2D` +
+  `CharacterController2D`，对面是 `RigidBody3D` + 五个 `*Collider3D` + `CharacterController3D`，
+  **裸名字不属于任何一边**。做法与 `Light`/`MeshRenderer` 同款：`RENAMED_COMPONENT_TYPES` 收旧名、
+  场景格式进到 3、旧引擎拒绝 3 而不是加载一个没有碰撞体的关卡。
+  顺带把 `BodyType` 提到自己的头文件——它两个世界共用，此前 `RigidBody3D.hpp` 要 include
+  `RigidBody.hpp` 才拿得到，"3D 依赖 2D 的头"本身就是这处倒置的一个症状。
+- **余下的是纯 API 面**：SDK 的平面物理仍是裸名（`Physics` / `PhysicsPlugin` / `PhysicsEvents` /
+  `ColliderShape`），对面是 `Physics3DPlugin` / `ColliderShape3D`。磁盘上没有任何东西以这些为键，
+  所以收口它是一次纯粹的破坏性改名、零迁移——待拍板，单独一步做。
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。
@@ -253,4 +257,4 @@ CHANGELOG 和提交信息里，这里只写**从那里读不出来的结构性�
 - **N4 输入上行 + ownership**：客户端 seq 戳输入命令走控制面（乱序旧包永不覆盖新态）；服务器按连接存最新、`inputOf(connectionId)` 暴露给 gameplay（FixedUpdate 里对 `Replicated.owner` 的实体应用输入 = 普通 ECS 代码）；客户端 `ownsEntity()` 判"这个 ghost 是不是我的"。全环路测试：客户端输入 → 服务器积分 → ghost 落在权威结果上。验证累计 26 复制用例 + 全套 2949 绿。
 - **N5 权威宿主**：同一 wasm + 同一 gameplay 代码跑无头 Node 游戏服务器。新 `esengine/node` 入口——node 平台适配器（文件系统优先的资产访问、socket 走全局 WebSocket(Node≥22)、静音 `NullAudioBackend`、无 DOM，渲染性能力 fail-loud）、`loadEsengineModule`（emscripten glue 原生跑 Node）、`createHeadlessApp`（全仿真栈：assets/prefabs/scenes/timers/AI/replication，零渲染/管线/输入/UI）+ `runHeadless` 墙钟循环；`lifecyclePlugin` 不再假定 DOM。服务器侧 ws 拍板：SDK 零运行时依赖——宿主自选接收端（`ws` 仅 devDependency 供 e2e），任意 socket 包成 `NetTransport` 即 `attachConnection`。验证：真网络栈 e2e（无头服务器+真 wasm 接受 `ws` 连接 → 注解 builtin Transform + 用户组件复制到 `GameSocket` 客户端 → 输入回传）+ 纯 Node 冒烟（dist 入口加载引擎 wasm 起权威服务器步进）。
 - **编辑器多人联调（同日收口）**：Play 模式下拉新增玩家数（1–4）。多人 Play = 主 realm 作 listen server（权威+玩家1）+ N−1 客户端 realm（各自 "Game P#" dock 页签），由编辑器随 init 转移的 MessageChannel 端口接线（新 SDK `MessagePortTransport`——结构化克隆原生承载双 wire 面、端口在对端未接前排队故启动顺序自由；worker 场景同样可用）。realm 里跑的就是出货游戏走 socket 的同一套 NetSession/复制栈——单机零网络即可实测多人 gameplay。`PlayRealm` 单例改实例 + 会话管理器（`PlayRealm` 导出保持为主实例，inspect/profiler/subsystems/PIE 全部消费者零改动）；play 协议 v2（net 角色 + init 转移端口）；多人会话中的代码 reload 整会话重启（端口已被活 NetSession 消费，单人热重载不变）。
-- **余项**：headless 资产模式（服务器加载含纹理场景需"跳过纹理/音频驻留"通道，现为 fail-loud）；ghost 物理/AI 让位门控语义（RigidBody ghost 是否强制 kinematic）待真实 demo 驱动；本端预测+和解、relevancy/兴趣管理、C++ 批量快照优化、带宽量化——全部需求驱动不抢跑。编辑器多人 UI 交互按惯例待用户实测（tsc+双套件验证）。
+- **余项**：headless 资产模式（服务器加载含纹理场景需"跳过纹理/音频驻留"通道，现为 fail-loud）；ghost 物理/AI 让位门控语义（RigidBody2D ghost 是否强制 kinematic）待真实 demo 驱动；本端预测+和解、relevancy/兴趣管理、C++ 批量快照优化、带宽量化——全部需求驱动不抢跑。编辑器多人 UI 交互按惯例待用户实测（tsc+双套件验证）。

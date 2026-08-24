@@ -22,7 +22,7 @@ const COLLISION_FILTER_META = {
 // Component Data Interfaces
 // =============================================================================
 
-export interface RigidBodyData {
+export interface RigidBody2DData {
     bodyType: number;
     gravityScale: number;
     linearDamping: number;
@@ -32,7 +32,7 @@ export interface RigidBodyData {
     enabled: boolean;
 }
 
-export interface BoxColliderData {
+export interface BoxCollider2DData {
     halfExtents: Vec2;
     offset: Vec2;
     radius: number;
@@ -45,7 +45,7 @@ export interface BoxColliderData {
     maskBits: number;
 }
 
-export interface CircleColliderData {
+export interface CircleCollider2DData {
     radius: number;
     offset: Vec2;
     density: number;
@@ -57,7 +57,7 @@ export interface CircleColliderData {
     maskBits: number;
 }
 
-export interface CapsuleColliderData {
+export interface CapsuleCollider2DData {
     radius: number;
     halfHeight: number;
     offset: Vec2;
@@ -70,7 +70,7 @@ export interface CapsuleColliderData {
     maskBits: number;
 }
 
-export interface SegmentColliderData {
+export interface SegmentCollider2DData {
     point1: Vec2;
     point2: Vec2;
     density: number;
@@ -82,7 +82,7 @@ export interface SegmentColliderData {
     maskBits: number;
 }
 
-export interface PolygonColliderData {
+export interface PolygonCollider2DData {
     vertices: Vec2[];
     radius: number;
     density: number;
@@ -94,7 +94,7 @@ export interface PolygonColliderData {
     maskBits: number;
 }
 
-export interface ChainColliderData {
+export interface ChainCollider2DData {
     points: Vec2[];
     isLoop: boolean;
     friction: number;
@@ -116,7 +116,7 @@ export { BodyType } from '../wasm/wasm.generated';
 // Builtin Component Instances
 // =============================================================================
 
-export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
+export const RigidBody2D = defineBuiltin<RigidBody2DData>('RigidBody2D', {
     bodyType: 2,
     gravityScale: 1.0,
     linearDamping: 0.0,
@@ -134,7 +134,7 @@ export const RigidBody = defineBuiltin<RigidBodyData>('RigidBody', {
     },
 });
 
-export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
+export const BoxCollider2D = defineBuiltin<BoxCollider2DData>('BoxCollider2D', {
     halfExtents: { x: 0.5, y: 0.5 },
     offset: { x: 0, y: 0 },
     radius: 0.05,
@@ -147,7 +147,7 @@ export const BoxCollider = defineBuiltin<BoxColliderData>('BoxCollider', {
     maskBits: 0xFFFF,
 }, { fields: { ...COLLISION_FILTER_META } });
 
-export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider', {
+export const CircleCollider2D = defineBuiltin<CircleCollider2DData>('CircleCollider2D', {
     radius: 0.5,
     offset: { x: 0, y: 0 },
     density: 1.0,
@@ -159,7 +159,7 @@ export const CircleCollider = defineBuiltin<CircleColliderData>('CircleCollider'
     maskBits: 0xFFFF,
 }, { fields: { ...COLLISION_FILTER_META } });
 
-export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollider', {
+export const CapsuleCollider2D = defineBuiltin<CapsuleCollider2DData>('CapsuleCollider2D', {
     radius: 0.25,
     halfHeight: 0.5,
     offset: { x: 0, y: 0 },
@@ -172,7 +172,7 @@ export const CapsuleCollider = defineBuiltin<CapsuleColliderData>('CapsuleCollid
     maskBits: 0xFFFF,
 }, { fields: { ...COLLISION_FILTER_META } });
 
-export const SegmentCollider = defineBuiltin<SegmentColliderData>('SegmentCollider', {
+export const SegmentCollider2D = defineBuiltin<SegmentCollider2DData>('SegmentCollider2D', {
     point1: { x: -0.5, y: 0 },
     point2: { x: 0.5, y: 0 },
     density: 1.0,
@@ -184,7 +184,7 @@ export const SegmentCollider = defineBuiltin<SegmentColliderData>('SegmentCollid
     maskBits: 0xFFFF,
 }, { fields: { ...COLLISION_FILTER_META } });
 
-export const PolygonCollider = defineComponent<PolygonColliderData>('PolygonCollider', {
+export const PolygonCollider2D = defineComponent<PolygonCollider2DData>('PolygonCollider2D', {
     vertices: [
         { x: -0.5, y: -0.5 },
         { x: 0.5, y: -0.5 },
@@ -201,7 +201,7 @@ export const PolygonCollider = defineComponent<PolygonColliderData>('PolygonColl
     maskBits: 0xFFFF,
 }, { fields: { ...COLLISION_FILTER_META } });
 
-export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider', {
+export const ChainCollider2D = defineComponent<ChainCollider2DData>('ChainCollider2D', {
     points: [
         { x: -1, y: 0 },
         { x: 0, y: 0.5 },
@@ -238,7 +238,7 @@ export function activeCollider<C extends AnyComponentDef>(
 // One-Way (One-Sided) Platform
 // =============================================================================
 
-export interface OneWayPlatformData {
+export interface OneWayPlatform2DData {
     // Solid-side normal in world/physics space. Contacts are cancelled unless the
     // other body approaches from this side. Default {0,1} = solid top (land on top,
     // jump up through it).
@@ -246,10 +246,10 @@ export interface OneWayPlatformData {
     enabled: boolean;
 }
 
-// A collider modifier: put it on an entity that also has a RigidBody + a collider.
+// A collider modifier: put it on an entity that also has a RigidBody2D + a collider.
 // Consumed by PhysicsSystem, which enables Box2D pre-solve events on the entity's
 // shapes and feeds the normal to the one-way pre-solve callback.
-export const OneWayPlatform = defineComponent<OneWayPlatformData>('OneWayPlatform', {
+export const OneWayPlatform2D = defineComponent<OneWayPlatform2DData>('OneWayPlatform2D', {
     normal: { x: 0, y: 1 },
     enabled: true,
 });
@@ -258,7 +258,7 @@ export const OneWayPlatform = defineComponent<OneWayPlatformData>('OneWayPlatfor
 // Joint Components
 // =============================================================================
 
-export interface RevoluteJointData {
+export interface RevoluteJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -272,7 +272,7 @@ export interface RevoluteJointData {
     enabled: boolean;
 }
 
-export const RevoluteJoint = defineComponent<RevoluteJointData>('RevoluteJoint', {
+export const RevoluteJoint2D = defineComponent<RevoluteJoint2DData>('RevoluteJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -286,7 +286,7 @@ export const RevoluteJoint = defineComponent<RevoluteJointData>('RevoluteJoint',
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface DistanceJointData {
+export interface DistanceJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -304,7 +304,7 @@ export interface DistanceJointData {
     enabled: boolean;
 }
 
-export const DistanceJoint = defineComponent<DistanceJointData>('DistanceJoint', {
+export const DistanceJoint2D = defineComponent<DistanceJoint2DData>('DistanceJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -322,7 +322,7 @@ export const DistanceJoint = defineComponent<DistanceJointData>('DistanceJoint',
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface PrismaticJointData {
+export interface PrismaticJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -340,7 +340,7 @@ export interface PrismaticJointData {
     enabled: boolean;
 }
 
-export const PrismaticJoint = defineComponent<PrismaticJointData>('PrismaticJoint', {
+export const PrismaticJoint2D = defineComponent<PrismaticJoint2DData>('PrismaticJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -358,7 +358,7 @@ export const PrismaticJoint = defineComponent<PrismaticJointData>('PrismaticJoin
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface WeldJointData {
+export interface WeldJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -370,7 +370,7 @@ export interface WeldJointData {
     enabled: boolean;
 }
 
-export const WeldJoint = defineComponent<WeldJointData>('WeldJoint', {
+export const WeldJoint2D = defineComponent<WeldJoint2DData>('WeldJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -382,7 +382,7 @@ export const WeldJoint = defineComponent<WeldJointData>('WeldJoint', {
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface WheelJointData {
+export interface WheelJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -400,7 +400,7 @@ export interface WheelJointData {
     enabled: boolean;
 }
 
-export const WheelJoint = defineComponent<WheelJointData>('WheelJoint', {
+export const WheelJoint2D = defineComponent<WheelJoint2DData>('WheelJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -418,7 +418,7 @@ export const WheelJoint = defineComponent<WheelJointData>('WheelJoint', {
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface MotorJointData {
+export interface MotorJoint2DData {
     connectedEntity: number;
     // Target relative linear velocity (world units/s) and the max force to reach it.
     linearVelocity: Vec2;
@@ -437,7 +437,7 @@ export interface MotorJointData {
     enabled: boolean;
 }
 
-export const MotorJoint = defineComponent<MotorJointData>('MotorJoint', {
+export const MotorJoint2D = defineComponent<MotorJoint2DData>('MotorJoint2D', {
     connectedEntity: -1,
     linearVelocity: { x: 0, y: 0 },
     maxVelocityForce: 0,

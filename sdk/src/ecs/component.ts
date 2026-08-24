@@ -29,7 +29,7 @@ import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTr
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
-    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
+    RigidBody2DData, BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
 } from '../physics/PhysicsComponents';
 
 // =============================================================================
@@ -1194,7 +1194,7 @@ export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostPro
 });
 
 export type {
-    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
+    RigidBody2DData, BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
 };
 
 // =============================================================================

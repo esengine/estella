@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
-import { BoxCollider } from '../src/physics/PhysicsComponents';
+import { BoxCollider2D } from '../src/physics/PhysicsComponents';
 import { addShapeForEntity } from '../src/physics/PhysicsSystem';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 
@@ -36,7 +36,7 @@ function boxOnLayer(layer: number, maskBits: number, layerMasks?: number[]) {
     const world = testWorld();
     const { filters, module } = maskRecorder();
     const e = world.spawn();
-    world.insert(e, BoxCollider, { categoryBits: 1 << layer, maskBits } as never);
+    world.insert(e, BoxCollider2D, { categoryBits: 1 << layer, maskBits } as never);
     addShapeForEntity(world, module, e, layerMasks);
     return filters[0];
 }

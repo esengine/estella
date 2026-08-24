@@ -64,7 +64,7 @@ const spawnAtCursor = defineSystem(
 
 ```typescript
 // Schedule.FixedPreUpdate —— 边沿被可靠地投递。
-const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (players, input) => {
+const jump = defineSystem([Query(Mut(CharacterController2D)), Res(Input)], (players, input) => {
   for (const [, cc] of players) {
     if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
   }

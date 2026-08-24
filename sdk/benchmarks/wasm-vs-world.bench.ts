@@ -3,7 +3,7 @@
 import { describe, bench, beforeAll } from 'vitest';
 import { World } from '../src/ecs/world';
 import { defineComponent, Transform, Sprite, Camera } from '../src/ecs/component';
-import { RigidBody, BoxCollider, CircleCollider } from '../src/physics/PhysicsComponents';
+import { RigidBody2D, BoxCollider2D, CircleCollider2D } from '../src/physics/PhysicsComponents';
 import { wasmData } from '../tests/helpers/wasmComponentData';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule } from '../tests/helpers/loadWasm';
@@ -23,9 +23,9 @@ const SPRITE_SDK = sdkData(Sprite);
 const TRANSFORM_DATA = wasmData(Transform);
 const SPRITE_DATA = wasmData(Sprite);
 const CAMERA_DATA = wasmData(Camera);
-const RIGIDBODY_DATA = wasmData(RigidBody);
-const BOXCOLLIDER_DATA = wasmData(BoxCollider);
-const CIRCLECOLLIDER_DATA = wasmData(CircleCollider);
+const RIGIDBODY_DATA = wasmData(RigidBody2D);
+const BOXCOLLIDER_DATA = wasmData(BoxCollider2D);
+const CIRCLECOLLIDER_DATA = wasmData(CircleCollider2D);
 
 const Velocity = defineComponent('BenchVelocity', {
     linear: { x: 0, y: 0, z: 0 },
@@ -305,7 +305,7 @@ describe('Ptr-based getter vs embind - Camera', () => {
     });
 });
 
-describe('Ptr-based getter vs embind - RigidBody', () => {
+describe('Ptr-based getter vs embind - RigidBody2D', () => {
     bench('embind: getRigidBody x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
@@ -314,19 +314,19 @@ describe('Ptr-based getter vs embind - RigidBody', () => {
         reg.delete();
     });
 
-    bench('ptr-based: resolveGetter(RigidBody) x100', () => {
+    bench('ptr-based: resolveGetter(RigidBody2D) x100', () => {
         const world = new World();
         const reg = new wasmModule.Registry();
         world.connectCpp(reg as unknown as CppRegistry, wasmModule);
         const e = world.spawn();
-        world.insert(e, RigidBody, RIGIDBODY_DATA as any);
-        const getter = world.resolveGetter(RigidBody)!;
+        world.insert(e, RigidBody2D, RIGIDBODY_DATA as any);
+        const getter = world.resolveGetter(RigidBody2D)!;
         for (let i = 0; i < 100; i++) getter(e);
         reg.delete();
     });
 });
 
-describe('Ptr-based getter vs embind - BoxCollider', () => {
+describe('Ptr-based getter vs embind - BoxCollider2D', () => {
     bench('embind: getBoxCollider x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
@@ -335,19 +335,19 @@ describe('Ptr-based getter vs embind - BoxCollider', () => {
         reg.delete();
     });
 
-    bench('ptr-based: resolveGetter(BoxCollider) x100', () => {
+    bench('ptr-based: resolveGetter(BoxCollider2D) x100', () => {
         const world = new World();
         const reg = new wasmModule.Registry();
         world.connectCpp(reg as unknown as CppRegistry, wasmModule);
         const e = world.spawn();
-        world.insert(e, BoxCollider, BOXCOLLIDER_DATA as any);
-        const getter = world.resolveGetter(BoxCollider)!;
+        world.insert(e, BoxCollider2D, BOXCOLLIDER_DATA as any);
+        const getter = world.resolveGetter(BoxCollider2D)!;
         for (let i = 0; i < 100; i++) getter(e);
         reg.delete();
     });
 });
 
-describe('Ptr-based getter vs embind - CircleCollider', () => {
+describe('Ptr-based getter vs embind - CircleCollider2D', () => {
     bench('embind: getCircleCollider x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
@@ -356,13 +356,13 @@ describe('Ptr-based getter vs embind - CircleCollider', () => {
         reg.delete();
     });
 
-    bench('ptr-based: resolveGetter(CircleCollider) x100', () => {
+    bench('ptr-based: resolveGetter(CircleCollider2D) x100', () => {
         const world = new World();
         const reg = new wasmModule.Registry();
         world.connectCpp(reg as unknown as CppRegistry, wasmModule);
         const e = world.spawn();
-        world.insert(e, CircleCollider, CIRCLECOLLIDER_DATA as any);
-        const getter = world.resolveGetter(CircleCollider)!;
+        world.insert(e, CircleCollider2D, CIRCLECOLLIDER_DATA as any);
+        const getter = world.resolveGetter(CircleCollider2D)!;
         for (let i = 0; i < 100; i++) getter(e);
         reg.delete();
     });
@@ -435,7 +435,7 @@ describe('Ptr-based setter vs embind - Velocity write', () => {
     });
 });
 
-describe('Ptr-based setter vs embind - RigidBody write', () => {
+describe('Ptr-based setter vs embind - RigidBody2D write', () => {
     bench('embind: addRigidBody (set) x100', () => {
         const reg = new wasmModule.Registry();
         const e = reg.create();
@@ -444,13 +444,13 @@ describe('Ptr-based setter vs embind - RigidBody write', () => {
         reg.delete();
     });
 
-    bench('ptr-based: resolveSetter(RigidBody) x100', () => {
+    bench('ptr-based: resolveSetter(RigidBody2D) x100', () => {
         const world = new World();
         const reg = new wasmModule.Registry();
         world.connectCpp(reg as unknown as CppRegistry, wasmModule);
         const e = world.spawn();
-        world.insert(e, RigidBody, RIGIDBODY_DATA as any);
-        const setter = world.resolveSetter(RigidBody)!;
+        world.insert(e, RigidBody2D, RIGIDBODY_DATA as any);
+        const setter = world.resolveSetter(RigidBody2D)!;
         for (let i = 0; i < 100; i++) setter(e, RIGIDBODY_DATA);
         reg.delete();
     });

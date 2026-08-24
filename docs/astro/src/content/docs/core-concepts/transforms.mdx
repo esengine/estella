@@ -116,7 +116,7 @@ colliders. It is *not* a sprite display scale. The split to remember:
 | Collider dimensions (`halfExtents`, `radius`, …) | **meters** (divide px by PPU) |
 | Solver-facing methods — forces, impulses, velocities, `setGravity` | **meters** |
 | Spatial queries — `raycast`, `shapeCast*`, `overlapCircle`, `overlapAABB` | **world pixels** (auto-scaled) |
-| `CharacterController.velocity` / `moveCharacter` | **world pixels**/second |
+| `CharacterController2D.velocity` / `moveCharacter` | **world pixels**/second |
 
 The defaults are exported as constants, so code that needs them never hard-codes
 the numbers:

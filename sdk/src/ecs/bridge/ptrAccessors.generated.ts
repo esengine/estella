@@ -61,7 +61,7 @@ export function createBitmapTextData(): BitmapTextPtrData {
     };
 }
 
-export interface BoxColliderPtrData {
+export interface BoxCollider2DPtrData {
     halfExtents: Vec2;
     offset: Vec2;
     density: number;
@@ -73,9 +73,9 @@ export interface BoxColliderPtrData {
     maskBits: number;
 }
 
-export function fillBoxCollider(
+export function fillBoxCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: BoxColliderPtrData,
+    ptr: number, out: BoxCollider2DPtrData,
 ): void {
     const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1];
     const offset_ = out.offset; offset_.x = f32[(ptr + 8) >> 2]; offset_.y = f32[((ptr + 8) >> 2) + 1];
@@ -88,9 +88,9 @@ export function fillBoxCollider(
     out.maskBits = u32[(ptr + 36) >> 2];
 }
 
-export function writeBoxCollider(
+export function writeBoxCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: BoxColliderPtrData,
+    ptr: number, data: BoxCollider2DPtrData,
 ): void {
     f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y;
     f32[(ptr + 8) >> 2] = data.offset.x; f32[((ptr + 8) >> 2) + 1] = data.offset.y;
@@ -103,7 +103,7 @@ export function writeBoxCollider(
     u32[(ptr + 36) >> 2] = data.maskBits;
 }
 
-export function createBoxColliderData(): BoxColliderPtrData {
+export function createBoxCollider2DData(): BoxCollider2DPtrData {
     return {
         halfExtents: { x: 0, y: 0 },
         offset: { x: 0, y: 0 },
@@ -273,7 +273,7 @@ export function createCanvasData(): CanvasPtrData {
     };
 }
 
-export interface CapsuleColliderPtrData {
+export interface CapsuleCollider2DPtrData {
     radius: number;
     halfHeight: number;
     offset: Vec2;
@@ -286,9 +286,9 @@ export interface CapsuleColliderPtrData {
     maskBits: number;
 }
 
-export function fillCapsuleCollider(
+export function fillCapsuleCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: CapsuleColliderPtrData,
+    ptr: number, out: CapsuleCollider2DPtrData,
 ): void {
     out.radius = f32[ptr >> 2];
     out.halfHeight = f32[(ptr + 4) >> 2];
@@ -302,9 +302,9 @@ export function fillCapsuleCollider(
     out.maskBits = u32[(ptr + 36) >> 2];
 }
 
-export function writeCapsuleCollider(
+export function writeCapsuleCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: CapsuleColliderPtrData,
+    ptr: number, data: CapsuleCollider2DPtrData,
 ): void {
     f32[ptr >> 2] = data.radius;
     f32[(ptr + 4) >> 2] = data.halfHeight;
@@ -318,7 +318,7 @@ export function writeCapsuleCollider(
     u32[(ptr + 36) >> 2] = data.maskBits;
 }
 
-export function createCapsuleColliderData(): CapsuleColliderPtrData {
+export function createCapsuleCollider2DData(): CapsuleCollider2DPtrData {
     return {
         radius: 0,
         halfHeight: 0,
@@ -449,7 +449,7 @@ export function createCharacterController3DData(): CharacterController3DPtrData 
     };
 }
 
-export interface CircleColliderPtrData {
+export interface CircleCollider2DPtrData {
     radius: number;
     offset: Vec2;
     density: number;
@@ -461,9 +461,9 @@ export interface CircleColliderPtrData {
     maskBits: number;
 }
 
-export function fillCircleCollider(
+export function fillCircleCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: CircleColliderPtrData,
+    ptr: number, out: CircleCollider2DPtrData,
 ): void {
     out.radius = f32[ptr >> 2];
     const offset_ = out.offset; offset_.x = f32[(ptr + 4) >> 2]; offset_.y = f32[((ptr + 4) >> 2) + 1];
@@ -476,9 +476,9 @@ export function fillCircleCollider(
     out.maskBits = u32[(ptr + 32) >> 2];
 }
 
-export function writeCircleCollider(
+export function writeCircleCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: CircleColliderPtrData,
+    ptr: number, data: CircleCollider2DPtrData,
 ): void {
     f32[ptr >> 2] = data.radius;
     f32[(ptr + 4) >> 2] = data.offset.x; f32[((ptr + 4) >> 2) + 1] = data.offset.y;
@@ -491,7 +491,7 @@ export function writeCircleCollider(
     u32[(ptr + 32) >> 2] = data.maskBits;
 }
 
-export function createCircleColliderData(): CircleColliderPtrData {
+export function createCircleCollider2DData(): CircleCollider2DPtrData {
     return {
         radius: 0,
         offset: { x: 0, y: 0 },
@@ -1217,7 +1217,7 @@ export function createParticleForceFieldData(): ParticleForceFieldPtrData {
     };
 }
 
-export interface RigidBodyPtrData {
+export interface RigidBody2DPtrData {
     bodyType: number;
     gravityScale: number;
     linearDamping: number;
@@ -1227,9 +1227,9 @@ export interface RigidBodyPtrData {
     enabled: boolean;
 }
 
-export function fillRigidBody(
+export function fillRigidBody2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: RigidBodyPtrData,
+    ptr: number, out: RigidBody2DPtrData,
 ): void {
     out.bodyType = u8[ptr];
     out.gravityScale = f32[(ptr + 4) >> 2];
@@ -1240,9 +1240,9 @@ export function fillRigidBody(
     out.enabled = u8[ptr + 18] !== 0;
 }
 
-export function writeRigidBody(
+export function writeRigidBody2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: RigidBodyPtrData,
+    ptr: number, data: RigidBody2DPtrData,
 ): void {
     u8[ptr] = data.bodyType;
     f32[(ptr + 4) >> 2] = data.gravityScale;
@@ -1253,7 +1253,7 @@ export function writeRigidBody(
     u8[ptr + 18] = data.enabled ? 1 : 0;
 }
 
-export function createRigidBodyData(): RigidBodyPtrData {
+export function createRigidBody2DData(): RigidBody2DPtrData {
     return {
         bodyType: 0,
         gravityScale: 0,
@@ -1317,7 +1317,7 @@ export function createRigidBody3DData(): RigidBody3DPtrData {
     };
 }
 
-export interface SegmentColliderPtrData {
+export interface SegmentCollider2DPtrData {
     point1: Vec2;
     point2: Vec2;
     density: number;
@@ -1329,9 +1329,9 @@ export interface SegmentColliderPtrData {
     maskBits: number;
 }
 
-export function fillSegmentCollider(
+export function fillSegmentCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, out: SegmentColliderPtrData,
+    ptr: number, out: SegmentCollider2DPtrData,
 ): void {
     const point1_ = out.point1; point1_.x = f32[ptr >> 2]; point1_.y = f32[(ptr >> 2) + 1];
     const point2_ = out.point2; point2_.x = f32[(ptr + 8) >> 2]; point2_.y = f32[((ptr + 8) >> 2) + 1];
@@ -1344,9 +1344,9 @@ export function fillSegmentCollider(
     out.maskBits = u32[(ptr + 36) >> 2];
 }
 
-export function writeSegmentCollider(
+export function writeSegmentCollider2D(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
-    ptr: number, data: SegmentColliderPtrData,
+    ptr: number, data: SegmentCollider2DPtrData,
 ): void {
     f32[ptr >> 2] = data.point1.x; f32[(ptr >> 2) + 1] = data.point1.y;
     f32[(ptr + 8) >> 2] = data.point2.x; f32[((ptr + 8) >> 2) + 1] = data.point2.y;
@@ -1359,7 +1359,7 @@ export function writeSegmentCollider(
     u32[(ptr + 36) >> 2] = data.maskBits;
 }
 
-export function createSegmentColliderData(): SegmentColliderPtrData {
+export function createSegmentCollider2DData(): SegmentCollider2DPtrData {
     return {
         point1: { x: 0, y: 0 },
         point2: { x: 0, y: 0 },
@@ -2149,14 +2149,14 @@ export interface PtrAccessor<T> {
 
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
-    BoxCollider: { fill: fillBoxCollider, write: writeBoxCollider, create: createBoxColliderData },
+    BoxCollider2D: { fill: fillBoxCollider2D, write: writeBoxCollider2D, create: createBoxCollider2DData },
     BoxCollider3D: { fill: fillBoxCollider3D, write: writeBoxCollider3D, create: createBoxCollider3DData },
     Camera: { fill: fillCamera, write: writeCamera, create: createCameraData },
     Canvas: { fill: fillCanvas, write: writeCanvas, create: createCanvasData },
-    CapsuleCollider: { fill: fillCapsuleCollider, write: writeCapsuleCollider, create: createCapsuleColliderData },
+    CapsuleCollider2D: { fill: fillCapsuleCollider2D, write: writeCapsuleCollider2D, create: createCapsuleCollider2DData },
     CapsuleCollider3D: { fill: fillCapsuleCollider3D, write: writeCapsuleCollider3D, create: createCapsuleCollider3DData },
     CharacterController3D: { fill: fillCharacterController3D, write: writeCharacterController3D, create: createCharacterController3DData },
-    CircleCollider: { fill: fillCircleCollider, write: writeCircleCollider, create: createCircleColliderData },
+    CircleCollider2D: { fill: fillCircleCollider2D, write: writeCircleCollider2D, create: createCircleCollider2DData },
     ConvexCollider3D: { fill: fillConvexCollider3D, write: writeConvexCollider3D, create: createConvexCollider3DData },
     Draggable: { fill: fillDraggable, write: writeDraggable, create: createDraggableData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
@@ -2167,9 +2167,9 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
-    RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
+    RigidBody2D: { fill: fillRigidBody2D, write: writeRigidBody2D, create: createRigidBody2DData },
     RigidBody3D: { fill: fillRigidBody3D, write: writeRigidBody3D, create: createRigidBody3DData },
-    SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
+    SegmentCollider2D: { fill: fillSegmentCollider2D, write: writeSegmentCollider2D, create: createSegmentCollider2DData },
     ShadowCaster2D: { fill: fillShadowCaster2D, write: writeShadowCaster2D, create: createShadowCaster2DData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
     SphereCollider3D: { fill: fillSphereCollider3D, write: writeSphereCollider3D, create: createSphereCollider3DData },

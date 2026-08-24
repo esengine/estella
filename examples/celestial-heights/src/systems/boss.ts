@@ -1,6 +1,6 @@
 import {
     defineSystem, Query, Mut, Res, GetWorld,
-    Transform, CharacterController, Prefabs, Time, Perception,
+    Transform, CharacterController2D, Prefabs, Time, Perception,
     NavAgent, setNavDestination, stopNavAgent,
 } from 'esengine';
 import type { Entity } from 'esengine';
@@ -69,7 +69,7 @@ export const summonSystem = defineSystem(
  */
 export const chargeSystem = defineSystem(
     [
-        Query(Mut(Charge), Mut(CharacterController), Mut(Facing), Transform, Perception),
+        Query(Mut(Charge), Mut(CharacterController2D), Mut(Facing), Transform, Perception),
         Res(Time), GetWorld(),
     ],
     (chargers, time, world) => {

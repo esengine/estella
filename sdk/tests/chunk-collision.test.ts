@@ -29,7 +29,7 @@ function encodeChunks(chunks: { x: number; y: number; tiles: Uint16Array }[]): s
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-interface MockEntity { Transform?: any; RigidBody?: any; BoxCollider?: any }
+interface MockEntity { Transform?: any; RigidBody2D?: any; BoxCollider2D?: any }
 function createMockWorld(): { world: World; store: Map<number, MockEntity> } {
   let nextId = 1;
   const store = new Map<number, MockEntity>();
@@ -68,8 +68,8 @@ describe('generateChunkCollision', () => {
     const e = store.get(ents[0])!;
     // x0..x1 = 0..1, y0..y1 = 0..0 → center ((0+1+1)/2·16, -(0+0+1)/2·16) = (16, -8)
     expect(e.Transform.position).toEqual({ x: 16, y: -8, z: 0 });
-    expect(e.BoxCollider.halfExtents).toEqual({ x: 16, y: 8 });
-    expect(e.RigidBody.bodyType).toBe(BodyType.Static);
+    expect(e.BoxCollider2D.halfExtents).toEqual({ x: 16, y: 8 });
+    expect(e.RigidBody2D.bodyType).toBe(BodyType.Static);
   });
 
   it('offsets by chunk coords and the tilemap world origin', () => {

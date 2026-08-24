@@ -6,7 +6,7 @@ description: The complete 2D physics reference — rigid bodies, colliders, coll
 import { Aside } from '@astrojs/starlight/components';
 
 Estella's physics runs in the C++/WebAssembly core, powered by Box2D v3. You attach
-a `RigidBody` and a collider to an entity, then move it with forces, query the world
+a `RigidBody2D` and a collider to an entity, then move it with forces, query the world
 with raycasts, react to collisions, and connect bodies with joints. Physics steps at
 a **fixed timestep**, decoupled from the frame rate, for stable simulation.
 
@@ -24,7 +24,7 @@ app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 
 <Aside type="note">
   Physics types are imported from **`esengine/physics`** (the API, plugin, events),
-  while the components (`RigidBody`, colliders, `CharacterController`) come from the
+  while the components (`RigidBody2D`, colliders, `CharacterController2D`) come from the
   main `esengine` barrel.
 </Aside>
 
@@ -40,7 +40,7 @@ side of that boundary:
 | Collider component dimensions — `halfExtents`, `radius`, `offset`, … | **Meters.** |
 | Solver-facing methods — `applyForce` / `applyImpulse`, `setLinearVelocity` / `getLinearVelocity`, `setGravity`, … | **Meters** (m/s, m/s²). |
 | Spatial queries — `raycast`, `shapeCast*`, `overlapCircle` / `overlapAABB`, `moveCharacter` | **World pixels**, scaled by the live PPU. |
-| `CharacterController.velocity`, `MotorJoint.linearVelocity` | World pixels per second. |
+| `CharacterController2D.velocity`, `MotorJoint2D.linearVelocity` | World pixels per second. |
 
 `physics.getPixelsPerUnit()` returns the live PPU (pushed from the `Canvas` each
 frame), so conversions never hard-code `100`:
@@ -61,14 +61,14 @@ queries and the character controller = pixels.**
 
 *Collider gizmos in the viewport: the selected **Ground**'s box outline (amber) plus the walls and ramp. Toggle them with the viewport's Physics show-flag.*
 
-Attach a `RigidBody` plus one collider shape. **Collider dimensions are in meters,
+Attach a `RigidBody2D` plus one collider shape. **Collider dimensions are in meters,
 not pixels** — divide pixel sizes by your pixels-per-unit (see [Units](#units)).
 Spawn from a system that takes `Commands()`:
 
 ```typescript
 import {
   defineSystem, Commands, Transform,
-  RigidBody, BodyType, CircleCollider,
+  RigidBody2D, BodyType, CircleCollider2D,
 } from 'esengine';
 
 const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.getPixelsPerUnit()
@@ -76,12 +76,12 @@ const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.ge
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
-    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1 })
-    .insert(CircleCollider, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
+    .insert(RigidBody2D, { bodyType: BodyType.Dynamic, gravityScale: 1 })
+    .insert(CircleCollider2D, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
 });
 ```
 
-### `RigidBody`
+### `RigidBody2D`
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -111,12 +111,12 @@ are in meters.
 
 | Component | Shape parameters |
 |---|---|
-| `BoxCollider` | `halfExtents` (`{0.5, 0.5}`), `radius` (rounded corner, `0.05`). |
-| `CircleCollider` | `radius` (`0.5`). |
-| `CapsuleCollider` | `radius`, `halfHeight`. |
-| `SegmentCollider` | `point1`, `point2` (a one-sided edge). |
-| `PolygonCollider` | `vertices: Vec2[]`, `radius` (rounded). |
-| `ChainCollider` | `points: Vec2[]`, `isLoop` (static edge chain; no `density`/`isSensor`). |
+| `BoxCollider2D` | `halfExtents` (`{0.5, 0.5}`), `radius` (rounded corner, `0.05`). |
+| `CircleCollider2D` | `radius` (`0.5`). |
+| `CapsuleCollider2D` | `radius`, `halfHeight`. |
+| `SegmentCollider2D` | `point1`, `point2` (a one-sided edge). |
+| `PolygonCollider2D` | `vertices: Vec2[]`, `radius` (rounded). |
+| `ChainCollider2D` | `points: Vec2[]`, `isLoop` (static edge chain; no `density`/`isSensor`). |
 
 ## Collision filtering
 
@@ -132,7 +132,7 @@ const LAYER_PLAYER = 0x0001;
 const LAYER_ENEMY  = 0x0002;
 const LAYER_GROUND = 0x0008;
 
-.insert(CircleCollider, {
+.insert(CircleCollider2D, {
   radius: 16 / PPU,
   categoryBits: LAYER_PLAYER,
   maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
@@ -153,10 +153,10 @@ methods talk to the solver directly, so they are all in **meters** (m/s, m/s² �
 see [Units](#units)). Every method takes the world entity:
 
 ```typescript
-import { defineSystem, Query, Res, RigidBody } from 'esengine';
+import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
 import { Physics } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody), Res(Physics)], (q, physics) => {
+const move = defineSystem([Query(RigidBody2D), Res(Physics)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
@@ -246,8 +246,8 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 *What each joint constrains: a **Revolute** hinge (rotate about a pin), a **Distance** spring/rod, a **Prismatic** slider (one axis), a rigid **Weld**, a **Wheel** (suspension + free spin), and a **Motor** (driven toward a target velocity).*
 
-Connect two bodies. Add a joint **component** (`RevoluteJoint`, `DistanceJoint`,
-`PrismaticJoint`, `WeldJoint`, `WheelJoint`, `MotorJoint`), or create one imperatively
+Connect two bodies. Add a joint **component** (`RevoluteJoint2D`, `DistanceJoint2D`,
+`PrismaticJoint2D`, `WeldJoint2D`, `WheelJoint2D`, `MotorJoint2D`), or create one imperatively
 and drive its motor / limits:
 
 ```typescript
@@ -281,7 +281,7 @@ its own power:
 
 ```typescript
 // A conveyor: drive the crate toward +x at a fixed speed.
-world.insert(crate, MotorJoint, {
+world.insert(crate, MotorJoint2D, {
   connectedEntity: anchor,
   linearVelocity: { x: 200, y: 0 }, // world px/s
   maxVelocityForce: 500,            // newtons available to reach it
@@ -300,19 +300,19 @@ the **Physics** entry in the viewport's Show Flags.
 
 ## One-way platforms
 
-Add `OneWayPlatform` to a static (or kinematic) collider to make it **one-sided** — a
+Add `OneWayPlatform2D` to a static (or kinematic) collider to make it **one-sided** — a
 body lands on it from one direction and passes through from the others. This is the
 classic jump-up-through-a-ledge behaviour, built on Box2D's pre-solve callback (zero
 cost when no one-way platforms exist):
 
 ```typescript
-import { OneWayPlatform } from 'esengine/physics';
+import { OneWayPlatform2D } from 'esengine/physics';
 
 const platform = world.spawn('ledge');
 world.insert(platform, Transform, { position: { x: 0, y: 0 } });
-world.insert(platform, RigidBody, { bodyType: BodyType.Static });
-world.insert(platform, BoxCollider, { halfExtents: { x: 2, y: 0.2 } });
-world.insert(platform, OneWayPlatform, { normal: { x: 0, y: 1 } }); // solid top: land from above, pass from below
+world.insert(platform, RigidBody2D, { bodyType: BodyType.Static });
+world.insert(platform, BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } });
+world.insert(platform, OneWayPlatform2D, { normal: { x: 0, y: 1 } }); // solid top: land from above, pass from below
 ```
 
 `normal` is the solid-side direction in world space; `{ x: 0, y: 1 }` (the default)
@@ -344,7 +344,7 @@ spring's stiffness and grip.
 ## Character controller
 
 For a player that walks along surfaces instead of tumbling like a dynamic body, add
-a `CharacterController`. Set its `velocity` from gameplay each step; the controller
+a `CharacterController2D`. Set its `velocity` from gameplay each step; the controller
 advances it one step with Box2D's **native kinematic mover** (`b2World_CollideMover`
 + `b2SolvePlanes`) — it collides the body into contact *planes* and solves a
 depenetrating slide, so a character resting on the ground slides and jumps cleanly
@@ -352,9 +352,9 @@ instead of sticking to it. It writes the resolved pose back and reports what it
 touched:
 
 ```typescript
-import { defineSystem, Query, Mut, CharacterController } from 'esengine';
+import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
 
-const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
+const drive = defineSystem([Query(Mut(CharacterController2D))], (q) => {
   for (const [entity, cc] of q) {
     cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
     if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
@@ -364,7 +364,7 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 
 Give the entity a collider (the mover shape is derived from it — a box becomes a
 capsule inscribed along its longer axis) and, if other bodies should collide with
-the character, a **Kinematic** `RigidBody`. The mover excludes the character's own
+the character, a **Kinematic** `RigidBody2D`. The mover excludes the character's own
 body automatically, so its `maskBits` need not avoid its own collision layer. Drive
 `velocity` from a fixed-timestep system so motion is frame-rate independent; read the
 `isOnFloor` edge for jumps (delivered correctly to `FixedUpdate` — see

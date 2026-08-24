@@ -16,12 +16,12 @@
 import type { Vec2 } from '../types';
 import type { World } from '../ecs/world';
 import {
-    BoxCollider, CircleCollider, CapsuleCollider,
-    SegmentCollider, PolygonCollider, ChainCollider,
+    BoxCollider2D, CircleCollider2D, CapsuleCollider2D,
+    SegmentCollider2D, PolygonCollider2D, ChainCollider2D,
 } from './PhysicsComponents';
 import type {
-    BoxColliderData, CircleColliderData, CapsuleColliderData,
-    SegmentColliderData, PolygonColliderData, ChainColliderData,
+    BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
+    SegmentCollider2DData, PolygonCollider2DData, ChainCollider2DData,
 } from './PhysicsComponents';
 
 /** Semicircle-cap segment count for a capsule outline (matches the legacy debug draw). */
@@ -139,28 +139,28 @@ export function colliderShapeOutline(shape: ColliderShape, center: Vec2, angle: 
 export function readColliderShapes(world: World, entity: number): ColliderInstance[] {
     const out: ColliderInstance[] = [];
     const isEnabled = (c: { enabled?: boolean }): boolean => c.enabled !== false;
-    if (world.has(entity, BoxCollider)) {
-        const b = world.get(entity, BoxCollider) as BoxColliderData;
+    if (world.has(entity, BoxCollider2D)) {
+        const b = world.get(entity, BoxCollider2D) as BoxCollider2DData;
         out.push({ shape: { kind: 'box', halfExtents: b.halfExtents, offset: b.offset }, isSensor: b.isSensor, enabled: isEnabled(b) });
     }
-    if (world.has(entity, CircleCollider)) {
-        const c = world.get(entity, CircleCollider) as CircleColliderData;
+    if (world.has(entity, CircleCollider2D)) {
+        const c = world.get(entity, CircleCollider2D) as CircleCollider2DData;
         out.push({ shape: { kind: 'circle', radius: c.radius, offset: c.offset }, isSensor: c.isSensor, enabled: isEnabled(c) });
     }
-    if (world.has(entity, CapsuleCollider)) {
-        const c = world.get(entity, CapsuleCollider) as CapsuleColliderData;
+    if (world.has(entity, CapsuleCollider2D)) {
+        const c = world.get(entity, CapsuleCollider2D) as CapsuleCollider2DData;
         out.push({ shape: { kind: 'capsule', radius: c.radius, halfHeight: c.halfHeight, offset: c.offset }, isSensor: c.isSensor, enabled: isEnabled(c) });
     }
-    if (world.has(entity, SegmentCollider)) {
-        const s = world.get(entity, SegmentCollider) as SegmentColliderData;
+    if (world.has(entity, SegmentCollider2D)) {
+        const s = world.get(entity, SegmentCollider2D) as SegmentCollider2DData;
         out.push({ shape: { kind: 'segment', point1: s.point1, point2: s.point2 }, isSensor: s.isSensor, enabled: isEnabled(s) });
     }
-    if (world.has(entity, PolygonCollider)) {
-        const p = world.get(entity, PolygonCollider) as PolygonColliderData;
+    if (world.has(entity, PolygonCollider2D)) {
+        const p = world.get(entity, PolygonCollider2D) as PolygonCollider2DData;
         out.push({ shape: { kind: 'polygon', vertices: p.vertices }, isSensor: p.isSensor, enabled: isEnabled(p) });
     }
-    if (world.has(entity, ChainCollider)) {
-        const c = world.get(entity, ChainCollider) as ChainColliderData;
+    if (world.has(entity, ChainCollider2D)) {
+        const c = world.get(entity, ChainCollider2D) as ChainCollider2DData;
         out.push({ shape: { kind: 'chain', points: c.points, isLoop: c.isLoop }, isSensor: false, enabled: isEnabled(c) });
     }
     return out;

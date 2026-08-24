@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    Collider2D.hpp
+ * @brief   The shapes that give a flat body its extent.
+ * @details Suffixed for the plane they are in, beside the `*Collider3D` set in
+ *          RigidBody3D.hpp. An unsuffixed name here would read as the default,
+ *          and in a world that is three-dimensional it is not the default.
+ */
 #pragma once
 
 #include "../../core/Types.hpp"
@@ -9,7 +16,7 @@
 namespace esengine::ecs {
 
 ES_COMPONENT()
-struct BoxCollider {
+struct BoxCollider2D {
     ES_PROPERTY()
     glm::vec2 halfExtents{0.5f, 0.5f};
 
@@ -37,11 +44,11 @@ struct BoxCollider {
     ES_PROPERTY()
     u32 maskBits{0xFFFF};
 
-    BoxCollider() = default;
+    BoxCollider2D() = default;
 };
 
 ES_COMPONENT()
-struct CircleCollider {
+struct CircleCollider2D {
     ES_PROPERTY()
     f32 radius{0.5f};
 
@@ -69,11 +76,11 @@ struct CircleCollider {
     ES_PROPERTY()
     u32 maskBits{0xFFFF};
 
-    CircleCollider() = default;
+    CircleCollider2D() = default;
 };
 
 ES_COMPONENT()
-struct CapsuleCollider {
+struct CapsuleCollider2D {
     ES_PROPERTY()
     f32 radius{0.25f};
 
@@ -104,11 +111,11 @@ struct CapsuleCollider {
     ES_PROPERTY()
     u32 maskBits{0xFFFF};
 
-    CapsuleCollider() = default;
+    CapsuleCollider2D() = default;
 };
 
 ES_COMPONENT()
-struct SegmentCollider {
+struct SegmentCollider2D {
     ES_PROPERTY()
     glm::vec2 point1{-0.5f, 0.0f};
 
@@ -136,7 +143,7 @@ struct SegmentCollider {
     ES_PROPERTY()
     u32 maskBits{0xFFFF};
 
-    SegmentCollider() = default;
+    SegmentCollider2D() = default;
 };
 
 

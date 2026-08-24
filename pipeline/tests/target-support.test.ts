@@ -38,7 +38,7 @@ describe('collectSubsystems', () => {
   });
 
   it('sees a prefab body and its physics vocabulary', () => {
-    const prefab = { version: '1.0', root: { components: [{ type: 'RigidBody' }, { type: 'BoxCollider' }] } };
+    const prefab = { version: '1.0', root: { components: [{ type: 'RigidBody2D' }, { type: 'BoxCollider2D' }] } };
     expect([...collectSubsystems(prefab)]).toEqual(['physics']);
   });
 
@@ -119,7 +119,7 @@ describe('exportGame warns about content the target cannot render', () => {
         { id: 1, components: [{ type: 'Text', data: { text: 'score' } }] },
         { id: 2, components: [{ type: 'ParticleEmitter', data: {} }] },
         { id: 3, components: [{ type: 'TilemapLayer', data: {} }] },
-        { id: 4, components: [{ type: 'RigidBody', data: {} }] },
+        { id: 4, components: [{ type: 'RigidBody2D', data: {} }] },
         { id: 5, components: [{ type: 'SpineAnimation', data: {} }] },
       ],
     }));

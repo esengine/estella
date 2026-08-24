@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Showcase",
   "entities": [
     {
@@ -21,8 +21,8 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": -260, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 780, "y": 20 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 3.9, "y": 0.1 } } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 3.9, "y": 0.1 } } }
       ],
       "visible": true
     },
@@ -34,8 +34,8 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": -390, "y": -20, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 20, "y": 520 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
       ],
       "visible": true
     },
@@ -47,8 +47,8 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 390, "y": -20, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 20, "y": 520 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
       ],
       "visible": true
     },
@@ -60,9 +60,9 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": -170, "y": 30, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 300, "y": 16 }, "color": { "r": 0.3, "g": 0.8, "b": 0.9, "a": 0.55 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 1.5, "y": 0.08 } } },
-        { "type": "OneWayPlatform", "data": { "normal": { "x": 0, "y": 1 }, "enabled": true } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 1.5, "y": 0.08 } } },
+        { "type": "OneWayPlatform2D", "data": { "normal": { "x": 0, "y": 1 }, "enabled": true } }
       ],
       "visible": true
     },
@@ -73,7 +73,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 150, "y": -90, "z": 0 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } }
       ],
       "visible": true
     },
@@ -85,9 +85,9 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 150, "y": -90, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 160, "y": 24 }, "color": { "r": 0.95, "g": 0.6, "b": 0.2, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 2, "fixedRotation": true } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.8, "y": 0.12 }, "friction": 0.8 } },
-        { "type": "MotorJoint", "data": {
+        { "type": "RigidBody2D", "data": { "bodyType": 2, "fixedRotation": true } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.8, "y": 0.12 }, "friction": 0.8 } },
+        { "type": "MotorJoint2D", "data": {
           "connectedEntity": 5,
           "linearVelocity": { "x": 180, "y": 0 },
           "maxVelocityForce": 3000,
@@ -123,7 +123,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 300, "y": 80, "z": 0 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } }
       ],
       "visible": true
     },
@@ -135,9 +135,9 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 300, "y": 40, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 100, "y": 16 }, "color": { "r": 0.65, "g": 0.5, "b": 0.95, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 2, "fixedRotation": true } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.5, "y": 0.08 } } },
-        { "type": "PrismaticJoint", "data": {
+        { "type": "RigidBody2D", "data": { "bodyType": 2, "fixedRotation": true } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.5, "y": 0.08 } } },
+        { "type": "PrismaticJoint2D", "data": {
           "connectedEntity": 8,
           "anchorA": { "x": 0, "y": 0 },
           "anchorB": { "x": 0, "y": 0 },

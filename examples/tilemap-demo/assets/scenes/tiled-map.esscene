@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "TiledMap",
   "entities": [
     {
@@ -99,9 +99,9 @@
         { "type": "Transform", "data": { "position": { "x": 90, "y": -170, "z": 1 } } },
         { "type": "Sprite", "data": { "size": { "x": 18, "y": 18 }, "texture": "@uuid:33875408-2450-4071-bad2-d54ead703b8b", "layer": 5 } },
         { "type": "Player", "data": {} },
-        { "type": "RigidBody", "data": { "bodyType": 1 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.07, "y": 0.08 }, "categoryBits": 1, "maskBits": 65535 } },
-        { "type": "CharacterController", "data": { "maskBits": 65535 } }
+        { "type": "RigidBody2D", "data": { "bodyType": 1 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.07, "y": 0.08 }, "categoryBits": 1, "maskBits": 65535 } },
+        { "type": "CharacterController2D", "data": { "maskBits": 65535 } }
       ],
       "visible": true
     }

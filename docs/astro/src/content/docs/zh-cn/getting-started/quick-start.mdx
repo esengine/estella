@@ -59,7 +59,7 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 
 <Aside type="caution">
   第 3 步里那份拷贝不是多余的仪式。对你自己声明的组件,`ctx.get` 给的是存储对象本身;但
-  `Transform`、`Sprite`、`RigidBody` 这些引擎组件每次读都是从 wasm 堆里解出来的——所以
+  `Transform`、`Sprite`、`RigidBody2D` 这些引擎组件每次读都是从 wasm 堆里解出来的——所以
   `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且是**静默**的。读出来、
   改完、用 `ctx.set` 交回去。参见[脚本](/docs/zh-cn/scripting/overview/#你的第一个-behavior)。
 </Aside>

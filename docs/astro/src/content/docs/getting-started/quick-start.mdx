@@ -70,7 +70,7 @@ shape draws without needing a texture.
 
 <Aside type="caution">
   The copy in step 3 is not ceremony. `ctx.get` hands back the stored object for
-  a component you declared yourself, but `Transform`, `Sprite`, `RigidBody` and
+  a component you declared yourself, but `Transform`, `Sprite`, `RigidBody2D` and
   every other engine component are decoded out of the wasm heap on each read —
   so `ctx.get(Transform).position.x += …` changes a value nobody keeps, and does
   it silently. Read it, change it, hand it back with `ctx.set`. See

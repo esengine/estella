@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Main",
   "entities": [
     {
@@ -86,9 +86,9 @@
           }
         },
         { "type": "Player", "data": {} },
-        { "type": "RigidBody", "data": { "bodyType": 1 } },
+        { "type": "RigidBody2D", "data": { "bodyType": 1 } },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": { "x": 0.05, "y": 0.035 },
             "offset": { "x": 0, "y": -0.045 },
@@ -96,7 +96,7 @@
             "maskBits": 65535
           }
         },
-        { "type": "CharacterController", "data": { "maskBits": 65535 } }
+        { "type": "CharacterController2D", "data": { "maskBits": 65535 } }
       ],
       "visible": true
     },

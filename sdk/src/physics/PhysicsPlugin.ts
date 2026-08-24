@@ -22,7 +22,7 @@ import { PhysicsBridge } from './PhysicsBridge';
 import { PhysicsRuntime } from './PhysicsRuntime';
 import { PhysicsAPI, Physics } from './Physics';
 import { registerPhysicsSystem } from './PhysicsSystem';
-import { registerCharacterControllerSystem } from './CharacterController';
+import { registerCharacterControllerSystem } from './CharacterController2D';
 import { registerPhysicsEventBridge } from './PhysicsEventBridge';
 import {
     PhysicsEvents,
@@ -82,7 +82,7 @@ function resolveConfig(config: PhysicsPluginConfig): ResolvedPhysicsConfig {
  * hours before the commit that added pose interpolation therefore installed
  * happily, and `PhysicsStepSystem` and `PhysicsInterpolateSystem` then threw
  * `_physics_capturePoses is not a function` TWICE A FRAME, for the length of
- * the session, at anyone who dropped a RigidBody into a scene and pressed Play.
+ * the session, at anyone who dropped a RigidBody2D into a scene and pressed Play.
  * Two dogfood runs read that as "physics is broken" and turned it off.
  *
  * Not the whole interface — the per-frame contract, whose absence is the one

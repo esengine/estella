@@ -72,6 +72,34 @@ describe('a component renamed by an engine upgrade', () => {
         expect(data.entities[0]!.components[0]!.data['intensity']).toBe(2);
     });
 
+    it('suffixes the flat physics set without touching the solid one', () => {
+        const { data, migrated } = migrateSceneData(sceneWith([
+            { type: 'RigidBody', data: { bodyType: 2, gravityScale: 0.5 } },
+            { type: 'BoxCollider', data: { halfExtents: { x: 1, y: 2 } } },
+            { type: 'CircleCollider', data: { radius: 3 } },
+            { type: 'CapsuleCollider', data: { radius: 1, halfHeight: 2 } },
+            { type: 'SegmentCollider', data: { density: 4 } },
+            { type: 'CharacterController', data: { skinWidth: 2 } },
+            { type: 'DistanceJoint', data: { length: 5 } },
+            // The names a careless rename eats: every one of these already ends
+            // in a plane, and a second suffix is a component nothing can load.
+            { type: 'RigidBody3D', data: { gravityScale: 1 } },
+            { type: 'BoxCollider3D', data: { isSensor: true } },
+            { type: 'CapsuleCollider3D', data: { radius: 1 } },
+            { type: 'CharacterController3D', data: { slopeLimit: 45 } },
+            { type: 'DistanceJoint3D', data: { minDistance: 1 } },
+        ]));
+        expect(migrated).toBe(true);
+        expect(componentsOf(data).map((c) => c.type)).toEqual([
+            'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D',
+            'SegmentCollider2D', 'CharacterController2D', 'DistanceJoint2D',
+            'RigidBody3D', 'BoxCollider3D', 'CapsuleCollider3D', 'CharacterController3D',
+            'DistanceJoint3D',
+        ]);
+        expect(componentsOf(data)[0]!.data).toEqual({ bodyType: 2, gravityScale: 0.5 });
+        expect(componentsOf(data)[5]!.data).toEqual({ skinWidth: 2 });
+    });
+
     it('stamps the format version that tells an older engine to refuse the file', () => {
         const { data } = migrateSceneData(sceneWith([{ type: 'Light2D', data: {} }]));
         expect(data.version).toBe(SCENE_FORMAT_VERSION);

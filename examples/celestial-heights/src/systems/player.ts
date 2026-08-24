@@ -1,4 +1,4 @@
-import { defineSystem, Query, Mut, CharacterController } from 'esengine';
+import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
 import { Player, Facing, MeleeAttack } from '../components';
 import { Actions } from '../actions';
 import { DEPTH_FORESHORTEN } from '../config';
@@ -9,7 +9,7 @@ import { DEPTH_FORESHORTEN } from '../config';
  * physics world's business and not this system's.
  */
 export const playerMoveSystem = defineSystem(
-    [Query(Mut(CharacterController), Mut(Facing), Player)],
+    [Query(Mut(CharacterController2D), Mut(Facing), Player)],
     (players) => {
         const move = Actions.axis2d('Move');
         for (const [, cc, facing, player] of players) {

@@ -10,12 +10,12 @@ Kinematic = 1
 Static = 0
 ```
 
-## BoxCollider — const @experimental
+## BoxCollider2D — const @experimental
 ```
-BuiltinComponentDef<BoxColliderData>
+BuiltinComponentDef<BoxCollider2DData>
 ```
 
-## BoxColliderData — interface @experimental
+## BoxCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -34,12 +34,12 @@ restitution: number
 16
 ```
 
-## CapsuleCollider — const @experimental
+## CapsuleCollider2D — const @experimental
 ```
-BuiltinComponentDef<CapsuleColliderData>
+BuiltinComponentDef<CapsuleCollider2DData>
 ```
 
-## CapsuleColliderData — interface @experimental
+## CapsuleCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -53,12 +53,12 @@ radius: number
 restitution: number
 ```
 
-## ChainCollider — const @experimental
+## ChainCollider2D — const @experimental
 ```
-ComponentDef<ChainColliderData>
+ComponentDef<ChainCollider2DData>
 ```
 
-## ChainColliderData — interface @experimental
+## ChainCollider2DData — interface @experimental
 ```
 categoryBits: number
 enabled: boolean
@@ -69,12 +69,12 @@ points: Vec2[]
 restitution: number
 ```
 
-## CharacterController — const @beta
+## CharacterController2D — const @beta
 ```
-ComponentDef<CharacterControllerData>
+ComponentDef<CharacterController2DData>
 ```
 
-## CharacterControllerData — interface @experimental
+## CharacterController2DData — interface @experimental
 ```
 floorMaxAngle: number
 floorNormal: Vec2
@@ -91,12 +91,12 @@ up: Vec2
 velocity: Vec2
 ```
 
-## CircleCollider — const @experimental
+## CircleCollider2D — const @experimental
 ```
-BuiltinComponentDef<CircleColliderData>
+BuiltinComponentDef<CircleCollider2DData>
 ```
 
-## CircleColliderData — interface @experimental
+## CircleCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -153,12 +153,12 @@ pointX: number
 pointY: number
 ```
 
-## DistanceJoint — const @experimental
+## DistanceJoint2D — const @experimental
 ```
-ComponentDef<DistanceJointData>
+ComponentDef<DistanceJoint2DData>
 ```
 
-## DistanceJointData — interface @experimental
+## DistanceJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2
@@ -184,12 +184,12 @@ inertia: number
 mass: number
 ```
 
-## MotorJoint — const @experimental
+## MotorJoint2D — const @experimental
 ```
-ComponentDef<MotorJointData>
+ComponentDef<MotorJoint2DData>
 ```
 
-## MotorJointData — interface @experimental
+## MotorJoint2DData — interface @experimental
 ```
 angularDampingRatio: number
 angularHertz: number
@@ -237,12 +237,12 @@ x: number
 y: number
 ```
 
-## OneWayPlatform — const @experimental
+## OneWayPlatform2D — const @experimental
 ```
-ComponentDef<OneWayPlatformData>
+ComponentDef<OneWayPlatform2DData>
 ```
 
-## OneWayPlatformData — interface @experimental
+## OneWayPlatform2DData — interface @experimental
 ```
 enabled: boolean
 normal: Vec2
@@ -521,12 +521,12 @@ _physics_step: (dt: number) => void
 _physics_updateBodyProperties: (entityId: number, bodyType: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number) => void
 ```
 
-## PolygonCollider — const @experimental
+## PolygonCollider2D — const @experimental
 ```
-ComponentDef<PolygonColliderData>
+ComponentDef<PolygonCollider2DData>
 ```
 
-## PolygonColliderData — interface @experimental
+## PolygonCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -539,12 +539,12 @@ restitution: number
 vertices: Vec2[]
 ```
 
-## PrismaticJoint — const @experimental
+## PrismaticJoint2D — const @experimental
 ```
-ComponentDef<PrismaticJointData>
+ComponentDef<PrismaticJoint2DData>
 ```
 
-## PrismaticJointData — interface @experimental
+## PrismaticJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2
@@ -571,12 +571,12 @@ normal: Vec2
 point: Vec2
 ```
 
-## RevoluteJoint — const @experimental
+## RevoluteJoint2D — const @experimental
 ```
-ComponentDef<RevoluteJointData>
+ComponentDef<RevoluteJoint2DData>
 ```
 
-## RevoluteJointData — interface @experimental
+## RevoluteJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2
@@ -591,12 +591,12 @@ motorSpeed: number
 upperAngle: number
 ```
 
-## RigidBody — const @experimental
+## RigidBody2D — const @experimental
 ```
-BuiltinComponentDef<RigidBodyData>
+BuiltinComponentDef<RigidBody2DData>
 ```
 
-## RigidBodyData — interface @experimental
+## RigidBody2DData — interface @experimental
 ```
 angularDamping: number
 bodyType: number
@@ -607,12 +607,12 @@ gravityScale: number
 linearDamping: number
 ```
 
-## SegmentCollider — const @experimental
+## SegmentCollider2D — const @experimental
 ```
-BuiltinComponentDef<SegmentColliderData>
+BuiltinComponentDef<SegmentCollider2DData>
 ```
 
-## SegmentColliderData — interface @experimental
+## SegmentCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -648,12 +648,12 @@ nx: number
 ny: number
 ```
 
-## WeldJoint — const @experimental
+## WeldJoint2D — const @experimental
 ```
-ComponentDef<WeldJointData>
+ComponentDef<WeldJoint2DData>
 ```
 
-## WeldJointData — interface @experimental
+## WeldJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2
@@ -666,12 +666,12 @@ linearDampingRatio: number
 linearHertz: number
 ```
 
-## WheelJoint — const @experimental
+## WheelJoint2D — const @experimental
 ```
-ComponentDef<WheelJointData>
+ComponentDef<WheelJoint2DData>
 ```
 
-## WheelJointData — interface @experimental
+## WheelJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2

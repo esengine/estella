@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    CharacterController.ts
+ * @file    CharacterController2D.ts
  * @brief   Kinematic character controller (Godot CharacterBody2D semantics) on top
  *          of Box2D v3's native kinematic mover.
  *
@@ -11,7 +11,7 @@
  * depenetrating slide. That resolves a character resting on the ground with valid
  * normals (a generic shape cast reports the resting contact as a zero-normal
  * fraction-0 hit and wedges). It writes the resolved pose to `Transform`; if the
- * entity also carries a Kinematic `RigidBody`, `PhysicsStepSystem` then pushes that
+ * entity also carries a Kinematic `RigidBody2D`, `PhysicsStepSystem` then pushes that
  * Transform into Box2D so dynamic bodies see the character.
  *
  * `moveAndSlide` below is the earlier pure JS resolver, kept as a standalone utility
@@ -29,10 +29,10 @@ import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { Physics, type PhysicsAPI } from './Physics';
 import { readPixelsPerUnit } from './PhysicsSystem';
-import { BoxCollider, CircleCollider, CapsuleCollider, activeCollider } from './PhysicsComponents';
+import { BoxCollider2D, CircleCollider2D, CapsuleCollider2D, activeCollider } from './PhysicsComponents';
 import { log } from '../util/logger';
 import type {
-    BoxColliderData, CircleColliderData, CapsuleColliderData,
+    BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
 } from './PhysicsComponents';
 import type { MoverResult } from './PhysicsTypes';
 import type { World } from '../ecs/world';
@@ -41,7 +41,7 @@ import type { World } from '../ecs/world';
 // Component
 // =============================================================================
 
-export interface CharacterControllerData {
+export interface CharacterController2DData {
     /** Desired velocity in world pixels/second; set it from gameplay each step. */
     velocity: Vec2;
     /** Up direction for floor/ceiling classification (opposes gravity). */
@@ -77,7 +77,7 @@ export interface CharacterControllerData {
  *
  * @beta
  */
-export const CharacterController = defineComponent<CharacterControllerData>('CharacterController', {
+export const CharacterController2D = defineComponent<CharacterController2DData>('CharacterController2D', {
     velocity: { x: 0, y: 0 },
     up: { x: 0, y: 1 },
     floorMaxAngle: 0.785398, // 45°
@@ -248,15 +248,15 @@ type CastShape =
 /** Read the entity's collider into a pixel-space cast shape, or null if it has no
  *  enabled one — a disabled collider is no collider, here as everywhere. */
 function resolveCastShape(world: World, entity: Entity, ppu: number): CastShape | null {
-    const box = activeCollider(world, entity, BoxCollider) as BoxColliderData | null;
+    const box = activeCollider(world, entity, BoxCollider2D) as BoxCollider2DData | null;
     if (box) {
         return { kind: 'box', hx: box.halfExtents.x * ppu, hy: box.halfExtents.y * ppu, ox: box.offset.x * ppu, oy: box.offset.y * ppu };
     }
-    const circle = activeCollider(world, entity, CircleCollider) as CircleColliderData | null;
+    const circle = activeCollider(world, entity, CircleCollider2D) as CircleCollider2DData | null;
     if (circle) {
         return { kind: 'circle', r: circle.radius * ppu, ox: circle.offset.x * ppu, oy: circle.offset.y * ppu };
     }
-    const capsule = activeCollider(world, entity, CapsuleCollider) as CapsuleColliderData | null;
+    const capsule = activeCollider(world, entity, CapsuleCollider2D) as CapsuleCollider2DData | null;
     if (capsule) {
         return { kind: 'capsule', r: capsule.radius * ppu, halfH: capsule.halfHeight * ppu, ox: capsule.offset.x * ppu, oy: capsule.offset.y * ppu };
     }
@@ -293,7 +293,7 @@ let warnedNonFiniteMove = false;
 function warnNonFiniteMove(entity: Entity, ppu: number, dt: number): void {
     if (warnedNonFiniteMove) return;
     warnedNonFiniteMove = true;
-    log.error('physics', `CharacterController move on entity ${entity} resolved to a non-finite pose `
+    log.error('physics', `CharacterController2D move on entity ${entity} resolved to a non-finite pose `
         + `(ppu=${ppu}, dt=${dt}); the Transform was left where it was. Check the entity's collider, `
         + 'velocity and the Canvas pixelsPerUnit.');
 }
@@ -310,9 +310,9 @@ export function registerCharacterControllerSystem(app: App): void {
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
         defineSystem(
-            [Query(Mut(CharacterController)), Res(Time), Res(Physics), GetWorld()],
+            [Query(Mut(CharacterController2D)), Res(Time), Res(Physics), GetWorld()],
             (
-                query: Iterable<[Entity, CharacterControllerData]>,
+                query: Iterable<[Entity, CharacterController2DData]>,
                 time: TimeData,
                 physics: PhysicsAPI,
                 world: World,
@@ -371,13 +371,13 @@ export function registerCharacterControllerSystem(app: App): void {
                 }
             },
             {
-                name: 'CharacterControllerSystem',
+                name: 'CharacterController2DSystem',
                 runBefore: ['PhysicsStepSystem'],
                 // The World is how it reaches the collider (whichever of the three
                 // a character has) and the pose it resolves; the solver's contacts
                 // are physics-side state, not components.
                 touches: {
-                    reads: [BoxCollider._name, CircleCollider._name, CapsuleCollider._name],
+                    reads: [BoxCollider2D._name, CircleCollider2D._name, CapsuleCollider2D._name],
                     writes: [Transform._name],
                 },
             },

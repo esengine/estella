@@ -1,5 +1,5 @@
 import {
-    defineSystem, Query, Mut, Transform, CharacterController,
+    defineSystem, Query, Mut, Transform, CharacterController2D,
 } from 'esengine';
 import { Player } from '../components';
 
@@ -12,7 +12,7 @@ const DEATH_Y = -360;
 const homes = new Map<number, { x: number; y: number }>();
 
 export const respawnSystem = defineSystem(
-    [Query(Mut(Transform), Mut(CharacterController), Player)],
+    [Query(Mut(Transform), Mut(CharacterController2D), Player)],
     (players) => {
         for (const [entity, tf, cc] of players) {
             let home = homes.get(entity);

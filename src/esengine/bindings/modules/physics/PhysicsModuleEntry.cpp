@@ -185,7 +185,7 @@ int physics_hasBody(uint32_t entityId) {
     return g_ctx.entityToBody.contains(entityId) ? 1 : 0;
 }
 
-// Enable / disable a body in place (RigidBody.enabled). Unlike destroy, this keeps
+// Enable / disable a body in place (RigidBody2D.enabled). Unlike destroy, this keeps
 // the body, its shapes, velocity, and joints — b2Body_Disable just removes it from
 // simulation/broadphase — so the reconciler can toggle without losing state.
 EMSCRIPTEN_KEEPALIVE
@@ -292,7 +292,7 @@ uintptr_t physics_getDynamicBodyTransforms() {
         if (it == g_ctx.entityToBody.end() || !b2Body_IsValid(it->second)) continue;
         // A disabled body is frozen; skip it so the readback doesn't stamp its
         // stale pose back over a Transform the game is hand-animating while
-        // physics is off (RigidBody.enabled = false).
+        // physics is off (RigidBody2D.enabled = false).
         if (!b2Body_IsEnabled(it->second)) continue;
 
         b2Vec2 pos = b2Body_GetPosition(it->second);

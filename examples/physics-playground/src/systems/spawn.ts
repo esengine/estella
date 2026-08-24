@@ -1,7 +1,7 @@
 import {
     defineSystem, Query, Mut, Res, Time, Commands,
     Transform, ShapeRenderer, ShapeType,
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider, BodyType,
+    RigidBody2D, BoxCollider2D, CircleCollider2D, CapsuleCollider2D, BodyType,
 } from 'esengine';
 import { SpawnTimer } from '../components';
 
@@ -35,8 +35,8 @@ export const spawnSystem = defineSystem(
                         size: { x: d, y: d },
                         color,
                     })
-                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                    .insert(CircleCollider, {
+                    .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                    .insert(CircleCollider2D, {
                         radius: r / PPU,
                         restitution: 0.2 + Math.random() * 0.4,
                     });
@@ -50,8 +50,8 @@ export const spawnSystem = defineSystem(
                         size: { x: w, y: h },
                         color,
                     })
-                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                    .insert(CapsuleCollider, {
+                    .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                    .insert(CapsuleCollider2D, {
                         radius: (w / 2) / PPU,
                         halfHeight: ((h - w) / 2) / PPU,
                         restitution: 0.2 + Math.random() * 0.4,
@@ -68,8 +68,8 @@ export const spawnSystem = defineSystem(
                         cornerRadius: cr,
                         color,
                     })
-                    .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                    .insert(BoxCollider, {
+                    .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                    .insert(BoxCollider2D, {
                         halfExtents: { x: w / 2 / PPU, y: h / 2 / PPU },
                         restitution: 0.2 + Math.random() * 0.4,
                     });

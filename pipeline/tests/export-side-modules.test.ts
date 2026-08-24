@@ -77,7 +77,7 @@ describe('web package side modules', () => {
   }, 60_000);
 
   it('carries the 2D solver for a scene with a body', async () => {
-    const f = setup({ version: '1.0', name: 'Main', entities: entities({ type: 'RigidBody', data: { bodyType: 1 } }) });
+    const f = setup({ version: '1.0', name: 'Main', entities: entities({ type: 'RigidBody2D', data: { bodyType: 1 } }) });
     try {
       expect(shipped((await run(f), f.out))).toEqual(['physics']);
     } finally { rmSync(f.root, { recursive: true, force: true }); }
@@ -126,7 +126,7 @@ describe('web package side modules', () => {
         mkdirSync(path.join(root, 'prefabs'), { recursive: true });
         writeFileSync(path.join(root, 'prefabs', 'enemy.esprefab'), JSON.stringify({
           version: '1.0', name: 'Enemy', rootEntityId: 'r',
-          entities: [{ prefabEntityId: 'r', name: 'Enemy', parent: null, children: [], visible: true, components: [{ type: 'RigidBody', data: { bodyType: 1 } }] }],
+          entities: [{ prefabEntityId: 'r', name: 'Enemy', parent: null, children: [], visible: true, components: [{ type: 'RigidBody2D', data: { bodyType: 1 } }] }],
         }));
         writeFileSync(path.join(root, 'prefabs', 'enemy.esprefab.meta'), meta(PFB, 'prefab'));
       },

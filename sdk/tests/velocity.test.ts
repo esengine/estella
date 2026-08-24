@@ -53,11 +53,11 @@ describe('VelocitySystem', () => {
     });
 
     it('skips entities owned by the physics solver', () => {
-        const RigidBody = defineComponent('RigidBody', { bodyType: 0 });
+        const RigidBody2D = defineComponent('RigidBody2D', { bodyType: 0 });
         const e = world.spawn();
         world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
         world.insert(e, Velocity, { linear: { x: 100, y: 0, z: 0 } });
-        world.insert(e, RigidBody, {});
+        world.insert(e, RigidBody2D, {});
 
         runner.run(velocitySystem);
 

@@ -68,7 +68,7 @@ buffering on your side.
 
 ```typescript
 // Schedule.FixedPreUpdate — the edge is delivered reliably.
-const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (players, input) => {
+const jump = defineSystem([Query(Mut(CharacterController2D)), Res(Input)], (players, input) => {
   for (const [, cc] of players) {
     if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
   }

@@ -103,7 +103,7 @@ world / design px   ── ÷ Canvas.pixelsPerUnit (100) ──▶  physics mete
 | 碰撞体尺寸(`halfExtents`、`radius` 等) | **米**(像素 ÷ PPU) |
 | 面向求解器的方法——力、冲量、速度、`setGravity` | **米** |
 | 空间查询——`raycast`、`shapeCast*`、`overlapCircle`、`overlapAABB` | **世界像素**(自动换算) |
-| `CharacterController.velocity` / `moveCharacter` | **世界像素**/秒 |
+| `CharacterController2D.velocity` / `moveCharacter` | **世界像素**/秒 |
 
 这些默认值以常量导出,需要它们的代码不必硬编码数字:
 

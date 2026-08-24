@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Main",
   "entities": [
     {
@@ -20,7 +20,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 1200, "z": 0 } } },
-        { "type": "RigidBody", "data": { "bodyType": 0 } }
+        { "type": "RigidBody2D", "data": { "bodyType": 0 } }
       ],
       "visible": true
     },
@@ -32,9 +32,9 @@
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 1200, "z": 0 } } },
         { "type": "Sprite", "data": { "size": { "x": 120, "y": 4040 }, "color": { "r": 0.9, "g": 0.3, "b": 0.2, "a": 1 } } },
-        { "type": "RigidBody", "data": { "bodyType": 2 } },
-        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.4, "y": 20.0 }, "radius": 0.2, "friction": 0.0 } },
-        { "type": "RevoluteJoint", "data": {
+        { "type": "RigidBody2D", "data": { "bodyType": 2 } },
+        { "type": "BoxCollider2D", "data": { "halfExtents": { "x": 0.4, "y": 20.0 }, "radius": 0.2, "friction": 0.0 } },
+        { "type": "RevoluteJoint2D", "data": {
           "connectedEntity": 1,
           "anchorA": { "x": 0, "y": 0 },
           "anchorB": { "x": 0, "y": 0 },

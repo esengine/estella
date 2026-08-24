@@ -112,12 +112,12 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Static, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Static, enabled: true },
             Transform: {
                 worldPosition: { x: 100, y: 200 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
             },
-            BoxCollider: {
+            BoxCollider2D: {
                 halfExtents: { x: 0.5, y: 0.5 },
                 offset: { x: 0, y: 0 },
                 isSensor: false,
@@ -137,12 +137,12 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Dynamic, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
             Transform: {
                 worldPosition: { x: 50, y: 50 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
             },
-            CircleCollider: {
+            CircleCollider2D: {
                 radius: 1.0,
                 offset: { x: 0, y: 0 },
                 isSensor: false,
@@ -162,12 +162,12 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Dynamic, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
             Transform: {
                 worldPosition: { x: 0, y: 0 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
             },
-            CapsuleCollider: {
+            CapsuleCollider2D: {
                 radius: 0.25,
                 halfHeight: 0.5,
                 offset: { x: 0, y: 0 },
@@ -189,12 +189,12 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Dynamic, enabled: false },
+            RigidBody2D: { bodyType: BodyType.Dynamic, enabled: false },
             Transform: {
                 worldPosition: { x: 0, y: 0 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
             },
-            BoxCollider: {
+            BoxCollider2D: {
                 halfExtents: { x: 0.5, y: 0.5 },
                 offset: { x: 0, y: 0 },
                 isSensor: false,
@@ -214,12 +214,12 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Static, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Static, enabled: true },
             Transform: {
                 worldPosition: { x: 0, y: 0 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
             },
-            BoxCollider: {
+            BoxCollider2D: {
                 halfExtents: { x: 1, y: 1 },
                 offset: { x: 0, y: 0 },
                 isSensor: true,
@@ -245,7 +245,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Dynamic, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
             Transform: {
                 worldPosition: { x: 100, y: 200 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
@@ -269,7 +269,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Static, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Static, enabled: true },
             Transform: {
                 worldPosition: { x: 0, y: 0 },
                 worldRotation: { w: 1, x: 0, y: 0, z: 0 },
@@ -319,21 +319,21 @@ describe('drawPhysicsDebug', () => {
         } as PhysicsDebugDrawConfig);
 
         const staticEntity = mockEntity({
-            RigidBody: { bodyType: BodyType.Static, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Static, enabled: true },
             Transform: { worldPosition: { x: 0, y: 0 }, worldRotation: { w: 1, x: 0, y: 0, z: 0 } },
-            CircleCollider: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
+            CircleCollider2D: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
         });
 
         const dynamicEntity = mockEntity({
-            RigidBody: { bodyType: BodyType.Dynamic, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
             Transform: { worldPosition: { x: 0, y: 0 }, worldRotation: { w: 1, x: 0, y: 0, z: 0 } },
-            CircleCollider: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
+            CircleCollider2D: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
         });
 
         const kinematicEntity = mockEntity({
-            RigidBody: { bodyType: BodyType.Kinematic, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Kinematic, enabled: true },
             Transform: { worldPosition: { x: 0, y: 0 }, worldRotation: { w: 1, x: 0, y: 0, z: 0 } },
-            CircleCollider: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
+            CircleCollider2D: { radius: 1, offset: { x: 0, y: 0 }, isSensor: false },
         });
 
         const app = createMockApp([staticEntity, dynamicEntity, kinematicEntity], resources);
@@ -363,12 +363,12 @@ describe('drawPhysicsDebug', () => {
         const qZ = Math.sin(angle / 2);
 
         const entity = mockEntity({
-            RigidBody: { bodyType: BodyType.Static, enabled: true },
+            RigidBody2D: { bodyType: BodyType.Static, enabled: true },
             Transform: {
                 worldPosition: { x: 100, y: 100 },
                 worldRotation: { w: qW, x: 0, y: 0, z: qZ },
             },
-            CircleCollider: {
+            CircleCollider2D: {
                 radius: 1,
                 offset: { x: 1, y: 0 },
                 isSensor: false,

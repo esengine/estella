@@ -12,8 +12,8 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import {
-    BoxCollider, CircleCollider, CapsuleCollider,
-    SegmentCollider, PolygonCollider, ChainCollider,
+    BoxCollider2D, CircleCollider2D, CapsuleCollider2D,
+    SegmentCollider2D, PolygonCollider2D, ChainCollider2D,
 } from '../src/physics/PhysicsComponents';
 import { addShapeForEntity, collidersChangedSince } from '../src/physics/PhysicsSystem';
 import { readColliderShapes } from '../src/physics/ColliderShape';
@@ -45,12 +45,12 @@ function recordingModule(): { shapes: string[]; module: PhysicsWasmModule } {
 }
 
 const COLLIDERS = [
-    { name: 'box', component: BoxCollider },
-    { name: 'circle', component: CircleCollider },
-    { name: 'capsule', component: CapsuleCollider },
-    { name: 'segment', component: SegmentCollider },
-    { name: 'polygon', component: PolygonCollider },
-    { name: 'chain', component: ChainCollider },
+    { name: 'box', component: BoxCollider2D },
+    { name: 'circle', component: CircleCollider2D },
+    { name: 'capsule', component: CapsuleCollider2D },
+    { name: 'segment', component: SegmentCollider2D },
+    { name: 'polygon', component: PolygonCollider2D },
+    { name: 'chain', component: ChainCollider2D },
 ] as const;
 
 describe('addShapeForEntity honours collider.enabled', () => {
@@ -78,8 +78,8 @@ describe('addShapeForEntity honours collider.enabled', () => {
         const world = testWorld();
         const { shapes, module } = recordingModule();
         const e = world.spawn();
-        world.insert(e, BoxCollider, { enabled: false } as never);
-        world.insert(e, CircleCollider, {} as never);
+        world.insert(e, BoxCollider2D, { enabled: false } as never);
+        world.insert(e, CircleCollider2D, {} as never);
         addShapeForEntity(world, module, e);
         expect(shapes).toEqual(['circle']);
     });
@@ -88,10 +88,10 @@ describe('addShapeForEntity honours collider.enabled', () => {
         const world = testWorld();
         const { shapes, module } = recordingModule();
         const e = world.spawn();
-        world.insert(e, BoxCollider, {} as never);
-        const legacy = { ...world.get(e, BoxCollider) } as Record<string, unknown>;
+        world.insert(e, BoxCollider2D, {} as never);
+        const legacy = { ...world.get(e, BoxCollider2D) } as Record<string, unknown>;
         delete legacy.enabled;
-        world.set(e, BoxCollider, legacy as never);
+        world.set(e, BoxCollider2D, legacy as never);
         addShapeForEntity(world, module, e);
         expect(shapes).toEqual(['box']);
     });
@@ -101,8 +101,8 @@ describe('the rest of the engine agrees with the shape that is there', () => {
     it('reports the flag to the visualizers, so the debug overlay can skip it', () => {
         const world = testWorld();
         const e = world.spawn();
-        world.insert(e, BoxCollider, { enabled: false } as never);
-        world.insert(e, CircleCollider, {} as never);
+        world.insert(e, BoxCollider2D, { enabled: false } as never);
+        world.insert(e, CircleCollider2D, {} as never);
         const [box, circle] = readColliderShapes(world, e);
         expect(box.enabled).toBe(false);
         expect(circle.enabled).toBe(true);
@@ -110,14 +110,14 @@ describe('the rest of the engine agrees with the shape that is there', () => {
 
     it('marks the collider changed when the flag flips, which is what rebuilds the shapes', () => {
         const world = testWorld();
-        world.enableChangeTracking(BoxCollider); // registerPhysicsSystem does this
+        world.enableChangeTracking(BoxCollider2D); // registerPhysicsSystem does this
         const e = world.spawn();
-        world.insert(e, BoxCollider, {} as never);
+        world.insert(e, BoxCollider2D, {} as never);
         const settled = world.getWorldTick();
         expect(collidersChangedSince(world, e, settled)).toBe(false);
 
         world.advanceTick(); // next frame: the game turns the platform off
-        world.set(e, BoxCollider, { ...world.get(e, BoxCollider), enabled: false });
+        world.set(e, BoxCollider2D, { ...world.get(e, BoxCollider2D), enabled: false });
         expect(collidersChangedSince(world, e, settled)).toBe(true);
     });
 });

@@ -40,8 +40,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 56 },
         ],
     },
-    BoxCollider: {
-        ptrFn: 'getBoxColliderPtr',
+    BoxCollider2D: {
+        ptrFn: 'getBoxCollider2DPtr',
         fields: [
             { name: 'halfExtents', type: 'vec2', offset: 0 },
             { name: 'offset', type: 'vec2', offset: 8 },
@@ -93,8 +93,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'layer', type: 'i32', offset: 36 },
         ],
     },
-    CapsuleCollider: {
-        ptrFn: 'getCapsuleColliderPtr',
+    CapsuleCollider2D: {
+        ptrFn: 'getCapsuleCollider2DPtr',
         fields: [
             { name: 'radius', type: 'f32', offset: 0 },
             { name: 'halfHeight', type: 'f32', offset: 4 },
@@ -137,8 +137,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'realVelocity', type: 'vec3', offset: 64 },
         ],
     },
-    CircleCollider: {
-        ptrFn: 'getCircleColliderPtr',
+    CircleCollider2D: {
+        ptrFn: 'getCircleCollider2DPtr',
         fields: [
             { name: 'radius', type: 'f32', offset: 0 },
             { name: 'offset', type: 'vec2', offset: 4 },
@@ -329,8 +329,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 25 },
         ],
     },
-    RigidBody: {
-        ptrFn: 'getRigidBodyPtr',
+    RigidBody2D: {
+        ptrFn: 'getRigidBody2DPtr',
         fields: [
             { name: 'bodyType', type: 'u8', offset: 0 },
             { name: 'gravityScale', type: 'f32', offset: 4 },
@@ -354,8 +354,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 25 },
         ],
     },
-    SegmentCollider: {
-        ptrFn: 'getSegmentColliderPtr',
+    SegmentCollider2D: {
+        ptrFn: 'getSegmentCollider2DPtr',
         fields: [
             { name: 'point1', type: 'vec2', offset: 0 },
             { name: 'point2', type: 'vec2', offset: 8 },

@@ -1,11 +1,11 @@
 import {
     defineSystem, Query, Mut, Res, Input, GetWorld,
-    CharacterController, SpriteAnimator,
+    CharacterController2D, SpriteAnimator,
 } from 'esengine';
 import { Facings, Player } from '../components';
 
 export const moveSystem = defineSystem(
-    [Query(Mut(CharacterController), SpriteAnimator, Facings, Player), Res(Input), GetWorld()],
+    [Query(Mut(CharacterController2D), SpriteAnimator, Facings, Player), Res(Input), GetWorld()],
     (players, input, world) => {
         let x = 0;
         let y = 0;

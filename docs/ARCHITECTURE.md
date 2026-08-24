@@ -368,10 +368,12 @@ The correctness and foundation campaigns are **complete**. Landed:
   colliders, joints, character controllers). `Light2D` / `Mesh2D` dropped the
   plane from their names (they are the only light and the only mesh renderer);
   `ShadowCaster2D` keeps it, because it shadows what has no mesh to rasterize.
-  Physics is the one place where two worlds really do exist, and the unsuffixed
-  names — `RigidBody`, `BoxCollider`, `CircleCollider`, `CapsuleCollider` — are
-  still the **flat** ones. That reads backwards in a 3D-first engine and is
-  slated to be suffixed; see `REARCHITECTURE.md`.
+  Physics is the one place where two worlds really do exist, so both are named
+  for their plane: `RigidBody2D` and the four `*Collider2D` shapes beside
+  `RigidBody3D` and its five, and neither set owns the bare name. `BodyType` is
+  shared — a body is static, kinematic or dynamic in either world — and lives in
+  a header of its own rather than in the flat one's, which is where the 3D
+  component used to reach for it.
 
 Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T2 — editor keyframe/curve editing UI; particle visual editor; native 2D
@@ -379,7 +381,10 @@ Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T3 — GPU particles / trails (transform-feedback or compute).
 - [ ] T4 — one-way platforms + remaining Box2D joints; editor multi-atlas painting;
       tile-gid objects in tilemaps.
-- [ ] Flat-physics naming — the `2D` suffix decided above.
+- [ ] The SDK's flat physics surface still carries bare names the components no
+      longer do: `Physics`, `PhysicsPlugin`, `PhysicsEvents`, `ColliderShape`,
+      against `Physics3DPlugin` / `ColliderShape3D`. Nothing on disk is keyed by
+      those, so squaring it is an API rename with no migration in it.
 - [ ] Two pixel gates still run on one backend: `camera-render-target` (a frame
       holding both an offscreen and a surface pass returns nothing from the
       WebGPU readback) and `device-loss`. The other 121 assert on both.

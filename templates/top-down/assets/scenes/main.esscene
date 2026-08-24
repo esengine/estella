@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Main",
   "folders": [
     "Level"
@@ -106,13 +106,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 6.0,
@@ -161,13 +161,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 6.0,
@@ -216,13 +216,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.2,
@@ -271,13 +271,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.2,
@@ -326,13 +326,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.36,
@@ -381,13 +381,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.36,
@@ -436,13 +436,13 @@
           }
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 0
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.36,
@@ -494,13 +494,13 @@
           "data": {}
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 1
           }
         },
         {
-          "type": "BoxCollider",
+          "type": "BoxCollider2D",
           "data": {
             "halfExtents": {
               "x": 0.18,
@@ -511,7 +511,7 @@
           }
         },
         {
-          "type": "CharacterController",
+          "type": "CharacterController2D",
           "data": {
             "maskBits": 65533
           }

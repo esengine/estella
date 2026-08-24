@@ -75,7 +75,7 @@ export const CAPABILITIES = [
  * `null` = the claim is about the PACKAGE, so no source could show it.
  */
 export const EVIDENCE = {
-  physics: /\b(RigidBody|BoxCollider|CircleCollider|CapsuleCollider|physicsPlugin|CharacterController)\b/,
+  physics: /\b(RigidBody2D|BoxCollider2D|CircleCollider2D|CapsuleCollider2D|physicsPlugin|CharacterController2D)\b/,
   input: /\b(Input|defineInputMap|isKeyDown|InputState)\b/,
   animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
   ecs: /\b(defineComponent|defineSystem)\b/,

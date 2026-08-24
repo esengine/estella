@@ -12,6 +12,43 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Changed
+
+- **The flat physics components take the `2D` suffix the solid ones already had.**
+  Every component of the flat physics subsystem: the body (`RigidBody2D`), the
+  six collider shapes (box, circle, capsule, segment, polygon, chain), the mover
+  (`CharacterController2D`), `OneWayPlatform2D`, and all six joints — of which
+  `DistanceJoint` differed from `DistanceJoint3D` by three characters and one
+  solver.
+
+  Physics is the one place in the engine where two worlds genuinely exist, and
+  the bare names belonged to the flat one: a `BoxCollider` dropped on a mesh was
+  a flat box in a scene that is not flat. Now neither set owns the unsuffixed
+  name, which is the opposite conclusion from `Light2D` → `Light` and reached
+  the same way — a name says which of the things it is, and only stays bare when
+  there is one.
+
+  `BodyType` did **not** take a suffix: a body is static, kinematic or dynamic in
+  either world, and both components read the same enum. It moves to a header of
+  its own, so `RigidBody3D.hpp` no longer includes the flat body's header to
+  reach it.
+
+  **Scenes and prefabs migrate themselves**, through the door `Light2D` used:
+  the loader upgrades the old names on the way in, and the scene format is
+  version 3. An engine older than the rename REFUSES a version-3 file rather
+  than dropping the bodies it does not recognise and loading a level whose floor
+  nothing collides with.
+
+  **Breaking for code.** A script importing any of these from `esengine` must
+  import the new name; the data interfaces follow their component
+  (`RigidBodyData` → `RigidBody2DData`). The
+  SDK's physics *surface* is unchanged in this release — `Physics`,
+  `PhysicsPlugin`, `PhysicsEvents` and `ColliderShape` still carry bare names
+  against `Physics3DPlugin` and `ColliderShape3D`, and squaring that is an API
+  rename with no data in it.
+
 ## [0.56.0] - 2026-08-23
 
 ### Changed

@@ -37,7 +37,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
         }
     }
 }
-import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider, OneWayPlatform, BodyType } from '../physics/PhysicsComponents';
+import { RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D, BodyType } from '../physics/PhysicsComponents';
 import type { ColliderShape } from '../physics/ColliderShape';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import { mergeCollisionTiles } from './collisionMerge';
@@ -668,12 +668,12 @@ export function isCollisionObjectGroup(group: TiledObjectGroupData): boolean {
  * object anchor (top-left for rects/ellipses, the vertex origin for polygons) — realized as
  * the equivalent negative z-rotation on the collider entity, positioned at the true shape
  * centre. Collider GEOMETRY is physics units (metres): pixel sizes divide by pixelsPerUnit,
- * matching `BoxCollider.halfExtents` semantics (positions stay pixels; physics scales those).
+ * matching `BoxCollider2D.halfExtents` semantics (positions stay pixels; physics scales those).
  *
- * Shapes: rect → BoxCollider; ellipse → CircleCollider on the mean semi-axis (exact for
- * circles); polygon ≤ 8 vertices → PolygonCollider (Box2D's vertex cap); polygon > 8 →
- * bounding-box BoxCollider with a warning (predictably solid, never silently truncated);
- * polyline → open ChainCollider (the physics layer requires ≥ 4 points); point → skipped
+ * Shapes: rect → BoxCollider2D; ellipse → CircleCollider2D on the mean semi-axis (exact for
+ * circles); polygon ≤ 8 vertices → PolygonCollider2D (Box2D's vertex cap); polygon > 8 →
+ * bounding-box BoxCollider2D with a warning (predictably solid, never silently truncated);
+ * polyline → open ChainCollider2D (the physics layer requires ≥ 4 points); point → skipped
  * (spawn/marker data, queryable from the parsed map).
  */
 /**
@@ -696,9 +696,9 @@ function objectShapeTransform(
 }
 
 /**
- * The shape → collider decision shared by both Tiled object paths: rect → BoxCollider,
- * ellipse → CircleCollider on the mean semi-axis, polygon ≤ 8 verts → PolygonCollider
- * (> 8 → bounding-box Box, never silently truncated), polyline → open ChainCollider.
+ * The shape → collider decision shared by both Tiled object paths: rect → BoxCollider2D,
+ * ellipse → CircleCollider2D on the mean semi-axis, polygon ≤ 8 verts → PolygonCollider2D
+ * (> 8 → bounding-box Box, never silently truncated), polyline → open ChainCollider2D.
  * `spawn(lx, ly)` positions AND assembles the entity at the shape centre in the caller's
  * space — world-placed bare collider vs parented Marker region — so only the collider
  * geometry (metres = pixels ÷ ppu) lives here. Returns the entity, or null when the shape
@@ -711,7 +711,7 @@ function attachObjectShape(
 ): Entity | null {
     if (obj.shape === 'rect') {
         const e = spawn(obj.width * 0.5, obj.height * 0.5);
-        world.insert(e, BoxCollider, {
+        world.insert(e, BoxCollider2D, {
             halfExtents: { x: obj.width * 0.5 / pixelsPerUnit, y: obj.height * 0.5 / pixelsPerUnit },
             isSensor: sensor,
         });
@@ -719,7 +719,7 @@ function attachObjectShape(
     }
     if (obj.shape === 'ellipse') {
         const e = spawn(obj.width * 0.5, obj.height * 0.5);
-        world.insert(e, CircleCollider, { radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit, isSensor: sensor });
+        world.insert(e, CircleCollider2D, { radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit, isSensor: sensor });
         return e;
     }
     if (!obj.vertices || obj.vertices.length < 4) return null;
@@ -732,13 +732,13 @@ function attachObjectShape(
     if (obj.shape === 'polyline') {
         if (sensor) return null;
         const e = spawn(0, 0);
-        world.insert(e, ChainCollider, { points: local, isLoop: false });
+        world.insert(e, ChainCollider2D, { points: local, isLoop: false });
         return e;
     }
     if (local.length < 3) return null; // a polygon needs at least a triangle
     if (local.length <= 8) {
         const e = spawn(0, 0);
-        world.insert(e, PolygonCollider, { vertices: local, isSensor: sensor });
+        world.insert(e, PolygonCollider2D, { vertices: local, isSensor: sensor });
         return e;
     }
     log.warn('tilemap', `object polygon in group '${groupName}' has ${local.length} vertices (Box2D max 8); using its bounding box`);
@@ -751,7 +751,7 @@ function attachObjectShape(
         if (vy > maxY) maxY = vy;
     }
     const e = spawn((minX + maxX) * 0.5, (minY + maxY) * 0.5);
-    world.insert(e, BoxCollider, {
+    world.insert(e, BoxCollider2D, {
         halfExtents: { x: (maxX - minX) * 0.5 / pixelsPerUnit, y: (maxY - minY) * 0.5 / pixelsPerUnit },
         isSensor: sensor,
     });
@@ -773,7 +773,7 @@ export function generateObjectCollision(
                 const entity = world.spawn();
                 const { position, rotation } = objectShapeTransform(obj, originX, originY, lx, ly);
                 world.insert(entity, Transform, rotation ? { position, rotation } : { position });
-                world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+                world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
                 return entity;
             });
             if (e) entities.push(e);
@@ -792,7 +792,7 @@ function objectPropsRecord(obj: TiledObjectData): Record<string, string> {
 /**
  * @brief Project ONE Tiled SHAPE object (rect / ellipse / polygon / polyline) into a real
  *        REGION entity — the same shape a hand-authored Trigger Area preset builds:
- *        Transform + Marker{type,properties} + static RigidBody + a collider matching the
+ *        Transform + Marker{type,properties} + static RigidBody2D + a collider matching the
  *        shape. `sensor` picks the flavour: a non-collision group's regions are SENSORS
  *        (trigger zones), a `collision` group's regions are SOLID geometry (walls/floors) —
  *        one derivation for both, so every shape object becomes a queryable, gizmo-visible
@@ -818,7 +818,7 @@ export function spawnObjectRegion(
         const { position, rotation } = objectShapeTransform(obj, 0, 0, lx, ly);
         world.insert(e, Transform, rotation ? { position, rotation } : { position });
         world.insert(e, Marker, { type: obj.type || '', properties: objectPropsRecord(obj) });
-        world.insert(e, RigidBody, { bodyType: BodyType.Static });
+        world.insert(e, RigidBody2D, { bodyType: BodyType.Static });
         world.insert(e, RuntimeOnly, {});
         world.setParent(e, parent);
         return e;
@@ -849,7 +849,7 @@ export function loadTiledCollisionObjects(
  * Grid-agnostic core shared by the Tiled-import (`generateTileCollision`) and the runtime
  * asset (`TilemapSyncSystem`) paths. Row 0 (top of the grid) maps to the highest world-Y
  * and rows descend (y-down), matching the renderer; each merged rect becomes one static
- * `BoxCollider` body placed relative to (originX, originY) — the tilemap entity's origin.
+ * `BoxCollider2D` body placed relative to (originX, originY) — the tilemap entity's origin.
  */
 export function generateLayerCollision(
     world: World,
@@ -880,11 +880,11 @@ export function generateLayerCollision(
         world.insert(entity, Transform, {
             position: { x: worldX, y: worldY, z: 0 },
         });
-        world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+        world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
         // Position is in pixels (physics scales it by pixelsPerUnit); halfExtents are
         // PHYSICS units (metres), so divide the pixel size — otherwise a tile collider
         // is pixelsPerUnit× too big (the default 100 → 100× oversized).
-        world.insert(entity, BoxCollider, {
+        world.insert(entity, BoxCollider2D, {
             halfExtents: { x: mergedW * 0.5 / pixelsPerUnit, y: mergedH * 0.5 / pixelsPerUnit },
         });
         entities.push(entity);
@@ -945,9 +945,9 @@ export function generateChunkCollision(
                     z: 0,
                 },
             });
-            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+            world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
             // halfExtents in physics units (metres); divide the pixel size by ppu.
-            world.insert(entity, BoxCollider, {
+            world.insert(entity, BoxCollider2D, {
                 halfExtents: { x: rect.width * tileW * 0.5 / pixelsPerUnit, y: rect.height * tileH * 0.5 / pixelsPerUnit },
             });
             entities.push(entity);
@@ -1010,7 +1010,7 @@ export function tileColliderShape(
 }
 
 /**
- * Spawn one static PolygonCollider per placed tile whose global id has a polygon shape
+ * Spawn one static PolygonCollider2D per placed tile whose global id has a polygon shape
  * (slopes / partial tiles). Box-shaped tiles are handled by {@link generateChunkCollision};
  * the two run together. Flip flags on a cell flip its polygon to match the render.
  */
@@ -1041,10 +1041,10 @@ export function generateChunkPolygonCollision(
             world.insert(entity, Transform, {
                 position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
             });
-            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
-            // PolygonCollider vertices are physics units (uploaded unscaled, like
-            // BoxCollider.halfExtents) — divide the pixel-space outline by ppu.
-            world.insert(entity, PolygonCollider, {
+            world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
+            // PolygonCollider2D vertices are physics units (uploaded unscaled, like
+            // BoxCollider2D.halfExtents) — divide the pixel-space outline by ppu.
+            world.insert(entity, PolygonCollider2D, {
                 vertices: polygonLocalVerts(shape, tileW, tileH, f.flipH, f.flipV, f.flipD)
                     .map((v) => ({ x: v.x / pixelsPerUnit, y: v.y / pixelsPerUnit })),
             });
@@ -1088,7 +1088,7 @@ function spawnTileShape(
     world.insert(entity, Transform, {
         position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
     });
-    world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+    world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
 
     // Only the material/sensor fields the tile overrode; the rest keep component defaults.
     const mat: { density?: number; friction?: number; restitution?: number; isSensor?: boolean } = {};
@@ -1102,25 +1102,25 @@ function spawnTileShape(
     // overlay draws, so what you see out of Play is what spawns.
     const shape = tileColliderShape(rc, tileW, tileH, f.flipH, f.flipV, f.flipD);
     if (shape.kind === 'polygon') {
-        world.insert(entity, PolygonCollider, {
+        world.insert(entity, PolygonCollider2D, {
             vertices: shape.vertices.map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
             ...mat,
         });
     } else if (shape.kind === 'circle') {
-        world.insert(entity, CircleCollider, {
+        world.insert(entity, CircleCollider2D, {
             radius: shape.radius / ppu,
             offset: { x: shape.offset.x / ppu, y: shape.offset.y / ppu },
             ...mat,
         });
     } else if (shape.kind === 'box') {
-        world.insert(entity, BoxCollider, {
+        world.insert(entity, BoxCollider2D, {
             halfExtents: { x: shape.halfExtents.x / ppu, y: shape.halfExtents.y / ppu },
             ...mat,
         });
     }
 
     if (rc.oneWay) {
-        world.insert(entity, OneWayPlatform, {
+        world.insert(entity, OneWayPlatform2D, {
             normal: oneWayNormalWorld(rc.oneWay.nx, rc.oneWay.ny, f.flipH, f.flipV, f.flipD),
         });
     }

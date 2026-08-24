@@ -4,13 +4,13 @@ import type { App } from '../app/app';
 import type { Color } from '../types';
 import type { TransformData, CanvasData } from '../ecs/component';
 import type { ResourceDef } from '../ecs/resource';
-import type { RigidBodyData } from './PhysicsComponents';
+import type { RigidBody2DData } from './PhysicsComponents';
 import type { PhysicsEventsData } from './PhysicsPlugin';
 import { Transform, Canvas } from '../ecs/component';
 import { Draw } from '../render/draw';
 import { defineResource } from '../ecs/resource';
 import { registerDrawCallback } from '../render/customDraw';
-import { RigidBody, BodyType } from './PhysicsComponents';
+import { RigidBody2D, BodyType } from './PhysicsComponents';
 import { readColliderShapes, shapeCenter, colliderShapeOutline } from './ColliderShape';
 
 export interface PhysicsDebugDrawConfig {
@@ -100,7 +100,7 @@ export function drawPhysicsDebug(
     if (!config || !config.enabled) return;
 
     const ppu = readPixelsPerUnit(app);
-    const entities = app.world.getEntitiesWithComponents([RigidBody, Transform]);
+    const entities = app.world.getEntitiesWithComponents([RigidBody2D, Transform]);
 
     let physics: VelocityProvider | null = null;
     if (config.showVelocity && app.hasResource(physicsApiRes)) {
@@ -108,7 +108,7 @@ export function drawPhysicsDebug(
     }
 
     for (const entity of entities) {
-        const rb = app.world.get(entity, RigidBody) as RigidBodyData;
+        const rb = app.world.get(entity, RigidBody2D) as RigidBody2DData;
         if (!rb.enabled) continue;
 
         const wt = app.world.get(entity, Transform) as TransformData;

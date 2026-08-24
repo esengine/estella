@@ -14,7 +14,7 @@
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
-#include "../ecs/components/Collider.hpp"
+#include "../ecs/components/Collider2D.hpp"
 #include "../ecs/components/Draggable.hpp"
 #include "../ecs/components/DragonBonesAnimation.hpp"
 #include "../ecs/components/FlexContainer.hpp"
@@ -24,7 +24,7 @@
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
-#include "../ecs/components/RigidBody.hpp"
+#include "../ecs/components/RigidBody2D.hpp"
 #include "../ecs/components/RigidBody3D.hpp"
 #include "../ecs/components/ShadowCaster2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
@@ -839,7 +839,7 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     return js;
 }
 
-struct RigidBodyJS {
+struct RigidBody2DJS {
     i32 bodyType;
     f32 gravityScale;
     f32 linearDamping;
@@ -849,7 +849,7 @@ struct RigidBodyJS {
     bool enabled;
 };
 
-void rigidbodyApplyJS(esengine::ecs::RigidBody& c, const RigidBodyJS& js) {
+void rigidbody2dApplyJS(esengine::ecs::RigidBody2D& c, const RigidBody2DJS& js) {
     c.bodyType = static_cast<BodyType>(js.bodyType);
     c.gravityScale = js.gravityScale;
     c.linearDamping = js.linearDamping;
@@ -859,14 +859,14 @@ void rigidbodyApplyJS(esengine::ecs::RigidBody& c, const RigidBodyJS& js) {
     c.enabled = js.enabled;
 }
 
-esengine::ecs::RigidBody rigidbodyFromJS(const RigidBodyJS& js) {
-    esengine::ecs::RigidBody c;
-    rigidbodyApplyJS(c, js);
+esengine::ecs::RigidBody2D rigidbody2dFromJS(const RigidBody2DJS& js) {
+    esengine::ecs::RigidBody2D c;
+    rigidbody2dApplyJS(c, js);
     return c;
 }
 
-RigidBodyJS rigidbodyToJS(const esengine::ecs::RigidBody& c) {
-    RigidBodyJS js;
+RigidBody2DJS rigidbody2dToJS(const esengine::ecs::RigidBody2D& c) {
+    RigidBody2DJS js;
     js.bodyType = static_cast<i32>(c.bodyType);
     js.gravityScale = c.gravityScale;
     js.linearDamping = c.linearDamping;
@@ -1309,16 +1309,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("font", &BitmapTextJS::font)
         .field("enabled", &BitmapTextJS::enabled);
 
-    value_object<esengine::ecs::BoxCollider>("BoxCollider")
-        .field("halfExtents", &esengine::ecs::BoxCollider::halfExtents)
-        .field("offset", &esengine::ecs::BoxCollider::offset)
-        .field("density", &esengine::ecs::BoxCollider::density)
-        .field("friction", &esengine::ecs::BoxCollider::friction)
-        .field("restitution", &esengine::ecs::BoxCollider::restitution)
-        .field("isSensor", &esengine::ecs::BoxCollider::isSensor)
-        .field("enabled", &esengine::ecs::BoxCollider::enabled)
-        .field("categoryBits", &esengine::ecs::BoxCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::BoxCollider::maskBits);
+    value_object<esengine::ecs::BoxCollider2D>("BoxCollider2D")
+        .field("halfExtents", &esengine::ecs::BoxCollider2D::halfExtents)
+        .field("offset", &esengine::ecs::BoxCollider2D::offset)
+        .field("density", &esengine::ecs::BoxCollider2D::density)
+        .field("friction", &esengine::ecs::BoxCollider2D::friction)
+        .field("restitution", &esengine::ecs::BoxCollider2D::restitution)
+        .field("isSensor", &esengine::ecs::BoxCollider2D::isSensor)
+        .field("enabled", &esengine::ecs::BoxCollider2D::enabled)
+        .field("categoryBits", &esengine::ecs::BoxCollider2D::categoryBits)
+        .field("maskBits", &esengine::ecs::BoxCollider2D::maskBits);
 
     value_object<esengine::ecs::BoxCollider3D>("BoxCollider3D")
         .field("halfExtents", &esengine::ecs::BoxCollider3D::halfExtents)
@@ -1350,17 +1350,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("backgroundColor", &CanvasJS::backgroundColor)
         .field("layer", &CanvasJS::layer);
 
-    value_object<esengine::ecs::CapsuleCollider>("CapsuleCollider")
-        .field("radius", &esengine::ecs::CapsuleCollider::radius)
-        .field("halfHeight", &esengine::ecs::CapsuleCollider::halfHeight)
-        .field("offset", &esengine::ecs::CapsuleCollider::offset)
-        .field("density", &esengine::ecs::CapsuleCollider::density)
-        .field("friction", &esengine::ecs::CapsuleCollider::friction)
-        .field("restitution", &esengine::ecs::CapsuleCollider::restitution)
-        .field("isSensor", &esengine::ecs::CapsuleCollider::isSensor)
-        .field("enabled", &esengine::ecs::CapsuleCollider::enabled)
-        .field("categoryBits", &esengine::ecs::CapsuleCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::CapsuleCollider::maskBits);
+    value_object<esengine::ecs::CapsuleCollider2D>("CapsuleCollider2D")
+        .field("radius", &esengine::ecs::CapsuleCollider2D::radius)
+        .field("halfHeight", &esengine::ecs::CapsuleCollider2D::halfHeight)
+        .field("offset", &esengine::ecs::CapsuleCollider2D::offset)
+        .field("density", &esengine::ecs::CapsuleCollider2D::density)
+        .field("friction", &esengine::ecs::CapsuleCollider2D::friction)
+        .field("restitution", &esengine::ecs::CapsuleCollider2D::restitution)
+        .field("isSensor", &esengine::ecs::CapsuleCollider2D::isSensor)
+        .field("enabled", &esengine::ecs::CapsuleCollider2D::enabled)
+        .field("categoryBits", &esengine::ecs::CapsuleCollider2D::categoryBits)
+        .field("maskBits", &esengine::ecs::CapsuleCollider2D::maskBits);
 
     value_object<esengine::ecs::CapsuleCollider3D>("CapsuleCollider3D")
         .field("radius", &esengine::ecs::CapsuleCollider3D::radius)
@@ -1388,16 +1388,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<ChildrenJS>("Children")
         .field("entities", &ChildrenJS::entities);
 
-    value_object<esengine::ecs::CircleCollider>("CircleCollider")
-        .field("radius", &esengine::ecs::CircleCollider::radius)
-        .field("offset", &esengine::ecs::CircleCollider::offset)
-        .field("density", &esengine::ecs::CircleCollider::density)
-        .field("friction", &esengine::ecs::CircleCollider::friction)
-        .field("restitution", &esengine::ecs::CircleCollider::restitution)
-        .field("isSensor", &esengine::ecs::CircleCollider::isSensor)
-        .field("enabled", &esengine::ecs::CircleCollider::enabled)
-        .field("categoryBits", &esengine::ecs::CircleCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::CircleCollider::maskBits);
+    value_object<esengine::ecs::CircleCollider2D>("CircleCollider2D")
+        .field("radius", &esengine::ecs::CircleCollider2D::radius)
+        .field("offset", &esengine::ecs::CircleCollider2D::offset)
+        .field("density", &esengine::ecs::CircleCollider2D::density)
+        .field("friction", &esengine::ecs::CircleCollider2D::friction)
+        .field("restitution", &esengine::ecs::CircleCollider2D::restitution)
+        .field("isSensor", &esengine::ecs::CircleCollider2D::isSensor)
+        .field("enabled", &esengine::ecs::CircleCollider2D::enabled)
+        .field("categoryBits", &esengine::ecs::CircleCollider2D::categoryBits)
+        .field("maskBits", &esengine::ecs::CircleCollider2D::maskBits);
 
     value_object<ConvexCollider3DJS>("ConvexCollider3D")
         .field("mesh", &ConvexCollider3DJS::mesh)
@@ -1557,14 +1557,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("falloff", &esengine::ecs::ParticleForceField::falloff)
         .field("enabled", &esengine::ecs::ParticleForceField::enabled);
 
-    value_object<RigidBodyJS>("RigidBody")
-        .field("bodyType", &RigidBodyJS::bodyType)
-        .field("gravityScale", &RigidBodyJS::gravityScale)
-        .field("linearDamping", &RigidBodyJS::linearDamping)
-        .field("angularDamping", &RigidBodyJS::angularDamping)
-        .field("fixedRotation", &RigidBodyJS::fixedRotation)
-        .field("bullet", &RigidBodyJS::bullet)
-        .field("enabled", &RigidBodyJS::enabled);
+    value_object<RigidBody2DJS>("RigidBody2D")
+        .field("bodyType", &RigidBody2DJS::bodyType)
+        .field("gravityScale", &RigidBody2DJS::gravityScale)
+        .field("linearDamping", &RigidBody2DJS::linearDamping)
+        .field("angularDamping", &RigidBody2DJS::angularDamping)
+        .field("fixedRotation", &RigidBody2DJS::fixedRotation)
+        .field("bullet", &RigidBody2DJS::bullet)
+        .field("enabled", &RigidBody2DJS::enabled);
 
     value_object<RigidBody3DJS>("RigidBody3D")
         .field("bodyType", &RigidBody3DJS::bodyType)
@@ -1576,16 +1576,16 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("continuousCollision", &RigidBody3DJS::continuousCollision)
         .field("enabled", &RigidBody3DJS::enabled);
 
-    value_object<esengine::ecs::SegmentCollider>("SegmentCollider")
-        .field("point1", &esengine::ecs::SegmentCollider::point1)
-        .field("point2", &esengine::ecs::SegmentCollider::point2)
-        .field("density", &esengine::ecs::SegmentCollider::density)
-        .field("friction", &esengine::ecs::SegmentCollider::friction)
-        .field("restitution", &esengine::ecs::SegmentCollider::restitution)
-        .field("isSensor", &esengine::ecs::SegmentCollider::isSensor)
-        .field("enabled", &esengine::ecs::SegmentCollider::enabled)
-        .field("categoryBits", &esengine::ecs::SegmentCollider::categoryBits)
-        .field("maskBits", &esengine::ecs::SegmentCollider::maskBits);
+    value_object<esengine::ecs::SegmentCollider2D>("SegmentCollider2D")
+        .field("point1", &esengine::ecs::SegmentCollider2D::point1)
+        .field("point2", &esengine::ecs::SegmentCollider2D::point2)
+        .field("density", &esengine::ecs::SegmentCollider2D::density)
+        .field("friction", &esengine::ecs::SegmentCollider2D::friction)
+        .field("restitution", &esengine::ecs::SegmentCollider2D::restitution)
+        .field("isSensor", &esengine::ecs::SegmentCollider2D::isSensor)
+        .field("enabled", &esengine::ecs::SegmentCollider2D::enabled)
+        .field("categoryBits", &esengine::ecs::SegmentCollider2D::categoryBits)
+        .field("maskBits", &esengine::ecs::SegmentCollider2D::maskBits);
 
     value_object<esengine::ecs::ShadowCaster2D>("ShadowCaster2D")
         .field("size", &esengine::ecs::ShadowCaster2D::size)
@@ -1785,25 +1785,25 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::BitmapText>(entity);
         }))
 
-        // BoxCollider
-        .function("hasBoxCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::BoxCollider>(static_cast<Entity>(e));
+        // BoxCollider2D
+        .function("hasBoxCollider2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::BoxCollider2D>(static_cast<Entity>(e));
         }))
-        .function("getBoxCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider& {
+        .function("getBoxCollider2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::BoxCollider2D& {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::BoxCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::BoxCollider>(entity);
+            static esengine::ecs::BoxCollider2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::BoxCollider2D>(entity);
         }), allow_raw_pointers())
-        .function("addBoxCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider& c) {
+        .function("addBoxCollider2D", optional_override([](Registry& r, u32 e, const esengine::ecs::BoxCollider2D& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::BoxCollider>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::BoxCollider2D>(entity, c);
         }))
-        .function("removeBoxCollider", optional_override([](Registry& r, u32 e) {
+        .function("removeBoxCollider2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider>(entity)) return;
-            r.remove<esengine::ecs::BoxCollider>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::BoxCollider2D>(entity)) return;
+            r.remove<esengine::ecs::BoxCollider2D>(entity);
         }))
 
         // BoxCollider3D
@@ -1875,25 +1875,25 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Canvas>(entity);
         }))
 
-        // CapsuleCollider
-        .function("hasCapsuleCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::CapsuleCollider>(static_cast<Entity>(e));
+        // CapsuleCollider2D
+        .function("hasCapsuleCollider2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CapsuleCollider2D>(static_cast<Entity>(e));
         }))
-        .function("getCapsuleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CapsuleCollider& {
+        .function("getCapsuleCollider2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::CapsuleCollider2D& {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::CapsuleCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::CapsuleCollider>(entity);
+            static esengine::ecs::CapsuleCollider2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CapsuleCollider2D>(entity);
         }), allow_raw_pointers())
-        .function("addCapsuleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CapsuleCollider& c) {
+        .function("addCapsuleCollider2D", optional_override([](Registry& r, u32 e, const esengine::ecs::CapsuleCollider2D& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::CapsuleCollider>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::CapsuleCollider2D>(entity, c);
         }))
-        .function("removeCapsuleCollider", optional_override([](Registry& r, u32 e) {
+        .function("removeCapsuleCollider2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider>(entity)) return;
-            r.remove<esengine::ecs::CapsuleCollider>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CapsuleCollider2D>(entity)) return;
+            r.remove<esengine::ecs::CapsuleCollider2D>(entity);
         }))
 
         // CapsuleCollider3D
@@ -1963,25 +1963,25 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             }
         }))
 
-        // CircleCollider
-        .function("hasCircleCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::CircleCollider>(static_cast<Entity>(e));
+        // CircleCollider2D
+        .function("hasCircleCollider2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::CircleCollider2D>(static_cast<Entity>(e));
         }))
-        .function("getCircleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider& {
+        .function("getCircleCollider2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::CircleCollider2D& {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::CircleCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::CircleCollider>(entity);
+            static esengine::ecs::CircleCollider2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::CircleCollider2D>(entity);
         }), allow_raw_pointers())
-        .function("addCircleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider& c) {
+        .function("addCircleCollider2D", optional_override([](Registry& r, u32 e, const esengine::ecs::CircleCollider2D& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::CircleCollider>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::CircleCollider2D>(entity, c);
         }))
-        .function("removeCircleCollider", optional_override([](Registry& r, u32 e) {
+        .function("removeCircleCollider2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider>(entity)) return;
-            r.remove<esengine::ecs::CircleCollider>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider2D>(entity)) return;
+            r.remove<esengine::ecs::CircleCollider2D>(entity);
         }))
 
         // ConvexCollider3D
@@ -2256,28 +2256,28 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::ParticleForceField>(entity);
         }))
 
-        // RigidBody
-        .function("hasRigidBody", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
+        // RigidBody2D
+        .function("hasRigidBody2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::RigidBody2D>(static_cast<Entity>(e));
         }))
-        .function("getRigidBody", optional_override([](Registry& r, u32 e) {
+        .function("getRigidBody2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return RigidBodyJS{};
-            return rigidbodyToJS(r.get<esengine::ecs::RigidBody>(entity));
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody2D>(entity)) return RigidBody2DJS{};
+            return rigidbody2dToJS(r.get<esengine::ecs::RigidBody2D>(entity));
         }))
-        .function("addRigidBody", optional_override([](Registry& r, u32 e, const RigidBodyJS& js) {
+        .function("addRigidBody2D", optional_override([](Registry& r, u32 e, const RigidBody2DJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::RigidBody>(entity)) {
-                rigidbodyApplyJS(*existing, js);
+            if (auto* existing = r.tryGet<esengine::ecs::RigidBody2D>(entity)) {
+                rigidbody2dApplyJS(*existing, js);
                 return;
             }
-            r.emplaceOrReplace<esengine::ecs::RigidBody>(entity, rigidbodyFromJS(js));
+            r.emplaceOrReplace<esengine::ecs::RigidBody2D>(entity, rigidbody2dFromJS(js));
         }))
-        .function("removeRigidBody", optional_override([](Registry& r, u32 e) {
+        .function("removeRigidBody2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody>(entity)) return;
-            r.remove<esengine::ecs::RigidBody>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::RigidBody2D>(entity)) return;
+            r.remove<esengine::ecs::RigidBody2D>(entity);
         }))
 
         // RigidBody3D
@@ -2304,25 +2304,25 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::RigidBody3D>(entity);
         }))
 
-        // SegmentCollider
-        .function("hasSegmentCollider", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::SegmentCollider>(static_cast<Entity>(e));
+        // SegmentCollider2D
+        .function("hasSegmentCollider2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SegmentCollider2D>(static_cast<Entity>(e));
         }))
-        .function("getSegmentCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider& {
+        .function("getSegmentCollider2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::SegmentCollider2D& {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::SegmentCollider s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return s_dummy;
-            return r.get<esengine::ecs::SegmentCollider>(entity);
+            static esengine::ecs::SegmentCollider2D s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider2D>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SegmentCollider2D>(entity);
         }), allow_raw_pointers())
-        .function("addSegmentCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider& c) {
+        .function("addSegmentCollider2D", optional_override([](Registry& r, u32 e, const esengine::ecs::SegmentCollider2D& c) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::SegmentCollider>(entity, c);
+            r.emplaceOrReplace<esengine::ecs::SegmentCollider2D>(entity, c);
         }))
-        .function("removeSegmentCollider", optional_override([](Registry& r, u32 e) {
+        .function("removeSegmentCollider2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider>(entity)) return;
-            r.remove<esengine::ecs::SegmentCollider>(entity);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SegmentCollider2D>(entity)) return;
+            r.remove<esengine::ecs::SegmentCollider2D>(entity);
         }))
 
         // ShadowCaster2D
@@ -2659,15 +2659,15 @@ emscripten::val esengineGetBuiltinComponentNames() {
     auto arr = val::array();
     size_t i = 0;
     arr.set(i++, val(std::string("BitmapText")));
-    arr.set(i++, val(std::string("BoxCollider")));
+    arr.set(i++, val(std::string("BoxCollider2D")));
     arr.set(i++, val(std::string("BoxCollider3D")));
     arr.set(i++, val(std::string("Camera")));
     arr.set(i++, val(std::string("Canvas")));
-    arr.set(i++, val(std::string("CapsuleCollider")));
+    arr.set(i++, val(std::string("CapsuleCollider2D")));
     arr.set(i++, val(std::string("CapsuleCollider3D")));
     arr.set(i++, val(std::string("CharacterController3D")));
     arr.set(i++, val(std::string("Children")));
-    arr.set(i++, val(std::string("CircleCollider")));
+    arr.set(i++, val(std::string("CircleCollider2D")));
     arr.set(i++, val(std::string("ConvexCollider3D")));
     arr.set(i++, val(std::string("Draggable")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
@@ -2680,9 +2680,9 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("ParticleForceField")));
-    arr.set(i++, val(std::string("RigidBody")));
+    arr.set(i++, val(std::string("RigidBody2D")));
     arr.set(i++, val(std::string("RigidBody3D")));
-    arr.set(i++, val(std::string("SegmentCollider")));
+    arr.set(i++, val(std::string("SegmentCollider2D")));
     arr.set(i++, val(std::string("ShadowCaster2D")));
     arr.set(i++, val(std::string("ShapeRenderer")));
     arr.set(i++, val(std::string("SphereCollider3D")));
@@ -2719,15 +2719,15 @@ static_assert(offsetof(esengine::ecs::BitmapText, parallax) == 40, "ABI offset d
 static_assert(offsetof(esengine::ecs::BitmapText, layer) == 48, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::BitmapText, font) == 52, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 56, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::BoxCollider, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider.halfExtents (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::BoxCollider, offset) == 8, "ABI offset drift: esengine::ecs::BoxCollider.offset (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::BoxCollider, density) == 16, "ABI offset drift: esengine::ecs::BoxCollider.density (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::BoxCollider, friction) == 20, "ABI offset drift: esengine::ecs::BoxCollider.friction (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::BoxCollider, restitution) == 24, "ABI offset drift: esengine::ecs::BoxCollider.restitution (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::BoxCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::BoxCollider.isSensor (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::BoxCollider, enabled) == 29, "ABI offset drift: esengine::ecs::BoxCollider.enabled (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::BoxCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::BoxCollider.categoryBits (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::BoxCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::BoxCollider.maskBits (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider2D.halfExtents (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, offset) == 8, "ABI offset drift: esengine::ecs::BoxCollider2D.offset (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, density) == 16, "ABI offset drift: esengine::ecs::BoxCollider2D.density (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, friction) == 20, "ABI offset drift: esengine::ecs::BoxCollider2D.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, restitution) == 24, "ABI offset drift: esengine::ecs::BoxCollider2D.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, isSensor) == 28, "ABI offset drift: esengine::ecs::BoxCollider2D.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, enabled) == 29, "ABI offset drift: esengine::ecs::BoxCollider2D.enabled (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, categoryBits) == 32, "ABI offset drift: esengine::ecs::BoxCollider2D.categoryBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::BoxCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::BoxCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::BoxCollider3D, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider3D.halfExtents (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::BoxCollider3D, friction) == 12, "ABI offset drift: esengine::ecs::BoxCollider3D.friction (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::BoxCollider3D, restitution) == 16, "ABI offset drift: esengine::ecs::BoxCollider3D.restitution (EHT expected 16)");
@@ -2752,16 +2752,16 @@ static_assert(offsetof(esengine::ecs::Canvas, scaleMode) == 12, "ABI offset drif
 static_assert(offsetof(esengine::ecs::Canvas, matchWidthOrHeight) == 16, "ABI offset drift: esengine::ecs::Canvas.matchWidthOrHeight (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::Canvas, backgroundColor) == 20, "ABI offset drift: esengine::ecs::Canvas.backgroundColor (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::Canvas, layer) == 36, "ABI offset drift: esengine::ecs::Canvas.layer (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider.radius (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider.halfHeight (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, offset) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider.offset (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, density) == 16, "ABI offset drift: esengine::ecs::CapsuleCollider.density (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, friction) == 20, "ABI offset drift: esengine::ecs::CapsuleCollider.friction (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, restitution) == 24, "ABI offset drift: esengine::ecs::CapsuleCollider.restitution (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::CapsuleCollider.isSensor (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, enabled) == 29, "ABI offset drift: esengine::ecs::CapsuleCollider.enabled (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::CapsuleCollider.categoryBits (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::CapsuleCollider.maskBits (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider2D.radius (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider2D.halfHeight (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, offset) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider2D.offset (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, density) == 16, "ABI offset drift: esengine::ecs::CapsuleCollider2D.density (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, friction) == 20, "ABI offset drift: esengine::ecs::CapsuleCollider2D.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, restitution) == 24, "ABI offset drift: esengine::ecs::CapsuleCollider2D.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, isSensor) == 28, "ABI offset drift: esengine::ecs::CapsuleCollider2D.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, enabled) == 29, "ABI offset drift: esengine::ecs::CapsuleCollider2D.enabled (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, categoryBits) == 32, "ABI offset drift: esengine::ecs::CapsuleCollider2D.categoryBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::CapsuleCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider3D.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider3D.halfHeight (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, friction) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider3D.friction (EHT expected 8)");
@@ -2781,15 +2781,15 @@ static_assert(offsetof(esengine::ecs::CharacterController3D, layer) == 44, "ABI 
 static_assert(offsetof(esengine::ecs::CharacterController3D, isOnFloor) == 48, "ABI offset drift: esengine::ecs::CharacterController3D.isOnFloor (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, floorNormal) == 52, "ABI offset drift: esengine::ecs::CharacterController3D.floorNormal (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, realVelocity) == 64, "ABI offset drift: esengine::ecs::CharacterController3D.realVelocity (EHT expected 64)");
-static_assert(offsetof(esengine::ecs::CircleCollider, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider.radius (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::CircleCollider, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider.offset (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::CircleCollider, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider.density (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::CircleCollider, friction) == 16, "ABI offset drift: esengine::ecs::CircleCollider.friction (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::CircleCollider, restitution) == 20, "ABI offset drift: esengine::ecs::CircleCollider.restitution (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::CircleCollider, isSensor) == 24, "ABI offset drift: esengine::ecs::CircleCollider.isSensor (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::CircleCollider, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider.enabled (EHT expected 25)");
-static_assert(offsetof(esengine::ecs::CircleCollider, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider.categoryBits (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::CircleCollider, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider.maskBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, radius) == 0, "ABI offset drift: esengine::ecs::CircleCollider2D.radius (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, offset) == 4, "ABI offset drift: esengine::ecs::CircleCollider2D.offset (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, density) == 12, "ABI offset drift: esengine::ecs::CircleCollider2D.density (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, friction) == 16, "ABI offset drift: esengine::ecs::CircleCollider2D.friction (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, restitution) == 20, "ABI offset drift: esengine::ecs::CircleCollider2D.restitution (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, isSensor) == 24, "ABI offset drift: esengine::ecs::CircleCollider2D.isSensor (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider2D.enabled (EHT expected 25)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider2D.categoryBits (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::CircleCollider2D, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider2D.maskBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::ConvexCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::ConvexCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::ConvexCollider3D.restitution (EHT expected 8)");
@@ -2918,13 +2918,13 @@ static_assert(offsetof(esengine::ecs::ParticleForceField, radius) == 8, "ABI off
 static_assert(offsetof(esengine::ecs::ParticleForceField, direction) == 12, "ABI offset drift: esengine::ecs::ParticleForceField.direction (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, falloff) == 24, "ABI offset drift: esengine::ecs::ParticleForceField.falloff (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, enabled) == 25, "ABI offset drift: esengine::ecs::ParticleForceField.enabled (EHT expected 25)");
-static_assert(offsetof(esengine::ecs::RigidBody, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody.bodyType (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::RigidBody, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody.gravityScale (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::RigidBody, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody.linearDamping (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::RigidBody, angularDamping) == 12, "ABI offset drift: esengine::ecs::RigidBody.angularDamping (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::RigidBody, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody.fixedRotation (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::RigidBody, bullet) == 17, "ABI offset drift: esengine::ecs::RigidBody.bullet (EHT expected 17)");
-static_assert(offsetof(esengine::ecs::RigidBody, enabled) == 18, "ABI offset drift: esengine::ecs::RigidBody.enabled (EHT expected 18)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody2D.bodyType (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody2D.gravityScale (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody2D.linearDamping (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, angularDamping) == 12, "ABI offset drift: esengine::ecs::RigidBody2D.angularDamping (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody2D.fixedRotation (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, bullet) == 17, "ABI offset drift: esengine::ecs::RigidBody2D.bullet (EHT expected 17)");
+static_assert(offsetof(esengine::ecs::RigidBody2D, enabled) == 18, "ABI offset drift: esengine::ecs::RigidBody2D.enabled (EHT expected 18)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody3D.bodyType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody3D.gravityScale (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody3D.linearDamping (EHT expected 8)");
@@ -2933,15 +2933,15 @@ static_assert(offsetof(esengine::ecs::RigidBody3D, fixedRotation) == 16, "ABI of
 static_assert(offsetof(esengine::ecs::RigidBody3D, layer) == 20, "ABI offset drift: esengine::ecs::RigidBody3D.layer (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, continuousCollision) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.continuousCollision (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 25, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 25)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider.point1 (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider.point2 (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider.density (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, friction) == 20, "ABI offset drift: esengine::ecs::SegmentCollider.friction (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, restitution) == 24, "ABI offset drift: esengine::ecs::SegmentCollider.restitution (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, isSensor) == 28, "ABI offset drift: esengine::ecs::SegmentCollider.isSensor (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, enabled) == 29, "ABI offset drift: esengine::ecs::SegmentCollider.enabled (EHT expected 29)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider.categoryBits (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::SegmentCollider, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider.maskBits (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider2D.point1 (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider2D.point2 (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider2D.density (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, friction) == 20, "ABI offset drift: esengine::ecs::SegmentCollider2D.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, restitution) == 24, "ABI offset drift: esengine::ecs::SegmentCollider2D.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, isSensor) == 28, "ABI offset drift: esengine::ecs::SegmentCollider2D.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, enabled) == 29, "ABI offset drift: esengine::ecs::SegmentCollider2D.enabled (EHT expected 29)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider2D.categoryBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::SegmentCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::ShadowCaster2D, size) == 0, "ABI offset drift: esengine::ecs::ShadowCaster2D.size (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ShadowCaster2D, enabled) == 8, "ABI offset drift: esengine::ecs::ShadowCaster2D.enabled (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, shapeType) == 0, "ABI offset drift: esengine::ecs::ShapeRenderer.shapeType (EHT expected 0)");
@@ -3070,7 +3070,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "f4ba1e6b5d361dee";
+static const char* kEsAbiLayoutHash = "70afde061183c505";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

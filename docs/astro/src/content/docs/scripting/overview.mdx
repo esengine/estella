@@ -38,7 +38,7 @@ export const Patrol = defineBehavior('Patrol', {
 <Aside type="caution">
   **Engine components come back as a copy.** `ctx.get` hands you the stored object
   for a *script* component — your own `defineComponent`, and `ctx.self` — so mutating
-  it sticks. `Transform`, `Sprite`, `RigidBody` and every other C++-backed component
+  it sticks. `Transform`, `Sprite`, `RigidBody2D` and every other C++-backed component
   are decoded out of the wasm heap on each read, so `ctx.get(Transform).position.x += …`
   changes a value nobody keeps, silently. Read it, change it, hand it back with
   `ctx.set`.
@@ -343,7 +343,7 @@ world.spawn()
   });
 ```
 
-Entities with a `RigidBody` are skipped — the physics solver owns their transform,
+Entities with a `RigidBody2D` are skipped — the physics solver owns their transform,
 so the two never fight over one entity. `Velocity` is also replication-aware: its
 fields are replicated, so networked clients can dead-reckon between snapshots.
 

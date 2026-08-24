@@ -15,7 +15,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `properties` 映射),挂在一个
 同时带 `Transform` 的实体上。单独存在时它是一个点——游戏通过查询某个 `type` 的标记来问“该在
-哪里生成玩家?”。给同一个实体加上一个静态 [`RigidBody`](/docs/zh-cn/gameplay/physics/) 和一个
+哪里生成玩家?”。给同一个实体加上一个静态 [`RigidBody2D`](/docs/zh-cn/gameplay/physics/) 和一个
 传感器碰撞体,它就变成一块触发区;**Trigger Area** 预设会替你把这些一次接好。
 
 因为 Marker 是纯 ECS,没有任何特殊的东西要加载或解析:
@@ -43,7 +43,7 @@ app.addPlugin(new PhysicsPlugin('physics.js'));
 ## 在编辑器里放置
 
 **Create → Common → Marker** 在场景原点放一个命名点;**Create → Physics → Trigger Area**
-放一块传感区域(Transform + 静态 RigidBody + 传感器 BoxCollider + Marker)。Marker 在视口里显示
+放一块传感区域(Transform + 静态 RigidBody2D + 传感器 BoxCollider2D + Marker)。Marker 在视口里显示
 一个**图钉 gizmo**;Trigger Area 还会画出它的碰撞体轮廓,你用与任何其他刚体相同的
 [碰撞体 gizmo](/docs/zh-cn/gameplay/physics/) 来塑形。
 
@@ -90,8 +90,8 @@ const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, 
 
 ## 触发区(Trigger Areas)
 
-**Trigger Area** 是传感区域的 Create 预设:一个 `Transform`、一个静态 `RigidBody`
-(`bodyType: 0`)、一个 `isSensor: true` 的 `BoxCollider`,加一个 `Marker`。因为碰撞体是传感器,
+**Trigger Area** 是传感区域的 Create 预设:一个 `Transform`、一个静态 `RigidBody2D`
+(`bodyType: 0`)、一个 `isSensor: true` 的 `BoxCollider2D`,加一个 `Marker`。因为碰撞体是传感器,
 它检测重叠但**不产生**物理响应——没有东西会从触发区弹开;它只报告谁进来了。
 
 从 `PhysicsEvents` 资源读取进入与离开。每个传感事件都给出 `sensorEntity`(触发区)和

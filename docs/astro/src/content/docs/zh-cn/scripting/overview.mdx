@@ -34,7 +34,7 @@ export const Patrol = defineBehavior('Patrol', {
 
 <Aside type="caution">
   **引擎组件拿到的是拷贝。** 对*脚本*组件——你自己 `defineComponent` 出来的,以及 `ctx.self`
-  ——`ctx.get` 给的就是存储对象本身,改了就生效。而 `Transform`、`Sprite`、`RigidBody` 这些
+  ——`ctx.get` 给的就是存储对象本身,改了就生效。而 `Transform`、`Sprite`、`RigidBody2D` 这些
   C++ 支撑的组件,每次读都是从 wasm 堆里解出来的一份拷贝,所以
   `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且**静默无效**。
   读出来、改完、用 `ctx.set` 交回去。
@@ -310,7 +310,7 @@ world.spawn()
   });
 ```
 
-带 `RigidBody` 的实体会被跳过——物理求解器拥有它们的变换,两者永远不会争抢同一个实体。
+带 `RigidBody2D` 的实体会被跳过——物理求解器拥有它们的变换,两者永远不会争抢同一个实体。
 `Velocity` 也是复制感知的:它的字段参与网络复制,联网客户端可以在快照之间做航位推算。
 
 ## 它如何组合

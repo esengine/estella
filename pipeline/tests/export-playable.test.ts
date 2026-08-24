@@ -253,9 +253,9 @@ describe('exportGame (playable) — side-module embedding', () => {
   function setupRoot(withPhysicsArtifact: boolean): { r: string; o: string } {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-playable-phys-'));
     mkdirSync(path.join(r, 'scenes'), { recursive: true });
-    // A RigidBody makes sceneUsesPhysics() true → the runtime needs physics.
+    // A RigidBody2D makes sceneUsesPhysics() true → the runtime needs physics.
     writeFileSync(path.join(r, 'scenes', 'main.esscene'),
-      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'RigidBody', data: { bodyType: 1 } }] }] }));
+      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'RigidBody2D', data: { bodyType: 1 } }] }] }));
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(PSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
     writeFileSync(path.join(r, '_sdk', 'index.js'),

@@ -24,10 +24,10 @@ export const velocitySystem = defineSystem(
         const dt = time.delta;
         if (dt <= 0) return;
         // Physics-owned bodies get their transform from the solver; integrating
-        // Velocity on top would double-move them. RigidBody lives in the physics
+        // Velocity on top would double-move them. RigidBody2D lives in the physics
         // subpath, so it is resolved by name — absent registry entry means the
         // physics module was never loaded and no entity can carry it.
-        const rigidBody = getComponentRegistry().get('RigidBody');
+        const rigidBody = getComponentRegistry().get('RigidBody2D');
         for (const [entity, transform, velocity] of query) {
             if (rigidBody && world.has(entity, rigidBody)) continue;
 
@@ -63,9 +63,9 @@ export const velocitySystem = defineSystem(
     {
         name: 'VelocitySystem',
         // The World is here for one question — does this entity have a physics
-        // body — and RigidBody cannot be named as a query filter because the
+        // body — and RigidBody2D cannot be named as a query filter because the
         // physics module may never have registered it.
-        touches: { reads: ['RigidBody'] },
+        touches: { reads: ['RigidBody2D'] },
     }
 );
 

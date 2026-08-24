@@ -5,7 +5,7 @@ Symbols: 113 public · 71 beta · 1526 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"f4ba1e6b5d361dee"
+"70afde061183c505"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1246,9 +1246,23 @@ Kinematic = 1
 Static = 0
 ```
 
-## BoxCollider — const @experimental
+## BoxCollider2D — const @experimental
 ```
-BuiltinComponentDef<BoxColliderData>
+BuiltinComponentDef<BoxCollider2DData>
+```
+
+## BoxCollider2DData — interface @experimental
+```
+categoryBits: number
+density: number
+enabled: boolean
+friction: number
+halfExtents: Vec2
+isSensor: boolean
+maskBits: number
+offset: Vec2
+radius: number
+restitution: number
 ```
 
 ## BoxCollider3D — const @experimental
@@ -1262,20 +1276,6 @@ enabled: boolean
 friction: number
 halfExtents: Vec3
 isSensor: boolean
-restitution: number
-```
-
-## BoxColliderData — interface @experimental
-```
-categoryBits: number
-density: number
-enabled: boolean
-friction: number
-halfExtents: Vec2
-isSensor: boolean
-maskBits: number
-offset: Vec2
-radius: number
 restitution: number
 ```
 
@@ -1676,9 +1676,23 @@ update: () => void
 width: number
 ```
 
-## CapsuleCollider — const @experimental
+## CapsuleCollider2D — const @experimental
 ```
-BuiltinComponentDef<CapsuleColliderData>
+BuiltinComponentDef<CapsuleCollider2DData>
+```
+
+## CapsuleCollider2DData — interface @experimental
+```
+categoryBits: number
+density: number
+enabled: boolean
+friction: number
+halfHeight: number
+isSensor: boolean
+maskBits: number
+offset: Vec2
+radius: number
+restitution: number
 ```
 
 ## CapsuleCollider3D — const @experimental
@@ -1692,20 +1706,6 @@ enabled: boolean
 friction: number
 halfHeight: number
 isSensor: boolean
-radius: number
-restitution: number
-```
-
-## CapsuleColliderData — interface @experimental
-```
-categoryBits: number
-density: number
-enabled: boolean
-friction: number
-halfHeight: number
-isSensor: boolean
-maskBits: number
-offset: Vec2
 radius: number
 restitution: number
 ```
@@ -1872,9 +1872,9 @@ tier: CensusTier
 unit: "count" | "bytes"
 ```
 
-## ChainCollider — const @experimental
+## ChainCollider2D — const @experimental
 ```
-ComponentDef<ChainColliderData>
+ComponentDef<ChainCollider2DData>
 ```
 
 ## Changed — function @experimental
@@ -1888,9 +1888,26 @@ ComponentDef<ChainColliderData>
 @internal _filterType: "changed"
 ```
 
-## CharacterController — const @beta
+## CharacterController2D — const @beta
 ```
-ComponentDef<CharacterControllerData>
+ComponentDef<CharacterController2DData>
+```
+
+## CharacterController2DData — interface @experimental
+```
+floorMaxAngle: number
+floorNormal: Vec2
+isOnCeiling: boolean
+isOnFloor: boolean
+isOnWall: boolean
+maskBits: number
+maxSlides: number
+realVelocity: Vec2
+skinWidth: number
+slideOnCeiling: boolean
+snapLength: number
+up: Vec2
+velocity: Vec2
 ```
 
 ## CharacterController3D — const @beta
@@ -1915,23 +1932,6 @@ stepHeight: number
 velocity: Vec3
 ```
 
-## CharacterControllerData — interface @experimental
-```
-floorMaxAngle: number
-floorNormal: Vec2
-isOnCeiling: boolean
-isOnFloor: boolean
-isOnWall: boolean
-maskBits: number
-maxSlides: number
-realVelocity: Vec2
-skinWidth: number
-slideOnCeiling: boolean
-snapLength: number
-up: Vec2
-velocity: Vec2
-```
-
 ## Children — const @public
 ```
 BuiltinComponentDef<ChildrenData>
@@ -1942,12 +1942,12 @@ BuiltinComponentDef<ChildrenData>
 entities: number[]
 ```
 
-## CircleCollider — const @experimental
+## CircleCollider2D — const @experimental
 ```
-BuiltinComponentDef<CircleColliderData>
+BuiltinComponentDef<CircleCollider2DData>
 ```
 
-## CircleColliderData — interface @experimental
+## CircleCollider2DData — interface @experimental
 ```
 categoryBits: number
 density: number
@@ -2548,9 +2548,9 @@ value: number
 ComponentDef<{}>
 ```
 
-## DistanceJoint — const @experimental
+## DistanceJoint2D — const @experimental
 ```
-ComponentDef<DistanceJointData>
+ComponentDef<DistanceJoint2DData>
 ```
 
 ## DistanceJoint3D — const @beta
@@ -4651,9 +4651,9 @@ meta: boolean
 shift: boolean
 ```
 
-## MotorJoint — const @experimental
+## MotorJoint2D — const @experimental
 ```
-ComponentDef<MotorJointData>
+ComponentDef<MotorJoint2DData>
 ```
 
 ## MouseButton — const @public
@@ -5181,9 +5181,9 @@ params: NodeParamSpec[]
 (filter: FilterExpr): FilterExpr
 ```
 
-## OneWayPlatform — const @experimental
+## OneWayPlatform2D — const @experimental
 ```
-ComponentDef<OneWayPlatformData>
+ComponentDef<OneWayPlatform2DData>
 ```
 
 ## Or — function @experimental
@@ -5941,9 +5941,9 @@ connectedEntity: number
 enabled: boolean
 ```
 
-## PolygonCollider — const @experimental
+## PolygonCollider2D — const @experimental
 ```
-ComponentDef<PolygonColliderData>
+ComponentDef<PolygonCollider2DData>
 ```
 
 ## PooledAudioNode — interface @experimental
@@ -6155,9 +6155,9 @@ static new (): PrefabsPlugin
 static prototype: PrefabsPlugin
 ```
 
-## PrismaticJoint — const @experimental
+## PrismaticJoint2D — const @experimental
 ```
-ComponentDef<PrismaticJointData>
+ComponentDef<PrismaticJoint2DData>
 ```
 
 ## ProbedRegistrations — interface @experimental
@@ -6678,9 +6678,9 @@ type: "reverb"
 wet: number | undefined
 ```
 
-## RevoluteJoint — const @experimental
+## RevoluteJoint2D — const @experimental
 ```
-ComponentDef<RevoluteJointData>
+ComponentDef<RevoluteJoint2DData>
 ```
 
 ## RichTextRun — type @experimental
@@ -6688,9 +6688,20 @@ ComponentDef<RevoluteJointData>
 TextSegment | ImageSegment
 ```
 
-## RigidBody — const @experimental
+## RigidBody2D — const @experimental
 ```
-BuiltinComponentDef<RigidBodyData>
+BuiltinComponentDef<RigidBody2DData>
+```
+
+## RigidBody2DData — interface @experimental
+```
+angularDamping: number
+bodyType: number
+bullet: boolean
+enabled: boolean
+fixedRotation: boolean
+gravityScale: number
+linearDamping: number
 ```
 
 ## RigidBody3D — const @experimental
@@ -6707,17 +6718,6 @@ enabled: boolean
 fixedRotation: boolean
 gravityScale: number
 layer: number
-linearDamping: number
-```
-
-## RigidBodyData — interface @experimental
-```
-angularDamping: number
-bodyType: number
-bullet: boolean
-enabled: boolean
-fixedRotation: boolean
-gravityScale: number
 linearDamping: number
 ```
 
@@ -6787,7 +6787,7 @@ ComponentDef<{}>
 
 ## SCENE_FORMAT_VERSION — const @experimental
 ```
-2
+3
 ```
 
 ## SCREEN_FIT_OFF — const @experimental
@@ -7212,9 +7212,9 @@ wheelSpeed: number | undefined
 world: World
 ```
 
-## SegmentCollider — const @experimental
+## SegmentCollider2D — const @experimental
 ```
-BuiltinComponentDef<SegmentColliderData>
+BuiltinComponentDef<SegmentCollider2DData>
 ```
 
 ## SenseResult — interface @experimental
@@ -9399,14 +9399,14 @@ device: unknown
 reason: string | undefined
 ```
 
-## WeldJoint — const @experimental
+## WeldJoint2D — const @experimental
 ```
-ComponentDef<WeldJointData>
+ComponentDef<WeldJoint2DData>
 ```
 
-## WheelJoint — const @experimental
+## WheelJoint2D — const @experimental
 ```
-ComponentDef<WheelJointData>
+ComponentDef<WheelJoint2DData>
 ```
 
 ## WidgetInteractionInit — interface @experimental

@@ -109,9 +109,9 @@ describe('generateLayerTileShapes', () => {
       world, map.layers[0].tiles, 2, 1, map.tileShapes, 16, 16, 0, 0, 100);
     expect(spawned).toHaveLength(2);
     const c = comps.get(spawned[0] as number)!;
-    expect(c.get('CircleCollider')).toBeDefined();
-    expect(c.get('CircleCollider').radius).toBeCloseTo(8 / 100); // physics units
-    expect(c.get('RigidBody')).toBeDefined();
+    expect(c.get('CircleCollider2D')).toBeDefined();
+    expect(c.get('CircleCollider2D').radius).toBeCloseTo(8 / 100); // physics units
+    expect(c.get('RigidBody2D')).toBeDefined();
     // Cell 1 sits one tile to the right.
     expect(comps.get(spawned[1] as number)!.get('Transform').position.x).toBeCloseTo(24);
   });

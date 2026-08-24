@@ -18,7 +18,7 @@ entities you select, edit in the Inspector, serialize with the scene, and read w
 A Marker is just the `Marker` component (a `type` string and a free-form
 `properties` map) on an entity that also has a `Transform`. On its own it's a
 point — the game asks "where do I spawn the player?" by querying markers of a given
-`type`. Add a static [`RigidBody`](/docs/gameplay/physics/) and a sensor collider and
+`type`. Add a static [`RigidBody2D`](/docs/gameplay/physics/) and a sensor collider and
 the same entity becomes a trigger zone; the **Trigger Area** preset wires all of
 that up for you.
 
@@ -48,8 +48,8 @@ app.addPlugin(new PhysicsPlugin('physics.js'));
 ## Place one in the editor
 
 **Create → Common → Marker** drops a named point at the scene origin; **Create →
-Physics → Trigger Area** drops a sensor region (Transform + static RigidBody + sensor
-BoxCollider + Marker). A Marker shows a **pin gizmo** in the viewport; a Trigger Area
+Physics → Trigger Area** drops a sensor region (Transform + static RigidBody2D + sensor
+BoxCollider2D + Marker). A Marker shows a **pin gizmo** in the viewport; a Trigger Area
 also draws its collider outline, which you shape with the same
 [collider gizmo](/docs/gameplay/physics/) as any other body.
 
@@ -100,7 +100,7 @@ const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, 
 ## Trigger Areas
 
 A **Trigger Area** is the Create preset for a sensor region: a `Transform`, a static
-`RigidBody` (`bodyType: 0`), a `BoxCollider` with `isSensor: true`, and a `Marker`.
+`RigidBody2D` (`bodyType: 0`), a `BoxCollider2D` with `isSensor: true`, and a `Marker`.
 Because the collider is a sensor it detects overlaps **without** a physical response —
 nothing bounces off a trigger; it just reports who entered.
 

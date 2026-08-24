@@ -69,7 +69,7 @@ describe('polygonLocalVerts flip transforms', () => {
 });
 
 describe('generateChunkPolygonCollision', () => {
-  it('spawns one PolygonCollider per polygon tile at the cell centre', () => {
+  it('spawns one PolygonCollider2D per polygon tile at the cell centre', () => {
     const { world, comps } = mockWorld();
     const tiles = new Uint16Array(CHUNK_SIZE * CHUNK_SIZE);
     tiles[0] = encodeTile(3);                 // (0,0) → polygon tile
@@ -79,8 +79,8 @@ describe('generateChunkPolygonCollision', () => {
     expect(ents).toHaveLength(1);
     const c = comps.get(ents[0] as number)!;
     expect(c.get('Transform').position).toMatchObject({ x: 8, y: -8 }); // cell (0,0) centre
-    expect(c.get('PolygonCollider').vertices).toHaveLength(3);
-    expect(c.get('RigidBody').bodyType).toBeDefined();
+    expect(c.get('PolygonCollider2D').vertices).toHaveLength(3);
+    expect(c.get('RigidBody2D').bodyType).toBeDefined();
   });
 
   it('flips the polygon when the placed cell carries flip flags', () => {
@@ -89,7 +89,7 @@ describe('generateChunkPolygonCollision', () => {
     tiles[0] = encodeTile(1, { flipH: true, flipV: false, flipD: false });
     const shapes = new Map<number, [number, number][]>([[1, [[0, 0]]]]); // top-left point
     const ents = generateChunkPolygonCollision(world, [{ x: 0, y: 0, tiles }], shapes, 16, 16, 0, 0);
-    const v = comps.get(ents[0] as number)!.get('PolygonCollider').vertices[0];
+    const v = comps.get(ents[0] as number)!.get('PolygonCollider2D').vertices[0];
     expect(v).toEqual({ x: 8, y: 8 }); // top-left mirrored to top-right under flipH
   });
 
@@ -111,31 +111,31 @@ describe('generateChunkTileShapes (rich per-tile shapes)', () => {
     return comps.get(ents[0] as number)!;
   }
 
-  it('circle tile → CircleCollider (radius as tile-width fraction, centre offset)', () => {
+  it('circle tile → CircleCollider2D (radius as tile-width fraction, centre offset)', () => {
     const c = spawnOne({ shape: { type: 'circle', cx: 0.5, cy: 0.5, r: 0.5 } });
-    expect(c.get('CircleCollider').radius).toBeCloseTo(8); // 0.5 × 16
-    expect(c.get('CircleCollider').offset).toEqual({ x: 0, y: 0 }); // centred
-    expect(c.has('BoxCollider')).toBe(false);
+    expect(c.get('CircleCollider2D').radius).toBeCloseTo(8); // 0.5 × 16
+    expect(c.get('CircleCollider2D').offset).toEqual({ x: 0, y: 0 }); // centred
+    expect(c.has('BoxCollider2D')).toBe(false);
   });
 
   it('box tile carries the material + sensor overrides it set', () => {
     const c = spawnOne({ shape: { type: 'box' }, friction: 0.1, restitution: 0.9, density: 3, sensor: true });
-    expect(c.get('BoxCollider')).toMatchObject({ friction: 0.1, restitution: 0.9, density: 3, isSensor: true });
+    expect(c.get('BoxCollider2D')).toMatchObject({ friction: 0.1, restitution: 0.9, density: 3, isSensor: true });
   });
 
-  it('one-way box → OneWayPlatform with the solid-top normal', () => {
+  it('one-way box → OneWayPlatform2D with the solid-top normal', () => {
     const c = spawnOne({ shape: { type: 'box' }, oneWay: { nx: 0, ny: 1 } });
-    expect(c.get('OneWayPlatform').normal).toEqual({ x: 0, y: 1 });
+    expect(c.get('OneWayPlatform2D').normal).toEqual({ x: 0, y: 1 });
   });
 
   it('a vertically flipped cell flips the one-way normal', () => {
     const c = spawnOne({ shape: { type: 'box' }, oneWay: { nx: 0, ny: 1 } }, { flipV: true });
-    expect(c.get('OneWayPlatform').normal).toEqual({ x: 0, y: -1 });
+    expect(c.get('OneWayPlatform2D').normal).toEqual({ x: 0, y: -1 });
   });
 
-  it('polygon tile → PolygonCollider (vertices from the flip-aware transform)', () => {
+  it('polygon tile → PolygonCollider2D (vertices from the flip-aware transform)', () => {
     const c = spawnOne({ shape: { type: 'polygon', points: [[0, 1], [1, 1], [1, 0]] } });
-    expect(c.get('PolygonCollider').vertices).toHaveLength(3);
-    expect(c.has('OneWayPlatform')).toBe(false);
+    expect(c.get('PolygonCollider2D').vertices).toHaveLength(3);
+    expect(c.has('OneWayPlatform2D')).toBe(false);
   });
 });

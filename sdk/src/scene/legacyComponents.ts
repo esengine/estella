@@ -43,6 +43,26 @@ export const RENAMED_COMPONENT_TYPES: ReadonlyMap<string, string> = new Map([
     // models, PBR, IBL and shadow maps all went through them.
     ['Light2D', 'Light'],
     ['Mesh2D', 'MeshRenderer'],
+    // The other direction, and for the opposite reason: physics really does have
+    // two worlds, and the unsuffixed names were the FLAT one — so a collider
+    // dropped on a mesh was a flat box in a scene that is not flat.
+    ['RigidBody', 'RigidBody2D'],
+    ['BoxCollider', 'BoxCollider2D'],
+    ['CircleCollider', 'CircleCollider2D'],
+    ['CapsuleCollider', 'CapsuleCollider2D'],
+    ['SegmentCollider', 'SegmentCollider2D'],
+    ['PolygonCollider', 'PolygonCollider2D'],
+    ['ChainCollider', 'ChainCollider2D'],
+    ['CharacterController', 'CharacterController2D'],
+    ['OneWayPlatform', 'OneWayPlatform2D'],
+    // `DistanceJoint` and `DistanceJoint3D` differed by three characters and one
+    // solver; the rest of the flat set follows it rather than being half-named.
+    ['DistanceJoint', 'DistanceJoint2D'],
+    ['RevoluteJoint', 'RevoluteJoint2D'],
+    ['PrismaticJoint', 'PrismaticJoint2D'],
+    ['WeldJoint', 'WeldJoint2D'],
+    ['WheelJoint', 'WheelJoint2D'],
+    ['MotorJoint', 'MotorJoint2D'],
 ]);
 
 /** Light kinds that aim: Directional (1) and Spot (3). Point and Ambient never did. */

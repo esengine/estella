@@ -32,7 +32,7 @@ namespace esengine::ecs {
  *
  * @details Stores linear and angular velocity. The SDK's VelocitySystem
  *          integrates it into Transform every Update in play mode; entities
- *          owned by the physics solver (RigidBody) are skipped so the two
+ *          owned by the physics solver (RigidBody2D) are skipped so the two
  *          never double-move an entity.
  *
  * @note Angular velocity is in radians per second around each axis.

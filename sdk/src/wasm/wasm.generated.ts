@@ -230,7 +230,7 @@ export interface BitmapText {
     enabled: boolean;
 }
 
-export interface BoxCollider {
+export interface BoxCollider2D {
     halfExtents: Vec2;
     offset: Vec2;
     density: number;
@@ -275,7 +275,7 @@ export interface Canvas {
     layer: number;
 }
 
-export interface CapsuleCollider {
+export interface CapsuleCollider2D {
     radius: number;
     halfHeight: number;
     offset: Vec2;
@@ -317,7 +317,7 @@ export interface Children {
     entities: VectorEntity;
 }
 
-export interface CircleCollider {
+export interface CircleCollider2D {
     radius: number;
     offset: Vec2;
     density: number;
@@ -499,7 +499,7 @@ export interface ParticleForceField {
     enabled: boolean;
 }
 
-export interface RigidBody {
+export interface RigidBody2D {
     bodyType: number;
     gravityScale: number;
     linearDamping: number;
@@ -520,7 +520,7 @@ export interface RigidBody3D {
     enabled: boolean;
 }
 
-export interface SegmentCollider {
+export interface SegmentCollider2D {
     point1: Vec2;
     point2: Vec2;
     density: number;
@@ -711,10 +711,10 @@ export interface Registry {
     getBitmapText(entity: Entity): BitmapText;
     addBitmapText(entity: Entity, component: BitmapText): void;
     removeBitmapText(entity: Entity): void;
-    hasBoxCollider(entity: Entity): boolean;
-    getBoxCollider(entity: Entity): BoxCollider;
-    addBoxCollider(entity: Entity, component: BoxCollider): void;
-    removeBoxCollider(entity: Entity): void;
+    hasBoxCollider2D(entity: Entity): boolean;
+    getBoxCollider2D(entity: Entity): BoxCollider2D;
+    addBoxCollider2D(entity: Entity, component: BoxCollider2D): void;
+    removeBoxCollider2D(entity: Entity): void;
     hasBoxCollider3D(entity: Entity): boolean;
     getBoxCollider3D(entity: Entity): BoxCollider3D;
     addBoxCollider3D(entity: Entity, component: BoxCollider3D): void;
@@ -727,10 +727,10 @@ export interface Registry {
     getCanvas(entity: Entity): Canvas;
     addCanvas(entity: Entity, component: Canvas): void;
     removeCanvas(entity: Entity): void;
-    hasCapsuleCollider(entity: Entity): boolean;
-    getCapsuleCollider(entity: Entity): CapsuleCollider;
-    addCapsuleCollider(entity: Entity, component: CapsuleCollider): void;
-    removeCapsuleCollider(entity: Entity): void;
+    hasCapsuleCollider2D(entity: Entity): boolean;
+    getCapsuleCollider2D(entity: Entity): CapsuleCollider2D;
+    addCapsuleCollider2D(entity: Entity, component: CapsuleCollider2D): void;
+    removeCapsuleCollider2D(entity: Entity): void;
     hasCapsuleCollider3D(entity: Entity): boolean;
     getCapsuleCollider3D(entity: Entity): CapsuleCollider3D;
     addCapsuleCollider3D(entity: Entity, component: CapsuleCollider3D): void;
@@ -743,10 +743,10 @@ export interface Registry {
     getChildren(entity: Entity): Children;
     addChildren(entity: Entity, component: Children): void;
     removeChildren(entity: Entity): void;
-    hasCircleCollider(entity: Entity): boolean;
-    getCircleCollider(entity: Entity): CircleCollider;
-    addCircleCollider(entity: Entity, component: CircleCollider): void;
-    removeCircleCollider(entity: Entity): void;
+    hasCircleCollider2D(entity: Entity): boolean;
+    getCircleCollider2D(entity: Entity): CircleCollider2D;
+    addCircleCollider2D(entity: Entity, component: CircleCollider2D): void;
+    removeCircleCollider2D(entity: Entity): void;
     hasConvexCollider3D(entity: Entity): boolean;
     getConvexCollider3D(entity: Entity): ConvexCollider3D;
     addConvexCollider3D(entity: Entity, component: ConvexCollider3D): void;
@@ -795,18 +795,18 @@ export interface Registry {
     getParticleForceField(entity: Entity): ParticleForceField;
     addParticleForceField(entity: Entity, component: ParticleForceField): void;
     removeParticleForceField(entity: Entity): void;
-    hasRigidBody(entity: Entity): boolean;
-    getRigidBody(entity: Entity): RigidBody;
-    addRigidBody(entity: Entity, component: RigidBody): void;
-    removeRigidBody(entity: Entity): void;
+    hasRigidBody2D(entity: Entity): boolean;
+    getRigidBody2D(entity: Entity): RigidBody2D;
+    addRigidBody2D(entity: Entity, component: RigidBody2D): void;
+    removeRigidBody2D(entity: Entity): void;
     hasRigidBody3D(entity: Entity): boolean;
     getRigidBody3D(entity: Entity): RigidBody3D;
     addRigidBody3D(entity: Entity, component: RigidBody3D): void;
     removeRigidBody3D(entity: Entity): void;
-    hasSegmentCollider(entity: Entity): boolean;
-    getSegmentCollider(entity: Entity): SegmentCollider;
-    addSegmentCollider(entity: Entity, component: SegmentCollider): void;
-    removeSegmentCollider(entity: Entity): void;
+    hasSegmentCollider2D(entity: Entity): boolean;
+    getSegmentCollider2D(entity: Entity): SegmentCollider2D;
+    addSegmentCollider2D(entity: Entity, component: SegmentCollider2D): void;
+    removeSegmentCollider2D(entity: Entity): void;
     hasShadowCaster2D(entity: Entity): boolean;
     getShadowCaster2D(entity: Entity): ShadowCaster2D;
     addShadowCaster2D(entity: Entity, component: ShadowCaster2D): void;
@@ -878,15 +878,15 @@ export interface ESEngineModule {
      */
     getBuiltinComponentNames(): string[];
     BitmapText: new () => BitmapText;
-    BoxCollider: new () => BoxCollider;
+    BoxCollider2D: new () => BoxCollider2D;
     BoxCollider3D: new () => BoxCollider3D;
     Camera: new () => Camera;
     Canvas: new () => Canvas;
-    CapsuleCollider: new () => CapsuleCollider;
+    CapsuleCollider2D: new () => CapsuleCollider2D;
     CapsuleCollider3D: new () => CapsuleCollider3D;
     CharacterController3D: new () => CharacterController3D;
     Children: new () => Children;
-    CircleCollider: new () => CircleCollider;
+    CircleCollider2D: new () => CircleCollider2D;
     ConvexCollider3D: new () => ConvexCollider3D;
     Draggable: new () => Draggable;
     DragonBonesAnimation: new () => DragonBonesAnimation;
@@ -899,9 +899,9 @@ export interface ESEngineModule {
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;
-    RigidBody: new () => RigidBody;
+    RigidBody2D: new () => RigidBody2D;
     RigidBody3D: new () => RigidBody3D;
-    SegmentCollider: new () => SegmentCollider;
+    SegmentCollider2D: new () => SegmentCollider2D;
     ShadowCaster2D: new () => ShadowCaster2D;
     ShapeRenderer: new () => ShapeRenderer;
     SphereCollider3D: new () => SphereCollider3D;

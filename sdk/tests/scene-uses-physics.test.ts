@@ -25,7 +25,7 @@ describe('sceneUsesPhysics', () => {
     });
 
     it('true for a physics component', () => {
-        expect(sceneUsesPhysics(scene([{ type: 'RigidBody' }]))).toBe(true);
+        expect(sceneUsesPhysics(scene([{ type: 'RigidBody2D' }]))).toBe(true);
     });
 
     it('true for a TilemapLayer with baked collidable ids (legacy scenes)', () => {

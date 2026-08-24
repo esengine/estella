@@ -93,7 +93,7 @@ describe('Entity visibility helpers', () => {
         // The discrimination the declaration buys: plenty of components carry an
         // `enabled` field without drawing anything, and hiding an entity must not
         // switch its physics off.
-        it.each(['BoxCollider', 'RigidBody', 'UIScroll'])('leaves a non-renderable %s alone', (comp) => {
+        it.each(['BoxCollider2D', 'RigidBody2D', 'UIScroll'])('leaves a non-renderable %s alone', (comp) => {
             const world = mockWorld();
             world._components.set('Sprite', { enabled: true });
             world._components.set(comp, { enabled: true });
@@ -106,7 +106,7 @@ describe('Entity visibility helpers', () => {
 
         it('a non-renderable alone is not something that can be hidden', () => {
             const world = mockWorld();
-            world._components.set('BoxCollider', { enabled: true });
+            world._components.set('BoxCollider2D', { enabled: true });
             expect(hasVisibility(world, 1 as any)).toBe(false);
         });
 

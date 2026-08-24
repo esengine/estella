@@ -1,7 +1,7 @@
 // Headless validation of the native character mover (physics_moveCharacter).
 // Loads the built physics wasm directly, builds static geometry, and checks the
 // resting/wedge/landing behavior plus the skin-width, floor-snap, and ceiling
-// options wired through from the CharacterController component.
+// options wired through from the CharacterController2D component.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { requireWasm } from '../../tools/lib/wasmDir.mjs';

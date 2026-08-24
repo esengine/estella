@@ -1,6 +1,6 @@
 import {
     defineSystem, Query, Mut, Res, Time, Input,
-    CharacterController,
+    CharacterController2D,
 } from 'esengine';
 import { Player } from '../components';
 
@@ -9,7 +9,7 @@ import { Player } from '../components';
 const GRAVITY = -1200;
 
 export const playerSystem = defineSystem(
-    [Query(Mut(CharacterController), Player), Res(Time), Res(Input)],
+    [Query(Mut(CharacterController2D), Player), Res(Time), Res(Input)],
     (players, time, input) => {
         for (const [, cc, player] of players) {
             let moveX = 0;

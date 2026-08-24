@@ -210,8 +210,8 @@ export interface LoadRuntimeSceneOptions {
 
 /** Component types whose presence means a scene needs the physics subsystem. */
 const PHYSICS_COMPONENT_TYPES = new Set([
-    'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider',
-    'SegmentCollider', 'PolygonCollider', 'ChainCollider',
+    'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D',
+    'SegmentCollider2D', 'PolygonCollider2D', 'ChainCollider2D',
 ]);
 
 /** The same question for the 3D world, which is a different module entirely. */

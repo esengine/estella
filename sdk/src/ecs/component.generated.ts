@@ -15,7 +15,7 @@ import type { Dimension, Padding } from '../wasm/wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'f4ba1e6b5d361dee';
+export const ABI_LAYOUT_HASH = '70afde061183c505';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -112,7 +112,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1 },
         },
     },
-    BoxCollider: {
+    BoxCollider2D: {
         defaults: {
             halfExtents: { x: 0.5, y: 0.5 },
             offset: { x: 0, y: 0 },
@@ -206,7 +206,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, tooltip: "Sorting layer this UI belongs to — cameras cull by it.", enumSource: "sortingLayers" },
         },
     },
-    CapsuleCollider: {
+    CapsuleCollider2D: {
         defaults: {
             radius: 0.25,
             halfHeight: 0.5,
@@ -287,7 +287,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
-    CircleCollider: {
+    CircleCollider2D: {
         defaults: {
             radius: 0.5,
             offset: { x: 0, y: 0 },
@@ -668,7 +668,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             falloff: { category: "Field" },
         },
     },
-    RigidBody: {
+    RigidBody2D: {
         defaults: {
             bodyType: 2,
             gravityScale: 1,
@@ -710,7 +710,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             continuousCollision: { advanced: true },
         },
     },
-    SegmentCollider: {
+    SegmentCollider2D: {
         defaults: {
             point1: { x: -0.5, y: 0 },
             point2: { x: 0.5, y: 0 },
@@ -1081,7 +1081,7 @@ export interface BitmapTextData {
     enabled: boolean;
 }
 
-export interface BoxColliderData {
+export interface BoxCollider2DData {
     halfExtents: Vec2;
     offset: Vec2;
     density: number;
@@ -1126,7 +1126,7 @@ export interface CanvasData {
     layer: number;
 }
 
-export interface CapsuleColliderData {
+export interface CapsuleCollider2DData {
     radius: number;
     halfHeight: number;
     offset: Vec2;
@@ -1174,7 +1174,7 @@ export interface ChildrenData {
     entities: Entity[];
 }
 
-export interface CircleColliderData {
+export interface CircleCollider2DData {
     radius: number;
     offset: Vec2;
     density: number;
@@ -1362,7 +1362,7 @@ export interface ParticleForceFieldData {
     enabled: boolean;
 }
 
-export interface RigidBodyData {
+export interface RigidBody2DData {
     bodyType: number;
     gravityScale: number;
     linearDamping: number;
@@ -1383,7 +1383,7 @@ export interface RigidBody3DData {
     enabled: boolean;
 }
 
-export interface SegmentColliderData {
+export interface SegmentCollider2DData {
     point1: Vec2;
     point2: Vec2;
     density: number;

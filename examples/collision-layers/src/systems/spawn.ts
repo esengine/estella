@@ -1,6 +1,6 @@
 import {
     defineSystem, Query, Mut, Res, Time, Commands,
-    Transform, Sprite, RigidBody, CircleCollider, BodyType,
+    Transform, Sprite, RigidBody2D, CircleCollider2D, BodyType,
 } from 'esengine';
 import { SpawnTimer } from '../components';
 
@@ -40,10 +40,10 @@ export const spawnSystem = defineSystem(
                     size: { x: radius * 2, y: radius * 2 },
                     color: { ...layer.color, a: 1 },
                 })
-                .insert(RigidBody, {
+                .insert(RigidBody2D, {
                     bodyType: BodyType.Dynamic,
                 })
-                .insert(CircleCollider, {
+                .insert(CircleCollider2D, {
                     radius: radius / PPU,
                     restitution: 0.4,
                     categoryBits: layer.category,

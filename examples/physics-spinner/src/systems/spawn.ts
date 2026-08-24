@@ -1,7 +1,7 @@
 import {
     defineSystem, Query, Mut, Commands,
     Transform, ShapeRenderer, ShapeType,
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider, ChainCollider, BodyType,
+    RigidBody2D, BoxCollider2D, CircleCollider2D, CapsuleCollider2D, ChainCollider2D, BodyType,
 } from 'esengine';
 import { SpawnMarker } from '../components';
 
@@ -49,8 +49,8 @@ export const spawnSystem = defineSystem(
 
             cmds.spawn()
                 .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-                .insert(RigidBody, { bodyType: BodyType.Static })
-                .insert(ChainCollider, {
+                .insert(RigidBody2D, { bodyType: BodyType.Static })
+                .insert(ChainCollider2D, {
                     points: generateArenaPoints(),
                     isLoop: true,
                     friction: 0.1,
@@ -77,8 +77,8 @@ export const spawnSystem = defineSystem(
                             size: { x: w, y: h },
                             color: { r: 0.9, g: 0.55, b: 0.2, a: 1 },
                         })
-                        .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                        .insert(CapsuleCollider, {
+                        .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                        .insert(CapsuleCollider2D, {
                             radius: capsuleRadius,
                             halfHeight: capsuleHalfLen,
                             density: 0.25,
@@ -95,8 +95,8 @@ export const spawnSystem = defineSystem(
                             size: { x: d, y: d },
                             color: { r: 0.3, g: 0.7, b: 0.9, a: 1 },
                         })
-                        .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                        .insert(CircleCollider, {
+                        .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                        .insert(CircleCollider2D, {
                             radius: r,
                             density: 0.25,
                             friction: 0.1,
@@ -113,8 +113,8 @@ export const spawnSystem = defineSystem(
                             cornerRadius: 2,
                             color: { r: 0.2, g: 0.85, b: 0.4, a: 1 },
                         })
-                        .insert(RigidBody, { bodyType: BodyType.Dynamic })
-                        .insert(BoxCollider, {
+                        .insert(RigidBody2D, { bodyType: BodyType.Dynamic })
+                        .insert(BoxCollider2D, {
                             halfExtents: { x: half, y: half },
                             density: 0.25,
                             friction: 0.1,

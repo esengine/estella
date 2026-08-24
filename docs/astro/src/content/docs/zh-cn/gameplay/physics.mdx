@@ -5,7 +5,7 @@ description: 完整的 2D 物理参考——刚体、碰撞体、碰撞过滤、
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 的物理跑在 C++/WebAssembly 内核里,由 Box2D v3 驱动。你给实体加一个 `RigidBody`
+Estella 的物理跑在 C++/WebAssembly 内核里,由 Box2D v3 驱动。你给实体加一个 `RigidBody2D`
 和一个碰撞体,然后用力移动它、用射线查询世界、响应碰撞、用关节连接刚体。物理以**固定时间步**
 推进,与帧率解耦,得到稳定的模拟。
 
@@ -21,8 +21,8 @@ app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
 <Aside type="note">
-  物理的类型从 **`esengine/physics`** 导入(API、插件、事件),而组件(`RigidBody`、各碰撞体、
-  `CharacterController`)来自主 `esengine` barrel。
+  物理的类型从 **`esengine/physics`** 导入(API、插件、事件),而组件(`RigidBody2D`、各碰撞体、
+  `CharacterController2D`)来自主 `esengine` barrel。
 </Aside>
 
 ## 单位
@@ -36,7 +36,7 @@ Box2D 以**米**模拟;引擎其余部分以**世界像素**工作。二者的�
 | 碰撞体组件尺寸——`halfExtents`、`radius`、`offset`…… | **米。** |
 | 面向求解器的方法——`applyForce` / `applyImpulse`、`setLinearVelocity` / `getLinearVelocity`、`setGravity`…… | **米**(m/s、m/s²)。 |
 | 空间查询——`raycast`、`shapeCast*`、`overlapCircle` / `overlapAABB`、`moveCharacter` | **世界像素**,按当前 PPU 缩放。 |
-| `CharacterController.velocity`、`MotorJoint.linearVelocity` | 世界像素/秒。 |
+| `CharacterController2D.velocity`、`MotorJoint2D.linearVelocity` | 世界像素/秒。 |
 
 `physics.getPixelsPerUnit()` 返回当前 PPU(每帧从 `Canvas` 推送),换算永远不用写死 `100`:
 
@@ -55,13 +55,13 @@ physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
 
 *视口里的碰撞体 gizmo:选中的 **Ground** 的盒形轮廓(琥珀色),以及墙体与斜坡。用视口的物理显示开关切换。*
 
-加一个 `RigidBody` 再加一个碰撞体形状。**碰撞体尺寸以米计,不是像素**——把像素尺寸除以你的
+加一个 `RigidBody2D` 再加一个碰撞体形状。**碰撞体尺寸以米计,不是像素**——把像素尺寸除以你的
 每单位像素数(见[单位](#单位))。从一个取 `Commands()` 的系统里生成:
 
 ```typescript
 import {
   defineSystem, Commands, Transform,
-  RigidBody, BodyType, CircleCollider,
+  RigidBody2D, BodyType, CircleCollider2D,
 } from 'esengine';
 
 const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.getPixelsPerUnit()
@@ -69,12 +69,12 @@ const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.ge
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
-    .insert(RigidBody, { bodyType: BodyType.Dynamic, gravityScale: 1 })
-    .insert(CircleCollider, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
+    .insert(RigidBody2D, { bodyType: BodyType.Dynamic, gravityScale: 1 })
+    .insert(CircleCollider2D, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
 });
 ```
 
-### `RigidBody`
+### `RigidBody2D`
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -103,12 +103,12 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 | 组件 | 形状参数 |
 |---|---|
-| `BoxCollider` | `halfExtents`(`{0.5, 0.5}`)、`radius`(圆角,`0.05`)。 |
-| `CircleCollider` | `radius`(`0.5`)。 |
-| `CapsuleCollider` | `radius`、`halfHeight`。 |
-| `SegmentCollider` | `point1`、`point2`(单边)。 |
-| `PolygonCollider` | `vertices: Vec2[]`、`radius`(圆角)。 |
-| `ChainCollider` | `points: Vec2[]`、`isLoop`(静态边链;无 `density`/`isSensor`)。 |
+| `BoxCollider2D` | `halfExtents`(`{0.5, 0.5}`)、`radius`(圆角,`0.05`)。 |
+| `CircleCollider2D` | `radius`(`0.5`)。 |
+| `CapsuleCollider2D` | `radius`、`halfHeight`。 |
+| `SegmentCollider2D` | `point1`、`point2`(单边)。 |
+| `PolygonCollider2D` | `vertices: Vec2[]`、`radius`(圆角)。 |
+| `ChainCollider2D` | `points: Vec2[]`、`isLoop`(静态边链;无 `density`/`isSensor`)。 |
 
 ## 碰撞过滤
 
@@ -124,7 +124,7 @@ const LAYER_PLAYER = 0x0001;
 const LAYER_ENEMY  = 0x0002;
 const LAYER_GROUND = 0x0008;
 
-.insert(CircleCollider, {
+.insert(CircleCollider2D, {
   radius: 16 / PPU,
   categoryBits: LAYER_PLAYER,
   maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
@@ -142,10 +142,10 @@ const LAYER_GROUND = 0x0008;
 所以全部以**米**计(m/s、m/s²——见[单位](#单位))。每个方法都取世界实体:
 
 ```typescript
-import { defineSystem, Query, Res, RigidBody } from 'esengine';
+import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
 import { Physics } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody), Res(Physics)], (q, physics) => {
+const move = defineSystem([Query(RigidBody2D), Res(Physics)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
@@ -234,8 +234,8 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 *每种关节约束什么:**Revolute** 铰链(绕销钉转动)、**Distance** 弹簧/连杆、**Prismatic** 滑轨(单轴滑动)、刚性 **Weld** 焊接、**Wheel** 车轮(悬挂 + 自由旋转),以及 **Motor** 马达(驱向目标速度)。*
 
-连接两个刚体。加一个关节**组件**(`RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、
-`WeldJoint`、`WheelJoint`、`MotorJoint`),或命令式创建一个并驱动它的马达 / 限位:
+连接两个刚体。加一个关节**组件**(`RevoluteJoint2D`、`DistanceJoint2D`、`PrismaticJoint2D`、
+`WeldJoint2D`、`WheelJoint2D`、`MotorJoint2D`),或命令式创建一个并驱动它的马达 / 限位:
 
 ```typescript
 // A hinge with a motor (a powered wheel or swinging door).
@@ -267,7 +267,7 @@ physics.destroyJoint(bodyA);
 
 ```typescript
 // 传送带:把箱子沿 +x 匀速驱动。
-world.insert(crate, MotorJoint, {
+world.insert(crate, MotorJoint2D, {
   connectedEntity: anchor,
   linearVelocity: { x: 200, y: 0 }, // 世界像素/秒
   maxVelocityForce: 500,            // 可用于达到该速度的力(牛顿)
@@ -284,18 +284,18 @@ physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // 运行时反�
 
 ## 单向平台
 
-给静态(或运动学)碰撞体加 `OneWayPlatform`,使其**单面**——刚体从一个方向落上去、从其它
+给静态(或运动学)碰撞体加 `OneWayPlatform2D`,使其**单面**——刚体从一个方向落上去、从其它
 方向穿过。这就是经典的"从下往上跳穿平台"行为,建在 Box2D 的 pre-solve 回调上(没有单向平台时
 零开销):
 
 ```typescript
-import { OneWayPlatform } from 'esengine/physics';
+import { OneWayPlatform2D } from 'esengine/physics';
 
 world.spawn(
   Transform, { position: { x: 0, y: 0 } },
-  RigidBody, { bodyType: BodyType.Static },
-  BoxCollider, { halfExtents: { x: 2, y: 0.2 } },
-  OneWayPlatform, { normal: { x: 0, y: 1 } }, // 实心顶面:从上落下、从下穿过
+  RigidBody2D, { bodyType: BodyType.Static },
+  BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } },
+  OneWayPlatform2D, { normal: { x: 0, y: 1 } }, // 实心顶面:从上落下、从下穿过
 );
 ```
 
@@ -323,15 +323,15 @@ physics.destroyMouseJoint();
 
 ## 角色控制器
 
-想让玩家沿着表面行走、而不是像动态刚体那样翻滚,加一个 `CharacterController`。每步从玩法设它
+想让玩家沿着表面行走、而不是像动态刚体那样翻滚,加一个 `CharacterController2D`。每步从玩法设它
 的 `velocity`;控制器用 Box2D 的**原生运动学 mover**(`b2World_CollideMover` +
 `b2SolvePlanes`)推进一步——把身体碰撞成接触*平面*,再解出一次去穿插的滑动,所以贴地的角色能
 干净地移动和起跳,而不是粘在地面上。它把结果写回,并报告碰到了什么:
 
 ```typescript
-import { defineSystem, Query, Mut, CharacterController } from 'esengine';
+import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
 
-const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
+const drive = defineSystem([Query(Mut(CharacterController2D))], (q) => {
   for (const [entity, cc] of q) {
     cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
     if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
@@ -340,7 +340,7 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 ```
 
 给实体加一个碰撞体(mover 形状由它推导——盒子会内接成沿长轴的胶囊);若希望别的刚体能撞到角色,
-再加一个**运动学(Kinematic)** `RigidBody`。mover 会自动排除角色自身的刚体,所以它的 `maskBits`
+再加一个**运动学(Kinematic)** `RigidBody2D`。mover 会自动排除角色自身的刚体,所以它的 `maskBits`
 不必刻意避开自身的碰撞层。用固定步长的系统驱动 `velocity` 让运动与帧率无关;跳跃读 `isOnFloor`
 边沿(会正确投递到 `FixedUpdate`——见 [输入](/docs/zh-cn/scripting/input/#固定步长物理))。
 

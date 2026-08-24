@@ -40,9 +40,9 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     particles: ['ParticleEmitter', 'ParticleForceField'],
     postprocess: ['PostProcessVolume'],
     physics: [
-        'RigidBody', 'BoxCollider', 'CircleCollider', 'CapsuleCollider', 'SegmentCollider',
-        'PolygonCollider', 'ChainCollider', 'OneWayPlatform', 'CharacterController',
-        'RevoluteJoint', 'DistanceJoint', 'PrismaticJoint', 'WeldJoint', 'WheelJoint', 'MotorJoint',
+        'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'SegmentCollider2D',
+        'PolygonCollider2D', 'ChainCollider2D', 'OneWayPlatform2D', 'CharacterController2D',
+        'RevoluteJoint2D', 'DistanceJoint2D', 'PrismaticJoint2D', 'WeldJoint2D', 'WheelJoint2D', 'MotorJoint2D',
     ],
     spine: ['SpineAnimation'],
     video: ['Video'],

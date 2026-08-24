@@ -1,6 +1,6 @@
 import {
     defineSystem, Query, Mut, Res, Input,
-    CharacterController,
+    CharacterController2D,
 } from 'esengine';
 import { Player } from '../components';
 
@@ -9,7 +9,7 @@ import { Player } from '../components';
  * ~1.4× faster than holding one — the oldest bug in top-down movement.
  */
 export const moveSystem = defineSystem(
-    [Query(Mut(CharacterController), Player), Res(Input)],
+    [Query(Mut(CharacterController2D), Player), Res(Input)],
     (players, input) => {
         let x = 0;
         let y = 0;

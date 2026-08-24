@@ -321,7 +321,7 @@ uint32_t physics3d_addSphere(uint32_t entity, float radius,
 }
 
 /// `halfHeight` is the cylinder half-height, so the capsule is `2*halfHeight + 2*radius`
-/// tall — the same convention CapsuleCollider uses in 2D.
+/// tall — the same convention CapsuleCollider2D uses in 2D.
 EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float px, float py, float pz,

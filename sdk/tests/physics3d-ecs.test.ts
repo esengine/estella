@@ -602,7 +602,7 @@ describe('a scene asks for the world it needs', () => {
     it('does not confuse the two worlds', () => {
         // A 2D scene must not drag in a 1.2MB module it has no use for, and a 3D
         // scene must not be served the solver that cannot move it.
-        expect(sceneUses3DPhysics(sceneWith('RigidBody', 'BoxCollider') as never)).toBe(false);
+        expect(sceneUses3DPhysics(sceneWith('RigidBody2D', 'BoxCollider2D') as never)).toBe(false);
         expect(sceneUsesPhysics(sceneWith('RigidBody3D', 'BoxCollider3D') as never)).toBe(false);
     });
 });

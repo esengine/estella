@@ -439,7 +439,7 @@ export class PhysicsAPI {
 
     // ── Motor joint (runtime control) ───────────────────────────────────────
     // `velocity` is world pixels/s (scaled to meters); force/torque are physics-space
-    // (newtons, N·m). Targets a joint keyed by its owning entity (see MotorJoint).
+    // (newtons, N·m). Targets a joint keyed by its owning entity (see MotorJoint2D).
 
     setMotorJointLinearVelocity(entity: Entity, velocity: Vec2, ppu = this.ppu_): void {
         this.module_._physics_setMotorJointLinearVelocity(entity, velocity.x / ppu, velocity.y / ppu);

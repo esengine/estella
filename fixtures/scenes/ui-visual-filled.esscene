@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "UIVisual Filled — geometry+UV crop reveals a solid/textured fill along fillMethod/fillOrigin (progress/slider basis)",
   "entities": [
     {

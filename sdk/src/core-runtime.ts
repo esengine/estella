@@ -130,10 +130,10 @@ export {
     type TrailRendererData,
     type SpineAnimationData,
     type DragonBonesAnimationData,
-    type RigidBodyData,
-    type BoxColliderData,
-    type CircleColliderData,
-    type CapsuleColliderData,
+    type RigidBody2DData,
+    type BoxCollider2DData,
+    type CircleCollider2DData,
+    type CapsuleCollider2DData,
     type NameData,
     type SceneOwnerData,
     type MarkerData,
@@ -151,27 +151,27 @@ export {
 } from './ecs/component';
 
 export {
-    RigidBody,
-    BoxCollider,
-    CircleCollider,
-    CapsuleCollider,
-    SegmentCollider,
-    PolygonCollider,
-    ChainCollider,
-    OneWayPlatform,
-    RevoluteJoint,
-    DistanceJoint,
-    PrismaticJoint,
-    WeldJoint,
-    WheelJoint,
-    MotorJoint,
+    RigidBody2D,
+    BoxCollider2D,
+    CircleCollider2D,
+    CapsuleCollider2D,
+    SegmentCollider2D,
+    PolygonCollider2D,
+    ChainCollider2D,
+    OneWayPlatform2D,
+    RevoluteJoint2D,
+    DistanceJoint2D,
+    PrismaticJoint2D,
+    WeldJoint2D,
+    WheelJoint2D,
+    MotorJoint2D,
     BodyType,
 } from './physics/PhysicsComponents';
 
 export {
-    CharacterController,
-    type CharacterControllerData,
-} from './physics/CharacterController';
+    CharacterController2D,
+    type CharacterController2DData,
+} from './physics/CharacterController2D';
 
 export {
     readColliderShapes,

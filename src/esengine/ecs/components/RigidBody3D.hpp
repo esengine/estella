@@ -20,7 +20,7 @@
 #include "../../core/Types.hpp"
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
-#include "./RigidBody.hpp"
+#include "./BodyType.hpp"
 
 namespace esengine::ecs {
 

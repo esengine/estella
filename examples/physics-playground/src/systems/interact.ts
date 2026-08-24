@@ -1,9 +1,9 @@
 import {
     defineSystem, Query, Res, Input, UICameraInfo,
-    Transform, RigidBody, BodyType,
+    Transform, RigidBody2D, BodyType,
 } from 'esengine';
-import type { UICameraData, RigidBodyData, TransformData } from 'esengine';
-import { Physics, MotorJoint } from 'esengine/physics';
+import type { UICameraData, RigidBody2DData, TransformData } from 'esengine';
+import { Physics, MotorJoint2D } from 'esengine/physics';
 import type { PhysicsAPI } from 'esengine/physics';
 
 const DRAG_BUTTON = 0;
@@ -12,14 +12,14 @@ const PICK_RADIUS = 6; // world px around the cursor to grab a body
 // Click-and-drag any dynamic body with a mouse joint: pick on press, follow the
 // cursor while held, release on up. Only one drag is live at a time.
 export const dragSystem = defineSystem(
-    [Res(Input), Res(UICameraInfo), Res(Physics), Query(RigidBody)],
+    [Res(Input), Res(UICameraInfo), Res(Physics), Query(RigidBody2D)],
     (input, camera: UICameraData, physics: PhysicsAPI, bodies) => {
         if (!camera.valid) return;
         const target = { x: camera.worldMouseX, y: camera.worldMouseY };
 
         if (input.isMouseButtonPressed(DRAG_BUTTON) && !physics.hasMouseJoint()) {
             const dynamic = new Set<number>();
-            for (const [entity, rb] of bodies as Iterable<[number, RigidBodyData]>) {
+            for (const [entity, rb] of bodies as Iterable<[number, RigidBody2DData]>) {
                 if (rb.bodyType === BodyType.Dynamic) dynamic.add(entity);
             }
             const hit = physics.overlapCircle(target, PICK_RADIUS).find((e) => dynamic.has(e));
@@ -41,7 +41,7 @@ const SHUTTLE_MAX_X = 290;
 const shuttleDir = new Map<number, number>();
 
 export const shuttleSystem = defineSystem(
-    [Res(Physics), Query(Transform, MotorJoint)],
+    [Res(Physics), Query(Transform, MotorJoint2D)],
     (physics: PhysicsAPI, shuttles) => {
         for (const [entity, transform] of shuttles as Iterable<[number, TransformData]>) {
             let dir = shuttleDir.get(entity) ?? 1;

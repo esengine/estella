@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "main",
   "folders": [
     "Environment",
@@ -243,13 +243,13 @@
           "data": {}
         },
         {
-          "type": "RigidBody",
+          "type": "RigidBody2D",
           "data": {
             "bodyType": 1
           }
         },
         {
-          "type": "CircleCollider",
+          "type": "CircleCollider2D",
           "data": {
             "radius": 0.3,
             "offset": {
@@ -261,7 +261,7 @@
           }
         },
         {
-          "type": "CharacterController",
+          "type": "CharacterController2D",
           "data": {
             "up": {
               "x": 0,

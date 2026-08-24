@@ -306,8 +306,12 @@ export async function expandScenePrefabs(
  *    from before the rename reads the new names as components it has never
  *    heard of and drops them, which is a scene that loads and has no lights —
  *    so it must refuse the file instead, and the version is what tells it to.
+ * 3: the flat physics components took the `2D` suffix the 3D ones already had
+ *    (`RigidBody` → `RigidBody2D`, the four colliders, `CharacterController`).
+ *    Same reasoning as 2, and worse here: an older engine drops the bodies and
+ *    loads a level whose floor nothing collides with.
  */
-export const SCENE_FORMAT_VERSION = 2;
+export const SCENE_FORMAT_VERSION = 3;
 
 export interface SceneMigrationResult {
     /** A migrated *copy* — the input is never mutated. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { moveAndSlide, type SlideCast, type MoveAndSlideParams } from '../src/physics/CharacterController';
+import { moveAndSlide, type SlideCast, type MoveAndSlideParams } from '../src/physics/CharacterController2D';
 
 const close = (a: number, b: number, eps = 1e-6) => expect(Math.abs(a - b)).toBeLessThanOrEqual(eps);
 

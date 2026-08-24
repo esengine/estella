@@ -178,8 +178,9 @@ endif()
 
 
 list(APPEND ESENGINE_HEADERS
-    src/esengine/ecs/components/RigidBody.hpp
-    src/esengine/ecs/components/Collider.hpp
+    src/esengine/ecs/components/BodyType.hpp
+    src/esengine/ecs/components/RigidBody2D.hpp
+    src/esengine/ecs/components/Collider2D.hpp
     src/esengine/ecs/components/RigidBody3D.hpp
 )
 

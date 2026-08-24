@@ -27,7 +27,7 @@ const Transform = defineBuiltin('Transform', {
     worldScale: { x: 1, y: 1, z: 1 },
 });
 
-const RigidBody = defineBuiltin('RigidBody', {
+const RigidBody2D = defineBuiltin('RigidBody2D', {
     bodyType: 2, gravityScale: 1, linearDamping: 0, angularDamping: 0,
     fixedRotation: false, bullet: false, enabled: true,
 });
@@ -288,17 +288,17 @@ describe('Physics - addTransform writeback (embind vs ptr)', () => {
 // =============================================================================
 
 describe('Physics - entity sync query', () => {
-    bench('getEntitiesWithComponents([RigidBody, Transform]) x10 (200 entities)', () => {
+    bench('getEntitiesWithComponents([RigidBody2D, Transform]) x10 (200 entities)', () => {
         const world = new World();
         const reg = new wasmModule.Registry();
         world.connectCpp(reg as unknown as CppRegistry, wasmModule);
         for (let i = 0; i < 200; i++) {
             const e = world.spawn();
             world.insert(e, Transform, TRANSFORM_DATA as any);
-            world.insert(e, RigidBody, RIGIDBODY_DATA as any);
+            world.insert(e, RigidBody2D, RIGIDBODY_DATA as any);
         }
         for (let i = 0; i < 10; i++) {
-            world.getEntitiesWithComponents([RigidBody, Transform]);
+            world.getEntitiesWithComponents([RigidBody2D, Transform]);
         }
         reg.delete();
     });

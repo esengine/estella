@@ -25,7 +25,7 @@ import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
 import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
-import { BodyType, RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider } from '../src/physics/PhysicsComponents';
+import { BodyType, RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D } from '../src/physics/PhysicsComponents';
 import { clearUserComponents, Transform, Marker } from '../src/ecs/component';
 import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
@@ -1213,14 +1213,14 @@ describe('loadTiledCollisionObjects', () => {
         expect(entities).toHaveLength(1);
 
         const insertCalls = (world.insert as any).mock.calls;
-        const rbInsert = insertCalls.find((c: any) => c[1]._name === 'RigidBody');
+        const rbInsert = insertCalls.find((c: any) => c[1]._name === 'RigidBody2D');
         expect(rbInsert[2].bodyType).toBe(0);
 
         // Centre (80, 112) in Tiled pixels -> world (80, -112), like a tile at that spot.
         const tfInsert = insertCalls.find((c: any) => c[1]._name === 'Transform');
         expect(tfInsert[2].position).toEqual({ x: 80, y: -112, z: 0 });
 
-        const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider');
+        const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider2D');
         expect(boxInsert[2].halfExtents).toEqual({ x: 16, y: 16 });
     });
 
@@ -1235,11 +1235,11 @@ describe('loadTiledCollisionObjects', () => {
         const insertCalls = (world.insert as any).mock.calls;
         expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
             .toEqual({ x: 80, y: -112, z: 0 });
-        expect(insertCalls.find((c: any) => c[1]._name === 'BoxCollider')[2].halfExtents)
+        expect(insertCalls.find((c: any) => c[1]._name === 'BoxCollider2D')[2].halfExtents)
             .toEqual({ x: 0.16, y: 0.16 });
     });
 
-    it('should create CircleCollider on the mean semi-axis for ellipse objects', () => {
+    it('should create CircleCollider2D on the mean semi-axis for ellipse objects', () => {
         const world = createMockWorld();
         const mapData = makeMap([makeGroup('Collision', [
             makeObject({ shape: 'ellipse', x: 0, y: 0, width: 64, height: 32 }),
@@ -1248,7 +1248,7 @@ describe('loadTiledCollisionObjects', () => {
         loadTiledCollisionObjects(world, mapData, 0, 0);
 
         const insertCalls = (world.insert as any).mock.calls;
-        const circleInsert = insertCalls.find((c: any) => c[1]._name === 'CircleCollider');
+        const circleInsert = insertCalls.find((c: any) => c[1]._name === 'CircleCollider2D');
         expect(circleInsert[2].radius).toBe(24);
         expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
             .toEqual({ x: 32, y: -16, z: 0 });
@@ -1265,7 +1265,7 @@ describe('loadTiledCollisionObjects', () => {
         expect(world.spawn).not.toHaveBeenCalled();
     });
 
-    it('should create a real PolygonCollider (y-flipped local verts) for small polygons', () => {
+    it('should create a real PolygonCollider2D (y-flipped local verts) for small polygons', () => {
         const world = createMockWorld();
         const mapData = makeMap([makeGroup('Polys', [
             makeObject({ shape: 'polygon', x: 16, y: 48, vertices: [0, 0, 40, 0, 40, 20, 0, 20] }),
@@ -1274,7 +1274,7 @@ describe('loadTiledCollisionObjects', () => {
         loadTiledCollisionObjects(world, mapData, 0, 0);
 
         const insertCalls = (world.insert as any).mock.calls;
-        const polyInsert = insertCalls.find((c: any) => c[1]._name === 'PolygonCollider');
+        const polyInsert = insertCalls.find((c: any) => c[1]._name === 'PolygonCollider2D');
         expect(polyInsert[2].vertices).toEqual([
             { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: -20 }, { x: 0, y: -20 },
         ]);
@@ -1282,7 +1282,7 @@ describe('loadTiledCollisionObjects', () => {
             .toEqual({ x: 16, y: -48, z: 0 });
     });
 
-    it('should create an open ChainCollider for polylines', () => {
+    it('should create an open ChainCollider2D for polylines', () => {
         const world = createMockWorld();
         const mapData = makeMap([makeGroup('Terrain', [
             makeObject({ shape: 'polyline', x: 0, y: 64, vertices: [0, 0, 32, -16, 64, 0, 96, 8] }),
@@ -1291,7 +1291,7 @@ describe('loadTiledCollisionObjects', () => {
         loadTiledCollisionObjects(world, mapData, 0, 0, 2);
 
         const insertCalls = (world.insert as any).mock.calls;
-        const chainInsert = insertCalls.find((c: any) => c[1]._name === 'ChainCollider');
+        const chainInsert = insertCalls.find((c: any) => c[1]._name === 'ChainCollider2D');
         expect(chainInsert[2].isLoop).toBe(false);
         expect(chainInsert[2].points).toEqual([
             { x: 0, y: 0 }, { x: 16, y: 8 }, { x: 32, y: 0 }, { x: 48, y: -4 },
@@ -1314,8 +1314,8 @@ describe('loadTiledCollisionObjects', () => {
         loadTiledCollisionObjects(world, mapData, 0, 0);
 
         const insertCalls = (world.insert as any).mock.calls;
-        expect(insertCalls.find((c: any) => c[1]._name === 'PolygonCollider')).toBeUndefined();
-        const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider');
+        expect(insertCalls.find((c: any) => c[1]._name === 'PolygonCollider2D')).toBeUndefined();
+        const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider2D');
         expect(boxInsert[2].halfExtents.x).toBeCloseTo(50, 3);
     });
 
@@ -1448,8 +1448,8 @@ describe('loadTiledMap — collision integration', () => {
             const e = spawnObjectRegion(world, obj({ shape: 'rect' }), parent, 100, true);
             expect(e).not.toBeNull();
             expect(world.get(e!, Marker)).toEqual({ type: 'door', properties: { event: 'open' } });
-            expect(world.get(e!, RigidBody).bodyType).toBe(0); // Static
-            const box = world.get(e!, BoxCollider);
+            expect(world.get(e!, RigidBody2D).bodyType).toBe(0); // Static
+            const box = world.get(e!, BoxCollider2D);
             expect(box.isSensor).toBe(true);
             expect(box.halfExtents).toEqual({ x: 40 * 0.5 / 100, y: 20 * 0.5 / 100 });
             expect(world.get(e!, Transform).position).toEqual({ x: 120, y: -60, z: 0 }); // local centre, y-up
@@ -1459,16 +1459,16 @@ describe('loadTiledMap — collision integration', () => {
         it('sensor=false → the SAME shape as a SOLID collider (collision-group geometry)', () => {
             const world = createMockWorld();
             const e = spawnObjectRegion(world, obj({ shape: 'rect' }), world.spawn(), 100, false);
-            expect(world.get(e!, BoxCollider).isSensor).toBe(false);
-            expect(world.get(e!, RigidBody).bodyType).toBe(0);
+            expect(world.get(e!, BoxCollider2D).isSensor).toBe(false);
+            expect(world.get(e!, RigidBody2D).bodyType).toBe(0);
         });
 
         it('ellipse → circle on the mean semi-axis; polyline → open chain', () => {
             const world = createMockWorld();
-            const c = world.get(spawnObjectRegion(world, obj({ shape: 'ellipse', width: 80, height: 40 }), world.spawn(), 100, true)!, CircleCollider);
+            const c = world.get(spawnObjectRegion(world, obj({ shape: 'ellipse', width: 80, height: 40 }), world.spawn(), 100, true)!, CircleCollider2D);
             expect(c.isSensor).toBe(true);
             expect(c.radius).toBeCloseTo((80 + 40) * 0.25 / 100);
-            const chain = world.get(spawnObjectRegion(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 0, 10, 10] }), world.spawn(), 100, false)!, ChainCollider);
+            const chain = world.get(spawnObjectRegion(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 0, 10, 10] }), world.spawn(), 100, false)!, ChainCollider2D);
             expect(chain.isLoop).toBe(false);
             // A sensor-group polyline is skipped (open chains have no sensor mode).
             expect(spawnObjectRegion(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 10] }), world.spawn(), 100, true)).toBeNull();
@@ -1476,7 +1476,7 @@ describe('loadTiledMap — collision integration', () => {
 
         it('polygon (≤8 pts) → polygon; point / gid → null (projected elsewhere)', () => {
             const world = createMockWorld();
-            expect(world.get(spawnObjectRegion(world, obj({ shape: 'polygon', vertices: [0, 0, 30, 0, 30, 30] }), world.spawn(), 100, true)!, PolygonCollider).isSensor).toBe(true);
+            expect(world.get(spawnObjectRegion(world, obj({ shape: 'polygon', vertices: [0, 0, 30, 0, 30, 30] }), world.spawn(), 100, true)!, PolygonCollider2D).isSensor).toBe(true);
             expect(spawnObjectRegion(world, obj({ shape: 'point' }), world.spawn(), 100, true)).toBeNull();
             expect(spawnObjectRegion(world, obj({ shape: 'rect', gid: 5 }), world.spawn(), 100, true)).toBeNull();
         });
@@ -1501,7 +1501,7 @@ describe('loadTiledMap — collision integration', () => {
                 const legacy = generateObjectCollision(
                     lw, [{ name: 'g', visible: true, properties: new Map(), objects: [o] } as never], 0, 0, 100,
                 )[0];
-                for (const C of [BoxCollider, CircleCollider, PolygonCollider, ChainCollider]) {
+                for (const C of [BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D]) {
                     expect(rw.get(region, C)).toEqual(lw.get(legacy, C));
                 }
                 expect(rw.get(region, Transform).position).toEqual(lw.get(legacy, Transform).position);
@@ -1532,7 +1532,7 @@ describe('loadTiledMap — collision integration', () => {
 });
 
 describe('generateLayerCollision (B2-1 runtime tile collision)', () => {
-    interface MockEntity { Transform?: any; RigidBody?: any; BoxCollider?: any }
+    interface MockEntity { Transform?: any; RigidBody2D?: any; BoxCollider2D?: any }
 
     function createMockWorld(): { world: World; store: Map<number, MockEntity> } {
         let nextId = 1;
@@ -1560,8 +1560,8 @@ describe('generateLayerCollision (B2-1 runtime tile collision)', () => {
         const e = store.get(ents[0])!;
         // y-DOWN (matches the renderer): row 0 top edge at origin y=0, centre below.
         expect(e.Transform.position).toEqual({ x: 16, y: -16, z: 0 });
-        expect(e.BoxCollider.halfExtents).toEqual({ x: 16, y: 16 });
-        expect(e.RigidBody.bodyType).toBe(BodyType.Static);
+        expect(e.BoxCollider2D.halfExtents).toEqual({ x: 16, y: 16 });
+        expect(e.RigidBody2D.bodyType).toBe(BodyType.Static);
     });
 
     it('places rows y-down so lower rows sit at more-negative world-Y', () => {

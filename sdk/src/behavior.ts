@@ -48,7 +48,7 @@ export interface BehaviorContext<S extends object> {
      * Read another component on THIS entity.
      *
      * For a script component this IS the stored object, so mutating it sticks.
-     * For an ENGINE component (Transform, Sprite, RigidBody — anything C++-backed)
+     * For an ENGINE component (Transform, Sprite, RigidBody2D — anything C++-backed)
      * it is a copy decoded out of the wasm heap: mutating it changes nothing.
      * Read it, change it, and hand it back through {@link set}.
      */
