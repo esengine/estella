@@ -1418,6 +1418,12 @@ export interface SphereCollider3DData {
     enabled: boolean;
 }
 
+/**
+ * The fields of the engine's `SpineAnimation` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
 export interface SpineAnimationData {
     skeletonPath: string;
     atlasPath: string;
@@ -1554,6 +1560,12 @@ export interface UIScrollData {
     decelerationRate: number;
 }
 
+/**
+ * The fields of the engine's `UIVisual` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
 export interface UIVisualData {
     visualType: number;
     texture: number;

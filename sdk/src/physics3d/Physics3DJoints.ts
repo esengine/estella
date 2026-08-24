@@ -31,7 +31,7 @@ export interface PointJoint3DData {
 /**
  * A shared point the two bodies turn freely about — a chain link, a ragdoll limb.
  *
- * @beta
+ * @experimental
  */
 export const PointJoint3D = defineComponent<PointJoint3DData>('PointJoint3D', {
     connectedEntity: -1,
@@ -60,7 +60,7 @@ export interface HingeJoint3DData {
  * One axis of rotation — a door, a lever, a driven wheel. Limits are radians
  * measured from the pose the joint was made in, so zero is where you placed it.
  *
- * @beta
+ * @experimental
  */
 export const HingeJoint3D = defineComponent<HingeJoint3DData>('HingeJoint3D', {
     connectedEntity: -1,
@@ -98,7 +98,7 @@ export interface SliderJoint3DData {
  * One axis of travel — a lift, a piston, a sliding door. Limits are world units
  * along `axis`, again measured from where the joint was made.
  *
- * @beta
+ * @experimental
  */
 export const SliderJoint3D = defineComponent<SliderJoint3DData>('SliderJoint3D', {
     connectedEntity: -1,
@@ -131,7 +131,7 @@ export interface DistanceJoint3DData {
  * A distance kept between two points: a rope when only `maxLength` matters, a rod
  * when the two lengths meet, a spring when `frequency` is above zero.
  *
- * @beta
+ * @experimental
  */
 export const DistanceJoint3D = defineComponent<DistanceJoint3DData>('DistanceJoint3D', {
     connectedEntity: -1,
@@ -155,7 +155,7 @@ export interface FixedJoint3DData {
  * No freedom at all: the two move as one. It has no anchor — the pose the pieces
  * are in when the joint is made is the joint.
  *
- * @beta
+ * @experimental
  */
 export const FixedJoint3D = defineComponent<FixedJoint3DData>('FixedJoint3D', {
     connectedEntity: -1,

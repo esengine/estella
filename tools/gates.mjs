@@ -52,6 +52,9 @@ export const GATES = [
   // subsystem whose plugin reaches no entry is one the engine has and a game
   // cannot add — which is what 3D physics was for four releases.
   { id: 'plugin-door', run: 'node tools/check-plugin-door.mjs' },
+  // A component tagged @beta whose Data interface is untagged promises the name
+  // and not the fields, which is no promise at all.
+  { id: 'data-tiers', run: 'node tools/check-data-tiers.mjs' },
   // The SDK's tiers are enforced by the three gates above. The editor plugin API
   // has no snapshot to enforce, so what is enforced there is the ANSWER: that it
   // is experimental, said the same way in every place someone reads it.

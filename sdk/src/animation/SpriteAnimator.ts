@@ -274,6 +274,8 @@ export const SpriteAnimation = defineResource<SpriteAnimationAPI>(null!, 'Sprite
 // SpriteAnimator Component
 // =============================================================================
 
+/** The fields of the `SpriteAnimator` component, whose tier this shape carries.
+ *  @beta */
 export interface SpriteAnimatorData {
     clip: string;
     speed: number;

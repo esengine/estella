@@ -68,6 +68,8 @@ export interface CollisionHitEvent {
     approachSpeed: number;
 }
 
+/** What `Physics2DEvents` holds for a frame, whose tier this shape carries.
+ *  @beta */
 export interface Physics2DEventsData {
     collisionEnters: CollisionEnterEvent[];
     collisionExits: Array<{ entityA: Entity; entityB: Entity }>;

@@ -30,6 +30,8 @@ import {
 } from '../../wasm/wasm.generated';
 export { UIVisualType, UIVisualFit, FillMethod, FillOrigin };
 
+/** The fields of the `UIVisual` component, whose tier this shape carries.
+ *  @beta */
 export interface UIVisualData {
     visualType: UIVisualType;
     texture: number;

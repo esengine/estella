@@ -340,6 +340,8 @@ export function resolveParams(
 // Animator component
 // =============================================================================
 
+/** The fields of the `Animator` component, whose tier this shape carries.
+ *  @beta */
 export interface AnimatorData {
     /** Registered controller name (see AnimatorControllerAPI.registerController). */
     controller: string;

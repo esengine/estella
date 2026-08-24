@@ -41,6 +41,8 @@ import type { World } from '../ecs/world';
 // Component
 // =============================================================================
 
+/** The fields of the `CharacterController2D` component, whose tier this shape carries.
+ *  @beta */
 export interface CharacterController2DData {
     /** Desired velocity in world pixels/second; set it from gameplay each step. */
     velocity: Vec2;

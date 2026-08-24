@@ -13,13 +13,19 @@
  * carry the tier it claims — and each must still be an exported symbol, because a
  * verdict resting on a name that no longer exists rests on nothing.
  *
+ * Then the same question backwards, which is the half that was missing: every
+ * directory under sdk/src belongs to a row or is declared infrastructure. Read
+ * only forwards, the table stayed green through the arrival of a whole dimension
+ * — physics3d/ shipped for four releases with no verdict naming it, and a table
+ * silent about a subsystem reads exactly like a table that has none.
+ *
  *   node tools/check-subsystem-tiers.mjs
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ETC, ENTRIES } from './lib/sdkProgram.mjs';
+import { ETC, ENTRIES, SDK } from './lib/sdkProgram.mjs';
 import { parseSnapshot, TIERS } from './lib/apiSnapshot.mjs';
-import { SUBSYSTEMS } from './apiSubsystems.mjs';
+import { SUBSYSTEMS, INFRASTRUCTURE } from './apiSubsystems.mjs';
 
 /** Every symbol across every entry, keeping the strongest tier any entry gives it. */
 function surface() {
@@ -69,13 +75,41 @@ for (const sub of SUBSYSTEMS) {
     }
 }
 
+const claimed = new Map();
+for (const sub of SUBSYSTEMS) {
+    if (!sub.source?.length) {
+        problems.push(`"${sub.id}" claims no source directory — then nothing says what it speaks for`);
+        continue;
+    }
+    for (const dir of sub.source) {
+        if (!existsSync(join(SDK, 'src', dir))) {
+            problems.push(`"${sub.id}" speaks for sdk/src/${dir}, which does not exist`);
+        }
+        if (!claimed.has(dir)) claimed.set(dir, []);
+        claimed.get(dir).push(sub.id);
+    }
+}
+
+for (const dir of readdirSync(join(SDK, 'src'), { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    if (claimed.has(dir.name) || dir.name in INFRASTRUCTURE) continue;
+    problems.push(`sdk/src/${dir.name} belongs to no subsystem — give it a verdict, `
+        + 'or record it in INFRASTRUCTURE as something a creator never builds on');
+}
+for (const dir of Object.keys(INFRASTRUCTURE)) {
+    if (claimed.has(dir)) problems.push(`sdk/src/${dir} is both a subsystem's source and INFRASTRUCTURE`);
+    else if (!existsSync(join(SDK, 'src', dir))) problems.push(`INFRASTRUCTURE names sdk/src/${dir}, which is gone`);
+}
+
 if (problems.length) {
-    console.error('check-subsystem-tiers: the published verdicts and the tags disagree.\n');
+    console.error('check-subsystem-tiers: the table and the code disagree.\n');
     for (const p of problems) console.error(`  ${p}`);
-    console.error('\nMove the tag, or move the verdict — but they are one answer.');
+    console.error('\nMove the tag, or move the verdict — but they are one answer, '
+        + 'and every part of the engine owes one.');
     process.exit(1);
 }
 
 const by = (t) => SUBSYSTEMS.filter((s) => s.tier === t).length;
 console.log(`check-subsystem-tiers: ${SUBSYSTEMS.length} subsystem(s) — `
-    + `${by('public')} frozen, ${by('beta')} beta, ${by('experimental')} experimental, each backed by its tags.`);
+    + `${by('public')} frozen, ${by('beta')} beta, ${by('experimental')} experimental, each backed by its tags; `
+    + `${claimed.size} source dir(s) spoken for, ${Object.keys(INFRASTRUCTURE).length} declared infrastructure.`);

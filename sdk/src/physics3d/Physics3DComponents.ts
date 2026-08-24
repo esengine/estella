@@ -66,7 +66,7 @@ export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCo
  * Imported geometry used as it is, for a level to collide against. Always static:
  * a triangle soup has no inertia tensor, so there is nothing for a solver to push.
  *
- * @beta
+ * @experimental
  */
 export const MeshCollider3D = defineBuiltin<MeshCollider3DData>('MeshCollider3D', {
     mesh: 0,
@@ -81,7 +81,7 @@ export const MeshCollider3D = defineBuiltin<MeshCollider3DData>('MeshCollider3D'
  * triangle soup has no inertia tensor and is scenery whatever its body says; a
  * hull is a volume a solver pushes as readily as a box.
  *
- * @beta
+ * @experimental
  */
 export const ConvexCollider3D = defineBuiltin<ConvexCollider3DData>('ConvexCollider3D', {
     mesh: 0,
@@ -96,7 +96,7 @@ export const ConvexCollider3D = defineBuiltin<ConvexCollider3DData>('ConvexColli
  * solved in it. Set `velocity` each step and read `isOnFloor` back; the vertical
  * component is carried for you, so a zero there means "walk", not "hang".
  *
- * @beta
+ * @experimental
  */
 export const CharacterController3D = defineBuiltin<CharacterController3DData>(
     'CharacterController3D', {

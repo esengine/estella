@@ -201,7 +201,7 @@ export interface Physics3DEventsData {
  * system reading it must run inside one — a read from `Update` sees whatever the
  * last step left.
  *
- * @beta
+ * @experimental
  */
 export const Physics3DEvents = defineResource<Physics3DEventsData>({
     contactEnters: [],
