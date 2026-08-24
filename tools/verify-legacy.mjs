@@ -12,8 +12,9 @@
  * "It opened" is the weak claim. The strong one is that nothing was quietly
  * dropped: the editor's model is documented as lossless over unknown component
  * types, so every entity and every component in the released file must still be
- * there afterwards. A component the editor no longer understands must survive as
- * data, not vanish because nothing renders it.
+ * there afterwards — under whatever name the migration gives it. A component the
+ * editor no longer understands must survive as data, not vanish because nothing
+ * renders it.
  *
  *   node tools/verify-legacy.mjs --tier pr
  *   node tools/verify-legacy.mjs --tag v0.20.0 --id platformer
@@ -24,6 +25,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { legacyAtTier, ROOT } from './goldenProjects.mjs';
 import { runTool } from './lib/runTool.mjs';
+
+// The migration's own tables, not a copy: a renamed component is not a lost one
+// and a retired one is deliberately dropped, so comparing released spellings
+// against opened ones without them reads every rename as content loss.
+const { RENAMED_COMPONENT_TYPES, RETIRED_COMPONENT_TYPES } =
+  await import(path.join(ROOT, 'sdk', 'dist', 'index.js'));
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
@@ -71,11 +78,18 @@ function releasedScenes(dir) {
   return out;
 }
 
-/** Entity id → sorted component types, the shape a lossless open must preserve. */
+/**
+ * Entity id → sorted component types, the shape a lossless open must preserve —
+ * each name carried through the rename the engine would apply, and the retired
+ * ones left out, since dropping those is the documented behaviour.
+ */
 function shapeOf(scene) {
   const out = {};
   for (const e of scene.entities ?? []) {
-    out[e.id] = (e.components ?? []).map((c) => c.type).sort();
+    out[e.id] = (e.components ?? [])
+      .map((c) => RENAMED_COMPONENT_TYPES.get(c.type) ?? c.type)
+      .filter((t) => !RETIRED_COMPONENT_TYPES.has(t))
+      .sort();
   }
   return out;
 }

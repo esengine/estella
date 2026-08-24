@@ -354,6 +354,14 @@ export function parseSceneFormatVersion(v: unknown): number {
 export { RETIRED_COMPONENT_TYPES } from './legacyComponents';
 
 /**
+ * Components an engine upgrade renamed, old name to new. Exported because a
+ * rename is not a loss, and anything comparing a released file against what
+ * opening it yields has to be able to tell the two apart from one table rather
+ * than a copy of it.
+ */
+export { RENAMED_COMPONENT_TYPES } from './legacyComponents';
+
+/**
  * Upgrade a SceneData to the current format. Total + idempotent: already-current
  * data returns `migrated: false`; migrations are shape-driven so they no-op on
  * current scenes. Rejects data newer than this engine. Returns a deep copy, so
