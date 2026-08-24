@@ -35,9 +35,9 @@ Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `p
 组件时物理模块会自动加载;在自定义 app 里,请自己加上插件:
 
 ```typescript
-import { PhysicsPlugin } from 'esengine/physics';
+import { Physics2DPlugin } from 'esengine/physics';
 
-app.addPlugin(new PhysicsPlugin('physics.js'));
+app.addPlugin(new Physics2DPlugin('physics.js'));
 ```
 
 ## 在编辑器里放置
@@ -94,14 +94,14 @@ const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, 
 (`bodyType: 0`)、一个 `isSensor: true` 的 `BoxCollider2D`,加一个 `Marker`。因为碰撞体是传感器,
 它检测重叠但**不产生**物理响应——没有东西会从触发区弹开;它只报告谁进来了。
 
-从 `PhysicsEvents` 资源读取进入与离开。每个传感事件都给出 `sensorEntity`(触发区)和
+从 `Physics2DEvents` 资源读取进入与离开。每个传感事件都给出 `sensorEntity`(触发区)和
 `visitorEntity`(穿过它的刚体),于是你可以查出触发区的 `Marker` 来决定它做什么:
 
 ```typescript
 import { defineSystem, Res, Query, Marker } from 'esengine';
-import { PhysicsEvents } from 'esengine/physics';
+import { Physics2DEvents } from 'esengine/physics';
 
-const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, markers) => {
+const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, markers) => {
   const markerOf = (e) => {
     for (const [entity, marker] of markers) if (entity === e) return marker;
     return null;
@@ -146,6 +146,6 @@ const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, mar
 ## 参见
 
 - [瓦片地图](/docs/zh-cn/world/tilemaps/) —— 碰撞(障碍)层与喂给同一批 Marker 的 Tiled 对象层。
-- [物理](/docs/zh-cn/gameplay/physics/) —— 传感器、碰撞过滤,以及 Trigger Area 背后的 `PhysicsEvents` 资源。
+- [物理](/docs/zh-cn/gameplay/physics/) —— 传感器、碰撞过滤,以及 Trigger Area 背后的 `Physics2DEvents` 资源。
 - [场景](/docs/zh-cn/world/scenes/) —— Marker 与 Trigger Area 随场景序列化。
 - [事件绑定](/docs/zh-cn/scripting/events/) —— 有东西进入 Trigger Area 时执行一个动作，直接挂在触发区上，不写代码。

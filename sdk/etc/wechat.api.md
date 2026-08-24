@@ -1970,6 +1970,29 @@ max: Vec3
 min: Vec3
 ```
 
+## Collider2DInstance — interface @experimental
+```
+enabled: boolean
+isSensor: boolean
+shape: Collider2DShape
+```
+
+## Collider2DOutline — interface @experimental
+```
+circles: { c: Vec2; r: number; }[]
+polylines: Vec2[][]
+```
+
+## Collider2DShape — type @experimental
+```
+| { kind: 'box'; halfExtents: Vec2; offset: Vec2 }
+    | { kind: 'circle'; radius: number; offset: Vec2 }
+    | { kind: 'capsule'; radius: number; halfHeight: number; offset: Vec2 }
+    | { kind: 'segment'; point1: Vec2; point2: Vec2 }
+    | { kind: 'polygon'; vertices: Vec2[] }
+    | { kind: 'chain'; points: Vec2[]; isLoop: boolean }
+```
+
 ## Collider3DComponent — type @experimental
 ```
 | 'BoxCollider3D' | 'SphereCollider3D' | 'CapsuleCollider3D'
@@ -1989,29 +2012,6 @@ shape: Collider3DShape
 | { kind: 'box'; halfExtents: Vec3; center: Vec3 }
     | { kind: 'sphere'; radius: number }
     | { kind: 'capsule'; radius: number; halfHeight: number }
-```
-
-## ColliderInstance — interface @experimental
-```
-enabled: boolean
-isSensor: boolean
-shape: ColliderShape
-```
-
-## ColliderOutline — interface @experimental
-```
-circles: { c: Vec2; r: number; }[]
-polylines: Vec2[][]
-```
-
-## ColliderShape — type @experimental
-```
-| { kind: 'box'; halfExtents: Vec2; offset: Vec2 }
-    | { kind: 'circle'; radius: number; offset: Vec2 }
-    | { kind: 'capsule'; radius: number; halfHeight: number; offset: Vec2 }
-    | { kind: 'segment'; point1: Vec2; point2: Vec2 }
-    | { kind: 'polygon'; vertices: Vec2[] }
-    | { kind: 'chain'; points: Vec2[]; isLoop: boolean }
 ```
 
 ## CollisionBrush — interface @experimental
@@ -4156,7 +4156,7 @@ mouse: boolean | undefined
 app: App
 module: ESEngineModule | null
 physics3dModule: Physics3DWasmModule | undefined
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined
 sceneData: SceneData
@@ -5062,7 +5062,7 @@ colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 entryScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 renderBackend: "webgl2" | "webgpu" | undefined
 scenes: { name: string; path: string; }[] | undefined
@@ -5261,9 +5261,59 @@ static prototype: PerceptionPlugin
 ComponentDef<{}>
 ```
 
-## Physics — const @beta
+## Physics2D — const @beta
 ```
-ResourceDef<PhysicsAPI>
+ResourceDef<Physics2DAPI>
+```
+
+## Physics2DContactEventData — interface @experimental
+```
+approachSpeed: number | undefined
+isSensor: boolean | undefined
+other: number
+```
+
+## Physics2DEventType — type @experimental
+```
+typeof Physics2DEventType[keyof typeof Physics2DEventType]
+```
+
+## Physics2DEvents — const @beta
+```
+ResourceDef<Physics2DEventsData>
+```
+
+## Physics2DEventsData — interface @experimental
+```
+collisionEnters: CollisionEnterEvent[]
+collisionExits: { entityA: Entity; entityB: Entity; }[]
+collisionHits: CollisionHitEvent[]
+sensorEnters: SensorEvent[]
+sensorExits: SensorEvent[]
+```
+
+## Physics2DPlugin — class @experimental
+```
+build: (app: App) => void
+cleanup: () => void
+name: string
+static new (wasmUrl: string, config?: Physics2DPluginConfig, factory?: PhysicsModuleFactory): Physics2DPlugin
+static prototype: Physics2DPlugin
+```
+
+## Physics2DPluginConfig — interface @experimental
+```
+collisionLayerMasks: number[] | undefined
+contactDampingRatio: number | undefined
+contactHertz: number | undefined
+contactSpeed: number | undefined
+enableContinuous: boolean | undefined
+enableSleep: boolean | undefined
+fixedTimestep: number | undefined
+gravity: Vec2 | undefined
+maxLinearSpeed: number | undefined
+restitutionThreshold: number | undefined
+subStepCount: number | undefined
 ```
 
 ## Physics3DDebugDraw — const @experimental
@@ -5278,59 +5328,9 @@ showColliders: boolean
 showContacts: boolean
 ```
 
-## PhysicsContactEventData — interface @experimental
-```
-approachSpeed: number | undefined
-isSensor: boolean | undefined
-other: number
-```
-
-## PhysicsEventType — type @experimental
-```
-typeof PhysicsEventType[keyof typeof PhysicsEventType]
-```
-
-## PhysicsEvents — const @beta
-```
-ResourceDef<PhysicsEventsData>
-```
-
-## PhysicsEventsData — interface @experimental
-```
-collisionEnters: CollisionEnterEvent[]
-collisionExits: { entityA: Entity; entityB: Entity; }[]
-collisionHits: CollisionHitEvent[]
-sensorEnters: SensorEvent[]
-sensorExits: SensorEvent[]
-```
-
 ## PhysicsModuleFactory — type @experimental
 ```
 (config?: Record<string, unknown>) => Promise<PhysicsWasmModule>
-```
-
-## PhysicsPlugin — class @experimental
-```
-build: (app: App) => void
-cleanup: () => void
-name: string
-static new (wasmUrl: string, config?: PhysicsPluginConfig, factory?: PhysicsModuleFactory): PhysicsPlugin
-static prototype: PhysicsPlugin
-```
-
-## PhysicsPluginConfig — interface @experimental
-```
-collisionLayerMasks: number[] | undefined
-contactDampingRatio: number | undefined
-contactHertz: number | undefined
-contactSpeed: number | undefined
-enableContinuous: boolean | undefined
-enableSleep: boolean | undefined
-fixedTimestep: number | undefined
-gravity: Vec2 | undefined
-maxLinearSpeed: number | undefined
-restitutionThreshold: number | undefined
-subStepCount: number | undefined
 ```
 
 ## PhysicsWasmModule — interface @experimental
@@ -5677,7 +5677,7 @@ extraScenes: { name: string; data?: SceneData; path?: string; }[] | undefined
 manifest: AddressableManifest | null | undefined
 module: ESEngineModule
 persistUpdateKey: string | undefined
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 remoteRoot: string | undefined
 sceneData: SceneData
@@ -5702,7 +5702,7 @@ depthLayers: number | undefined
 firstScene: string
 manifest: AddressableManifest | null | undefined
 module: ESEngineModule
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 scenes: { name: string; data: SceneData; }[]
 uiTheme: "dark" | "light" | undefined
@@ -6575,7 +6575,7 @@ firstScene: string
 manifest: AddressableManifest | ManifestModel | null | undefined
 module: ESEngineModule | null
 persistUpdateKey: string | undefined
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined
 remoteRoot: string | undefined
@@ -9175,7 +9175,7 @@ depthLayers: number | undefined
 engineFactory: (opts: unknown) => Promise<ESEngineModule>
 engineWasmPath: string | undefined
 firstScene: string
-physicsConfig: PhysicsPluginConfig | undefined
+physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 runtimeConfig: RuntimeBuildConfig | undefined
 sceneNames: string[]
@@ -9839,14 +9839,14 @@ BtPlugin
 (asset: TilesetAsset): number[]
 ```
 
+## collider2DOutline — function @experimental
+```
+(shape: Collider2DShape, center: Vec2, angle: number, ppu: number): Collider2DOutline
+```
+
 ## collider3DWireframe — function @experimental
 ```
 (shape: Collider3DShape, segments?: number): Vec3[][]
-```
-
-## colliderShapeOutline — function @experimental
-```
-(shape: ColliderShape, center: Vec2, angle: number, ppu: number): ColliderOutline
 ```
 
 ## collisionRefWithMaterial — function @experimental
@@ -10986,7 +10986,7 @@ Logger
 
 ## makeLosCheck — function @experimental
 ```
-(physics: PhysicsAPI): LosCheck
+(physics: Physics2DAPI): LosCheck
 ```
 
 ## makeWidgetInteractable — function @experimental
@@ -11166,7 +11166,7 @@ NavPlugin
 
 ## packagedRuntimeInit — function @experimental
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit">): { physicsEnabled?: boolean; physicsConfig?: PhysicsPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; }
+(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit">): { physicsEnabled?: boolean; physicsConfig?: Physics2DPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; }
 ```
 
 ## paramDefaultValue — function @experimental
@@ -11449,14 +11449,14 @@ PrefabsPlugin
 (ray: WorldRay, point: Vec3, normal: Vec3): Vec3 | null
 ```
 
+## readCollider2DShapes — function @experimental
+```
+(world: World, entity: number): Collider2DInstance[]
+```
+
 ## readCollider3DShapes — function @experimental
 ```
 (world: World, entity: number): Collider3DInstance[]
-```
-
-## readColliderShapes — function @experimental
-```
-(world: World, entity: number): ColliderInstance[]
 ```
 
 ## readFieldPath — function @experimental
@@ -11991,12 +11991,12 @@ ServicesPlugin
 
 ## shapeCenter — function @experimental
 ```
-(shape: ColliderShape, worldPos: Vec2, angle: number, ppu: number): Vec2
+(shape: Collider2DShape, worldPos: Vec2, angle: number, ppu: number): Vec2
 ```
 
 ## shapeOffset — function @experimental
 ```
-(shape: ColliderShape): Vec2
+(shape: Collider2DShape): Vec2
 ```
 
 ## shutdownDrawAPI — function @experimental

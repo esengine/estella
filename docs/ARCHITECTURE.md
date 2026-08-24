@@ -369,11 +369,14 @@ The correctness and foundation campaigns are **complete**. Landed:
   plane from their names (they are the only light and the only mesh renderer);
   `ShadowCaster2D` keeps it, because it shadows what has no mesh to rasterize.
   Physics is the one place where two worlds really do exist, so both are named
-  for their plane: `RigidBody2D` and the four `*Collider2D` shapes beside
-  `RigidBody3D` and its five, and neither set owns the bare name. `BodyType` is
-  shared — a body is static, kinematic or dynamic in either world — and lives in
-  a header of its own rather than in the flat one's, which is where the 3D
-  component used to reach for it.
+  for their plane, components and subsystem surface alike: `RigidBody2D`, the
+  six `*Collider2D` shapes, `Physics2D`, `Physics2DPlugin`, `Collider2DShape`,
+  beside `RigidBody3D`, `Physics3DPlugin` and `Collider3DShape`. Neither set
+  owns the bare name. Two things deliberately keep it: `BodyType`, shared
+  because a body is static, kinematic or dynamic in either world (and now in a
+  header of its own rather than the flat one's, which is where the 3D component
+  used to reach for it), and `PhysicsWasmModule` / `loadPhysicsModule`, which
+  name the side module `physics.wasm` rather than a world.
 
 Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T2 — editor keyframe/curve editing UI; particle visual editor; native 2D
@@ -381,10 +384,6 @@ Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T3 — GPU particles / trails (transform-feedback or compute).
 - [ ] T4 — one-way platforms + remaining Box2D joints; editor multi-atlas painting;
       tile-gid objects in tilemaps.
-- [ ] The SDK's flat physics surface still carries bare names the components no
-      longer do: `Physics`, `PhysicsPlugin`, `PhysicsEvents`, `ColliderShape`,
-      against `Physics3DPlugin` / `ColliderShape3D`. Nothing on disk is keyed by
-      those, so squaring it is an API rename with no migration in it.
 - [ ] Two pixel gates still run on one backend: `camera-render-target` (a frame
       holding both an offscreen and a surface pass returns nothing from the
       WebGPU readback) and `device-loss`. The other 121 assert on both.

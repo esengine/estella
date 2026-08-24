@@ -15,7 +15,7 @@ import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
 import { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
-import { PhysicsPlugin, type PhysicsPluginConfig } from '../physics/PhysicsPlugin';
+import { Physics2DPlugin, type Physics2DPluginConfig } from '../physics/Physics2DPlugin';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
 import { Physics3DPlugin } from '../physics3d/Physics3DPlugin';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
@@ -191,7 +191,7 @@ export interface LoadRuntimeSceneOptions {
     physicsModule?: PhysicsWasmModule | null;
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
-    physicsConfig?: PhysicsPluginConfig;
+    physicsConfig?: Physics2DPluginConfig;
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
@@ -377,9 +377,9 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         }
         if (!physicsModule) {
             log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — this realm has no side-module host or physics.wasm failed to load`);
-        } else if (!app.getPlugin(PhysicsPlugin)) {
+        } else if (!app.getPlugin(Physics2DPlugin)) {
             const gravity = physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY };
-            const config: PhysicsPluginConfig = {
+            const config: Physics2DPluginConfig = {
                 gravity,
                 fixedTimestep: physicsConfig?.fixedTimestep ?? DEFAULT_FIXED_TIMESTEP,
                 subStepCount: physicsConfig?.subStepCount ?? 4,
@@ -393,7 +393,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             if (physicsConfig?.enableSleep !== undefined) config.enableSleep = physicsConfig.enableSleep;
             if (physicsConfig?.enableContinuous !== undefined) config.enableContinuous = physicsConfig.enableContinuous;
             const mod = physicsModule;
-            app.addPlugin(new PhysicsPlugin('', config, () => Promise.resolve(mod)));
+            app.addPlugin(new Physics2DPlugin('', config, () => Promise.resolve(mod)));
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
         }
     }
@@ -548,7 +548,7 @@ export interface RuntimeInitConfig {
     physicsModule?: PhysicsWasmModule | null;
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
-    physicsConfig?: PhysicsPluginConfig;
+    physicsConfig?: Physics2DPluginConfig;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
     /** Project-declared mixer state (bus volumes / custom buses / effects / duck

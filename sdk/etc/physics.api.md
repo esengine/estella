@@ -109,20 +109,20 @@ radius: number
 restitution: number
 ```
 
-## ColliderInstance — interface @experimental
+## Collider2DInstance — interface @experimental
 ```
 enabled: boolean
 isSensor: boolean
-shape: ColliderShape
+shape: Collider2DShape
 ```
 
-## ColliderOutline — interface @experimental
+## Collider2DOutline — interface @experimental
 ```
 circles: { c: Vec2; r: number; }[]
 polylines: Vec2[][]
 ```
 
-## ColliderShape — type @experimental
+## Collider2DShape — type @experimental
 ```
 | { kind: 'box'; halfExtents: Vec2; offset: Vec2 }
     | { kind: 'circle'; radius: number; offset: Vec2 }
@@ -248,12 +248,12 @@ enabled: boolean
 normal: Vec2
 ```
 
-## Physics — const @beta
+## Physics2D — const @beta
 ```
-ResourceDef<PhysicsAPI>
+ResourceDef<Physics2DAPI>
 ```
 
-## PhysicsAPI — class @experimental
+## Physics2DAPI — class @experimental
 ```
 @internal setPixelsPerUnit: (ppu: number) => void
 applyAngularImpulse: (entity: Entity, impulse: number) => void
@@ -323,26 +323,26 @@ setWheelJointMotorSpeed: (entity: Entity, speed: number) => void
 shapeCastBox: (center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCapsule: (center1: Vec2, center2: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCircle: (center: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
-static @internal _fromModule: (module: PhysicsWasmModule) => PhysicsAPI
-static new (app: App): PhysicsAPI
-static prototype: PhysicsAPI
+static @internal _fromModule: (module: PhysicsWasmModule) => Physics2DAPI
+static new (app: App): Physics2DAPI
+static prototype: Physics2DAPI
 static setDebugDraw: (app: App, enabled: boolean) => void
-static setDebugDrawConfig: (app: App, config: Partial<PhysicsDebugDrawConfig>) => void
+static setDebugDrawConfig: (app: App, config: Partial<Physics2DDebugDrawConfig>) => void
 ```
 
-## PhysicsContactEventData — interface @experimental
+## Physics2DContactEventData — interface @experimental
 ```
 approachSpeed: number | undefined
 isSensor: boolean | undefined
 other: number
 ```
 
-## PhysicsDebugDraw — const @experimental
+## Physics2DDebugDraw — const @experimental
 ```
-ResourceDef<PhysicsDebugDrawConfig>
+ResourceDef<Physics2DDebugDrawConfig>
 ```
 
-## PhysicsDebugDrawConfig — interface @experimental
+## Physics2DDebugDrawConfig — interface @experimental
 ```
 enabled: boolean
 showColliders: boolean
@@ -350,17 +350,17 @@ showContacts: boolean
 showVelocity: boolean
 ```
 
-## PhysicsEventType — type @experimental
+## Physics2DEventType — type @experimental
 ```
-typeof PhysicsEventType[keyof typeof PhysicsEventType]
-```
-
-## PhysicsEvents — const @beta
-```
-ResourceDef<PhysicsEventsData>
+typeof Physics2DEventType[keyof typeof Physics2DEventType]
 ```
 
-## PhysicsEventsData — interface @experimental
+## Physics2DEvents — const @beta
+```
+ResourceDef<Physics2DEventsData>
+```
+
+## Physics2DEventsData — interface @experimental
 ```
 collisionEnters: CollisionEnterEvent[]
 collisionExits: { entityA: Entity; entityB: Entity; }[]
@@ -369,21 +369,16 @@ sensorEnters: SensorEvent[]
 sensorExits: SensorEvent[]
 ```
 
-## PhysicsModuleFactory — type @experimental
-```
-(config?: Record<string, unknown>) => Promise<PhysicsWasmModule>
-```
-
-## PhysicsPlugin — class @experimental
+## Physics2DPlugin — class @experimental
 ```
 build: (app: App) => void
 cleanup: () => void
 name: string
-static new (wasmUrl: string, config?: PhysicsPluginConfig, factory?: PhysicsModuleFactory): PhysicsPlugin
-static prototype: PhysicsPlugin
+static new (wasmUrl: string, config?: Physics2DPluginConfig, factory?: PhysicsModuleFactory): Physics2DPlugin
+static prototype: Physics2DPlugin
 ```
 
-## PhysicsPluginConfig — interface @experimental
+## Physics2DPluginConfig — interface @experimental
 ```
 collisionLayerMasks: number[] | undefined
 contactDampingRatio: number | undefined
@@ -396,6 +391,11 @@ gravity: Vec2 | undefined
 maxLinearSpeed: number | undefined
 restitutionThreshold: number | undefined
 subStepCount: number | undefined
+```
+
+## PhysicsModuleFactory — type @experimental
+```
+(config?: Record<string, unknown>) => Promise<PhysicsWasmModule>
 ```
 
 ## PhysicsWasmModule — interface @experimental
@@ -690,14 +690,14 @@ motorSpeed: number
 upperTranslation: number
 ```
 
-## colliderShapeOutline — function @experimental
+## collider2DOutline — function @experimental
 ```
-(shape: ColliderShape, center: Vec2, angle: number, ppu: number): ColliderOutline
+(shape: Collider2DShape, center: Vec2, angle: number, ppu: number): Collider2DOutline
 ```
 
-## drawPhysicsDebug — function @experimental
+## drawPhysics2DDebug — function @experimental
 ```
-(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<PhysicsEventsData>): void
+(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<Physics2DEventsData>): void
 ```
 
 ## loadPhysicsModule — function @experimental
@@ -710,38 +710,38 @@ upperTranslation: number
 (p: MoveAndSlideParams, cast: SlideCast): MoveAndSlideResult
 ```
 
-## physicsPlugin — function @experimental
+## physics2dPlugin — function @experimental
 ```
-(wasmUrl: string, config?: PhysicsPluginConfig, factory?: PhysicsModuleFactory): PhysicsPlugin
-```
-
-## readColliderShapes — function @experimental
-```
-(world: World, entity: number): ColliderInstance[]
+(wasmUrl: string, config?: Physics2DPluginConfig, factory?: PhysicsModuleFactory): Physics2DPlugin
 ```
 
-## registerCharacterControllerSystem — function @experimental
+## readCollider2DShapes — function @experimental
+```
+(world: World, entity: number): Collider2DInstance[]
+```
+
+## registerCharacterController2DSystem — function @experimental
 ```
 (app: App): void
 ```
 
-## registerPhysicsEventBridge — function @experimental
+## registerPhysics2DEventBridge — function @experimental
 ```
 (app: App): void
 ```
 
-## setupPhysicsDebugDraw — function @experimental
+## setupPhysics2DDebugDraw — function @experimental
 ```
-(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<PhysicsEventsData>): void
+(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<Physics2DEventsData>): void
 ```
 
 ## shapeCenter — function @experimental
 ```
-(shape: ColliderShape, worldPos: Vec2, angle: number, ppu: number): Vec2
+(shape: Collider2DShape, worldPos: Vec2, angle: number, ppu: number): Vec2
 ```
 
 ## shapeOffset — function @experimental
 ```
-(shape: ColliderShape): Vec2
+(shape: Collider2DShape): Vec2
 ```
 

@@ -6,34 +6,34 @@
  *
  * @example
  * ```typescript
- * import { PhysicsPlugin } from 'esengine/physics';
- * app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
+ * import { Physics2DPlugin } from 'esengine/physics';
+ * app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
  * ```
  */
 
 // Contacts as entity events (the channel widgets emit into), so an authored
 // EventBinding row can wire a trigger area with no code.
 export {
-    PhysicsEventType,
-    registerPhysicsEventBridge,
-    type PhysicsContactEventData,
+    Physics2DEventType,
+    registerPhysics2DEventBridge,
+    type Physics2DContactEventData,
 } from './PhysicsEventBridge';
 
 export {
-    PhysicsPlugin,
-    physicsPlugin,
-    PhysicsEvents,
-    PhysicsAPI,
-    Physics,
-    type PhysicsPluginConfig,
-    type PhysicsEventsData,
+    Physics2DPlugin,
+    physics2dPlugin,
+    Physics2DEvents,
+    Physics2DAPI,
+    Physics2D,
+    type Physics2DPluginConfig,
+    type Physics2DEventsData,
     type CollisionEnterEvent,
     type CollisionHitEvent,
     type SensorEvent,
     type RaycastHit,
     type ShapeCastHit,
     type MassData,
-} from './PhysicsPlugin';
+} from './Physics2DPlugin';
 
 export {
     loadPhysicsModule,
@@ -74,27 +74,27 @@ export {
 } from './PhysicsComponents';
 
 export {
-    PhysicsDebugDraw,
-    setupPhysicsDebugDraw,
-    drawPhysicsDebug,
-    type PhysicsDebugDrawConfig,
-} from './PhysicsDebugDraw';
+    Physics2DDebugDraw,
+    setupPhysics2DDebugDraw,
+    drawPhysics2DDebug,
+    type Physics2DDebugDrawConfig,
+} from './Physics2DDebugDraw';
 
 export {
-    readColliderShapes,
+    readCollider2DShapes,
     shapeOffset,
     shapeCenter,
-    colliderShapeOutline,
+    collider2DOutline,
     CAPSULE_ARC_SEGMENTS,
-    type ColliderShape,
-    type ColliderInstance,
-    type ColliderOutline,
-} from './ColliderShape';
+    type Collider2DShape,
+    type Collider2DInstance,
+    type Collider2DOutline,
+} from './ColliderShape2D';
 
 export {
     CharacterController2D,
     moveAndSlide,
-    registerCharacterControllerSystem,
+    registerCharacterController2DSystem,
     type CharacterController2DData,
     type MoveAndSlideParams,
     type MoveAndSlideResult,

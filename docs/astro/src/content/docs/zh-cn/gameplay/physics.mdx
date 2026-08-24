@@ -15,9 +15,9 @@ Estella 的物理跑在 C++/WebAssembly 内核里,由 Box2D v3 驱动。你给�
 应用里,自己加插件(重力默认 `{ x: 0, y: -9.81 }`):
 
 ```typescript
-import { PhysicsPlugin } from 'esengine/physics';
+import { Physics2DPlugin } from 'esengine/physics';
 
-app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
+app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
 <Aside type="note">
@@ -138,14 +138,14 @@ const LAYER_GROUND = 0x0008;
 
 ## 移动刚体 —— 力与速度
 
-读 `Physics` 资源——一个 `PhysicsAPI` 实例——来驱动刚体。这些方法直接和求解器对话,
+读 `Physics2D` 资源——一个 `Physics2DAPI` 实例——来驱动刚体。这些方法直接和求解器对话,
 所以全部以**米**计(m/s、m/s²——见[单位](#单位))。每个方法都取世界实体:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
-import { Physics } from 'esengine/physics';
+import { Physics2D } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody2D), Res(Physics)], (q, physics) => {
+const move = defineSystem([Query(RigidBody2D), Res(Physics2D)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
@@ -206,14 +206,14 @@ const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
 
 ## 碰撞与传感事件
 
-`PhysicsEvents` 资源携带这一帧的接触。给碰撞体设 `isSensor: true` 即可得到 enter/exit 事件
+`Physics2DEvents` 资源携带这一帧的接触。给碰撞体设 `isSensor: true` 即可得到 enter/exit 事件
 而**没有**物理响应(触发区):
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
-import { PhysicsEvents } from 'esengine/physics';
+import { Physics2DEvents } from 'esengine/physics';
 
-const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
+const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
   for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
   for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
   for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
@@ -364,20 +364,20 @@ const drive = defineSystem([Query(Mut(CharacterController2D))], (q) => {
 
 ## 调试绘制
 
-物理插件会安装一个 **`PhysicsDebugDraw`** 资源——一个游戏内叠加层,通过
+物理插件会安装一个 **`Physics2DDebugDraw`** 资源——一个游戏内叠加层,通过
 [`Draw`](/docs/zh-cn/graphics/drawing/) API 描出碰撞体轮廓、速度向量和接触点。
 它默认关闭;在任何系统里翻转 `enabled`,就能看见求解器眼中的世界:
 
 ```typescript
 import { defineSystem, Res, Input } from 'esengine';
-import { PhysicsDebugDraw } from 'esengine/physics';
+import { Physics2DDebugDraw } from 'esengine/physics';
 
-const toggleDebug = defineSystem([Res(Input), Res(PhysicsDebugDraw)], (input, dbg) => {
+const toggleDebug = defineSystem([Res(Input), Res(Physics2DDebugDraw)], (input, dbg) => {
   if (input.isKeyPressed('F1')) dbg.enabled = !dbg.enabled;
 });
 ```
 
-| `PhysicsDebugDrawConfig` 字段 | 默认 | 绘制内容 |
+| `Physics2DDebugDrawConfig` 字段 | 默认 | 绘制内容 |
 |---|---|---|
 | `enabled` | `false` | 整个叠加层的总开关。 |
 | `showColliders` | `true` | 碰撞体轮廓,按刚体类型着色:蓝 = 静态,绿 = 动态,青 = 运动学;传感器为黄色。 |
@@ -385,16 +385,16 @@ const toggleDebug = defineSystem([Res(Input), Res(PhysicsDebugDraw)], (input, db
 | `showContacts` | `false` | 本帧新开始的每个接触点画一个红点。 |
 
 叠加层在每个刚体的实时变换处以**世界像素**绘制(按当前 PPU 缩放),你看到的正是查询
-认定的碰撞体位置。`setupPhysicsDebugDraw(app, Physics, PhysicsEvents)` 就是
-`PhysicsPlugin` 替你跑的接线——插入该资源并注册绘制回调;只有在绕开插件的自定义宿主里,
-才需要自己调它(或每帧调底层的 `drawPhysicsDebug(app, Physics, PhysicsEvents)`)。
+认定的碰撞体位置。`setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents)` 就是
+`Physics2DPlugin` 替你跑的接线——插入该资源并注册绘制回调;只有在绕开插件的自定义宿主里,
+才需要自己调它(或每帧调底层的 `drawPhysics2DDebug(app, Physics2D, Physics2DEvents)`)。
 
 <Aside type="note">这是运行时的叠加层。**编辑器视口**在物理显示标记下有自己的碰撞体/关节
 gizmo(见[关节——在编辑器里](#在编辑器里));两者互相独立。</Aside>
 
 ## 最佳实践
 
-- **固定时间步**:*每帧*施加持续力、读 `PhysicsEvents`,因为物理独立于帧 delta 做子步。
+- **固定时间步**:*每帧*施加持续力、读 `Physics2DEvents`,因为物理独立于帧 delta 做子步。
 - 快速细小刚体(子弹、薄平台)用 **`bullet: true`** 防穿透。
 - 角色用 **`fixedRotation: true`** 免得翻倒。
 - **碰撞体与求解器用米,查询和角色控制器用像素**——混用是最常见的 bug;用

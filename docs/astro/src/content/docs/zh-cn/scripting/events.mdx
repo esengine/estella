@@ -140,7 +140,7 @@ shown ─▶ fsm.fire(enter)  挂在 "MissionPanel"   →   Hidden ──enter�
 
 在没有人监听这两个事件之前，这份「盯着」不花任何代价；有人监听、但这一帧 UI 没动过时，同样不花。
 
-[物理](/docs/zh-cn/gameplay/physics/)接触也走同一条通道（`PhysicsEventType`），所以
+[物理](/docs/zh-cn/gameplay/physics/)接触也走同一条通道（`Physics2DEventType`），所以
 [触发区](/docs/zh-cn/gameplay/markers/)的接线方式和按钮一模一样——双方都会收到事件，各自拿到对方：
 
 `collision_enter` · `collision_exit` · `collision_hit` · `trigger_enter` · `trigger_exit`

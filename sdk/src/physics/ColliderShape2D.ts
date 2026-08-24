@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    ColliderShape.ts
+ * @file    Collider2DShape.ts
  * @brief   The single geometry projection over the collider components — the shared
- *          seam for BOTH visualizers (the runtime PhysicsDebugDraw and the editor's
+ *          seam for BOTH visualizers (the runtime Physics2DDebugDraw and the editor's
  *          collider gizmo) and for tile-collision overlays. It does NOT touch the
  *          runtime physics model: colliders stay ordinary C++/TS components dispatched
  *          by presence in PhysicsSystem; this only READS them into a shape descriptor,
@@ -11,7 +11,7 @@
  *          emits world-space outlines each backend renders in its own primitives.
  *
  * Units: shape fields are physics metres (as stored on the components); `ppu`
- * (pixels-per-unit) scales them to world pixels in shapeCenter / colliderShapeOutline.
+ * (pixels-per-unit) scales them to world pixels in shapeCenter / collider2DOutline.
  */
 import type { Vec2 } from '../types';
 import type { World } from '../ecs/world';
@@ -29,7 +29,7 @@ export const CAPSULE_ARC_SEGMENTS = 16;
 
 /** A collider's geometry, in physics metres. Offset (box/circle/capsule) is metres too;
  *  segment/polygon/chain carry their points directly and sit at the entity origin. */
-export type ColliderShape =
+export type Collider2DShape =
     | { kind: 'box'; halfExtents: Vec2; offset: Vec2 }
     | { kind: 'circle'; radius: number; offset: Vec2 }
     | { kind: 'capsule'; radius: number; halfHeight: number; offset: Vec2 }
@@ -41,15 +41,15 @@ export type ColliderShape =
  *  the enabled flag they decide by: a disabled collider is absent from the physics
  *  world, so the runtime overlay skips it while the editor keeps drawing it (you
  *  still author its geometry through the gizmo). */
-export interface ColliderInstance {
-    shape: ColliderShape;
+export interface Collider2DInstance {
+    shape: Collider2DShape;
     isSensor: boolean;
     enabled: boolean;
 }
 
 /** World-space (pixel) outline: straight runs as polylines + true circles left as
  *  {center, radius} so a backend can stroke them as arcs (SVG <circle> / circleOutline). */
-export interface ColliderOutline {
+export interface Collider2DOutline {
     polylines: Vec2[][];
     circles: { c: Vec2; r: number }[];
 }
@@ -57,7 +57,7 @@ export interface ColliderOutline {
 const ZERO: Vec2 = { x: 0, y: 0 };
 
 /** The collider's local offset in metres (0 for segment/polygon/chain, which have none). */
-export function shapeOffset(shape: ColliderShape): Vec2 {
+export function shapeOffset(shape: Collider2DShape): Vec2 {
     return (shape.kind === 'box' || shape.kind === 'circle' || shape.kind === 'capsule')
         ? shape.offset
         : ZERO;
@@ -65,10 +65,10 @@ export function shapeOffset(shape: ColliderShape): Vec2 {
 
 /**
  * The shape's world-pixel centre = the entity's world position plus its collider offset
- * (metres × ppu) rotated by the entity angle. This is the offset+rotation transform that
- * used to be re-implemented in PhysicsDebugDraw and ViewportController.
+ * (metres × ppu) rotated by the entity angle. Every drawer of a collider goes through
+ * here, so a gizmo and the solver cannot disagree about where the shape is.
  */
-export function shapeCenter(shape: ColliderShape, worldPos: Vec2, angle: number, ppu: number): Vec2 {
+export function shapeCenter(shape: Collider2DShape, worldPos: Vec2, angle: number, ppu: number): Vec2 {
     const off = shapeOffset(shape);
     const ox = off.x * ppu;
     const oy = off.y * ppu;
@@ -82,7 +82,7 @@ export function shapeCenter(shape: ColliderShape, worldPos: Vec2, angle: number,
  * {@link shapeCenter}). Straight-edged shapes return closed/open polylines; a circle
  * returns a single {c, r} for the backend to stroke as an arc.
  */
-export function colliderShapeOutline(shape: ColliderShape, center: Vec2, angle: number, ppu: number): ColliderOutline {
+export function collider2DOutline(shape: Collider2DShape, center: Vec2, angle: number, ppu: number): Collider2DOutline {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     // local (px) → world (px), rotated about center.
@@ -136,8 +136,8 @@ export function colliderShapeOutline(shape: ColliderShape, center: Vec2, angle: 
  * order PhysicsSystem's addShapeForEntity dispatches (box, circle, capsule, segment,
  * polygon, chain). Chain has no sensor flag, so it reports isSensor: false.
  */
-export function readColliderShapes(world: World, entity: number): ColliderInstance[] {
-    const out: ColliderInstance[] = [];
+export function readCollider2DShapes(world: World, entity: number): Collider2DInstance[] {
+    const out: Collider2DInstance[] = [];
     const isEnabled = (c: { enabled?: boolean }): boolean => c.enabled !== false;
     if (world.has(entity, BoxCollider2D)) {
         const b = world.get(entity, BoxCollider2D) as BoxCollider2DData;

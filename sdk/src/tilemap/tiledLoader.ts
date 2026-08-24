@@ -38,7 +38,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
     }
 }
 import { RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D, BodyType } from '../physics/PhysicsComponents';
-import type { ColliderShape } from '../physics/ColliderShape';
+import type { Collider2DShape } from '../physics/ColliderShape2D';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
@@ -981,11 +981,11 @@ export function polygonLocalVerts(
 }
 
 /**
- * The pixel-space {@link ColliderShape} for a resolved tile collision, the cell's flip
+ * The pixel-space {@link Collider2DShape} for a resolved tile collision, the cell's flip
  * flags applied (origin = cell center, y up). The SINGLE tile→geometry definition shared
  * by the runtime spawn ({@link generateChunkTileShapes}, which divides by ppu into a
  * collider component) and the editor's tile-collision overlay (which feeds it to
- * `colliderShapeOutline`). A box is flip-symmetric so its geometry ignores the flags; a
+ * `collider2DOutline`). A box is flip-symmetric so its geometry ignores the flags; a
  * polygon and a circle's centre go through {@link polygonLocalVerts}, matching the render.
  */
 export function tileColliderShape(
@@ -995,7 +995,7 @@ export function tileColliderShape(
     flipH: boolean,
     flipV: boolean,
     flipD: boolean,
-): ColliderShape {
+): Collider2DShape {
     const s = rc.shape;
     if (s.type === 'polygon') {
         return { kind: 'polygon', vertices: polygonLocalVerts(s.points, tileW, tileH, flipH, flipV, flipD) };

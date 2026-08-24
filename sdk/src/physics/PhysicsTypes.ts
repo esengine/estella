@@ -4,7 +4,7 @@
  * @file    PhysicsTypes.ts
  * @brief   Shared data shapes for the physics plugin
  *
- * Plain-data types consumed by `PhysicsPlugin`, `Physics`, and `PhysicsSystem`.
+ * Plain-data types consumed by `Physics2DPlugin`, `Physics`, and `PhysicsSystem`.
  * Kept dependency-free so all three files can import without cycles.
  */
 
@@ -15,7 +15,7 @@ import { defineResource } from '../ecs/resource';
 // Plugin configuration
 // =============================================================================
 
-export interface PhysicsPluginConfig {
+export interface Physics2DPluginConfig {
     gravity?: Vec2;
     fixedTimestep?: number;
     subStepCount?: number;
@@ -34,9 +34,9 @@ export interface PhysicsPluginConfig {
 }
 
 /** Fully-populated plugin config after defaults are applied. */
-export type ResolvedPhysicsConfig =
-    Required<Omit<PhysicsPluginConfig, 'collisionLayerMasks'>>
-    & Pick<PhysicsPluginConfig, 'collisionLayerMasks'>;
+export type ResolvedPhysics2DConfig =
+    Required<Omit<Physics2DPluginConfig, 'collisionLayerMasks'>>
+    & Pick<Physics2DPluginConfig, 'collisionLayerMasks'>;
 
 // =============================================================================
 // Collision events
@@ -68,7 +68,7 @@ export interface CollisionHitEvent {
     approachSpeed: number;
 }
 
-export interface PhysicsEventsData {
+export interface Physics2DEventsData {
     collisionEnters: CollisionEnterEvent[];
     collisionExits: Array<{ entityA: Entity; entityB: Entity }>;
     collisionHits: CollisionHitEvent[];
@@ -83,13 +83,13 @@ export interface PhysicsEventsData {
  *
  * @beta
  */
-export const PhysicsEvents = defineResource<PhysicsEventsData>({
+export const Physics2DEvents = defineResource<Physics2DEventsData>({
     collisionEnters: [],
     collisionExits: [],
     collisionHits: [],
     sensorEnters: [],
     sensorExits: []
-}, 'PhysicsEvents');
+}, 'Physics2DEvents');
 
 // =============================================================================
 // Query result shapes

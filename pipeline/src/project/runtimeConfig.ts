@@ -26,7 +26,7 @@
  * fails the build when a field in this shape is not carried by every consumer —
  * or is not listed there as a declared, reasoned gap.
  */
-import type { AudioProjectConfig, PackagedGameConfig, PhysicsPluginConfig } from 'esengine';
+import type { AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig } from 'esengine';
 import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectManifest } from './format';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
@@ -54,7 +54,7 @@ export interface RuntimeProjectConfig {
   /** Install physics even when the static scene shows no bodies (runtime-spawned). */
   physicsEnabled: boolean;
   /** World solver + collision matrix (Project Settings → Physics). */
-  physicsConfig: PhysicsPluginConfig;
+  physicsConfig: Physics2DPluginConfig;
   /** Mixer state: bus volumes, custom buses, effects, duck rules. */
   audioConfig: AudioProjectConfig;
   /** Built-in widget theme; 'dark' is the default. */
@@ -102,9 +102,9 @@ export function normalizeCollisionLayerMasks(masks?: number[]): number[] {
  * all-collide matrix would otherwise override each single-layer collider's own
  * maskBits for nothing.
  */
-function physicsConfigOf(features: ProjectManifest['features']): PhysicsPluginConfig {
+function physicsConfigOf(features: ProjectManifest['features']): Physics2DPluginConfig {
   const p = features?.physics;
-  const config: PhysicsPluginConfig = {
+  const config: Physics2DPluginConfig = {
     gravity: p?.gravity ?? { x: 0, y: -9.81 },
     fixedTimestep: p?.fixedTimestep ?? 1 / 60,
     subStepCount: p?.subStepCount ?? 4,
@@ -188,7 +188,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
 }
 
 /** Whether the world config is exactly what a runtime would default to anyway. */
-function isDefaultPhysics(config: PhysicsPluginConfig): boolean {
+function isDefaultPhysics(config: Physics2DPluginConfig): boolean {
   return JSON.stringify(config) === JSON.stringify(DEFAULT_PHYSICS_CONFIG);
 }
 
@@ -214,4 +214,4 @@ export function cookOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): Coo
 export const DEFAULT_RUNTIME_CONFIG: RuntimeProjectConfig = runtimeConfigOf({});
 
 /** The physics world an undeclared project runs, for "is this worth shipping". */
-const DEFAULT_PHYSICS_CONFIG: PhysicsPluginConfig = DEFAULT_RUNTIME_CONFIG.physicsConfig;
+const DEFAULT_PHYSICS_CONFIG: Physics2DPluginConfig = DEFAULT_RUNTIME_CONFIG.physicsConfig;

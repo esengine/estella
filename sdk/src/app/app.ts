@@ -36,7 +36,7 @@ import { setLinearColorSpace } from '../ecs/env';
 import { seedEngineComponents } from '../ecs/component';
 import { cameraPlugin } from '../camera/CameraPlugin';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
-import { PhysicsRuntime } from '../physics/PhysicsRuntime';
+import { Physics2DRuntime } from '../physics/Physics2DRuntime';
 import { SubsystemRegistry } from './subsystems';
 import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
 import type { SideModuleHost } from '../sideModules/host';
@@ -578,17 +578,17 @@ export class App {
     }
 
     async waitForPhysics(): Promise<void> {
-        if (!this.hasResource(PhysicsRuntime)) {
-            log.warn('app', 'No PhysicsPlugin installed, waitForPhysics() is a no-op');
+        if (!this.hasResource(Physics2DRuntime)) {
+            log.warn('app', 'No Physics2DPlugin installed, waitForPhysics() is a no-op');
             return;
         }
-        const promise = this.getResource(PhysicsRuntime).initPromise;
+        const promise = this.getResource(Physics2DRuntime).initPromise;
         if (promise) await promise;
     }
 
     get isPhysicsReady(): boolean {
-        return this.hasResource(PhysicsRuntime)
-            && this.getResource(PhysicsRuntime).module != null;
+        return this.hasResource(Physics2DRuntime)
+            && this.getResource(Physics2DRuntime).module != null;
     }
 
     // =========================================================================

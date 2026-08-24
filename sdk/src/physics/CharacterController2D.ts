@@ -6,7 +6,7 @@
  *          of Box2D v3's native kinematic mover.
  *
  * The controller reads the entity's own collider, derives a capsule mover from it,
- * and advances one step via `PhysicsAPI.moveCharacter` — Box2D's `b2World_CollideMover`
+ * and advances one step via `Physics2DAPI.moveCharacter` — Box2D's `b2World_CollideMover`
  * + `b2SolvePlanes`, which collides the capsule into contact *planes* and solves a
  * depenetrating slide. That resolves a character resting on the ground with valid
  * normals (a generic shape cast reports the resting contact as a zero-normal
@@ -18,7 +18,7 @@
  * (and for its tests); the live system uses the native mover.
  *
  * Units: `velocity`/positions are world pixels (matching `Transform`); collider
- * dimensions are meters and are scaled to pixels via `PhysicsAPI.getPixelsPerUnit()`.
+ * dimensions are meters and are scaled to pixels via `Physics2DAPI.getPixelsPerUnit()`.
  */
 import type { App } from '../app/app';
 import type { Entity, Vec2 } from '../types';
@@ -27,7 +27,7 @@ import { Schedule, defineSystem, GetWorld } from '../ecs/system';
 import { Query, Mut } from '../ecs/query';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
-import { Physics, type PhysicsAPI } from './Physics';
+import { Physics2D, type Physics2DAPI } from './Physics2D';
 import { readPixelsPerUnit } from './PhysicsSystem';
 import { BoxCollider2D, CircleCollider2D, CapsuleCollider2D, activeCollider } from './PhysicsComponents';
 import { log } from '../util/logger';
@@ -305,16 +305,16 @@ function warnNonFiniteMove(entity: Entity, ppu: number, dt: number): void {
  * depenetrating slide), which — unlike a generic shape cast — resolves a character
  * resting on the ground with valid contact normals instead of wedging on it.
  */
-export function registerCharacterControllerSystem(app: App): void {
+export function registerCharacterController2DSystem(app: App): void {
     warnedNonFiniteMove = false;
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
         defineSystem(
-            [Query(Mut(CharacterController2D)), Res(Time), Res(Physics), GetWorld()],
+            [Query(Mut(CharacterController2D)), Res(Time), Res(Physics2D), GetWorld()],
             (
                 query: Iterable<[Entity, CharacterController2DData]>,
                 time: TimeData,
-                physics: PhysicsAPI,
+                physics: Physics2DAPI,
                 world: World,
             ) => {
                 const dt = time.fixedDelta;

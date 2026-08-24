@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    PhysicsPlugin.ts
- * @brief   PhysicsAPI plugin — async wasm load + resource wiring
+ * @file    Physics2DPlugin.ts
+ * @brief   Physics2DAPI plugin — async wasm load + resource wiring
  *
  * Thin orchestration layer. Types live in `PhysicsTypes.ts`,
- * the PhysicsAPI API class in `PhysicsAPI.ts`, and the per-frame loop
+ * the Physics2DAPI API class in `Physics2DAPI.ts`, and the per-frame loop
  * + entity-tracking state in `PhysicsSystem.ts`. This file just
  * loads the wasm module, wires resources, and hands off to the
  * system layer.
@@ -17,30 +17,30 @@ import {
     type PhysicsWasmModule,
     type PhysicsModuleFactory,
 } from './PhysicsModuleLoader';
-import { setupPhysicsDebugDraw } from './PhysicsDebugDraw';
+import { setupPhysics2DDebugDraw } from './Physics2DDebugDraw';
 import { PhysicsBridge } from './PhysicsBridge';
-import { PhysicsRuntime } from './PhysicsRuntime';
-import { PhysicsAPI, Physics } from './Physics';
-import { registerPhysicsSystem } from './PhysicsSystem';
-import { registerCharacterControllerSystem } from './CharacterController2D';
-import { registerPhysicsEventBridge } from './PhysicsEventBridge';
+import { Physics2DRuntime } from './Physics2DRuntime';
+import { Physics2DAPI, Physics2D } from './Physics2D';
+import { registerPhysics2DSystem } from './PhysicsSystem';
+import { registerCharacterController2DSystem } from './CharacterController2D';
+import { registerPhysics2DEventBridge } from './PhysicsEventBridge';
 import {
-    PhysicsEvents,
-    type PhysicsPluginConfig,
-    type ResolvedPhysicsConfig,
+    Physics2DEvents,
+    type Physics2DPluginConfig,
+    type ResolvedPhysics2DConfig,
 } from './PhysicsTypes';
 import { handleWasmError } from '../wasm/wasmError';
 
 // Re-export the shapes consumers reach for via the plugin file so
-// existing `import from './physics/PhysicsPlugin'` sites keep working.
+// existing `import from './physics/Physics2DPlugin'` sites keep working.
 export {
-    PhysicsEvents,
-    Physics,
-    PhysicsAPI,
+    Physics2DEvents,
+    Physics2D,
+    Physics2DAPI,
 };
 export type {
-    PhysicsPluginConfig,
-    PhysicsEventsData,
+    Physics2DPluginConfig,
+    Physics2DEventsData,
     CollisionEnterEvent,
     CollisionHitEvent,
     SensorEvent,
@@ -53,7 +53,7 @@ export type {
 // Config defaults
 // =============================================================================
 
-function resolveConfig(config: PhysicsPluginConfig): ResolvedPhysicsConfig {
+function resolveConfig(config: Physics2DPluginConfig): ResolvedPhysics2DConfig {
     return {
         gravity: config.gravity ?? { x: 0, y: -9.81 },
         fixedTimestep: config.fixedTimestep ?? 1 / 30,
@@ -110,29 +110,29 @@ function assertModuleContract(module: PhysicsWasmModule): void {
     );
 }
 
-export class PhysicsPlugin implements Plugin {
+export class Physics2DPlugin implements Plugin {
     name = 'physics';
-    private config_: ResolvedPhysicsConfig;
+    private config_: ResolvedPhysics2DConfig;
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;
     private bridge_ = new PhysicsBridge();
     private module_: PhysicsWasmModule | null = null;
 
-    constructor(wasmUrl: string, config: PhysicsPluginConfig = {}, factory?: PhysicsModuleFactory) {
+    constructor(wasmUrl: string, config: Physics2DPluginConfig = {}, factory?: PhysicsModuleFactory) {
         this.wasmUrl_ = wasmUrl;
         this.factory_ = factory;
         this.config_ = resolveConfig(config);
     }
 
     build(app: App): void {
-        app.insertResource(PhysicsEvents, {
+        app.insertResource(Physics2DEvents, {
             collisionEnters: [],
             collisionExits: [],
             collisionHits: [],
             sensorEnters: [],
             sensorExits: [],
         });
-        app.insertResource(PhysicsRuntime, { module: null, initPromise: null });
+        app.insertResource(Physics2DRuntime, { module: null, initPromise: null });
         // wasm loading → show "initializing", not a stuck "registered".
         app.subsystems.transition('physics', 'initializing');
 
@@ -148,7 +148,7 @@ export class PhysicsPlugin implements Plugin {
                 // the terminal-abort guard and yields a guarded view in which
                 // every `_physics_*` call short-circuits after an abort. The
                 // guarded module has the same type, so every downstream call
-                // site (PhysicsSystem closures, the PhysicsAPI API wrapper) gains
+                // site (PhysicsSystem closures, the Physics2DAPI API wrapper) gains
                 // abort safety without changing a single call.
                 assertModuleContract(loaded);
 
@@ -172,15 +172,15 @@ export class PhysicsPlugin implements Plugin {
                     this.config_.maxLinearSpeed,
                 );
 
-                registerPhysicsSystem(app, module, this.config_);
+                registerPhysics2DSystem(app, module, this.config_);
 
-                app.getResource(PhysicsRuntime).module = module;
-                app.insertResource(Physics, PhysicsAPI._fromModule(module));
-                registerCharacterControllerSystem(app);
+                app.getResource(Physics2DRuntime).module = module;
+                app.insertResource(Physics2D, Physics2DAPI._fromModule(module));
+                registerCharacterController2DSystem(app);
                 // Contacts also reach the entity event channel, so a trigger area
                 // can be wired by an authored EventBinding row like a button is.
-                registerPhysicsEventBridge(app);
-                setupPhysicsDebugDraw(app, Physics, PhysicsEvents);
+                registerPhysics2DEventBridge(app);
+                setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
                 // Module loaded, world initialized, systems registered.
                 app.subsystems.transition('physics', 'ready');
@@ -189,9 +189,9 @@ export class PhysicsPlugin implements Plugin {
 
         initPromise.catch((e) => {
             app.subsystems.markError('physics', e instanceof Error ? e.message : String(e));
-            handleWasmError(e, 'PhysicsPlugin.init');
+            handleWasmError(e, 'Physics2DPlugin.init');
         });
-        app.getResource(PhysicsRuntime).initPromise = initPromise;
+        app.getResource(Physics2DRuntime).initPromise = initPromise;
     }
 
     /**
@@ -206,8 +206,8 @@ export class PhysicsPlugin implements Plugin {
     }
 }
 
-export function physicsPlugin(
-    wasmUrl: string, config: PhysicsPluginConfig = {}, factory?: PhysicsModuleFactory,
-): PhysicsPlugin {
-    return new PhysicsPlugin(wasmUrl, config, factory);
+export function physics2dPlugin(
+    wasmUrl: string, config: Physics2DPluginConfig = {}, factory?: PhysicsModuleFactory,
+): Physics2DPlugin {
+    return new Physics2DPlugin(wasmUrl, config, factory);
 }

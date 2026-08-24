@@ -21,7 +21,7 @@ import { FileSystemBackend, type Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { Audio } from '../audio/Audio';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
-import type { PhysicsPluginConfig } from '../physics/PhysicsTypes';
+import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import { parseThemeOverrides, type ThemeOverrides } from '../ui/theme/tokens';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
@@ -68,7 +68,7 @@ export interface PackagedGameConfig {
     physicsEnabled?: boolean;
     /** The physics world the project declared: gravity, solver, collision matrix.
      *  Absent ⇒ the engine's own defaults. */
-    physicsConfig?: PhysicsPluginConfig;
+    physicsConfig?: Physics2DPluginConfig;
     /** Project mixer state: bus volumes, custom buses, effects, duck rules.
      *  Absent ⇒ the default mix. */
     audioConfig?: AudioProjectConfig;
@@ -169,7 +169,7 @@ export function packagedRuntimeInit(
         | 'achievements' | 'steamAppId' | 'screenFit'>,
 ): {
     physicsEnabled?: boolean;
-    physicsConfig?: PhysicsPluginConfig;
+    physicsConfig?: Physics2DPluginConfig;
     audioConfig?: AudioProjectConfig;
     uiTheme?: 'light';
     uiThemeOverrides?: ThemeOverrides;

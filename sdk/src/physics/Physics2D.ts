@@ -4,9 +4,9 @@
  * @file    Physics.ts
  * @brief   User-facing physics API + Physics resource
  *
- * `PhysicsAPI` is the ergonomic wrapper game code uses to drive bodies
+ * `Physics2DAPI` is the ergonomic wrapper game code uses to drive bodies
  * (forces, impulses, joints, raycasts). It is published as the
- * `Physics` resource once `PhysicsPlugin` finishes loading the
+ * `Physics` resource once `Physics2DPlugin` finishes loading the
  * wasm module; instantiation before that throws.
  */
 
@@ -14,8 +14,8 @@ import type { App } from '../app/app';
 import type { Entity, Vec2 } from '../types';
 import { defineResource } from '../ecs/resource';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
-import { PhysicsRuntime } from './PhysicsRuntime';
-import { PhysicsDebugDraw, type PhysicsDebugDrawConfig } from './PhysicsDebugDraw';
+import { Physics2DRuntime } from './Physics2DRuntime';
+import { Physics2DDebugDraw, type Physics2DDebugDrawConfig } from './Physics2DDebugDraw';
 import {
     CAST_HIT_STRIDE,
     type RaycastHit,
@@ -39,7 +39,7 @@ const DEFAULT_PIXELS_PER_UNIT = 100;
  * velocities, `setGravity` — is in **meters** (m/s, m/s²), matching the collider
  * component dimensions. Convert with {@link getPixelsPerUnit} when mixing the two.
  */
-export class PhysicsAPI {
+export class Physics2DAPI {
     private module_!: PhysicsWasmModule;
     // Live pixels-per-unit, pushed each frame by PhysicsSystem from the Canvas, so
     // a query that omits `ppu` is scaled correctly instead of silently assuming 100.
@@ -70,18 +70,18 @@ export class PhysicsAPI {
     }
 
     constructor(app: App) {
-        const module = app.hasResource(PhysicsRuntime)
-            ? app.getResource(PhysicsRuntime).module
+        const module = app.hasResource(Physics2DRuntime)
+            ? app.getResource(Physics2DRuntime).module
             : null;
         if (!module) {
-            throw new Error('Physics module not loaded. Ensure PhysicsPlugin init is complete.');
+            throw new Error('Physics module not loaded. Ensure Physics2DPlugin init is complete.');
         }
         this.init_(module);
     }
 
     /** @internal */
-    static _fromModule(module: PhysicsWasmModule): PhysicsAPI {
-        const instance = Object.create(PhysicsAPI.prototype) as PhysicsAPI;
+    static _fromModule(module: PhysicsWasmModule): Physics2DAPI {
+        const instance = Object.create(Physics2DAPI.prototype) as Physics2DAPI;
         instance.init_(module);
         return instance;
     }
@@ -521,23 +521,23 @@ export class PhysicsAPI {
     }
 
     static setDebugDraw(app: App, enabled: boolean): void {
-        const config = app.getResource<PhysicsDebugDrawConfig>(PhysicsDebugDraw);
+        const config = app.getResource<Physics2DDebugDrawConfig>(Physics2DDebugDraw);
         if (config) {
             config.enabled = enabled;
-            app.insertResource(PhysicsDebugDraw, config);
+            app.insertResource(Physics2DDebugDraw, config);
         }
     }
 
-    static setDebugDrawConfig(app: App, config: Partial<PhysicsDebugDrawConfig>): void {
-        const current = app.getResource<PhysicsDebugDrawConfig>(PhysicsDebugDraw);
+    static setDebugDrawConfig(app: App, config: Partial<Physics2DDebugDrawConfig>): void {
+        const current = app.getResource<Physics2DDebugDrawConfig>(Physics2DDebugDraw);
         if (current) {
-            app.insertResource(PhysicsDebugDraw, { ...current, ...config });
+            app.insertResource(Physics2DDebugDraw, { ...current, ...config });
         }
     }
 }
 
 /**
- * Resource published by `PhysicsPlugin` once the wasm module is ready.
+ * Resource published by `Physics2DPlugin` once the wasm module is ready.
  * Game code reads it as `Res(Physics)` / `app.getResource(Physics)` to call forces,
  * impulses, joint helpers, raycasts, etc.
  */
@@ -551,4 +551,4 @@ export class PhysicsAPI {
  *
  * @beta
  */
-export const Physics = defineResource<PhysicsAPI>(null!, 'Physics');
+export const Physics2D = defineResource<Physics2DAPI>(null!, 'Physics2D');

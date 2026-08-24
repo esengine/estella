@@ -69,9 +69,9 @@ await app.run();
    的 wasm 运行时——场景不用 Spine 就什么也不加载)。
 5. **你的 `plugins`**,按给出顺序。
 
-物理**不在**默认集合里:`PhysicsPlugin` 需要物理 wasm 模块。发行运行时会在项目
+物理**不在**默认集合里:`Physics2DPlugin` 需要物理 wasm 模块。发行运行时会在项目
 声明了物理、或场景含有物理组件时,自动从侧模块 host 获取 `'physics'` 并安装插件;
-手动组装时请自己构造 `PhysicsPlugin`(它和 `loadPhysicsModule` 都从 `esengine`
+手动组装时请自己构造 `Physics2DPlugin`(它和 `loadPhysicsModule` 都从 `esengine`
 导出;完整 API 在 `esengine/physics` 子路径上)。
 
 ## 无头应用
@@ -224,7 +224,7 @@ export const scorePlugin: Plugin = {
 | `app.onError(fn)` | 观察任何系统抛错(`(error, systemName)`)。 |
 | `app.onSystemError(fn)` | 逐次抛错决策:返回 `'continue'` 或 `'pause'`(暂停本帧余下部分)。 |
 | `app.onWasmError(fn)` | 观察跨 wasm 桥的错误。 |
-| `app.waitForPhysics()` / `app.isPhysicsReady` | 等待 / 查询异步的物理 wasm 初始化(没装 `PhysicsPlugin` 时为 no-op / `false`)。 |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | 等待 / 查询异步的物理 wasm 初始化(没装 `Physics2DPlugin` 时为 no-op / `false`)。 |
 | `app.enableStats()` | 开启计时采集。 |
 | `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | 本帧的逐系统 / 逐调度 / 子帧 CPU 计时(统计关闭时为 `null`)。 |
 | `app.measureFrameScope(name, fn)` | 把 `fn` 作为具名子帧作用域计时(统计关闭时只花一次分支的 no-op)。 |
@@ -319,8 +319,8 @@ host 用 `acquire(id)` 应答,返回已实例化模块的 promise(按 id 缓存,
 或 `sideModules`),Spine 插件和物理安装会在需要时从中拉取。
 
 <Aside type="note">
-  主 `esengine` barrel 恰好镜像了物理/Spine 的**接线**层——`PhysicsPlugin`、
-  `PhysicsEvents`、`Physics`、`loadPhysicsModule`、`SpinePlugin`、
+  主 `esengine` barrel 恰好镜像了物理/Spine 的**接线**层——`Physics2DPlugin`、
+  `Physics2DEvents`、`Physics`、`loadPhysicsModule`、`SpinePlugin`、
   `SpineEvents`、`Spine`——宿主无需子路径导入即可注册这些插件。完整 API 在
   `esengine/physics` 与 `esengine/spine` 子路径上。见[物理](/docs/zh-cn/gameplay/physics/)
   与 [Spine](/docs/zh-cn/animation/spine/)。

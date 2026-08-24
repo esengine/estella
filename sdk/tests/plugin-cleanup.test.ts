@@ -12,7 +12,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SpineManager } from '../src/spine/SpineManager';
 import { SpinePlugin } from '../src/spine/SpinePlugin';
-import { PhysicsPlugin } from '../src/physics/PhysicsPlugin';
+import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
 
 describe('SpineManager.dispose', () => {
     it('shuts down every backend and clears all state, idempotently', () => {
@@ -65,9 +65,9 @@ describe('SpinePlugin.cleanup', () => {
     });
 });
 
-describe('PhysicsPlugin.cleanup', () => {
+describe('Physics2DPlugin.cleanup', () => {
     it('shuts down the native physics world and nulls the module', () => {
-        const plugin = new PhysicsPlugin('fake://physics.wasm');
+        const plugin = new Physics2DPlugin('fake://physics.wasm');
         const shutdown = vi.fn();
         const p = plugin as any;
         p.module_ = { _physics_shutdown: shutdown };
@@ -83,7 +83,7 @@ describe('PhysicsPlugin.cleanup', () => {
     });
 
     it('is safe to call before the async module load completed', () => {
-        const plugin = new PhysicsPlugin('fake://physics.wasm');
+        const plugin = new Physics2DPlugin('fake://physics.wasm');
         expect(() => plugin.cleanup()).not.toThrow();
     });
 });

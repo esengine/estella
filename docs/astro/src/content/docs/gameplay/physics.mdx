@@ -17,9 +17,9 @@ automatically when a scene uses physics components. In a custom app, add the plu
 yourself (gravity defaults to `{ x: 0, y: -9.81 }`):
 
 ```typescript
-import { PhysicsPlugin } from 'esengine/physics';
+import { Physics2DPlugin } from 'esengine/physics';
 
-app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
+app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
 <Aside type="note">
@@ -148,15 +148,15 @@ dedicated layers so the mask narrows what each sensor considers.
 
 ## Moving bodies — forces & velocity
 
-Read the `Physics` resource — a `PhysicsAPI` instance — to drive bodies. These
+Read the `Physics2D` resource — a `Physics2DAPI` instance — to drive bodies. These
 methods talk to the solver directly, so they are all in **meters** (m/s, m/s² —
 see [Units](#units)). Every method takes the world entity:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
-import { Physics } from 'esengine/physics';
+import { Physics2D } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody2D), Res(Physics)], (q, physics) => {
+const move = defineSystem([Query(RigidBody2D), Res(Physics2D)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
@@ -218,14 +218,14 @@ Casts return `RaycastHit`s (`ShapeCastHit` is the same shape):
 
 ## Collision & sensor events
 
-The `PhysicsEvents` resource carries this frame's contacts. Set `isSensor: true` on a
+The `Physics2DEvents` resource carries this frame's contacts. Set `isSensor: true` on a
 collider to get enter/exit events **without** a physical response (trigger zones):
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
-import { PhysicsEvents } from 'esengine/physics';
+import { Physics2DEvents } from 'esengine/physics';
 
-const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
+const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
   for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
   for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
   for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
@@ -392,21 +392,21 @@ stairs and slopes.</Aside>
 
 ## Debug draw
 
-The physics plugin installs a **`PhysicsDebugDraw`** resource — an in-game overlay
+The physics plugin installs a **`Physics2DDebugDraw`** resource — an in-game overlay
 that strokes collider outlines, velocity vectors, and contact points through the
 [`Draw`](/docs/graphics/drawing/) API. It ships disabled; flip `enabled` from any
 system to see exactly what the solver sees:
 
 ```typescript
 import { defineSystem, Res, Input } from 'esengine';
-import { PhysicsDebugDraw } from 'esengine/physics';
+import { Physics2DDebugDraw } from 'esengine/physics';
 
-const toggleDebug = defineSystem([Res(Input), Res(PhysicsDebugDraw)], (input, dbg) => {
+const toggleDebug = defineSystem([Res(Input), Res(Physics2DDebugDraw)], (input, dbg) => {
   if (input.isKeyPressed('F1')) dbg.enabled = !dbg.enabled;
 });
 ```
 
-| `PhysicsDebugDrawConfig` field | Default | Draws |
+| `Physics2DDebugDrawConfig` field | Default | Draws |
 |---|---|---|
 | `enabled` | `false` | Master switch for the whole overlay. |
 | `showColliders` | `true` | Collider outlines, color-coded by body: blue = static, green = dynamic, cyan = kinematic; sensors are yellow. |
@@ -415,9 +415,9 @@ const toggleDebug = defineSystem([Res(Input), Res(PhysicsDebugDraw)], (input, db
 
 The overlay draws in **world pixels** at each body's live transform (scaled by the
 live PPU), so what you see is exactly where the queries agree the collider is.
-`setupPhysicsDebugDraw(app, Physics, PhysicsEvents)` is the wiring `PhysicsPlugin`
+`setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents)` is the wiring `Physics2DPlugin`
 runs for you — it inserts the resource and registers the draw callback; call it (or
-the underlying per-frame `drawPhysicsDebug(app, Physics, PhysicsEvents)`) only from
+the underlying per-frame `drawPhysics2DDebug(app, Physics2D, Physics2DEvents)`) only from
 a custom host that bypasses the plugin.
 
 <Aside type="note">This is the runtime overlay. The **editor viewport** has its own
@@ -426,7 +426,7 @@ collider/joint gizmos under the Physics Show Flag (see
 
 ## Best practices
 
-- **Fixed timestep**: apply continuous forces and read `PhysicsEvents` *every frame*,
+- **Fixed timestep**: apply continuous forces and read `Physics2DEvents` *every frame*,
   since physics substeps independently of the frame delta.
 - **`bullet: true`** on fast, thin bodies (bullets, thin platforms) to avoid tunneling.
 - **`fixedRotation: true`** for characters so they don't topple.

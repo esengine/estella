@@ -174,15 +174,15 @@ export {
 } from './physics/CharacterController2D';
 
 export {
-    readColliderShapes,
+    readCollider2DShapes,
     shapeOffset,
     shapeCenter,
-    colliderShapeOutline,
+    collider2DOutline,
     CAPSULE_ARC_SEGMENTS,
-    type ColliderShape,
-    type ColliderInstance,
-    type ColliderOutline,
-} from './physics/ColliderShape';
+    type Collider2DShape,
+    type Collider2DInstance,
+    type Collider2DOutline,
+} from './physics/ColliderShape2D';
 
 export {
     RigidBody3D,

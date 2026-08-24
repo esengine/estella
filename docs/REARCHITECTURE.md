@@ -241,9 +241,15 @@ CHANGELOG 和提交信息里，这里只写**从那里读不出来的结构性�
   场景格式进到 3、旧引擎拒绝 3 而不是加载一个没有碰撞体的关卡。
   顺带把 `BodyType` 提到自己的头文件——它两个世界共用，此前 `RigidBody3D.hpp` 要 include
   `RigidBody.hpp` 才拿得到，"3D 依赖 2D 的头"本身就是这处倒置的一个症状。
-- **余下的是纯 API 面**：SDK 的平面物理仍是裸名（`Physics` / `PhysicsPlugin` / `PhysicsEvents` /
-  `ColliderShape`），对面是 `Physics3DPlugin` / `ColliderShape3D`。磁盘上没有任何东西以这些为键，
-  所以收口它是一次纯粹的破坏性改名、零迁移——待拍板，单独一步做。
+- **API 面同日收口（2026-08-23，用户拍板"只改代码面"）**：SDK 的平面物理面按 `physics3d/`
+  已有的拼法对齐——`Physics`→`Physics2D`、`PhysicsAPI`→`Physics2DAPI`、`PhysicsPlugin`/`physicsPlugin`
+  →`Physics2DPlugin`/`physics2dPlugin`、事件与 debug draw 同理，`ColliderShape`/`ColliderInstance`/
+  `ColliderOutline`→`Collider2DShape`/`Collider2DInstance`/`Collider2DOutline`（3D 侧就是
+  `Collider3DShape`，中缀而非后缀，文件名却是 `ColliderShape3D.ts`——两边现在逐字对镜）。
+  **有意保留裸名的两处**：`BodyType`（两个世界共用）与 `PhysicsWasmModule`/`loadPhysicsModule`/
+  `PhysicsBridge`——它们命名的是**侧模块**，其 id 仍是 `physics`、产物仍是 `physics.wasm`，
+  `esengine/physics` 入口亦不变；命名一个文件的类型就该照那个文件拼。磁盘上没有任何东西以这些为键，
+  所以这一步零迁移，只是 import 行的改动。
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。

@@ -74,11 +74,11 @@ content stack, in this order:
    from `app.sideModules` on demand — nothing loads unless a scene uses Spine).
 5. **Your `plugins`**, in the order given.
 
-Physics is **not** in the default set: `PhysicsPlugin` needs the physics wasm
+Physics is **not** in the default set: `Physics2DPlugin` needs the physics wasm
 module. The shipped runtime acquires `'physics'` from the side-module host and
 installs the plugin automatically when the project declares physics or the
 scene contains physics components; when composing manually, construct
-`PhysicsPlugin` yourself (it and `loadPhysicsModule` are exported from
+`Physics2DPlugin` yourself (it and `loadPhysicsModule` are exported from
 `esengine`; the full API lives on `esengine/physics`).
 
 ## Headless apps
@@ -241,7 +241,7 @@ systems are flushed before the first frame.
 | `app.onError(fn)` | Observe any system throw (`(error, systemName)`). |
 | `app.onSystemError(fn)` | Decide per throw: return `'continue'` or `'pause'` (pauses the rest of the frame). |
 | `app.onWasmError(fn)` | Observe errors crossing the wasm bridge. |
-| `app.waitForPhysics()` / `app.isPhysicsReady` | Await / query the async physics wasm init (no-op / `false` without `PhysicsPlugin`). |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | Await / query the async physics wasm init (no-op / `false` without `Physics2DPlugin`). |
 | `app.enableStats()` | Turn on timing collection. |
 | `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | Per-system / per-schedule / sub-frame CPU timings this frame (`null` when stats are off). |
 | `app.measureFrameScope(name, fn)` | Time `fn` as a named sub-frame scope (a single-branch no-op when stats are off). |
@@ -352,7 +352,7 @@ from it when needed.
 
 <Aside type="note">
   The main `esengine` barrel mirrors exactly the physics/spine **wiring**
-  layer — `PhysicsPlugin`, `PhysicsEvents`, `Physics`, `loadPhysicsModule`,
+  layer — `Physics2DPlugin`, `Physics2DEvents`, `Physics`, `loadPhysicsModule`,
   `SpinePlugin`, `SpineEvents`, `Spine` — so hosts can register the plugins
   without a subpath import. The full APIs live on the `esengine/physics` and
   `esengine/spine` subpaths. See [Physics](/docs/gameplay/physics/) and

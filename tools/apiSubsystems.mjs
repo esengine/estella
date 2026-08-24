@@ -117,7 +117,7 @@ export const SUBSYSTEMS = [
         tier: 'beta',
         why: 'the corpus reaches three of thirty-seven physics symbols',
         whyZh: '语料只触到 37 个物理符号里的 3 个',
-        entry: ['Physics', 'PhysicsEvents', 'CharacterController2D'],
+        entry: ['Physics2D', 'Physics2DEvents', 'CharacterController2D'],
     },
     {
         id: 'camera',

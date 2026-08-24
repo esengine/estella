@@ -5,7 +5,7 @@ import type { Entity } from '../src/types';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import type { TransformData, ParentData } from '../src/ecs/component';
 import { Transform, Parent } from '../src/ecs/component';
-import { applyPhysicsTransforms } from '../src/physics/PhysicsSystem';
+import { applyPhysics2DTransforms } from '../src/physics/PhysicsSystem';
 import { createMockModule } from './mocks/wasm';
 import { World } from '../src/ecs/world';
 
@@ -18,7 +18,7 @@ function sync(
     ppu: number,
     parented: Set<Entity>,
 ): void {
-    applyPhysicsTransforms(app, ppu, parented, physMod, 1);
+    applyPhysics2DTransforms(app, ppu, parented, physMod, 1);
 }
 
 // =============================================================================
@@ -296,7 +296,7 @@ describe('interpolation hand-off', () => {
         ]));
         const spy = vi.spyOn(mod, '_physics_getInterpolatedTransforms');
 
-        applyPhysicsTransforms(app, PPU, new Set(), mod, 0.5);
+        applyPhysics2DTransforms(app, PPU, new Set(), mod, 0.5);
 
         expect(spy).toHaveBeenCalledWith(0.5);
         const t = app.world.get(e1, Transform) as TransformData;
@@ -307,7 +307,7 @@ describe('interpolation hand-off', () => {
     it('publishes nothing when the module reports no bodies', () => {
         const app = createTestApp();
         const mod = createMockPhysicsModule(buildPhysicsBuffer([]));
-        expect(() => applyPhysicsTransforms(app, PPU, new Set(), mod, 1)).not.toThrow();
+        expect(() => applyPhysics2DTransforms(app, PPU, new Set(), mod, 1)).not.toThrow();
     });
 
     it('passes a shared heap straight through instead of re-marshalling it', () => {
@@ -330,7 +330,7 @@ describe('interpolation hand-off', () => {
         engine.HEAPU8 = sharedHeap;
         engine._malloc = malloc;
 
-        applyPhysicsTransforms(app, PPU, new Set(), mod, 1);
+        applyPhysics2DTransforms(app, PPU, new Set(), mod, 1);
 
         expect(batchSync).toHaveBeenCalledWith(expect.anything(), buf.ptr, 1, PPU);
         expect(malloc).not.toHaveBeenCalled();

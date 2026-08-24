@@ -9,7 +9,7 @@
  * of the session — for anyone who put a RigidBody2D in a scene and pressed Play.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { PhysicsPlugin } from '../src/physics/PhysicsPlugin';
+import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
 import type { App } from '../src/app/app';
 
 /** Everything the plugin touches before it would reach the module. */
@@ -47,7 +47,7 @@ describe('the physics plugin against a stale wasm', () => {
     it('refuses a module missing the frame loop it will call, and names what is missing', async () => {
         const stale = moduleWith(EVERY_EXPORT.filter((n) => !n.includes('Interpolated') && n !== '_physics_capturePoses'));
         const app = fakeApp();
-        new PhysicsPlugin('', {}, async () => stale as never).build(app);
+        new Physics2DPlugin('', {}, async () => stale as never).build(app);
         await settle();
 
         expect(app.errors).toHaveLength(1);
@@ -61,7 +61,7 @@ describe('the physics plugin against a stale wasm', () => {
     it('lets a module that answers to the whole contract through', async () => {
         const good = moduleWith(EVERY_EXPORT);
         const app = fakeApp();
-        new PhysicsPlugin('', {}, async () => good as never).build(app);
+        new Physics2DPlugin('', {}, async () => good as never).build(app);
         await settle();
 
         expect(app.errors.filter((e) => e.includes('out of date'))).toHaveLength(0);

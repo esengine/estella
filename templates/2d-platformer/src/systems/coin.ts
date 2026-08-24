@@ -1,6 +1,6 @@
 import {
     defineSystem, Query, Mut, Res, Time, Transform, Commands,
-    PhysicsEvents,
+    Physics2DEvents,
 } from 'esengine';
 import { Coin, ScoreDisplay } from '../components';
 
@@ -19,7 +19,7 @@ export const coinBobSystem = defineSystem(
 );
 
 export const coinPickupSystem = defineSystem(
-    [Res(PhysicsEvents), Query(Coin), Query(Mut(ScoreDisplay)), Commands()],
+    [Res(Physics2DEvents), Query(Coin), Query(Mut(ScoreDisplay)), Commands()],
     (events, coins, scores, cmds) => {
         for (const ev of events.sensorEnters) {
             let isCoin = false;

@@ -7,7 +7,7 @@
  *          decision system reads a fresh Perception the same frame.
  *
  *          `stepPerception` is extracted to unit-test against a fake world. Line
- *          of sight uses a physics raycast when a Physics is present, and is
+ *          of sight uses a physics raycast when a Physics2D is present, and is
  *          skipped (range + FOV only) otherwise — no hard physics dependency.
  */
 
@@ -17,7 +17,7 @@ import { defineSystem, Schedule, GetWorld } from '../../ecs/system';
 import { playModeOnly } from '../../ecs/env';
 import { Transform } from '../../ecs/component';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
-import { Physics, type PhysicsAPI } from '../../physics';
+import { Physics2D, type Physics2DAPI } from '../../physics';
 import { Physics3D } from '../../physics3d/Physics3DPlugin';
 import type { Physics3DQueries } from '../../physics3d/Physics3DQueries';
 import { senseTarget, facingFromRotation } from './sense';
@@ -88,7 +88,7 @@ export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck)
  * feet, so a ray aimed at the origin passes through the target's own capsule —
  * counting that hides everyone approached from below.
  */
-export function makeLosCheck(physics: PhysicsAPI): LosCheck {
+export function makeLosCheck(physics: Physics2DAPI): LosCheck {
     return (from, to, observer, target) => {
         const dx = to.x - from.x;
         const dy = to.y - from.y;
@@ -128,7 +128,7 @@ export class PerceptionPlugin implements Plugin {
                     // walls of a 3D scene, and the 2D one knows nothing about them.
                     const q3d = app.hasResource(Physics3D)
                         ? app.getResource<Physics3DQueries | null>(Physics3D) : null;
-                    const physics = app.hasResource(Physics) ? app.getResource<PhysicsAPI>(Physics) : null;
+                    const physics = app.hasResource(Physics2D) ? app.getResource<Physics2DAPI>(Physics2D) : null;
                     const los = q3d ? makeLosCheck3D(q3d) : physics ? makeLosCheck(physics) : undefined;
                     stepPerception(world as PerceptionWorldView, los);
                 },

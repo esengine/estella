@@ -5,27 +5,27 @@ import type { Color } from '../types';
 import type { TransformData, CanvasData } from '../ecs/component';
 import type { ResourceDef } from '../ecs/resource';
 import type { RigidBody2DData } from './PhysicsComponents';
-import type { PhysicsEventsData } from './PhysicsPlugin';
+import type { Physics2DEventsData } from './Physics2DPlugin';
 import { Transform, Canvas } from '../ecs/component';
 import { Draw } from '../render/draw';
 import { defineResource } from '../ecs/resource';
 import { registerDrawCallback } from '../render/customDraw';
 import { RigidBody2D, BodyType } from './PhysicsComponents';
-import { readColliderShapes, shapeCenter, colliderShapeOutline } from './ColliderShape';
+import { readCollider2DShapes, shapeCenter, collider2DOutline } from './ColliderShape2D';
 
-export interface PhysicsDebugDrawConfig {
+export interface Physics2DDebugDrawConfig {
     enabled: boolean;
     showColliders: boolean;
     showVelocity: boolean;
     showContacts: boolean;
 }
 
-export const PhysicsDebugDraw = defineResource<PhysicsDebugDrawConfig>({
+export const Physics2DDebugDraw = defineResource<Physics2DDebugDrawConfig>({
     enabled: false,
     showColliders: true,
     showVelocity: false,
     showContacts: false,
-}, 'PhysicsDebugDraw');
+}, 'Physics2DDebugDraw');
 
 interface VelocityProvider {
     getLinearVelocity(entity: number): { x: number; y: number };
@@ -91,12 +91,12 @@ function drawVelocityArrow(
     Draw.line({ x: endX, y: endY }, { x: rightX, y: rightY }, VELOCITY_COLOR, DEBUG_LINE_THICKNESS);
 }
 
-export function drawPhysicsDebug(
+export function drawPhysics2DDebug(
     app: App,
     physicsApiRes: ResourceDef<VelocityProvider>,
-    physicsEventsRes: ResourceDef<PhysicsEventsData>,
+    physicsEventsRes: ResourceDef<Physics2DEventsData>,
 ): void {
-    const config = app.getResource<PhysicsDebugDrawConfig>(PhysicsDebugDraw);
+    const config = app.getResource<Physics2DDebugDrawConfig>(Physics2DDebugDraw);
     if (!config || !config.enabled) return;
 
     const ppu = readPixelsPerUnit(app);
@@ -119,12 +119,12 @@ export function drawPhysicsDebug(
         if (config.showColliders) {
             // One projection for every shape: read the collider(s), take the offset+rotation
             // centre, and stroke the world-space outline. Same geometry the per-type branches
-            // produced, now shared with the editor gizmo (see ColliderShape).
-            for (const { shape, isSensor, enabled } of readColliderShapes(app.world, entity)) {
+            // produced, now shared with the editor gizmo (see Collider2DShape).
+            for (const { shape, isSensor, enabled } of readCollider2DShapes(app.world, entity)) {
                 if (!enabled) continue; // no shape in the world → nothing to outline
                 const color = isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
                 const center = shapeCenter(shape, { x: wx, y: wy }, angle, ppu);
-                const outline = colliderShapeOutline(shape, center, angle, ppu);
+                const outline = collider2DOutline(shape, center, angle, ppu);
                 for (const pl of outline.polylines) {
                     for (let i = 0; i + 1 < pl.length; i++) {
                         Draw.line(pl[i], pl[i + 1], color, DEBUG_LINE_THICKNESS);
@@ -143,7 +143,7 @@ export function drawPhysicsDebug(
     }
 
     if (config.showContacts && app.hasResource(physicsEventsRes)) {
-        const events = app.getResource<PhysicsEventsData>(physicsEventsRes);
+        const events = app.getResource<Physics2DEventsData>(physicsEventsRes);
         for (const collision of events.collisionEnters) {
             Draw.circle(
                 { x: collision.contactX, y: collision.contactY },
@@ -156,12 +156,12 @@ export function drawPhysicsDebug(
     }
 }
 
-export function setupPhysicsDebugDraw(
+export function setupPhysics2DDebugDraw(
     app: App,
     physicsApiRes: ResourceDef<VelocityProvider>,
-    physicsEventsRes: ResourceDef<PhysicsEventsData>,
+    physicsEventsRes: ResourceDef<Physics2DEventsData>,
 ): void {
-    app.insertResource(PhysicsDebugDraw, {
+    app.insertResource(Physics2DDebugDraw, {
         enabled: false,
         showColliders: true,
         showVelocity: false,
@@ -169,6 +169,6 @@ export function setupPhysicsDebugDraw(
     });
 
     registerDrawCallback('physics-debug-draw', () => {
-        drawPhysicsDebug(app, physicsApiRes, physicsEventsRes);
+        drawPhysics2DDebug(app, physicsApiRes, physicsEventsRes);
     });
 }

@@ -180,7 +180,7 @@ export function installBuiltinCensusProbes(): void {
     registerCensusProbe({
         id: 'physics',
         read(ctx) {
-            const m = resource<{ module: PhysicsCensusModule | null }>(ctx, 'PhysicsRuntime')?.module;
+            const m = resource<{ module: PhysicsCensusModule | null }>(ctx, 'Physics2DRuntime')?.module;
             // Absent until the side module resolves, and absent forever in a game
             // with no physics — both are "no counters", never "no bodies".
             if (!m?._physics_getBodyCount) return undefined;

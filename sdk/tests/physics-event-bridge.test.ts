@@ -8,18 +8,18 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { EntityEventQueue, EntityEvents } from '../src/ecs/entityEvents';
-import { PhysicsEventType, registerPhysicsEventBridge, type PhysicsContactEventData } from '../src/physics/PhysicsEventBridge';
-import { PhysicsEvents, type PhysicsEventsData } from '../src/physics/PhysicsTypes';
+import { Physics2DEventType, registerPhysics2DEventBridge, type Physics2DContactEventData } from '../src/physics/PhysicsEventBridge';
+import { Physics2DEvents, type Physics2DEventsData } from '../src/physics/PhysicsTypes';
 import type { Entity } from '../src/types';
 
-const EMPTY: PhysicsEventsData = {
+const EMPTY: Physics2DEventsData = {
     collisionEnters: [], collisionExits: [], collisionHits: [], sensorEnters: [], sensorExits: [],
 };
 
 /** A fake App exposing only what the bridge touches, plus a manual tick. */
-function makeApp(batch: Partial<PhysicsEventsData>) {
+function makeApp(batch: Partial<Physics2DEventsData>) {
     const queue = new EntityEventQueue();
-    const resources = new Map<unknown, unknown>([[PhysicsEvents, { ...EMPTY, ...batch }]]);
+    const resources = new Map<unknown, unknown>([[Physics2DEvents, { ...EMPTY, ...batch }]]);
     let system: (() => void) | null = null;
     const app = {
         world: {
@@ -30,12 +30,12 @@ function makeApp(batch: Partial<PhysicsEventsData>) {
         getResource: (def: unknown) => resources.get(def),
         insertResource: (def: unknown, v: unknown) => { resources.set(def, v); },
         addSystemToSchedule: (_s: unknown, def: { _fn: (...args: unknown[]) => void }) => {
-            // The bridge's only system param is Res(PhysicsEvents); feed it directly
+            // The bridge's only system param is Res(Physics2DEvents); feed it directly
             // rather than standing up a scheduler.
-            system = () => def._fn(resources.get(PhysicsEvents));
+            system = () => def._fn(resources.get(Physics2DEvents));
         },
     };
-    registerPhysicsEventBridge(app as never);
+    registerPhysics2DEventBridge(app as never);
     return { queue: resources.get(EntityEvents) as EntityEventQueue, tick: () => system?.(), fallback: queue };
 }
 
@@ -44,7 +44,7 @@ function record(queue: EntityEventQueue, types: string[]) {
     const seen: Array<{ type: string; entity: Entity; other: Entity; isSensor?: boolean }> = [];
     for (const type of types) {
         queue.on(type, (e) => {
-            const data = e.data as PhysicsContactEventData;
+            const data = e.data as Physics2DContactEventData;
             seen.push({ type: e.type, entity: e.currentTarget, other: data.other, isSensor: data.isSensor });
         });
     }
@@ -57,7 +57,7 @@ const B = 2 as Entity;
 describe('physics → entity events', () => {
     it('emits collision_enter on BOTH bodies, each told about the other', () => {
         const app = makeApp({ collisionEnters: [{ entityA: A, entityB: B, pointX: 0, pointY: 0, normalX: 0, normalY: 1 } as never] });
-        const seen = record(app.queue, [PhysicsEventType.CollisionEnter]);
+        const seen = record(app.queue, [Physics2DEventType.CollisionEnter]);
 
         app.tick();
 
@@ -69,7 +69,7 @@ describe('physics → entity events', () => {
 
     it('a sensor pair says which side is the trigger', () => {
         const app = makeApp({ sensorEnters: [{ sensorEntity: A, visitorEntity: B }] });
-        const seen = record(app.queue, [PhysicsEventType.TriggerEnter]);
+        const seen = record(app.queue, [Physics2DEventType.TriggerEnter]);
 
         app.tick();
 
@@ -84,8 +84,8 @@ describe('physics → entity events', () => {
             collisionHits: [{ entityA: A, entityB: B, pointX: 0, pointY: 0, normalX: 0, normalY: 1, approachSpeed: 7.5 }],
         });
         const speeds: number[] = [];
-        app.queue.on(PhysicsEventType.CollisionHit, (e) => {
-            speeds.push((e.data as PhysicsContactEventData).approachSpeed!);
+        app.queue.on(Physics2DEventType.CollisionHit, (e) => {
+            speeds.push((e.data as Physics2DContactEventData).approachSpeed!);
         });
 
         app.tick();
@@ -96,7 +96,7 @@ describe('physics → entity events', () => {
     it('an empty frame emits nothing', () => {
         const app = makeApp({});
         const spy = vi.fn();
-        for (const t of Object.values(PhysicsEventType)) app.queue.on(t, spy);
+        for (const t of Object.values(Physics2DEventType)) app.queue.on(t, spy);
 
         app.tick();
 

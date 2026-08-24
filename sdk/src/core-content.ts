@@ -644,8 +644,8 @@ export {
 export type {
     PhysicsWasmModule,
     PhysicsModuleFactory,
-    PhysicsPluginConfig,
-    PhysicsEventsData,
+    Physics2DPluginConfig,
+    Physics2DEventsData,
     CollisionEnterEvent,
     CollisionHitEvent,
     SensorEvent,

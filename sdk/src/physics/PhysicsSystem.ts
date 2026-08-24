@@ -5,8 +5,8 @@
  * @brief   Per-frame physics driver: entity tracking, shape/joint create,
  *          step, transform readback, event collection.
  *
- * `registerPhysicsSystem` owns all closure state (tracked bodies, joint
- * cache, cached RigidBody2D props). `PhysicsPlugin.build()` calls it once
+ * `registerPhysics2DSystem` owns all closure state (tracked bodies, joint
+ * cache, cached RigidBody2D props). `Physics2DPlugin.build()` calls it once
  * the wasm module finishes loading.
  */
 
@@ -18,7 +18,7 @@ import { Res, Time, type TimeData } from '../ecs/resource';
 import { Schedule, defineSystem } from '../ecs/system';
 import { playModeOnly } from '../ecs/env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
-import { Physics } from './Physics';
+import { Physics2D } from './Physics2D';
 import {
     RigidBody2D, BoxCollider2D, CircleCollider2D, CapsuleCollider2D,
     SegmentCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D,
@@ -31,11 +31,11 @@ import {
     type MotorJoint2DData,
 } from './PhysicsComponents';
 import {
-    PhysicsEvents,
+    Physics2DEvents,
     COLLISION_EVENT_STRIDE,
     HIT_EVENT_STRIDE,
     quatToAngleZ,
-    type ResolvedPhysicsConfig,
+    type ResolvedPhysics2DConfig,
     type CollisionEnterEvent,
     type CollisionHitEvent,
     type SensorEvent,
@@ -366,7 +366,7 @@ const PHYSICS_BODY_BYTES = PHYSICS_BODY_STRIDE * 4;
  * to the engine. With `alpha = 1` this reproduces a direct post-step sync.
  * @internal exported for testing
  */
-export function applyPhysicsTransforms(
+export function applyPhysics2DTransforms(
     app: App,
     ppu: number,
     parentedBodies: Set<Entity>,
@@ -521,7 +521,7 @@ interface EventAccum {
 }
 
 /**
- * Drain this fixed step's events into the per-frame accumulator. PhysicsAPI may step
+ * Drain this fixed step's events into the per-frame accumulator. Physics2DAPI may step
  * several times per rendered frame; accumulating (rather than overwriting) keeps
  * every collision — the interpolation system publishes + clears once per frame.
  */
@@ -677,10 +677,10 @@ export function jointPartnerGone(world: App['world'], entity: Entity, trackedEnt
  * / tracked-joint / parented sets via the enclosing closure so the
  * plugin doesn't need to thread them through.
  */
-export function registerPhysicsSystem(
+export function registerPhysics2DSystem(
     app: App,
     module: PhysicsWasmModule,
-    config: ResolvedPhysicsConfig,
+    config: ResolvedPhysics2DConfig,
 ): void {
     const trackedEntities = new Set<Entity>();
     const trackedJoints = new Set<Entity>();
@@ -745,7 +745,7 @@ export function registerPhysicsSystem(
                 const invPpu = 1 / ppu;
                 // Keep the query API's default scale in sync with the live Canvas,
                 // so raycast/overlap that omit `ppu` aren't silently scaled to 100.
-                if (app.hasResource(Physics)) app.getResource(Physics).setPixelsPerUnit(ppu);
+                if (app.hasResource(Physics2D)) app.getResource(Physics2D).setPixelsPerUnit(ppu);
                 // Steady-state fast path: skip the full entity reconcile unless
                 // something structural changed (spawn/despawn/add-remove component →
                 // structuralVersion) OR a physics component was edited (O(1) gate).
@@ -927,7 +927,7 @@ export function registerPhysicsSystem(
         defineSystem(
             [Res(Time)],
             (time: TimeData) => {
-                app.insertResource(PhysicsEvents, {
+                app.insertResource(Physics2DEvents, {
                     collisionEnters: events.collisionEnters,
                     collisionExits: events.collisionExits,
                     collisionHits: events.collisionHits,
@@ -942,7 +942,7 @@ export function registerPhysicsSystem(
                 events.sensorExits = [];
 
                 const ppu = readPixelsPerUnit(app);
-                applyPhysicsTransforms(app, ppu, parentedBodies, module, time.fixedAlpha);
+                applyPhysics2DTransforms(app, ppu, parentedBodies, module, time.fixedAlpha);
             },
             { name: 'PhysicsInterpolateSystem' }
         ),

@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { makeLosCheck, makeLosCheck3D } from '../src/ai/perception/PerceptionPlugin';
-import type { PhysicsAPI, RaycastHit } from '../src/physics';
+import type { Physics2DAPI, RaycastHit } from '../src/physics';
 import type { Physics3DQueries, Cast3DHit } from '../src/physics3d/Physics3DQueries';
 import type { Entity, Vec3 } from '../src/types';
 
@@ -28,8 +28,8 @@ const hit = (entity: Entity, fraction: number): RaycastHit => ({
     entity, fraction, point: { x: 0, y: 0 }, normal: { x: 0, y: 1 },
 });
 
-const physicsReturning = (hits: RaycastHit[]): PhysicsAPI =>
-    ({ raycast: () => hits }) as unknown as PhysicsAPI;
+const physicsReturning = (hits: RaycastHit[]): Physics2DAPI =>
+    ({ raycast: () => hits }) as unknown as Physics2DAPI;
 
 describe('makeLosCheck', () => {
     it('is not blocked by the target it is looking at', () => {

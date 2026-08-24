@@ -3,8 +3,8 @@ import {
     Transform, RigidBody2D, BodyType,
 } from 'esengine';
 import type { UICameraData, RigidBody2DData, TransformData } from 'esengine';
-import { Physics, MotorJoint2D } from 'esengine/physics';
-import type { PhysicsAPI } from 'esengine/physics';
+import { Physics2D, MotorJoint2D } from 'esengine/physics';
+import type { Physics2DAPI } from 'esengine/physics';
 
 const DRAG_BUTTON = 0;
 const PICK_RADIUS = 6; // world px around the cursor to grab a body
@@ -12,8 +12,8 @@ const PICK_RADIUS = 6; // world px around the cursor to grab a body
 // Click-and-drag any dynamic body with a mouse joint: pick on press, follow the
 // cursor while held, release on up. Only one drag is live at a time.
 export const dragSystem = defineSystem(
-    [Res(Input), Res(UICameraInfo), Res(Physics), Query(RigidBody2D)],
-    (input, camera: UICameraData, physics: PhysicsAPI, bodies) => {
+    [Res(Input), Res(UICameraInfo), Res(Physics2D), Query(RigidBody2D)],
+    (input, camera: UICameraData, physics: Physics2DAPI, bodies) => {
         if (!camera.valid) return;
         const target = { x: camera.worldMouseX, y: camera.worldMouseY };
 
@@ -41,8 +41,8 @@ const SHUTTLE_MAX_X = 290;
 const shuttleDir = new Map<number, number>();
 
 export const shuttleSystem = defineSystem(
-    [Res(Physics), Query(Transform, MotorJoint2D)],
-    (physics: PhysicsAPI, shuttles) => {
+    [Res(Physics2D), Query(Transform, MotorJoint2D)],
+    (physics: Physics2DAPI, shuttles) => {
         for (const [entity, transform] of shuttles as Iterable<[number, TransformData]>) {
             let dir = shuttleDir.get(entity) ?? 1;
             if (transform.position.x > SHUTTLE_MAX_X && dir > 0) {

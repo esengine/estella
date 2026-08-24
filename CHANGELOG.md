@@ -43,11 +43,23 @@ published separately; it ships inside the editor.
 
   **Breaking for code.** A script importing any of these from `esengine` must
   import the new name; the data interfaces follow their component
-  (`RigidBodyData` → `RigidBody2DData`). The
-  SDK's physics *surface* is unchanged in this release — `Physics`,
-  `PhysicsPlugin`, `PhysicsEvents` and `ColliderShape` still carry bare names
-  against `Physics3DPlugin` and `ColliderShape3D`, and squaring that is an API
-  rename with no data in it.
+  (`RigidBodyData` → `RigidBody2DData`).
+
+- **The SDK's flat physics surface follows, spelled the way `physics3d/` already
+  spells its own.** `Physics` → `Physics2D`, `PhysicsAPI` → `Physics2DAPI`,
+  `PhysicsPlugin` / `physicsPlugin` → `Physics2DPlugin` / `physics2dPlugin`,
+  `PhysicsEvents`, `PhysicsEventType`, `PhysicsDebugDraw`, `drawPhysicsDebug`,
+  `setupPhysicsDebugDraw` and the config/event data interfaces all take the
+  suffix; `ColliderShape` / `ColliderInstance` / `ColliderOutline` become
+  `Collider2DShape` / `Collider2DInstance` / `Collider2DOutline`, matching
+  `Collider3DShape` beside them. `Res(Physics)` is `Res(Physics2D)`.
+
+  What kept its name, and why: `loadPhysicsModule`, `PhysicsWasmModule`,
+  `PhysicsModuleFactory` and `PhysicsBridge` name the **side module**, whose id
+  is still `physics` and whose artifact is still `physics.wasm` — a type that
+  names a file should be spelled like the file. The `esengine/physics` entry
+  point is unchanged for the same reason. Nothing on disk was keyed by any of
+  this, so there is no migration: it is an import-line change.
 
 ## [0.56.0] - 2026-08-23
 

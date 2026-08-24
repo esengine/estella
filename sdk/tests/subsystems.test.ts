@@ -91,7 +91,7 @@ describe('App auto-registers plugin lifecycle into the subsystem registry', () =
 
     it('leaves an async plugin in the phase it set for itself', () => {
         const app = App.new();
-        // Mirrors PhysicsPlugin: moves itself off `registered` during build, so
+        // Mirrors Physics2DPlugin: moves itself off `registered` during build, so
         // the App must NOT auto-promote it — it reaches ready on its own later.
         const phys: Plugin = {
             name: 'phys',

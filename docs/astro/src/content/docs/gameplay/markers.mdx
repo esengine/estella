@@ -40,9 +40,9 @@ in the editor and web runtime the physics module loads automatically when a scen
 uses physics components; in a custom app, add the plugin yourself:
 
 ```typescript
-import { PhysicsPlugin } from 'esengine/physics';
+import { Physics2DPlugin } from 'esengine/physics';
 
-app.addPlugin(new PhysicsPlugin('physics.js'));
+app.addPlugin(new Physics2DPlugin('physics.js'));
 ```
 
 ## Place one in the editor
@@ -104,15 +104,15 @@ A **Trigger Area** is the Create preset for a sensor region: a `Transform`, a st
 Because the collider is a sensor it detects overlaps **without** a physical response —
 nothing bounces off a trigger; it just reports who entered.
 
-Read entries and exits from the `PhysicsEvents` resource. Each sensor event names the
+Read entries and exits from the `Physics2DEvents` resource. Each sensor event names the
 `sensorEntity` (the trigger) and the `visitorEntity` (the body that crossed it), so
 you can look up the trigger's `Marker` to decide what it does:
 
 ```typescript
 import { defineSystem, Res, Query, Marker } from 'esengine';
-import { PhysicsEvents } from 'esengine/physics';
+import { Physics2DEvents } from 'esengine/physics';
 
-const onTrigger = defineSystem([Res(PhysicsEvents), Query(Marker)], (events, markers) => {
+const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, markers) => {
   const markerOf = (e) => {
     for (const [entity, marker] of markers) if (entity === e) return marker;
     return null;
@@ -167,7 +167,7 @@ if you need a shape's exact vertices.
 - [Tilemaps](/docs/world/tilemaps/) — collision (obstacle) layers and Tiled object
   layers that feed the same Markers.
 - [Physics](/docs/gameplay/physics/) — sensors, collision filtering, and the
-  `PhysicsEvents` resource behind Trigger Areas.
+  `Physics2DEvents` resource behind Trigger Areas.
 - [Scenes](/docs/world/scenes/) — Markers and Trigger Areas serialize with the scene.
 - [Event Binding](/docs/scripting/events/) — run an action when something enters a Trigger
   Area, authored on the area itself with no code.

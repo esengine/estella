@@ -18,7 +18,7 @@ import { App } from '../src/app/app';
 import { Schedule, defineSystem, GetWorld } from '../src/ecs/system';
 import { simulationBasePlugins } from '../src/app/pluginSets';
 import { StatsPlugin } from '../src/stats';
-import { registerCharacterControllerSystem } from '../src/physics/CharacterController2D';
+import { registerCharacterController2DSystem } from '../src/physics/CharacterController2D';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';
 
@@ -33,7 +33,7 @@ const build = (): App => {
     const app = App.new();
     for (const plugin of simulationBasePlugins()) app.addPlugin(plugin);
     app.addPlugin(new StatsPlugin({ overlay: false }));
-    registerCharacterControllerSystem(app);
+    registerCharacterController2DSystem(app);
     return app;
 };
 

@@ -11,7 +11,7 @@
  * same {@link mergeCollisionTiles} the native collider path uses, and richer shapes go
  * through the same {@link tileColliderShape} + one-way normal reorientation that
  * {@link generateChunkTileShapes} spawns from — so the overlay is what you get out of
- * Play. Geometry is world PIXELS (`colliderShapeOutline` at ppu = 1); the caller
+ * Play. Geometry is world PIXELS (`collider2DOutline` at ppu = 1); the caller
  * projects it to the screen. No physics units here — the overlay is a picture, not a body.
  */
 import type { Vec2 } from '../types';
@@ -20,8 +20,8 @@ import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { mergeCollisionTiles } from './collisionMerge';
 import { tileColliderShape, oneWayNormalWorld } from './tiledLoader';
-import { colliderShapeOutline, shapeCenter } from '../physics/ColliderShape';
-import type { ColliderShape } from '../physics/ColliderShape';
+import { collider2DOutline, shapeCenter } from '../physics/ColliderShape2D';
+import type { Collider2DShape } from '../physics/ColliderShape2D';
 import type { TilesetModel } from './tilesetResolve';
 
 /**
@@ -40,9 +40,9 @@ export interface TileCollisionPiece {
 
 /** World outline of a pixel-space collider shape at `worldCenter` (no rotation — tiles
  *  carry flips, not continuous angles, and flips are already baked into the shape). */
-function outlineAt(shape: ColliderShape, worldCenter: Vec2): { polylines: Vec2[][]; circles: { c: Vec2; r: number }[] } {
+function outlineAt(shape: Collider2DShape, worldCenter: Vec2): { polylines: Vec2[][]; circles: { c: Vec2; r: number }[] } {
     const center = shapeCenter(shape, worldCenter, 0, 1);
-    return colliderShapeOutline(shape, center, 0, 1);
+    return collider2DOutline(shape, center, 0, 1);
 }
 
 /**
@@ -80,7 +80,7 @@ export function tileCollisionOutlines(
                 const y1 = y0 + rect.height - 1;
                 const cx = originX + ((x0 + x1 + 1) / 2) * tileW;
                 const cy = originY - ((y0 + y1 + 1) / 2) * tileH;
-                const shape: ColliderShape = {
+                const shape: Collider2DShape = {
                     kind: 'box',
                     halfExtents: { x: rect.width * tileW * 0.5, y: rect.height * tileH * 0.5 },
                     offset: { x: 0, y: 0 },

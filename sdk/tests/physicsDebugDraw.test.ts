@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-    PhysicsDebugDraw,
-    drawPhysicsDebug,
-    setupPhysicsDebugDraw,
-    type PhysicsDebugDrawConfig,
-} from '../src/physics/PhysicsDebugDraw';
+    Physics2DDebugDraw,
+    drawPhysics2DDebug,
+    setupPhysics2DDebugDraw,
+    type Physics2DDebugDrawConfig,
+} from '../src/physics/Physics2DDebugDraw';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { defineResource } from '../src/ecs/resource';
 import type { ResourceDef } from '../src/ecs/resource';
@@ -69,10 +69,10 @@ function mockEntity(comps: Record<string, any>): MockEntity {
 const MockPhysicsAPI = defineResource<any>({}, 'MockPhysicsAPI');
 const MockPhysicsEvents = defineResource<any>({}, 'MockPhysicsEvents');
 
-describe('PhysicsDebugDraw resource', () => {
+describe('Physics2DDebugDraw resource', () => {
     it('should define resource with correct defaults', () => {
-        expect(PhysicsDebugDraw._name).toBe('PhysicsDebugDraw');
-        expect(PhysicsDebugDraw._default).toEqual({
+        expect(Physics2DDebugDraw._name).toBe('Physics2DDebugDraw');
+        expect(Physics2DDebugDraw._default).toEqual({
             enabled: false,
             showColliders: true,
             showVelocity: false,
@@ -81,7 +81,7 @@ describe('PhysicsDebugDraw resource', () => {
     });
 });
 
-describe('drawPhysicsDebug', () => {
+describe('drawPhysics2DDebug', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         clearUserComponents();
@@ -89,27 +89,27 @@ describe('drawPhysicsDebug', () => {
 
     it('should do nothing when config is not present', () => {
         const app = createMockApp();
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
         expect(Draw.line).not.toHaveBeenCalled();
         expect(Draw.circleOutline).not.toHaveBeenCalled();
     });
 
     it('should do nothing when enabled=false', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: false, showColliders: true, showVelocity: false, showContacts: false,
         });
         const app = createMockApp([], resources);
 
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
         expect(Draw.line).not.toHaveBeenCalled();
     });
 
     it('should draw box collider when enabled', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const entity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Static, enabled: true },
@@ -125,16 +125,16 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.line).toHaveBeenCalledTimes(4);
     });
 
     it('should draw circle collider when enabled', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const entity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
@@ -150,16 +150,16 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.circleOutline).toHaveBeenCalledTimes(1);
     });
 
     it('should draw capsule collider when enabled', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const entity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Dynamic, enabled: true },
@@ -176,7 +176,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         // 2 side lines + 16 top arc segments + 16 bottom arc segments = 34
         expect(Draw.line).toHaveBeenCalledTimes(34);
@@ -184,9 +184,9 @@ describe('drawPhysicsDebug', () => {
 
     it('should skip disabled rigid bodies', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const entity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Dynamic, enabled: false },
@@ -202,16 +202,16 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.line).not.toHaveBeenCalled();
     });
 
     it('should use sensor color for sensor colliders', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const entity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Static, enabled: true },
@@ -227,7 +227,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         const calls = (Draw.line as any).mock.calls;
         expect(calls.length).toBe(4);
@@ -237,9 +237,9 @@ describe('drawPhysicsDebug', () => {
 
     it('should draw velocity arrows for dynamic bodies', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: false, showVelocity: true, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
         resources.set(MockPhysicsAPI._id, {
             getLinearVelocity: vi.fn().mockReturnValue({ x: 10, y: 5 }),
         });
@@ -253,7 +253,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         // velocity line + 2 arrowhead lines = 3
         expect(Draw.line).toHaveBeenCalledTimes(3);
@@ -261,9 +261,9 @@ describe('drawPhysicsDebug', () => {
 
     it('should not draw velocity for static bodies', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: false, showVelocity: true, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
         resources.set(MockPhysicsAPI._id, {
             getLinearVelocity: vi.fn(),
         });
@@ -277,16 +277,16 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.line).not.toHaveBeenCalled();
     });
 
     it('should draw contact points when showContacts is enabled', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: false, showVelocity: false, showContacts: true,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
         resources.set(MockPhysicsEvents._id, {
             collisionEnters: [
                 { contactX: 10, contactY: 20 },
@@ -295,28 +295,28 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.circle).toHaveBeenCalledTimes(2);
     });
 
-    it('should not draw contacts when PhysicsEvents resource is missing', () => {
+    it('should not draw contacts when Physics2DEvents resource is missing', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: false, showVelocity: false, showContacts: true,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const app = createMockApp([], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.circle).not.toHaveBeenCalled();
     });
 
     it('should use correct body type colors', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         const staticEntity = mockEntity({
             RigidBody2D: { bodyType: BodyType.Static, enabled: true },
@@ -337,7 +337,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([staticEntity, dynamicEntity, kinematicEntity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.circleOutline).toHaveBeenCalledTimes(3);
         const calls = (Draw.circleOutline as any).mock.calls;
@@ -353,9 +353,9 @@ describe('drawPhysicsDebug', () => {
 
     it('should apply collider offset with rotation', () => {
         const resources = new Map<symbol, any>();
-        resources.set(PhysicsDebugDraw._id, {
+        resources.set(Physics2DDebugDraw._id, {
             enabled: true, showColliders: true, showVelocity: false, showContacts: false,
-        } as PhysicsDebugDrawConfig);
+        } as Physics2DDebugDrawConfig);
 
         // 90 degree rotation: quat z=sin(45°), w=cos(45°)
         const angle = Math.PI / 2;
@@ -376,7 +376,7 @@ describe('drawPhysicsDebug', () => {
         });
 
         const app = createMockApp([entity], resources);
-        drawPhysicsDebug(app, MockPhysicsAPI, MockPhysicsEvents);
+        drawPhysics2DDebug(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(Draw.circleOutline).toHaveBeenCalledTimes(1);
         const call = (Draw.circleOutline as any).mock.calls[0];
@@ -387,7 +387,7 @@ describe('drawPhysicsDebug', () => {
     });
 });
 
-describe('setupPhysicsDebugDraw', () => {
+describe('setupPhysics2DDebugDraw', () => {
     beforeEach(() => {
         clearDrawCallbacks();
     });
@@ -396,9 +396,9 @@ describe('setupPhysicsDebugDraw', () => {
         const resources = new Map<symbol, any>();
         const app = createMockApp([], resources);
 
-        setupPhysicsDebugDraw(app, MockPhysicsAPI, MockPhysicsEvents);
+        setupPhysics2DDebugDraw(app, MockPhysicsAPI, MockPhysicsEvents);
 
-        expect(app.insertResource).toHaveBeenCalledWith(PhysicsDebugDraw, {
+        expect(app.insertResource).toHaveBeenCalledWith(Physics2DDebugDraw, {
             enabled: false, showColliders: true, showVelocity: false, showContacts: false,
         });
 

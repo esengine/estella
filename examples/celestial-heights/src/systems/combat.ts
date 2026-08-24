@@ -1,5 +1,5 @@
 import {
-    defineSystem, Query, Mut, Res, Time, Transform, Physics, Commands,
+    defineSystem, Query, Mut, Res, Time, Transform, Physics2D, Commands,
     EventWriter, EventReader, GetWorld,
 } from 'esengine';
 import { Facing, Health, MeleeAttack, Player } from '../components';
@@ -16,7 +16,7 @@ const DEG = Math.PI / 180;
 export const meleeResolveSystem = defineSystem(
     [
         Query(Transform, Facing, Mut(MeleeAttack)),
-        Res(Time), Res(Physics), GetWorld(), EventWriter(DamageDealt),
+        Res(Time), Res(Physics2D), GetWorld(), EventWriter(DamageDealt),
     ],
     (attackers, time, physics, world, damage) => {
         for (const [attacker, transform, facing, attack] of attackers) {

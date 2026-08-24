@@ -26,7 +26,7 @@ import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
-import type { PhysicsPluginConfig } from '../physics/PhysicsPlugin';
+import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers } from './packagedRuntime';
@@ -78,7 +78,7 @@ export interface PlayRealmRuntimeConfig {
     physicsEnabled?: boolean;
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous) from the editor's Project Settings. */
-    physicsConfig?: PhysicsPluginConfig;
+    physicsConfig?: Physics2DPluginConfig;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */

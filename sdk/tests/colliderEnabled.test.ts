@@ -16,7 +16,7 @@ import {
     SegmentCollider2D, PolygonCollider2D, ChainCollider2D,
 } from '../src/physics/PhysicsComponents';
 import { addShapeForEntity, collidersChangedSince } from '../src/physics/PhysicsSystem';
-import { readColliderShapes } from '../src/physics/ColliderShape';
+import { readCollider2DShapes } from '../src/physics/ColliderShape2D';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 
 function testWorld(): World {
@@ -103,14 +103,14 @@ describe('the rest of the engine agrees with the shape that is there', () => {
         const e = world.spawn();
         world.insert(e, BoxCollider2D, { enabled: false } as never);
         world.insert(e, CircleCollider2D, {} as never);
-        const [box, circle] = readColliderShapes(world, e);
+        const [box, circle] = readCollider2DShapes(world, e);
         expect(box.enabled).toBe(false);
         expect(circle.enabled).toBe(true);
     });
 
     it('marks the collider changed when the flag flips, which is what rebuilds the shapes', () => {
         const world = testWorld();
-        world.enableChangeTracking(BoxCollider2D); // registerPhysicsSystem does this
+        world.enableChangeTracking(BoxCollider2D); // registerPhysics2DSystem does this
         const e = world.spawn();
         world.insert(e, BoxCollider2D, {} as never);
         const settled = world.getWorldTick();
