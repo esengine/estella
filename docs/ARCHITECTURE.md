@@ -64,7 +64,10 @@ project that uses one: Box2D (2D physics), Jolt (3D physics), Spine, DragonBones
 Basis/KTX2, video. The native host links them in instead, since there is no
 download to defer. `pipeline/` (`@estella/pipeline`) cooks a project into a shipped
 build with no window and no editor; `editor-api/` is the plugin type surface, so
-a plugin author builds against the contract without private code.
+a plugin author builds against the contract without private code. Each side
+module with a game-facing API has a subpath entry of its own — `esengine/physics`
+and `esengine/physics3d` hand a game the plugin, the world resource and the
+contact events; the components reach the main entry either way.
 
 ## Core Modules (`src/esengine/`)
 
@@ -187,6 +190,12 @@ Key facts:
   the sort key so lower-on-screen entities paint on top (top-down occlusion);
   painter's order deliberately beats batching inside a y-sorted layer, every other
   layer keeps its key bit-for-bit.
+- **Pointing at something is a ray.** `uiHitTest_update` takes the world ray a
+  screen point names, not a point on z = 0: UI nodes and sprites resolve it
+  against their own plane, `MeshRenderer` against its oriented bounds, and world
+  content ranks by distance along the ray with the sorting layer breaking the tie
+  a flat scene produces. Orthographically every plane gives the same x/y, so a
+  flat game picks exactly as it did.
 - **`RenderFrame`** owns transient buffers (`TransientBufferPool`), frustum
   culling, render-to-texture (`RenderTarget`, which a `Camera.renderTarget` now
   names), masking (`RenderFrameMask`: scissor + stencil), optional
@@ -387,7 +396,3 @@ Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] Two pixel gates still run on one backend: `camera-render-target` (a frame
       holding both an offscreen and a surface pass returns nothing from the
       WebGPU readback) and `device-loss`. The other 121 assert on both.
-- [ ] A point light runs six cube-face collects and draws whether or not any mesh
-      falls in a face; the frustum is already extracted per tile, so skipping an
-      empty one is cheap — unmeasured, because nothing in the corpus has several
-      point lights.

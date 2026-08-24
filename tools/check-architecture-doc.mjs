@@ -41,8 +41,18 @@ const DIR_ROOTS = ['src/esengine', 'sdk/src', 'docs', '.'];
  */
 const ABSENT_BY_DESIGN = new Set([
     'REARCH_2D_PARITY.md', 'REARCH_WGSL.md', 'desktop/',
-    'dist/index.native.bundled.js', 'esengine/node',
+    'dist/index.native.bundled.js',
 ]);
+
+/**
+ * `esengine/<name>` is a package entry specifier, not a path — and the set of them
+ * is published, so this reads it rather than keeping a second list. The doc can
+ * name a subpath only if the package actually exports one.
+ */
+const ENTRY_SPECIFIERS = new Set(
+    Object.keys(JSON.parse(readFileSync(path.join(ROOT, 'sdk', 'package.json'), 'utf8')).exports)
+        .filter((k) => k.startsWith('./'))
+        .map((k) => `esengine/${k.slice(2)}`));
 
 /**
  * Names the doc mentions BECAUSE they are gone. Asserted in the other direction:
@@ -81,6 +91,7 @@ for (const m of doc.matchAll(/`([^`\n]+)`/g)) {
     if (/^[\w./-]+\/[\w./-]*$/.test(raw) || /^[\w-]+\.(md|ts|mjs|cpp|hpp|json|esshader)$/.test(raw)) {
         const bare = raw.replace(/:[\d,\-\s]+$/, '');
         if (ABSENT_BY_DESIGN.has(bare) || ABSENT_BY_DESIGN.has(`${bare}/`)) continue;
+        if (ENTRY_SPECIFIERS.has(bare)) continue;
         if (existsSync(path.join(ROOT, bare))) continue;
         if (DIR_ROOTS.some((r) => existsSync(path.join(ROOT, r, bare)))) continue;
         // A bare filename is cited without its directory all over the doc.
