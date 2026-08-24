@@ -104,6 +104,10 @@ export const GATES = [
   { id: 'mesh-vocabulary', run: 'node tools/check-mesh-vocabulary.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
+  // The twin's FRESHNESS, which only CI asked — so fifteen shaders reached master
+  // with a stamp older than their GLSL. It needs no converter and no engine.
+  { id: 'wgsl-twin-fresh',
+    run: "node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader')" },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
