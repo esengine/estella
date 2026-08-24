@@ -8,10 +8,14 @@
  * nothing was checking. Holding the two together is the only way the list means
  * anything a month after it was written.
  *
+ * `needs` alone does not hold it: a criterion whose files all exist can still name
+ * a `pnpm run` script no package has, which is how the hot-update criterion spent
+ * four releases pointing at a script that had moved to the root package.
+ *
  *   node tools/check-release-gate.mjs            # hold the list together
  *   node tools/check-release-gate.mjs --report   # print it, to run or to paste
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RELEASE, CRITERIA } from './releaseGate.mjs';
@@ -20,6 +24,17 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const problems = [];
 const fail = (m) => problems.push(m);
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
+
+/** The scripts of the package a `--filter` names, or null when there is no such
+ *  package. Undefined filter = the root package. */
+const PACKAGE_DIRS = { '@estella/editor': 'desktop', '@estella/pipeline': 'pipeline', esengine: 'sdk' };
+function PACKAGE_SCRIPTS(filter) {
+    const dir = filter === undefined ? '.' : PACKAGE_DIRS[filter];
+    if (dir === undefined) return null;
+    const file = path.join(ROOT, dir, 'package.json');
+    if (!existsSync(file)) return null;
+    return JSON.parse(readFileSync(file, 'utf8')).scripts ?? {};
+}
 const unanswerable = new Set();
 
 const seen = new Set();
@@ -39,6 +54,16 @@ for (const c of CRITERIA) {
   // The point of `needs`: a verifier that is deleted or renamed fails HERE,
   // loudly, rather than at whatever moment somebody trusts the list next.
   if (c.answeredBy && !c.needs?.length) fail(`"${c.id}" names a command but no file it lives in`);
+  // Every `pnpm [--filter X] run <script>` it invokes has to BE a script, or the
+  // criterion answers with "no such script" and a release captain reads a crash
+  // where a verdict should be.
+  for (const cmd of (c.answeredBy ?? '').split('&&')) {
+    const m = /\bpnpm\s+(?:--filter\s+(\S+)\s+)?run\s+([\w:.-]+)/.exec(cmd.trim());
+    if (!m) continue;
+    const pkg = PACKAGE_SCRIPTS(m[1]);
+    if (pkg === null) { fail(`"${c.id}" runs a script in ${m[1]}, which is not a package here`); continue; }
+    if (!(m[2] in pkg)) fail(`"${c.id}" runs \`${m[2]}\` in ${m[1] ?? 'the root package'}, which has no such script`);
+  }
   for (const rel of c.needs ?? []) {
     if (existsSync(path.join(ROOT, rel))) continue;
     // A verifier that lives in the editor cannot be found from a checkout without

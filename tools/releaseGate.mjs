@@ -83,7 +83,7 @@ export const CRITERIA = [
     // The corpus can package hot-update-demo and launch it; neither says an
     // update ever applied. This one serves a second build as the CDN, then two
     // manifests that lie, and reads the pixel after each.
-    answeredBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
+    answeredBy: 'pnpm run verify:hotupdate',
     needs: [
       'tools/launchers/headless-hotupdate-verify.mjs',
       'pipeline/tests/hotupdate-verify-fixture.test.ts',

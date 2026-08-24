@@ -272,7 +272,7 @@ export const GOLDEN = [
     // Packaging cannot see either claim: one needs a second build served as a
     // CDN, the other a manifest that lies about its bytes. check-golden refuses
     // a runBy that no release criterion schedules.
-    runBy: 'pnpm --filter @estella/editor run verify:render:hotupdate',
+    runBy: 'pnpm run verify:hotupdate',
   },
   {
     id: 'multiplayer-arena',
