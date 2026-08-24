@@ -50,6 +50,49 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Nothing anywhere put a ceiling on what a frame COSTS.** The counters landed
+  earlier this release, but every one of them is an EXACT value on a scene small
+  enough to enumerate — nine cubes, nineteen sprites. The scale harness
+  (`desktop/tests/scale/`) is headless by construction, so the whole
+  draw-submission half was unmeasured at any size, 2D and 3D alike, and a batcher
+  that stopped merging above some threshold, or a shadow atlas that started
+  drawing per caster, would have reached a shipped game before it reached a check.
+
+  Three gates now ask what a frame costs when the scene is big:
+  `sprite-scale-cost` (9801 sprites → `batch.draws` ≤ 8, measured 1),
+  `mesh-scale-cost` (4225 cubes → ≤ 8, measured 1, with `render.triangles` at
+  50700 exactly) and `shadow-scale-cost` (3249 shadow casters →
+  `render.shadow.draws` ≤ 8, measured 2). Sabotage-verified together by inverting
+  both merge conditions in `DrawCommand::mergeBlocker`: the three counters go to
+  9801, 4225 and 3250 while **every pixel probe in all three frames stays exactly
+  right** — which is the whole reason a cost gate has to exist next to a pixel one.
+
+  `ESTELLA_VERIFY_COUNTERS_MAX` is the ceiling form of `ESTELLA_VERIFY_COUNTERS`,
+  and it is a different claim rather than a looser one. An exact value pins a
+  scene whose every draw can be counted, and either direction is a regression. At
+  ten thousand sprites nobody can count them, and the useful question is not how
+  many draws but whether submission stayed bounded — which a ceiling answers and
+  an exact value turns into a number that every benign scene edit rewrites. Both
+  forms fail on a counter the frame never set: a budget nothing reports is not an
+  under-budget frame.
+
+  The scenes are a fixture plus a COUNT (`ESTELLA_VERIFY_SCALE`), not a file. Ten
+  thousand entities of JSON would be a megabyte in every clone of this repository,
+  storing what is a pure function of one small scene and an integer — so each
+  fixture holds ONE of the thing being measured and the host lays `copies` of it
+  on a centred grid. Entities named or componented as furniture (`Camera`,
+  `Light`, a ground plane) are placed once; everything else is the content.
+
+  Two things the geometry had to be measured into rather than reasoned into.
+  `sprite-scale-cost` is 99x99 and not 100x100 because a sprite is two pixels
+  wide at this scale, and an even grid puts the centre of the frame BETWEEN four
+  of them — the middle pixel then reads half coverage, which is a rasteriser's
+  answer and not the engine's. And `shadow-scale-cost` probes only the two edges
+  of its grid: the sun's throw is 100 units and the lattice is 10, so everywhere
+  in between each shadow lands exactly behind the caster ten cells along and the
+  frame is uniformly lit. Bare ground survives only past the left edge, where no
+  caster stands 100 units further left, and past the right, where one does.
+
 - **The batcher is held to what it achieves.** `DrawList` has been publishing
   `batch.draws`, `batch.merged` and a counter per break REASON for a while, and
   nothing read any of them — so the oldest performance promise in the engine, that

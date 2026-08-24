@@ -24,7 +24,7 @@ import {
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
 } from 'esengine';
-import type { App, SceneData, PrefabData, RenderSurfaceSource } from 'esengine';
+import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { loadSpineSceneEntities, SpinePlugin } from 'esengine/spine';
 import type { RuntimeAssetSource } from 'esengine/spine';
@@ -145,11 +145,102 @@ async function boot(): Promise<void> {
 }
 
 /**
+ * @brief What a scale gate copies, so a frame's SIZE is a parameter and not a file.
+ *
+ * @details `copies` of the scene's content on a centred `cols`-wide grid, `spacing`
+ *          apart in world units. Ten thousand entities as a file would be a megabyte
+ *          of JSON in every clone, for a pure function of one fixture and a count.
+ */
+interface ReplicateSpec {
+    copies: number;
+    cols: number;
+    spacing: [number, number];
+    /** Component types or entity names that are the frame's FURNITURE, not its content. */
+    keep?: string[];
+}
+
+/** What looks at the content or receives it. Ten thousand cameras, lights or
+ *  ground planes measures a frame no game draws. */
+const FURNITURE = ['Camera', 'Light'];
+
+/** Adds a world offset to an entity's authored Transform position. */
+function offsetPosition(entity: SceneEntityData, dx: number, dy: number): void {
+    const transform = (entity.components ?? []).find((c) => c.type === 'Transform');
+    if (!transform) return;
+    const pos = (transform.data.position ?? {}) as { x?: number; y?: number; z?: number };
+    transform.data.position = { x: (pos.x ?? 0) + dx, y: (pos.y ?? 0) + dy, z: pos.z ?? 0 };
+}
+
+/**
+ * @brief Lays `spec.copies` copies of the scene's content out on a grid.
+ *
+ * @details EVERY copy is placed, the first included: leaving the authored entity where
+ *          it was puts one copy off the lattice. Ids offset by a whole id-span per copy,
+ *          so parent/children remap by arithmetic and copy 0 offsets by zero — which is
+ *          what keeps the scene file's own ids addressable by a driver.
+ */
+function replicateScene(scene: SceneData, spec: ReplicateSpec): SceneData {
+    const copies = Math.max(1, Math.floor(spec.copies));
+    const cols = Math.max(1, Math.floor(spec.cols));
+    const [spacingX, spacingY] = spec.spacing;
+    const keep = new Set(spec.keep ?? FURNITURE);
+
+    const byId = new Map<number, SceneEntityData>();
+    for (const e of scene.entities) byId.set(e.id, e);
+
+    const fixed: SceneEntityData[] = [];
+    const template: SceneEntityData[] = [];
+    const collect = (e: SceneEntityData): void => {
+        template.push(e);
+        for (const child of e.children ?? []) {
+            const node = byId.get(child);
+            if (node) collect(node);
+        }
+    };
+    for (const e of scene.entities) {
+        if (e.parent !== null && e.parent !== undefined) continue;
+        if (keep.has(e.name) || (e.components ?? []).some((c) => keep.has(c.type))) fixed.push(e);
+        else collect(e);
+    }
+    if (!template.length) {
+        throw new Error('replicate: every root is furniture — the scene has no content to copy');
+    }
+
+    let maxId = 0;
+    for (const e of scene.entities) maxId = Math.max(maxId, e.id);
+    const span = maxId + 1;
+    const rows = Math.ceil(copies / cols);
+
+    const entities: SceneEntityData[] = fixed.slice();
+    for (let k = 0; k < copies; k++) {
+        const dx = ((k % cols) - (cols - 1) / 2) * spacingX;
+        const dy = (Math.floor(k / cols) - (rows - 1) / 2) * spacingY;
+        const offset = k * span;
+        for (const source of template) {
+            const clone = JSON.parse(JSON.stringify(source)) as SceneEntityData;
+            clone.id = source.id + offset;
+            clone.parent = source.parent === null || source.parent === undefined
+                ? null : source.parent + offset;
+            clone.children = (source.children ?? []).map((c) => c + offset);
+            if (clone.parent === null) offsetPosition(clone, dx, dy);
+            entities.push(clone);
+        }
+    }
+    return { ...scene, entities };
+}
+
+/**
  * Fetch an `.esscene` and load it through the engine's own asset system — one
  * asset-resolution path, the same `Assets` the shipped runtime uses. The
  * manifest is a uuid→url map beside the scene; without one, refs blank to 0.
+ *
+ * `replicate` scales the fetched scene up before it reaches the World — what a
+ * cost gate asserts against. Assets resolve on the ORIGINAL document, so ten
+ * thousand copies of one sprite preload one texture.
  */
-async function loadScene(sceneUrl: string, manifestUrl?: string): Promise<number> {
+async function loadScene(
+    sceneUrl: string, manifestUrl?: string, replicate?: ReplicateSpec | null,
+): Promise<number> {
     if (!app) throw new Error('loadScene before boot');
     const res = await fetch(sceneUrl);
     if (!res.ok) throw new Error(`scene fetch failed: ${res.status} ${sceneUrl}`);
@@ -167,6 +258,10 @@ async function loadScene(sceneUrl: string, manifestUrl?: string): Promise<number
         resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
         assets.resolveSceneAssetPaths(resolved, result);
     }
+
+    // Skeletal binding below walks the ORIGINAL document, so only copy 0 of a
+    // skeleton binds. Cost fixtures have none.
+    if (replicate) resolved = replicateScene(resolved, replicate);
 
     const map = loadSceneData(app.world, resolved as Parameters<typeof loadSceneData>[1]);
     sceneRaw = raw;

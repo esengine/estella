@@ -25,6 +25,8 @@
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
+ *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
+ *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
@@ -78,6 +80,8 @@ const OUTPUT_TRANSFORM = process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM === 'aces' 
 // A scene whose emitters roll dice has no constant to assert until the run is
 // seeded; the engine seeds itself from the clock when nobody says otherwise.
 const SEED = process.env.ESTELLA_VERIFY_SEED ?? '';
+// A cost gate's scene is a small fixture plus a count — see the loadScene call.
+const SCALE = process.env.ESTELLA_VERIFY_SCALE ?? '';
 // ESTELLA_VERIFY_DEPTH_LAYERS=<mask> turns layers into depth-resolved ones (2.5D).
 const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
 
@@ -199,8 +203,12 @@ app.whenReady().then(async () => {
     let setField = null;
     let pick = null;
     await exec('window.__estellaHeadless.ready');
+    // ESTELLA_VERIFY_SCALE = {"copies":N,"cols":C,"spacing":[x,y]}: the fixture holds ONE
+    // of the thing being measured and this lays N of it out on a grid — a scale scene as a
+    // FILE would be a megabyte of JSON in every clone, for a pure function of those two.
     const entityCount = await exec(
-      `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)})`,
+      `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)}`
+      + `${SCALE ? ', ' + JSON.stringify(JSON.parse(SCALE)) : ''})`,
     );
     // Opt-in play mode (ESTELLA_VERIFY_PLAY=1): runs the SDK plugin updates — particle
     // emission/simulation, animation — so time-driven content actually renders.
@@ -209,7 +217,7 @@ app.whenReady().then(async () => {
     }
     // The engine's per-frame counters are only recorded while profiling is on, and
     // it goes on BEFORE the steps: what is read afterwards is the last frame's.
-    if (process.env.ESTELLA_VERIFY_COUNTERS) {
+    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX) {
       await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
     }
     // Project render config stand-in: ESTELLA_VERIFY_YSORT = layer bitmask
@@ -516,13 +524,23 @@ app.whenReady().then(async () => {
     // What the frame cost where no draw call and no pixel can show it — the passes a
     // shadow atlas took. ESTELLA_VERIFY_COUNTERS is a JSON object of counter name → exact
     // value; a name the frame never set reports null, which fails rather than reading 0.
+    // ESTELLA_VERIFY_COUNTERS_MAX is the same object read as a CEILING, a different claim:
+    // exact pins a scene small enough to enumerate, a ceiling asks whether cost stayed
+    // bounded where nobody can. Both fail on a counter the frame never set.
     let counters = null;
-    if (process.env.ESTELLA_VERIFY_COUNTERS) {
-      const want = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS);
+    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX) {
+      const want = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS ?? '{}');
+      const ceiling = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS_MAX ?? '{}');
       const got = await exec('window.__estellaHeadless.api.getCounters()');
-      const points = Object.entries(want).map(([name, value]) => ({
-        name, want: value, got: got?.[name] ?? null, ok: got?.[name] === value,
-      }));
+      const points = [
+        ...Object.entries(want).map(([name, value]) => ({
+          name, want: value, got: got?.[name] ?? null, ok: got?.[name] === value,
+        })),
+        ...Object.entries(ceiling).map(([name, value]) => ({
+          name, max: value, got: got?.[name] ?? null,
+          ok: typeof got?.[name] === 'number' && got[name] <= value,
+        })),
+      ];
       counters = { points, ok: points.every((p) => p.ok) };
     }
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of

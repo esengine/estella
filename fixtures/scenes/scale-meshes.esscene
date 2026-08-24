@@ -1,0 +1,44 @@
+{
+  "version": 3,
+  "name": "ScaleMeshes",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 300 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Cube",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 0.08, "y": 0.08, "z": 0.08 }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": { "r": 0.2, "g": 0.8, "b": 0.4, "a": 1 },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

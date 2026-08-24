@@ -169,6 +169,18 @@ export const SCENES = [
   // same mesh and same material, so render.culled is the only place the six can show.
   // batch.draws holds the nine to ONE instanced call; render.triangles counts 9 x 12.
   { id: "mesh-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-cost.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.meshes\":9,\"render.culled\":6,\"render.triangles\":108,\"batch.draws\":1}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.1667,\"y\":0.1667,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,255],\"tol\":20},{\"x\":0.8333,\"y\":0.8333,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.3,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":10}]" } },
+  // A CEILING, not an exact value: at scale the question is whether submission stays O(1)
+  // in the count, and render.sprites stays exact so a frame that dropped content cannot pass
+  // under it. The grid is odd (99x99) so the centre probe lands ON a 2-pixel sprite.
+  { id: "sprite-scale-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/scale-sprites.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SCALE: "{\"copies\":9801,\"cols\":99,\"spacing\":[6,6]}", ESTELLA_VERIFY_COUNTERS: "{\"render.sprites\":9801}", ESTELLA_VERIFY_COUNTERS_MAX: "{\"batch.draws\":8}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[230,102,26],\"tol\":20}]" } },
+  // The 3D shape of the same claim: identical geometry merges by INSTANCING, so 4225 cubes
+  // are one draw. A fallback to a draw per mesh leaves the picture identical and moves only
+  // batch.draws, which is why the ceiling is the assertion and render.triangles the witness.
+  { id: "mesh-scale-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/scale-meshes.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SCALE: "{\"copies\":4225,\"cols\":65,\"spacing\":[9,9]}", ESTELLA_VERIFY_COUNTERS: "{\"render.meshes\":4225,\"render.triangles\":50700}", ESTELLA_VERIFY_COUNTERS_MAX: "{\"batch.draws\":8}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[51,204,102],\"tol\":20}]" } },
+  // Does an atlas draw scale with the CASTER count: 3249 casters are two draws (a ground quad,
+  // then every cube instanced), and a fallback to one draw each changes no pixel. The probes take
+  // the only ground the grid leaves bare — lit past its left edge, shadowed past its right.
+  { id: "shadow-scale-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/scale-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SCALE: "{\"copies\":3249,\"cols\":57,\"spacing\":[10,10],\"keep\":[\"Camera\",\"Light\",\"Ground\"]}", ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.shadow.draws\":8}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.012,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.984,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // Two opaque cubes overlapping on screen, the red one 120 units nearer. Declares NO
   // depth layer and boots LINEAR — the cheap way to engage the post-process capture.
   // Opaque sorts front-to-back, so with no attachment the far cube paints over.
