@@ -57,6 +57,10 @@ export function sceneWatchdogMs(backend, host) {
  */
 export const SCENES = [
   { id: "sprite-default", tier: "pr", webgpu: true, env: {  } },
+  // What the BATCHER achieved, which no pixel can show: nineteen sprites over two
+  // textures reach the GPU as three draws. Every break is accounted for to its
+  // reason — one run head, two index gaps, no state break at all.
+  { id: "sprite-batch", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-rendering.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-rendering.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.sprites\":19,\"batch.draws\":3,\"batch.merged\":16,\"batch.break.runStart\":1,\"batch.break.indexGap\":2}" } },
     // Editor grid on/off pixel diff — guards the custom-draw reflected material path (drawMeshWithMaterial + MaterialConstants UBO).
   { id: "editor-grid", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_STEPS: "3" } },
     // The same grid from straight above a 3D view. It stands on the ground there, so it fills the frame; the 2D plane would be edge-on and light one band.

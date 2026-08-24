@@ -40,9 +40,11 @@ for (const s of SCENES) {
   }
   // An expectation is the whole point: a scene with none passes as long as it
   // renders anything at all. Allowed, as a sentence — the same bargain the
-  // golden corpus strikes with parityGap.
+  // golden corpus strikes with parityGap. A COUNTER is an expectation too, and
+  // the sharper kind: what a frame cost is the half no pixel can show.
   const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
+    || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_DRAW_CALLS
     || s.env.ESTELLA_VERIFY_YSORT || s.id === 'sprite-default';
   if (!asserts && !s.rendersOnly) {
     fail(`"${s.id}" asserts nothing — give it an ESTELLA_VERIFY_EXPECT, or say in rendersOnly why it has none`);

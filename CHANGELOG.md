@@ -14,6 +14,27 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The batcher is held to what it achieves.** `DrawList` has been publishing
+  `batch.draws`, `batch.merged` and a counter per break REASON for a while, and
+  nothing read any of them — so the oldest performance promise in the engine, that
+  sprites sharing a texture reach the GPU as one draw, was the one thing no gate
+  could see. `sprite-batch` reads them: nineteen sprites over two textures, three
+  draws, sixteen merges, and the three draws accounted for to their reason — one
+  run head and two index gaps, no state break of any kind.
+
+  Sabotaged on the fixture rather than argued: give ONE of the nineteen sprites
+  `lit: true` and it needs a different program, so the batch breaks. `batch.draws`
+  goes 3 → 4 and `batch.merged` 16 → 15, while `render.sprites` stays at 19 — the
+  picture is complete and `sprite-default`, the smoke gate on the very same scene,
+  passes. That is the whole shape of the problem: a batching regression ships as a
+  slower game and nothing goes red.
+
+  `check-render-scenes` counts a counter as an assertion now. It listed the pixel,
+  grid and preview forms and not `ESTELLA_VERIFY_COUNTERS`, so a gate whose whole
+  subject is cost had to carry a probe it did not need to be allowed to exist.
+
 ### Changed
 
 - **Every rasterizer draws the same penumbra, and `sun-shadow` now says so.** A
