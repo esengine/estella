@@ -58,11 +58,17 @@ export const RENAMED_COMPONENT_TYPES: ReadonlyMap<string, string> = new Map([
     // `DistanceJoint` and `DistanceJoint3D` differed by three characters and one
     // solver; the rest of the flat set follows it rather than being half-named.
     ['DistanceJoint', 'DistanceJoint2D'],
-    ['RevoluteJoint', 'RevoluteJoint2D'],
-    ['PrismaticJoint', 'PrismaticJoint2D'],
-    ['WeldJoint', 'WeldJoint2D'],
     ['WheelJoint', 'WheelJoint2D'],
     ['MotorJoint', 'MotorJoint2D'],
+    // Each world named the same joint after its own solver — Box2D revolute, Jolt
+    // hinge. The flat set takes the solid one's words, which a creator already
+    // knows. Both earlier spellings map, since pre-suffix files are still out there.
+    ['RevoluteJoint', 'HingeJoint2D'],
+    ['RevoluteJoint2D', 'HingeJoint2D'],
+    ['PrismaticJoint', 'SliderJoint2D'],
+    ['PrismaticJoint2D', 'SliderJoint2D'],
+    ['WeldJoint', 'FixedJoint2D'],
+    ['WeldJoint2D', 'FixedJoint2D'],
 ]);
 
 /** Light kinds that aim: Directional (1) and Spot (3). Point and Ambient never did. */

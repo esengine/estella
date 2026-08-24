@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import {
-    BoxCollider2D, CircleCollider2D, CapsuleCollider2D, RevoluteJoint2D,
+    BoxCollider2D, CircleCollider2D, CapsuleCollider2D, HingeJoint2D,
 } from '../src/physics/PhysicsComponents';
 import { colliderSignature, jointChangedOrGone, jointPartnerGone } from '../src/physics/PhysicsSystem';
 
@@ -58,7 +58,7 @@ describe('jointChangedOrGone', () => {
     it('is false for a present joint not changed since the given tick', () => {
         const world = testWorld();
         const e = world.spawn();
-        world.insert(e, RevoluteJoint2D, {} as never);
+        world.insert(e, HingeJoint2D, {} as never);
         // isChangedSince(currentTick) is false (it was last touched this tick),
         // so a present, unedited joint is left intact.
         expect(jointChangedOrGone(world, e, world.getWorldTick())).toBe(false);
@@ -70,7 +70,7 @@ describe('jointPartnerGone', () => {
         const world = testWorld();
         const owner = world.spawn();
         const partner = world.spawn();
-        world.insert(owner, RevoluteJoint2D, { connectedEntity: partner } as never);
+        world.insert(owner, HingeJoint2D, { connectedEntity: partner } as never);
         expect(jointPartnerGone(world, owner, new Set([owner, partner]))).toBe(false);
     });
 
@@ -78,7 +78,7 @@ describe('jointPartnerGone', () => {
         const world = testWorld();
         const owner = world.spawn();
         const partner = world.spawn();
-        world.insert(owner, RevoluteJoint2D, { connectedEntity: partner } as never);
+        world.insert(owner, HingeJoint2D, { connectedEntity: partner } as never);
         // Partner despawned → no longer tracked; the joint (auto-destroyed by
         // Box2D) must be re-established, not left silently dead forever.
         expect(jointPartnerGone(world, owner, new Set([owner]))).toBe(true);

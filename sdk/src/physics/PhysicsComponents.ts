@@ -258,7 +258,7 @@ export const OneWayPlatform2D = defineComponent<OneWayPlatform2DData>('OneWayPla
 // Joint Components
 // =============================================================================
 
-export interface RevoluteJoint2DData {
+export interface HingeJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -272,7 +272,7 @@ export interface RevoluteJoint2DData {
     enabled: boolean;
 }
 
-export const RevoluteJoint2D = defineComponent<RevoluteJoint2DData>('RevoluteJoint2D', {
+export const HingeJoint2D = defineComponent<HingeJoint2DData>('HingeJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -322,7 +322,7 @@ export const DistanceJoint2D = defineComponent<DistanceJoint2DData>('DistanceJoi
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface PrismaticJoint2DData {
+export interface SliderJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -340,7 +340,7 @@ export interface PrismaticJoint2DData {
     enabled: boolean;
 }
 
-export const PrismaticJoint2D = defineComponent<PrismaticJoint2DData>('PrismaticJoint2D', {
+export const SliderJoint2D = defineComponent<SliderJoint2DData>('SliderJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },
@@ -358,7 +358,7 @@ export const PrismaticJoint2D = defineComponent<PrismaticJoint2DData>('Prismatic
     enabled: true,
 }, { entityFields: ['connectedEntity'] });
 
-export interface WeldJoint2DData {
+export interface FixedJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
     anchorB: Vec2;
@@ -370,7 +370,7 @@ export interface WeldJoint2DData {
     enabled: boolean;
 }
 
-export const WeldJoint2D = defineComponent<WeldJoint2DData>('WeldJoint2D', {
+export const FixedJoint2D = defineComponent<FixedJoint2DData>('FixedJoint2D', {
     connectedEntity: -1,
     anchorA: { x: 0, y: 0 },
     anchorB: { x: 0, y: 0 },

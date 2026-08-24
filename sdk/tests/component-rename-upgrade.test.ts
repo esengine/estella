@@ -39,6 +39,21 @@ describe('a component renamed by an engine upgrade', () => {
         expect(componentsOf(data)[1]!.data).toEqual({ lit: true, layer: 3 });
     });
 
+    it('takes a joint all the way to the current name in one pass', () => {
+        // Two generations of spelling in one file, and the map is applied ONCE, so
+        // a chain has to be collapsed in it: stopping at the intermediate name
+        // leaves a component the loader has never heard of.
+        const { data, migrated } = migrateSceneData(sceneWith([
+            { type: 'RevoluteJoint', data: { connectedEntity: 4, enableMotor: true } },
+            { type: 'WeldJoint2D', data: { linearHertz: 30 } },
+            { type: 'PrismaticJoint2D', data: { lowerTranslation: -50 } },
+        ]));
+        expect(migrated).toBe(true);
+        expect(componentsOf(data).map((c) => c.type))
+            .toEqual(['HingeJoint2D', 'FixedJoint2D', 'SliderJoint2D']);
+        expect(componentsOf(data)[0]!.data).toEqual({ connectedEntity: 4, enableMotor: true });
+    });
+
     it('is idempotent — a file already using the new name is left alone', () => {
         const { migrated } = migrateSceneData(sceneWith([
             { type: 'Light', data: { type: 2 } },

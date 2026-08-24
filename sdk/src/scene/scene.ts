@@ -310,8 +310,11 @@ export async function expandScenePrefabs(
  *    (`RigidBody` → `RigidBody2D`, the four colliders, `CharacterController`).
  *    Same reasoning as 2, and worse here: an older engine drops the bodies and
  *    loads a level whose floor nothing collides with.
+ * 4: the flat joints took the 3D set's words, which are also the industry's
+ *    (`RevoluteJoint2D` → `HingeJoint2D`, prismatic → slider, weld → fixed).
+ *    Same reasoning again: dropped joints load a machine whose parts fall apart.
  */
-export const SCENE_FORMAT_VERSION = 3;
+export const SCENE_FORMAT_VERSION = 4;
 
 export interface SceneMigrationResult {
     /** A migrated *copy* — the input is never mutated. */

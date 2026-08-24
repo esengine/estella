@@ -22,12 +22,12 @@ import { Physics2D } from './Physics2D';
 import {
     RigidBody2D, BoxCollider2D, CircleCollider2D, CapsuleCollider2D,
     SegmentCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D,
-    RevoluteJoint2D, DistanceJoint2D, PrismaticJoint2D, WeldJoint2D, WheelJoint2D, MotorJoint2D,
+    HingeJoint2D, DistanceJoint2D, SliderJoint2D, FixedJoint2D, WheelJoint2D, MotorJoint2D,
     BodyType, activeCollider,
     type RigidBody2DData, type BoxCollider2DData, type CircleCollider2DData,
     type CapsuleCollider2DData, type SegmentCollider2DData, type PolygonCollider2DData,
-    type ChainCollider2DData, type OneWayPlatform2DData, type RevoluteJoint2DData,
-    type DistanceJoint2DData, type PrismaticJoint2DData, type WeldJoint2DData, type WheelJoint2DData,
+    type ChainCollider2DData, type OneWayPlatform2DData, type HingeJoint2DData,
+    type DistanceJoint2DData, type SliderJoint2DData, type FixedJoint2DData, type WheelJoint2DData,
     type MotorJoint2DData,
 } from './PhysicsComponents';
 import {
@@ -195,11 +195,11 @@ function createPendingJoints(
     trackedJoints: Set<Entity>,
     invPpu: number,
 ): void {
-    const jointEntities = world.getEntitiesWithComponents([RevoluteJoint2D, RigidBody2D]);
+    const jointEntities = world.getEntitiesWithComponents([HingeJoint2D, RigidBody2D]);
     for (const entity of jointEntities) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const joint = world.get(entity, RevoluteJoint2D) as RevoluteJoint2DData;
+        const joint = world.get(entity, HingeJoint2D) as HingeJoint2DData;
         if (!joint.enabled) continue;
         const connected = joint.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -234,10 +234,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([PrismaticJoint2D, RigidBody2D])) {
+    for (const entity of world.getEntitiesWithComponents([SliderJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, PrismaticJoint2D) as PrismaticJoint2DData;
+        const j = world.get(entity, SliderJoint2D) as SliderJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -254,10 +254,10 @@ function createPendingJoints(
         trackedJoints.add(entity);
     }
 
-    for (const entity of world.getEntitiesWithComponents([WeldJoint2D, RigidBody2D])) {
+    for (const entity of world.getEntitiesWithComponents([FixedJoint2D, RigidBody2D])) {
         if (trackedJoints.has(entity)) continue;
         if (!trackedEntities.has(entity)) continue;
-        const j = world.get(entity, WeldJoint2D) as WeldJoint2DData;
+        const j = world.get(entity, FixedJoint2D) as FixedJoint2DData;
         if (!j.enabled) continue;
         const connected = j.connectedEntity as Entity;
         if (!trackedEntities.has(connected)) continue;
@@ -622,7 +622,7 @@ const COLLIDER_TYPES = [
     BoxCollider2D, CircleCollider2D, CapsuleCollider2D, SegmentCollider2D, PolygonCollider2D, ChainCollider2D,
 ] as const;
 
-const JOINT_TYPES = [RevoluteJoint2D, DistanceJoint2D, PrismaticJoint2D, WeldJoint2D, WheelJoint2D, MotorJoint2D] as const;
+const JOINT_TYPES = [HingeJoint2D, DistanceJoint2D, SliderJoint2D, FixedJoint2D, WheelJoint2D, MotorJoint2D] as const;
 
 /** Bitmask of which collider components an entity currently has. @internal */
 export function colliderSignature(world: App['world'], entity: Entity): number {

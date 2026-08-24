@@ -122,9 +122,9 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   CharacterController2D: { category: 'physics', summary: 'Kinematic character movement that slides along walls, climbs slopes and reports ground contact.', doc: 'gameplay/physics', anchor: 'character-controller', anchorZh: '角色控制器' },
   OneWayPlatform2D: { category: 'physics', summary: 'Makes a collider solid from one side only, so a body passes up through it and lands on top.', doc: 'gameplay/physics', anchor: 'one-way-platforms', anchorZh: '单向平台' },
   DistanceJoint2D: { category: 'physics', summary: 'Holds two bodies a fixed (or spring-limited) distance apart.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
-  RevoluteJoint2D: { category: 'physics', summary: 'Pins two bodies at a point and lets them rotate — a hinge, with optional limits and a motor.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
-  PrismaticJoint2D: { category: 'physics', summary: 'Constrains two bodies to slide along one axis — a piston or lift.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
-  WeldJoint2D: { category: 'physics', summary: 'Locks two bodies rigidly together, with optional spring give.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
+  HingeJoint2D: { category: 'physics', summary: 'Pins two bodies at a point and lets them rotate — a hinge, with optional limits and a motor.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
+  SliderJoint2D: { category: 'physics', summary: 'Constrains two bodies to slide along one axis — a piston or lift.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
+  FixedJoint2D: { category: 'physics', summary: 'Locks two bodies rigidly together, with optional spring give.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
   MotorJoint2D: { category: 'physics', summary: 'Drives one body toward a target offset and angle — moving platforms and conveyors.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
   WheelJoint2D: { category: 'physics', summary: 'A suspension axis plus a spinning axle — the wheel half of a vehicle.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
 

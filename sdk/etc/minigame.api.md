@@ -3155,6 +3155,11 @@ type: "filter"
 { identityMatrix(): number[]; grayscaleMatrix(): number[]; sepiaMatrix(): number[]; brightnessMatrix(value: number): number[]; contrastMatrix(value: number): number[]; saturationMatrix(value: number): number[]; invertMatrix(): number[]; getColorMatrixShader: () => ShaderHandle; colorMatrixUniforms(matrix: number[]): Record<string, number[]>; }
 ```
 
+## FixedJoint2D — const @experimental
+```
+ComponentDef<FixedJoint2DData>
+```
+
 ## FixedJoint3D — const @experimental
 ```
 ComponentDef<FixedJoint3DData>
@@ -3600,6 +3605,11 @@ static prototype: GridLayoutProvider
 ```
 plugins: Plugin[] | undefined
 sideModules: SideModuleHost | undefined
+```
+
+## HingeJoint2D — const @experimental
+```
+ComponentDef<HingeJoint2DData>
 ```
 
 ## HingeJoint3D — const @experimental
@@ -6220,11 +6230,6 @@ static new (): PrefabsPlugin
 static prototype: PrefabsPlugin
 ```
 
-## PrismaticJoint2D — const @experimental
-```
-ComponentDef<PrismaticJoint2DData>
-```
-
 ## ProbedRegistrations — interface @experimental
 ```
 fingerprint: string
@@ -6733,11 +6738,6 @@ type: "reverb"
 wet: number | undefined
 ```
 
-## RevoluteJoint2D — const @experimental
-```
-ComponentDef<RevoluteJoint2DData>
-```
-
 ## RichTextRun — type @experimental
 ```
 TextSegment | ImageSegment
@@ -6842,7 +6842,7 @@ ComponentDef<{}>
 
 ## SCENE_FORMAT_VERSION — const @experimental
 ```
-3
+4
 ```
 
 ## SCREEN_FIT_OFF — const @experimental
@@ -7414,6 +7414,11 @@ getValue: () => number
 handleEntity: number
 setValue: (value: number) => void
 trackEntity: number
+```
+
+## SliderJoint2D — const @experimental
+```
+ComponentDef<SliderJoint2DData>
 ```
 
 ## SliderJoint3D — const @experimental
@@ -9460,11 +9465,6 @@ features: { has(name: string): boolean; } | undefined
 adapter: string | undefined
 device: unknown
 reason: string | undefined
-```
-
-## WeldJoint2D — const @experimental
-```
-ComponentDef<WeldJoint2DData>
 ```
 
 ## WheelJoint2D — const @experimental

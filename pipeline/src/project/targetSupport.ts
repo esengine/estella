@@ -42,7 +42,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     physics: [
         'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'SegmentCollider2D',
         'PolygonCollider2D', 'ChainCollider2D', 'OneWayPlatform2D', 'CharacterController2D',
-        'RevoluteJoint2D', 'DistanceJoint2D', 'PrismaticJoint2D', 'WeldJoint2D', 'WheelJoint2D', 'MotorJoint2D',
+        'HingeJoint2D', 'DistanceJoint2D', 'SliderJoint2D', 'FixedJoint2D', 'WheelJoint2D', 'MotorJoint2D',
     ],
     spine: ['SpineAnimation'],
     video: ['Video'],

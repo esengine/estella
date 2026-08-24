@@ -246,8 +246,8 @@ const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
 
 *What each joint constrains: a **Revolute** hinge (rotate about a pin), a **Distance** spring/rod, a **Prismatic** slider (one axis), a rigid **Weld**, a **Wheel** (suspension + free spin), and a **Motor** (driven toward a target velocity).*
 
-Connect two bodies. Add a joint **component** (`RevoluteJoint2D`, `DistanceJoint2D`,
-`PrismaticJoint2D`, `WeldJoint2D`, `WheelJoint2D`, `MotorJoint2D`), or create one imperatively
+Connect two bodies. Add a joint **component** (`HingeJoint2D`, `DistanceJoint2D`,
+`SliderJoint2D`, `FixedJoint2D`, `WheelJoint2D`, `MotorJoint2D`), or create one imperatively
 and drive its motor / limits:
 
 ```typescript

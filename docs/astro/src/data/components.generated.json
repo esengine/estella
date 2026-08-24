@@ -1305,6 +1305,68 @@
       ]
     },
     {
+      "name": "FixedJoint2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "linearHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "angularHertz",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "linearDampingRatio",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "angularDampingRatio",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "linearHertz",
+        "angularHertz",
+        "linearDampingRatio",
+        "angularDampingRatio"
+      ]
+    },
+    {
       "name": "FixedJoint3D",
       "source": "ts",
       "fields": [
@@ -1467,6 +1529,78 @@
         "offsetZ",
         "deadzone",
         "damping"
+      ]
+    },
+    {
+      "name": "HingeJoint2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "maxMotorTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerAngle",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "upperAngle",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "motorSpeed",
+        "maxMotorTorque",
+        "lowerAngle",
+        "upperAngle"
       ]
     },
     {
@@ -2856,102 +2990,6 @@
       ]
     },
     {
-      "name": "PrismaticJoint2D",
-      "source": "ts",
-      "fields": [
-        {
-          "key": "connectedEntity",
-          "type": "Entity",
-          "default": "-1"
-        },
-        {
-          "key": "anchorA",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "anchorB",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "axis",
-          "type": "Vec2",
-          "default": "(1, 0)"
-        },
-        {
-          "key": "enableSpring",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "hertz",
-          "type": "number",
-          "default": "1"
-        },
-        {
-          "key": "dampingRatio",
-          "type": "number",
-          "default": "0.5"
-        },
-        {
-          "key": "enableLimit",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "lowerTranslation",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "upperTranslation",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "enableMotor",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "maxMotorForce",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "motorSpeed",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "collideConnected",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "enabled",
-          "type": "boolean",
-          "default": "true"
-        }
-      ],
-      "animatable": [
-        "connectedEntity",
-        "anchorA.x",
-        "anchorA.y",
-        "anchorB.x",
-        "anchorB.y",
-        "axis.x",
-        "axis.y",
-        "hertz",
-        "dampingRatio",
-        "lowerTranslation",
-        "upperTranslation",
-        "maxMotorForce",
-        "motorSpeed"
-      ]
-    },
-    {
       "name": "Replicated",
       "source": "ts",
       "fields": [
@@ -2969,78 +3007,6 @@
       "animatable": [
         "netId",
         "owner"
-      ]
-    },
-    {
-      "name": "RevoluteJoint2D",
-      "source": "ts",
-      "fields": [
-        {
-          "key": "connectedEntity",
-          "type": "Entity",
-          "default": "-1"
-        },
-        {
-          "key": "anchorA",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "anchorB",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "enableMotor",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "motorSpeed",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "maxMotorTorque",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "enableLimit",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "lowerAngle",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "upperAngle",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "collideConnected",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "enabled",
-          "type": "boolean",
-          "default": "true"
-        }
-      ],
-      "animatable": [
-        "connectedEntity",
-        "anchorA.x",
-        "anchorA.y",
-        "anchorB.x",
-        "anchorB.y",
-        "motorSpeed",
-        "maxMotorTorque",
-        "lowerAngle",
-        "upperAngle"
       ]
     },
     {
@@ -3327,6 +3293,102 @@
           "type": "boolean",
           "default": "true"
         }
+      ]
+    },
+    {
+      "name": "SliderJoint2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "connectedEntity",
+          "type": "Entity",
+          "default": "-1"
+        },
+        {
+          "key": "anchorA",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "anchorB",
+          "type": "Vec2",
+          "default": "(0, 0)"
+        },
+        {
+          "key": "axis",
+          "type": "Vec2",
+          "default": "(1, 0)"
+        },
+        {
+          "key": "enableSpring",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "hertz",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "dampingRatio",
+          "type": "number",
+          "default": "0.5"
+        },
+        {
+          "key": "enableLimit",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "lowerTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "upperTranslation",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enableMotor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "maxMotorForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "motorSpeed",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "collideConnected",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "connectedEntity",
+        "anchorA.x",
+        "anchorA.y",
+        "anchorB.x",
+        "anchorB.y",
+        "axis.x",
+        "axis.y",
+        "hertz",
+        "dampingRatio",
+        "lowerTranslation",
+        "upperTranslation",
+        "maxMotorForce",
+        "motorSpeed"
       ]
     },
     {
@@ -4870,68 +4932,6 @@
       "animatable": [
         "volume",
         "playbackRate"
-      ]
-    },
-    {
-      "name": "WeldJoint2D",
-      "source": "ts",
-      "fields": [
-        {
-          "key": "connectedEntity",
-          "type": "Entity",
-          "default": "-1"
-        },
-        {
-          "key": "anchorA",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "anchorB",
-          "type": "Vec2",
-          "default": "(0, 0)"
-        },
-        {
-          "key": "linearHertz",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "angularHertz",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "linearDampingRatio",
-          "type": "number",
-          "default": "1"
-        },
-        {
-          "key": "angularDampingRatio",
-          "type": "number",
-          "default": "1"
-        },
-        {
-          "key": "collideConnected",
-          "type": "boolean",
-          "default": "false"
-        },
-        {
-          "key": "enabled",
-          "type": "boolean",
-          "default": "true"
-        }
-      ],
-      "animatable": [
-        "connectedEntity",
-        "anchorA.x",
-        "anchorA.y",
-        "anchorB.x",
-        "anchorB.y",
-        "linearHertz",
-        "angularHertz",
-        "linearDampingRatio",
-        "angularDampingRatio"
       ]
     },
     {

@@ -177,6 +177,44 @@ minLength: number
 motorSpeed: number
 ```
 
+## FixedJoint2D — const @experimental
+```
+ComponentDef<FixedJoint2DData>
+```
+
+## FixedJoint2DData — interface @experimental
+```
+anchorA: Vec2
+anchorB: Vec2
+angularDampingRatio: number
+angularHertz: number
+collideConnected: boolean
+connectedEntity: number
+enabled: boolean
+linearDampingRatio: number
+linearHertz: number
+```
+
+## HingeJoint2D — const @experimental
+```
+ComponentDef<HingeJoint2DData>
+```
+
+## HingeJoint2DData — interface @experimental
+```
+anchorA: Vec2
+anchorB: Vec2
+collideConnected: boolean
+connectedEntity: number
+enableLimit: boolean
+enableMotor: boolean
+enabled: boolean
+lowerAngle: number
+maxMotorTorque: number
+motorSpeed: number
+upperAngle: number
+```
+
 ## MassData — interface @experimental
 ```
 centerOfMass: Vec2
@@ -539,56 +577,12 @@ restitution: number
 vertices: Vec2[]
 ```
 
-## PrismaticJoint2D — const @experimental
-```
-ComponentDef<PrismaticJoint2DData>
-```
-
-## PrismaticJoint2DData — interface @experimental
-```
-anchorA: Vec2
-anchorB: Vec2
-axis: Vec2
-collideConnected: boolean
-connectedEntity: number
-dampingRatio: number
-enableLimit: boolean
-enableMotor: boolean
-enableSpring: boolean
-enabled: boolean
-hertz: number
-lowerTranslation: number
-maxMotorForce: number
-motorSpeed: number
-upperTranslation: number
-```
-
 ## RaycastHit — interface @experimental
 ```
 entity: number
 fraction: number
 normal: Vec2
 point: Vec2
-```
-
-## RevoluteJoint2D — const @experimental
-```
-ComponentDef<RevoluteJoint2DData>
-```
-
-## RevoluteJoint2DData — interface @experimental
-```
-anchorA: Vec2
-anchorB: Vec2
-collideConnected: boolean
-connectedEntity: number
-enableLimit: boolean
-enableMotor: boolean
-enabled: boolean
-lowerAngle: number
-maxMotorTorque: number
-motorSpeed: number
-upperAngle: number
 ```
 
 ## RigidBody2D — const @experimental
@@ -648,22 +642,28 @@ nx: number
 ny: number
 ```
 
-## WeldJoint2D — const @experimental
+## SliderJoint2D — const @experimental
 ```
-ComponentDef<WeldJoint2DData>
+ComponentDef<SliderJoint2DData>
 ```
 
-## WeldJoint2DData — interface @experimental
+## SliderJoint2DData — interface @experimental
 ```
 anchorA: Vec2
 anchorB: Vec2
-angularDampingRatio: number
-angularHertz: number
+axis: Vec2
 collideConnected: boolean
 connectedEntity: number
+dampingRatio: number
+enableLimit: boolean
+enableMotor: boolean
+enableSpring: boolean
 enabled: boolean
-linearDampingRatio: number
-linearHertz: number
+hertz: number
+lowerTranslation: number
+maxMotorForce: number
+motorSpeed: number
+upperTranslation: number
 ```
 
 ## WheelJoint2D — const @experimental
