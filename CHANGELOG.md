@@ -38,6 +38,18 @@ published separately; it ships inside the editor.
   services. The table said what a creator can build on and its gate read it only
   forwards, so a whole dimension could ship with no row naming it.
 
+### Changed
+
+- **The two physics worlds named the same joint differently**, each after its own
+  solver: Box2D says revolute/prismatic/weld, Jolt says hinge/slider/fixed, so a
+  hinge answered to `RevoluteJoint2D` or `HingeJoint3D` depending on which plane
+  it was in. The flat set takes the solid one's words — `HingeJoint2D`,
+  `SliderJoint2D`, `FixedJoint2D` — which are also what Unity and Godot call
+  them. `MotorJoint2D` and `WheelJoint2D` keep their names, having no 3D twin to
+  disagree with, and the Box2D binding layer keeps the solver's own vocabulary.
+  **Scene format 4**; both earlier spellings migrate, and a pre-suffix
+  `RevoluteJoint` reaches the current name in the single pass migration makes.
+
 ### Fixed
 
 - **A motion trail was drawn flat, at the wrong depth.** `TrailPoint` stored a
