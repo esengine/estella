@@ -23,14 +23,17 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { legacyAtTier, ROOT } from './goldenProjects.mjs';
 import { runTool } from './lib/runTool.mjs';
 
 // The migration's own tables, not a copy: a renamed component is not a lost one
 // and a retired one is deliberately dropped, so comparing released spellings
 // against opened ones without them reads every rename as content loss.
+// pathToFileURL, not the bare path: `import()` of an absolute Windows path is
+// not a valid specifier, and this file has no other reason to be read there.
 const { RENAMED_COMPONENT_TYPES, RETIRED_COMPONENT_TYPES } =
-  await import(path.join(ROOT, 'sdk', 'dist', 'index.js'));
+  await import(pathToFileURL(path.join(ROOT, 'sdk', 'dist', 'index.js')).href);
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => {
