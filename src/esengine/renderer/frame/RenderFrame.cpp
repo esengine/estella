@@ -821,9 +821,9 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     return true;
 }
 
-/// The world box every GPU-resident mesh occupies, or false when none does — what
-/// a shadow map has to cover, casters and receivers alike. Rotation is ignored,
-/// the same approximation MeshPlugin's own cull uses.
+/// The world box every GPU-resident mesh occupies, or false when none does — what a
+/// shadow map covers, and what a face is tested against before it gathers. Each mesh
+/// contributes the box MeshPlugin culls it by, so a frustum missing this misses all.
 bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax) {
     auto meshes = registry.view<ecs::Transform, ecs::MeshRenderer>();
     bool any = false;
@@ -834,10 +834,9 @@ bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, gl
         if (!resident) continue;
         auto& transform = meshes.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
-        const glm::vec3 scale = transform.worldScale;
-        const glm::vec3 centre = transform.worldPosition
-                               + (resident->localMin + resident->localMax) * 0.5f * scale;
-        const glm::vec3 half = glm::abs((resident->localMax - resident->localMin) * 0.5f * scale);
+        glm::vec3 centre(0.0f), half(0.0f);
+        orientedWorldAabb(transform.worldPosition, transform.worldRotation, transform.worldScale,
+                          resident->localMin, resident->localMax, centre, half);
         outMin = any ? glm::min(outMin, centre - half) : centre - half;
         outMax = any ? glm::max(outMax, centre + half) : centre + half;
         any = true;
@@ -997,6 +996,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     // face that stopped being skipped would look exactly like one that never was.
     u32 shadowTiles = 0;
     u32 shadowDraws = 0;
+    u32 shadowCollects = 0;
 
     for (usize ci = 0; ci < shadow_casters_.size(); ++ci) {
         const ShadowCaster& caster = shadow_casters_[ci];
@@ -1094,11 +1094,20 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // is derived there out of this matrix and the size of the square.
             tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex);
 
+            view_projection_ = projection;
+            frustum_.extractFromMatrix(projection);
+            // A face whose frustum misses the whole of the geometry gathers nothing, and
+            // asking each mesh in turn is the only way to find that out otherwise. The
+            // box every mesh is inside answers it once, for the price of one test.
+            if (haveBounds && !frustum_.intersectsAABB((boundsMin + boundsMax) * 0.5f,
+                                                       (boundsMax - boundsMin) * 0.5f)) {
+                continue;
+            }
+            ++shadowCollects;
+
             // What the tile would hold, gathered before a pass is opened for it. Only
             // the plugins that cast are asked: a map holds depth, and everything else
             // would write colour into a texture every receiver reads back as one.
-            view_projection_ = projection;
-            frustum_.extractFromMatrix(projection);
             pool_.beginFrame();
             draw_list_.clear();
 
@@ -1153,6 +1162,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
 
     ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
     ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
+    ES_PROFILE_COUNTER("render.shadow.collects", shadowCollects);
 
     rt->unbind();
     device_.invalidatePipelineCache();

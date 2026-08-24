@@ -15,6 +15,8 @@
 #include "../resource/ResourceManager.hpp"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_access.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <cmath>
 
@@ -114,6 +116,28 @@ inline glm::vec2 flatTurnZ(const glm::quat& rotation) {
     if (n <= 1e-12f) return {1.0f, 0.0f};
     return {(rotation.w * rotation.w - rotation.z * rotation.z) / n,
             2.0f * rotation.w * rotation.z / n};
+}
+
+/**
+ * @brief The world AABB of a turned box: its centre and half-extents, from a local
+ *        box and the position, rotation and scale that place it.
+ *
+ * @details Each axis takes |R| * halfExtents, which is exact for a box. One function
+ *          because two things derive it — a mesh's cull and a shadow map's fit — and
+ *          a rotation dropped from either bounds a model by a box smaller than itself.
+ */
+inline void orientedWorldAabb(const glm::vec3& position, const glm::quat& rotation,
+                              const glm::vec3& scale, const glm::vec3& localMin,
+                              const glm::vec3& localMax, glm::vec3& outCentre,
+                              glm::vec3& outHalf) {
+    const glm::mat3 basis = glm::mat3_cast(rotation);
+    const glm::vec3 scaledHalf = glm::abs((localMax - localMin) * 0.5f * scale);
+    outCentre = position + basis * ((localMin + localMax) * 0.5f * scale);
+    outHalf = {
+        glm::dot(glm::abs(glm::row(basis, 0)), scaledHalf),
+        glm::dot(glm::abs(glm::row(basis, 1)), scaledHalf),
+        glm::dot(glm::abs(glm::row(basis, 2)), scaledHalf),
+    };
 }
 
 /**

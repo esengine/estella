@@ -178,7 +178,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         if (!mesh.enabled || (mesh.indices.empty() && !mesh.mesh.isValid())) continue;
 
         auto& transform = meshView.get<ecs::Transform>(entity);
-        glm::vec3 position = parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
+        // Parallax is a CAMERA trick — a renderable shifted toward the view centre to
+        // scroll slower. A shadow pass looks from a light, whose centre means nothing to
+        // it, and its map is fitted to unshifted bounds: a caster stands where it is.
+        transform.ensureDecomposed();
+        const glm::vec3 position = ctx.shadow_pass
+            ? transform.worldPosition
+            : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
@@ -193,19 +199,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
         const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
-        // The world AABB of the ORIENTED box: each axis takes |R| * halfExtents,
-        // exact for a box. Ignoring the rotation bounds a turned model by a box
-        // smaller than itself, so it vanishes while still partly on screen.
-        const glm::vec3 localCenter = (localMin + localMax) * 0.5f;
-        const glm::vec3 localHalf = (localMax - localMin) * 0.5f;
-        const glm::mat3 basis = glm::mat3_cast(rotation);
-        const glm::vec3 scaledHalf = glm::abs(localHalf * scale);
-        const glm::vec3 aabbCenter = position + basis * (localCenter * scale);
-        const glm::vec3 halfExtents{
-            glm::dot(glm::abs(glm::row(basis, 0)), scaledHalf),
-            glm::dot(glm::abs(glm::row(basis, 1)), scaledHalf),
-            glm::dot(glm::abs(glm::row(basis, 2)), scaledHalf),
-        };
+        glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
+        orientedWorldAabb(position, rotation, scale, localMin, localMax, aabbCenter, halfExtents);
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) continue;
 
         u32 textureId = ctx.white_texture_id;

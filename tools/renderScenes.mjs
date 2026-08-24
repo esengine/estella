@@ -110,6 +110,10 @@ export const SCENES = [
   // sprite stands opposite a mesh blocker, both between lamp and floor: black unpacks as
   // depth 0, so a collected sprite would shadow its half — which has to come back lit.
   { id: "shadow-map-meshes-only", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/shadow-map-meshes-only.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":20},{\"x\":0.833,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.667,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
+  // A lamp with every mesh off to one side. Four of its six faces miss the box the whole
+  // of the geometry sits in and never gather at all; a fifth gathers and comes back empty.
+  // Both skips are invisible in a pixel, which is what the two counters are here for.
+  { id: "point-shadow-offset", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow-offset.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.tiles\":2,\"render.shadow.collects\":3}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.20,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.35,\"y\":0.5,\"rgb\":[135,135,135],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[191,191,191],\"tol\":25},{\"x\":0.6,\"y\":0.5,\"rgb\":[173,173,173],\"tol\":25}]" } },
   // TWO point lights, which nothing else in the corpus has: twelve faces claimed from a
   // sixteen-cell atlas, ten of them drawn. The dark probes are dim and not black because the
   // far lamp reaches that floor past the near blocker — the second map read, not a leak.
