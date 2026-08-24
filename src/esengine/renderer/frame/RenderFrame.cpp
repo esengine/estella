@@ -378,7 +378,10 @@ void RenderFrame::flush() {
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
         const auto& cmd = draw_list_.command(i);
-        stats_.triangles += cmd.index_count / 3;
+        // An instanced command holds ONE copy of the geometry and draws it
+        // instance_count times; a batched one merged its indices in already. The
+        // multiply is what stops the number meaning two things on the two paths.
+        stats_.triangles += (cmd.index_count / 3) * (cmd.instance_count ? cmd.instance_count : 1);
         switch (cmd.type) {
         case RenderType::Sprite:
         case RenderType::UIElement:
@@ -399,6 +402,11 @@ void RenderFrame::flush() {
 
     ES_PROFILE_COUNTER("render.culled", stats_.culled);
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
+    // The 3D path had no counter at all, and its cost is the one a pixel hides
+    // best: identical geometry drawn N times merges into ONE instanced call, so
+    // batch.draws does not move when a cull stops working. These two do.
+    ES_PROFILE_COUNTER("render.meshes", stats_.meshes);
+    ES_PROFILE_COUNTER("render.triangles", stats_.triangles);
     ES_PROFILE_COUNTER("render.text", stats_.text);
     ES_PROFILE_COUNTER("render.shapes", stats_.shapes);
 #ifdef ES_ENABLE_PARTICLES
@@ -1255,6 +1263,11 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
                                     computeCameraView(ctx.view_projection)};
     collectSky(collectCtx);
     for (auto& plugin : plugins_) plugin->collect(collectCtx);
+
+    // The other half of what the frame cost: what it did NOT draw. Accumulated
+    // like the per-type counts beside it, so a frame composited from several
+    // cameras reports every cull each of them made.
+    stats_.culled += collectCtx.culled;
 
     // OR-ed across the frame's cameras, applied at the next beginFrame and never
     // mid-frame: the capture is scratch each camera composites out of, and the

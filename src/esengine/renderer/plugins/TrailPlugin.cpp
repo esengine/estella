@@ -76,7 +76,7 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec3 aabbCenter((minX + maxX) * 0.5f, (minY + maxY) * 0.5f, headWorld.z);
         glm::vec3 halfExtents((maxX - minX) * 0.5f + maxHalf,
                               (maxY - minY) * 0.5f + maxHalf, 0.0f);
-        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) continue;
+        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) { ++collect_ctx.culled; continue; }
 
         // --- Draw key (mirrors MeshPlugin: material owns shading when present). ------
         u32 textureId = ctx.white_texture_id;

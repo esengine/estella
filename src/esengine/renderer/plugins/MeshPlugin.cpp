@@ -201,7 +201,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin, localMax, aabbCenter, halfExtents);
-        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) continue;
+        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) { ++collect_ctx.culled; continue; }
 
         u32 textureId = ctx.white_texture_id;
         if (mesh.texture.isValid()) {

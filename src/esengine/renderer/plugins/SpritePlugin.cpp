@@ -47,6 +47,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec3 halfExtents = flatHalfExtents(
             turn, glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f);
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
+            ++collect_ctx.culled;
             continue;
         }
 

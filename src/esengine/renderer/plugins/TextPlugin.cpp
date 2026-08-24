@@ -163,6 +163,7 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
             0.0f
         );
         if (!frustum.intersectsAABB(position, halfExtents)) {
+            ++collect_ctx.culled;
             continue;
         }
 

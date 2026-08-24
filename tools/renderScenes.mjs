@@ -155,6 +155,10 @@ export const SCENES = [
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
   // reads 155 at -25 against 236 at its middle, which a flat quad could not.
   { id: "mesh-instanced", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_DRAW_CALLS: "1", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.25,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.25,\"y\":0.75,\"rgb\":[0,0,255],\"tol\":20},{\"x\":0.75,\"y\":0.75,\"rgb\":[255,255,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // What the frame COST: nine cubes inside the ortho view and six a thousand units out,
+  // same mesh and same material, so render.culled is the only place the six can show.
+  // batch.draws holds the nine to ONE instanced call; render.triangles counts 9 x 12.
+  { id: "mesh-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-cost.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.meshes\":9,\"render.culled\":6,\"render.triangles\":108,\"batch.draws\":1}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.1667,\"y\":0.1667,\"rgb\":[255,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,255],\"tol\":20},{\"x\":0.8333,\"y\":0.8333,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.3,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":10}]" } },
   // Two opaque cubes overlapping on screen, the red one 120 units nearer. Declares NO
   // depth layer and boots LINEAR — the cheap way to engage the post-process capture.
   // Opaque sorts front-to-back, so with no attachment the far cube paints over.

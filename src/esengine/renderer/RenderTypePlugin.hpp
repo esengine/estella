@@ -93,6 +93,16 @@ struct RenderCollectContext {
     DrawList& draw_list;
     RenderFrameContext& frame_context;
     CameraView camera;
+
+    /**
+     * @brief How many renderables this collect's frustum rejected.
+     *
+     * @details Written by the plugins at their `continue`: a cull leaves no draw
+     *          and no pixel, so where it happens is the only place to count it.
+     *          Counts THIS collect — a shadow face has a context of its own, and
+     *          what its frustum skipped is `render.shadow.collects`.
+     */
+    u32 culled = 0;
 };
 
 /** @brief Decomposes @p transform and returns its world position shifted toward the

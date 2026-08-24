@@ -59,6 +59,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             flatTurnZ(rotation),
             glm::vec3(shape.size.x * scale.x, shape.size.y * scale.y, 0.0f) * 0.5f);
         if (!frustum.intersectsAABB(position, halfExtents)) {
+            ++collect_ctx.culled;
             continue;
         }
 

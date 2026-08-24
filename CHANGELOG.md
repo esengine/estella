@@ -14,7 +14,46 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The 3D path can be held to what it COST, not just to what it drew.**
+  `render.meshes` and `render.triangles` join the counters a pixel gate can pin
+  through `ESTELLA_VERIFY_COUNTERS`, and the new gate `mesh-cost` pins them: nine
+  50-unit cubes inside an ortho view, six more a thousand units out either side,
+  same mesh and same material — where they stand is the only thing that separates
+  them. It asserts 9 meshes, 6 culled, 108 triangles and ONE draw call.
+
+  Why a gate for numbers no pixel shows: with the mesh frustum cull disabled
+  entirely, `mesh-instanced`, `mesh-shadow` and `mesh-builtin` all still pass.
+  Measured, not argued — the whole 3D corpus is blind to a cull that stopped
+  working, because instancing merges the extra geometry into the same one draw
+  call and the extra cubes land behind the ones in front. `mesh-cost` catches it
+  as 15 meshes and 0 culled. The other direction is a data sabotage: move one of
+  the six off-screen cubes in behind a visible one and all four pixel probes and
+  `batch.draws` still pass, while the three counters read 10 / 5 / 120.
+
 ### Fixed
+
+- **`render.culled` counted nothing, and had never counted anything.** It is
+  published every frame, read back by `renderer_getCulled()`, and printed in the
+  editor’s stats overlay as "Culled" — and `stats_.culled` had no `++` anywhere
+  in the engine, so all three read zero for every scene ever profiled. Six render
+  plugins cull (sprite, mesh, shape, text, trail, UI element) and not one of them
+  recorded doing it.
+
+  A cull is the one part of a frame’s cost that leaves no draw, no pixel and no
+  trace of itself, so the only place it can be counted is where it happens: the
+  collect context carries the tally and each plugin bumps it at its `continue`.
+  The camera’s collect only — a shadow face has a context of its own, and what
+  its frustum skipped is already `render.shadow.collects`.
+
+- **`triangles` meant two different things on the two draw paths.** A batched
+  command merges its indices in and draws once, so `index_count / 3` is the whole
+  truth for it; an instanced command holds ONE copy of the geometry and draws it
+  `instance_count` times, and counting its indices once under-reports by exactly
+  the factor instancing saved. Measured on `mesh-instanced`: four cubes reported
+  12 triangles, which is one cube. It reports 48 now, in the counter and in the
+  editor’s stats overlay.
 
 - **The editor grid stops changing plane mid-orbit.** Turning a 3D view down
   toward the horizon used to swap the grid off the ground and onto a vertical

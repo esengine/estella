@@ -90,7 +90,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         // `position` above already carries the turned offset, so only the extents do.
         glm::vec3 halfExtents = flatHalfExtents(
             flatTurnZ(rotation), glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f);
-        if (!frustum.intersectsAABB(position, halfExtents)) continue;
+        if (!frustum.intersectsAABB(position, halfExtents)) { ++collect_ctx.culled; continue; }
 
         f32 angle = 2.0f * std::atan2(rotation.z, rotation.w);
         i32 layer = UI_BASE_LAYER + renderer.uiOrder;
