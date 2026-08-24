@@ -15,9 +15,10 @@
  *   node tools/check-physics2d.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireCurrentModule } from './moduleBinary.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS = path.join(ROOT, 'sdk', 'tests');
@@ -43,19 +44,16 @@ if (orphans.length > 0) {
     process.exit(1);
 }
 
-// An unbuilt module is not a failed behaviour. The job that HAS the binary sets
-// ESTELLA_REQUIRE_WASM, so a build that stops arriving there fails rather than
-// skipping quietly.
-if (!existsSync(WASM)) {
-    if (process.env.ESTELLA_REQUIRE_WASM) {
-        console.error('check-physics2d: ESTELLA_REQUIRE_WASM is set but build/wasm/web/physics.wasm is absent.\n');
-        console.error('  node build-tools/cli.js build -t physics');
-        process.exit(1);
-    }
-    console.log('check-physics2d: build/wasm/web/physics.wasm is not built — skipped'
-        + ' (build it with `node build-tools/cli.js build -t physics`; CI sets ESTELLA_REQUIRE_WASM).');
-    process.exit(0);
-}
+// An unbuilt module is not a failed behaviour, and neither is one built before the
+// behaviour existed. Both mean no binary answers for this code — see moduleBinary.
+requireCurrentModule({
+    gate: 'check-physics2d',
+    wasm: WASM,
+    rel: 'build/wasm/web/physics.wasm',
+    sources: [path.join(ROOT, 'src', 'esengine', 'bindings', 'modules', 'physics'),
+        ...SMOKES.map((s) => path.join(TESTS, s))],
+    build: 'node build-tools/cli.js build -t physics',
+});
 
 let total = 0;
 for (const smoke of SMOKES) {

@@ -19,7 +19,7 @@
  * A machine that has never built native gets a note, not a green light.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DESKTOP_BUILD_DIR } from '../build-tools/tasks/native.js';
@@ -38,6 +38,14 @@ if (spawnSync('cmake', ['--version'], { stdio: 'ignore' }).status !== 0) skip('n
 const buildDir = path.join(ROOT, DESKTOP_BUILD_DIR[HOST]);
 if (!existsSync(path.join(buildDir, 'CMakeCache.txt'))) {
     skip(`no configured native tree (run \`node build-tools/cli.js native --target ${HOST}\` once)`);
+}
+
+// An MSVC tree builds only from a shell that has run vcvars. Without it CMake
+// cannot enable the language and cl cannot find `<cstdint>`, which reads exactly
+// like the engine failing to compile off emscripten and is not that.
+if (process.platform === 'win32' && !process.env.INCLUDE
+    && /^CMAKE_CXX_COMPILER:FILEPATH=.*cl\.exe$/im.test(readFileSync(path.join(buildDir, 'CMakeCache.txt'), 'utf8'))) {
+    skip('this shell has no MSVC environment (build from a Developer Command Prompt, or run vcvarsall first)');
 }
 
 const run = spawnSync('cmake', ['--build', buildDir, '--target', 'esengine'], { encoding: 'utf8' });

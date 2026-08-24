@@ -28,6 +28,29 @@ function linkDir(target: string, at: string): void {
   symlinkSync(target, at, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
+/** Can this machine make a plain file symlink at all? Probed rather than read off
+ *  `process.platform`: Windows refuses one without Developer Mode or elevation, and
+ *  the same Windows with Developer Mode on can make it. */
+function canSymlinkFiles(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'estella-linkprobe-'));
+  try {
+    const target = path.join(dir, 'target');
+    writeFileSync(target, 'probe');
+    symlinkSync(target, path.join(dir, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The three cases below need a file symlink to EXIST before they can assert it is
+ *  refused; without the privilege they redden on the fixture, saying nothing about
+ *  the cook. Skipping is not passing, so CI runs them whatever the probe says — a
+ *  runner that quietly loses the privilege goes red, not green. */
+const RUN_FILE_LINK_TESTS = Boolean(process.env.CI) || canSymlinkFiles();
+
 interface Fixture { base: string; root: string; outsideFile: string }
 
 function makeProject(): Fixture {
@@ -63,7 +86,7 @@ function writeScene(root: string, texUuid: string): string {
 }
 
 describe('a link out of the project reaches neither the index nor the build', () => {
-  it('a linked content file is not indexed, with or without a sidecar', async () => {
+  it.skipIf(!RUN_FILE_LINK_TESTS)('a linked content file is not indexed, with or without a sidecar', async () => {
     const { base, root, outsideFile } = makeProject();
     try {
       symlinkSync(outsideFile, path.join(root, 'assets', 'textures', 'adopted.png'));
@@ -95,7 +118,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
     }
   });
 
-  it('a scene referencing a linked texture ships without its bytes', async () => {
+  it.skipIf(!RUN_FILE_LINK_TESTS)('a scene referencing a linked texture ships without its bytes', async () => {
     const { base, root, outsideFile } = makeProject();
     try {
       const leak = path.join(root, 'assets', 'textures', 'leak.png');
@@ -117,7 +140,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
     }
   });
 
-  it('a link that stays inside the project still works', async () => {
+  it.skipIf(!RUN_FILE_LINK_TESTS)('a link that stays inside the project still works', async () => {
     const { base, root } = makeProject();
     try {
       const real = path.join(root, 'assets', 'textures', 'real.png');

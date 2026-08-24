@@ -17,27 +17,23 @@
  *   node tools/check-physics3d.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireCurrentModule } from './moduleBinary.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SMOKE = path.join(ROOT, 'sdk', 'tests', 'physics3d-smoke.mjs');
 const WASM = path.join(ROOT, 'build', 'wasm', 'web', 'physics3d.wasm');
 
-// An unbuilt module is not a failed behaviour. The job that HAS the binary sets
-// ESTELLA_REQUIRE_WASM, so a build that stops arriving there fails rather than
-// skipping quietly.
-if (!existsSync(WASM)) {
-    if (process.env.ESTELLA_REQUIRE_WASM) {
-        console.error('check-physics3d: ESTELLA_REQUIRE_WASM is set but build/wasm/web/physics3d.wasm is absent.\n');
-        console.error('  node build-tools/cli.js build -t physics3d');
-        process.exit(1);
-    }
-    console.log('check-physics3d: build/wasm/web/physics3d.wasm is not built — skipped'
-        + ' (build it with `node build-tools/cli.js build -t physics3d`; CI sets ESTELLA_REQUIRE_WASM).');
-    process.exit(0);
-}
+// An unbuilt module is not a failed behaviour, and neither is one built before the
+// behaviour existed. Both mean no binary answers for this code — see moduleBinary.
+requireCurrentModule({
+    gate: 'check-physics3d',
+    wasm: WASM,
+    rel: 'build/wasm/web/physics3d.wasm',
+    sources: [path.join(ROOT, 'src', 'esengine', 'bindings', 'modules', 'physics3d'), SMOKE],
+    build: 'node build-tools/cli.js build -t physics3d',
+});
 
 const run = spawnSync(process.execPath, [SMOKE], { cwd: ROOT, encoding: 'utf8' });
 if (run.status !== 0) {
