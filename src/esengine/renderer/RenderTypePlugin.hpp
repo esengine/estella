@@ -133,6 +133,15 @@ public:
     virtual void init(RenderFrameContext& ctx) { (void)ctx; }
     virtual void shutdown() {}
 
+    /**
+     * @brief Whether what this plugin draws belongs in a shadow map.
+     *
+     * @details A map holds depth written from the light, and only geometry drawn
+     *          through the depth-only variant writes any. Anything else reaches
+     *          the atlas as COLOUR, which every receiver then reads back as a
+     *          depth — so the default is no, and a plugin that casts says so.
+     */
+    virtual bool castsShadows() const { return false; }
 
     virtual void collect(RenderCollectContext& ctx) = 0;
 };

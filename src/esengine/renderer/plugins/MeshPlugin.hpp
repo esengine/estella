@@ -21,6 +21,9 @@ namespace esengine {
 class MeshPlugin : public RenderTypePlugin {
 public:
     void init(RenderFrameContext& ctx) override;
+    /// Resident geometry is the only thing the engine draws depth-only. A flat
+    /// renderable's shadow is ShadowCaster2D's to cast, not the map's.
+    bool castsShadows() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
 
 private:

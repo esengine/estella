@@ -992,12 +992,17 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     glm::vec4 tiles[MAX_SHADOW_TILES];
     bool cleared = false;
     bool anyTile = false;
+    // What the pass cost, for a profiler and the gates that pin it: the maps it
+    // actually rendered and the draws they took. Neither shows in a pixel, and a
+    // face that stopped being skipped would look exactly like one that never was.
+    u32 shadowTiles = 0;
+    u32 shadowDraws = 0;
 
     for (usize ci = 0; ci < shadow_casters_.size(); ++ci) {
         const ShadowCaster& caster = shadow_casters_[ci];
-        const TilePlan& mine = plan[ci];
+        const TilePlan mine = plan[ci];
         if (mine.count == 0) continue;
-        anyTile = true;
+        u32 drawnTiles = 0;
 
         for (u32 c = 0; c < mine.count; ++c) {
             const u32 tileIndex = mine.first + c;
@@ -1089,17 +1094,9 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // is derived there out of this matrix and the size of the square.
             tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex);
 
-            // A self-contained pass, in the shape renderToTarget uses: swap what the
-            // frame looks through, collect what casts, draw, hand the target back. The
-            // atlas is cleared once — white, which is depth 1 unpacked: nothing here.
-            RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/!cleared};
-            pass.clearDepth = !cleared;
-            pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
-            pass.clearColorValue[3] = 1.0f;
-            device_.beginRenderPass(pass);
-            cleared = true;
-            device_.setViewport(tile.x, tile.y, tile.size, tile.size);
-
+            // What the tile would hold, gathered before a pass is opened for it. Only
+            // the plugins that cast are asked: a map holds depth, and everything else
+            // would write colour into a texture every receiver reads back as one.
             view_projection_ = projection;
             frustum_.extractFromMatrix(projection);
             pool_.beginFrame();
@@ -1109,9 +1106,25 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             ctx.shadow_pass = true;
             RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_,
                                             ctx, computeCameraView(projection)};
-            for (auto& plugin : plugins_) plugin->collect(collectCtx);
-
+            for (auto& plugin : plugins_) {
+                if (plugin->castsShadows()) plugin->collect(collectCtx);
+            }
             draw_list_.finalize(pool_);
+            // A cube face pointing away from every mesh collects nothing, and a point
+            // light has six chances at that. The tile already holds what the atlas is
+            // cleared to — depth 1, nothing here — so a pass for it would agree at cost.
+            if (draw_list_.commandCount() == 0) continue;
+
+            // A self-contained pass, in the shape renderToTarget uses: swap what the frame
+            // looks through, draw, hand the target back. The first tile with anything in it
+            // clears the atlas — white, which is depth 1 unpacked: nothing here.
+            RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/!cleared};
+            pass.clearDepth = !cleared;
+            pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
+            pass.clearColorValue[3] = 1.0f;
+            device_.beginRenderPass(pass);
+            cleared = true;
+            device_.setViewport(tile.x, tile.y, tile.size, tile.size);
             pool_.upload();
             // Not a camera's: this projection spans exactly the occluders it draws, so
             // it sits inside either clip volume as built, and the depths it writes are
@@ -1123,8 +1136,23 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             context_.lights().uploadAndBind();
             draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
                                nullptr, context_.skinUbo());
+            ++drawnTiles;
+            shadowDraws += draw_list_.mergedDrawCallCount();
+        }
+
+        // A caster whose every tile came back empty has no map to read. Published
+        // anyway, its range would cost each of the fragments it lights a fetch that
+        // can only answer "nothing here".
+        if (drawnTiles == 0) {
+            plan[ci].count = 0;
+        } else {
+            shadowTiles += drawnTiles;
+            anyTile = true;
         }
     }
+
+    ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
+    ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
 
     rt->unbind();
     device_.invalidatePipelineCache();

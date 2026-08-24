@@ -307,6 +307,24 @@ const api = {
         };
     },
 
+    /** Engages the engine's per-frame scopes and counters. Off by default, and
+     *  asked for only by a gate that measures what a frame COST — the scopes are
+     *  timed work the frames a pixel assertion looks at should not carry. */
+    setCpuProfiling(on: boolean): void {
+        module?.engine_setCpuProfiling?.(on);
+    },
+
+    /** The counters (ES_PROFILE_COUNTER) of the last completed frame. Empty until
+     *  setCpuProfiling engages them, and empty for a counter that frame never set
+     *  — an absent name is "this frame did none of that", not zero. */
+    getCounters(): Record<string, number> {
+        try {
+            return JSON.parse(module?.engine_getCounters?.() ?? '{}') as Record<string, number>;
+        } catch {
+            return {};
+        }
+    },
+
     /** Runs the gameplay systems the authoring mode freezes. */
     setRunMode(playing: boolean): boolean {
         setEditorMode(!playing);

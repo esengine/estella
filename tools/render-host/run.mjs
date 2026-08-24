@@ -24,6 +24,7 @@
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
+ *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
@@ -150,7 +151,8 @@ function finish(result, server) {
   const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    (result.draws?.ok ?? true) && deviceLossOk && meshOk && pickOk;
+    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
+    deviceLossOk && meshOk && pickOk;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {
@@ -200,6 +202,11 @@ app.whenReady().then(async () => {
     // emission/simulation, animation — so time-driven content actually renders.
     if (process.env.ESTELLA_VERIFY_PLAY === '1') {
       await exec('window.__estellaHeadless.api.setRunMode(true)');
+    }
+    // The engine's per-frame counters are only recorded while profiling is on, and
+    // it goes on BEFORE the steps: what is read afterwards is the last frame's.
+    if (process.env.ESTELLA_VERIFY_COUNTERS) {
+      await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
     }
     // Project render config stand-in: ESTELLA_VERIFY_YSORT = layer bitmask
     // (Project Settings → Rendering → Y-sorted layers in a real project).
@@ -502,6 +509,18 @@ app.whenReady().then(async () => {
     const wantDrawCalls = process.env.ESTELLA_VERIFY_DRAW_CALLS;
     const draws = wantDrawCalls === undefined ? null
       : { want: Number(wantDrawCalls), got: drawCalls, ok: drawCalls === Number(wantDrawCalls) };
+    // What the frame cost where no draw call and no pixel can show it — the passes a
+    // shadow atlas took. ESTELLA_VERIFY_COUNTERS is a JSON object of counter name → exact
+    // value; a name the frame never set reports null, which fails rather than reading 0.
+    let counters = null;
+    if (process.env.ESTELLA_VERIFY_COUNTERS) {
+      const want = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS);
+      const got = await exec('window.__estellaHeadless.api.getCounters()');
+      const points = Object.entries(want).map(([name, value]) => ({
+        name, want: value, got: got?.[name] ?? null, ok: got?.[name] === value,
+      }));
+      counters = { points, ok: points.every((p) => p.ok) };
+    }
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of
     // { x, y, rgb:[r,g,b], tol? } where x,y are normalized [0,1] from the TOP-LEFT.
     // This is the guard the all-textures-upside-down upload bug would have tripped
@@ -657,7 +676,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, counters, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -102,10 +102,18 @@ export const SCENES = [
   // from the caster because a point light projects rather than sweeps; the probes either
   // side of x = 162 are its edge, and the caster is lit because it must not shadow itself.
   { id: "spot-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/spot-shadow.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/spot-shadow.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.7,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.8,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":25},{\"x\":0.25,\"y\":0.5,\"rgb\":[178,178,178],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[196,196,196],\"tol\":25}]" } },
-  // A POINT light opens no cone, so its map is a cube and a fragment is shadowed by the
-  // face it lands in. TWO shadows in two faces is what makes that choice visible: report
-  // one tile for every tile and both come back lit. The casters are probed as well.
-  { id: "point-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.833,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.333,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
+  // A POINT light opens no cone, so its map is a cube and a fragment is shadowed by the face
+  // it lands in: report one tile for every tile and both shadows come back lit. The casters
+  // are probed too, and the sixth face never renders — nothing above the lamp is a mesh.
+  { id: "point-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.tiles\":5}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.833,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.333,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
+  // A shadow map holds depth, so only geometry drawn depth-only belongs in one. A BLACK
+  // sprite stands opposite a mesh blocker, both between lamp and floor: black unpacks as
+  // depth 0, so a collected sprite would shadow its half — which has to come back lit.
+  { id: "shadow-map-meshes-only", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/shadow-map-meshes-only.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":20},{\"x\":0.833,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.667,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
+  // TWO point lights, which nothing else in the corpus has: twelve faces claimed from a
+  // sixteen-cell atlas, ten of them drawn. The dark probes are dim and not black because the
+  // far lamp reaches that floor past the near blocker — the second map read, not a leak.
+  { id: "point-shadow-pair", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow-pair.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.tiles\":10,\"render.shadow.draws\":10}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.15,\"y\":0.5,\"rgb\":[66,66,66],\"tol\":20},{\"x\":0.85,\"y\":0.5,\"rgb\":[66,66,66],\"tol\":20},{\"x\":0.25,\"y\":0.5,\"rgb\":[220,220,220],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":20}]" } },
   // A SUN WITH A SIZE: its source is infinitely far away, so what it carries is an angle
   // and not a length — the penumbra is tan(sourceAngle/2) times how far the caster stands
   // above what it falls on. One expectation for both backends: a real WebGPU driver lands
