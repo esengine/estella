@@ -225,9 +225,9 @@ app.whenReady().then(async () => {
     if (process.env.ESTELLA_VERIFY_YSORT) {
       await exec(`window.__estellaHeadless.api.setYSortLayers(${Number(process.env.ESTELLA_VERIFY_YSORT)})`);
     }
-    // ESTELLA_VERIFY_TRAIL = {"from":[x,y],"to":[x,y],"steps":N}: move the entity
-    // carrying a TrailRenderer along a world-space path, one frame per sample, so
-    // the trail system records points — motion a static scene can't express.
+    // ESTELLA_VERIFY_TRAIL = {"from":[x,y[,z]],"to":[x,y[,z]],"steps":N}: move the
+    // entity carrying a TrailRenderer along a world-space path, one frame per
+    // sample, so the trail system records points. A third component drives depth.
     // Requires play mode (ESTELLA_VERIFY_PLAY=1) for the trail update to run.
     // ESTELLA_VERIFY_MOVE = {"component":"TilemapLayer","to":[x,y],"steps":N}:
     // after the scene settles, teleport the first entity carrying the named
@@ -269,10 +269,11 @@ app.whenReady().then(async () => {
           if (e && e.components && e.components.some((c) => c.replace(/\\s+/g, '') === 'TrailRenderer')) { target = id; break; }
         }
         if (target == null) throw new Error('no TrailRenderer entity in scene');
-        const [fx, fy] = cfg.from, [tx, ty] = cfg.to, N = cfg.steps;
+        const [fx, fy, fz] = cfg.from, [tx, ty, tz] = cfg.to, N = cfg.steps;
         for (let i = 0; i <= N; i++) {
           const t = N === 0 ? 1 : i / N;
-          api.setEntityXY(target, fx + (tx - fx) * t, fy + (ty - fy) * t);
+          const z = fz === undefined ? undefined : fz + ((tz ?? fz) - fz) * t;
+          api.setEntityXY(target, fx + (tx - fx) * t, fy + (ty - fy) * t, z);
           await api.step(1, 1 / 60);
         }
       })()`);

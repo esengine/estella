@@ -241,19 +241,18 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
                 // 2 verts per point: t runs 0 at the faded zero-width tail (oldest) → 1
                 // at the full-width head carrying the particle's current colour.
-                // Widened in the scene's own plane, not toward the eye: the
-                // centreline carries depth, but a billboarded ribbon is a
-                // per-segment turn this vertex path has no room for.
+                // Widened along ribbonSide, so a trail whose centreline leaves the
+                // XY plane still presents its width to the viewer.
                 trail_verts_.clear();
-                glm::vec2 lastTangent(1.0f, 0.0f);
+                glm::vec3 lastTangent(1.0f, 0.0f, 0.0f);
+                glm::vec3 lastSide(0.0f, 1.0f, 0.0f);
                 for (int j = 0; j < n; ++j) {
                     const glm::vec3& a = trail_center_[j == 0 ? 0 : j - 1];
                     const glm::vec3& b = trail_center_[j + 1 == n ? j : j + 1];
-                    glm::vec2 seg = glm::vec2(b) - glm::vec2(a);
-                    f32 len = std::sqrt(seg.x * seg.x + seg.y * seg.y);
-                    glm::vec2 tangent = len > 1e-6f ? seg / len : lastTangent;
+                    glm::vec3 seg = b - a;
+                    f32 len = glm::length(seg);
+                    glm::vec3 tangent = len > 1e-6f ? seg / len : lastTangent;
                     lastTangent = tangent;
-                    glm::vec2 perp(-tangent.y, tangent.x);
 
                     f32 t = static_cast<f32>(j) / static_cast<f32>(n - 1);
                     f32 halfW = 0.5f * emitter.trailWidth * t;
@@ -262,8 +261,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                     u32 packed = packColor(col);
 
                     const glm::vec3& c = trail_center_[j];
-                    trail_verts_.push_back({{c.x + perp.x * halfW, c.y + perp.y * halfW, c.z}, packed, glm::vec2(1.0f - t, 0.0f)});
-                    trail_verts_.push_back({{c.x - perp.x * halfW, c.y - perp.y * halfW, c.z}, packed, glm::vec2(1.0f - t, 1.0f)});
+                    const glm::vec3 side = ribbonSide(tangent, c, collect_ctx.camera, lastSide);
+                    lastSide = side;
+                    trail_verts_.push_back({c + side * halfW, packed, glm::vec2(1.0f - t, 0.0f)});
+                    trail_verts_.push_back({c - side * halfW, packed, glm::vec2(1.0f - t, 1.0f)});
                 }
 
                 trail_indices_.clear();

@@ -24,7 +24,7 @@ namespace esengine::trail {
 
 /** @brief One recorded trail sample: a world position stamped with the sim clock. */
 struct TrailPoint {
-    glm::vec2 position{0.0f, 0.0f};
+    glm::vec3 position{0.0f, 0.0f, 0.0f};
     f32 birth_time = 0.0f;  ///< Value of TrailSystem::now() when recorded.
 };
 

@@ -433,12 +433,16 @@ const api = {
         Renderer.setYSortLayers(mask >>> 0);
     },
 
-    /** Moves an entity — the 2.5D and parallax gates drive the camera this way. */
-    setEntityXY(id: number, x: number, y: number): void {
+    /**
+     * Moves an entity — the 2.5D and parallax gates drive the camera this way.
+     * @p z is optional so a flat caller keeps whatever depth the scene gave it.
+     */
+    setEntityXY(id: number, x: number, y: number, z?: number): void {
         const entity = requireEntity(id);
         const t = app!.world.get(entity, Transform);
         t.position.x = x;
         t.position.y = y;
+        if (z !== undefined) t.position.z = z;
         app!.world.set(entity, Transform, t);
     },
 

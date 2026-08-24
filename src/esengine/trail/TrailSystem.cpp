@@ -22,7 +22,7 @@ void TrailSystem::update(ecs::Registry& registry, f32 dt) {
 
         auto& transform = view.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
-        glm::vec2 pos(transform.worldPosition.x, transform.worldPosition.y);
+        const glm::vec3& pos = transform.worldPosition;
 
         auto& state = states_[entity];
 
@@ -32,7 +32,7 @@ void TrailSystem::update(ecs::Registry& registry, f32 dt) {
         if (trail.emitting) {
             bool record = state.points.empty();
             if (!record) {
-                glm::vec2 d = pos - state.points.back().position;
+                glm::vec3 d = pos - state.points.back().position;
                 f32 md = trail.minVertexDistance;
                 record = glm::dot(d, d) >= md * md;
             }

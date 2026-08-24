@@ -42,12 +42,9 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
         // --- Build the centerline: anchors (oldest→newest), then the live head. -----
         const f32 invTime = trail.time > 1e-6f ? 1.0f / trail.time : 0.0f;
         scratch_center_.clear();
-        f32 minX = std::numeric_limits<f32>::max(), minY = minX;
-        f32 maxX = std::numeric_limits<f32>::lowest(), maxY = maxX;
-        auto extend = [&](const glm::vec2& p) {
-            minX = std::min(minX, p.x); minY = std::min(minY, p.y);
-            maxX = std::max(maxX, p.x); maxY = std::max(maxY, p.y);
-        };
+        glm::vec3 lo(std::numeric_limits<f32>::max());
+        glm::vec3 hi(std::numeric_limits<f32>::lowest());
+        auto extend = [&](const glm::vec3& p) { lo = glm::min(lo, p); hi = glm::max(hi, p); };
 
         for (const auto& pt : state->points) {
             f32 age01 = std::min(std::max((now - pt.birth_time) * invTime, 0.0f), 1.0f);
@@ -58,11 +55,10 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
         // anchors. Skip it when frozen (the streak fades where it was left) or when it
         // coincides with the newest anchor (avoids a degenerate zero-length segment).
         if (trail.emitting) {
-            glm::vec2 head(headWorld.x, headWorld.y);
-            glm::vec2 d = head - scratch_center_.back().pos;
+            glm::vec3 d = headWorld - scratch_center_.back().pos;
             if (glm::dot(d, d) > 1e-4f) {
-                scratch_center_.push_back({head, 0.0f});
-                extend(head);
+                scratch_center_.push_back({headWorld, 0.0f});
+                extend(headWorld);
             } else {
                 scratch_center_.back().age01 = 0.0f;
             }
@@ -73,9 +69,8 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
 
         // --- Cull against the frustum (centerline AABB padded by half the max width). -
         const f32 maxHalf = 0.5f * std::max(trail.startWidth, trail.endWidth);
-        glm::vec3 aabbCenter((minX + maxX) * 0.5f, (minY + maxY) * 0.5f, headWorld.z);
-        glm::vec3 halfExtents((maxX - minX) * 0.5f + maxHalf,
-                              (maxY - minY) * 0.5f + maxHalf, 0.0f);
+        const glm::vec3 aabbCenter = (lo + hi) * 0.5f;
+        const glm::vec3 halfExtents = (hi - lo) * 0.5f + maxHalf;
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) { ++collect_ctx.culled; continue; }
 
         // --- Draw key (mirrors MeshPlugin: material owns shading when present). ------
@@ -111,26 +106,26 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
         // --- Emit the ribbon: 2 verts per centerline point, 6 indices per segment. ---
         scratch_verts_.clear();
         scratch_verts_.reserve(n * 2);
-        glm::vec2 lastTangent(1.0f, 0.0f);
+        glm::vec3 lastTangent(1.0f, 0.0f, 0.0f);
+        glm::vec3 lastSide(0.0f, 1.0f, 0.0f);
         for (usize i = 0; i < n; ++i) {
             const TrailCenter& c = scratch_center_[i];
             // Central-difference tangent (forward/backward at the ends).
-            const glm::vec2& a = scratch_center_[i == 0 ? 0 : i - 1].pos;
-            const glm::vec2& b = scratch_center_[i + 1 == n ? i : i + 1].pos;
-            glm::vec2 seg = b - a;
-            f32 len = std::sqrt(seg.x * seg.x + seg.y * seg.y);
-            glm::vec2 tangent = len > 1e-6f ? seg / len : lastTangent;
+            const glm::vec3& a = scratch_center_[i == 0 ? 0 : i - 1].pos;
+            const glm::vec3& b = scratch_center_[i + 1 == n ? i : i + 1].pos;
+            glm::vec3 seg = b - a;
+            f32 len = glm::length(seg);
+            glm::vec3 tangent = len > 1e-6f ? seg / len : lastTangent;
             lastTangent = tangent;
-            glm::vec2 perp(-tangent.y, tangent.x);
+            const glm::vec3 side = ribbonSide(tangent, c.pos, collect_ctx.camera, lastSide);
+            lastSide = side;
 
             f32 halfW = 0.5f * (trail.startWidth + (trail.endWidth - trail.startWidth) * c.age01);
             u32 color = packColor(glm::mix(trail.startColor, trail.endColor, c.age01));
             f32 u = c.age01;  // U runs head(0)→tail(1) along the ribbon
 
-            glm::vec2 left = c.pos + perp * halfW;
-            glm::vec2 right = c.pos - perp * halfW;
-            scratch_verts_.push_back({{left, headWorld.z}, color, glm::vec2(u, 0.0f)});
-            scratch_verts_.push_back({{right, headWorld.z}, color, glm::vec2(u, 1.0f)});
+            scratch_verts_.push_back({c.pos + side * halfW, color, glm::vec2(u, 0.0f)});
+            scratch_verts_.push_back({c.pos - side * halfW, color, glm::vec2(u, 1.0f)});
         }
 
         scratch_indices_.clear();

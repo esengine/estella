@@ -108,6 +108,29 @@ struct RenderCollectContext {
 /** @brief Decomposes @p transform and returns its world position shifted toward the
  *         camera by (1 - parallax); factor 1 = no shift, 0 = screen-pinned. Applied
  *         before the frustum cull so a parallaxed renderable is culled where drawn. */
+/**
+ * @brief The direction the viewer lies in from @p worldPos, in CameraView::eye's
+ *        convention — the eye's own direction orthographically, where every point
+ *        shares it, and the vector to the eye under perspective.
+ */
+inline glm::vec3 towardViewer(const glm::vec3& worldPos, const CameraView& camera) {
+    return camera.eye.w < 0.5f ? glm::vec3(camera.eye) : glm::vec3(camera.eye) - worldPos;
+}
+
+/**
+ * @brief The side vector a ribbon widens along: perpendicular to both its path and
+ *        the viewer, so the strip faces the eye instead of lying in one plane.
+ * @details @p lastSide carries a segment aimed straight at the viewer — no width it
+ *          could see, so no side of its own. Flat scenes are the degenerate case:
+ *          the eye direction is +Z and this reduces to the XY perpendicular.
+ */
+inline glm::vec3 ribbonSide(const glm::vec3& tangent, const glm::vec3& worldPos,
+                            const CameraView& camera, const glm::vec3& lastSide) {
+    const glm::vec3 side = glm::cross(towardViewer(worldPos, camera), tangent);
+    const f32 len2 = glm::dot(side, side);
+    return len2 > 1e-12f ? side / std::sqrt(len2) : lastSide;
+}
+
 inline glm::vec3 parallaxedWorldPosition(ecs::Transform& transform, const glm::vec2& parallax,
                                          const CameraView& camera) {
     transform.ensureDecomposed();

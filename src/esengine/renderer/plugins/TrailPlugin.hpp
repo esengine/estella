@@ -13,7 +13,7 @@ namespace trail { class TrailSystem; }
 
 /** @brief One centerline sample: world position + normalized age (0 head, 1 tail). */
 struct TrailCenter {
-    glm::vec2 pos{0.0f, 0.0f};
+    glm::vec3 pos{0.0f, 0.0f, 0.0f};
     f32 age01 = 0.0f;
 };
 
