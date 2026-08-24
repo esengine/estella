@@ -10,6 +10,7 @@ import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, resco
 import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { EventRegistry, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { OutputTransform } from '../postprocess/PostProcessAPI';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { inputPlugin, Input } from '../input/input';
@@ -1424,6 +1425,13 @@ export interface WebAppOptions {
      */
     colorSpace?: 'gamma' | 'linear';
     /**
+     * The curve the frame applies on its way to the display, once and last. `aces`
+     * engages the capture the way an effect does, so a scene that asks for one goes
+     * through the graph even with an empty stack. Declared by the host for now — it
+     * is not yet a field of the project manifest. See {@link OutputTransform}.
+     */
+    outputTransform?: OutputTransform;
+    /**
      * Seed the engine's randomness so this run reproduces — a replay, a bug
      * report, a pixel assertion. Absent, every run differs, which is what a
      * player wants of particles.
@@ -1486,6 +1494,10 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // reloads, so a fresh App must reset a prior session's y-sort state too.
     module.renderer_setYSortLayers?.((options?.ySortLayers ?? 0) >>> 0);
     module.renderer_setDepthLayers?.((options?.depthLayers ?? 0) >>> 0);
+    // After the renderer, not with the colour space above it: the post-process
+    // pipeline is created by the renderer, and a curve declared before it exists
+    // reaches nothing.
+    module.postprocess_setOutputTransform?.(options?.outputTransform === 'aces' ? 1 : 0);
 
     app.addPlugin(corePlugin);
     app.setPipeline(new RenderPipeline());

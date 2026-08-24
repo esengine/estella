@@ -383,6 +383,9 @@ export interface ESEngineModule {
     postprocess_end(): void;
     postprocess_isInitialized(): boolean;
     postprocess_setBypass(bypass: boolean): void;
+    /** The curve the chain applies on the way out: 0 = none, 1 = ACES filmic.
+     *  Absent on an engine built before the output transform existed. */
+    postprocess_setOutputTransform?(transform: number): void;
     postprocess_clearPasses(): void;
     postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
     postprocess_beginScreenCapture(): void;

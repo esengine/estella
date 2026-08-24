@@ -37,6 +37,7 @@ const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
 const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
 const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
+const outputTransform = params.get('outputTransform') === 'aces' ? 'aces' : undefined;
 const seedParam = params.get('seed');
 const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 const depthLayers = Number(params.get('depthLayers')) || undefined;
@@ -123,6 +124,7 @@ async function boot(): Promise<void> {
     app = createWebApp(module, {
         renderSurface,
         colorSpace,
+        outputTransform,
         randomSeed,
         depthLayers,
         getViewportSize: () => ({ width: canvas!.width, height: canvas!.height }),

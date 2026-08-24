@@ -805,6 +805,9 @@ const char* kColorHelpersWGSL = R"(fn srgbToLinear(c : vec3f) -> vec3f {
 fn linearToSrgb(c : vec3f) -> vec3f {
     return mix(c * 12.92, 1.055 * pow(c, vec3f(1.0 / 2.4)) - 0.055, step(vec3f(0.0031308), c));
 }
+fn acesFilmic(x : vec3f) -> vec3f {
+    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
+}
 )";
 
 const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f };
@@ -1421,6 +1424,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "}\n"
             "highp vec3 linearToSrgb(highp vec3 c) {\n"
             "    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));\n"
+            "}\n"
+            // The display curve, one definition for every stage that needs it:
+            // Narkowicz ACES. A tonemap is the OUTPUT transform, so a chain that
+            // carries one applies it once, in the pass that also encodes.
+            "highp vec3 acesFilmic(highp vec3 x) {\n"
+            "    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);\n"
             "}\n";
         assembled << kColorHelpers;
         headerLines += countNewlines(kColorHelpers);

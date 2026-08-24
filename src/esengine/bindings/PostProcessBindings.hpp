@@ -23,6 +23,8 @@ void postprocess_begin();
 void postprocess_end();
 bool postprocess_isInitialized();
 void postprocess_setBypass(bool bypass);
+/** The curve the chain applies on the way out: 0 = none, 1 = ACES filmic. */
+void postprocess_setOutputTransform(u32 transform);
 void postprocess_clearPasses();
 void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h);
 

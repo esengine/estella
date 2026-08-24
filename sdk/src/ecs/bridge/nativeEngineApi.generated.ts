@@ -93,6 +93,7 @@ export interface NativeEngineApi {
     postprocess_isInitialized?(): boolean;
     postprocess_resize?(width: number, height: number): void;
     postprocess_setBypass?(bypass: boolean): void;
+    postprocess_setOutputTransform?(transform: number): void;
     postprocess_setOutputViewport?(x: number, y: number, w: number, h: number): void;
     postprocess_setPassTexture?(passName: string, uniform: string, textureHandle: number): void;
     postprocess_setScreenUniformFloat?(passName: string, uniform: string, value: number): void;
@@ -318,6 +319,7 @@ export function createNativeEngineApi(
     bind('postprocess_isInitialized', 'es_postprocess_isInitialized', false);
     bind('postprocess_resize', 'es_postprocess_resize', false);
     bind('postprocess_setBypass', 'es_postprocess_setBypass', false);
+    bind('postprocess_setOutputTransform', 'es_postprocess_setOutputTransform', false);
     bind('postprocess_setOutputViewport', 'es_postprocess_setOutputViewport', false);
     bind('postprocess_setPassTexture', 'es_postprocess_setPassTexture', false);
     bind('postprocess_setScreenUniformFloat', 'es_postprocess_setScreenUniformFloat', false);

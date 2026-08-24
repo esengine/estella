@@ -49,6 +49,35 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A frame has an output transform, and it belongs to the pipeline.**
+  `PostProcess.setOutputTransform('aces')` — or `outputTransform` in a project's
+  `createWebApp` options — puts the ACES filmic curve on the way out: once, last,
+  after the effects (which want scene values) and before the OETF (which is a
+  transfer function, not a look). It rides in the blit that was always going to
+  run, so it costs no extra full-screen pass, and it engages the capture on its
+  own — a project that asks for a curve gets one with an empty effect stack.
+
+  **ACES now has one definition.** `acesFilmic()` joins `srgbToLinear` /
+  `linearToSrgb` in the helpers every fragment stage is given, in GLSL and in
+  WGSL, and the standalone `tonemap` post effect calls it instead of carrying its
+  own copy of the constants. Two spellings of one curve was one edit from two
+  different curves. The effect stays: it is the manual placement, with an
+  exposure. Carry that OR the output transform, never both — the curve is not
+  idempotent.
+
+  **The default is `none`, and that is a decision, not caution.** The obvious rule
+  — tonemap whenever the pipeline is linear — is wrong, and the suite already
+  says why: `linear-midtone` exists to prove 0.502 sRGB survives the linear round
+  trip and comes back 128. A standing filmic curve destroys exactly that. Linear
+  light is not the same claim as HDR scene radiance, and flat content wants the
+  round trip.
+
+  Measured on that one scene, all four values hand-derived: no transform reads
+  128, ACES in gamma reads 157, ACES in linear reads 154 (0.502 → 0.2158 linear →
+  0.3242 through the curve → encoded), and applying it twice would read 182. Gates
+  `output-aces` and `output-aces-linear`, both backends, agreeing to the value —
+  which is also what says the WGSL twin of the curve is the same curve.
+
 - **The 3D path can be held to what it COST, not just to what it drew.**
   `render.meshes` and `render.triangles` join the counters a pixel gate can pin
   through `ESTELLA_VERIFY_COUNTERS`, and the new gate `mesh-cost` pins them: nine

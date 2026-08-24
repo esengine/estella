@@ -47,22 +47,46 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    // The pass-through copy, authored as blit.esshader (WGSL twin included).
-    // No loose non-sampler uniforms, so the DrawParams rewrite has nothing to
-    // lift; u_texture seeds via setUniform (GLSL-only, guarded there).
-    const auto target = resourceManager_.preferredShaderTarget();
-    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BLIT);
-    blitShader_ = resourceManager_.createShader(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
-        /*rewriteLoose=*/false,
-        resourceManager_.preferredShaderLanguage());
+    blitShader_ = compileBlit({});
     if (!blitShader_.isValid()) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create blit shader");
         return;
     }
 
     initialized_ = true;
+}
+
+/**
+ * A variant of blit.esshader, which is the chain's last pass in every mode.
+ *
+ * No loose non-sampler uniforms, so the DrawParams rewrite has nothing to lift;
+ * u_texture seeds via setUniform (GLSL-only, guarded there). ES_LINEAR is not
+ * passed here — the parser adds it from the process-global colour space.
+ */
+resource::ShaderHandle PostProcessPipeline::compileBlit(const std::vector<std::string>& features) {
+    const auto target = resourceManager_.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BLIT);
+    return resourceManager_.createShader(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
+        /*rewriteLoose=*/false,
+        resourceManager_.preferredShaderLanguage());
+}
+
+/**
+ * The blit the current output transform needs. Compiled on first use rather
+ * than at init: a project that never asks for a curve never pays for one.
+ */
+resource::ShaderHandle PostProcessPipeline::outputShader() {
+    if (output_transform_ != OutputTransform::ACES) return blitShader_;
+    if (!tonemapShader_.isValid()) {
+        tonemapShader_ = compileBlit({"ES_TONEMAP"});
+        if (!tonemapShader_.isValid()) {
+            ES_LOG_ERROR("PostProcessPipeline: no ES_TONEMAP blit; output stays untonemapped");
+            return blitShader_;
+        }
+    }
+    return tonemapShader_;
 }
 
 GfxPixelFormat PostProcessPipeline::interFormat() const {
@@ -128,6 +152,10 @@ void PostProcessPipeline::shutdown() {
 
     if (blitShader_.isValid()) {
         resourceManager_.releaseShader(blitShader_);
+    }
+    if (tonemapShader_.isValid()) {
+        resourceManager_.releaseShader(tonemapShader_);
+        tonemapShader_ = resource::ShaderHandle{};
     }
 
     initialized_ = false;
@@ -286,7 +314,7 @@ FramebufferHandle PostProcessPipeline::currentSceneFBO() const {
 }
 
 void PostProcessPipeline::begin(const f32* clearColor) {
-    if (!initialized_ || inFrame_ || (bypass_ && !linear_output_)) return;
+    if (!isEngaged() || inFrame_) return;
 
     ensureGraph();
     if (!graph_) return;
@@ -320,7 +348,9 @@ void PostProcessPipeline::begin(const f32* clearColor) {
 }
 
 void PostProcessPipeline::end() {
-    if (!initialized_ || !inFrame_ || (bypass_ && !linear_output_)) return;
+    // Gated on inFrame_ alone, not on isEngaged(): whatever begin() opened has
+    // to be resolved even if the answer changed underneath in between.
+    if (!initialized_ || !inFrame_) return;
 
     auto* device = &device_;
 
@@ -447,7 +477,7 @@ void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
 }
 
 void PostProcessPipeline::blitPass() {
-    Shader* shader = resourceManager_.getShader(blitShader_);
+    Shader* shader = resourceManager_.getShader(outputShader());
     if (!shader) return;
 
     // The output rect is the one thing a pass does not get from its target: the

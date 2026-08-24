@@ -570,6 +570,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_end", &esengine::postprocess_end);
     emscripten::function("postprocess_isInitialized", &esengine::postprocess_isInitialized);
     emscripten::function("postprocess_setBypass", &esengine::postprocess_setBypass);
+    emscripten::function("postprocess_setOutputTransform", &esengine::postprocess_setOutputTransform);
     emscripten::function("postprocess_clearPasses", &esengine::postprocess_clearPasses);
     emscripten::function("postprocess_setOutputViewport", &esengine::postprocess_setOutputViewport);
     emscripten::function("postprocess_beginScreenCapture", &esengine::postprocess_beginScreenCapture);

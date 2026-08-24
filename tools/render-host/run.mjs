@@ -25,6 +25,7 @@
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
+ *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
@@ -71,6 +72,9 @@ const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'we
 // ESTELLA_VERIFY_COLORSPACE=linear boots the linear-light pipeline (sRGB decode
 // + linear blending + final OETF) — point expectations must be linear-derived.
 const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear' : '';
+// ESTELLA_VERIFY_OUTPUT_TRANSFORM=aces boots the project output transform, which
+// is a curve on the way out and engages the capture on its own.
+const OUTPUT_TRANSFORM = process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM === 'aces' ? 'aces' : '';
 // A scene whose emitters roll dice has no constant to assert until the run is
 // seeded; the engine seeds itself from the clock when nobody says otherwise.
 const SEED = process.env.ESTELLA_VERIFY_SEED ?? '';
@@ -170,7 +174,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

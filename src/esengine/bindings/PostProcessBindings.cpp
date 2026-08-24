@@ -117,6 +117,14 @@ void postprocess_setBypass(bool bypass) {
     }
 }
 
+void postprocess_setOutputTransform(u32 transform) {
+    if (!g_postProcessPipeline) return;
+    // An unknown value is the identity, not a guess: a project built against a
+    // newer curve list must not get a different one silently.
+    g_postProcessPipeline->setOutputTransform(transform == 1 ? OutputTransform::ACES
+                                                            : OutputTransform::None);
+}
+
 void postprocess_clearPasses() {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->clearPasses();

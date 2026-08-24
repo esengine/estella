@@ -18,7 +18,8 @@ type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
     | 'postprocess_isInitialized' | 'postprocess_begin' | 'postprocess_end'
     | 'postprocess_clearPasses' | 'postprocess_addPass' | 'postprocess_setPassTexture'
     | 'postprocess_setUniformFloat' | 'postprocess_setUniformVec4'
-    | 'postprocess_setBypass' | 'postprocess_setOutputViewport'
+    | 'postprocess_setBypass' | 'postprocess_setOutputTransform'
+    | 'postprocess_setOutputViewport'
     | 'postprocess_beginScreenCapture' | 'postprocess_endScreenCapture'
     | 'postprocess_executeScreenPasses' | 'postprocess_addScreenPass'
     | 'postprocess_clearScreenPasses' | 'postprocess_setScreenUniformFloat'
@@ -128,6 +129,16 @@ export function syncStackToWasm(stack: PostProcessStack, force = false): void {
  * B2b-3a: a single default instance is exported to keep call sites unchanged;
  * B2b-3b flips this to a per-App `defineResource` injected into the pipeline.
  */
+/**
+ * The curve a frame applies on its way to the display — the pipeline's, not an
+ * effect a stack happens to hold, so it runs once and last. `none` leaves values
+ * alone, which is the exact round trip flat content wants; `aces` maps radiance
+ * above 1 down a filmic shoulder, which is what a lit 3D scene needs.
+ *
+ * @public
+ */
+export type OutputTransform = 'none' | 'aces';
+
 export class PostProcessAPI {
     readonly state = new PostProcessState();
 
@@ -214,6 +225,21 @@ export class PostProcessAPI {
             getModule().postprocess_setBypass(bypass);
         } catch (e) {
             handleWasmError(e, 'PostProcess.setBypass');
+        }
+    }
+
+    /**
+     * The curve the frame applies on its way to the display.
+     *
+     * Applied to whatever the chain produced, so it also engages the capture: a
+     * project that asks for a curve gets one with an empty stack. See
+     * {@link OutputTransform} for which to want.
+     */
+    setOutputTransform(transform: OutputTransform): void {
+        try {
+            getModule().postprocess_setOutputTransform(transform === 'aces' ? 1 : 0);
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.setOutputTransform');
         }
     }
 

@@ -2230,6 +2230,7 @@ world: World
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
+outputTransform: OutputTransform | undefined
 plugins: Plugin[] | undefined
 randomSeed: number | undefined
 renderSurface: RenderSurfaceSource | undefined
@@ -5978,6 +5979,7 @@ isInitialized: () => boolean
 resize: (width: number, height: number) => void
 screenStack: PostProcessStack | null
 setBypass: (bypass: boolean) => void
+setOutputTransform: (transform: OutputTransform) => void
 setOutputViewport: (x: number, y: number, w: number, h: number) => void
 setScreenStack: (stack: PostProcessStack | null) => void
 shutdown: () => void
@@ -8740,7 +8742,7 @@ duration: number | undefined
 keepPersistent: boolean | undefined
 onComplete: (() => void) | undefined
 onStart: (() => void) | undefined
-transition: "fade" | "none" | undefined
+transition: "none" | "fade" | undefined
 ```
 
 ## Tween — const @experimental
@@ -9379,6 +9381,7 @@ static prototype: WeChatSocket
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
+outputTransform: OutputTransform | undefined
 plugins: Plugin[] | undefined
 randomSeed: number | undefined
 renderSurface: RenderSurfaceSource | undefined

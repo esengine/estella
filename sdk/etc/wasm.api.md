@@ -323,6 +323,7 @@ postprocess_init: (width: number, height: number) => boolean
 postprocess_isInitialized: () => boolean
 postprocess_resize: (width: number, height: number) => void
 postprocess_setBypass: (bypass: boolean) => void
+postprocess_setOutputTransform: ((transform: number) => void) | undefined
 postprocess_setOutputViewport: (x: number, y: number, w: number, h: number) => void
 postprocess_setPassTexture: (passName: string, uniform: string, textureHandle: number) => void
 postprocess_setScreenUniformFloat: (passName: string, uniform: string, value: number) => void

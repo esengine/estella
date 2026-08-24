@@ -418,10 +418,9 @@ void main() {
     },
 
     createTonemap(): ShaderHandle {
-        // ACES filmic curve (Narkowicz approximation) — maps HDR/linear scene
-        // radiance into a display range with a filmic shoulder/toe. Unlike the
-        // grade/blur effects this always reshapes the curve (that is the point of
-        // tonemapping); only the exposure pre-multiply is identity at its default.
+        // The manual tonemap: the same acesFilmic() every fragment stage is given,
+        // at a point of the stack's choosing and with an exposure. Carry this OR
+        // PostProcess.setOutputTransform — the curve is not idempotent.
         const source = `#pragma shader "PP Tonemap"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -434,36 +433,18 @@ in vec2 v_texCoord;
 uniform sampler2D u_texture;
 out vec4 fragColor;
 
-vec3 aces(vec3 x) {
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
-}
-
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     vec3 c = src.rgb * exp2(u_exposure);
-    fragColor = vec4(aces(c), src.a);
+    fragColor = vec4(acesFilmic(c), src.a);
 }
 #pragma end
 
 #pragma fragment wgsl
-fn aces(x : vec3f) -> vec3f {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
-}
-
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let c = src.rgb * exp2(mc.u_exposure);
-    return vec4f(aces(c), src.a);
+    return vec4f(acesFilmic(c), src.a);
 }
 #pragma end
 `;

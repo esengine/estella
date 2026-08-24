@@ -34,6 +34,19 @@ namespace resource {
 }
 
 /**
+ * @brief What the last pass of a chain does to scene values on the way out.
+ *
+ * @details A tonemap is the OUTPUT transform, not an effect: it runs exactly once
+ *          and last — after the effects, which want scene values, and before the
+ *          OETF, which is a transfer function. `None` by default: a flat frame in
+ *          linear light wants an exact round trip, and a filmic curve is not one.
+ */
+enum class OutputTransform : u8 {
+    None = 0,  ///< Encode only. Values above 1 clip, which is what LDR content means.
+    ACES = 1,  ///< Narkowicz ACES filmic curve, for a scene that carries HDR radiance.
+};
+
+/**
  * @brief Post-processing pass configuration
  */
 struct PostProcessPass {
@@ -155,13 +168,15 @@ public:
     /**
      * @brief Whether the scene goes through the graph or straight to the surface.
      *
-     * @details Two things engage it: effects to run, or the linear pipeline, whose
+     * @details Three things engage it: effects to run, the linear pipeline (whose
      *          final pass carries an encode a WebGL2 canvas framebuffer cannot do
-     *          for itself. One predicate because RenderFrame asked at both ends of
-     *          the frame, and two copies is one edit from a capture never resolved.
+     *          for itself), or an output transform. One predicate because everyone
+     *          asks at both ends of a frame, and two copies of it is one edit away
+     *          from a capture that is opened and never resolved.
      */
     bool isEngaged() const {
-        return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_);
+        return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_
+                                || output_transform_ != OutputTransform::None);
     }
 
     /**
@@ -188,6 +203,16 @@ public:
      */
     void setSceneNeedsDepth(bool needs) { scene_needs_depth_ = needs; }
     bool linearOutput() const { return linear_output_; }
+
+    /**
+     * @brief The curve the final pass applies to scene values.
+     *
+     * @details Costs nothing when the chain is already engaged — the blit was
+     *          always going to run — so this is a variant of that shader rather
+     *          than a pass of its own.
+     */
+    void setOutputTransform(OutputTransform transform) { output_transform_ = transform; }
+    OutputTransform outputTransform() const { return output_transform_; }
 
     /**
      * @brief Checks if bypass mode is enabled
@@ -274,8 +299,13 @@ private:
     /// Declares one chain onto an already-begun graph and runs it, ending in the
     /// output target. @p scene is the resource the first effect reads.
     void runChain(std::vector<PostProcessPass>& passes, rg::ResourceId scene);
-    /// The chain's last pass: the copy into the output target's viewport.
+    /// The chain's last pass: the output transform, then the copy into the
+    /// output target's viewport.
     void blitPass();
+    /// The blit variant the current output transform needs, compiled on demand.
+    resource::ShaderHandle outputShader();
+    /// One variant of blit.esshader, by feature.
+    resource::ShaderHandle compileBlit(const std::vector<std::string>& features);
     /// Frees a pass's GPU-side param UBO (clearPasses/shutdown).
     void releasePassResources(PostProcessPass& pass);
 
@@ -287,6 +317,8 @@ private:
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;
+    /// The ES_TONEMAP variant of the same file. Invalid until a chain asks for it.
+    resource::ShaderHandle tonemapShader_;
 
     std::vector<PostProcessPass> passes_;
     u32 width_ = 0;
@@ -296,6 +328,7 @@ private:
     bool bypass_ = false;
     bool linear_output_ = false;
     bool scene_needs_depth_ = false;
+    OutputTransform output_transform_ = OutputTransform::None;
     /// The graph resource the scene is drawn into, live between begin() and end().
     rg::ResourceId sceneResource_ = rg::kNoResource;
     TextureHandle sceneTexture_ = TextureHandle::Invalid;
