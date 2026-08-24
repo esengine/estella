@@ -48,6 +48,10 @@ export const GATES = [
   { id: 'api-surface-baseline', run: 'node tools/api-surface.mjs --check-baseline' },
   { id: 'freeze-bar', run: 'node tools/check-freeze-bar.mjs' },
   { id: 'tier-leaks', run: 'node tools/check-tier-leaks.mjs' },
+  // The three above ask what the surface IS. This asks what it is missing: a
+  // subsystem whose plugin reaches no entry is one the engine has and a game
+  // cannot add — which is what 3D physics was for four releases.
+  { id: 'plugin-door', run: 'node tools/check-plugin-door.mjs' },
   // The SDK's tiers are enforced by the three gates above. The editor plugin API
   // has no snapshot to enforce, so what is enforced there is the ANSWER: that it
   // is experimental, said the same way in every place someone reads it.

@@ -31,6 +31,8 @@ export async function buildSdk(options = {}) {
             'esm/spine/index.d.ts',
             'esm/physics/index.js',
             'esm/physics/index.d.ts',
+            'esm/physics3d/index.js',
+            'esm/physics3d/index.d.ts',
             'cjs/esengine.wechat.js',
             'cjs/index.wechat.js',
         ];
@@ -110,10 +112,12 @@ async function copyDistOutputs(sdkDir, outputDir) {
     const spineDir = path.join(esmDir, 'spine');
     const dragonBonesDir = path.join(esmDir, 'dragonbones');
     const physicsDir = path.join(esmDir, 'physics');
+    const physics3dDir = path.join(esmDir, 'physics3d');
     const sharedDir = path.join(esmDir, 'shared');
     await mkdir(spineDir, { recursive: true });
     await mkdir(dragonBonesDir, { recursive: true });
     await mkdir(physicsDir, { recursive: true });
+    await mkdir(physics3dDir, { recursive: true });
     await mkdir(sharedDir, { recursive: true });
 
     const files = [
@@ -129,6 +133,8 @@ async function copyDistOutputs(sdkDir, outputDir) {
         { src: 'dragonbones/index.d.ts', dest: path.join(dragonBonesDir, 'index.d.ts') },
         { src: 'physics/index.js', dest: path.join(physicsDir, 'index.js') },
         { src: 'physics/index.d.ts', dest: path.join(physicsDir, 'index.d.ts') },
+        { src: 'physics3d/index.js', dest: path.join(physics3dDir, 'index.js') },
+        { src: 'physics3d/index.d.ts', dest: path.join(physics3dDir, 'index.d.ts') },
         { src: 'index.wechat.js', dest: path.join(cjsDir, 'index.wechat.js') },
         { src: 'index.wechat.cjs.js', dest: path.join(cjsDir, 'esengine.wechat.js') },
     ];

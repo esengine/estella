@@ -15,6 +15,7 @@ export default [
             'index.minigame': 'src/index.minigame.ts',
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',
+            'physics3d/index': 'src/physics3d/index.ts',
             'spine/index': 'src/spine/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'wasm': 'src/wasm.ts',

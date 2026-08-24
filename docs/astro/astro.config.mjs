@@ -123,6 +123,7 @@ export default defineConfig({
           entryPoints: [
             '../../sdk/src/index.ts',
             '../../sdk/src/physics/index.ts',
+            '../../sdk/src/physics3d/index.ts',
             '../../sdk/src/spine/index.ts',
             '../../sdk/src/dragonbones/index.ts',
           ],

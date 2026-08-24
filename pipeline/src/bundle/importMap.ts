@@ -16,6 +16,7 @@ export const IMPORT_MAP = {
     'esengine/spine': './sdk/spine/index.js',
     'esengine/dragonbones': './sdk/dragonbones/index.js',
     'esengine/physics': './sdk/physics/index.js',
+    'esengine/physics3d': './sdk/physics3d/index.js',
     'esengine/wasm': './sdk/wasm.js',
     'esengine/factory': './sdk/webAppFactory.js',
   },

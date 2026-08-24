@@ -55,6 +55,7 @@ export const ENTRIES = {
     'index.node': 'src/index.node.ts',
     'index.native': 'src/index.native.ts',
     'physics': 'src/physics/index.ts',
+    'physics3d': 'src/physics3d/index.ts',
     'spine': 'src/spine/index.ts',
     'dragonbones': 'src/dragonbones/index.ts',
     'wasm': 'src/wasm.ts',
