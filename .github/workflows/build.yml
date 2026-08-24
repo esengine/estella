@@ -389,6 +389,17 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
 
+    # The job has died here twice with "No space left on device", and a runner with
+    # no disk cannot write the log that would say what filled it. The `df` at the
+    # top proves the job STARTS with ~100GB; this one is where it is gone by, and
+    # the biggest directories under it are the only thing that names the culprit.
+    - name: Say what is left, and what took it
+      if: always()
+      run: |
+        df -h /
+        du -x -h -d 2 /home/runner 2>/dev/null | sort -rh | head -25 || true
+        du -x -h -d 1 /tmp 2>/dev/null | sort -rh | head -10 || true
+
     # Both are DEEPER oracles the Android tests skip when absent, so fetching them
     # must not be able to cost more than they are worth. Unbounded, this step hung
     # for 38 minutes and took the job's whole budget with it — and a job killed at
