@@ -50,8 +50,9 @@ published separately; it ships inside the editor.
 ### Added
 
 - **A frame has an output transform, and it belongs to the pipeline.**
-  `PostProcess.setOutputTransform('aces')` — or `outputTransform` in a project's
-  `createWebApp` options — puts the ACES filmic curve on the way out: once, last,
+  Project Settings → Rendering → Output transform, `rendering.outputTransform` in
+  the manifest, `PostProcess.setOutputTransform('aces')` at runtime — one setting,
+  which puts the ACES filmic curve on the way out: once, last,
   after the effects (which want scene values) and before the OETF (which is a
   transfer function, not a look). It rides in the blit that was always going to
   run, so it costs no extra full-screen pass, and it engages the capture on its
@@ -77,6 +78,13 @@ published separately; it ships inside the editor.
   0.3242 through the curve → encoded), and applying it twice would read 182. Gates
   `output-aces` and `output-aces-linear`, both backends, agreeing to the value —
   which is also what says the WGSL twin of the curve is the same curve.
+
+  It reaches everything a setting has to reach: one derivation in
+  `runtimeConfigOf`, read by the edit viewport, the play realm and every export.
+  `check-project-settings` counts 13 settings now and declares no gap for this
+  one — unlike `colorSpace`, which is boot-fixed because shaders compile against
+  it, the curve is a shader VARIANT chosen per frame, so the viewport shows the
+  shipped look live rather than asking for a reload.
 
 - **The 3D path can be held to what it COST, not just to what it drew.**
   `render.meshes` and `render.triangles` join the counters a pixel gate can pin

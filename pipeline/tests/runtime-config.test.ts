@@ -20,6 +20,7 @@ describe('runtimeConfigOf', () => {
     expect(rc.ySortLayers).toBe(0);
     expect(rc.depthLayers).toBe(0);
     expect(rc.colorSpace).toBe('gamma');
+    expect(rc.outputTransform).toBe('none');
     expect(rc.uiTheme).toBe('dark');
     expect(rc.uiThemeColors).toEqual({});
     expect(rc.physicsEnabled).toBe(false);
@@ -87,12 +88,16 @@ describe('packagedRuntimeFields', () => {
     const fields = packagedRuntimeFields(runtimeConfigOf({
       designResolution: { width: 800, height: 600 },
       features: {
-        rendering: { ySortLayers: [1], depthLayers: [2], colorSpace: 'linear', cameraScaleMode: 'expand' },
+        rendering: {
+          ySortLayers: [1], depthLayers: [2], colorSpace: 'linear',
+          outputTransform: 'aces', cameraScaleMode: 'expand',
+        },
         ui: { theme: 'light', colors: { accent: '#ff0000ff' } },
       },
     }));
     expect(Object.keys(fields).sort()).toEqual(
-      ['colorSpace', 'depthLayers', 'screenFit', 'uiTheme', 'uiThemeColors', 'ySortLayers'],
+      ['colorSpace', 'depthLayers', 'outputTransform', 'screenFit', 'uiTheme', 'uiThemeColors',
+       'ySortLayers'],
     );
     expect(fields.screenFit).toEqual({
       designWidth: 800, designHeight: 600, scaleMode: 2, matchWidthOrHeight: 0.5,

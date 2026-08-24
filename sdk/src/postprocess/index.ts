@@ -3,6 +3,7 @@
 export { PostProcessStack } from './PostProcessStack';
 export type { PassConfig } from './PostProcessStack';
 export { PostProcess, PostProcessAPI, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
+export type { OutputTransform } from './PostProcessAPI';
 export { postProcessEffects } from './postProcessEffects';
 export { POSTPROCESS_VERTEX } from './shaders';
 export {

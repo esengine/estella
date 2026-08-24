@@ -149,6 +149,7 @@ export {
     PostProcess,
     PostProcessAPI,
     PostProcessStack,
+    type OutputTransform,
     type EffectDef,
     type EffectUniformDef,
     getEffectDef,

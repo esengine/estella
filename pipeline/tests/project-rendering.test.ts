@@ -2,13 +2,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  parseManifest — rendering feature (Project Settings → Rendering). Guards the
- *        colorSpace project setting: 'linear' persists, the default 'gamma' is expressed
- *        by absence, and junk values are dropped.
+ *        two settings that persist as an opt-in: colorSpace and outputTransform. The
+ *        non-default persists, the default is expressed by absence, junk is dropped.
  */
 import { describe, it, expect } from 'vitest';
 import {
   parseManifest, cameraScaleModeValue, resolveScreenFit, trimSortingLayers, SORTING_LAYER_COUNT,
 } from '../src/project/format';
+
+describe('parseManifest — rendering.outputTransform', () => {
+  // Same bargain as colorSpace: the opt-in persists, the default is absence, so
+  // a project that never touched the setting keeps a manifest that never mentions it.
+  it("keeps 'aces'", () => {
+    const m = parseManifest({ name: 'X', features: { rendering: { outputTransform: 'aces' } } });
+    expect(m.features?.rendering?.outputTransform).toBe('aces');
+  });
+
+  it("drops 'none' (default = absence) and junk values", () => {
+    for (const v of ['none', 'ACES', 'filmic', 42, true, null]) {
+      const m = parseManifest({ name: 'X', features: { rendering: { outputTransform: v } } });
+      expect(m.features?.rendering?.outputTransform).toBeUndefined();
+    }
+  });
+});
 
 describe('parseManifest — rendering.colorSpace', () => {
   it("keeps 'linear'", () => {
@@ -21,6 +37,11 @@ describe('parseManifest — rendering.colorSpace', () => {
       const m = parseManifest({ name: 'X', features: { rendering: { colorSpace: v } } });
       expect(m.features?.rendering?.colorSpace).toBeUndefined();
     }
+  });
+
+  it('is not carried over into the output transform beside it', () => {
+    const m = parseManifest({ name: 'X', features: { rendering: { colorSpace: 'linear' } } });
+    expect(m.features?.rendering?.outputTransform).toBeUndefined();
   });
 
   it('coexists with sorting/y-sort config', () => {

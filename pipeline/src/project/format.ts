@@ -136,6 +136,10 @@ export interface ProjectFeatures {
      *  sample, linear blending, OETF at the final blit). Fixed at engine boot —
      *  shaders compile against it. Absent ⇒ 'gamma'. */
     colorSpace?: 'linear';
+    /** The curve the frame applies on its way to the display, once and last.
+     *  'aces' engages the capture on its own, so it applies with an empty effect
+     *  stack. Absent ⇒ none, which is the exact round trip flat content wants. */
+    outputTransform?: 'aces';
     /** GPU backend a shipped build asks for. 'webgpu' takes it where the machine
      *  serves one and falls back to WebGL2 where it does not, so a project can
      *  opt in without giving up the browsers that have neither. Absent ⇒ WebGL2,
@@ -551,6 +555,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
       }
       // Only 'linear' persists; 'gamma' (the default) is expressed by absence.
       if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';
+      // Same shape: only the curve persists, no transform is absence.
+      if (r.outputTransform === 'aces') rendering.outputTransform = 'aces';
       // Same shape: only the opt-in persists, WebGL2 is absence.
       if (r.backend === 'webgpu') rendering.backend = 'webgpu';
       // Camera fit — 'none' (off) is the default, expressed by absence.

@@ -89,6 +89,7 @@ const PARSE_KEY = {
   ySortLayers: 'r.ySortLayers',
   depthLayers: 'r.depthLayers',
   colorSpace: 'r.colorSpace',
+  outputTransform: 'r.outputTransform',
   renderBackend: 'r.backend',
   screenFit: 'r.cameraScaleMode',
 };

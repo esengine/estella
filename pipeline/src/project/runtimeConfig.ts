@@ -67,6 +67,8 @@ export interface RuntimeProjectConfig {
   depthLayers: number;
   /** Render colour space; 'gamma' is the default. Boot-fixed (shaders compile against it). */
   colorSpace: 'gamma' | 'linear';
+  /** The curve on the way to the display; 'none' is the default. */
+  outputTransform: 'none' | 'aces';
   /** GPU backend the build asks for; 'webgl2' is the default. Boot-fixed, and a
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
@@ -142,6 +144,7 @@ export function runtimeConfigOf(
     ySortLayers: layerMask(f?.rendering?.ySortLayers),
     depthLayers: layerMask(f?.rendering?.depthLayers),
     colorSpace: f?.rendering?.colorSpace === 'linear' ? 'linear' : 'gamma',
+    outputTransform: f?.rendering?.outputTransform === 'aces' ? 'aces' : 'none',
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -150,7 +153,8 @@ export function runtimeConfigOf(
 /** The settings a shipped build carries, as `game.config.json` spells them. */
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
-  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'renderBackend' | 'screenFit' | 'uiTheme' | 'uiThemeColors'
+  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
+  | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId'
 >;
 
@@ -168,6 +172,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.ySortLayers ? { ySortLayers: rc.ySortLayers } : {}),
     ...(rc.depthLayers ? { depthLayers: rc.depthLayers } : {}),
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
+    ...(rc.outputTransform === 'aces' ? { outputTransform: rc.outputTransform } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or

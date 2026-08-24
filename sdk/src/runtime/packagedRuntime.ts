@@ -44,6 +44,8 @@ export interface PackagedGameConfig {
     depthLayers?: number;
     /** Project color space — 'linear' boots the linear-light pipeline. */
     colorSpace?: 'gamma' | 'linear';
+    /** The curve the frame applies on the way to the display; absent = none. */
+    outputTransform?: 'none' | 'aces';
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -140,11 +142,13 @@ export function registerPackagedSideModules(config: Pick<PackagedGameConfig, 'si
  * that spreads it.
  */
 export function packagedAppOptions(
-    config: Pick<PackagedGameConfig, 'ySortLayers' | 'depthLayers' | 'colorSpace' | 'screenFit'>,
+    config: Pick<PackagedGameConfig,
+        'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'>,
 ): {
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
+    outputTransform?: 'none' | 'aces';
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -154,6 +158,7 @@ export function packagedAppOptions(
         ySortLayers: config.ySortLayers,
         depthLayers: config.depthLayers,
         colorSpace: config.colorSpace,
+        outputTransform: config.outputTransform,
         screenFit: config.screenFit,
     };
 }

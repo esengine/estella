@@ -10,7 +10,7 @@ import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, resco
 import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { EventRegistry, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import type { OutputTransform } from '../postprocess/PostProcessAPI';
+import type { OutputTransform } from '../postprocess';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { inputPlugin, Input } from '../input/input';

@@ -135,7 +135,7 @@ export function syncStackToWasm(stack: PostProcessStack, force = false): void {
  * alone, which is the exact round trip flat content wants; `aces` maps radiance
  * above 1 down a filmic shoulder, which is what a lit 3D scene needs.
  *
- * @public
+ * @experimental
  */
 export type OutputTransform = 'none' | 'aces';
 
