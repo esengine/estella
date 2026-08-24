@@ -52,6 +52,30 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **`verify-legacy` read every rename as content loss.** It opens a project as an
+  older engine released it and holds the result against the file that went out,
+  so nothing is quietly dropped — but it compared the RELEASED spelling of each
+  component against the spelling the editor reports after loading, with the
+  migration in between. The day the flat physics set took its `2D` suffix, the
+  v0.20.0 platformer's seventeen `BoxCollider`/`RigidBody` components became
+  "gone", every one of them present under its new name. It reads the migration's
+  own tables now, and excludes the deliberately retired types.
+
+- **Fifteen shaders carried a WGSL twin stamped older than their own GLSL** — ten
+  fixtures and five of `effects-gallery`'s shipped materials. Every regenerated
+  twin is byte-identical in its WGSL body, so no WebGPU output moved; what was
+  stale was the stamp saying the translation had been checked. They accumulated
+  because only CI asked, and `gen-shader-twins --check` now runs in the local
+  gate scope too.
+
+- **A release exit criterion named a command that no longer runs.**
+  `hot-update-lands-or-rolls-back` — the one proving a shipped build takes an
+  update and refuses a broken one whole — pointed at a script that had moved to
+  the root package, so running it produced a crash where a verdict should be.
+  `check-release-gate` held the criterion to the files it lives in, which all
+  still existed; it now also resolves every `pnpm run` script an `answeredBy`
+  names against that package's real scripts.
+
 - **A motion trail was drawn flat, at the wrong depth.** `TrailPoint` stored a
   `vec2` sampled from `worldPosition.x/y`, and every ribbon vertex was then given
   the emitter's *current* z — so a trail on anything moving in depth was flattened
