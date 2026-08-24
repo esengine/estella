@@ -79,6 +79,17 @@ export function engineCouldNotDraw(output) {
 }
 
 /**
+ * Whether a driver's structured result is a MEASUREMENT or the harness saying it
+ * could not take one: an error with no capture beside it is the latter, since a
+ * verdict about the subject always carries the frame it judged. Here, not in a
+ * runner, for the reason the header gives.
+ */
+export function resultMeasured(result) {
+    if (result === null || result === undefined) return false;
+    return !(result.ok === false && Boolean(result.error) && !result.capture);
+}
+
+/**
  * Whether this attempt reached a verdict at all. `measured` is the run's own
  * answer and wins, except that a run whose engine could not draw has measured
  * nothing whatever else it managed to print.

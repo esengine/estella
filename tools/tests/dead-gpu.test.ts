@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw } from '../lib/deadGpu.mjs';
+import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured } from '../lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
 const BLANK = 'painted=true live=false errors=0';
@@ -55,6 +55,31 @@ describe('gpuNeverCameUp', () => {
         // Device loss alone is a scene some gates drive on purpose; only paired
         // with a framebuffer that could not be made is it a runner with no GPU.
         expect(gpuNeverCameUp('GPU device lost')).toBe(false);
+    });
+});
+
+describe('resultMeasured', () => {
+    it('reads a result with a capture as a measurement, whatever its verdict', () => {
+        expect(resultMeasured({ ok: true, capture: { rendered: true } })).toBe(true);
+        // The property the whole policy rests on: a scene that drew the wrong
+        // pixels HAS measured, and must not be handed a retry to hide behind.
+        expect(resultMeasured({ ok: false, capture: { rendered: true }, expect: { ok: false } })).toBe(true);
+    });
+
+    it('reads an error with no capture as the harness failing to measure', () => {
+        // What a lost GL context leaves: the readback throws, so there is no frame
+        // to judge and nothing about the scene has been established.
+        expect(resultMeasured({ ok: false, error: 'captureViewportPixels: no pixels' })).toBe(false);
+    });
+
+    it('has nothing to read when the driver printed no result at all', () => {
+        expect(resultMeasured(null)).toBe(false);
+        expect(resultMeasured(undefined)).toBe(false);
+    });
+
+    it('takes a capture over an error when a result carries both', () => {
+        // A run that captured and then tripped over something else still measured.
+        expect(resultMeasured({ ok: false, error: 'late failure', capture: { rendered: true } })).toBe(true);
     });
 });
 
@@ -168,6 +193,33 @@ describe('retryOnDeadGpu', () => {
         expect(r.ok).toBe(true);
         expect(r.attempts).toBe(2);
         expect(r.notes).toEqual([true]);
+    });
+
+    it('retakes a measurement the harness could not take, and stops when it can', () => {
+        // The runner loses the first launch's GL context and holds it after that,
+        // which had every run's FIRST scene red while the hundred behind it passed.
+        let attempts = 0;
+        const r = retryOnDeadGpu(() => {
+            attempts++;
+            const result = attempts === 1
+                ? { ok: false, error: 'captureViewportPixels: no pixels' }
+                : { ok: true, capture: { rendered: true } };
+            return { ok: result.ok, output: '', measured: resultMeasured(result), drew: result.capture?.rendered };
+        }, () => {}, 0);
+        expect(attempts).toBe(2);
+        expect(r.ok).toBe(true);
+        expect(r.retried).toBe(true);
+    });
+
+    it('does not retake a measurement that happened and disagreed', () => {
+        let attempts = 0;
+        const r = retryOnDeadGpu(() => {
+            attempts++;
+            const result = { ok: false, capture: { rendered: true }, expect: { ok: false } };
+            return { ok: false, output: '', measured: resultMeasured(result), drew: true };
+        }, () => {}, 0);
+        expect(attempts).toBe(1);
+        expect(r.gpuDied).toBeFalsy();
     });
 
     it('gives up at the cap and says the GPU is why', () => {

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
-import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, resultMeasured } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
@@ -194,7 +194,7 @@ function runScene(scene) {
     ok: r.status === 0,
     out,
     ms: Date.now() - at,
-    measured: result !== null,
+    measured: resultMeasured(result),
     drew: result?.capture?.rendered,
     verdict: r.timedOut
       ? 'the run never reached its own watchdog and was killed'
