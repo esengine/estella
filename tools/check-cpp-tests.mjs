@@ -163,15 +163,19 @@ if (!has('cmake')) {
     process.exit(0);
 }
 
+// The options CI configures with that no plain cmake can honour: EMSCRIPTEN and
+// ES_BUILD_WEB are the emscripten toolchain's, ES_SANITIZE a build of its own.
+const fromToolchain = new Set(['EMSCRIPTEN', 'ES_BUILD_WEB', 'ES_SANITIZE']);
+
 const skip = enginelinked();
-const buildable = targets.filter((t) => !skip.has(t));
+// A target DECLARED behind one of those cannot exist in a configure that drops
+// it, and asking for one is `No rule to make target` — a red gate about the
+// machine rather than the code, on every checkout that has a compiler.
+const buildable = targets.filter((t) => !skip.has(t)
+    && !(conditions.get(t) ?? []).some((opt) => fromToolchain.has(opt)));
 
 mkdirSync(BUILD, { recursive: true });
 try {
-    // The options CI configures with, minus what no plain cmake can honour
-    // (EMSCRIPTEN / ES_BUILD_WEB are the emscripten toolchain's, ES_SANITIZE a
-    // build of its own). Absence under the rest is the platform's.
-    const fromToolchain = new Set(['EMSCRIPTEN', 'ES_BUILD_WEB', 'ES_SANITIZE']);
     const options = [...new Set(configures.flatMap((c) => [...c.on]))]
         .filter((o) => !fromToolchain.has(o))
         .map((o) => `-D${o}=ON`);

@@ -363,13 +363,23 @@ void ResourceManager::setTextureBudget(usize bytes) {
 
 TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
     auto handle = textures_.findByPath(path);
-    if (!handle.isValid()) return handle;
+    if (!handle.isValid()) {
+        ++stats_.cacheMisses;
+        return handle;
+    }
     // A texture on the placeholder no longer holds this path's content, so a
     // residency hit answers the re-upload with the very thing it replaces — a
     // recovery that confirms itself and draws white. Linear: empty at rest.
     for (TextureHandle awaiting : awaitingReupload_) {
-        if (awaiting == handle) return TextureHandle{};
+        if (awaiting == handle) {
+            ++stats_.cacheMisses;
+            return TextureHandle{};
+        }
     }
+    // The cache decision a shipped build makes: it decodes in the host and
+    // registers an id, so this is the one place a texture request avoids an
+    // upload. loadTexture, which also counts, is a path only BitmapFont takes.
+    ++stats_.cacheHits;
     textures_.addRef(handle);
     return handle;
 }

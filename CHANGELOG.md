@@ -14,6 +14,40 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`ResourceStats.cacheHits` and `.cacheMisses` counted a loading path the
+  engine no longer takes.** They are written by `loadTexture`, `loadShader` and
+  `loadTextureByGUID` — the file-loading model, of which `loadShader` and
+  `loadTextureByGUID` have no caller at all and `loadTexture` has exactly one
+  (a bitmap font page). A shipped build decodes in the host and registers an id,
+  so both numbers read ~0 for every game while being published in an
+  `@experimental` interface every SDK user can read — the same shape as
+  `render.culled` one layer out. The project's own census reads six fields of
+  `ResourceStats` and pointedly not these two.
+
+  `acquireTextureByPath` is where a shipped frame actually decides: a resident
+  path hands back the texture and an upload does not happen; anything else and
+  one does. It books the hit and the miss now, so the pair means "requests that
+  avoided an upload" — which is what the names always said.
+
+  New harness `test_texture_cache` pins it: `ResourceManager.cpp` against
+  `MockGfxDevice`, no GL and no engine link. Reverted, four of its assertions go
+  red at once.
+
+- **`check-cpp-tests` could not run on any machine that has a compiler.** It
+  strips the options no plain cmake can honour (`EMSCRIPTEN`, `ES_BUILD_WEB`,
+  `ES_SANITIZE`) from its configure and then asked for the targets DECLARED
+  behind them anyway, so it died on `test_webgpu_device` with `No rule to make
+  target` — a red gate about the machine rather than the code. It drops those
+  targets now, and reports 18 harnesses built and passing here with the 9 that
+  link the engine left to CI.
+
+- **Deleted `RenderContextStats`.** Two fields, a `reset()`, and two accessors on
+  `RenderContext` — never written, never read, by anything in the repo. Its
+  `drawCalls` and `triangleCount` are the ones `RenderFrame::Stats` actually
+  maintains, so what it offered was a second answer that could only ever be zero.
+
 ### Added
 
 - **The batcher is held to what it achieves.** `DrawList` has been publishing

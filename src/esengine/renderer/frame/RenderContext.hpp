@@ -32,24 +32,6 @@
 namespace esengine {
 
 // =============================================================================
-// Renderer Statistics
-// =============================================================================
-
-/**
- * @brief Statistics for rendering performance analysis
- */
-struct RenderContextStats {
-    u32 drawCalls = 0;      ///< Number of draw calls this frame
-    u32 triangleCount = 0;  ///< Number of triangles rendered this frame
-
-    /** @brief Resets all counters to zero */
-    void reset() {
-        drawCalls = 0;
-        triangleCount = 0;
-    }
-};
-
-// =============================================================================
 // RenderContext Class
 // =============================================================================
 
@@ -125,18 +107,6 @@ public:
      */
     const glm::mat4& viewProjection() const { return viewProjection_; }
 
-    /**
-     * @brief Gets the rendering statistics
-     * @return Reference to the stats
-     */
-    RenderContextStats& stats() { return stats_; }
-
-    /**
-     * @brief Gets the rendering statistics (const)
-     * @return Const reference to the stats
-     */
-    const RenderContextStats& stats() const { return stats_; }
-
     // =========================================================================
     // Internal Resources
     // =========================================================================
@@ -196,7 +166,6 @@ private:
     void uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine);
 
     glm::mat4 viewProjection_{1.0f};
-    RenderContextStats stats_;
 
     TextureHandle whiteTexture_ = TextureHandle::Invalid;
     TextureHandle blackTexture_ = TextureHandle::Invalid;
