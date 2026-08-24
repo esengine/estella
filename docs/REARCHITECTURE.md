@@ -214,11 +214,32 @@ TS 驱动的主 pass clear 退出边界，`clear` 家族退出公共 RHI：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
 - **F3 全 per-App 资源 — ✅ 已落地**（分支 `rearch/f3-per-app`）：Camera（`CameraView`）、Timeline（`Timeline`）、PostProcess（拆 god-object + 管线注入 + 删 sync.ts）、SpriteAnimator（`SpriteAnimation`）全部 per-App;模块绑定单例在单模块运行时下无需改（B4 关闭）。
 - **F4 重写 `ARCHITECTURE.md` — ✅ 已落地**：`docs/ARCHITECTURE.md` 重写为当前现实（`RenderFrame`+`GfxDevice`/`GLDevice` 单一 GPU 边界、单一 `SparseSet`+`version()`、按域 TypeId、per-App 资源 + `WasmBridge` 基类、`ResourcePool` LRU/预算），删除对已删除的 `Renderer`/`BatchRenderer2D` 的描述。
-- F1 平台后端接缝 — ✅ **以删除收口（2026-07-08 记账）**：引擎已是纯 Emscripten 目标（`CMakeLists.txt` 明示 "There is no native GPU/runtime build"，全仓已无 glfw/glad/native 窗口路径），native 面只剩可在任意 C++20 工具链编译的 header-only 单元测试——"隔离"由构建结构本身保证，无独立工作项残留。
+- F1 平台后端接缝 — ⚠️ **2026-07-08 那条"以删除收口"的记账已作废（2026-08-23 更正）**：当时写的是"引擎已是纯 Emscripten 目标，全仓已无 native 路径"。现在 `native/` 是一等目标——同一份引擎 C++ 提前编译、链接内嵌 Dawn（iOS Metal / Android Vulkan），游戏脚本跑在 QuickJS-ng 上驱动**真正的 SDK bundle**，desktop/Android/iOS 三分支各有平台实现（`native/host/platform/`）。接缝重新成立且承重：`GfxDevice` 是两个后端三种宿主的唯一 GPU 门，per-component 的 `es_*` 绑定与 web 的 embind 出自同一份反射，门禁 `check-native-build` 在 push 前把引擎编译一遍 off-emscripten。`CMakeLists.txt` 里那句 "There is no native GPU/runtime build" 已随本次更正改写。
 
 执行先于 RC6。
 
 > **能力对标路线**：RC1–RC5 修正确性、F/RC6 修地基与平台错配之外，"能力缺口对标"（交付管线 / 内容创作闭环 / 渲染深度 / 完整度）的优先级与执行顺序见 [`REARCH_2D_PARITY.md`](./REARCH_2D_PARITY.md)（本地 gitignore）。
+
+### RC12 三维化 — 🟡 已落地并出货（0.52–0.56），余一处命名割裂（2026-08-23 补记）
+这条主线在 2026-07-08 之后走完，而本文的 living status 停在那一天，所以补记于此。逐条改了什么在
+CHANGELOG 和提交信息里，这里只写**从那里读不出来的结构性结论**。
+
+- **世界本来就是三维的，不是加了一层 3D。** `Transform` 是 `vec3` + 四元数 + `vec3` 缩放，平面游戏
+  是这个空间里 z=0、相机正交的那个角。同一条推论反复用在每个子系统上：粒子的 billboard 正视时
+  两轴退化成 (1,0,0)/(0,1,0)，就是平面场景一直在画的那个 quad——billboard 不是第二条路径，平面
+  quad 是它的一个角。
+- **"唯一的那个"就不带平面名。** `Light2D`→`Light`、`Mesh2D`→`MeshRenderer`、`Lit2D`/`Unlit2D`
+  域→`Lit`/`Unlit`（`.esshader` 无版本可迁，故老拼写在 parser 归一化后仍可读）。场景/预制体靠
+  loader 自升级，格式 v2；旧引擎**拒绝** v2 而不是把 `Light` 当没听说过的组件读成一关没有灯。
+- **验证面**：123 个像素门禁中 121 个双后端断言；`tools/render-host/` 让 100 个门禁在**引擎自己的**
+  无头宿主上跑，而不是经编辑器——门禁断言的是出货游戏看到的渲染器。
+- **仍开着的一处**：物理是唯一真有两个世界的地方，而无后缀的名字（`RigidBody` / `BoxCollider` /
+  `CircleCollider` / `CapsuleCollider`）现在归了**平面**那套，3D 那套反而带 `3D` 后缀。在一个默认
+  世界是三维的引擎里这是反的：用户给 mesh 挂 `BoxCollider` 拿到的是平面盒子，`CapsuleCollider`
+  与 `CapsuleCollider3D` 并排尤其危险。**已拍板：给平面那套加 `2D` 后缀**（`RigidBody2D` /
+  `BoxCollider2D` / `CircleCollider2D` / `CapsuleCollider2D`），走 `Light`/`MeshRenderer` 同款做法——
+  loader 升级旧名、场景格式版本再进一格、SDK 破坏性改名进 CHANGELOG。SDK 面同时收口：2D 有
+  `Physics` facade 而 3D 是 `Physics3DQueries`，两者从同一个 `esengine` 面导出却不同形。
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。

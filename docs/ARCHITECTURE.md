@@ -1,6 +1,6 @@
 # Estella Architecture
 
-This document describes the architecture and design decisions of the Estella 2D
+This document describes the architecture and design decisions of the Estella
 game engine. It is **descriptive of the current code**. For the
 *target* architecture, the root-cause rationale behind the current design, and
 the forward roadmap, see the architecture-of-record companions:
@@ -12,9 +12,20 @@ the forward roadmap, see the architecture-of-record companions:
 
 ## Overview
 
-Estella is a 2D game engine with a **TypeScript SDK** driven by a
-**C++/WebAssembly** backend. It targets web browsers and WeChat MiniGames and
-ships with an Electron-based visual editor.
+Estella is a game engine with a **TypeScript SDK** driven by a **C++** core. Its
+world is three-dimensional — `Transform` is a `vec3` position, a quaternion and a
+`vec3` scale, and a flat game is the corner of that space where z is 0 and the
+camera is orthographic. It ships through **two hosts** built from the same core:
+
+- **wasm** (Emscripten) for the web, WeChat MiniGames and single-file playable
+  ads, rendering through WebGL2 or WebGPU.
+- **native** (`native/`) for desktop, Android and iOS — the same C++ compiled
+  ahead of time against an embedded Dawn (Metal / Vulkan), with the same SDK
+  bundle driving it on QuickJS. Not a WebView.
+
+The visual editor is a separate, private product, mounted at `desktop/` as an
+**optional** submodule. Nothing in this repository requires it to exist: the
+engine builds, tests, gates and verifies its own renderer without a checkout.
 
 The architecture rests on two non-negotiable principles (see `REARCHITECTURE.md`):
 
@@ -28,18 +39,32 @@ The architecture rests on two non-negotiable principles (see `REARCHITECTURE.md`
    compile or fail a CI guard.
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  TypeScript SDK  (sdk/src)                                           │
-│  App · World · Schedule · Plugins · Query/Commands/Res/Events        │
-│  rendering submit · physics · spine · tilemap · ui · audio · scene   │
+┌──────────────────────────────────────────────────────────────────────┐
+│  TypeScript SDK  (sdk/src)                                            │
+│  App · World · Schedule · Plugins · Query/Commands/Res/Events         │
+│  render submit · physics(2D) · physics3d · ai/nav · skeletal ·        │
+│  tilemap · ui · audio · scene · prefab · net · postprocess · video    │
 └───────────────┬──────────────────────────────────────────────────────┘
-                │  WasmBridge  (single boundary; EHT-generated layout/ABI)
+                │  one boundary, one generated layout (EHT: offsets, enums, ABI hash)
+                │  wasm: WasmBridge + embind        native: QuickJS `es_*` bindings
 ┌───────────────▼──────────────────────────────────────────────────────┐
-│  C++ / WebAssembly  (src/esengine)                                    │
-│  Registry (SparseSet) · RenderFrame → GfxDevice · ResourceManager    │
-│  particle · tilemap · text · animation · platform                    │
-└────────────────────────────────────────────────────────────────────┘
+│  C++ core  (src/esengine)                                             │
+│  Registry (SparseSet) · RenderFrame → GfxDevice · ResourceManager     │
+│  particle · tilemap · text · animation · math · platform              │
+└───────────────┬──────────────────────────────────────────────────────┘
+                │  GfxDevice — the only GPU door
+      ┌─────────┴──────────┬─────────────────────┐
+   GLDevice           WebGPUDevice          WebGPUDevice
+   (WebGL2)           (browser WebGPU)      (embedded Dawn → Metal/Vulkan)
+   └── wasm host: web · WeChat · playable ──┘   └── native host: desktop/iOS/Android
 ```
+
+On the wasm host these are side modules — wasm of their own, fetched only by a
+project that uses one: Box2D (2D physics), Jolt (3D physics), Spine, DragonBones,
+Basis/KTX2, video. The native host links them in instead, since there is no
+download to defer. `pipeline/` (`@estella/pipeline`) cooks a project into a shipped
+build with no window and no editor; `editor-api/` is the plugin type surface, so
+a plugin author builds against the contract without private code.
 
 ## Core Modules (`src/esengine/`)
 
@@ -163,11 +188,23 @@ Key facts:
   painter's order deliberately beats batching inside a y-sorted layer, every other
   layer keeps its key bit-for-bit.
 - **`RenderFrame`** owns transient buffers (`TransientBufferPool`), frustum
-  culling, render-to-texture (`RenderTarget`), masking (`RenderFrameMask`:
-  scissor + stencil), optional post-processing (`PostProcessPipeline`,
-  ping-pong FBOs), material UBOs (`MaterialStore`), and 2D lighting
-  (`LightStore` / `LightConstants`, up to 16 dynamic lights with a Lit2D shader
-  domain). `ImmediateDraw` provides debug/shape primitives on the same buffers.
+  culling, render-to-texture (`RenderTarget`, which a `Camera.renderTarget` now
+  names), masking (`RenderFrameMask`: scissor + stencil), optional
+  post-processing (`PostProcessPipeline`, ping-pong FBOs), material UBOs
+  (`MaterialStore`), skinning palettes (`SkinConstants`) and lighting
+  (`LightStore` / `LightConstants`). `ImmediateDraw` provides debug/shape
+  primitives on the same buffers.
+- **Lighting is one model, not a flat one and a solid one.** Up to
+  `MAX_LIGHTS` = 16 dynamic lights reach the GPU as one `GpuLight` record, read
+  by both the flat model (`applyLighting2D`) and PBR (`applyLightingPBR`) under
+  the single `Lit` shader domain — `Lit2D` / `Unlit2D` are still *read* as `Lit`
+  / `Unlit`, normalized at the parser, because a `.esshader` carries no version
+  to migrate by. Shadows are a tiled atlas (`ShadowAtlas`, `MAX_SHADOW_TILES`):
+  a spot resolves one cone, a point light six faces (`SHADOW_CUBE_FACES`), a sun
+  up to `MAX_SHADOW_CASCADES` = 4 cascades, with a real penumbra from
+  `Light.shadowSoftness` / `sourceAngle`. `MAX_OCCLUDERS_2D` = 8 AABB occluders
+  (`ShadowCaster2D`) shadow content that has no mesh to rasterize — a sprite —
+  which is complementary to the maps, not a second strategy.
 
 ### Resource pipeline (`resource/`)
 
@@ -190,15 +227,17 @@ Key facts:
 
 ### Other C++ subsystems
 
-`particle/` (CPU simulation, GPU-instanced rendering), `tilemap/`, `text/`
-(SDF/glyph), `animation/`, `data/`, `math/` (glm-backed), `platform/`.
+`particle/` (CPU simulation, GPU-instanced rendering, simulated in three axes and
+drawn on a billboard that faces the viewer), `tilemap/`, `text/` (SDF/glyph),
+`animation/`, `data/`, `math/` (glm-backed), `platform/`.
 
-## SDK / WASM boundary (`sdk/src/`)
+## SDK / engine boundary (`sdk/src/`)
 
 The SDK is the authored surface: `defineComponent`, `defineSystem`, `Query`,
 `Commands`, `Res`, events, `Schedule`, and `Plugin`-based composition (`App`).
-Subsystems (asset, physics, spine, tilemap, ui, audio, scene, prefab, camera,
-particle, postprocess, timeline, net) are plugins.
+Subsystems (asset, physics, physics3d, ai — FSM / behaviour tree / perception /
+navigation, skeletal, spine, dragonbones, tilemap, ui, audio, video, scene,
+prefab, camera, particle, trail, postprocess, timeline, net) are plugins.
 
 - **One WASM boundary**: `WasmBridge<M>` (`sdk/src/WasmBridge.ts:57`) is the
   single base class — one loader, one ready promise, one missing-binding policy,
@@ -227,10 +266,29 @@ JavaScript (SDK)                 C++ (WASM)
    render() ────────────────────►   RenderFrame → GfxDevice
 ```
 
-- **Web/Emscripten** — WebGL2 context, HTML5 events, canvas management.
+- **Web/Emscripten** — WebGL2 or WebGPU context, HTML5 events, canvas management.
 - **WeChat MiniGame** — a platform adapter (`sdk/src/platform/wechat`) wraps
   `wx.*` APIs (`WXWebAssembly`, sync file I/O, storage, a dedicated audio
-  backend) behind the same `PlatformAdapter` interface used by web.
+  backend) behind the same `PlatformAdapter` interface used by web. The wechat
+  and playable variants carry the GL backend only, so neither pays for WebGPU
+  glue it cannot use.
+- **Playable ad** — one self-contained HTML file; assets are inlined and reached
+  through the same logical-path resolution every other export uses.
+- **Native (`native/`)** — desktop, Android and iOS. The engine C++ is compiled
+  ahead of time and renders through an embedded Dawn (Metal on iOS, Vulkan on
+  Android); the game runs on QuickJS-ng driving **the real SDK bundle**
+  (`dist/index.native.bundled.js`), so what boots is an editor export, not a
+  parallel content path. One host with a platform seam (`eshost::Platform`),
+  not one host per OS. Dawn and QuickJS are fetched, not vendored, and nothing
+  here is compiled by the web build.
+- **Node** — `esengine/node` runs the same wasm and the same gameplay code with
+  no DOM, for an authoritative headless server (see Networking).
+
+Both hosts reach the C++ through one generated layout. On wasm that is embind
+plus the EHT pointer accessors; natively it is a QuickJS `es_*` surface whose
+per-component half (`es_set_<C>`, `es_<C>_buffer`, `_has`, `_remove`) is
+generated from the same reflection, with only what cannot be generated — the
+registry surface, which the web build reaches as an embind class — hand-written.
 
 ## Scene Management (SDK)
 
@@ -282,9 +340,13 @@ The correctness and foundation campaigns are **complete**. Landed:
 - **RC1–RC5** (correctness root causes): generated layout + ABI handshake (RC1),
   single storage core (RC2), always-on C++ boundary validation via `boundarySpan`
   (RC3), domain TypeIds (RC4), single render path + `GfxDevice` + u32 index (RC5).
-- **F1–F4** (foundation): native seam closed by deletion — the engine is a pure
-  Emscripten target (F1); single `WasmBridge` base class (F2); per-App resources
-  (F3); this document is the F4 rewrite.
+- **F1–F4** (foundation): the platform seam (F1) was recorded in 2026-07 as
+  "closed by deletion — a pure Emscripten target", and that **is no longer
+  true**: `native/` builds the same core ahead of time against an embedded Dawn
+  for desktop, Android and iOS. The seam is real and load-bearing again, and the
+  gate `check-native-build` compiles the engine off emscripten before a push.
+  Single `WasmBridge` base class (F2); per-App resources (F3); this document is
+  the F4 rewrite, re-baselined here for the 3D / two-host / two-backend reality.
 - **RHI modernization + WGSL/WebGPU**: `GfxDevice` is a backend-neutral RHI with
   a real `WebGPUDevice` beside `GLDevice`; dual-backend pixel verification runs
   in CI on every push.
@@ -293,10 +355,23 @@ The correctness and foundation campaigns are **complete**. Landed:
   KTX2 compression, texture + audio residency with SDK-exposed VRAM budget + LRU.
 - **RC11** (networking): server-authoritative replication + headless Node server.
 - **T2/T3/T4 parity, landed**: animation state machines + 1D blend + Spine driver;
-  2D shadows (hard/soft/directional) + normal maps + extended post-processing
+  shadows (hard/soft/directional) + normal maps + extended post-processing
   (color grade, tonemap, FXAA, distortion, pixelate, LUT); pixel-perfect camera +
   4-renderable parallax + per-layer y-sort; SDK math library; i18n; save
   versioning; hex tilemaps; Tiled object layers; single `.tmj` parser.
+- **The third dimension** (0.52–0.56): `Transform` is `vec3` + quaternion;
+  `MeshRenderer` draws imported glTF with GPU skinning, PBR, an environment
+  probe and a sky; a `Light` casts spot cones, point cubes and sun cascades into
+  one shadow atlas; particles simulate and billboard in three axes; navigation
+  bakes a polygon navmesh (areas, links, doors, agent avoidance) beside the flat
+  grid; 3D physics is a Jolt side module (`RigidBody3D` + box/sphere/capsule/mesh
+  colliders, joints, character controllers). `Light2D` / `Mesh2D` dropped the
+  plane from their names (they are the only light and the only mesh renderer);
+  `ShadowCaster2D` keeps it, because it shadows what has no mesh to rasterize.
+  Physics is the one place where two worlds really do exist, and the unsuffixed
+  names — `RigidBody`, `BoxCollider`, `CircleCollider`, `CapsuleCollider` — are
+  still the **flat** ones. That reads backwards in a 3D-first engine and is
+  slated to be suffixed; see `REARCHITECTURE.md`.
 
 Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T2 — editor keyframe/curve editing UI; particle visual editor; native 2D
@@ -304,3 +379,11 @@ Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
 - [ ] T3 — GPU particles / trails (transform-feedback or compute).
 - [ ] T4 — one-way platforms + remaining Box2D joints; editor multi-atlas painting;
       tile-gid objects in tilemaps.
+- [ ] Flat-physics naming — the `2D` suffix decided above.
+- [ ] Two pixel gates still run on one backend: `camera-render-target` (a frame
+      holding both an offscreen and a surface pass returns nothing from the
+      WebGPU readback) and `device-loss`. The other 121 assert on both.
+- [ ] A point light runs six cube-face collects and draws whether or not any mesh
+      falls in a face; the frustum is already extracted per tile, so skipping an
+      empty one is cheap — unmeasured, because nothing in the corpus has several
+      point lights.

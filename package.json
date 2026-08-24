@@ -3,7 +3,7 @@
   "version": "0.56.0",
   "private": true,
   "type": "module",
-  "description": "Estella - A fast 2D game engine powered by WebAssembly and ECS",
+  "description": "Estella - A fast 2D/3D game engine powered by WebAssembly and ECS",
   "license": "Apache-2.0",
   "scripts": {
     "build": "node build-tools/cli.js build",

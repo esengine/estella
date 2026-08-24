@@ -264,10 +264,11 @@ if(ES_ENABLE_BITMAP_TEXT)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_BITMAP_TEXT)
 endif()
 
-# ESEngine is a web-only engine: it targets Emscripten (WebGL2 / GLES3) and ships
-# as wasm for web, WeChat MiniGame, and the Tauri desktop shell. There is no native
-# GPU/runtime build. (The header-only / MockGfxDevice unit tests under tests/ still
-# compile on any C++20 toolchain — they don't link this target.)
+# THIS target is the Emscripten one (WebGL2 / GLES3 or WebGPU), shipped as wasm for
+# web, WeChat MiniGame and playable ads. The same sources also build ahead of time
+# for desktop / Android / iOS against an embedded Dawn — that is native/CMakeLists.txt,
+# a separate tree, and `tools/check-native-build.mjs` compiles this library through it
+# so a header reached only under `__EMSCRIPTEN__` cannot pass for portable.
 target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
 target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
 if(ES_BUILD_WXGAME)

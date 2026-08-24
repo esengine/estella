@@ -4,7 +4,7 @@
 
 # Estella
 
-**A fast 2D game engine powered by WebAssembly and ECS**
+**A fast 2D/3D game engine powered by WebAssembly and ECS**
 
 [![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -21,7 +21,7 @@
 
 ## What is Estella?
 
-Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps. A visual editor is available as a separate, free download.
+Estella is a **2D/3D game engine** with a TypeScript SDK driven by a high-performance **C++** core — as WebAssembly on the web, and compiled ahead of time on native platforms. It outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps. A visual editor is available as a separate, free download.
 
 <div align="center">
   <img src="docs/assets/editor-hero-c5bfd2f3.png" alt="An action-RPG scene open in the Estella editor" width="900" />

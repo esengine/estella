@@ -35,6 +35,7 @@ export const GATES = [
   { id: 'engine-exports', run: 'node tools/check-engine-exports.mjs' },
   { id: 'fixture-scenes', run: 'node tools/check-fixture-scenes.mjs' },
   { id: 'doc-imports', run: 'node tools/check-doc-imports.mjs' },
+  { id: 'architecture-doc', run: 'node tools/check-architecture-doc.mjs' },
   {
     id: 'native-bindings',
     run: 'node tools/check-native-bindings.mjs',
