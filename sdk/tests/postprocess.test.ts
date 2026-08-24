@@ -462,8 +462,10 @@ describe('PostProcess API', () => {
             const handle = postProcessEffects.createTonemap();
             const src = lastSource();
             expect(src).toContain('#pragma param u_exposure float');
-            // ACES Narkowicz curve constant — guards the operator identity.
-            expect(src).toContain('2.51');
+            // The curve is pinned where it is defined (test_shader_variant.cpp);
+            // what this layer owns is that the effect REACHES it, in both dialects.
+            expect(src).toContain('vec4(acesFilmic(c), src.a)');
+            expect(src).toContain('vec4f(acesFilmic(c), src.a)');
             expect(handle).toBe(42);
         });
 

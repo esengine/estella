@@ -372,6 +372,19 @@ static void testFragmentOnly() {
           ppv.find("u_projection *") == std::string::npos,
           "PostProcess canonical vertex is the clip-space pass-through (no projection)");
 
+    // The tone curve has ONE definition, injected here, so this is the only
+    // place its identity can be pinned. Nothing else in the repo asserts it.
+    for (auto lang : {ShaderTargetLanguage::GLSL_ES300, ShaderTargetLanguage::WGSL}) {
+        const std::string ppf = ShaderParser::assembleStage(pp, ShaderStage::Fragment, "", {}, lang);
+        const bool glsl = lang == ShaderTargetLanguage::GLSL_ES300;
+        CHECK(ppf.find("acesFilmic") != std::string::npos
+                  && ppf.find("2.51") != std::string::npos
+                  && ppf.find("2.43") != std::string::npos
+                  && ppf.find("0.59") != std::string::npos,
+              glsl ? "the ACES Narkowicz curve reaches a GLSL fragment stage, constants and all"
+                   : "and the WGSL twin carries the same curve");
+    }
+
     // A particle is drawn from an instanced vertex source, so the canonical stage
     // has a third shape. Both dialects: a twin that will not build is a pipeline
     // the device refuses with no mention of a shader.
