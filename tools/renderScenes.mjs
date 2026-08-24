@@ -92,6 +92,10 @@ export const SCENES = [
     // The same scene with a MATERIAL on the occluder, over three frames because a
     // stale sampler unit needs a previous frame. Red at the centre says the material
     // ran in the CAMERA's pass; black at 0.708 says the occluder still cast.
+  // A shadow pass INSIDE a capture, which nothing else here puts together: the other
+  // linear gates cast nothing and the other shadow gates are gamma. The atlas takes
+  // the target away mid-frame; whether the capture is handed back is what this pins.
+  { id: "mesh-shadow-linear", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[243,243,243],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[243,243,243],\"tol\":20}]" } },
   { id: "mesh-shadow-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-material.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
 
   // The same question through a PERSPECTIVE camera, which is what a 3D scene uses:

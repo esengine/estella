@@ -310,14 +310,13 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
             }
         }
         // Fresh begin: colors the capture's own load-op clear. When TS already
-        // began the capture (renderCamera drives pp.begin first) this no-ops...
+        // began the capture (renderCamera drives pp.begin first) this no-ops.
         post_process_->begin(pass.clearColorValue);
-        // ...so apply the camera's (possibly region-scoped) clear to the active
-        // capture surface explicitly.
-        if (pass.clearColor || pass.clearDepth) {
-            pass.target = post_process_->currentSceneFBO();
-            device_.beginRenderPass(pass);
-        }
+        // Then BIND it, clear or no clear: this is where the frame gets its target
+        // back after the shadow pass drew through one of its own. Skipping that for
+        // a camera with nothing to clear left the atlas current — a black frame.
+        pass.target = post_process_->currentSceneFBO();
+        device_.beginRenderPass(pass);
 #endif
     } else if (target != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(target);

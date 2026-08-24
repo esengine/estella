@@ -14,6 +14,29 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A packaged game in linear colour space rendered one flat black frame, and
+  always had.** Not a look problem and not new: the same package built at
+  `2c40bf011`, before any of this release's render work, produces a
+  byte-identical black PNG. Turning a 3D project to linear was the thing this
+  release was building toward, and it could not have shipped.
+
+  `RenderFrame::openPass` exists to hand the frame its target back after the
+  shadow pass has drawn through one of its own. Down the captured path it only
+  did so when the camera also had something to CLEAR; the other two branches
+  always bind. So a camera that clears nothing left the shadow atlas current, the
+  scene drew into that, and the final blit then painted an untouched capture over
+  the top. Gamma never showed it because with no capture the scene goes straight
+  to the surface, which the atlas hand-back restores anyway.
+
+  **Why no gate held it:** it needs a shadow pass INSIDE a capture, and the suite
+  had each axis alone — every linear gate was a flat scene that casts nothing,
+  every shadow gate was gamma. `mesh-shadow-linear` is that crossing, and it
+  reproduces the packaged symptom exactly: reverted, the frame comes back with
+  zero non-black pixels while `mesh-shadow`, `linear-lit` and `linear-midtone`
+  all still pass.
+
 ### Changed
 
 - **The render graph owns the scene target now, not the post-process pipeline.**
