@@ -7,6 +7,7 @@ import {
     type StreamCell,
     type SceneStreamHost,
 } from '../src/scene/sceneStreaming';
+import { sceneStreamingSystem } from '../src/scene/scenePlugin';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 
@@ -56,6 +57,46 @@ describe('computeStreaming', () => {
     it('deactivates an active cell past unloadRadius', () => {
         expect(computeStreaming(cells(a), 25, 0, 10, 20, new Set(['a'])).toDeactivate).toEqual(['a']);
     });
+
+    it('separates cells stacked in depth, which is what a tower is', () => {
+        const ground: StreamCell = { scene: 'ground', x: 0, y: 0, z: 0, radius: 0 };
+        const upstairs: StreamCell = { scene: 'upstairs', x: 0, y: 0, z: 300, radius: 0 };
+        // Standing on the ground floor: same x/y as both, so measuring in two axes
+        // would bring the floor above in with it.
+        const d = computeStreaming(cells(ground, upstairs), 0, 0, 10, 20, new Set(), 0);
+        expect(d.toActivate).toEqual(['ground']);
+
+        // Climb, and they swap — neither is a fixed answer.
+        expect(computeStreaming(cells(ground, upstairs), 0, 0, 10, 20, new Set(), 300).toActivate)
+            .toEqual(['upstairs']);
+    });
+
+    it('reads an absent z as the plane a flat game is on', () => {
+        // `a` declares no z at all, and a flat focus declares none either: the
+        // depth term has to vanish rather than read as a distance.
+        expect(computeStreaming(cells(a), 5, 0, 10, 20, new Set()).toActivate).toEqual(['a']);
+        expect(computeStreaming(cells(a), 5, 0, 10, 20, new Set(), 300).toActivate).toEqual([]);
+    });
+});
+
+describe('sceneStreamingSystem', () => {
+    it('follows the focus entity in all three axes', () => {
+        const seen: number[][] = [];
+        const streaming = {
+            getFocusEntity: () => 7 as never,
+            setFocus: (x: number, y: number, z?: number) => { seen.push([x, y, z ?? 0]); },
+            update: () => {},
+        };
+        const world = {
+            valid: () => true,
+            has: () => true,
+            get: () => ({ position: { x: 1, y: 2, z: 3 } }),
+        };
+        (sceneStreamingSystem as { _fn: (...a: unknown[]) => void })._fn(streaming, world);
+        // z is the one a flat reader drops, and dropping it puts every floor of a
+        // tower at the focus — so the whole position has to arrive, not two of it.
+        expect(seen).toEqual([[1, 2, 3]]);
+    });
 });
 
 describe('SceneStreamingController', () => {
@@ -74,6 +115,19 @@ describe('SceneStreamingController', () => {
         expect(calls).toEqual(['load:near']);
         expect(loaded.has('near')).toBe(true);
         expect(c.getActive()).toEqual(['near']);
+    });
+
+    it('carries the focus depth into the decision', async () => {
+        const { host, calls } = mockHost();
+        const c = new SceneStreamingController(host, { loadRadius: 10, unloadRadius: 20 });
+        c.register(near);
+        // Directly above the cell: in range by x/y alone, out of range in space.
+        c.setFocus(0, 0, 300);
+        c.update(); await flush();
+        expect(calls).toEqual([]);
+        c.setFocus(0, 0, 5);
+        c.update(); await flush();
+        expect(calls).toEqual(['load:near']);
     });
 
     it('unloads a cell when the focus leaves (past unloadRadius)', async () => {

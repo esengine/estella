@@ -20,6 +20,8 @@ export interface StreamCell {
     scene: string;
     x: number;
     y: number;
+    /** Where the cell sits in depth. Absent = the plane a flat scene draws on. */
+    z?: number;
     /** Cell radius in world units; distances are measured to the cell edge. */
     radius: number;
 }
@@ -34,6 +36,11 @@ export interface StreamDecision {
  * active when its edge is within `loadRadius`; an active cell deactivates only
  * once its edge passes `unloadRadius` (hysteresis). Cells inside the band keep
  * their current state. Pure.
+ *
+ * A cell is a sphere, not a circle: measuring in two axes makes every floor of a
+ * tower the same place, so a world stacked in depth holds all of it resident at
+ * once. Both z default to 0, which is where a flat game's cells and focus are —
+ * the third term vanishes and the answer is the plane one.
  */
 export function computeStreaming(
     cells: readonly StreamCell[],
@@ -42,11 +49,13 @@ export function computeStreaming(
     loadRadius: number,
     unloadRadius: number,
     active: ReadonlySet<string>,
+    focusZ = 0,
 ): StreamDecision {
     const toActivate: string[] = [];
     const toDeactivate: string[] = [];
     for (const c of cells) {
-        const edge = Math.max(0, Math.hypot(focusX - c.x, focusY - c.y) - c.radius);
+        const edge = Math.max(
+            0, Math.hypot(focusX - c.x, focusY - c.y, focusZ - (c.z ?? 0)) - c.radius);
         const isActive = active.has(c.scene);
         if (!isActive && edge <= loadRadius) toActivate.push(c.scene);
         else if (isActive && edge > unloadRadius) toDeactivate.push(c.scene);
@@ -86,6 +95,7 @@ export class SceneStreamingController {
     private readonly inFlight_ = new Set<string>();
     private focusX_ = 0;
     private focusY_ = 0;
+    private focusZ_ = 0;
     private loadRadius_ = 0;
     private unloadRadius_ = 0;
     private policy_: StreamPolicy = 'unload';
@@ -118,10 +128,12 @@ export class SceneStreamingController {
         this.focusEntity_ = null;
     }
 
-    /** Set the focus directly (or let the streaming system read a focus entity). */
-    setFocus(x: number, y: number): void {
+    /** Set the focus directly (or let the streaming system read a focus entity).
+     *  @p z defaults to the plane a flat game's cells sit on. */
+    setFocus(x: number, y: number, z = 0): void {
         this.focusX_ = x;
         this.focusY_ = y;
+        this.focusZ_ = z;
     }
 
     /** Follow an entity; the streaming system reads its Transform each tick. */
@@ -146,6 +158,7 @@ export class SceneStreamingController {
             this.focusX_, this.focusY_,
             this.loadRadius_, this.unloadRadius_,
             this.active_,
+            this.focusZ_,
         );
         for (const scene of decision.toActivate) {
             this.active_.add(scene);

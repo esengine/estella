@@ -27,13 +27,15 @@ const sceneTransitionSystem = defineSystem(
 
 // Drives proximity streaming: pulls the focus from a follow-entity's Transform (if
 // one is set), then reconciles resident cells. A no-op until cells are registered.
-const sceneStreamingSystem = defineSystem(
+// Exported for the criterion that holds the follow to all three axes — the plugin
+// is the only place that reads a Transform into a focus.
+export const sceneStreamingSystem = defineSystem(
     [Res(SceneStreaming), GetWorld()],
     (streaming: SceneStreamingController, world: World) => {
         const focus = streaming.getFocusEntity();
         if (focus != null && world.valid(focus) && world.has(focus, Transform)) {
             const t = world.get(focus, Transform) as TransformData;
-            streaming.setFocus(t.position.x, t.position.y);
+            streaming.setFocus(t.position.x, t.position.y, t.position.z);
         }
         streaming.update();
     },

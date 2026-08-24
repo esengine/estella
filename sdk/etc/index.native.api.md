@@ -7088,7 +7088,7 @@ configure: (config: SceneStreamingConfig) => void
 getActive: () => string[]
 getFocusEntity: () => Entity | null
 register: (cell: StreamCell) => void
-setFocus: (x: number, y: number) => void
+setFocus: (x: number, y: number, z?: number) => void
 setFocusEntity: (entity: Entity | null) => void
 unregister: (scene: string) => void
 update: () => void
@@ -7724,6 +7724,7 @@ radius: number
 scene: string
 x: number
 y: number
+z: number | undefined
 ```
 
 ## StreamDecision — interface @experimental
@@ -10076,7 +10077,7 @@ BtPlugin
 
 ## computeStreaming — function @experimental
 ```
-(cells: readonly StreamCell[], focusX: number, focusY: number, loadRadius: number, unloadRadius: number, active: ReadonlySet<string>): StreamDecision
+(cells: readonly StreamCell[], focusX: number, focusY: number, loadRadius: number, unloadRadius: number, active: ReadonlySet<string>, focusZ?: number): StreamDecision
 ```
 
 ## connect — function @beta
