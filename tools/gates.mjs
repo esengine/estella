@@ -104,10 +104,16 @@ export const GATES = [
   { id: 'mesh-vocabulary', run: 'node tools/check-mesh-vocabulary.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
-  // The twin's FRESHNESS, which only CI asked — so fifteen shaders reached master
-  // with a stamp older than their GLSL. It needs no converter and no engine.
-  { id: 'wgsl-twin-fresh',
-    run: "node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader')" },
+  {
+    // The twin's FRESHNESS, as opposed to its shape above: fifteen shaders reached
+    // master carrying a stamp older than their own GLSL.
+    id: 'wgsl-twin-fresh',
+    run: "if [ -f build/wasm/web/esengine.js ]; then "
+      + "node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader'); "
+      + "else echo 'wgsl-twin-fresh: skipped — no built engine in build/wasm/web'; fi",
+    where: 'local',
+    why: 'the check cooks each shader to hash the ASSEMBLED GLSL, so it needs the built engine and skips a machine without one; the render CI job runs it where the binary is',
+  },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
