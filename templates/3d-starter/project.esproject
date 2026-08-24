@@ -9,5 +9,11 @@
     "width": 960,
     "height": 640
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "features": {
+    "rendering": {
+      "colorSpace": "linear",
+      "outputTransform": "aces"
+    }
+  }
 }

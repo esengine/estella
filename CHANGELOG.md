@@ -14,6 +14,29 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A new 3D project starts in linear light with an ACES output transform.** The
+  `3d-starter` template ships `rendering.colorSpace: linear` and
+  `rendering.outputTransform: aces`, and its two lights are re-authored for that
+  world: the sun goes 1.05 → 0.52 and the sky 0.42 → 0.09.
+
+  The template is where this belongs and the only place it does. A manifest
+  expresses a default by ABSENCE, and the engine default has to stay gamma —
+  flat content wants an exact round trip, and every 2D project relies on it. So
+  the door for "3D is lit physically" is the thing a new 3D project is made from,
+  not a flag flipped under everyone. Existing 3D examples keep the look their
+  golden pixels pin; changing them would cost a re-baseline and buy nothing.
+
+  Why those numbers: intensities tuned in gamma are not light units, and reused
+  in linear they over-light everything — measured on the packaged template, the
+  ground went from `88,106,91` to `179,188,178` and the whole frame lost its
+  colour. Solving the ACES curve backwards for the ground says roughly a third of
+  the energy, and the pair above lands it at `125,133,115`: readable daylight
+  rather than the old dusk, colours intact, and nothing above ~150 — so the first
+  light a creator adds rolls off the shoulder instead of clipping, which is the
+  whole point of being here.
+
 ### Fixed
 
 - **A packaged game in linear colour space rendered one flat black frame, and

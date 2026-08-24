@@ -74,7 +74,7 @@
      "type": "Light",
      "data": {
       "type": 1,
-      "intensity": 1.05,
+      "intensity": 0.52,
       "enabled": true,
       "color": {
        "r": 1,
@@ -108,7 +108,7 @@
      "type": "Light",
      "data": {
       "type": 2,
-      "intensity": 0.42,
+      "intensity": 0.09,
       "enabled": true,
       "color": {
        "r": 0.55,
