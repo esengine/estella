@@ -277,14 +277,9 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 // through a target of its own and has to hand this one back when it is done.
 void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle target) {
 #ifdef ES_ENABLE_POSTPROCESS
-    // Linear mode keeps the capture+blit engaged even with zero passes: the
-    // final blit is where the mandatory linear->sRGB encode lives (the WebGL2
-    // canvas framebuffer cannot be made sRGB).
-    bool usePostProcess = post_process_ && post_process_->isInitialized() &&
-                          ((!post_process_->isBypassed() && post_process_->getPassCount() > 0)
-                           || linear_color_);
+    const bool usePostProcess = post_process_ && post_process_->isEngaged();
 #else
-    bool usePostProcess = false;
+    const bool usePostProcess = false;
 #endif
 
     // The pass's load-op clear, values carried in the desc (never sticky device
@@ -422,14 +417,9 @@ void RenderFrame::end() {
     }
 
 #ifdef ES_ENABLE_POSTPROCESS
-    // Linear mode keeps the capture+blit engaged even with zero passes: the
-    // final blit is where the mandatory linear->sRGB encode lives (the WebGL2
-    // canvas framebuffer cannot be made sRGB).
-    bool usePostProcess = post_process_ && post_process_->isInitialized() &&
-                          ((!post_process_->isBypassed() && post_process_->getPassCount() > 0)
-                           || linear_color_);
+    const bool usePostProcess = post_process_ && post_process_->isEngaged();
 #else
-    bool usePostProcess = false;
+    const bool usePostProcess = false;
 #endif
 
     if (usePostProcess) {

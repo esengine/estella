@@ -153,6 +153,18 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /**
+     * @brief Whether the scene goes through the graph or straight to the surface.
+     *
+     * @details Two things engage it: effects to run, or the linear pipeline, whose
+     *          final pass carries an encode a WebGL2 canvas framebuffer cannot do
+     *          for itself. One predicate because RenderFrame asked at both ends of
+     *          the frame, and two copies is one edit from a capture never resolved.
+     */
+    bool isEngaged() const {
+        return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_);
+    }
+
+    /**
      * @brief Sets bypass mode to skip FBO rendering entirely
      * @param bypass If true, begin()/end() become no-ops
      */
@@ -170,18 +182,11 @@ public:
      *
      * @details A depth buffer is per-frame memory and clear bandwidth (≈8MB at 1080p),
      *          which a project with no depth layer should not pay for a feature it does
-     *          not use. Drops the scene FBO when the answer changes so the next
-     *          ensureFBOs rebuilds it with the right attachments — the same way resize
-     *          handles a size change.
+     *          not use. A flag and nothing more: the scene target is declared to the
+     *          graph at every begin(), so the next frame asks the pool for the shape
+     *          this answer describes and the old one is simply never handed out again.
      */
-    void setSceneNeedsDepth(bool needs) {
-        if (needs == scene_needs_depth_) return;
-        scene_needs_depth_ = needs;
-        if (fboOriginalCreated_) {
-            fboOriginal_.reset();
-            fboOriginalCreated_ = false;
-        }
-    }
+    void setSceneNeedsDepth(bool needs) { scene_needs_depth_ = needs; }
     bool linearOutput() const { return linear_output_; }
 
     /**
@@ -259,13 +264,16 @@ private:
     PostProcessPass* findPass(const std::string& name);
     /** Intermediate/capture attachment format for the active pipeline mode. */
     GfxPixelFormat interFormat() const;
-    void ensureFBOs();
+    /** The shape of every target in a chain, the scene target included. */
+    rg::TargetDesc chainTarget(bool withDepth) const;
+    void ensureGraph();
     void ensureScreenQuad();
     void drawScreenQuad();
     void applyPassPipeline(const Shader& shader);
     void renderPass(PostProcessPass& pass, const rg::PassContext& ctx);
-    /// Declares one chain to the graph and runs it, ending in the output target.
-    void runChain(std::vector<PostProcessPass>& passes, TextureHandle sceneTexture);
+    /// Declares one chain onto an already-begun graph and runs it, ending in the
+    /// output target. @p scene is the resource the first effect reads.
+    void runChain(std::vector<PostProcessPass>& passes, rg::ResourceId scene);
     /// The chain's last pass: the copy into the output target's viewport.
     void blitPass();
     /// Frees a pass's GPU-side param UBO (clearPasses/shutdown).
@@ -276,7 +284,6 @@ private:
     resource::ResourceManager& resourceManager_;
 
     Unique<rg::RenderGraph> graph_;
-    Unique<Framebuffer> fboOriginal_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;
@@ -285,11 +292,12 @@ private:
     u32 width_ = 0;
     u32 height_ = 0;
     bool initialized_ = false;
-    bool fboOriginalCreated_ = false;
     bool inFrame_ = false;
     bool bypass_ = false;
     bool linear_output_ = false;
     bool scene_needs_depth_ = false;
+    /// The graph resource the scene is drawn into, live between begin() and end().
+    rg::ResourceId sceneResource_ = rg::kNoResource;
     TextureHandle sceneTexture_ = TextureHandle::Invalid;
 
     FramebufferHandle output_target_fbo_ = FramebufferHandle::Default;

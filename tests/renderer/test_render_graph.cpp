@@ -186,6 +186,35 @@ int main() {
         CHECK(ran.empty(), "a graph with no output runs nothing");
     }
 
+    // --- the scene target: owned and pooled here, filled somewhere else ---
+    {
+        MockGfxDevice d;
+        rg::RenderGraph graph(d);
+
+        graph.begin(256, 128);
+        const auto sceneId = graph.createExternalTarget({});
+        // Drawable BEFORE execute, which is the whole point: a frame reaches the
+        // host as several calls and the geometry lands between them.
+        CHECK(sceneId != rg::kNoResource, "an external target is handed out at declaration");
+        CHECK(graph.framebufferOf(sceneId) != FramebufferHandle::Default,
+              "and names a real framebuffer to draw into");
+        CHECK(d.createFramebufferCalls == 1, "allocated once, at that moment");
+
+        const auto out = graph.importTarget(FramebufferHandle{9}, 256, 128);
+        const auto a = graph.createTarget({});
+        const auto b = graph.createTarget({});
+        graph.addPass(fullscreen("effect", {sceneId}, a));
+        graph.addPass(fullscreen("grade", {a}, b));
+        graph.addPass(fullscreen("blit", {b}, out));
+        graph.execute();
+
+        // Recycled at its last read like any other transient: nothing after
+        // "effect" reads the scene, so "grade" is handed that same physical
+        // target back — two allocations for a three-link chain, not three.
+        CHECK(d.createFramebufferCalls == 2, "the scene target goes back to the pool and is reused");
+        CHECK(graph.pooledTargetCount() == 2, "the pool owns it, not the pipeline");
+    }
+
     std::printf(g_failures == 0 ? "\nALL PASS\n" : "\n%d FAILURE(S)\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

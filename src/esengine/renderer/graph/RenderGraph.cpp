@@ -60,6 +60,23 @@ ResourceId RenderGraph::createTarget(const TargetDesc& desc) {
     return static_cast<ResourceId>(resources_.size() - 1);
 }
 
+ResourceId RenderGraph::createExternalTarget(const TargetDesc& desc) {
+    const ResourceId id = createTarget(desc);
+    Resource& res = resources_[id];
+    res.pooled = acquire(res);
+    if (res.pooled == kNoPooled) return kNoResource;
+    res.texture = pool_[res.pooled].fbo->getColorAttachment();
+    return id;
+}
+
+FramebufferHandle RenderGraph::framebufferOf(ResourceId id) const {
+    if (id >= resources_.size()) return FramebufferHandle::Default;
+    const Resource& res = resources_[id];
+    if (res.kind == Kind::ImportedTarget) return res.target;
+    if (res.pooled == kNoPooled) return FramebufferHandle::Default;
+    return pool_[res.pooled].fbo->handle();
+}
+
 void RenderGraph::addPass(PassDesc pass) {
     passes_.push_back(std::move(pass));
 }

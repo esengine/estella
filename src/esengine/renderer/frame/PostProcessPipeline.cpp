@@ -76,36 +76,29 @@ GfxPixelFormat PostProcessPipeline::interFormat() const {
                                           : GfxPixelFormat::SRGB8_ALPHA8;
 }
 
-void PostProcessPipeline::ensureFBOs() {
-    const GfxPixelFormat interFmt = interFormat();
-    if (!graph_) graph_ = makeUnique<rg::RenderGraph>(device_);
-    if (!fboOriginalCreated_) {
-        FramebufferSpec origSpec;
-        origSpec.width = width_;
-        origSpec.height = height_;
-        origSpec.depthStencil = scene_needs_depth_;
-        origSpec.colorFormat = interFmt;
-        // Bilinear intermediates: fullscreen passes sample at texel centers
-        // (where LINEAR == NEAREST), but Kawase blur deliberately samples at
-        // half-texel offsets — with NEAREST those land ON texel boundaries,
-        // whose rounding is backend-dependent (GL vs Dawn diverged visibly).
-        // LINEAR makes the tap a well-defined 2x2 average — the actual Kawase
-        // algorithm — identical on every backend.
-        origSpec.linearFilter = true;
-
-        fboOriginal_ = Framebuffer::create(device_, origSpec);
-        if (!fboOriginal_) {
-            ES_LOG_ERROR("PostProcessPipeline: Failed to create original FBO");
-            return;
-        }
-        fboOriginalCreated_ = true;
-        if (linear_output_) {
-            ES_LOG_INFO("PostProcess intermediates: {}",
-                        interFmt == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"
+void PostProcessPipeline::ensureGraph() {
+    if (graph_) return;
+    graph_ = makeUnique<rg::RenderGraph>(device_);
+    if (linear_output_) {
+        ES_LOG_INFO("PostProcess intermediates: {}",
+                    interFormat() == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"
                                                             : "SRGB8_ALPHA8 (LDR linear)");
-        }
     }
+}
 
+/**
+ * The shape every target in a chain has, the one the scene lands in included.
+ *
+ * Bilinear throughout: Kawase blur samples at half-texel offsets, which under
+ * NEAREST land ON texel boundaries whose rounding is backend-dependent (GL and
+ * Dawn diverged visibly). LINEAR makes the tap the 2x2 average it means.
+ */
+rg::TargetDesc PostProcessPipeline::chainTarget(bool withDepth) const {
+    rg::TargetDesc desc;
+    desc.format = interFormat();
+    desc.linearFilter = true;
+    desc.depthStencil = withDepth;
+    return desc;
 }
 
 void PostProcessPipeline::shutdown() {
@@ -127,9 +120,8 @@ void PostProcessPipeline::shutdown() {
     }
 
     graph_.reset();
-    fboOriginal_.reset();
     screenFBO_.reset();
-    fboOriginalCreated_ = false;
+    sceneResource_ = rg::kNoResource;
     screenCaptureActive_ = false;
     screenFBOCreated_ = false;
     sceneTexture_ = TextureHandle::Invalid;
@@ -154,12 +146,11 @@ void PostProcessPipeline::recreateGpuResources() {
     for (auto& pass : screenPasses_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
 
     if (graph_) graph_->releasePool();
-    fboOriginal_.reset();
     screenFBO_.reset();
-    fboOriginalCreated_ = false;
+    sceneResource_ = rg::kNoResource;
     screenFBOCreated_ = false;
     screenCaptureActive_ = false;
-    ensureFBOs();
+    ensureGraph();
 }
 
 void PostProcessPipeline::resize(u32 width, u32 height) {
@@ -169,15 +160,12 @@ void PostProcessPipeline::resize(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    if (fboOriginalCreated_) {
-        fboOriginal_.reset();
-        fboOriginalCreated_ = false;
-    }
     // The pool is keyed by shape, so targets at the old size would never be
     // handed out again — they would just sit there holding memory.
     if (graph_) graph_->releasePool();
+    sceneResource_ = rg::kNoResource;
 
-    ensureFBOs();
+    ensureGraph();
 
     if (screenFBOCreated_) {
         screenFBO_.reset();
@@ -293,17 +281,27 @@ void PostProcessPipeline::applyPassPipeline(const Shader& shader) {
 
 FramebufferHandle PostProcessPipeline::currentSceneFBO() const {
     if (screenCaptureActive_ && screenFBOCreated_) return screenFBO_->handle();
-    if (inFrame_ && fboOriginalCreated_) return fboOriginal_->handle();
+    if (inFrame_ && graph_) return graph_->framebufferOf(sceneResource_);
     return FramebufferHandle::Default;
 }
 
 void PostProcessPipeline::begin(const f32* clearColor) {
     if (!initialized_ || inFrame_ || (bypass_ && !linear_output_)) return;
 
-    ensureFBOs();
-    if (!fboOriginalCreated_) return;
+    ensureGraph();
+    if (!graph_) return;
 
-    RenderPassDesc pass{fboOriginal_->handle(), /*clearColor=*/true, /*clearDepth=*/true};
+    // The graph opens HERE and not at end(), because the scene target is its
+    // first resource and the scene is drawn before any pass can be declared.
+    graph_->begin(width_, height_);
+    sceneResource_ = graph_->createExternalTarget(chainTarget(scene_needs_depth_));
+    if (sceneResource_ == rg::kNoResource) {
+        ES_LOG_ERROR("PostProcessPipeline: no scene target this frame");
+        return;
+    }
+
+    RenderPassDesc pass{graph_->framebufferOf(sceneResource_),
+                        /*clearColor=*/true, /*clearDepth=*/true};
     if (clearColor) {
         for (int i = 0; i < 4; ++i) pass.clearColorValue[i] = clearColor[i];
         if (linear_output_) {
@@ -331,10 +329,12 @@ void PostProcessPipeline::end() {
     device->invalidatePipelineCache();
     device->setScissorTest(false);
 
-    sceneTexture_ = fboOriginal_->getColorAttachment();
-    fboOriginal_->unbind();
+    sceneTexture_ = graph_->textureOf(sceneResource_);
+    // What Framebuffer::unbind did for the FBO this replaced: a WebGPU pass
+    // encoder has to be closed before the graph opens the first chain pass.
+    device->endRenderPass();
 
-    runChain(passes_, sceneTexture_);
+    runChain(passes_, sceneResource_);
 
     device->invalidatePipelineCache();
     inFrame_ = false;
@@ -464,19 +464,11 @@ void PostProcessPipeline::blitPass() {
     drawScreenQuad();
 }
 
-void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, TextureHandle sceneTexture) {
-    if (!graph_) return;
+void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::ResourceId scene) {
+    if (!graph_ || scene == rg::kNoResource) return;
 
-    graph_->begin(width_, height_);
-    const rg::ResourceId scene = graph_->importTexture(sceneTexture, width_, height_);
     const rg::ResourceId out = graph_->importTarget(output_target_fbo_, width_, height_);
-
-    rg::TargetDesc desc;
-    desc.format = interFormat();
-    // Bilinear intermediates: fullscreen passes sample at texel centers (where
-    // LINEAR == NEAREST), but Kawase blur samples at half-texel offsets, whose
-    // NEAREST rounding is backend-dependent (GL and Dawn diverged visibly).
-    desc.linearFilter = true;
+    const rg::TargetDesc desc = chainTarget(/*withDepth=*/false);
 
     rg::ResourceId input = scene;
     for (auto& pass : passes) {
@@ -551,12 +543,17 @@ void PostProcessPipeline::executeScreenPasses() {
     device->invalidatePipelineCache();
     device->setScissorTest(false);
 
-    ensureFBOs();
+    ensureGraph();
+    if (!graph_) return;
 
     sceneTexture_ = screenFBO_->getColorAttachment();
     screenFBO_->unbind();
 
-    runChain(screenPasses_, sceneTexture_);
+    // The composition surface every camera drew into is NOT a transient (it
+    // outlives each camera graph), so this chain imports it and opens a graph
+    // of its own.
+    graph_->begin(width_, height_);
+    runChain(screenPasses_, graph_->importTexture(sceneTexture_, width_, height_));
 
     device->invalidatePipelineCache();
 }

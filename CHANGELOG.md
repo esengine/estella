@@ -14,6 +14,39 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The render graph owns the scene target now, not the post-process pipeline.**
+  `RenderGraph.hpp` used to say so in its own header — *"The graph does NOT own
+  scene geometry"* — and the reason was real: one frame reaches the host as
+  several calls (`renderer_begin`, `submitAll`, `flush`, `end`) with the geometry
+  drawn between them, so the scene cannot be filled from inside a pass callback
+  the way every full-screen pass is. The pipeline answered that by owning a
+  private `fboOriginal_` and handing the graph a texture afterwards.
+
+  It did not need a private framebuffer, it needed a target it could draw into
+  BEFORE the graph runs. `createExternalTarget` is that: the graph allocates it
+  from the same pool, at the same declared format and scale, and recycles it at
+  its last read like any other transient — the exception is WHEN it is filled,
+  not who owns it. The graph now opens at `begin()` rather than at `end()`,
+  because the scene target is its first resource.
+
+  What that deletes: the bespoke lifecycle around that one framebuffer.
+  `fboOriginal_`, `fboOriginalCreated_`, its re-creation in `resize` and
+  `recreateGpuResources`, and the FBO surgery inside `setSceneNeedsDepth` — which
+  dropped and rebuilt the framebuffer to change one attachment — are gone;
+  depth is a field in the desc the next frame declares. Format follows the same
+  way, so a colour-space change no longer has to invalidate anything.
+
+  **One predicate for "is the capture engaged".** RenderFrame spelled the same
+  three-term expression out twice, at both ends of the frame, and had to agree
+  with itself or leave a capture opened and never resolved. It asks
+  `PostProcessPipeline::isEngaged()` at both ends now.
+
+  No pixel moves: same format, same passes, same order. Verified on the pr tier,
+  both backends (98/98 webgl2, 96/96 webgpu) — device loss and resize included,
+  which is where a pooled scene target would fail if it were going to.
+
 ### Added
 
 - **The 3D path can be held to what it COST, not just to what it drew.**

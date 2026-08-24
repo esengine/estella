@@ -114,6 +114,19 @@ public:
     /** A target the graph allocates from the pool and recycles after its last read. */
     ResourceId createTarget(const TargetDesc& desc);
 
+    /**
+     * @brief A pooled target filled by a producer OUTSIDE any pass callback.
+     *
+     * @details The scene cannot be written from inside execute(): a frame reaches
+     *          the host as several calls with the geometry drawn between them, so
+     *          its target has to exist first. Pooled and recycled at its last read
+     *          like any transient — the exception is WHEN it is filled, not who owns it.
+     */
+    ResourceId createExternalTarget(const TargetDesc& desc);
+
+    /** The framebuffer behind a resource, for an external target to be drawn into. */
+    FramebufferHandle framebufferOf(ResourceId id) const;
+
     void addPass(PassDesc pass);
 
     /** Culls, assigns physical targets, and runs what survives. */
