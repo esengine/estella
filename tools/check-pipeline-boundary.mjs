@@ -23,9 +23,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PIPELINE = path.join(ROOT, 'pipeline');
 const SOURCE = /\.(ts|mts|js|mjs)$/;
 
-/** Repo areas the pipeline is allowed to read: the engine it packages, and the
- *  format writers it packages with. */
-const REACHABLE = ['sdk/src', 'build-tools', 'tools'];
+/** Repo areas the pipeline is allowed to read: the engine it packages, the
+ *  format writers it packages with, and the AOT compiler — which is a thing that
+ *  BUILDS a project, the same category as build-tools, not a thing that edits
+ *  one (docs/REARCH_AOT.md Stage 4). */
+const REACHABLE = ['sdk/src', 'build-tools', 'tools', 'compiler/src'];
 
 /** Packages that only exist inside a running editor. */
 const HOST_ONLY = new Set(['electron', 'react', 'react-dom', 'react-dom/client', 'zustand', 'dockview']);

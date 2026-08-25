@@ -791,7 +791,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
 
     // Constants and components first: a system in one file names both from another.
     for (const sf of sources) {
-        walkTop(sf, (node, binding) => {
+        walkTop(sf, (node) => {
             // The declaration's own name, not the binding walkTop passes DOWN to
             // an initializer: at the declaration node itself that is still null.
             if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return;

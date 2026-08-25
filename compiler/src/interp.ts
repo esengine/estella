@@ -13,7 +13,7 @@
  *          obviously correct, not fast; anything clever here would be a second
  *          place for a bug to hide from the backend it exists to check.
  */
-import type { EirFn, EirSystem, Expr, Local, Place, QueryArg, Stmt } from './eir';
+import type { EirFn, EirSystem, Expr, Place, QueryArg, Stmt } from './eir';
 
 /** The module's pure functions, threaded rather than held in a module global. */
 export type Fns = ReadonlyMap<string, EirFn>;
