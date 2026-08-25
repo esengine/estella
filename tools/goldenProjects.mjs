@@ -132,9 +132,6 @@ export const KNOWN_GAPS = {
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
-  // Measured: hello-world exports a 2.82MB single file, video-puzzle 3.22MB — so
-  // the floor is the runtime, not the game, and no project reaches the 2MB cap.
-  'startup-size': 'the playable runtime floor (~2.8MB) exceeds the 2MB default profile cap; see REARCH_EXPORT',
 };
 
 /**
@@ -283,7 +280,14 @@ export const GOLDEN = [
   },
   {
     id: 'video-puzzle',
-    certifies: ['single-file'],
+    // `startup-size` was a declared gap until the playable transport stopped
+    // spending a third of the budget on base64: the runtime floor was 2.8MB
+    // against a 2MB cap, so no project could have carried the claim. It is
+    // 1.38MB for an empty project now, and this one packages at 1.78MB — so the
+    // claim is carried by the biggest playable in the corpus rather than the
+    // smallest thing that would pass. What JUDGES it is the `size` stage, which
+    // holds every target to the limits its own export reports.
+    certifies: ['single-file', 'startup-size'],
     targets: ['playable', 'web'],
     tier: 'nightly',
     // Measured: this package scores 0.0763 against ITSELF — it shuffles the tiles

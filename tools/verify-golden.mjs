@@ -214,6 +214,25 @@ function launchPackage(id, target, args) {
   return { ...run.r, gpuDied: Boolean(run.gpuDied) };
 }
 
+const fmtMB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)}MB`;
+
+/**
+ * The limits the export judged itself against, from the report it already
+ * writes. Read rather than recomputed: the pipeline owns what a package weighs
+ * and which limits are in force (an ad network's profile, a project's own
+ * budget), and a second opinion here is the one that drifts.
+ *
+ * An unreadable report yields nothing rather than failing — a target that
+ * declares no limit writes no verdicts, which is not the same as being over one.
+ */
+function readSizeVerdicts(reportPath) {
+  try {
+    return JSON.parse(readFileSync(reportPath, 'utf8')).size?.verdicts ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // Every engine build this tier's pairs will package, before any of them runs:
 // finding out at pair fourteen costs the thirteen packages before it.
 for (const key of new Set(pairs.map((p) => JSON.stringify(ENGINE_OF(p.target))))) {
@@ -226,15 +245,33 @@ for (const { id, target } of pairs) {
   const out = path.join(WORK, `${id}-${target}`);
   rmSync(out, { recursive: true, force: true });
 
+  const sizeReport = path.join(WORK, `${id}-${target}.size.json`);
   const exported = spawnSync(process.execPath, [
     path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export', projectDir(id),
-    '--platform', target, '--out', out,
+    '--platform', target, '--out', out, '--json', sizeReport,
   ], { encoding: 'utf8', cwd: ROOT });
 
   if (exported.status !== 0) {
     results.push({ id, target, stage: 'package', ok: false, why: (exported.stderr || exported.stdout || '').trim().slice(-300) });
     console.log(`✗ ${id} ${target} — package failed`);
     continue;
+  }
+
+  // A package that does not fit is one nobody can ship, and until now nothing in
+  // this chain asked. The measurement existed and the CLI could already enforce
+  // it, so the limits a target declares — Meta's 2MB index.html, WeChat's 4MB
+  // main package — were judged only by whoever happened to read the output.
+  // Left as a stage rather than an export flag so a build that is over still
+  // launches and reports everything else it can, the way an over-tolerance
+  // parity does.
+  for (const verdict of readSizeVerdicts(sizeReport)) {
+    const ok = verdict.status !== 'over';
+    results.push({
+      id, target, stage: 'size', ok,
+      why: ok ? '' : `${fmtMB(verdict.measuredBytes)} against a ${fmtMB(verdict.budget.maxBytes)} limit`
+        + ` (${verdict.ratio.toFixed(2)}x) — ${verdict.budget.note ?? verdict.budget.scope}`,
+    });
+    if (!ok) console.log(`✗ ${id} ${target} — over the ${fmtMB(verdict.budget.maxBytes)} limit at ${fmtMB(verdict.measuredBytes)}`);
   }
 
   // Parity compares like for like, so the package is opened at exactly the size
