@@ -77,6 +77,9 @@ export const GATES = [
   // The engine's own TS suites (pipeline + tooling). They lived in desktop/tests
   // until the editor split, where a checkout without the editor ran none of them.
   { id: 'engine-tests', run: 'pnpm run test' },
+  // The AOT compiler carries its own oracle: a real example system lowered to
+  // EIR must move a world exactly the way node moves it (docs/REARCH_AOT.md §8.1).
+  { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test' },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   // Same shape of rule, other direction: what builds a project may not need the

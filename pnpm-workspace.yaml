@@ -1,6 +1,7 @@
 packages:
   - 'sdk'
   - 'pipeline'
+  - 'compiler'
   - 'desktop'
   - 'editor-api'
   - 'plugins/*'

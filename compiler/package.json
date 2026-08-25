@@ -1,0 +1,17 @@
+{
+  "name": "@estella/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Estella AOT — TypeScript to Estella IR (docs/REARCH_AOT.md)",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
+  }
+}
