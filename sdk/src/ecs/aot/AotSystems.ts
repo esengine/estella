@@ -51,9 +51,29 @@ export interface AotTwin {
  */
 export class AotSystems {
     private readonly byName = new Map<string, AotTwin>();
+    private calls_ = 0;
 
     get size(): number {
         return this.byName.size;
+    }
+
+    /** The systems a module supplied twins for. Install is all-or-nothing. */
+    names(): readonly string[] {
+        return [...this.byName.keys()];
+    }
+
+    /**
+     * How many times a twin has been called. Installed is not the same question
+     * as ran: a differential cannot tell them apart, because the closure that
+     * would have run produces the same numbers.
+     */
+    get calls(): number {
+        return this.calls_;
+    }
+
+    /** Counted by the runner, which is the only thing that dispatches. */
+    noteCall(): void {
+        this.calls_++;
     }
 
     /**

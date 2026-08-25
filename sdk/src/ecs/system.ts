@@ -592,6 +592,7 @@ export class SystemRunner {
         const resources = twin.decl.resources.map((name) => aot.addresses.resourceAt(name) ?? 0);
         aot.ctx.build(queries, resources);
         twin.call(aot.ctx.address);
+        aot.systems.noteCall();
 
         for (const cmd of aot.ctx.commands()) {
             // Only despawn is in the v1 record set.

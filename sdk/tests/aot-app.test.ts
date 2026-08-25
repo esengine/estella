@@ -106,6 +106,17 @@ describe('an App told to run its compiled twins', () => {
         expect(alphas(app, Fade, entities)).toEqual(entities.map(() => FADE_PROBE_ALPHA));
     });
 
+    it.skipIf(!EMCC)('and says which systems it runs compiled, and how often it dispatched', async () => {
+        const { app, Fade } = fadeApp();
+        expect(app.compiledSystems).toEqual({ installed: [], calls: 0 });
+        await app.useCompiledSystems({ host: new FakeEngine(), manifest: fadeManifest(), wasm: buildFadeModule(EMCC!) });
+        seed(app, Fade);
+        for (let f = 0; f < 3; f++) await app.tick(1 / 60);
+        // Installed is one question and dispatched is another: a module can load
+        // and never be reached, and the numbers would not say so.
+        expect(app.compiledSystems).toEqual({ installed: ['Fade'], calls: 3 });
+    });
+
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {
         const { app, Fade } = fadeApp();
         await expect(app.useCompiledSystems({

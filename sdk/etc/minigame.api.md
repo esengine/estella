@@ -538,6 +538,7 @@ addSystem: (system: SystemDef) => App
 addSystemSet: (set: SystemSet) => App
 addSystemSetToSchedule: (schedule: Schedule, set: SystemSet) => App
 addSystemToSchedule: (schedule: Schedule, system: SystemDef, options?: { runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition; }) => App
+compiledSystems: { readonly installed: readonly string[]; readonly calls: number; }
 enableStats: () => App
 getEntityCount: () => number
 getFixedTimestep: () => number
