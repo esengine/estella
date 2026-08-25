@@ -393,6 +393,12 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
 // System Runner
 // =============================================================================
 
+/** A component with no fields: a query filters on it and nothing reads it. */
+function isTagDef(def: AnyComponentDef): boolean {
+    const shape = (def as { _default?: unknown })._default;
+    return typeof shape === 'object' && shape !== null && Object.keys(shape).length === 0;
+}
+
 export class SystemRunner {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
@@ -578,10 +584,15 @@ export class SystemRunner {
                     let whole = true;
                     for (const def of comps) {
                         const at = aot.addresses.componentAt(def, entity);
-                        // A query that matched but whose storage cannot answer is
-                        // not a row. Reading zero would be a read of address zero.
-                        if (at === undefined) { whole = false; break; }
-                        row.push(at);
+                        if (at !== undefined) { row.push(at); continue; }
+                        // A TAG has no fields, so no bytes and no address. Its
+                        // slot is never read (the verifier refuses a field read
+                        // against a shape with none), so zero is a filler.
+                        if (isTagDef(def)) { row.push(0); continue; }
+                        // Otherwise the storage cannot answer for a component the
+                        // query matched, and that is not a row.
+                        whole = false;
+                        break;
                     }
                     if (whole) rows.push(row);
                 }

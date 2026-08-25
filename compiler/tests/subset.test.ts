@@ -66,7 +66,11 @@ describe('the subset refuses, and says why', () => {
         const dyn = lowerProgram([DYNAMIC], builtinShapes());
         expect(dyn.module.comps.has('FixtureDynamic')).toBe(false);
         expect(dyn.diagnostics).toHaveLength(1);
-        expect(dyn.diagnostics[0]!.message).toMatch(/object literal of literal defaults/);
+        // The message names the COMPONENT and what is wrong with it: the call
+        // shape was almost never the problem, and "needs an object literal"
+        // sent readers looking at a line that already had one.
+        expect(dyn.diagnostics[0]!.message)
+            .toMatch(/defineComponent\('FixtureDynamic'\) has a default that is not a literal/);
     });
 });
 

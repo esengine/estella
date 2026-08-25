@@ -214,7 +214,8 @@ describe('conformance — a service question, and the ways out of a row loop', (
         expect(rows.filter((r) => !r.enabled).map((r) => r.rate)).toEqual(skipped);
         // `return`: with the key up, nothing at all moves.
         const quiet = makeWorld();
-        quiet.resources.set('Input', { isKeyDown: () => false, isKeyPressed: () => false } as never);
+        (quiet.resources as Map<string, Row>).set('Input',
+            { isKeyDown: () => false, isKeyPressed: () => false } as unknown as Row);
         const before = JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()]);
         for (let f = 0; f < 4; f++) runSystem(gate!, quiet);
         expect(JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()])).toBe(before);

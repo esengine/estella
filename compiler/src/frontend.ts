@@ -719,10 +719,15 @@ class SystemLowerer {
     }
 }
 
-/** `defineComponent('Mover', { speed: 100 })` -> a shape, or null if not literal. */
-function componentShape(call: ts.CallExpression): CompShape | null {
+/**
+  * `defineComponent('Mover', { speed: 100 })` or `defineTag('Player')` -> a
+  * shape, or null when a default is not a literal scalar. A TAG is a shape with
+  * no fields, which is a thing a query can filter on and nothing can read.
+  */
+function componentShape(call: ts.CallExpression, tag: boolean): CompShape | null {
     const [nameArg, defaults] = call.arguments;
     if (!nameArg || !ts.isStringLiteral(nameArg)) return null;
+    if (tag) return { name: nameArg.text, storage: 'host', fields: new Map() };
     if (!defaults || !ts.isObjectLiteralExpression(defaults)) return null;
     const fields = new Map<string, FieldSpec>();
     for (const prop of defaults.properties) {
@@ -836,13 +841,18 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     for (const sf of sources) {
         walkTop(sf, (node, binding) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
-            if (node.expression.text !== 'defineComponent') return;
-            const shape = componentShape(node);
+            const tag = node.expression.text === 'defineTag';
+            if (!tag && node.expression.text !== 'defineComponent') return;
+            const shape = componentShape(node, tag);
             if (!shape) {
+                // Which is nearly always a FIELD, not the call: a default that
+                // is an object, an array or a computed value has no fixed width,
+                // and the pool that would hold the rows admits the same set.
                 diagnostics.push({
                     file: sf.fileName, line: lineOf(sf, node),
                     kind: 'permanent', severity: 'note',
-                    message: 'defineComponent needs a string literal name and an object literal of literal defaults',
+                    message: `defineComponent('${ts.isStringLiteral(node.arguments[0] ?? node) ? (node.arguments[0] as ts.StringLiteral).text : '…'}') `
+                        + 'has a default that is not a literal number or boolean',
                 });
                 return;
             }
