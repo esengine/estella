@@ -66,3 +66,23 @@ const TIME: CompShape = {
         ['delta', 'elapsed', 'frameCount', 'fixedDelta', 'fixedAlpha', 'fixedTick', 'scale', 'unscaledDelta']
             .map((k) => [k, { type: F64, bits: 64 }] as const)),
 };
+
+/**
+ * A stamp over EHT's table, for the §2.5 handshake. It hashes the OFFSETS
+ * themselves rather than importing `ABI_LAYOUT_HASH`, for two reasons: that
+ * constant lives in `component.generated.ts`, whose imports reach the whole SDK
+ * runtime and would make the compiler depend on it; and the raw table is
+ * strictly more information than a hash of it. Same property either way — it
+ * changes when the C++ structs change, which is the only thing asked of it.
+ */
+export function ehtStamp(): string {
+    const parts: string[] = [];
+    for (const [name, layout] of Object.entries(PTR_LAYOUTS)) {
+        const fields = layout.fields
+            .map((f) => `${f.name}:${f.type}@${f.offset}`
+                + (f.members ? `{${f.members.map((m) => `${m.name}:${m.type}@${m.offset}`).join(',')}}` : ''))
+            .join(',');
+        parts.push(`${name}(${layout.ptrFn})=${fields}`);
+    }
+    return parts.join(';');
+}

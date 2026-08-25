@@ -22,7 +22,8 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { printSystem } from '../src/eir';
 
-import { driftSystem, clampSystem, tunedSystem, helperSystem } from './fixtures/in-subset';
+import { driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem } from './fixtures/in-subset';
+import { PROBE, probeRow } from './probe';
 import type { StubSystem } from './stubs/esengine';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
@@ -294,5 +295,63 @@ describe('conformance — pure helpers, called and inlined', () => {
         }
         expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
         expect(byInlined.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
+    });
+});
+
+const math = module.systems.find((s) => s.name === 'FixtureMathOps');
+
+describe('conformance — the Math the subset admits', () => {
+    function probeWorld(): EirWorld {
+        const rows = new Map<number, Row>();
+        const entities: number[] = [];
+        PROBE.forEach((v, i) => {
+            entities.push(i + 1);
+            // defineComponent shapes are host-stored, so f64: no fround, and -0
+            // stays -0 all the way into the image.
+            rows.set(i + 1, probeRow(v));
+        });
+        return { entities, comps: new Map([['FixtureMathProbe', rows]]), resources: new Map() };
+    }
+
+    it('compiles, and lowers each operation to a call rather than a fallback', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixtureMathOps')).toEqual([]);
+        expect(math).toBeDefined();
+        expect(verifySystem(math!, module.comps, module.fns)).toEqual([]);
+    });
+
+    it('agrees with node, including the sign of zero', () => {
+        const byNode = probeWorld();
+        const byEir = probeWorld();
+        const sys = mathSystem as unknown as StubSystem;
+        const rows = byNode.comps.get('FixtureMathProbe')!;
+        (sys.fn as unknown as (q: unknown) => void)({
+            *[Symbol.iterator]() {
+                for (const e of byNode.entities) yield [e, rows.get(e)!];
+            },
+        });
+        runSystem(math!, byEir);
+
+        for (const e of byNode.entities) {
+            const want = rows.get(e) as Record<string, number>;
+            const got = byEir.comps.get('FixtureMathProbe')!.get(e) as Record<string, number>;
+            for (const k of Object.keys(want)) {
+                // Object.is, not toBe on the number: -0 and +0 are equal and are
+                // not the same bytes, and the bytes are what ships.
+                expect(Object.is(got[k], want[k]), `entity ${e} field ${k}: ${got[k]} vs ${want[k]}`).toBe(true);
+            }
+        }
+    });
+
+    it('the probe actually reaches the cases the shims exist for', () => {
+        const w = probeWorld();
+        runSystem(math!, w);
+        const rows = [...w.comps.get('FixtureMathProbe')!.values()] as Record<string, number>[];
+        // A tie that rounds toward +Inf rather than away from zero.
+        expect(rows.some((r) => r['v'] === -2.5 && r['rounded'] === -2)).toBe(true);
+        // The double just below 0.5, where floor(x + 0.5) gives the wrong answer.
+        expect(rows.some((r) => r['v'] === 0.49999999999999994 && Object.is(r['rounded'], 0))).toBe(true);
+        // min picking the negative zero, which fmin is free not to do.
+        expect(rows.some((r) => Object.is(r['lo'], -0))).toBe(true);
+        expect(rows.some((r) => Object.is(r['signum'], -0))).toBe(true);
     });
 });

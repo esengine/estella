@@ -18,13 +18,24 @@
  *          Field offsets come from PTR_LAYOUTS via builtins.ts — the same EHT
  *          table the engine and the SDK's accessors already agree on.
  */
-import type { CompShape, EirType, QueryArg } from './eir';
-import type { EirHost } from './interp';
+import { ehtStamp } from './builtins';
+import type { CompShape, EirSystem, EirType, QueryArg } from './eir';
+import { runSystemOn, type EirHost, type Fns } from './interp';
 
 /** One command record: 16 bytes, four u32 (docs/REARCH_AOT_ABI.md §2.3). */
 export const CMD_WORDS = 4;
 export const CMD_DESPAWN = 1;
 export const CMD_REMOVE = 2;
+
+/**
+ * Words in `SysCtx` and in `QueryRows` (docs/REARCH_AOT_ABI.md §2.1, §2.2).
+ * Exported because THREE things count them — the host below, the code generator,
+ * and the handshake hash — and a contract whose field count has three authors
+ * is the drift this file exists to prevent. §6.3 makes the first of these a
+ * number that needs a reason to grow.
+ */
+export const SYSCTX_WORDS = 6;
+export const QUERYROWS_WORDS = 2;
 
 /**
  * Where a field lives, and HOW WIDE it is. Component bytes are f32 because EHT
@@ -67,21 +78,43 @@ export class AbiMemory {
     readonly entities: number[] = [];
     readonly cmdBuf: number;
     readonly cmdCap = 256;
-    cmdCount = 0;
+    /** The per-call arena's high-water mark; see `beginCall`. */
+    private scratchNext: number;
 
     constructor(private readonly layout: AbiLayout, bytes = 1 << 20) {
         this.buffer = new ArrayBuffer(bytes);
         this.f32 = new Float32Array(this.buffer);
         this.f64 = new Float64Array(this.buffer);
         this.u32 = new Uint32Array(this.buffer);
+        this.scratchNext = bytes;
         this.cmdBuf = this.alloc(this.cmdCap * CMD_WORDS * 4);
     }
 
     private alloc(size: number): number {
         const at = this.next;
         this.next += (size + 15) & ~15;
-        if (this.next > this.buffer.byteLength) throw new Error('ABI image out of memory');
+        if (this.next > this.scratchNext) throw new Error('ABI image out of memory');
         return at;
+    }
+
+    /**
+     * Reset the arena the host refills before every call. Row arrays and the
+     * SysCtx itself live here because §2.2 says they are valid for one call and
+     * the compiled code may not hold them; giving them a region that is thrown
+     * away each time is how that is enforced rather than merely stated.
+     *
+     * It grows DOWN from the end of the image while world data grows up, so the
+     * two allocators cannot silently overlap — they meet, and `alloc` says so.
+     */
+    beginCall(): void {
+        this.scratchNext = this.buffer.byteLength;
+    }
+
+    /** One block of the per-call arena. */
+    scratch(size: number): number {
+        this.scratchNext -= (size + 15) & ~15;
+        if (this.scratchNext < this.next) throw new Error('ABI image out of memory');
+        return this.scratchNext;
     }
 
     /** Give `entity` a row of `comp`, returning its base address. */
@@ -147,24 +180,129 @@ function store(mem: AbiMemory, at: number, bits: 32 | 64, v: number | boolean): 
 }
 
 /**
- * The host a compiled system would see. `rows` is the packed array SysCtx
- * carries; every field access below is a load or store at a declared offset,
- * and nothing here calls the engine.
+ * Which slot of `SysCtx` each of a system's parameters is. The order is the
+ * declaration order of `_params`, and §2.1 says it is burned into the handshake
+ * hash — so this function, not a convention, is what both the host and the code
+ * generator ask. Two readers of one answer; not two answers.
  */
-export function abiHost(mem: AbiMemory, layout: AbiLayout): EirHost {
+export interface SysPlan {
+    readonly system: string;
+    /** One entry per declared `Query`, in declaration order. */
+    readonly queries: readonly (readonly QueryArg[])[];
+    /** One entry per declared `Res`, in declaration order. */
+    readonly resources: readonly string[];
+    /** One entry per declared channel (`Commands`, later an event reader). */
+    readonly channels: readonly string[];
+    /** A parameter's local id -> which of the three tables, and which slot. */
+    readonly slots: ReadonlyMap<number, { readonly table: 'query' | 'res' | 'channel'; readonly slot: number }>;
+}
+
+export function planFor(sys: EirSystem): SysPlan {
+    const queries: (readonly QueryArg[])[] = [];
+    const resources: string[] = [];
+    const channels: string[] = [];
+    const slots = new Map<number, { table: 'query' | 'res' | 'channel'; slot: number }>();
+    for (const p of sys.params) {
+        switch (p.type.k) {
+            case 'query':
+                slots.set(p.id, { table: 'query', slot: queries.length });
+                queries.push(p.type.args);
+                break;
+            case 'res':
+                slots.set(p.id, { table: 'res', slot: resources.length });
+                resources.push(p.type.name);
+                break;
+            case 'channel':
+                slots.set(p.id, { table: 'channel', slot: channels.length });
+                channels.push(p.type.name);
+                break;
+            default:
+                throw new Error(`ABI: '${p.name}' is a ${p.type.k}, which SysCtx has no table for`);
+        }
+    }
+    return { system: sys.name, queries, resources, channels, slots };
+}
+
+/** A materialised call: where the ctx is, and where its count word lives. */
+export interface AbiCall {
+    readonly ctx: number;
+    readonly cmdCount: number;
+}
+
+/**
+ * Do the host's half of §2.1: pack the rows, resolve the resource addresses,
+ * zero the count, and write the SysCtx. Everything the compiled code will read
+ * is in linear memory when this returns, and it is the ONLY thing there for it.
+ *
+ * Row materialisation follows the strategy `View.hpp` already uses — walk the
+ * entities, keep the ones carrying every named component. The ABI exposes the
+ * existing strategy rather than inventing a second one.
+ */
+export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
+    mem.beginCall();
+    const queryTable = mem.scratch(Math.max(1, plan.queries.length) * QUERYROWS_WORDS * 4);
+    plan.queries.forEach((args, k) => {
+        const stride = 1 + args.length;
+        const matched: number[] = [];
+        for (const e of mem.entities) {
+            const binds = args.map((a) => mem.baseOf(a.comp, e));
+            if (binds.some((b) => b === undefined)) continue;
+            matched.push(e, ...(binds as number[]));
+        }
+        const rows = mem.scratch(Math.max(4, matched.length * 4));
+        for (let i = 0; i < matched.length; i++) mem.u32[(rows >> 2) + i] = matched[i]!;
+        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS] = rows;
+        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS + 1] = matched.length / stride;
+    });
+
+    const resTable = mem.scratch(Math.max(4, plan.resources.length * 4));
+    plan.resources.forEach((name, k) => { mem.u32[(resTable >> 2) + k] = mem.resourceBase(name); });
+
+    const cmdCount = mem.scratch(4);
+    mem.u32[cmdCount >> 2] = 0;
+
+    const ctx = mem.scratch(SYSCTX_WORDS * 4);
+    const w = ctx >> 2;
+    mem.u32[w] = queryTable;
+    mem.u32[w + 1] = resTable;
+    mem.u32[w + 2] = mem.cmdBuf;
+    mem.u32[w + 3] = mem.cmdCap;
+    mem.u32[w + 4] = cmdCount;
+    mem.u32[w + 5] = 0;  // events: no channel in v1 carries one yet
+    return { ctx, cmdCount };
+}
+
+/**
+ * The host a compiled system sees, reaching the world through NOTHING but the
+ * ctx `materialize` wrote. Every field access below is a load or store at a
+ * declared offset, and there is no engine call to make.
+ *
+ * It reads the packed row array rather than re-deriving the rows, so that the
+ * interpreter and the generated C consume the same bytes. A host that walked
+ * `mem.entities` again would agree with the compiled code only by coincidence.
+ */
+export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: AbiCall): EirHost {
     const leafAt = (owner: string, path: readonly string[]): Leaf => {
         const shape = layout.comps.get(owner) ?? layout.resources.get(owner);
         const leaf = shape?.leaves.get(path.join('.'));
         if (!leaf) throw new Error(`ABI: '${owner}' has no field '${path.join('.')}'`);
         return leaf;
     };
+    const w = call.ctx >> 2;
+    const queryTable = mem.u32[w]!;
+    const resTable = mem.u32[w + 1]!;
+    const cmdBuf = mem.u32[w + 2]!;
+    const cmdCap = mem.u32[w + 3]!;
     return {
         *rows(args: readonly QueryArg[]) {
-            // What the host materialises: [entity, base0, base1, …] per row.
-            for (const e of mem.entities) {
-                const binds = args.map((a) => mem.baseOf(a.comp, e));
-                if (binds.some((b) => b === undefined)) continue;
-                yield { entity: e, binds: binds as number[] };
+            const k = plan.queries.indexOf(args);
+            if (k < 0) throw new Error(`ABI: '${plan.system}' walks a query it did not declare`);
+            const rows = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS]!;
+            const count = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS + 1]!;
+            const stride = 1 + args.length;
+            for (let i = 0; i < count; i++) {
+                const at = (rows >> 2) + i * stride;
+                yield { entity: mem.u32[at]!, binds: args.map((_, j) => mem.u32[at + 1 + j]!) };
             }
         },
         readField(base, owner, path) {
@@ -176,24 +314,92 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout): EirHost {
             store(mem, (base as number) + leaf.byteOffset, leaf.bits, v);
         },
         resource(name) {
-            return mem.resourceBase(name);
+            const k = plan.resources.indexOf(name);
+            if (k < 0) throw new Error(`ABI: '${plan.system}' reads a resource it did not declare`);
+            return mem.u32[(resTable >> 2) + k]!;
         },
         emit(record, args) {
-            if (mem.cmdCount >= mem.cmdCap) throw new Error('ABI: command buffer overflow');
-            const at = (mem.cmdBuf >> 2) + mem.cmdCount * CMD_WORDS;
+            const n = mem.u32[call.cmdCount >> 2]!;
+            if (n >= cmdCap) throw new Error('ABI: command buffer overflow');
+            const at = (cmdBuf >> 2) + n * CMD_WORDS;
             mem.u32[at] = record === 'despawn' ? CMD_DESPAWN : CMD_REMOVE;
             mem.u32[at + 1] = args[0] as number;
-            mem.cmdCount++;
+            mem.u32[at + 2] = 0;
+            mem.u32[at + 3] = 0;
+            mem.u32[call.cmdCount >> 2] = n + 1;
         },
         flush() {
-            const at = mem.cmdBuf >> 2;
-            for (let i = 0; i < mem.cmdCount; i++) {
-                const kind = mem.u32[at + i * CMD_WORDS]!;
-                if (kind === CMD_DESPAWN) mem.despawn(mem.u32[at + i * CMD_WORDS + 1]!);
-            }
-            mem.cmdCount = 0;
+            flushCommands(mem, call);
         },
     };
+}
+
+/**
+ * The host's other half: apply what the call wrote. Shared by the interpreter
+ * and by whatever ran the compiled code, because the records are the same
+ * records — which is the whole reason they are records and not calls.
+ */
+export function flushCommands(mem: AbiMemory, call: AbiCall): void {
+    const n = mem.u32[call.cmdCount >> 2]!;
+    const at = mem.cmdBuf >> 2;
+    for (let i = 0; i < n; i++) {
+        const kind = mem.u32[at + i * CMD_WORDS]!;
+        if (kind === CMD_DESPAWN) mem.despawn(mem.u32[at + i * CMD_WORDS + 1]!);
+    }
+    mem.u32[call.cmdCount >> 2] = 0;
+}
+
+/**
+ * One system, one call, through the contract: materialise, run, flush. The
+ * generated code's runner does exactly these three steps with the middle one
+ * replaced — which is what makes the difference between them measurable.
+ */
+export function runOnAbi(sys: EirSystem, mem: AbiMemory, layout: AbiLayout, fns: Fns = new Map()): void {
+    const plan = planFor(sys);
+    const call = materialize(mem, plan);
+    runSystemOn(sys, abiHost(mem, layout, plan, call), fns);
+}
+
+/**
+ * The handshake constant of §2.5: EHT's component offsets, the shape of the
+ * three structs, and every system's parameter order, in one 64-bit number the
+ * loader compares before it maps anything. A mismatch is not a wrong answer —
+ * it is a read of a DIFFERENT FIELD — so this is refused, not warned about.
+ *
+ * FNV-1a, as `mkbc` and the asset hashes already use; not a new mechanism.
+ */
+export function abiHash(layout: AbiLayout, plans: readonly SysPlan[]): string {
+    const parts: string[] = [
+        `eht=${ehtStamp()}`,
+        `sysctx=${SYSCTX_WORDS} queryrows=${QUERYROWS_WORDS} cmd=${CMD_WORDS}`,
+    ];
+    const table = (kind: string, m: ReadonlyMap<string, FieldOffsets>): void => {
+        for (const [name, f] of m) {
+            const leaves = [...f.leaves].map(([p, l]) => `${p}@${l.byteOffset}:${l.bits}`).join(',');
+            parts.push(`${kind} ${name} stride=${f.stride} ${leaves}`);
+        }
+    };
+    table('comp', layout.comps);
+    table('res', layout.resources);
+    for (const p of plans) {
+        const qs = p.queries.map((q) => q.map((a) => (a.mut ? `mut ${a.comp}` : a.comp)).join('+')).join('|');
+        // The ORDER parameters were declared in, not just what they were: two
+        // systems taking a Query and a Res differ only here, and a loader that
+        // could not tell them apart would read the row array as the resource.
+        const order = [...p.slots.values()].map((s) => `${s.table}${s.slot}`).join(',');
+        parts.push(`sys ${p.system} order=${order} q=${qs} r=${p.resources.join('|')} c=${p.channels.join('|')}`);
+    }
+    return fnv1a64(parts.join('\n'));
+}
+
+function fnv1a64(text: string): string {
+    const MASK = (1n << 64n) - 1n;
+    let h = 0xcbf29ce484222325n;
+    for (let i = 0; i < text.length; i++) {
+        h = (h ^ BigInt(text.charCodeAt(i) & 0xff)) & MASK;
+        h = (h * 0x100000001b3n) & MASK;
+    }
+    return h.toString(16).padStart(16, '0');
 }
 
 /**

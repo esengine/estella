@@ -17,9 +17,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
-import { runSystem, runSystemOn, type EirWorld, type Row } from '../src/interp';
+import { runSystem, type EirWorld, type Row } from '../src/interp';
 import { builtinShapes } from '../src/builtins';
-import { AbiMemory, abiHost, packLayout } from '../src/abi';
+import { AbiMemory, packLayout, runOnAbi } from '../src/abi';
 
 import { moveSystem } from '../../examples/ecs-basics/src/systems/move';
 import { lifetimeSystem } from '../../examples/ecs-basics/src/systems/lifetime';
@@ -124,7 +124,6 @@ describe('the ABI is sufficient for the systems the subset compiles', () => {
         const byNode = jsWorld();
         const byJs = jsWorld();
         const mem = abiWorld();
-        const host = abiHost(mem, layout);
 
         const sys = moveSystem as unknown as StubSystem;
         for (let f = 0; f < 30; f++) {
@@ -136,7 +135,7 @@ describe('the ABI is sufficient for the systems the subset compiles', () => {
                 },
             }, byNode.resources.get('Time'));
             runSystem(move, byJs, module.fns);
-            runSystemOn(move, host, module.fns);
+            runOnAbi(move, mem, layout, module.fns);
         }
 
         for (let i = 1; i <= N; i++) {
@@ -152,10 +151,9 @@ describe('the ABI is sufficient for the systems the subset compiles', () => {
     it('LifetimeSystem: despawn through the command buffer removes the same entities', () => {
         const byJs = jsWorld();
         const mem = abiWorld();
-        const host = abiHost(mem, layout);
         for (let f = 0; f < 30; f++) {
             runSystem(life, byJs, module.fns);
-            runSystemOn(life, host, module.fns);
+            runOnAbi(life, mem, layout, module.fns);
             expect(mem.entities, `frame ${f}`).toEqual(byJs.entities);
         }
         expect(byJs.entities.length).toBeLessThan(N);

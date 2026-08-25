@@ -91,3 +91,28 @@ export const helperSystem = defineSystem(
     },
     { name: 'FixtureHelpers' },
 );
+
+// Every exactly-specified Math operation, on the arguments where the C library
+// and ECMAScript actually disagree: ties, and the sign of zero. Nothing else in
+// the corpus reaches them, and a shim nothing samples is a shim nobody checked.
+export const MathProbe = defineComponent('FixtureMathProbe', {
+    v: 0, rounded: 0, truncated: 0, ceiled: 0, floored: 0, signum: 0, lo: 0, hi: 0,
+});
+
+export const mathSystem = defineSystem(
+    [Query(Mut(MathProbe))],
+    (query) => {
+        for (const [, p] of query) {
+            p.rounded = Math.round(p.v);
+            p.truncated = Math.trunc(p.v);
+            p.ceiled = Math.ceil(p.v);
+            p.floored = Math.floor(p.v);
+            p.signum = Math.sign(p.v);
+            // min/max of a value and its negation: the only way to reach the
+            // -0 / +0 rule, which fmin and fmax do not follow.
+            p.lo = Math.min(p.v, -p.v);
+            p.hi = Math.max(p.v, -p.v);
+        }
+    },
+    { name: 'FixtureMathOps' },
+);

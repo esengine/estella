@@ -79,6 +79,9 @@ export const GATES = [
   { id: 'engine-tests', run: 'pnpm run test' },
   // The AOT compiler carries its own oracle: a real example system lowered to
   // EIR must move a world exactly the way node moves it (docs/REARCH_AOT.md §8.1).
+  // It also compiles the emitted C and requires the same bytes back. That half
+  // needs clang or gcc on PATH; without one the suite still passes and PRINTS
+  // that the differential did not run, so read the log before believing it.
   { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test' },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
