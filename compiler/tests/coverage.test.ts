@@ -18,8 +18,13 @@
  *          different components both named 'Health' and silently gave one
  *          project the other's shape.
  *
- *          The floor is committed. Raising it is the point; lowering it needs a
- *          reason in the commit message, because the corpus lost ground.
+ *          It also reports the CEILING: how much of the corpus the contract could
+ *          ever take, counting a system as reachable when every refusal against
+ *          it is `pending` rather than `permanent`. That number is what says the
+ *          remaining work is a finite list rather than an open hunt.
+ *
+ *          The floors are committed. Raising them is the point; lowering one
+ *          needs a reason in the commit message, because the corpus lost ground.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -31,8 +36,10 @@ import { builtinShapes } from '../src/builtins';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
-/** Per-frame systems only. See the file header before lowering this. */
+/** Per-frame systems only. See the file header before lowering these. */
 const FRAME_FLOOR = 9;
+/** Per-frame systems the contract could take once the pending work is done. */
+const CEILING_FLOOR = 88;
 
 function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -108,6 +115,39 @@ describe('AOT coverage over examples/', () => {
         // silently be measuring an empty set.
         expect(perFrame.size).toBeGreaterThan(50);
         expect(perFrame.size).toBeLessThan(seen.length);
+    });
+
+    it('reports the contract ceiling, not just today', () => {
+        const permanentlyOut = new Set(
+            diagnostics.filter((d) => d.kind === 'permanent' && d.system).map((d) => d.system!));
+        const reachable = seen.filter((n) => !permanentlyOut.has(n));
+        const reachableFrame = reachable.filter((n) => perFrame.has(n));
+        const seenFrame = seen.filter((n) => perFrame.has(n));
+        const pct = (n: number, d: number) => ((100 * n) / d).toFixed(1);
+        console.log([
+            '',
+            `contract ceiling, per-frame : ${reachableFrame.length}/${seenFrame.length}`
+                + ` (${pct(reachableFrame.length, seenFrame.length)}%)  <- reachable, pending work only`,
+            `permanently out, per-frame  : ${seenFrame.length - reachableFrame.length}`
+                + '  <- needs something the contract does not have',
+        ].join('\n'));
+        const why = new Map<string, number>();
+        for (const d of diagnostics) {
+            if (d.kind !== 'permanent' || !d.system || !perFrame.has(d.system)) continue;
+            const key = d.message.replace(/'[^']*'/g, "'…'").slice(0, 64);
+            why.set(key, (why.get(key) ?? 0) + 1);
+        }
+        for (const [k, n] of [...why.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)) {
+            console.log(`  ${String(n).padStart(3)}x  ${k}`);
+        }
+        expect(reachableFrame.length).toBeGreaterThanOrEqual(CEILING_FLOOR);
+        // A ceiling equal to the corpus would mean nothing was ever classified
+        // permanent, which would make the split decorative.
+        expect(reachableFrame.length).toBeLessThan(seenFrame.length);
+    });
+
+    it('every refusal says whether it is permanent or pending', () => {
+        expect(diagnostics.every((d) => d.kind === 'permanent' || d.kind === 'pending')).toBe(true);
     });
 
     it(`compiles at least ${FRAME_FLOOR} of the per-frame systems`, () => {

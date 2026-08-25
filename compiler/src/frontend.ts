@@ -38,6 +38,7 @@ export interface Diagnostic {
     readonly file: string;
     readonly line: number;
     readonly message: string;
+    readonly kind: RefusalKind;
     /** The system this killed, when the failure happened inside one. */
     readonly system?: string;
 }
@@ -126,9 +127,20 @@ function annotatedType(node: ts.TypeNode): EirType | null {
     return null;
 }
 
+/**
+ * `permanent` = the contract has no place for it (REARCH_AOT_ABI.md §4), not a
+ * todo. `pending` = the contract admits it, nobody lowered it yet. Default is
+ * `pending`; every `permanent` below names what is missing.
+ */
+export type RefusalKind = 'permanent' | 'pending';
+
 /** Thrown internally to abandon one system; never escapes lowerProgram. */
 class NotInSubset extends Error {
-    constructor(readonly node: ts.Node, message: string) { super(message); }
+    constructor(
+        readonly node: ts.Node,
+        message: string,
+        readonly kind: RefusalKind = 'pending',
+    ) { super(message); }
 }
 
 class SystemLowerer {
@@ -206,11 +218,23 @@ class SystemLowerer {
         return l;
     }
 
+    /** The local a name binds to, or null — for a caller that wants to ask, not throw. */
+    private tryLookup(name: string): Local | null {
+        for (let i = this.scopes.length - 1; i >= 0; i--) {
+            const l = this.scopes[i]!.get(name);
+            if (l) return l;
+        }
+        return null;
+    }
+
     private lookup(node: ts.Node, name: string): Local {
         for (let i = this.scopes.length - 1; i >= 0; i--) {
             const l = this.scopes[i]!.get(name);
             if (l) return l;
         }
+        // Some of these are heap values (an array, a class) and some are not —
+        // a numeric enum member is a compile-time constant nobody folds yet. The
+        // default stands: claiming it cannot be done needs a reason.
         throw new NotInSubset(node, `'${name}' is not a value this system declared`);
     }
 
@@ -238,7 +262,13 @@ class SystemLowerer {
                 if (el.arguments.length !== 0) throw new NotInSubset(el, 'Commands() takes no arguments');
                 return { k: 'channel', name: 'Commands' } as EirType;
             }
-            if (kind !== 'Query') throw new NotInSubset(el, `'${kind}' is not a parameter intrinsic`);
+            if (kind !== 'Query') {
+                // GetWorld hands over the whole World — arbitrary access, the one
+                // thing a closed contract cannot have. The rest are parameters
+                // nobody has lowered yet.
+                throw new NotInSubset(el, `'${kind}' is not a parameter intrinsic`,
+                    kind === 'GetWorld' ? 'permanent' : 'pending');
+            }
             const args: QueryArg[] = el.arguments.map((a) => this.queryArg(a));
             return { k: 'query', args } as EirType;
         });
@@ -297,7 +327,9 @@ class SystemLowerer {
             if (!d.initializer) throw new NotInSubset(d, 'a local must be initialized where it is declared');
             const value = this.expr(d.initializer);
             if (value.type.k !== 'f64' && value.type.k !== 'bool') {
-                throw new NotInSubset(d, `a local cannot hold a ${value.type.k}`);
+                // A component or query is a reference, and the contract has no
+                // reference values — only memory it was handed, and numbers.
+                throw new NotInSubset(d, `a local cannot hold a ${value.type.k}`, 'permanent');
             }
             return { s: 'let', id: this.define(d.name.text, value.type).id, value } as Stmt;
         });
@@ -494,13 +526,25 @@ class SystemLowerer {
         }
         if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)
             || callee.expression.text !== 'Math') {
-            throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers');
+            // A method on a RESOURCE is pending: §2.3 says a service should be
+            // memory, so `input.isKeyDown('KeyW')` is a bit at a known offset.
+            // On anything else it needs an object model, which there is none of.
+            const recv = ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
+                ? this.tryLookup(callee.expression.text)
+                : null;
+            if (recv && recv.type.k === 'res') {
+                throw new NotInSubset(node,
+                    `${recv.name}.${(callee as ts.PropertyAccessExpression).name.text}(…) is a resource method`
+                    + ' — the contract wants it read as memory, and nothing lowers it yet');
+            }
+            throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers', 'permanent');
         }
         const fn = callee.name.text as MathFn;
         const arity = (MATH_FNS as Record<string, number | undefined>)[fn];
         if (arity === undefined) {
             throw new NotInSubset(node,
-                `Math.${fn} is not exactly specified by ECMAScript, so a compiled build would be free to disagree with the interpreter`);
+                `Math.${fn} is not exactly specified by ECMAScript, so a compiled build would be free to disagree with the interpreter`,
+                'permanent');
         }
         if (node.arguments.length !== arity) {
             throw new NotInSubset(node, `Math.${fn} takes ${arity} argument(s), not ${node.arguments.length}`);
@@ -571,7 +615,9 @@ class SystemLowerer {
             if (folded) return folded;
             return { e: 'read', place: this.place(node), type: this.placeType(node) };
         }
-        throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not an expression this subset lowers`);
+        // String, array, object, new, await: each needs a heap, and the contract
+        // has no allocation (docs/REARCH_AOT_ABI.md §3).
+        throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not an expression this subset lowers`, 'permanent');
     }
 }
 
@@ -693,6 +739,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             if (!shape) {
                 diagnostics.push({
                     file: sf.fileName, line: lineOf(sf, node),
+                    kind: 'permanent',
                     message: 'defineComponent needs a string literal name and an object literal of literal defaults',
                 });
                 return;
@@ -700,7 +747,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             const existing = comps.get(shape.name);
             if (existing && !sameShape(existing, shape)) {
                 diagnostics.push({
-                    file: sf.fileName, line: lineOf(sf, node),
+                    file: sf.fileName, line: lineOf(sf, node), kind: 'permanent',
                     message: `component '${shape.name}' is already declared with a different shape`
                         + ` — one program cannot hold two`,
                 });
@@ -754,7 +801,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({
-                    file: sf.fileName, line: lineOf(sf, e.node), message: e.message, system: name,
+                    file: sf.fileName, line: lineOf(sf, e.node), message: e.message, kind: e.kind, system: name,
                 });
             }
         });
