@@ -11,7 +11,8 @@
  *          component still reads and writes as an object.
  */
 import { describe, it, expect } from 'vitest';
-import { ScriptPool, poolShape, POOL_SLOT_BYTES, HEAP_MEMORY, type PoolMemory } from '../src/ecs/ScriptPool';
+import { ScriptPool, poolShape, POOL_SLOT_BYTES, POOL_ABSENT, HEAP_MEMORY, type PoolMemory } from '../src/ecs/ScriptPool';
+import { entityIndex, makeEntity } from '../src/types';
 import type { Entity } from '../src/types';
 
 const e = (n: number): Entity => n as unknown as Entity;
@@ -137,16 +138,18 @@ describe('a row, and the view onto it', () => {
 describe('rows carved out of a host-owned block', () => {
     /** Stands in for the wasm heap: one buffer, a bump pointer, nothing freed. */
     function heapOf(bytes: number): { memory: PoolMemory; all: Float64Array; used: () => number } {
-        const all = new Float64Array(bytes / POOL_SLOT_BYTES);
-        let at = 8;   // a nonzero start, so an address that forgot byteOffset is wrong
+        const block = new ArrayBuffer(bytes);
+        const all = new Float64Array(block);
+        let at = 64;   // a nonzero start, so an address that forgot byteOffset is wrong
         return {
             all,
             used: () => at,
             memory: {
-                alloc(slots) {
-                    const view = new Float64Array(all.buffer, at * POOL_SLOT_BYTES, slots);
-                    at += slots;
-                    return view;
+                alloc(want) {
+                    const byteLength = (want + 7) & ~7;
+                    const out = { buffer: block, byteOffset: at, byteLength };
+                    at += byteLength;
+                    return out;
                 },
                 release: () => { /* a bump allocator frees nothing */ },
             },
@@ -177,7 +180,7 @@ describe('rows carved out of a host-owned block', () => {
         const heap = heapOf(1 << 16);
         const pool = new ScriptPool(poolShape(DEFAULTS)!, 2, heap.memory);
         for (let i = 1; i <= 12; i++) pool.put(e(i), DEFAULTS, { speed: i });
-        expect(heap.used()).toBeGreaterThan(8);
+        expect(heap.used()).toBeGreaterThan(64);
 
         for (let i = 1; i <= 12; i++) {
             const at = pool.address(e(i))! / POOL_SLOT_BYTES;
@@ -185,10 +188,71 @@ describe('rows carved out of a host-owned block', () => {
         }
     });
 
+    it('resolves a row the way a host would, with no call back', () => {
+        // One memory, because that is what `span` means: the offsets are into
+        // the allocator's block, and only there do rows and table share one
+        // address space. The JS heap gives each block its own buffer.
+        const heap = heapOf(1 << 20);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, heap.memory);
+        for (let i = 1; i <= 6; i++) pool.put(e(i), DEFAULTS, { speed: i * 3 });
+
+        const { rows, stride, sparse, sparseCount } = pool.span();
+        const table = new Uint32Array(heap.all.buffer, sparse, sparseCount);
+
+        // Exactly the two loads a host does: one into the table, one into a row.
+        for (let i = 1; i <= 6; i++) {
+            const slot = table[entityIndex(e(i))]!;
+            expect(slot, `entity ${i} present`).not.toBe(POOL_ABSENT);
+            const at = (rows + (slot - 1) * stride) / POOL_SLOT_BYTES;
+            expect(heap.all[at], `entity ${i} speed`).toBe(i * 3);
+        }
+        expect(table[entityIndex(e(7))]).toBe(POOL_ABSENT);
+    });
+
     it('the default keeps the rows on the JS heap, where native wants them', () => {
         const pool = new ScriptPool(poolShape(DEFAULTS)!, 4, HEAP_MEMORY);
         pool.put(e(1), DEFAULTS);
         expect(pool.buffer.byteOffset).toBe(0);
         expect(pool.address(e(1))).toBe(pool.baseOf(e(1)));
+    });
+});
+
+/**
+ * What a host is handed so it needs no call to find a row. `span()` is the whole
+ * answer: rows at a stride, and a sparse table of slot+1 by entity index — the
+ * engine's own sparse-set shape, so C++ resolves a component with two loads.
+ */
+describe('a pool handed over as memory', () => {
+    it('the sparse table says which slot, and zero says absent', () => {
+        const pool = new ScriptPool(poolShape(DEFAULTS)!);
+        pool.put(e(5), DEFAULTS, { speed: 55 });
+        pool.put(e(9), DEFAULTS, { speed: 99 });
+
+        expect(pool.sparseTable[entityIndex(e(5))]).toBe(1);   // slot 0
+        expect(pool.sparseTable[entityIndex(e(9))]).toBe(2);   // slot 1
+        expect(pool.sparseTable[entityIndex(e(7))]).toBe(POOL_ABSENT);
+
+        pool.delete(e(5));
+        expect(pool.sparseTable[entityIndex(e(5))]).toBe(POOL_ABSENT);
+    });
+
+    it('a generation bump does not move an entity in the table', () => {
+        // The table is indexed by INDEX, as the engine's sparse set is: a recycled
+        // id has the same index and a different generation, and looking it up by
+        // the raw id would miss.
+        const pool = new ScriptPool(poolShape(DEFAULTS)!);
+        const first = makeEntity(12, 0);
+        const recycled = makeEntity(12, 1);
+        pool.put(first, DEFAULTS, { speed: 1 });
+        expect(entityIndex(recycled)).toBe(entityIndex(first));
+        expect(pool.sparseTable[entityIndex(recycled)]).not.toBe(POOL_ABSENT);
+    });
+
+    it('the table grows with the entity index, not with the row count', () => {
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 4);
+        pool.put(e(100000), DEFAULTS, { speed: 7 });
+        expect(pool.size).toBe(1);
+        expect(pool.sparseTable.length).toBeGreaterThan(100000);
+        expect(pool.sparseTable[entityIndex(e(100000))]).toBe(1);
     });
 });

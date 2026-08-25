@@ -75,11 +75,28 @@ std::size_t fieldOffset(const C& obj, const F& field) {
                                     - reinterpret_cast<const unsigned char*>(&obj));
 }
 
+/**
+ * The world, with `Mover` held the way ScriptStorage holds it: rows at a stride,
+ * and a sparse table of slot+1 by entity index. Not a convenience — a script
+ * component's map lives in the scripting language, so the only way the compiled
+ * code reaches it without a call per entity is for it to arrive as memory.
+ */
 struct World {
     ecs::Registry registry;
     std::vector<std::uint32_t> entities;
-    std::vector<MoverRow> movers;   // index-parallel with `entities`
+    std::vector<MoverRow> movers;          // the pool's rows
+    std::vector<std::uint32_t> moverSparse;  // entity index -> slot + 1
     TimeRow time{1.0 / 30.0};
+
+    aot::RowSpan moverSpan() {
+        return aot::RowSpan{
+            moverSparse.data(),
+            static_cast<std::uint32_t>(moverSparse.size()),
+            reinterpret_cast<unsigned char*>(movers.data()),
+            static_cast<std::uint32_t>(sizeof(MoverRow)),
+            Entity::Layout::INDEX_MASK,
+        };
+    }
 };
 
 constexpr int ENTITY_COUNT = 24;
@@ -98,6 +115,9 @@ World makeWorld() {
             static_cast<double>((i % 3) - 1),
             ((i % 4) - 2) / 2.0,
         });
+        const std::uint32_t at = e.index();
+        if (at >= w.moverSparse.size()) w.moverSparse.resize(at + 1u, 0u);
+        w.moverSparse[at] = static_cast<std::uint32_t>(w.movers.size());   // slot + 1
     }
     return w;
 }
@@ -127,14 +147,9 @@ aot::ComponentLookup componentsOf(World& w) {
                 return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
             };
         }
-        if (std::strcmp(name, "Mover") == 0) {
-            return [&w](std::uint32_t e) -> void* {
-                for (std::size_t i = 0; i < w.entities.size(); ++i) {
-                    if (w.entities[i] == e) return &w.movers[i];
-                }
-                return nullptr;
-            };
-        }
+        // Handed over as memory, so nothing here calls back into the language
+        // that owns the rows.
+        if (std::strcmp(name, "Mover") == 0) return aot::fromRows(w.moverSpan());
         return nullptr;
     };
 }
@@ -236,11 +251,28 @@ TEST_CASE("a compiled system moves a real Registry exactly as C++ does") {
     CHECK(moved->position.x != start->position.x);
 }
 
+TEST_CASE("a component handed over as memory resolves without a call") {
+    World w = makeWorld();
+    const aot::ComponentAt at = aot::fromRows(w.moverSpan());
+
+    for (std::size_t i = 0; i < w.entities.size(); ++i) {
+        CHECK(at(w.entities[i]) == &w.movers[i]);
+    }
+    // Absent is zero in the table, and past the end is absent too — a host must
+    // not read a row for an entity the pool never saw.
+    CHECK(at(Entity::Layout::pack(9999u, 0u)) == nullptr);
+
+    // A recycled id has the same INDEX and a different generation, which is why
+    // the table is indexed by index and masked here rather than looked up raw.
+    const std::uint32_t recycled = Entity::Layout::pack(Entity::fromRaw(w.entities[2]).index(), 3u);
+    CHECK(at(recycled) == &w.movers[2]);
+}
+
 TEST_CASE("a row the query cannot complete is not a row") {
     World w = makeWorld();
     aot::CallArena arena;
-    // Take Transform away from one entity: it has a Mover, so only the filter
-    // keeps it out of the walk.
+    // Take Transform away from one entity: its Mover row is still there, so only
+    // the filter keeps it out of the walk.
     w.registry.remove<ecs::Transform>(Entity::fromRaw(w.entities[3]));
 
     const aot::BoundSystem bound = aot::bind(*declOf("MoveSystem"), componentsOf(w), resourcesOf(w));

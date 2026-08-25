@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -122,6 +123,33 @@ inline std::span<const EsCmd> run(SystemFn fn,
     fn(reinterpret_cast<es_addr_t>(&arena.ctx_));
 
     return std::span<const EsCmd>(arena.cmds_.data(), arena.count_);
+}
+
+/**
+ * A component handed over as MEMORY rather than as a callback: rows at a stride,
+ * and a sparse table of `slot + 1` by entity index. What `ScriptPool::span`
+ * gives — a script component's entity-to-slot map lives in the scripting
+ * language, and asking it per entity per frame is what AOT exists to delete.
+ */
+struct RowSpan {
+    const std::uint32_t* sparse = nullptr;
+    std::uint32_t sparseCount = 0;
+    unsigned char* rows = nullptr;
+    std::uint32_t stride = 0;
+    /** Entity::Layout::INDEX_MASK, passed rather than included so this header
+     *  stays free of the engine and the harness needs no link. */
+    std::uint32_t indexMask = 0;
+};
+
+/** `span` as a resolver. Absent is zero in the table, as it is in a sparse set. */
+inline ComponentAt fromRows(const RowSpan& span) {
+    return [span](std::uint32_t entity) -> void* {
+        const std::uint32_t at = entity & span.indexMask;
+        if (at >= span.sparseCount) return nullptr;
+        const std::uint32_t slot = span.sparse[at];
+        if (slot == 0u) return nullptr;
+        return span.rows + static_cast<std::size_t>(slot - 1u) * span.stride;
+    };
 }
 
 /**

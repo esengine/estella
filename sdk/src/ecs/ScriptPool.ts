@@ -21,7 +21,7 @@
  *          same write it always was, one indirection later.
  */
 
-import type { Entity } from '../types';
+import { entityIndex, type Entity } from '../types';
 
 /** What a pooled field holds. Booleans are 0/1 in the slot, `true`/`false` out. */
 export type PoolKind = 'number' | 'boolean';
@@ -34,24 +34,32 @@ export interface PoolField {
 /** One f64 per field: what the ABI gives a host record (REARCH_AOT_ABI §2.4). */
 export const POOL_SLOT_BYTES = 8;
 
-/**
- * Where a pool's rows are allocated FROM. The default is a plain array, which
- * suits a native host: same process, real address. A wasm host must pass one
- * carved out of linear memory, because compiled code inside the module cannot
- * reach a JS-heap array — and unreachable is what rows exist to stop being.
- */
-export interface PoolMemory {
-    /** A view of `slots` doubles the pool may keep. */
-    alloc(slots: number): Float64Array;
-    /** A view the pool has finished with. */
-    release(view: Float64Array): void;
+/** A byte range the pool was given, and where it starts in the host's memory. */
+export interface PoolBlock {
+    readonly buffer: ArrayBufferLike;
+    readonly byteOffset: number;
+    readonly byteLength: number;
 }
 
-/** Rows on the JS heap: right for native, useless to a wasm module. */
+/**
+ * Where a pool's storage is allocated FROM. The default is the JS heap, which
+ * suits a native host: same process, real address. A wasm host must pass linear
+ * memory, because compiled code inside the module cannot reach a JS-heap array —
+ * and unreachable is what rows exist to stop being.
+ */
+export interface PoolMemory {
+    alloc(bytes: number): PoolBlock;
+    release(block: PoolBlock): void;
+}
+
+/** Storage on the JS heap: right for native, useless to a wasm module. */
 export const HEAP_MEMORY: PoolMemory = {
-    alloc: (slots) => new Float64Array(slots),
+    alloc: (bytes) => ({ buffer: new ArrayBuffer(bytes), byteOffset: 0, byteLength: bytes }),
     release: () => { /* the collector owns it */ },
 };
+
+/** Absent, in the sparse table: a slot is stored as `slot + 1`. */
+export const POOL_ABSENT = 0;
 
 /**
  * The fields a pool can back, or null when the defaults are not all scalars.
@@ -80,7 +88,12 @@ export class ScriptPool {
     /** Bytes per row, and what the ABI's `stride` must agree with. */
     readonly stride: number;
 
+    private rows_: PoolBlock;
     private slots_: Float64Array;
+    private sparseBlock_: PoolBlock;
+    /** Entity index -> slot + 1, so zero means absent. The engine's sparse set
+     *  in the same shape, and the reason a host needs no call to resolve a row. */
+    private sparse_: Uint32Array;
     private capacity_: number;
     private readonly slotOf_ = new Map<Entity, number>();
     private readonly views_ = new Map<Entity, Record<string, unknown>>();
@@ -95,11 +108,37 @@ export class ScriptPool {
         this.fields = fields;
         this.stride = fields.length * POOL_SLOT_BYTES;
         this.capacity_ = Math.max(1, capacity);
-        this.slots_ = memory_.alloc(this.capacity_ * fields.length);
+        this.rows_ = memory_.alloc(this.capacity_ * this.stride);
+        this.slots_ = new Float64Array(this.rows_.buffer, this.rows_.byteOffset,
+            this.capacity_ * fields.length);
+        this.sparseBlock_ = memory_.alloc(this.capacity_ * 4);
+        this.sparse_ = new Uint32Array(this.sparseBlock_.buffer, this.sparseBlock_.byteOffset,
+            this.capacity_);
     }
 
-    /** The backing store. Its byteOffset moves when the pool grows, so an
-     *  address taken from `baseOf` is valid only until the next `add`. */
+    /**
+     * What a host needs to resolve this component WITHOUT calling back: rows at
+     * a constant stride, and a sparse table saying which slot an entity is in.
+     * Every address is in the memory the pool allocated from.
+     *
+     * Valid until the next growth, which is per call anyway (§2.2).
+     */
+    span(): { rows: number; stride: number; sparse: number; sparseCount: number } {
+        return {
+            rows: this.rows_.byteOffset,
+            stride: this.stride,
+            sparse: this.sparseBlock_.byteOffset,
+            sparseCount: this.sparse_.length,
+        };
+    }
+
+    /** The sparse table itself, for a host that reads it in this address space. */
+    get sparseTable(): Uint32Array {
+        return this.sparse_;
+    }
+
+    /** The rows themselves. Its byteOffset moves when the pool grows, so an
+     *  address taken from `address` is valid only until the next `put`. */
     get buffer(): Float64Array {
         return this.slots_;
     }
@@ -144,8 +183,9 @@ export class ScriptPool {
         let slot = this.slotOf_.get(entity);
         const isNew = slot === undefined;
         if (slot === undefined) {
-            slot = this.claim_();
+            slot = this.claim_(entity);
             this.slotOf_.set(entity, slot);
+            this.mark_(entity, slot + 1);
             this.views_.set(entity, this.makeView_(slot));
             // A fresh row is seeded whole; an existing one keeps the fields the
             // caller did not name, which is what `world.set` has always done.
@@ -160,6 +200,7 @@ export class ScriptPool {
         if (slot === undefined) return false;
         this.slotOf_.delete(entity);
         this.views_.delete(entity);
+        this.mark_(entity, POOL_ABSENT);
         this.free_.push(slot);
         return true;
     }
@@ -170,26 +211,51 @@ export class ScriptPool {
 
     // -------------------------------------------------------------------------
 
-    private claim_(): number {
+    private claim_(entity: Entity): number {
         const reused = this.free_.pop();
         if (reused !== undefined) return reused;
-        if (this.next_ >= this.capacity_) this.grow_();
+        if (this.next_ >= this.capacity_) this.growRows_();
+        this.reserveSparse_(entityIndex(entity) + 1);
         return this.next_++;
     }
 
-    private grow_(): void {
+    private mark_(entity: Entity, value: number): void {
+        const at = entityIndex(entity);
+        this.reserveSparse_(at + 1);
+        this.sparse_[at] = value;
+    }
+
+    private growRows_(): void {
         this.capacity_ *= 2;
-        const wider = this.memory_.alloc(this.capacity_ * this.fields.length);
+        const block = this.memory_.alloc(this.capacity_ * this.stride);
+        const wider = new Float64Array(block.buffer, block.byteOffset,
+            this.capacity_ * this.fields.length);
         wider.set(this.slots_);
-        const old = this.slots_;
+        const old = this.rows_;
+        this.rows_ = block;
         this.slots_ = wider;
         this.memory_.release(old);
         // Views hold a slot index, not a reference into the old array, so they
         // survive this. An ADDRESS taken before it does not, which is why
-        // `baseOf` says so.
+        // `address` says so.
         for (const [entity, slot] of this.slotOf_) {
             this.views_.set(entity, this.makeView_(slot));
         }
+    }
+
+    /** The sparse table is indexed by ENTITY INDEX, which the world hands out
+     *  and this pool does not control, so it grows on its own schedule. */
+    private reserveSparse_(want: number): void {
+        if (want <= this.sparse_.length) return;
+        let size = Math.max(this.sparse_.length * 2, 8);
+        while (size < want) size *= 2;
+        const block = this.memory_.alloc(size * 4);
+        const wider = new Uint32Array(block.buffer, block.byteOffset, size);
+        wider.set(this.sparse_);
+        const old = this.sparseBlock_;
+        this.sparseBlock_ = block;
+        this.sparse_ = wider;
+        this.memory_.release(old);
     }
 
     private writeAll_(slot: number, from: Record<string, unknown>): void {
