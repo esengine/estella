@@ -47,7 +47,44 @@ const RULES = [
     test: /\b(RC\d+|P[0-3]\b|Phase \d|Batch [A-Z]\b|gap \d|audit [A-Z]\d)/,
     say: 'internal stage/roadmap codename — name the thing, not the plan it came from',
   },
+  {
+    id: 'unreachable-doc',
+    // A pointer the reader cannot follow: a section sign is a codename wearing a
+    // number, and an uncommitted markdown path names a file on somebody else's
+    // disk — which the gitignored design docs here have always been.
+    test: (text) => /§/.test(text) || docRefs(text).some((d) => !isTracked(d)),
+    say: 'points at something the reader cannot open — say what it says, or cite a committed path',
+  },
 ];
+
+/** Markdown paths named in a comment, as written. */
+function docRefs(text) {
+  return [...text.matchAll(/[\w./-]+\.md\b/g)].map((m) => m[0]);
+}
+
+/**
+ * Every path git has, plus their basenames, because a comment cites a document
+ * by bare filename as often as by its full path and both mean one file. Empty
+ * means the question could not be asked, and a scan that cannot ask must not
+ * answer green.
+ */
+const TRACKED = (() => {
+  let out = '';
+  try {
+    out = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  } catch { /* reported below */ }
+  const files = out.split('\n').filter(Boolean);
+  if (files.length === 0) {
+    console.error('check-comment-style: `git ls-files` gave nothing — cannot judge doc references.');
+    process.exit(2);
+  }
+  return new Set([...files, ...files.map((f) => f.slice(f.lastIndexOf('/') + 1))]);
+})();
+
+function isTracked(ref) {
+  const clean = ref.replace(/^\.\//, '');
+  return TRACKED.has(clean) || TRACKED.has(clean.slice(clean.lastIndexOf('/') + 1));
+}
 
 /** Added lines per file, as [lineNumber, text]. */
 function addedLines() {
@@ -173,7 +210,8 @@ function scan(byFile) {
       block.push([n, text]);
       prev = n;
       for (const rule of RULES) {
-        if (rule.test.test(text)) findings.push({ file, line: n, id: rule.id, say: rule.say, text: text.trim() });
+        const hit = typeof rule.test === 'function' ? rule.test(text) : rule.test.test(text);
+        if (hit) findings.push({ file, line: n, id: rule.id, say: rule.say, text: text.trim() });
       }
     }
     flushBlock();

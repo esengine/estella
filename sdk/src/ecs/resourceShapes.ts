@@ -7,7 +7,7 @@
  * @details A compiled system reaches a resource by ADDRESS, so its fields need a
  *          layout, and a layout needs exactly one author. This is that author:
  *          `resource.ts` builds the resource from it, and the AOT compiler reads
- *          it for the offsets (docs/REARCH_AOT_ABI.md §2.4).
+ *          it for the offsets.
  *
  *          A resource belongs here when every field is a number or a boolean —
  *          the same bar `defineComponent` shapes meet, and for the same reason:

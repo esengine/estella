@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    AotHost.hpp
- * @brief   The host half of the Estella ABI (docs/REARCH_AOT_ABI.md §2.1).
+ * @brief   The host half of the Estella ABI.
  *
  * @details A compiled system calls the engine ZERO times, which means everything
  *          it reads has to be in memory before the call. This puts it there:
@@ -15,8 +15,8 @@
  *          without linking the engine.
  *
  *          The arena is reused across calls and rebuilt in each one, because
- *          §2.2 gives a row array a one-call lifetime. Nothing here allocates
- *          per row after the first frame at a given size.
+ *          a row array has a one-call lifetime. Nothing here allocates per row
+ *          after the first frame at a given size.
  */
 #pragma once
 
@@ -173,8 +173,8 @@ struct BoundSystem {
 
 /**
  * Resolve `decl` against this host. A component or resource the host cannot
- * name leaves `fn` null: the system is simply not run, which is §3.2's fallback
- * arriving one layer down rather than a crash at the first row.
+ * name leaves `fn` null: the system is simply not run, which is the interpreter
+ * fallback arriving one layer down rather than a crash at the first row.
  */
 inline BoundSystem bind(const EsSystemDecl& decl,
                         const ComponentLookup& components,
@@ -212,7 +212,7 @@ inline std::span<const EsCmd> runBound(const BoundSystem& bound,
 /**
  * The constant a compiled artifact exports, as this host computes it. The
  * contract half comes from the artifact; the width is ours, and mixing it here
- * is what stops a 32-bit artifact loading into a 64-bit host (§2.5).
+ * is what stops a 32-bit artifact loading into a 64-bit host.
  */
 inline std::uint64_t abiHash(std::uint64_t contract) {
     return contract ^ (0x9e3779b97f4a7c15ULL * sizeof(es_addr_t));

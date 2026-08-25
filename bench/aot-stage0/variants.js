@@ -9,7 +9,7 @@
 //
 //   A  today's SDK path .... fillTransform -> user body -> writeTransform
 //   B  in-place view ....... a reused view object whose fields are accessors
-//                            straight onto the component bytes (REARCH_AOT §12.B)
+//                            straight onto the component bytes
 //   B2 raw indexing ........ the interpreted floor: no object layer at all
 //   C  native .............. in bench.cpp, the AOT ceiling
 //
@@ -111,7 +111,7 @@ globalThis.variantA = function (dt) {
 };
 
 // ---------------------------------------------------------------------------
-// B — in-place view (REARCH_AOT §12.B).
+// B — in-place view.
 //
 // The game author's code is UNCHANGED: still `t.position.x += v.linear.x * dt`.
 // What changed is that `t.position` is a reused object whose x/y/z are accessors

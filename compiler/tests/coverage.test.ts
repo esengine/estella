@@ -4,8 +4,8 @@
  * @file    coverage.test.ts
  * @brief   How much of the shipped corpus compiles — a number that may only rise.
  *
- * @details §8.2's coverage gate. Without it the subset can quietly stop growing,
- *          or shrink under a refactor, and nothing says so: every other test here
+ * @details Without this the subset can quietly stop growing, or shrink under a
+ *          refactor, and nothing says so: every other test here
  *          passes just as well on a compiler that lowers one system.
  *
  *          It counts PER-FRAME systems. A startup system runs once, so compiling

@@ -4,7 +4,7 @@
  * @file    outside-subset.ts
  * @brief   Systems that must NOT compile.
  *
- * @details Each names a rule from REARCH_AOT §3; subset.test.ts asserts the
+ * @details Each names one rule of the subset; subset.test.ts asserts the
  *          diagnostic points at the line and says why.
  */
 import { defineComponent, defineSystem, Query, Mut, Res, Camera, Time, Transform } from 'esengine';

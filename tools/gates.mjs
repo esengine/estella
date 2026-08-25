@@ -82,7 +82,7 @@ export const GATES = [
   // until the editor split, where a checkout without the editor ran none of them.
   { id: 'engine-tests', run: 'pnpm run test' },
   // The AOT compiler carries its own oracle: a real example system lowered to
-  // EIR must move a world exactly the way node moves it (docs/REARCH_AOT.md §8.1).
+  // EIR must move a world exactly the way node moves it.
   // It also compiles the emitted C and requires the same bytes back: natively
   // with any C compiler, and as wasm where emsdk is unpacked. Without either it
   // still passes and PRINTS that the differential did not run — read the log.

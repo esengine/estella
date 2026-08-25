@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    frame-share.mjs
- * @brief   Amdahl's denominator for the AOT proposal (docs/REARCH_AOT.md §14).
+ * @brief   Amdahl's denominator for the AOT proposal.
  *
  * @details Stage 0 measured that compiling a system LOOP is worth 154-385x
  *          under a no-JIT interpreter. That decides nothing alone: a loop 400x
@@ -104,7 +104,7 @@ async function main() {
     }
 
     console.log('='.repeat(70));
-    console.log("Estella AOT — Amdahl's denominator   (REARCH_AOT.md §10, Stage 0 follow-up)");
+    console.log("Estella AOT — Amdahl's denominator   (Stage 0 follow-up)");
     console.log('  runtime  : node', process.versions.node, '(V8, WITH jit)');
     console.log('  entities :', ENTITIES);
     console.log('  frames   :', FRAMES, `(+${WARMUP} warmup)`);

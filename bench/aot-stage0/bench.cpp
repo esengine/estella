@@ -4,11 +4,11 @@
  * @file    bench.cpp
  * @brief   Stage 0 of the AOT proposal: is compiling the system loop worth it?
  *
- * @details `docs/REARCH_AOT.md` §10 makes Stage 0 a go/no-go, and §11 names the
- *          risk it exists to retire: the speedup may be mostly the BOUNDARY COPY,
- *          not the interpreter — and the copy has a fix that costs 5% of a
- *          compiler (§12.B). A benchmark that reports one number cannot tell
- *          those apart, so this one runs the same system four ways:
+ * @details Stage 0 is a go/no-go, and the risk it exists to retire is that the
+ *          speedup may be mostly the BOUNDARY COPY rather than the interpreter —
+ *          the copy has an SDK-side fix (variant B below) that costs 5% of a
+ *          compiler. A benchmark that reports one number cannot tell those
+ *          apart, so this one runs the same system four ways:
  *
  *            A   today's SDK path  — fillTransform, body, writeTransform
  *            B   in-place view     — accessors onto the bytes, nothing copied
@@ -294,7 +294,7 @@ int main() {
     const bool thick = strEnvIs("BENCH_BODY", "thick");
 
     std::printf("================================================================\n");
-    std::printf("Estella AOT — Stage 0 loop benchmark   (REARCH_AOT.md §10)\n");
+    std::printf("Estella AOT — Stage 0 loop benchmark\n");
     std::printf("  interpreter : QuickJS %d.%d.%d (no JIT, on any platform)\n",
                 QJS_VERSION_MAJOR, QJS_VERSION_MINOR, QJS_VERSION_PATCH);
     std::printf("  entities    : %d\n", ENTITIES);
@@ -402,7 +402,7 @@ int main() {
     };
 
     runJs("A",  "SDK today (fill + body + write-back)", thick ? "variantA_thick"  : "variantA");
-    runJs("B",  "in-place view (SDK fix, §12.B)",       thick ? "variantB_thick"  : "variantB");
+    runJs("B",  "in-place view (the SDK-side fix)",     thick ? "variantB_thick"  : "variantB");
     runJs("B2", "raw indexing (interpreted floor)",     thick ? "variantB2_thick" : "variantB2");
     runNative("C", "native C++ (the AOT ceiling)");
 
@@ -441,14 +441,14 @@ int main() {
 
     std::printf("\n  where the speedup actually comes from\n");
     std::printf("  ------------------------------------------------------------\n");
-    std::printf("    A -> B   %6.2fx   what a pure SDK change buys  (§12.B)\n", sdkFix);
+    std::printf("    A -> B   %6.2fx   what a pure SDK change buys\n", sdkFix);
     std::printf("    B -> B2  %6.2fx   what the accessor layer costs\n", viewCost);
     std::printf("    B -> C   %6.2fx   what COMPILING buys  <-- the Stage 0 question\n", compiled);
     std::printf("    A -> C   %6.2fx   total AOT ceiling\n", total);
     std::printf("    throughput  A %.2f  C %.2f  M entity-updates/s\n",
                 ENTITIES * (1000.0 / A) / 1e6, ENTITIES * (1000.0 / C) / 1e6);
 
-    // REARCH_AOT §10: >= 5x total, and at least half of it must NOT be the copy.
+    // The bar: >= 5x total, and at least half of it must NOT be the copy.
     // "Half" in a ratio is geometric: sqrt(5) on each side.
     const double NEED_TOTAL = 5.0;
     const double NEED_COMPILED = 2.2360679775;   // sqrt(5)
@@ -461,7 +461,7 @@ int main() {
     std::printf("    B -> C  >= %.2fx   %6.2fx   %s\n", NEED_COMPILED, compiled, passCompiled ? "PASS" : "FAIL");
     std::printf("\n  VERDICT: %s\n", (passTotal && passCompiled)
         ? "GO — compiling buys more than the SDK fix alone. Proceed to Stage 1."
-        : "STOP — take REARCH_AOT.md §12 instead, starting with B. Re-read the split above.");
+        : "STOP — the SDK-side fix (variant B) buys most of it. Re-read the split above.");
     std::printf("================================================================\n");
 
     JS_FreeContext(ctx);

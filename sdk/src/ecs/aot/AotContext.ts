@@ -4,9 +4,8 @@
  * @file    AotContext.ts
  * @brief   The host half of the ABI, in the language that owns the maps.
  *
- * @details docs/REARCH_AOT_ABI.md §2.1 gives the host four jobs: pack the rows,
- *          resolve the resource addresses, ready the command buffer, and fill a
- *          SysCtx. On web that host is TypeScript rather than C++, and not by
+ * @details The ABI gives the host four jobs: pack the rows, resolve the resource
+ *          addresses, ready the command buffer, and fill a SysCtx. On web that host is TypeScript rather than C++, and not by
  *          preference — the query's candidate set and the script pools' slot
  *          maps are both here, so anything else would have to call back across
  *          the boundary once per entity per frame, which is the cost AOT exists
@@ -14,8 +13,8 @@
  *
  *          Everything it writes goes into the ENGINE's linear memory, because
  *          that is where the compiled code reads. The arena is rebuilt per call:
- *          §2.2 gives a row array a one-call lifetime, and reusing the block
- *          rather than the contents is what keeps that free.
+ *          a row array has a one-call lifetime, and reusing the block rather
+ *          than the contents is what keeps that free.
  */
 
 import type { PoolBlock, PoolMemory } from '../ScriptPool';
@@ -28,7 +27,7 @@ export {
     SYSCTX_WORDS, QUERYROWS_WORDS, CMD_WORDS, CMD_DESPAWN, CMD_REMOVE,
 } from './abiDigest';
 
-/** One record the compiled code appended (§2.3). */
+/** One record the compiled code appended. */
 export interface AotCommand {
     readonly kind: number;
     readonly a: number;
@@ -37,7 +36,7 @@ export interface AotCommand {
 
 /**
  * The per-call scratch, in engine memory. One instance per system is enough —
- * a call is over before the next begins, and §2.2 says nothing may outlive it.
+ * a call is over before the next begins, and nothing may outlive it.
  */
 export class AotContext {
     private block: PoolBlock | null = null;

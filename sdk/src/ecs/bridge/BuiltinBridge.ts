@@ -683,7 +683,7 @@ export class BuiltinBridge {
 
     /**
      * Where `cppName`'s bytes are for an entity: what compiled code adds an EHT
-     * offset to (§2.4). Through the {@link MemoryProvider}, the seam the fast
+     * offset to. Through the {@link MemoryProvider}, the seam the fast
      * accessors already use — an address resolved a second way can disagree.
      * Null where this backend serves no flat memory.
      */

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    commands.test.ts
- * @brief   A per-frame system that despawns, run both ways (§8.2).
+ * @brief   A per-frame system that despawns, run both ways.
  *
  * @details The oracle is examples/ecs-basics/src/systems/lifetime.ts — a real
  *          per-frame Commands user, which is the shape AOT is for. Most of the

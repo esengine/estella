@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    abi.ts
- * @brief   The Estella ABI, as an EirHost (docs/REARCH_AOT_ABI.md).
+ * @brief   The Estella ABI, as an EirHost.
  *
  * @details Runs a system with nothing but what SysCtx provides: a packed row
  *          array, resource pointers, a command buffer, and shared linear memory
@@ -99,9 +99,9 @@ export class AbiMemory {
     }
 
     /**
-     * Reset the arena the host refills each call. §2.2 gives row arrays and the
-     * SysCtx a one-call lifetime, and a region thrown away each time ENFORCES
-     * that rather than restating it. It grows down from the end of the image
+     * Reset the arena the host refills each call. A row array and a SysCtx have
+     * a one-call lifetime, and a region thrown away each time ENFORCES that
+     * rather than restating it. It grows down from the end of the image
      * while world data grows up, so an overlap is caught by `alloc`, not silent.
      */
     beginCall(): void {
@@ -189,8 +189,8 @@ function store(mem: AbiMemory, at: number, enc: LeafEnc, v: number | boolean): v
 
 /**
  * Which slot of `SysCtx` each of a system's parameters is. The order is the
- * declaration order of `_params`, and §2.1 says it is burned into the handshake
- * hash — so this function, not a convention, is what both the host and the code
+ * declaration order of `_params`, and the manifest is what drives it at run
+ * time — so this function, not a convention, is what both the host and the code
  * generator ask. Two readers of one answer; not two answers.
  */
 export interface SysPlan {
@@ -238,7 +238,7 @@ export interface AbiCall {
 }
 
 /**
- * The host's half of §2.1: pack the rows, resolve the resource addresses, zero
+ * The host's half of the contract: pack the rows, resolve the resources, zero
  * the count, write the SysCtx. When it returns, linear memory holds everything
  * the compiled code reads and nothing else it may reach. Rows are materialised
  * the way `View.hpp` already does — existing strategy, not a second one.
@@ -363,7 +363,7 @@ export function runOnAbi(sys: EirSystem, mem: AbiMemory, layout: AbiLayout, fns:
 }
 
 /**
- * The §2.5 handshake, as TWO numbers because the fixes differ: `engineAbi` means
+ * The handshake, as TWO numbers because the fixes differ: `engineAbi` means
  * rebuild the module against this engine, `projectShapes` means rebuild the
  * project. Parameter order is in neither — the manifest DRIVES the layout at run
  * time, so it is followed rather than compared.

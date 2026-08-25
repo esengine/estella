@@ -4,9 +4,9 @@
  * @file    subset.test.ts
  * @brief   What the subset must REFUSE, and how it says so.
  *
- * @details A checker that accepts everything is not a checker. Each case pins a
- *          rule from §3 and asserts the refusal names a line and a reason —
- *          §11's "coverage stalls low" is a diagnostics problem first.
+ * @details A checker that accepts everything is not a checker. Each case pins
+ *          one rule of the subset and asserts the refusal names a line and a
+ *          reason — coverage that stalls low is a diagnostics problem first.
  */
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
@@ -72,7 +72,7 @@ describe('the subset refuses, and says why', () => {
 
 /**
  * `@compiled` does not change what the subset takes; it changes who has to act.
- * An unmarked refusal is §3.2's design. A marked one is a build error.
+ * An unmarked refusal is the design. A marked one is a build error.
  */
 describe('a promise the author wrote down', () => {
     it('sees the marker, and only where it was written', () => {

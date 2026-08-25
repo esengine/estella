@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    frontend.ts
- * @brief   TypeScript AST -> EIR-high (docs/REARCH_AOT.md §4.1, §3.3).
+ * @brief   TypeScript AST -> EIR-high.
  *
  * @details Uses the real `typescript` program and checker. Re-implementing TS
  *          inference is the one decision that would sink this project.
@@ -21,8 +21,8 @@
  *
  *          Nothing here throws on code it cannot handle. Anything outside the
  *          subset produces a Diagnostic naming the line and the reason, and its
- *          system is simply not compiled — §3.2's no-cliff rule, which is what
- *          lets this ship before it is finished.
+ *          system is simply not compiled. Falling back rather than failing is
+ *          what lets this ship before it is finished.
  */
 import { sep } from 'node:path';
 import ts from 'typescript';
@@ -85,7 +85,8 @@ function marksCompiled(node: ts.Node): boolean {
 /**
  * The promises this program did not keep: every marked system that refused, plus
  * any that vanished without a diagnostic. A build fails on this list; an unmarked
- * refusal stays a note, because §3.2's fallback is a design and not a defect.
+ * refusal stays a note, because falling back to the interpreter is a design
+ * and not a defect.
  */
 export function brokenPromises(result: LowerResult): readonly Diagnostic[] {
     const compiled = new Set(result.module.systems.map((s) => s.name));
@@ -177,7 +178,7 @@ function annotatedType(node: ts.TypeNode): EirType | null {
 }
 
 /**
- * `permanent` = the contract has no place for it (REARCH_AOT_ABI.md §4), not a
+ * `permanent` = the contract has no place for it, not a
  * todo. `pending` = the contract admits it, nobody lowered it yet. Default is
  * `pending`; every `permanent` below names what is missing.
  */
@@ -590,8 +591,8 @@ class SystemLowerer {
         }
         if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)
             || callee.expression.text !== 'Math') {
-            // A method on a RESOURCE is pending: §2.3 says a service should be
-            // memory, so `input.isKeyDown('KeyW')` is a bit at a known offset.
+            // A method on a RESOURCE is pending: a service is meant to be read
+            // as memory, so `input.isKeyDown('KeyW')` is a bit at a known offset.
             // On anything else it needs an object model, which there is none of.
             const recv = ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
                 ? this.tryLookup(callee.expression.text)
@@ -680,7 +681,7 @@ class SystemLowerer {
             return { e: 'read', place: this.place(node), type: this.placeType(node) };
         }
         // String, array, object, new, await: each needs a heap, and the contract
-        // has no allocation (docs/REARCH_AOT_ABI.md §3).
+        // has no allocation.
         throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not an expression this subset lowers`, 'permanent');
     }
 }

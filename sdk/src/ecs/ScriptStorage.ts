@@ -24,7 +24,7 @@ export class ScriptStorage {
      * Components held as rows rather than objects, by id. A component qualifies
      * when its defaults are all scalars, which is exactly the set a compiled
      * system can reach — a compiled system addresses a component, and a JS
-     * object has no address (docs/REARCH_AOT_ABI.md §2.4).
+     * object has no address.
      */
     private pools_ = new Map<symbol, ScriptPool>();
     private poolMemory_: PoolMemory = HEAP_MEMORY;

@@ -1168,7 +1168,7 @@ export class World {
     /**
      * @internal Where script-component rows are allocated from. A wasm runtime
      * installs linear memory here BEFORE any component is added, because
-     * compiled code cannot reach a JS-heap array (docs/REARCH_AOT_ABI.md §2.4).
+     * compiled code cannot reach a JS-heap array.
      */
     useScriptPoolMemory(memory: PoolMemory): void {
         this.scripts_.usePoolMemory(memory);

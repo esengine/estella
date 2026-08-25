@@ -5,8 +5,8 @@
  * @brief   The first EIR -> EIR pass: calls to pure functions become their bodies.
  *
  * @details A helper called once per row must not still be a call by the time the
- *          backend sees it — §4.2's optimisations need the body visible, and a
- *          call boundary hides it.
+ *          backend sees it — copy elimination and archetype specialisation need
+ *          the body visible, and a call boundary hides it.
  *
  *          It is a PASS, not something the frontend does, and that is the point.
  *          The frontend lowers faithfully; every optimisation after it is an

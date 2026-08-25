@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Estella AOT — TypeScript to Estella IR (docs/REARCH_AOT.md)",
+  "description": "Estella AOT — TypeScript to Estella IR",
   "main": "src/index.ts",
   "scripts": {
     "test": "vitest run",

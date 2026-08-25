@@ -209,8 +209,8 @@ TEST_CASE("a system naming something this host cannot is simply not bound") {
     World w = makeWorld();
     const EsSystemDecl* decl = declOf("MoveSystem");
     REQUIRE(decl != nullptr);
-    // §3.2's fallback, one layer down: a host missing a component does not get
-    // a system that reads null, it gets no system.
+    // The interpreter fallback, one layer down: a host missing a component does
+    // not get a system that reads null, it gets no system.
     const aot::BoundSystem none = aot::bind(
         *decl, [](const char*) { return aot::ComponentAt{}; }, resourcesOf(w));
     CHECK(none.fn == nullptr);

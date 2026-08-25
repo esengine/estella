@@ -408,7 +408,7 @@ export class SystemRunner {
     /**
      * Compiled twins, when a shipping build installed them. Absent in the editor
      * and in dev, which is the whole of the mode policy — with nothing installed
-     * there is nothing to dispatch to (docs/REARCH_AOT.md §9).
+     * there is nothing to dispatch to.
      */
     private aot_: AotRuntime | null = null;
     /** The compiled half of this runner: everything a twin needs around its call

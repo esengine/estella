@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    conformance.test.ts
- * @brief   Every subset feature run BOTH ways and compared (§8.2).
+ * @brief   Every subset feature run BOTH ways and compared.
  *
  * @details move-system.test.ts covers the one shape a shipped system happens to
  *          use. This covers what the subset gained after it — locals, if /

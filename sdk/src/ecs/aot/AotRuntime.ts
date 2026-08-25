@@ -33,8 +33,7 @@ export interface AotAddresses {
 /**
  * Installed by a shipping build, absent everywhere else. That absence is the
  * whole of the mode policy: with no twins there is nothing to dispatch to, so
- * the editor and dev builds need no flag and take no branch worth measuring
- * (docs/REARCH_AOT.md §9).
+ * the editor and dev builds need no flag and take no branch worth measuring.
  */
 export interface AotRuntime {
     readonly systems: AotSystems;
