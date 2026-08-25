@@ -239,7 +239,10 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction']"
+    # wasmMemory is the Memory OBJECT, not a view of it. A compiled system module
+    # imports it as `env.memory` so it addresses the same bytes the engine does;
+    # HEAPU8.buffer is an ArrayBuffer and cannot be imported.
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','wasmMemory']"
     -O3
     -flto
     -Wl,--gc-sections

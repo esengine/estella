@@ -19,12 +19,17 @@ async function computeWasmHash(target, targetConfig, debug) {
     const buildType = debug ? 'Debug' : 'Release';
     const flagsKey = [...targetConfig.cmakeFlags, `CMAKE_BUILD_TYPE=${buildType}`].join('|');
 
+    // The toolchain files too: link flags live in cmake/Emscripten.cmake, and a
+    // hash that only covered CMakeLists.txt served a cached build after they
+    // changed — which is a wasm that does not match the flags it was asked for.
+    const toolchainHash = await hashDirectory(path.join(rootDir, 'cmake'), /\.cmake$/);
     const configHash = await hashFiles([cmakeLists]);
 
     const { createHash } = await import('crypto');
     return createHash('md5')
         .update(sourceHash)
         .update(configHash)
+        .update(toolchainHash)
         .update(flagsKey)
         .digest('hex');
 }

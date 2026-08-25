@@ -63,6 +63,22 @@ function candidateEmsdkRoots() {
     return candidates;
 }
 
+/**
+ * The `emcc` a gate should run, or null when this machine has no activated
+ * emsdk. Same discovery the build uses: a gate that looked only in
+ * `tools/emsdk` skipped itself on every machine whose emsdk lives elsewhere —
+ * which is the arrangement `pnpm emsdk:setup` itself tells you to prefer.
+ */
+export function emccPath() {
+    for (const root of candidateEmsdkRoots()) {
+        if (!isActivatedEmsdk(root)) continue;
+        const at = path.join(root, 'upstream', 'emscripten',
+            process.platform === 'win32' ? 'emcc.bat' : 'emcc');
+        if (existsSync(at)) return at;
+    }
+    return null;
+}
+
 let emsdkActivated = false;
 
 /**
