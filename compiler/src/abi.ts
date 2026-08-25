@@ -19,7 +19,7 @@
  *          table the engine and the SDK's accessors already agree on.
  */
 import { ehtStamp } from './builtins';
-import type { CompShape, EirSystem, EirType, QueryArg } from './eir';
+import { encBytes, type CompShape, type EirSystem, type EirType, type LeafEnc, type QueryArg } from './eir';
 import { runSystemOn, type EirHost, type Fns } from './interp';
 
 /** One command record: 16 bytes, four u32 (docs/REARCH_AOT_ABI.md §2.3). */
@@ -37,14 +37,14 @@ export const SYSCTX_WORDS = 6;
 export const QUERYROWS_WORDS = 2;
 
 /**
- * Where a field lives, and HOW WIDE it is. Component bytes are f32 because EHT
- * says the C++ structs are; a resource is a host-side record and `Time.delta` is
- * an f64 — packing it as f32 makes one side multiply by a rounded 1/30 and the
- * two drift apart. Width is part of the contract, not an implementation detail.
+ * Where a field lives and HOW it is encoded, both from the shape, which got them
+ * from EHT. Encoding is contract, not detail: `Time.delta` packed as f32 makes
+ * one side multiply by a rounded 1/30, and a bool byte read as a float takes
+ * three bytes of its neighbour with it.
  */
 export interface Leaf {
     readonly byteOffset: number;
-    readonly bits: 32 | 64;
+    readonly enc: LeafEnc;
     readonly type: EirType;
 }
 
@@ -70,6 +70,7 @@ export class AbiMemory {
     readonly f32: Float32Array;
     readonly f64: Float64Array;
     readonly u32: Uint32Array;
+    readonly u8: Uint8Array;
     private next = 64;
     private readonly compBase = new Map<string, Map<number, number>>();
     private readonly resBase = new Map<string, number>();
@@ -85,6 +86,7 @@ export class AbiMemory {
         this.f32 = new Float32Array(this.buffer);
         this.f64 = new Float64Array(this.buffer);
         this.u32 = new Uint32Array(this.buffer);
+        this.u8 = new Uint8Array(this.buffer);
         this.scratchNext = bytes;
         this.cmdBuf = this.alloc(this.cmdCap * CMD_WORDS * 4);
     }
@@ -138,7 +140,7 @@ export class AbiMemory {
     private writeLeaf(shape: FieldOffsets, base: number, path: string, v: number | boolean): void {
         const leaf = shape.leaves.get(path);
         if (!leaf) throw new Error(`ABI: no field '${path}'`);
-        store(this, base + leaf.byteOffset, leaf.bits, v);
+        store(this, base + leaf.byteOffset, leaf.enc, v);
     }
 
     baseOf(comp: string, entity: number): number | undefined {
@@ -152,10 +154,10 @@ export class AbiMemory {
     }
 
     /** Read a leaf back, for a test to check what the run produced. */
-    read(comp: string, entity: number, path: string): number {
+    read(comp: string, entity: number, path: string): number | boolean {
         const shape = this.layout.comps.get(comp)!;
         const leaf = shape.leaves.get(path)!;
-        return load(this, this.baseOf(comp, entity)! + leaf.byteOffset, leaf.bits);
+        return load(this, this.baseOf(comp, entity)! + leaf.byteOffset, leaf.enc);
     }
 
     /** Drop an entity, as the host's flush would. */
@@ -166,13 +168,23 @@ export class AbiMemory {
     }
 }
 
-/** One load / one store, chosen by the width the contract declares. */
-function load(mem: AbiMemory, at: number, bits: 32 | 64): number {
-    return bits === 64 ? mem.f64[at >> 3]! : mem.f32[at >> 2]!;
+/** One load / one store, chosen by the encoding the shape declares. */
+function load(mem: AbiMemory, at: number, enc: LeafEnc): number | boolean {
+    switch (enc) {
+        case 'f64': return mem.f64[at >> 3]!;
+        case 'f32': return mem.f32[at >> 2]!;
+        case 'bool8': return mem.u8[at] !== 0;
+        default: throw new Error(`ABI: nothing reads a ${enc} leaf yet`);
+    }
 }
-function store(mem: AbiMemory, at: number, bits: 32 | 64, v: number | boolean): void {
-    const n = typeof v === 'boolean' ? (v ? 1 : 0) : v;
-    if (bits === 64) mem.f64[at >> 3] = n; else mem.f32[at >> 2] = n;
+
+function store(mem: AbiMemory, at: number, enc: LeafEnc, v: number | boolean): void {
+    switch (enc) {
+        case 'f64': mem.f64[at >> 3] = typeof v === 'boolean' ? (v ? 1 : 0) : v; break;
+        case 'f32': mem.f32[at >> 2] = typeof v === 'boolean' ? (v ? 1 : 0) : v; break;
+        case 'bool8': mem.u8[at] = v ? 1 : 0; break;
+        default: throw new Error(`ABI: nothing writes a ${enc} leaf yet`);
+    }
 }
 
 /**
@@ -297,11 +309,11 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
         },
         readField(base, owner, path) {
             const leaf = leafAt(owner, path);
-            return load(mem, (base as number) + leaf.byteOffset, leaf.bits);
+            return load(mem, (base as number) + leaf.byteOffset, leaf.enc);
         },
         writeField(base, owner, path, v) {
             const leaf = leafAt(owner, path);
-            store(mem, (base as number) + leaf.byteOffset, leaf.bits, v);
+            store(mem, (base as number) + leaf.byteOffset, leaf.enc, v);
         },
         resource(name) {
             const k = plan.resources.indexOf(name);
@@ -363,7 +375,7 @@ export function abiHash(layout: AbiLayout, plans: readonly SysPlan[]): string {
     ];
     const table = (kind: string, m: ReadonlyMap<string, FieldOffsets>): void => {
         for (const [name, f] of m) {
-            const leaves = [...f.leaves].map(([p, l]) => `${p}@${l.byteOffset}:${l.bits}`).join(',');
+            const leaves = [...f.leaves].map(([p, l]) => `${p}@${l.byteOffset}:${l.enc}`).join(',');
             parts.push(`${kind} ${name} stride=${f.stride} ${leaves}`);
         }
     };
@@ -412,14 +424,23 @@ export function packLayout(shapes: ReadonlyMap<string, CompShape>): AbiLayout {
     const resources = new Map<string, FieldOffsets>();
     for (const [name, shape] of shapes) {
         const leaves = new Map<string, Leaf>();
-        let at = 0;
+        let end = 0;
+        let packed_at = 0;
         for (const [path, spec] of shape.fields) {
-            const width = spec.bits >> 3;
-            at = (at + width - 1) & ~(width - 1);
-            leaves.set(path, { byteOffset: at, bits: spec.bits, type: spec.type });
-            at += width;
+            const width = encBytes(spec.enc);
+            // Where an engine field lives has ONE authority, and it is not this
+            // function. Only a host record, which has no C++ struct, is laid
+            // out here.
+            let at = spec.offset;
+            if (at === null) {
+                packed_at = (packed_at + width - 1) & ~(width - 1);
+                at = packed_at;
+                packed_at += width;
+            }
+            leaves.set(path, { byteOffset: at, enc: spec.enc, type: spec.type });
+            end = Math.max(end, at + width);
         }
-        const packed: FieldOffsets = { leaves, stride: Math.max(8, at) };
+        const packed: FieldOffsets = { leaves, stride: Math.max(8, (end + 7) & ~7) };
         // A resource is addressed by field exactly as a component is, so the two
         // tables differ only in which one a `Res(...)` parameter looks in.
         (shape.storage === 'host' && RESOURCES.has(name) ? resources : comps).set(name, packed);

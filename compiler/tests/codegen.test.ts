@@ -48,6 +48,7 @@ import type { Row } from '../src/interp';
 import { moveSystem } from '../../examples/ecs-basics/src/systems/move';
 import { driftSystem } from './fixtures/in-subset';
 import { PROBE } from './probe';
+import { builtinShapes as shapesForPins } from '../src/builtins';
 import type { StubSystem } from './stubs/esengine';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
@@ -293,6 +294,12 @@ function fixtureWorld(layout: AbiLayout): AbiMemory {
         // The probe values are the point of this component, not a default: they
         // are where libm and ECMAScript disagree.
         mem.addComponent('FixtureMathProbe', i, { v: PROBE[(i - 1) % PROBE.length]! });
+        // An ENGINE component, so these land at EHT's offsets and encodings:
+        // fov at byte 4 (a repack would say 1) and isActive as one byte at 24.
+        mem.addComponent('Camera', i, {
+            fov: 40 + (i % 9) * 8, orthoSize: 1 + (i % 5), aspectRatio: 1.25 + (i % 3) * 0.5,
+            isActive: i % 3 !== 0,
+        });
     }
     return mem;
 }
@@ -363,7 +370,8 @@ describe('the emitted C says what the interpreter says', () => {
     // Every feature the subset gained after MoveSystem: branches and `&&`,
     // ternaries, folded module constants with a shadowing local, an inlined
     // helper, and the Math arguments where libm and ECMAScript disagree.
-    for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers', 'FixtureMathOps']) {
+    for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers',
+        'FixtureMathOps', 'FixtureCamera']) {
         it(`${name}: the whole image agrees with the interpreter`, () => {
             const sys = systemOf(fixtures, name);
             const layout = packLayout(fixtures.module.comps);
@@ -413,6 +421,34 @@ describe('the emitted C says what the interpreter says', () => {
             expect(mem.read('Transform', e, 'position.x'), `entity ${e}`).toBe(want['x']);
             expect(mem.read('Transform', e, 'position.y'), `entity ${e}`).toBe(want['y']);
         }
+    });
+
+    it('an offset comes from EHT, and a repack cannot guess it', () => {
+        // Most engine layouts ARE dense once alignment is applied, which is why
+        // a repack agreed for so long. These four have a member EHT does not
+        // expose in front, so a repack reads into it.
+        const shapes = shapesForPins();
+        const at = (comp: string, path: string): number | null =>
+            shapes.get(comp)!.fields.get(path)!.offset;
+        expect(at('BitmapText', 'color.r'), 'a repack would say 0').toBe(12);
+        expect(at('DragonBonesAnimation', 'timeScale'), 'a repack would say 0').toBe(48);
+        expect(at('SpineAnimation', 'timeScale'), 'a repack would say 0').toBe(48);
+        expect(at('UINode', 'alignSelf'), 'a repack would say 73').toBe(76);
+    });
+
+    it('a bool is one byte, and an integer leaf is refused rather than guessed', () => {
+        const layout = packLayout(fixtures.module.comps);
+        const cam = layout.comps.get('Camera')!;
+        expect(cam.leaves.get('isActive')!.byteOffset).toBe(24);
+        expect(cam.leaves.get('isActive')!.enc).toBe('bool8');
+        expect(cam.leaves.get('priority')!.enc).toBe('i32');
+
+        const { source } = emitC(fixtures.module, layout, [systemOf(fixtures, 'FixtureCamera')]);
+        expect(source).toContain('#define ES_OFF_Camera_isActive 24u');
+        // One byte. Read as a float it would take three bytes of `priority` with
+        // it, and produce a number rather than an error.
+        expect(source).toMatch(/es_bool\(\w+ \+ ES_OFF_Camera_isActive\)/);
+        expect(source).toMatch(/es_set_bool\(\w+ \+ ES_OFF_Camera_isActive/);
     });
 
     it('the same source addressed as pointers gives the same image', () => {

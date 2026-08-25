@@ -27,7 +27,7 @@
 import { sep } from 'node:path';
 import ts from 'typescript';
 import {
-    BOOL, ENTITY, F64,
+    BOOL, ENTITY, F64, HOST_ENC,
     type CompShape, type EirModule, type EirSystem, type EirType,
     MATH_FNS,
     type FieldSpec, type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
@@ -531,15 +531,30 @@ class SystemLowerer {
             if (!shape) throw new NotInSubset(node, `no declared shape for component '${base.type.name}'`);
             const f = shape.fields.get(key);
             if (!f) throw new NotInSubset(node, `'${base.type.name}' has no field '${key}'`);
-            return f.type;
+            return this.leafType(node, `${base.type.name}.${key}`, f);
         }
         if (base.type.k === 'res') {
             const shape = this.comps.get(base.type.name);
             const f = shape?.fields.get(key);
             if (!f) throw new NotInSubset(node, `resource '${base.type.name}' has no field '${key}'`);
-            return f.type;
+            return this.leafType(node, `${base.type.name}.${key}`, f);
         }
         throw new NotInSubset(node, `'${base.name}' has no fields to read`);
+    }
+
+    /**
+     * The EIR type a stored leaf reads as, or a refusal naming its encoding. An
+     * integer leaf is `pending`: what is missing is an EIR integer type, without
+     * which the two sides could not agree — C narrowing an out-of-range double
+     * is undefined where JS wraps.
+     */
+    private leafType(node: ts.Node, where: string, f: FieldSpec): EirType {
+        if (f.enc === 'i32' || f.enc === 'u32' || f.enc === 'u8') {
+            throw new NotInSubset(node,
+                `'${where}' is stored as ${f.enc}, and this subset has no integer type`
+                + ' — reading it as a double could not be reproduced bit-for-bit');
+        }
+        return f.type;
     }
 
     /**
@@ -685,9 +700,9 @@ function componentShape(call: ts.CallExpression): CompShape | null {
             && prop.initializer.operator === ts.SyntaxKind.MinusToken
             ? prop.initializer.operand
             : prop.initializer;
-        if (ts.isNumericLiteral(init)) fields.set(prop.name.text, { type: F64, bits: 64 });
+        if (ts.isNumericLiteral(init)) fields.set(prop.name.text, { type: F64, enc: HOST_ENC, offset: null });
         else if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
-            fields.set(prop.name.text, { type: BOOL, bits: 64 });
+            fields.set(prop.name.text, { type: BOOL, enc: HOST_ENC, offset: null });
         } else return null;
     }
     // defineComponent lands in ScriptStorage — a Map of JS objects — so its
@@ -700,7 +715,7 @@ function sameShape(a: CompShape, b: CompShape): boolean {
     if (a.fields.size !== b.fields.size) return false;
     for (const [k, f] of a.fields) {
         const other = b.fields.get(k);
-        if (other?.type.k !== f.type.k || other.bits !== f.bits) return false;
+        if (other?.type.k !== f.type.k || other.enc !== f.enc || other.offset !== f.offset) return false;
     }
     return true;
 }

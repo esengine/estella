@@ -8,7 +8,7 @@
  *          by conformance.test.ts — a feature the frontend lowers but nobody
  *          runs both ways is a feature nobody has checked.
  */
-import { defineComponent, defineSystem, Query, Mut, Res, Time, Transform } from 'esengine';
+import { defineComponent, defineSystem, Query, Mut, Res, Camera, Time, Transform } from 'esengine';
 
 export const Drift = defineComponent('FixtureDrift', { rate: 40, wrap: 100, enabled: true });
 
@@ -115,4 +115,25 @@ export const mathSystem = defineSystem(
         }
     },
     { name: 'FixtureMathOps' },
+);
+
+/**
+ * An ENGINE component, so the offsets and encodings are EHT's rather than
+ * anything this compiler chose. `isActive` is ONE byte at 24; read as a float it
+ * would take three bytes of `priority` with it. Nothing else in the corpus
+ * reaches a bool in a C++ struct.
+ */
+export const cameraSystem = defineSystem(
+    [Query(Mut(Camera)), Res(Time)],
+    (query, time) => {
+        for (const [, camera] of query) {
+            if (camera.isActive) {
+                camera.fov = camera.fov + camera.aspectRatio * time.delta;
+            } else {
+                camera.orthoSize = Math.max(1, camera.orthoSize - time.delta);
+            }
+            camera.isActive = camera.fov < 90;
+        }
+    },
+    { name: 'FixtureCamera' },
 );

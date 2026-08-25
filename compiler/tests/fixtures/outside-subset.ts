@@ -7,7 +7,7 @@
  * @details Each names a rule from REARCH_AOT §3; subset.test.ts asserts the
  *          diagnostic points at the line and says why.
  */
-import { defineComponent, defineSystem, Query, Mut, Res, Time, Transform } from 'esengine';
+import { defineComponent, defineSystem, Query, Mut, Res, Camera, Time, Transform } from 'esengine';
 
 export const Speed = defineComponent('FixtureSpeed', { value: 100 });
 
@@ -122,4 +122,19 @@ export const promiseKept = defineSystem(
         }
     },
     { name: 'FixturePromiseKept' },
+);
+
+/**
+ * An integer leaf. `Camera.priority` is an i32 in the C++ struct, and this
+ * subset has no integer type — narrowing a double back into one is undefined in
+ * C where it wraps in JS, so the two could not be held to the same bits.
+ */
+export const integerField = defineSystem(
+    [Query(Mut(Camera))],
+    (query) => {
+        for (const [, camera] of query) {
+            camera.fov = camera.priority + 1;
+        }
+    },
+    { name: 'FixtureIntegerField' },
 );

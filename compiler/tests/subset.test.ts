@@ -28,7 +28,7 @@ describe('the subset refuses, and says why', () => {
         expect(result.seen).toEqual([
             'FixtureLooping', 'FixtureTypo', 'FixtureTrig', 'FixtureCalling',
             'FixtureWritesReadOnly', 'FixtureWritesConst',
-            'FixturePromised', 'FixturePromiseKept',
+            'FixturePromised', 'FixturePromiseKept', 'FixtureIntegerField',
         ]);
     });
 
@@ -38,6 +38,7 @@ describe('the subset refuses, and says why', () => {
         ['FixtureTrig', /Math\.sin is not exactly specified by ECMAScript/],
         ['FixtureCalling', /'damp' cannot be lowered: parameter 'v' needs a type annotation/],
         ['FixtureWritesConst', /'LIMIT' is a constant and cannot be assigned/],
+        ['FixtureIntegerField', /'Camera\.priority' is stored as i32, and this subset has no integer type/],
     ])('refuses %s', (name, why) => {
         const d = diagOf(name);
         expect(d, `${name} compiled when it should not have`).toBeDefined();

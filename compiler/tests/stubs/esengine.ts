@@ -35,6 +35,7 @@ export function Commands(): unknown {
     return { kind: 'commands' };
 }
 export const Sprite = { _name: 'Sprite' };
+export const Camera = { _name: 'Camera' };
 export function defineSystem(
     params: readonly unknown[],
     fn: (...args: any[]) => void,

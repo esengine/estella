@@ -35,7 +35,7 @@ import {
 import {
     BOOL, F64,
     type EirFn, type EirModule, type EirSystem, type EirType, type Expr, type Local,
-    type MathFn, type Place, type Stmt,
+    type LeafEnc, type MathFn, type Place, type Stmt,
 } from './eir';
 
 /**
@@ -146,6 +146,11 @@ static inline double es_f32(const unsigned char *p) { float v; memcpy(&v, p, 4);
 static inline void es_set_f32(unsigned char *p, double v) { float f = (float)v; memcpy(p, &f, 4); }
 static inline double es_f64(const unsigned char *p) { double v; memcpy(&v, p, 8); return v; }
 static inline void es_set_f64(unsigned char *p, double v) { memcpy(p, &v, 8); }
+
+/* A bool in the C++ structs is ONE byte. Reading it as a float would read three
+   bytes of whatever follows it, which is a value rather than an error. */
+static inline int es_bool(const unsigned char *p) { return *p != 0; }
+static inline void es_set_bool(unsigned char *p, int v) { *p = (unsigned char)(v ? 1 : 0); }
 
 /* ---------------------------------------------------------------------------
    Math. Only the operations ECMAScript specifies EXACTLY are in the subset, but
@@ -272,6 +277,16 @@ function num(v: number): string {
     return /[.eE]/.test(s) ? s : `${s}.0`;
 }
 
+/**
+ * One accessor per encoding the subset admits. The integer three are absent
+ * because the frontend refuses those leaves; if one reaches here it is a
+ * compiler bug, and an undefined index says so louder than a wrong load.
+ */
+const LOAD: Partial<Record<LeafEnc, string>> = { f32: 'es_f32', f64: 'es_f64', bool8: 'es_bool' };
+const STORE: Partial<Record<LeafEnc, string>> = {
+    f32: 'es_set_f32', f64: 'es_set_f64', bool8: 'es_set_bool',
+};
+
 const MATH_C: Record<MathFn, string> = {
     abs: 'es_abs', floor: 'es_floor', ceil: 'es_ceil', round: 'es_round',
     trunc: 'es_trunc', sqrt: 'es_sqrt', sign: 'es_sign', min: 'es_min', max: 'es_max',
@@ -396,8 +411,10 @@ class Emitter {
     private read(p: Place, type: EirType): string {
         if (p.p === 'local') return cName(this.local(p.id));
         const { addr, leaf } = this.address(p.base, p.path);
-        const load = leaf.bits === 64 ? `es_f64(${addr})` : `es_f32(${addr})`;
-        return coerce(load, F64, type);
+        // The read's C type follows the ENCODING, and the coercion after it
+        // follows the EIR type: a bool byte reads as an int and never as 0.0f.
+        const read = `${LOAD[leaf.enc]}(${addr})`;
+        return coerce(read, leaf.enc === 'bool8' ? BOOL : F64, type);
     }
 
     /** An expression, parenthesised so composition never needs precedence rules. */
@@ -454,8 +471,9 @@ class Emitter {
                     break;
                 }
                 const { addr, leaf } = this.address(s.target.base, s.target.path);
-                const store = leaf.bits === 64 ? 'es_set_f64' : 'es_set_f32';
-                this.line(indent, `${store}(${addr}, ${coerce(this.expr(s.value), s.value.type, F64)});`);
+                const want = leaf.enc === 'bool8' ? BOOL : F64;
+                this.line(indent,
+                    `${STORE[leaf.enc]}(${addr}, ${coerce(this.expr(s.value), s.value.type, want)});`);
                 break;
             }
             case 'if': {

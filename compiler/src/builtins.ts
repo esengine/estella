@@ -14,9 +14,9 @@
  *          file exists to avoid.
  */
 import { PTR_LAYOUTS } from '../../sdk/src/wasm/ptrLayouts.generated';
-import { BOOL, F64, storageBits, type CompShape, type EirType, type FieldSpec, type Storage } from './eir';
+import { BOOL, F64, HOST_ENC, type CompShape, type FieldSpec, type LeafEnc } from './eir';
 
-/** Leaf member names per composite field, in memory order. */
+/** Leaf member names per composite field, in memory order. Every one is f32. */
 const MEMBERS: Record<string, readonly string[]> = {
     vec2: ['x', 'y'],
     vec3: ['x', 'y', 'z'],
@@ -25,8 +25,14 @@ const MEMBERS: Record<string, readonly string[]> = {
     color: ['r', 'g', 'b', 'a'],
 };
 
-function leafSpec(t: string, storage: Storage): FieldSpec {
-    return { type: t === 'bool' ? BOOL : F64, bits: storageBits(storage) };
+/** EHT's field type -> how those bytes are encoded. */
+const ENC: Record<string, LeafEnc> = {
+    f32: 'f32', bool: 'bool8', i32: 'i32', u32: 'u32', u8: 'u8',
+};
+
+function engineLeaf(t: string, offset: number): FieldSpec {
+    const enc = ENC[t] ?? 'f32';
+    return { type: enc === 'bool8' ? BOOL : F64, enc, offset };
 }
 
 /**
@@ -41,11 +47,15 @@ export function builtinShapes(): Map<string, CompShape> {
         for (const f of layout.fields) {
             const members = MEMBERS[f.type];
             if (members) {
-                for (const m of members) fields.set(`${f.name}.${m}`, leafSpec('f32', 'engine'));
+                // A composite is four-byte members laid end to end from the
+                // field's own offset — the same arithmetic ptrAccessors does.
+                members.forEach((m, i) => fields.set(`${f.name}.${m}`, engineLeaf('f32', f.offset + i * 4)));
             } else if (f.type === 'struct') {
-                for (const m of f.members ?? []) fields.set(`${f.name}.${m.name}`, leafSpec(m.type, 'engine'));
+                for (const m of f.members ?? []) {
+                    fields.set(`${f.name}.${m.name}`, engineLeaf(m.type, f.offset + m.offset));
+                }
             } else {
-                fields.set(f.name, leafSpec(f.type, 'engine'));
+                fields.set(f.name, engineLeaf(f.type, f.offset));
             }
         }
         // EHT's table IS the engine's flat pools, so everything from it is
@@ -64,7 +74,7 @@ const TIME: CompShape = {
     storage: 'host',
     fields: new Map<string, FieldSpec>(
         ['delta', 'elapsed', 'frameCount', 'fixedDelta', 'fixedAlpha', 'fixedTick', 'scale', 'unscaledDelta']
-            .map((k) => [k, { type: F64, bits: 64 }] as const)),
+            .map((k) => [k, { type: F64, enc: HOST_ENC, offset: null }] as const)),
 };
 
 /**

@@ -156,10 +156,32 @@ export interface EirSystem {
  */
 export type Storage = 'engine' | 'host';
 
-/** One leaf field: what it computes as, and how wide it is stored. */
+/**
+ * How a leaf is stored. `f64` is a host record; the rest are what EHT says the
+ * C++ struct holds, and the integer three are here so a refusal can NAME them
+ * rather than the shape pretending the field does not exist.
+ */
+export type LeafEnc = 'f32' | 'f64' | 'bool8' | 'i32' | 'u32' | 'u8';
+
+export function encBytes(enc: LeafEnc): number {
+    switch (enc) {
+        case 'f64': return 8;
+        case 'bool8': case 'u8': return 1;
+        default: return 4;
+    }
+}
+
+/** One leaf field: what it computes as, how it is stored, and WHERE. */
 export interface FieldSpec {
     readonly type: EirType;
-    readonly bits: 32 | 64;
+    readonly enc: LeafEnc;
+    /**
+     * EHT's byte offset in the C++ struct; `null` for a host record, which has
+     * no struct and is laid out by the ABI. Not derivable — a field EHT does
+     * not expose leaves a gap in front of the ones it does, and reading across
+     * it is a read of a DIFFERENT FIELD rather than an error.
+     */
+    readonly offset: number | null;
 }
 
 /** A component's field shape, flattened to leaf paths of one scalar each. */
@@ -170,10 +192,8 @@ export interface CompShape {
     readonly fields: ReadonlyMap<string, FieldSpec>;
 }
 
-/** Bits every field of a shape in this storage is stored at. */
-export function storageBits(storage: Storage): 32 | 64 {
-    return storage === 'engine' ? 32 : 64;
-}
+/** What a host record's numbers are: JS objects, so f64 throughout. */
+export const HOST_ENC: LeafEnc = 'f64';
 
 export interface EirModule {
     readonly systems: readonly EirSystem[];
