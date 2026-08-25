@@ -5,8 +5,10 @@
  *        esbuilt to an IIFE by exportPlayable with esengine + the project scripts
  *        INLINED. The engine is the shipped WEB glue, handed over as the inline
  *        `__ENGINE_GLUE__` global and evaluated as a blob module (it is ESM), with
- *        the wasm arriving base64 in `__ENGINE_WASM__`; assets + scenes are inlined
- *        globals too. Boots the SAME shipping runtime via initPlayableRuntime
+ *        the wasm arriving in `__ENGINE_WASM__`; assets + scenes are inlined
+ *        globals too. Both engine payloads are deflate+base64 — see PackedBytes in
+ *        exportPlayable, and inflate.ts for why the decoder is ours rather than
+ *        the platform's. Boots the SAME shipping runtime via initPlayableRuntime
  *        (play == ship). Nothing is fetched — the whole game is one self-contained
  *        .html (ad-network ready).
  */
@@ -14,19 +16,22 @@ import {
   createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
   packagedAppOptions, packagedRuntimeInit,
 } from 'esengine';
-import type { SceneData, EmbeddedSideModuleRegistry } from 'esengine';
+import type { SceneData, EmbeddedSideModuleRegistry, EmbeddedSideModuleEntry } from 'esengine';
 import type { ESEngineModule as EngineModule } from 'esengine/wasm';
 import type { PackagedRuntimeFields } from '../project/runtimeConfig';
+import { inflateRaw } from './inflate';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
 // large base64 blobs aren't re-parsed as code). The glue is the WEB esengine.js
-// (ESM) text; the wasm is base64-encoded esengine.wasm. __SIDE_MODULES__ holds
-// the base64 glue+wasm for exactly the optional modules (physics/spine) the scene
-// uses — the exporter ran the runtime's gating scan to pick them.
-declare const __ENGINE_GLUE__: string;
-declare const __ENGINE_WASM__: string;
-declare const __SIDE_MODULES__: EmbeddedSideModuleRegistry;
+// (ESM) text; the wasm is esengine.wasm. __SIDE_MODULES__ holds glue+wasm for
+// exactly the optional modules (physics/spine) the scene uses — the exporter ran
+// the runtime's gating scan to pick them. Every one of them is `PackedBytes`:
+// raw-deflated, then base64.
+interface PackedBytes { z: string; n: number }
+declare const __ENGINE_GLUE__: PackedBytes;
+declare const __ENGINE_WASM__: PackedBytes;
+declare const __SIDE_MODULES__: Record<string, { glue: PackedBytes; wasm: PackedBytes }>;
 declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_PATHMAP__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
@@ -43,6 +48,40 @@ function decodeBase64(b64: string): Uint8Array {
   return bytes;
 }
 
+/** One inlined payload, back to the bytes the exporter packed. */
+function unpack(p: PackedBytes): Uint8Array {
+  return inflateRaw(decodeBase64(p.z), p.n);
+}
+
+const unpackText = (p: PackedBytes): string => new TextDecoder().decode(unpack(p));
+
+/**
+ * The inlined side-module registry, decoded on first use.
+ *
+ * Lazily because the scan that chose these modules asks what the CONTENT could
+ * reach, not what a given run does: a scene that can spawn a Spine skeleton
+ * carries the runtime whether or not it spawns one. Inflating all of them at
+ * boot would spend that cost on every play, and these are the big ones —
+ * basis is 1MB before deflating.
+ */
+function unpackSideModules(): EmbeddedSideModuleRegistry {
+  if (typeof __SIDE_MODULES__ === 'undefined') return {};
+  const registry: Record<string, EmbeddedSideModuleEntry> = {};
+  for (const [id, packed] of Object.entries(__SIDE_MODULES__)) {
+    Object.defineProperty(registry, id, {
+      enumerable: true,
+      configurable: true,
+      get(): EmbeddedSideModuleEntry {
+        const entry = { glue: unpackText(packed.glue), wasm: unpack(packed.wasm) };
+        // Overwrite the getter, so acquiring a module twice inflates it once.
+        Object.defineProperty(registry, id, { value: entry, enumerable: true, configurable: true });
+        return entry;
+      },
+    });
+  }
+  return registry as EmbeddedSideModuleRegistry;
+}
+
 async function boot(): Promise<void> {
   // An export built before this global simply has no settings to apply.
   const runtimeConfig: PackagedRuntimeFields =
@@ -56,12 +95,12 @@ async function boot(): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
-  if (!__ENGINE_GLUE__ || !__ENGINE_WASM__) throw new Error('Engine runtime not inlined — re-export the playable.');
+  if (!__ENGINE_GLUE__?.n || !__ENGINE_WASM__?.n) throw new Error('Engine runtime not inlined — re-export the playable.');
   // The esengine.js glue is ESM, so run it via a blob module (own scope); feed the
   // embedded wasm through instantiateWasm so nothing is fetched (single-file).
-  const blobUrl = URL.createObjectURL(new Blob([__ENGINE_GLUE__], { type: 'text/javascript' }));
+  const blobUrl = URL.createObjectURL(new Blob([unpackText(__ENGINE_GLUE__)], { type: 'text/javascript' }));
   const { default: createEngine } = (await import(/* @vite-ignore */ blobUrl)) as { default: EngineFactory };
-  const wasmBytes = decodeBase64(__ENGINE_WASM__);
+  const wasmBytes = unpack(__ENGINE_WASM__);
   const module = await createEngine({
     canvas,
     instantiateWasm(imports: WebAssembly.Imports, cb: (inst: WebAssembly.Instance, mod?: WebAssembly.Module) => void) {
@@ -95,8 +134,12 @@ async function boot(): Promise<void> {
     // Everything the config says an App must be BUILT with (see packagedAppOptions).
     ...packagedAppOptions(runtimeConfig),
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
-    // Physics + spine resolve from the inlined base64 registry (no fetch).
-    sideModules: createEmbeddedSideModuleHost(typeof __SIDE_MODULES__ !== 'undefined' ? __SIDE_MODULES__ : {}),
+    // Physics + spine resolve from the inlined registry (no fetch). Unpacked
+    // here rather than inside the SDK: how these bytes survived a trip inside an
+    // HTML file is this page's business, and the SDK takes them decoded.
+    // Lazily, because a module the scene never asks for should not be paid for
+    // at boot — spine and basis are ~1MB each before deflating.
+    sideModules: createEmbeddedSideModuleHost(unpackSideModules()),
   });
   setEditorMode(false);
   setPlayMode(true);

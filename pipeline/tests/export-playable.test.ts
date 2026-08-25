@@ -15,6 +15,33 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { exportGame } from '../src/export/exportGame';
+import { inflateRaw } from '../src/runtime/inflate';
+
+/**
+ * Read an inlined payload back out of the page, the way the host does.
+ *
+ * The engine and every side module travel deflated-then-base64 (see PackedBytes
+ * in exportPlayable), so "the bytes are in the file" cannot be asked by looking
+ * for their base64 — that only ever held while the transport was plain. Asking
+ * it through the decoder is the stronger question anyway: it says the bytes
+ * arrived AND that what shipped can be turned back into them.
+ */
+function inlinedText(html: string, global: string, pick?: (v: never) => { z: string; n: number }): string {
+  const at = html.indexOf(`window.${global}=`);
+  if (at < 0) throw new Error(`${global} is not in the page`);
+  const json = html.slice(at + `window.${global}=`.length);
+  // The globals are `window.X=<json>;` concatenated, so the value ends at the
+  // `;` that leaves the JSON balanced — JSON.parse of the prefix finds it.
+  for (let end = json.indexOf(';'); end > 0; end = json.indexOf(';', end + 1)) {
+    try {
+      const value = JSON.parse(json.slice(0, end));
+      const packed = pick ? pick(value) : value;
+      const raw = Uint8Array.from(atob(packed.z), (c) => c.charCodeAt(0));
+      return new TextDecoder().decode(inflateRaw(raw, packed.n));
+    } catch { /* that `;` was inside the JSON — try the next one */ }
+  }
+  throw new Error(`${global} did not parse as a packed payload`);
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PLAYABLE_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'playableHost.ts');
@@ -88,7 +115,7 @@ describe('exportGame (playable)', () => {
     expect(existsSync(path.join(out, 'assets'))).toBe(false);
 
     const html = readFileSync(path.join(out, 'index.html'), 'utf8');
-    expect(html).toContain('WEB_GLUE');                              // web glue text inlined
+    expect(inlinedText(html, '__ENGINE_GLUE__')).toContain('WEB_GLUE');   // web glue text inlined
     expect(html).toContain('__ENGINE_GLUE__');                       // glue + wasm inlined as globals
     expect(html).toContain('__ENGINE_WASM__');
     expect(html).toContain('createObjectURL');                       // real host bundled (blob loader)
@@ -328,7 +355,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       expect(res.ok).toBe(true);
       const html = readFileSync(path.join(o, 'index.html'), 'utf8');
       expect(html).toContain('"physics"');
-      expect(html).toContain(Buffer.from('PHYSWASM').toString('base64'));
+      expect(inlinedText(html, '__SIDE_MODULES__', (v) => v['physics'].wasm)).toBe('PHYSWASM');
       // ...and the runtime is told to install it, plus the world it declared.
       expect(html).toMatch(/"physicsEnabled":true/);
       expect(html).toMatch(/"y":-20/);
@@ -345,7 +372,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       const html = readFileSync(path.join(o, 'index.html'), 'utf8');
       expect(html).toContain('__SIDE_MODULES__');
       expect(html).toContain('"physics"');
-      expect(html).toContain(Buffer.from('PHYSWASM').toString('base64')); // physics.wasm inlined
+      expect(inlinedText(html, '__SIDE_MODULES__', (v) => v['physics'].wasm)).toBe('PHYSWASM');
     } finally {
       rmSync(r, { recursive: true, force: true });
     }
@@ -421,7 +448,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       const html = readFileSync(path.join(o, 'index.html'), 'utf8');
       expect(html).toContain('__SIDE_MODULES__');
       expect(html).toContain('"spine:4.2"');
-      expect(html).toContain(Buffer.from('SPINE42WASM').toString('base64')); // spine42.wasm inlined
+      expect(inlinedText(html, '__SIDE_MODULES__', (v) => v['spine:4.2'].wasm)).toBe('SPINE42WASM');
       // The atlas page image is embedded + path-mapped (the dep the cook now follows).
       expect(html).toMatch(/"assets\/spine\/hero\.png":"@uuid:/);
     } finally {

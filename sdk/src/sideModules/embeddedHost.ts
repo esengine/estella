@@ -3,42 +3,36 @@
 /**
  * @file    embeddedHost.ts
  * @brief   The single-file (playable-ad) transport: every needed side module's
- *          glue + wasm is inlined as base64 by the exporter, so nothing is
- *          fetched (ad networks require a self-contained .html). The exporter
- *          decides *which* modules to embed from a content scan of the scene, so
- *          an embedded registry that lacks a module the scene needs is an export
- *          bug, not a silent runtime degrade.
+ *          glue + wasm is inlined by the exporter, so nothing is fetched (ad
+ *          networks require a self-contained .html). The exporter decides *which*
+ *          modules to embed from a content scan of the scene, so an embedded
+ *          registry that lacks a module the scene needs is an export bug, not a
+ *          silent runtime degrade.
+ *
+ *          How those bytes were ENCODED to survive the trip inside an HTML file
+ *          is the host page's business, not this module's: they arrive already
+ *          decoded. They used to arrive base64, which put one page's transport
+ *          decision in the SDK and meant a change to it (they are deflated now,
+ *          which is worth ~1MB of an ad network's 2MB cap) could not be made
+ *          without changing this file too.
  */
 import { createSideModuleHost, instantiateFromGlueText, type SideModuleHost } from './host';
 import type { SideModuleId } from './registry';
 
 export interface EmbeddedSideModuleEntry {
-    /** base64 of the emscripten `<file>.js` glue text. */
-    glueBase64: string;
-    /** base64 of the `<file>.wasm` binary. */
-    wasmBase64: string;
+    /** The emscripten `<file>.js` glue, as source text. */
+    glue: string;
+    /** The `<file>.wasm` binary. */
+    wasm: Uint8Array;
 }
 
 /** Inlined by the playable exporter as a window global, keyed by {@link SideModuleId}. */
 export type EmbeddedSideModuleRegistry = Partial<Record<SideModuleId, EmbeddedSideModuleEntry>>;
 
-function decodeBase64ToText(b64: string): string {
-    return atob(b64);
-}
-
-function decodeBase64ToBytes(b64: string): Uint8Array {
-    const raw = atob(b64);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    return bytes;
-}
-
 export function createEmbeddedSideModuleHost(registry: EmbeddedSideModuleRegistry): SideModuleHost {
     return createSideModuleHost(async (descriptor, id) => {
         const entry = registry[id];
         if (!entry) throw new Error(`side module "${id}" (${descriptor.file}) not embedded in this playable`);
-        const glueText = decodeBase64ToText(entry.glueBase64);
-        const wasmBytes = decodeBase64ToBytes(entry.wasmBase64);
-        return instantiateFromGlueText(glueText, wasmBytes.buffer as ArrayBuffer, descriptor);
+        return instantiateFromGlueText(entry.glue, entry.wasm.buffer as ArrayBuffer, descriptor);
     });
 }

@@ -2899,8 +2899,8 @@ step: number
 
 ## EmbeddedSideModuleEntry — interface @experimental
 ```
-glueBase64: string
-wasmBase64: string
+glue: string
+wasm: Uint8Array<ArrayBufferLike>
 ```
 
 ## EmbeddedSideModuleRegistry — type @experimental

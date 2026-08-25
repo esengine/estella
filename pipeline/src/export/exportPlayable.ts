@@ -22,6 +22,7 @@ import {
 } from '../project/runtimeConfig';
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { deflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { cookAssets } from '../assets/cookAssets';
 import type { OnExportProgress } from './exportProgress';
@@ -71,6 +72,30 @@ const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase(
 
 /** Escape `</script` so inlined content can't close the host <script> early. */
 const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script');
+
+/**
+ * A binary payload on its way into an HTML file: deflated, then base64.
+ *
+ * Base64 costs +33% over the bytes it carries, and the bytes are wasm — which
+ * deflates to under a third. Compressing before encoding is worth more than any
+ * denser encoding could be: the engine's own module goes 1.542MB → 2.056MB
+ * encoded raw, against 0.597MB encoded this way.
+ *
+ * `n` is the original length, so the decoder allocates once and a stream that
+ * does not fill it exactly is caught here rather than at some later use. Raw
+ * deflate: `inflateRaw` is the only reader, and a wrapper's checksum would only
+ * re-answer what instantiating the module answers immediately after.
+ */
+interface PackedBytes {
+  /** base64 of the raw-deflated bytes. */
+  z: string;
+  /** Length before deflating. */
+  n: number;
+}
+
+function pack(bytes: Uint8Array | Buffer): PackedBytes {
+  return { z: deflateRawSync(bytes, { level: 9 }).toString('base64'), n: bytes.length };
+}
 
 /**
  * The playable page. Deliberately WITHOUT the web export's rotate-to-fit overlay:
@@ -129,14 +154,14 @@ async function collectSideModules(
   wasmDir: string,
   errors: string[],
   physicsEnabled: boolean,
-): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
+): Promise<Record<string, { glue: PackedBytes; wasm: PackedBytes }>> {
   const ids = await scanSideModuleIds({
     root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, physicsEnabled,
   });
   const { files, unknown } = sideModuleFiles(ids);
   for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
 
-  const registry: Record<string, { glueBase64: string; wasmBase64: string }> = {};
+  const registry: Record<string, { glue: PackedBytes; wasm: PackedBytes }> = {};
   for (const { id, file } of files) {
     const gluePath = path.join(wasmDir, `${file}.js`);
     const wasmPath = path.join(wasmDir, `${file}.wasm`);
@@ -145,8 +170,8 @@ async function collectSideModules(
       continue;
     }
     registry[id] = {
-      glueBase64: (await readFile(gluePath)).toString('base64'),
-      wasmBase64: (await readFile(wasmPath)).toString('base64'),
+      glue: pack(await readFile(gluePath)),
+      wasm: pack(await readFile(wasmPath)),
     };
   }
   return registry;
@@ -298,13 +323,13 @@ export async function exportPlayable(opts: {
   //    inlined — the host loads the glue via a blob module + feeds the wasm (base64)
   //    through instantiateWasm. No separate single-file build needed.
   progress({ phase: 'Inlining engine' });
-  let glue = '';
-  let wasmB64 = '';
+  let glue: PackedBytes = { z: '', n: 0 };
+  let wasm: PackedBytes = { z: '', n: 0 };
   const gluePath = path.join(opts.wasmDir, 'esengine.js');
   const wasmPath = path.join(opts.wasmDir, 'esengine.wasm');
   if (existsSync(gluePath) && existsSync(wasmPath)) {
-    glue = await readFile(gluePath, 'utf8');
-    wasmB64 = (await readFile(wasmPath)).toString('base64');
+    glue = pack(await readFile(gluePath));
+    wasm = pack(await readFile(wasmPath));
   } else {
     errors.push(`engine runtime not found in ${opts.wasmDir} (need esengine.js + esengine.wasm)`);
   }
@@ -327,7 +352,7 @@ export async function exportPlayable(opts: {
   };
   const globals =
     span('wasm/esengine.js', `window.__ENGINE_GLUE__=${JSON.stringify(glue)};`) +
-    span('wasm/esengine.wasm', `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};`) +
+    span('wasm/esengine.wasm', `window.__ENGINE_WASM__=${JSON.stringify(wasm)};`) +
     span('wasm/side-modules', `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};`) +
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
