@@ -1,260 +1,261 @@
----
-title: 系统
-description: 用 defineSystem、Query、Res 和 Mut 声明系统。
----
-
-import { Aside } from '@astrojs/starlight/components';
-
-**系统**是每帧运行的函数。你声明它需要什么——一个组件查询，加上资源和事件——
-Estella 就会在调度中用恰好这些参数调用它。
-
-```typescript
-import {
-    defineComponent, defineSystem, addSystem,
-    Query, Mut, Res, Time, Transform
-} from 'esengine';
-
-const Speed = defineComponent('Speed', { value: 200 });
-
-addSystem(defineSystem(
-    [Res(Time), Query(Mut(Transform), Speed)],
-    (time, query) => {
-        for (const [entity, transform, speed] of query) {
-            transform.position.x += speed.value * time.delta;
-        }
-    }
-));
-```
-
-## 参数
-
-系统的第一个参数是它的**参数列表**——它将按顺序收到的数据：
-
-- **`Query(...)`** —— 遍历同时拥有列出的每个组件的实体。每次迭代产出
-  `[entity, ...组件]`。
-- **`Mut(Component)`** —— 系统会写入的组件。未包裹的组件是只读的。
-- **`Res(Resource)`** / **`ResMut(Resource)`** —— 一个共享资源,只读或可写(例如提供帧计时的 `Time`)。
-  `Res` 给你资源本身;`ResMut` 给你包在它外面的句柄——`.get()` / `.set(v)` / `.modify(fn)`。
-- **`Commands()`** —— 延迟的结构性改动(生成 / 销毁 / 增删组件),在下次 flush 时应用。
-- **`EventReader(E)`** / **`EventWriter(E)`** —— 读取或发送一条类型化事件流。
-
-<Aside type="caution">
-  只有当你确实要写入某个组件时才把它包进 `Mut`。只读查询让引擎可以跳过多余的变更
-  检测;而且参数表也是调度器判断「两个系统能不能换顺序」的依据——见
-  [系统碰什么](#系统碰什么)。
-</Aside>
-
-## 运行顺序
-
-系统活在由**有序阶段**组成的**调度(schedule)**里。用 `addSystem` 注册进默认的
-`Update` 阶段,用 `addStartupSystem` 注册进 `Startup`(只跑一次),或用
-`addSystemToSchedule(Schedule.X, system)` 注册进任意阶段:
-
-| 阶段 | 何时运行 |
-|---|---|
-| `Startup` | 首帧之前,一次。 |
-| `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | 每帧,按此顺序。 |
-| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | 固定步长(物理 / 复制节拍)——每帧 0..n 次。 |
-
-同一阶段内,系统**按注册顺序**运行——线性流程一个标注都不用写。再往上,按"能表达你的
-意思的最粗那一层"来选工具。
-
-### 先用阶段
-
-大多数"我要跑在它之后"其实是"我属于下一个阶段"。跨阶段的先后是固定的,不用任何依赖边:
-`PreUpdate` 收输入,`Update` 移动,`PostUpdate` 跟相机。
-
-### 排序边
-
-同一阶段内确实存在依赖时,把它写出来。依赖边按系统**名字**引用,所以要给参与排序的系统
-起名。写在 `defineSystem` 上的排序会**跟着定义走**——顶层的 `addSystem` 自身不收选项,靠
-的就是这条:
-
-```typescript
-const move = defineSystem([...], moveFn, { name: 'move' });
-const camera = defineSystem([...], cameraFn, {
-  name: 'camera',
-  runAfter: ['move'],          // 相机跟在移动之后
-});
-
-addSystem(move);
-addSystem(camera);
-```
-
-在 **`App`** 上注册可以写同样的边,外加 `runIf`;它是在定义处已声明的边之上**追加**,而不是
-覆盖:
-
-```typescript
-import { Schedule } from 'esengine';
-
-app.addSystemToSchedule(Schedule.Update, camera, {
-  runAfter: ['input'],         // 叠加在上面那条 'move' 边之上
-  runIf: () => isPlaying,      // 条件为 false 时跳过该系统
-});
-```
-
-指向本阶段内不存在的系统的边会被忽略;依赖边一旦成环,调度器会带着成环路径抛错——
-`Circular system dependency: move → camera → move`。
-
-### 系统集(System Set)
-
-一条条给每个系统写依赖很快就烦了。`defineSystemSet` 给**一组**系统起一个名字:集合的
-`runIf` 和依赖边对每个成员生效,别的系统也只要引用这个名字就能一次约束整组。
-
-```typescript
-import { Schedule, defineSystemSet } from 'esengine';
-
-const physics = defineSystemSet('physics', {
-  systems: [applyForces, integrateVelocity, resolveContacts],
-  runBefore: ['render'],       // 三个成员都跑在 'render' 之前
-  runIf: () => !paused,        // ……暂停时三个都不跑
-});
-
-app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
-
-// 一条边就等整组:
-app.addSystemToSchedule(Schedule.FixedUpdate, debugDraw, { runAfter: ['physics'] });
-```
-
-成员按列出的顺序运行。`app.addSystemSet(set)` 是注册进 `Update` 阶段的快捷方式。
-
-### 数值优先级
-
-没有 `order: 100` 这种选项,也不需要:注册顺序**就是**默认顺序,所以数值方案就是调用处
-的一次排序。
-
-```typescript
-const ordered = [
-  { order: 100, system: input },
-  { order: 200, system: move },
-  { order: 300, system: camera },
-];
-for (const { system } of ordered.sort((a, b) => a.order - b.order)) {
-  app.addSystemToSchedule(Schedule.Update, system);
-}
-```
-
-引擎不内建它,是因为数值是一份隐式的全局协议:数字会撞车,想往两者之间插入就得靠魔法
-间隔,删掉一个系统还会悄悄带走一条隐含依赖。而 `runAfter: ['move']` 陈述的是依赖本身
-——局部、可跨插件组合、且可校验。
-
-场景系统只在其所属场景处于激活状态时运行,因此多个场景可以共存于同一个世界而互不干扰。
-
-<Aside type="note">
-  顶层的 `addSystem` / `addSystemToSchedule` **不**收选项——`name` / `runBefore` /
-  `runAfter` 写在 `defineSystem` 里。运行条件 `runIf` 没有定义处的写法,只能经
-  `app.addSystemToSchedule(schedule, system, options)` 或所属的 `SystemSet` 施加。
-</Aside>
-
-## 过滤与变更检测
-
-查询可以在"拥有这些组件"之外进一步收窄,并对变更做出反应:
-
-```typescript
-// 额外的存在性过滤——要求/排除但不读取的组件:
-Query(Transform, Mut(Velocity)).without(Frozen).with(Enemy)
-
-// 用 filter() 做布尔组合:
-import { Query, With, Without, Or, Not } from 'esengine';
-Query(Transform).filter(Or(With(Player), With(Ally)))
-
-// 变更检测——只要该组件自本系统上次运行以来被添加/写过的实体:
-import { Query, Added, Changed } from 'esengine';
-Query(Added(Health))       // 本帧新增
-Query(Changed(Transform))  // 上次运行后被写过
-```
-
-`Removed(C)` 是它自己的查询,产出**丢失**了 `C` 的实体:
-
-```typescript
-import { defineSystem, Removed } from 'esengine';
-defineSystem([Removed(Health)], (removed) => {  // Health 是你自己的组件
-  for (const entity of removed) { /* 清理 */ }
-});
-```
-
-查询结果在 `for…of` 之外还有便捷方法:
-
-| 方法 | 返回 |
-|---|---|
-| `query.single()` | 唯一的匹配(否则 `null`)——用于单独的玩家/相机。 |
-| `query.count()` / `query.isEmpty()` | 匹配数 / 是否为空。 |
-| `query.toArray()` | 所有结果组成数组。 |
-| `query.forEach((e, ...c) => …)` | 每个匹配调用一次回调。 |
-
-## 系统碰什么
-
-系统的参数表同时也是它的**声明**:`Query(Mut(Transform))` 说的是「我写 Transform」,
-`Res(Time)` 说的是「我读 Time」。调度器读这份声明来回答两个问题——两个系统有没有可能
-同时跑,以及它们**实际**的先后顺序是不是有人决定过。
-
-`GetWorld()` 是逃生舱,这两个问题它都答不了:握着整个 World 的系统可能碰任何东西,
-所以它和**所有**系统冲突。确实需要它的地方,把你伸手够的东西说出来,答案就回来了:
-
-```typescript
-defineSystem([GetWorld()], (world) => { /* ... */ }, {
-  name: 'Perception',
-  touches: {
-    reads: ['Perceiver', 'Transform'],
-    writes: ['Perception'],
-  },
-});
-```
-
-这里组件用**字符串**指名,因为要走 World 的理由通常正是「这个类型注册得比系统晚」。
-它支持三件事:
-
-- `opaque: true` —— 你**确实**说不出来。这和干脆不写 `touches` 效果相同(都按「碰一切」
-  处理),区别是这一种是**明说的**。
-- 传**函数**而不是对象,每次读取访问信息时都会重新问一遍。跑「用户编写的数据」的系统
-  靠它回答:状态机系统够到的东西,是已加载的 `.esfsm` 图里那些叶子的并集。
-- `defineBehavior({ touches })`,同样的道理——行为体是你的代码,不声明就按碰一切处理。
-
-### 两个要等待的系统
-
-系统按调度顺序**启动**,而同步系统一启动就跑到底,下一个才开始——这中间没有任何重叠。
-**async** 系统不一样:当它挂在 `await` 上时,调度器可以启动下一个系统,**前提是**后者
-既不依赖它、也不碰它碰的东西。
-
-于是两个加载不同东西的 async 系统是**同时**在等,而不是一个等完另一个再等。如果你需要
-它们之间有确定的先后,那是一条顺序边(`runAfter`),不是从注册顺序里推出来的东西。
-
-### 找出没人定过顺序的那些对
-
-同一阶段里两个系统碰同一份数据、之间又没有边,它们的先后就是注册顺序碰巧产生的——于是
-加进第三个系统、或者在构建列表里挪一下插件,游戏行为就变了,而且没有任何地方能指。问它:
-
-```typescript
-app.scheduleAmbiguities(Schedule.Update);
-// [{ a: 'Move', b: 'Cull', over: ['Transform'] }]
-
-app.scheduleBatches(Schedule.Update);
-// [['Move', 'Spin'], ['Cull']] —— 这个阶段有多少是天然串行的
-```
-
-修法是二选一:把顺序定下来(`runAfter`),或者让这个重叠根本不存在。
-
-## 事件
-
-事件是一条类型化、解耦的消息流——一个系统 `send`,另一个下一帧读取,两者之间无直接引用。
-定义一个事件,在 app 上注册,然后把 `EventWriter` / `EventReader` 作为系统参数:
-
-```typescript
-import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'esengine';
-
-const Damaged = defineEvent<{ entity: number; amount: number }>('Damaged');
-app.addEvent(Damaged);
-
-// 生产者:
-addSystem(defineSystem([EventWriter(Damaged)], (damaged) => {
-  damaged.send({ entity: 12, amount: 5 });
-}));
-
-// 消费者(读取自上次运行以来发送的):
-addSystem(defineSystem([EventReader(Damaged), Commands()], (damaged, cmds) => {
-  for (const evt of damaged) { /* evt.entity、evt.amount */ }
-}));
-```
-
-reader 可迭代,还提供 `.isEmpty()` / `.toArray()`。完整的生产者/消费者模式见
-**event-system** 示例。
+---
+title: 系统
+description: 用 defineSystem、Query、Res 和 Mut 声明系统。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**系统**是每帧运行的函数。你声明它需要什么——一个组件查询，加上资源和事件——
+Estella 就会在调度中用恰好这些参数调用它。
+
+```typescript
+import {
+    defineComponent, defineSystem, addSystem,
+    Query, Mut, Res, Time, Transform
+} from 'esengine';
+
+const Speed = defineComponent('Speed', { value: 200 });
+
+addSystem(defineSystem(
+    [Res(Time), Query(Mut(Transform), Speed)],
+    (time, query) => {
+        for (const [entity, transform, speed] of query) {
+            transform.position.x += speed.value * time.delta;
+        }
+    }
+));
+```
+
+## 参数
+
+系统的第一个参数是它的**参数列表**——它将按顺序收到的数据：
+
+- **`Query(...)`** —— 遍历同时拥有列出的每个组件的实体。每次迭代产出
+  `[entity, ...组件]`。
+- **`Mut(Component)`** —— 系统会写入的组件。未包裹的组件是只读的。
+- **`Res(Resource)`** / **`ResMut(Resource)`** —— 一个共享资源,只读或可写(例如提供帧计时的 `Time`)。
+  `Res` 给你资源本身;`ResMut` 给你包在它外面的句柄——`.get()` / `.set(v)` / `.modify(fn)`。
+- **`Commands()`** —— 延迟的结构性改动(生成 / 销毁 / 增删组件),在**声明它的那个系统返回时**
+  应用——就在当前帧,同一帧里排在它后面的系统已经能查到这些改动。
+- **`EventReader(E)`** / **`EventWriter(E)`** —— 读取或发送一条类型化事件流。
+
+<Aside type="caution">
+  只有当你确实要写入某个组件时才把它包进 `Mut`。只读查询让引擎可以跳过多余的变更
+  检测;而且参数表也是调度器判断「两个系统能不能换顺序」的依据——见
+  [系统碰什么](#系统碰什么)。
+</Aside>
+
+## 运行顺序
+
+系统活在由**有序阶段**组成的**调度(schedule)**里。用 `addSystem` 注册进默认的
+`Update` 阶段,用 `addStartupSystem` 注册进 `Startup`(只跑一次),或用
+`addSystemToSchedule(Schedule.X, system)` 注册进任意阶段:
+
+| 阶段 | 何时运行 |
+|---|---|
+| `Startup` | 首帧之前,一次。 |
+| `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | 每帧,按此顺序。 |
+| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | 固定步长(物理 / 复制节拍)——每帧 0..n 次。 |
+
+同一阶段内,系统**按注册顺序**运行——线性流程一个标注都不用写。再往上,按"能表达你的
+意思的最粗那一层"来选工具。
+
+### 先用阶段
+
+大多数"我要跑在它之后"其实是"我属于下一个阶段"。跨阶段的先后是固定的,不用任何依赖边:
+`PreUpdate` 收输入,`Update` 移动,`PostUpdate` 跟相机。
+
+### 排序边
+
+同一阶段内确实存在依赖时,把它写出来。依赖边按系统**名字**引用,所以要给参与排序的系统
+起名。写在 `defineSystem` 上的排序会**跟着定义走**——顶层的 `addSystem` 自身不收选项,靠
+的就是这条:
+
+```typescript
+const move = defineSystem([...], moveFn, { name: 'move' });
+const camera = defineSystem([...], cameraFn, {
+  name: 'camera',
+  runAfter: ['move'],          // 相机跟在移动之后
+});
+
+addSystem(move);
+addSystem(camera);
+```
+
+在 **`App`** 上注册可以写同样的边,外加 `runIf`;它是在定义处已声明的边之上**追加**,而不是
+覆盖:
+
+```typescript
+import { Schedule } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, camera, {
+  runAfter: ['input'],         // 叠加在上面那条 'move' 边之上
+  runIf: () => isPlaying,      // 条件为 false 时跳过该系统
+});
+```
+
+指向本阶段内不存在的系统的边会被忽略;依赖边一旦成环,调度器会带着成环路径抛错——
+`Circular system dependency: move → camera → move`。
+
+### 系统集(System Set)
+
+一条条给每个系统写依赖很快就烦了。`defineSystemSet` 给**一组**系统起一个名字:集合的
+`runIf` 和依赖边对每个成员生效,别的系统也只要引用这个名字就能一次约束整组。
+
+```typescript
+import { Schedule, defineSystemSet } from 'esengine';
+
+const physics = defineSystemSet('physics', {
+  systems: [applyForces, integrateVelocity, resolveContacts],
+  runBefore: ['render'],       // 三个成员都跑在 'render' 之前
+  runIf: () => !paused,        // ……暂停时三个都不跑
+});
+
+app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
+
+// 一条边就等整组:
+app.addSystemToSchedule(Schedule.FixedUpdate, debugDraw, { runAfter: ['physics'] });
+```
+
+成员按列出的顺序运行。`app.addSystemSet(set)` 是注册进 `Update` 阶段的快捷方式。
+
+### 数值优先级
+
+没有 `order: 100` 这种选项,也不需要:注册顺序**就是**默认顺序,所以数值方案就是调用处
+的一次排序。
+
+```typescript
+const ordered = [
+  { order: 100, system: input },
+  { order: 200, system: move },
+  { order: 300, system: camera },
+];
+for (const { system } of ordered.sort((a, b) => a.order - b.order)) {
+  app.addSystemToSchedule(Schedule.Update, system);
+}
+```
+
+引擎不内建它,是因为数值是一份隐式的全局协议:数字会撞车,想往两者之间插入就得靠魔法
+间隔,删掉一个系统还会悄悄带走一条隐含依赖。而 `runAfter: ['move']` 陈述的是依赖本身
+——局部、可跨插件组合、且可校验。
+
+场景系统只在其所属场景处于激活状态时运行,因此多个场景可以共存于同一个世界而互不干扰。
+
+<Aside type="note">
+  顶层的 `addSystem` / `addSystemToSchedule` **不**收选项——`name` / `runBefore` /
+  `runAfter` 写在 `defineSystem` 里。运行条件 `runIf` 没有定义处的写法,只能经
+  `app.addSystemToSchedule(schedule, system, options)` 或所属的 `SystemSet` 施加。
+</Aside>
+
+## 过滤与变更检测
+
+查询可以在"拥有这些组件"之外进一步收窄,并对变更做出反应:
+
+```typescript
+// 额外的存在性过滤——要求/排除但不读取的组件:
+Query(Transform, Mut(Velocity)).without(Frozen).with(Enemy)
+
+// 用 filter() 做布尔组合:
+import { Query, With, Without, Or, Not } from 'esengine';
+Query(Transform).filter(Or(With(Player), With(Ally)))
+
+// 变更检测——只要该组件自本系统上次运行以来被添加/写过的实体:
+import { Query, Added, Changed } from 'esengine';
+Query(Added(Health))       // 本帧新增
+Query(Changed(Transform))  // 上次运行后被写过
+```
+
+`Removed(C)` 是它自己的查询,产出**丢失**了 `C` 的实体:
+
+```typescript
+import { defineSystem, Removed } from 'esengine';
+defineSystem([Removed(Health)], (removed) => {  // Health 是你自己的组件
+  for (const entity of removed) { /* 清理 */ }
+});
+```
+
+查询结果在 `for…of` 之外还有便捷方法:
+
+| 方法 | 返回 |
+|---|---|
+| `query.single()` | 唯一的匹配(否则 `null`)——用于单独的玩家/相机。 |
+| `query.count()` / `query.isEmpty()` | 匹配数 / 是否为空。 |
+| `query.toArray()` | 所有结果组成数组。 |
+| `query.forEach((e, ...c) => …)` | 每个匹配调用一次回调。 |
+
+## 系统碰什么
+
+系统的参数表同时也是它的**声明**:`Query(Mut(Transform))` 说的是「我写 Transform」,
+`Res(Time)` 说的是「我读 Time」。调度器读这份声明来回答两个问题——两个系统有没有可能
+同时跑,以及它们**实际**的先后顺序是不是有人决定过。
+
+`GetWorld()` 是逃生舱,这两个问题它都答不了:握着整个 World 的系统可能碰任何东西,
+所以它和**所有**系统冲突。确实需要它的地方,把你伸手够的东西说出来,答案就回来了:
+
+```typescript
+defineSystem([GetWorld()], (world) => { /* ... */ }, {
+  name: 'Perception',
+  touches: {
+    reads: ['Perceiver', 'Transform'],
+    writes: ['Perception'],
+  },
+});
+```
+
+这里组件用**字符串**指名,因为要走 World 的理由通常正是「这个类型注册得比系统晚」。
+它支持三件事:
+
+- `opaque: true` —— 你**确实**说不出来。这和干脆不写 `touches` 效果相同(都按「碰一切」
+  处理),区别是这一种是**明说的**。
+- 传**函数**而不是对象,每次读取访问信息时都会重新问一遍。跑「用户编写的数据」的系统
+  靠它回答:状态机系统够到的东西,是已加载的 `.esfsm` 图里那些叶子的并集。
+- `defineBehavior({ touches })`,同样的道理——行为体是你的代码,不声明就按碰一切处理。
+
+### 两个要等待的系统
+
+系统按调度顺序**启动**,而同步系统一启动就跑到底,下一个才开始——这中间没有任何重叠。
+**async** 系统不一样:当它挂在 `await` 上时,调度器可以启动下一个系统,**前提是**后者
+既不依赖它、也不碰它碰的东西。
+
+于是两个加载不同东西的 async 系统是**同时**在等,而不是一个等完另一个再等。如果你需要
+它们之间有确定的先后,那是一条顺序边(`runAfter`),不是从注册顺序里推出来的东西。
+
+### 找出没人定过顺序的那些对
+
+同一阶段里两个系统碰同一份数据、之间又没有边,它们的先后就是注册顺序碰巧产生的——于是
+加进第三个系统、或者在构建列表里挪一下插件,游戏行为就变了,而且没有任何地方能指。问它:
+
+```typescript
+app.scheduleAmbiguities(Schedule.Update);
+// [{ a: 'Move', b: 'Cull', over: ['Transform'] }]
+
+app.scheduleBatches(Schedule.Update);
+// [['Move', 'Spin'], ['Cull']] —— 这个阶段有多少是天然串行的
+```
+
+修法是二选一:把顺序定下来(`runAfter`),或者让这个重叠根本不存在。
+
+## 事件
+
+事件是一条类型化、解耦的消息流——一个系统 `send`,另一个下一帧读取,两者之间无直接引用。
+定义一个事件,在 app 上注册,然后把 `EventWriter` / `EventReader` 作为系统参数:
+
+```typescript
+import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'esengine';
+
+const Damaged = defineEvent<{ entity: number; amount: number }>('Damaged');
+app.addEvent(Damaged);
+
+// 生产者:
+addSystem(defineSystem([EventWriter(Damaged)], (damaged) => {
+  damaged.send({ entity: 12, amount: 5 });
+}));
+
+// 消费者(读取自上次运行以来发送的):
+addSystem(defineSystem([EventReader(Damaged), Commands()], (damaged, cmds) => {
+  for (const evt of damaged) { /* evt.entity、evt.amount */ }
+}));
+```
+
+reader 可迭代,还提供 `.isEmpty()` / `.toArray()`。完整的生产者/消费者模式见
+**event-system** 示例。
