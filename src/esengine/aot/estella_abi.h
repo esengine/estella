@@ -3,6 +3,7 @@
 #ifndef ESTELLA_ABI_H
 #define ESTELLA_ABI_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -58,6 +59,24 @@ typedef struct EsSysCtx {
     es_addr_t cmdCount;
     es_addr_t events;
 } EsSysCtx;
+
+/* §6: what a host needs in order to CALL a system without glue written by hand.
+   The compiler knows a system's queries and resources -- that is what _params
+   is -- so it says so here rather than leaving each host to be told twice. */
+typedef struct EsQueryDecl {
+    const char *const *comps;   /* component names, in the order the query names them */
+    const unsigned char *mut;   /* 1 where the system may write that component */
+    uint32_t count;
+} EsQueryDecl;
+
+typedef struct EsSystemDecl {
+    const char *name;
+    void (*fn)(es_addr_t);
+    const EsQueryDecl *queries;
+    const char *const *resources;
+    uint32_t queryCount;
+    uint32_t resourceCount;
+} EsSystemDecl;
 
 /* §6.1 asks that the C and TS sides of these structs have ONE author, and that a
    hand-written side fail to compile. The numbers below are written by that author

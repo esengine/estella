@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <functional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "estella_abi.h"
@@ -121,6 +122,63 @@ inline std::span<const EsCmd> run(SystemFn fn,
     fn(reinterpret_cast<es_addr_t>(&arena.ctx_));
 
     return std::span<const EsCmd>(arena.cmds_.data(), arena.count_);
+}
+
+/**
+ * How a host answers the two questions a declaration asks: where one component
+ * is for an entity, and where one resource is. Both by NAME, because names are
+ * what the artifact carries — it cannot know this host's type ids.
+ */
+using ComponentLookup = std::function<ComponentAt(const char*)>;
+using ResourceLookup = std::function<void*(const char*)>;
+
+/**
+ * A declared system with its resolvers found once. Resources are looked up per
+ * call rather than kept, because a host is free to move one between frames and
+ * the contract only promises the address for the length of a call.
+ */
+struct BoundSystem {
+    SystemFn fn = nullptr;
+    std::vector<QuerySpec> queries;
+    std::vector<const char*> resourceNames;
+};
+
+/**
+ * Resolve `decl` against this host. A component or resource the host cannot
+ * name leaves `fn` null: the system is simply not run, which is §3.2's fallback
+ * arriving one layer down rather than a crash at the first row.
+ */
+inline BoundSystem bind(const EsSystemDecl& decl,
+                        const ComponentLookup& components,
+                        const ResourceLookup& resources) {
+    BoundSystem out;
+    out.queries.resize(decl.queryCount);
+    for (std::uint32_t q = 0; q < decl.queryCount; ++q) {
+        const EsQueryDecl& qd = decl.queries[q];
+        for (std::uint32_t c = 0; c < qd.count; ++c) {
+            ComponentAt at = components(qd.comps[c]);
+            if (!at) return {};
+            out.queries[q].comps.push_back(std::move(at));
+        }
+    }
+    for (std::uint32_t r = 0; r < decl.resourceCount; ++r) {
+        if (resources(decl.resources[r]) == nullptr) return {};
+        out.resourceNames.push_back(decl.resources[r]);
+    }
+    out.fn = decl.fn;
+    return out;
+}
+
+/** Run a bound system, resolving its resources for this call. */
+inline std::span<const EsCmd> runBound(const BoundSystem& bound,
+                                       std::span<const std::uint32_t> candidates,
+                                       const ResourceLookup& resources,
+                                       CallArena& arena) {
+    if (bound.fn == nullptr) return {};
+    std::vector<void*> addresses;
+    addresses.reserve(bound.resourceNames.size());
+    for (const char* name : bound.resourceNames) addresses.push_back(resources(name));
+    return run(bound.fn, candidates, bound.queries, addresses, arena);
 }
 
 /**

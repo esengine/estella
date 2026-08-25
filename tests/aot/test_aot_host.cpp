@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "esengine/aot/AotHost.hpp"
@@ -39,6 +40,9 @@ extern "C" {
 /** The compiled system. One symbol, and it calls nothing. */
 void es_sys_MoveSystem(es_addr_t ctx);
 extern const std::uint64_t es_abi_hash;
+/** The manifest: what the artifact says its systems need filled in. */
+extern const EsSystemDecl es_systems[];
+extern const std::uint32_t es_system_count;
 }
 
 using namespace esengine;
@@ -111,21 +115,47 @@ void moveByHand(World& w) {
     }
 }
 
-/** One frame through the contract. */
-void moveByCompiledCode(World& w, aot::CallArena& arena) {
-    aot::QuerySpec q;
-    q.comps.push_back([&w](std::uint32_t e) -> void* {
-        return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
-    });
-    q.comps.push_back([&w](std::uint32_t e) -> void* {
-        for (std::size_t i = 0; i < w.entities.size(); ++i) {
-            if (w.entities[i] == e) return &w.movers[i];
+/**
+ * What this host can name. A real one answers from the generated per-component
+ * bindings and from ScriptStorage's pools; here `Mover` stands in for a pool,
+ * which is the same thing a slot address later becomes.
+ */
+aot::ComponentLookup componentsOf(World& w) {
+    return [&w](const char* name) -> aot::ComponentAt {
+        if (std::strcmp(name, "Transform") == 0) {
+            return [&w](std::uint32_t e) -> void* {
+                return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
+            };
+        }
+        if (std::strcmp(name, "Mover") == 0) {
+            return [&w](std::uint32_t e) -> void* {
+                for (std::size_t i = 0; i < w.entities.size(); ++i) {
+                    if (w.entities[i] == e) return &w.movers[i];
+                }
+                return nullptr;
+            };
         }
         return nullptr;
-    });
-    void* resources[] = { &w.time };
-    aot::QuerySpec queries[] = { q };
-    const auto cmds = aot::run(&es_sys_MoveSystem, w.entities, queries, resources, arena);
+    };
+}
+
+aot::ResourceLookup resourcesOf(World& w) {
+    return [&w](const char* name) -> void* {
+        return std::strcmp(name, "Time") == 0 ? &w.time : nullptr;
+    };
+}
+
+/** The declaration the artifact carries for `name`, or null. */
+const EsSystemDecl* declOf(const char* name) {
+    for (std::uint32_t i = 0; i < es_system_count; ++i) {
+        if (std::strcmp(es_systems[i].name, name) == 0) return &es_systems[i];
+    }
+    return nullptr;
+}
+
+/** One frame through the contract, driven entirely by the manifest. */
+void moveByCompiledCode(World& w, const aot::BoundSystem& bound, aot::CallArena& arena) {
+    const auto cmds = aot::runBound(bound, w.entities, resourcesOf(w), arena);
     CHECK(cmds.empty());   // MoveSystem writes no commands
 }
 
@@ -144,14 +174,49 @@ TEST_CASE("the host and the artifact agree on the handshake") {
     CHECK(es_abi_hash == aot::abiHash(ES_EXPECTED_CONTRACT_HASH));
 }
 
+TEST_CASE("the artifact says what it needs, and nobody writes that list twice") {
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    REQUIRE(decl->queryCount == 1u);
+    REQUIRE(decl->queries[0].count == 2u);
+    // Order is the contract: slot 0 of a row is Transform because the query
+    // named it first, and swapping these two swaps every load in the system.
+    CHECK(std::strcmp(decl->queries[0].comps[0], "Transform") == 0);
+    CHECK(std::strcmp(decl->queries[0].comps[1], "Mover") == 0);
+    CHECK(decl->queries[0].mut[0] == 1u);   // Mut(Transform)
+    CHECK(decl->queries[0].mut[1] == 0u);
+    REQUIRE(decl->resourceCount == 1u);
+    CHECK(std::strcmp(decl->resources[0], "Time") == 0);
+    CHECK(decl->fn == &es_sys_MoveSystem);
+}
+
+TEST_CASE("a system naming something this host cannot is simply not bound") {
+    World w = makeWorld();
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    // §3.2's fallback, one layer down: a host missing a component does not get
+    // a system that reads null, it gets no system.
+    const aot::BoundSystem none = aot::bind(
+        *decl, [](const char*) { return aot::ComponentAt{}; }, resourcesOf(w));
+    CHECK(none.fn == nullptr);
+
+    aot::CallArena arena;
+    CHECK(aot::runBound(none, w.entities, resourcesOf(w), arena).empty());
+}
+
 TEST_CASE("a compiled system moves a real Registry exactly as C++ does") {
     World byHand = makeWorld();
     World byCode = makeWorld();
     aot::CallArena arena;
 
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    const aot::BoundSystem bound = aot::bind(*decl, componentsOf(byCode), resourcesOf(byCode));
+    REQUIRE(bound.fn != nullptr);
+
     for (int frame = 0; frame < 30; ++frame) {
         moveByHand(byHand);
-        moveByCompiledCode(byCode, arena);
+        moveByCompiledCode(byCode, bound, arena);
 
         for (std::size_t i = 0; i < byHand.entities.size(); ++i) {
             const auto* want = byHand.registry.tryGet<ecs::Transform>(Entity::fromRaw(byHand.entities[i]));
@@ -178,19 +243,8 @@ TEST_CASE("a row the query cannot complete is not a row") {
     // keeps it out of the walk.
     w.registry.remove<ecs::Transform>(Entity::fromRaw(w.entities[3]));
 
-    aot::QuerySpec q;
-    q.comps.push_back([&w](std::uint32_t e) -> void* {
-        return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
-    });
-    q.comps.push_back([&w](std::uint32_t e) -> void* {
-        for (std::size_t i = 0; i < w.entities.size(); ++i) {
-            if (w.entities[i] == e) return &w.movers[i];
-        }
-        return nullptr;
-    });
-    void* resources[] = { &w.time };
-    aot::QuerySpec queries[] = { q };
-    aot::run(&es_sys_MoveSystem, w.entities, queries, resources, arena);
+    const aot::BoundSystem bound = aot::bind(*declOf("MoveSystem"), componentsOf(w), resourcesOf(w));
+    aot::runBound(bound, w.entities, resourcesOf(w), arena);
 
     // The incomplete entity is still gone, and the complete ones still moved:
     // a filter that dropped everything would pass a "did not crash" check.
