@@ -65,9 +65,9 @@ const seen = results.flatMap((r) => r.seen);
 const diagnostics = results.flatMap((r) => r.diagnostics);
 const systemBindings = new Map(results.flatMap((r) => [...r.systemBindings]));
 const verifiedNames = new Set(results.flatMap(
-    (r) => r.module.systems.filter((s) => verifySystem(s, r.module.comps).length === 0).map((s) => s.name)));
+    (r) => r.module.systems.filter((s) => verifySystem(s, r.module.comps, r.module.fns).length === 0).map((s) => s.name)));
 const unverified = results.flatMap((r) => r.module.systems
-    .map((s) => ({ name: s.name, errors: verifySystem(s, r.module.comps) }))
+    .map((s) => ({ name: s.name, errors: verifySystem(s, r.module.comps, r.module.fns) }))
     .filter((x) => x.errors.length > 0));
 
 const SCHEDULED = /addSystemToSchedule\s*\(\s*Schedule\.\w+\s*,\s*(\w+)\s*\)/g;

@@ -72,3 +72,22 @@ export const tunedSystem = defineSystem(
     },
     { name: 'FixtureTuned' },
 );
+
+// The shape examples/camera-follow writes: a module-level pure helper called
+// once per row. It must not still be a call after the inline pass.
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+function boost(v: number, on: boolean): number {
+    return on ? v * 2 : v;
+}
+
+export const helperSystem = defineSystem(
+    [Query(Mut(Transform), Drift), Res(Time)],
+    (query, time) => {
+        for (const [, transform, drift] of query) {
+            const step = boost(drift.rate * time.delta, drift.enabled);
+            transform.position.x = clamp(transform.position.x + step, -80, 80);
+            transform.position.y = clamp(boost(step, true), -10, 10);
+        }
+    },
+    { name: 'FixtureHelpers' },
+);

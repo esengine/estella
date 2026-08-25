@@ -16,7 +16,7 @@
  */
 import {
     MATH_FNS,
-    type CompShape, type EirSystem, type EirType, type Expr, type Local, type Place, type Stmt,
+    type CompShape, type EirFn, type EirSystem, type EirType, type Expr, type Local, type Place, type Stmt,
     typeName,
 } from './eir';
 
@@ -32,6 +32,7 @@ class Verifier {
     constructor(
         private readonly sys: EirSystem,
         private readonly comps: ReadonlyMap<string, CompShape>,
+        private readonly fns: ReadonlyMap<string, EirFn>,
     ) {
         for (const l of [...sys.params, ...sys.locals]) {
             if (this.byId.has(l.id)) this.fail(`local %${l.id} ('${l.name}') is declared twice`);
@@ -95,6 +96,12 @@ class Verifier {
                 }
                 return e.type;
             }
+            case 'bin': {
+                for (const t of [this.exprType(e.l), this.exprType(e.r)]) {
+                    if (t && t.k !== 'f64') this.fail(`operator '${e.op}' applied to a ${typeName(t)}`);
+                }
+                return e.type;
+            }
             case 'select': {
                 const c = this.exprType(e.cond);
                 if (c && c.k !== 'bool') this.fail(`a ternary condition is a ${typeName(c)}`);
@@ -104,23 +111,31 @@ class Verifier {
                 return e.type;
             }
             case 'call': {
-                const arity = (MATH_FNS as Record<string, number | undefined>)[e.fn];
-                if (arity === undefined) this.fail(`'${e.fn}' is not an intrinsic`);
-                else if (arity !== e.args.length) {
-                    this.fail(`${e.fn} called with ${e.args.length} argument(s), not ${arity}`);
+                if (e.target.k === 'math') {
+                    const arity = (MATH_FNS as Record<string, number | undefined>)[e.target.fn];
+                    if (arity === undefined) this.fail(`'${e.target.fn}' is not an intrinsic`);
+                    else if (arity !== e.args.length) {
+                        this.fail(`${e.target.fn} called with ${e.args.length} argument(s), not ${arity}`);
+                    }
+                    for (const a of e.args) {
+                        const t = this.exprType(a);
+                        if (t && t.k !== 'f64') this.fail(`${e.target.fn} applied to a ${typeName(t)}`);
+                    }
+                    return e.type;
                 }
-                for (const a of e.args) {
+                const def = this.fns.get(e.target.name);
+                if (!def) { this.fail(`no function '${e.target.name}'`); return e.type; }
+                if (def.params.length !== e.args.length) {
+                    this.fail(`${def.name} called with ${e.args.length} argument(s), not ${def.params.length}`);
+                }
+                e.args.forEach((a, i) => {
                     const t = this.exprType(a);
-                    if (t && t.k !== 'f64') this.fail(`${e.fn} applied to a ${typeName(t)}`);
-                }
-                return e.type;
-            }
-            case 'bin': {
-                const l = this.exprType(e.l);
-                const r = this.exprType(e.r);
-                for (const t of [l, r]) {
-                    if (t && t.k !== 'f64') this.fail(`operator '${e.op}' applied to a ${typeName(t)}`);
-                }
+                    const want = def.params[i]?.type;
+                    if (t && want && t.k !== want.k) {
+                        this.fail(`${def.name} argument ${i} is ${typeName(t)}, not ${typeName(want)}`);
+                    }
+                });
+                if (def.ret.k !== e.type.k) this.fail(`${def.name} returns ${typeName(def.ret)}, read as ${typeName(e.type)}`);
                 return e.type;
             }
         }
@@ -205,8 +220,12 @@ class Verifier {
 }
 
 /** Every type claim in `sys`, re-proved. An empty array means it holds. */
-export function verifySystem(sys: EirSystem, comps: ReadonlyMap<string, CompShape>): VerifyError[] {
-    const v = new Verifier(sys, comps);
+export function verifySystem(
+    sys: EirSystem,
+    comps: ReadonlyMap<string, CompShape>,
+    fns: ReadonlyMap<string, EirFn> = new Map(),
+): VerifyError[] {
+    const v = new Verifier(sys, comps, fns);
     for (const s of sys.body) v.stmt(s);
     return v.errors;
 }

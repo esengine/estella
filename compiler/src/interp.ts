@@ -13,7 +13,10 @@
  *          obviously correct, not fast; anything clever here would be a second
  *          place for a bug to hide from the backend it exists to check.
  */
-import type { EirSystem, Expr, Local, Place, QueryArg, Stmt } from './eir';
+import type { EirFn, EirSystem, Expr, Local, Place, QueryArg, Stmt } from './eir';
+
+/** The module's pure functions, threaded rather than held in a module global. */
+export type Fns = ReadonlyMap<string, EirFn>;
 
 /** One component instance, nested exactly as a system reads it. */
 export type Row = Record<string, unknown>;
@@ -67,31 +70,43 @@ function writePlace(p: Place, frame: Frame, value: unknown): void {
     owner[key] = value;
 }
 
-function evalExpr(e: Expr, frame: Frame): number | boolean {
+/** A pure function cannot see the world, so calling one needs only its own frame. */
+const EMPTY_WORLD: EirWorld = { entities: [], comps: new Map(), resources: new Map() };
+
+function evalExpr(e: Expr, frame: Frame, fns: Fns): number | boolean {
     switch (e.e) {
         case 'const': return e.value;
         case 'read': return readPlace(e.place, frame) as number | boolean;
-        case 'neg': return -(evalExpr(e.v, frame) as number);
-        case 'not': return !(evalExpr(e.v, frame) as boolean);
+        case 'neg': return -(evalExpr(e.v, frame, fns) as number);
+        case 'not': return !(evalExpr(e.v, frame, fns) as boolean);
         case 'select':
-            return evalExpr(e.cond, frame) ? evalExpr(e.then, frame) : evalExpr(e.otherwise, frame);
+            return evalExpr(e.cond, frame, fns) ? evalExpr(e.then, frame, fns) : evalExpr(e.otherwise, frame, fns);
         case 'call': {
-            const a = e.args.map((x) => evalExpr(x, frame) as number);
-            // The frontend admits only the exactly-specified operations, so
-            // deferring to the host's Math is the same answer everywhere.
-            const fn = (Math as unknown as Record<string, (...xs: number[]) => number>)[e.fn]!;
-            return fn(...a);
+            const a = e.args.map((x) => evalExpr(x, frame, fns));
+            if (e.target.k === 'math') {
+                // The frontend admits only the exactly-specified operations, so
+                // deferring to the host's Math is the same answer everywhere.
+                const fn = (Math as unknown as Record<string, (...xs: number[]) => number>)[e.target.fn]!;
+                return fn(...(a as number[]));
+            }
+            const def = fns.get(e.target.name);
+            if (!def) throw new Error(`EIR: no function '${e.target.name}'`);
+            const inner = new Frame();
+            def.params.forEach((p, i) => inner.set(p.id, a[i]));
+            const out = exec(def.body, inner, EMPTY_WORLD, fns);
+            if (out === undefined) throw new Error(`EIR: '${def.name}' returned nothing`);
+            return out;
         }
         case 'logic': {
             // Short-circuit, which is why this is not a `bin`: `a && b(…)` must
             // not evaluate b when a is false.
-            const l = evalExpr(e.l, frame) as boolean;
-            if (e.op === '&&') return l ? (evalExpr(e.r, frame) as boolean) : false;
-            return l ? true : (evalExpr(e.r, frame) as boolean);
+            const l = evalExpr(e.l, frame, fns) as boolean;
+            if (e.op === '&&') return l ? (evalExpr(e.r, frame, fns) as boolean) : false;
+            return l ? true : (evalExpr(e.r, frame, fns) as boolean);
         }
         case 'bin': {
-            const l = evalExpr(e.l, frame) as number;
-            const r = evalExpr(e.r, frame) as number;
+            const l = evalExpr(e.l, frame, fns) as number;
+            const r = evalExpr(e.r, frame, fns) as number;
             switch (e.op) {
                 case '+': return l + r;
                 case '-': return l - r;
@@ -114,24 +129,30 @@ function matching(world: EirWorld, args: readonly QueryArg[]): number[] {
     return world.entities.filter((e) => args.every((a) => world.comps.get(a.comp)?.has(e)));
 }
 
-function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
+/** Returns the value a `return` produced, or undefined if control ran off the end. */
+function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld, fns: Fns): number | boolean | undefined {
     for (const s of stmts) {
         switch (s.s) {
+            case 'return':
+                return evalExpr(s.value, frame, fns);
             case 'let':
-                frame.set(s.id, evalExpr(s.value, frame));
+                frame.set(s.id, evalExpr(s.value, frame, fns));
                 break;
             case 'assign':
-                writePlace(s.target, frame, evalExpr(s.value, frame));
+                writePlace(s.target, frame, evalExpr(s.value, frame, fns));
                 break;
             case 'emit': {
                 const queue = readPlace(s.channel, frame) as Command[];
-                queue.push({ record: s.record, args: s.args.map((a) => evalExpr(a, frame)) });
+                queue.push({ record: s.record, args: s.args.map((a) => evalExpr(a, frame, fns)) });
                 break;
             }
-            case 'if':
-                if (evalExpr(s.cond, frame)) exec(s.then, frame, world);
-                else exec(s.otherwise, frame, world);
+            case 'if': {
+                const out = evalExpr(s.cond, frame, fns)
+                    ? exec(s.then, frame, world, fns)
+                    : exec(s.otherwise, frame, world, fns);
+                if (out !== undefined) return out;
                 break;
+            }
             case 'rowLoop': {
                 const q = readPlace(s.query, frame) as { args: readonly QueryArg[] };
                 for (const entity of matching(world, q.args)) {
@@ -139,7 +160,7 @@ function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
                     s.binds.forEach((id, i) => {
                         frame.set(id, world.comps.get(q.args[i]!.comp)!.get(entity)!);
                     });
-                    exec(s.body, frame, world);
+                    exec(s.body, frame, world, fns);
                 }
                 break;
             }
@@ -152,14 +173,14 @@ function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
  * their declared types: a query becomes its own argument list, a resource its
  * row — the same two things the SDK's runner resolves.
  */
-export function runSystem(sys: EirSystem, world: EirWorld): void {
+export function runSystem(sys: EirSystem, world: EirWorld, fns: Fns = new Map()): void {
     const frame = new Frame();
     const queues: Command[][] = [];
     for (const p of sys.params) {
         const q = bindParam(p, frame, world);
         if (q) queues.push(q);
     }
-    exec(sys.body, frame, world);
+    exec(sys.body, frame, world, fns);
     // At system end, not at the call: the SDK's runner flushes in flushSystem_,
     // and a despawn taking effect mid-row would change what the row loop walks.
     for (const q of queues) flush(q, world);

@@ -7,5 +7,6 @@
 export * from './eir';
 export { lowerProgram, type Diagnostic, type LowerResult } from './frontend';
 export { verifySystem, type VerifyError } from './verify';
-export { runSystem, type EirWorld, type Row } from './interp';
+export { runSystem, type EirWorld, type Fns, type Row } from './interp';
+export { inlineModule, inlineSystem } from './inline';
 export { builtinShapes } from './builtins';

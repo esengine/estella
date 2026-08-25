@@ -35,7 +35,7 @@ describe('the subset refuses, and says why', () => {
         ['FixtureLooping', /WhileStatement is not a statement/],
         ['FixtureTypo', /has no field 'valeu'/],
         ['FixtureTrig', /Math\.sin is not exactly specified by ECMAScript/],
-        ['FixtureCalling', /CallExpression is not an expression/],
+        ['FixtureCalling', /'damp' cannot be lowered: parameter 'v' needs a type annotation/],
         ['FixtureWritesConst', /'LIMIT' is a constant and cannot be assigned/],
     ])('refuses %s', (name, why) => {
         const d = diagOf(name);
@@ -55,7 +55,7 @@ describe('the subset refuses, and says why', () => {
 
     it('…and the verifier refuses it on the IR alone', () => {
         const sys = result.module.systems.find((s) => s.name === 'FixtureWritesReadOnly')!;
-        const errors = verifySystem(sys, result.module.comps);
+        const errors = verifySystem(sys, result.module.comps, result.module.fns);
         expect(errors).toHaveLength(1);
         expect(errors[0]!.message).toMatch(/is written but the query asks for 'Transform' without Mut/);
     });

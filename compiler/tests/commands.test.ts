@@ -77,7 +77,7 @@ describe('commands — a per-frame despawn', () => {
     it('compiles and verifies', () => {
         expect(diagnostics.filter((d) => d.system === 'LifetimeSystem').map((d) => d.message)).toEqual([]);
         expect(eir).toBeDefined();
-        expect(verifySystem(eir!, module.comps)).toEqual([]);
+        expect(verifySystem(eir!, module.comps, module.fns)).toEqual([]);
     });
 
     it('keeps the despawn as an emit on the channel', () => {

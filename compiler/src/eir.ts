@@ -71,8 +71,13 @@ export type Expr =
         readonly otherwise: Expr;
         readonly type: EirType;
     }
-    /** An intrinsic call. Only the exactly-specified Math operations (§3.3). */
-    | { readonly e: 'call'; readonly fn: MathFn; readonly args: readonly Expr[]; readonly type: EirType };
+    /** A call. One node, parameterised by target — as `emit` is by record. */
+    | { readonly e: 'call'; readonly target: CallTarget; readonly args: readonly Expr[]; readonly type: EirType };
+
+export type CallTarget =
+    /** Only the exactly-specified Math operations (§3.3). */
+    | { readonly k: 'math'; readonly fn: MathFn }
+    | { readonly k: 'fn'; readonly name: string };
 
 /**
  * The Math operations ECMAScript specifies EXACTLY, so a backend can compute
@@ -99,6 +104,7 @@ export type Stmt =
         readonly body: readonly Stmt[];
     }
     | { readonly s: 'assign'; readonly target: Place; readonly value: Expr }
+    | { readonly s: 'return'; readonly value: Expr }
     | { readonly s: 'let'; readonly id: number; readonly value: Expr }
     /**
      * Append one record to a channel. Commands are a QUEUE the runner flushes at
@@ -125,6 +131,15 @@ export interface Local {
     readonly type: EirType;
 }
 
+/** A module-level pure function over numbers and booleans. */
+export interface EirFn {
+    readonly name: string;
+    readonly params: readonly Local[];
+    readonly locals: readonly Local[];
+    readonly body: readonly Stmt[];
+    readonly ret: EirType;
+}
+
 export interface EirSystem {
     readonly name: string;
     /** Locals bound to the system's declared parameters, in declaration order. */
@@ -143,6 +158,7 @@ export interface CompShape {
 export interface EirModule {
     readonly systems: readonly EirSystem[];
     readonly comps: ReadonlyMap<string, CompShape>;
+    readonly fns: ReadonlyMap<string, EirFn>;
 }
 
 // =============================================================================
@@ -174,8 +190,10 @@ function exprText(e: Expr, locals: ReadonlyMap<number, Local>): string {
         case 'not': return `!${exprText(e.v, locals)}`;
         case 'select':
             return `(${exprText(e.cond, locals)} ? ${exprText(e.then, locals)} : ${exprText(e.otherwise, locals)})`;
-        case 'call':
-            return `${e.fn}(${e.args.map((a) => exprText(a, locals)).join(', ')})`;
+        case 'call': {
+            const name = e.target.k === 'math' ? e.target.fn : e.target.name;
+            return `${name}(${e.args.map((a) => exprText(a, locals)).join(', ')})`;
+        }
     }
 }
 
@@ -192,6 +210,8 @@ function stmtText(s: Stmt, locals: ReadonlyMap<number, Local>, indent: string): 
             return [`${indent}${placeName(s.target, locals)} = ${exprText(s.value, locals)}`];
         case 'let':
             return [`${indent}let ${locals.get(s.id)?.name ?? `%${s.id}`} = ${exprText(s.value, locals)}`];
+        case 'return':
+            return [`${indent}return ${exprText(s.value, locals)}`];
         case 'emit':
             return [`${indent}emit ${placeName(s.channel, locals)}.${s.record}(`
                 + `${s.args.map((a) => exprText(a, locals)).join(', ')})`];
@@ -206,6 +226,17 @@ function stmtText(s: Stmt, locals: ReadonlyMap<number, Local>, indent: string): 
             return out;
         }
     }
+}
+
+export function printFn(fn: EirFn): string {
+    const byId = new Map<number, Local>();
+    for (const l of [...fn.params, ...fn.locals]) byId.set(l.id, l);
+    const params = fn.params.map((p) => `${p.name}: ${typeName(p.type)}`).join(', ');
+    return [
+        `fn ${fn.name}(${params}) -> ${typeName(fn.ret)} {`,
+        ...fn.body.flatMap((s) => stmtText(s, byId, '  ')),
+        '}',
+    ].join('\n');
 }
 
 export function printSystem(sys: EirSystem): string {

@@ -18,10 +18,11 @@ import { fileURLToPath } from 'node:url';
 import { lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
 import { runSystem, type EirWorld, type Row } from '../src/interp';
+import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { printSystem } from '../src/eir';
 
-import { driftSystem, clampSystem, tunedSystem } from './fixtures/in-subset';
+import { driftSystem, clampSystem, tunedSystem, helperSystem } from './fixtures/in-subset';
 import type { StubSystem } from './stubs/esengine';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
@@ -80,7 +81,7 @@ describe('conformance — locals, branches, logic', () => {
     it('compiles', () => {
         expect(diagnostics.filter((d) => d.system === 'FixtureDrift')).toEqual([]);
         expect(drift).toBeDefined();
-        expect(verifySystem(drift!, module.comps)).toEqual([]);
+        expect(verifySystem(drift!, module.comps, module.fns)).toEqual([]);
     });
 
     it('reads back with its locals and branches intact', () => {
@@ -176,7 +177,7 @@ describe('conformance — ternaries and exact Math', () => {
     it('compiles and verifies', () => {
         expect(diagnostics.filter((d) => d.system === 'FixtureClampSys').map((d) => d.message)).toEqual([]);
         expect(clamp).toBeDefined();
-        expect(verifySystem(clamp!, module.comps)).toEqual([]);
+        expect(verifySystem(clamp!, module.comps, module.fns)).toEqual([]);
     });
 
     it('keeps the ternary and the intrinsics in the IR', () => {
@@ -216,7 +217,7 @@ describe('conformance — module constants', () => {
     it('compiles and verifies', () => {
         expect(diagnostics.filter((d) => d.system === 'FixtureTuned').map((d) => d.message)).toEqual([]);
         expect(tuned).toBeDefined();
-        expect(verifySystem(tuned!, module.comps)).toEqual([]);
+        expect(verifySystem(tuned!, module.comps, module.fns)).toEqual([]);
     });
 
     it('folds the constants rather than loading them', () => {
@@ -243,5 +244,55 @@ describe('conformance — module constants', () => {
             runSystem(tuned!, byEir);
         }
         expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
+    });
+});
+
+describe('conformance — pure helpers, called and inlined', () => {
+    const helpers = module.systems.find((s) => s.name === 'FixtureHelpers');
+    const inlined = helpers ? inlineSystem(helpers, module.fns) : undefined;
+
+    function runHelperNative(world: EirWorld): void {
+        const sys = helperSystem as unknown as StubSystem;
+        const transforms = world.comps.get('Transform')!;
+        const drifts = world.comps.get('FixtureDrift')!;
+        const query = {
+            *[Symbol.iterator]() {
+                for (const e of world.entities) {
+                    if (transforms.has(e) && drifts.has(e)) yield [e, transforms.get(e)!, drifts.get(e)!];
+                }
+            },
+        };
+        (sys.fn as unknown as (q: unknown, t: unknown) => void)(query, world.resources.get('Time'));
+    }
+
+    it('compiles, and both forms verify', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixtureHelpers').map((d) => d.message)).toEqual([]);
+        expect(helpers).toBeDefined();
+        expect(verifySystem(helpers!, module.comps, module.fns)).toEqual([]);
+        // The pass must not invalidate the IR it rewrote.
+        expect(verifySystem(inlined!, module.comps, module.fns)).toEqual([]);
+    });
+
+    it('leaves no call to a module function after inlining', () => {
+        expect(printSystem(helpers!)).toContain('clamp(');
+        expect(printSystem(helpers!)).toContain('boost(');
+        const after = printSystem(inlined!);
+        expect(after).not.toContain('clamp(');
+        expect(after).not.toContain('boost(');
+        // Arguments are bound once, not duplicated per use.
+        expect(after).toContain('let v$');
+    });
+
+    it('node, the IR, and the inlined IR all agree over 40 frames', () => {
+        const byNode = makeWorld();
+        const byEir = makeWorld();
+        const byInlined = makeWorld();
+        for (let f = 0; f < 40; f++) {
+            runHelperNative(byNode);
+            runSystem(helpers!, byEir, module.fns);
+            runSystem(inlined!, byInlined, module.fns);
+        }
+        expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
+        expect(byInlined.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
     });
 });

@@ -50,7 +50,9 @@ export const trig = defineSystem(
     { name: 'FixtureTrig' },
 );
 
-function damp(v: number): number {
+// No annotation: the subset takes a parameter's type from the source, and there
+// is nothing here to take.
+function damp(v): number {
     return v * 0.5;
 }
 

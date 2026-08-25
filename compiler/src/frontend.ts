@@ -13,6 +13,12 @@
  *          declaration — so both arguments must be literals or the file falls
  *          back to the interpreter.
  *
+ *          NOTHING in this file may call `getText()`, `getSourceFile()` or read
+ *          `.parent`. Those need the program to have BOUND, which only happens
+ *          as a side effect of getTypeChecker(); they have already broken line
+ *          numbers, binding resolution, operator text and parameter names here.
+ *          Use `.text` on an identifier and `ts.tokenToString(kind)` on a token.
+ *
  *          Nothing here throws on code it cannot handle. Anything outside the
  *          subset produces a Diagnostic naming the line and the reason, and its
  *          system is simply not compiled — §3.2's no-cliff rule, which is what
@@ -24,7 +30,7 @@ import {
     BOOL, ENTITY, F64,
     type CompShape, type EirModule, type EirSystem, type EirType,
     MATH_FNS,
-    type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
+    type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
     type MathFn,
 } from './eir';
 
@@ -113,6 +119,13 @@ function constValue(node: ts.Expression): ConstValue | null {
     return null;
 }
 
+/** `number` / `boolean` written as an annotation; nothing else is a subset type. */
+function annotatedType(node: ts.TypeNode): EirType | null {
+    if (node.kind === ts.SyntaxKind.NumberKeyword) return F64;
+    if (node.kind === ts.SyntaxKind.BooleanKeyword) return BOOL;
+    return null;
+}
+
 /** Thrown internally to abandon one system; never escapes lowerProgram. */
 class NotInSubset extends Error {
     constructor(readonly node: ts.Node, message: string) { super(message); }
@@ -131,7 +144,44 @@ class SystemLowerer {
         private readonly bindings: ReadonlyMap<string, string>,
         /** Module-level literals, folded where they are read. */
         private readonly consts: ReadonlyMap<string, ConstValue>,
+        /** Module-level pure functions, callable from a system or from each other. */
+        private readonly fns: ReadonlyMap<string, EirFn>,
+        /** Why a function is absent, so the call site can say more than "no". */
+        private readonly fnFailures: ReadonlyMap<string, string> = new Map(),
     ) {}
+
+    /** Lower a module-level function; `lower` does the same for a system body. */
+    lowerFn(name: string, params: readonly ts.ParameterDeclaration[], body: ts.ConciseBody): EirFn {
+        const bound = params.map((p) => {
+            if (!ts.isIdentifier(p.name)) throw new NotInSubset(p, 'a parameter must be a plain name');
+            if (!p.type) {
+                throw new NotInSubset(p, `parameter '${p.name.text}' needs a type annotation`);
+            }
+            const t = annotatedType(p.type);
+            if (!t) throw new NotInSubset(p.type, 'a parameter must be annotated number or boolean');
+            return this.define(p.name.text, t);
+        });
+        // One `return <expr>` and nothing else: that is what makes inlining a
+        // substitution rather than a control-flow splice, and it covers the
+        // numeric helpers the corpus writes.
+        const value = ts.isBlock(body)
+            ? (() => {
+                const only = body.statements.length === 1 ? body.statements[0] : undefined;
+                if (!only || !ts.isReturnStatement(only) || !only.expression) {
+                    throw new NotInSubset(body, 'a function body must be a single return of an expression');
+                }
+                return this.expr(only.expression);
+            })()
+            : this.expr(body);
+        const paramIds = new Set(bound.map((b) => b.id));
+        return {
+            name,
+            params: bound,
+            locals: this.locals.filter((l) => !paramIds.has(l.id)),
+            body: [{ s: 'return', value }],
+            ret: value.type,
+        };
+    }
 
     /** The constant a dotted path names, or null when the root is not one. */
     private constAt(root: string, path: readonly string[]): ConstValue | null {
@@ -419,6 +469,29 @@ class SystemLowerer {
      */
     private mathCall(node: ts.CallExpression): Expr {
         const callee = node.expression;
+        // A module-level pure function, called by name.
+        if (ts.isIdentifier(callee)) {
+            const target = this.fns.get(callee.text);
+            if (!target) {
+                const why = this.fnFailures.get(callee.text);
+                throw new NotInSubset(node, why
+                    ? `'${callee.text}' cannot be lowered: ${why}`
+                    : `'${callee.text}' is not a function this subset lowers`);
+            }
+            if (node.arguments.length !== target.params.length) {
+                throw new NotInSubset(node,
+                    `${target.name} takes ${target.params.length} argument(s), not ${node.arguments.length}`);
+            }
+            const args = node.arguments.map((a) => this.expr(a));
+            args.forEach((a, i) => {
+                const want = target.params[i]!.type;
+                if (a.type.k !== want.k) {
+                    throw new NotInSubset(node.arguments[i]!,
+                        `${target.name} takes a ${want.k} here, not a ${a.type.k}`);
+                }
+            });
+            return { e: 'call', target: { k: 'fn', name: target.name }, args, type: target.ret };
+        }
         if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)
             || callee.expression.text !== 'Math') {
             throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers');
@@ -436,7 +509,7 @@ class SystemLowerer {
         for (const a of args) {
             if (a.type.k !== 'f64') throw new NotInSubset(node, `Math.${fn} takes numbers, not a ${a.type.k}`);
         }
-        return { e: 'call', fn, args, type: F64 };
+        return { e: 'call', target: { k: 'math', fn }, args, type: F64 };
     }
 
     /** A read of a module-level constant becomes the value, not a load. */
@@ -567,6 +640,11 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     // missing until a fixture used two.
     const bindings = new Map<string, string>();
     const consts = new Map<string, ConstValue>();
+    const fns = new Map<string, EirFn>();
+    // Why a function could not be lowered, reported at the CALL SITE rather than
+    // where it was declared: a helper nothing calls has blocked nothing, and a
+    // diagnostic for it is noise that buries the list of real blockers.
+    const fnFailures = new Map<string, string>();
     const systems: EirSystem[] = [];
     const diagnostics: Diagnostic[] = [];
     const seen: string[] = [];
@@ -630,6 +708,33 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         });
     }
 
+    // Functions before systems, and in dependency order by repeated passes: a
+    // helper may call a helper declared later in the file.
+    for (let pass = 0; pass < 2; pass++) {
+        for (const sf of sources) {
+            walkTop(sf, (node, binding) => {
+                let name: string | null = null;
+                let params: readonly ts.ParameterDeclaration[] | null = null;
+                let body: ts.ConciseBody | null = null;
+                if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+                    name = node.name.text; params = node.parameters; body = node.body;
+                } else if (binding && ts.isArrowFunction(node)) {
+                    name = binding; params = node.parameters; body = node.body;
+                }
+                if (!name || !params || !body || fns.has(name)) return;
+                try {
+                    fns.set(name, new SystemLowerer(comps, bindings, consts, fns, fnFailures)
+                        .lowerFn(name, params, body));
+                } catch (e) {
+                    if (!(e instanceof NotInSubset)) throw e;
+                    // Recorded on the last pass only: an earlier failure may just
+                    // be a helper whose own callee is not lowered yet.
+                    if (pass === 1) fnFailures.set(name, e.message);
+                }
+            });
+        }
+    }
+
     for (const sf of sources) {
         walkTop(sf, (node, binding) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
@@ -642,7 +747,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
                     throw new NotInSubset(node, 'defineSystem takes a parameter array and an arrow function');
                 }
-                systems.push(new SystemLowerer(comps, bindings, consts).lower(name, params, fn));
+                systems.push(new SystemLowerer(comps, bindings, consts, fns, fnFailures).lower(name, params, fn));
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({
@@ -652,7 +757,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         });
     }
 
-    return { module: { systems, comps }, diagnostics, seen, systemBindings };
+    return { module: { systems, comps, fns }, diagnostics, seen, systemBindings };
 }
 
 /** `{ name: 'MoveSystem' }` if given, else the const it is assigned to. */

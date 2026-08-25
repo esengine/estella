@@ -101,7 +101,7 @@ describe('Stage 1 — a real example system, end to end', () => {
     });
 
     it('re-proves its own types without looking at the TypeScript', () => {
-        expect(verifySystem(moveEir!, module.comps)).toEqual([]);
+        expect(verifySystem(moveEir!, module.comps, module.fns)).toEqual([]);
     });
 
     it('picks up Mover from defineComponent as a compile-time declaration', () => {
