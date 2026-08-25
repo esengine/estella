@@ -42,7 +42,7 @@ import { AbiMemory, flushCommands, materialize, packLayout, planFor, runOnAbi } 
 import { CFLAGS, cSymbol, emitC, type CModule } from '../src/codegen';
 import { abiHashFor } from '../src/abi';
 import type { AbiLayout } from '../src/abi';
-import type { EirSystem } from '../src/eir';
+import { F64, type EirSystem } from '../src/eir';
 import type { Row } from '../src/interp';
 
 import { moveSystem } from '../../examples/ecs-basics/src/systems/move';
@@ -504,16 +504,46 @@ describe('the emitted C says what the interpreter says', () => {
         expect(undef, 'a compiled system may not call the engine').toEqual([]);
     });
 
-    it('the handshake constant moves when the parameter order does', () => {
+    it('the artifact carries what it baked in about the engine', () => {
+        const layout = packLayout(shipped.module.comps);
+        const c = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
+        expect(c.source).toContain(`#define ES_ABI_ENGINE_DIGEST 0x${c.handshake.engineAbi}ULL`);
+        expect(c.handshake.engineAbi).toMatch(/^[0-9a-f]{16}$/);
+        expect(c.handshake.projectShapes).toMatch(/^[0-9a-f]{16}$/);
+    });
+
+    it('the project digest follows the shapes the systems NAME, and only those', () => {
         const layout = packLayout(shipped.module.comps);
         const move = systemOf(shipped, 'MoveSystem');
-        const a = emitC(shipped.module, layout, [move]);
-        expect(a.source).toContain(`#define ES_ABI_CONTRACT_HASH 0x${a.hash}ULL`);
+        const before = emitC(shipped.module, layout, [move]).handshake;
 
-        // The same system with its parameters swapped reads the ctx tables in
-        // the other order, so the loader has to refuse it. §2.5.
-        const swapped: EirSystem = { ...move, params: [...move.params].reverse() };
-        expect(emitC(shipped.module, layout, [swapped]).hash).not.toBe(a.hash);
+        // A component nobody compiled against must not invalidate the module.
+        const extra = new Map(shipped.module.comps);
+        extra.set('Unrelated', {
+            name: 'Unrelated', storage: 'host',
+            fields: new Map([['x', { type: F64, enc: 'f64', offset: null } as const]]),
+        });
+        const widened = emitC({ ...shipped.module, comps: extra }, packLayout(extra), [move]);
+        expect(widened.handshake.projectShapes).toBe(before.projectShapes);
+
+        // A component it DOES name, with a field added, must.
+        const changed = new Map(shipped.module.comps);
+        const mover = changed.get('Mover')!;
+        changed.set('Mover', {
+            ...mover,
+            fields: new Map([...mover.fields, ['drag', { type: F64, enc: 'f64', offset: null } as const]]),
+        });
+        const moved = emitC({ ...shipped.module, comps: changed }, packLayout(changed), [move]);
+        expect(moved.handshake.projectShapes).not.toBe(before.projectShapes);
+    });
+
+    it('parameter order is in the MANIFEST, which is why it is not in a digest', () => {
+        // A digest could only say "something moved". The order is what the host
+        // follows when it fills the ctx, so it is carried rather than compared.
+        const layout = packLayout(shipped.module.comps);
+        const { source } = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
+        expect(source).toContain('{ "Transform", "Mover" }');
+        expect(source).toContain('{ "Time" }');
     });
 
     it('what the artifact exports is what a host computes, at both widths', () => {
@@ -549,7 +579,7 @@ describe('the emitted C says what the interpreter says', () => {
             const [got, width] = execFileSync(exe, { encoding: 'utf8' }).trim().split(' ');
             // 8 only where the platform's pointers are; a 32-bit host would say 4
             // and the assertion below would then be about the width it really has.
-            expect(abiHashFor(c.hash, Number(width) as 4 | 8)).toBe(got);
+            expect(abiHashFor(c.handshake.engineAbi, Number(width) as 4 | 8)).toBe(got);
             if (flags.length > 0) expect(Number(width)).toBe(bytes);
         }
     });

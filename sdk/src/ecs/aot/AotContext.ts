@@ -19,18 +19,14 @@
  */
 
 import type { PoolBlock, PoolMemory } from '../ScriptPool';
+import { CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS } from './abiDigest';
 
-/**
- * Sizes of the three structs, in 32-bit words: wasm32 is the only place this
- * host runs, so an address is four bytes. The compiler is the author
- * (`compiler/src/abi.ts`) and this is the SDK's copy, because a shipped engine
- * may not import a build tool — `pool-layout.test.ts` holds the two together.
- */
-export const SYSCTX_WORDS = 6;
-export const QUERYROWS_WORDS = 2;
-export const CMD_WORDS = 4;
-export const CMD_DESPAWN = 1;
-export const CMD_REMOVE = 2;
+// The struct sizes and the command kinds have one author, and it is not this
+// file: `abiDigest.ts`, which the compiler reads too. Re-exported so call sites
+// name the ABI rather than the digest.
+export {
+    SYSCTX_WORDS, QUERYROWS_WORDS, CMD_WORDS, CMD_DESPAWN, CMD_REMOVE,
+} from './abiDigest';
 
 /** One record the compiled code appended (§2.3). */
 export interface AotCommand {

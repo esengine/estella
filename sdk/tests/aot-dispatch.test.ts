@@ -29,12 +29,16 @@ import { AotContext } from '../src/ecs/aot/AotContext';
 import { AotSystems, type AotManifest } from '../src/ecs/aot/AotSystems';
 import type { AotAddresses, AotRuntime } from '../src/ecs/aot/AotRuntime';
 import type { AnyComponentDef } from '../src/ecs/component';
+import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
 import type { Entity } from '../src/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const N = 20;
 const FRAMES = 10;
-const HASH = 'aabbccdd00112233';
+/** What a build for THIS engine would have written into the manifest. */
+const ENGINE = engineAbiDigest(4);
+const DECAY_FIELDS = ['remaining', 'rate'];
+const SHAPES = projectShapeDigest([{ name: 'Decay', fields: DECAY_FIELDS }]);
 
 function findEmcc(): string | null {
     const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
@@ -181,14 +185,15 @@ describe('the scheduler and its compiled twin', () => {
         (exports['_initialize'] as (() => void) | undefined)?.();
 
         const manifest: AotManifest = {
-            contractHash: HASH,
+            engineAbi: ENGINE,
+            projectShapes: SHAPES,
             systems: [{
                 name: 'Decay', symbol: 'es_sys_Decay',
                 queries: [[{ comp: 'Decay', mut: true }]], resources: [],
             }],
         };
         const systems = new AotSystems();
-        systems.install(manifest, exports, HASH, (name) => (name === 'Decay' ? b.Decay : undefined));
+        systems.install(manifest, exports, (name) => (name === 'Decay' ? b.Decay : undefined));
 
         const addresses: AotAddresses = {
             componentNamed: (name) => (name === 'Decay' ? b.Decay : undefined),
@@ -234,12 +239,13 @@ describe('the scheduler and its compiled twin', () => {
                 (exports['_initialize'] as (() => void) | undefined)?.();
                 const systems = new AotSystems();
                 systems.install({
-                    contractHash: HASH,
+                    engineAbi: ENGINE,
+                    projectShapes: SHAPES,
                     systems: [{
                         name: 'Decay', symbol: 'es_sys_Decay',
                         queries: [[{ comp: 'Decay', mut: true }]], resources: [],
                     }],
-                }, exports, HASH, (name) => (name === 'Decay' ? w.Decay : undefined));
+                }, exports, (name) => (name === 'Decay' ? w.Decay : undefined));
                 w.runner.useAot({
                     systems,
                     addresses: {
@@ -266,21 +272,58 @@ describe('the scheduler and its compiled twin', () => {
         expect(compiled).toEqual(interpreted);
     });
 
-    it('a module whose contract disagrees is refused, not warned about', () => {
+    it('a module built for another ENGINE is refused, and says which', () => {
         const systems = new AotSystems();
-        const manifest: AotManifest = { contractHash: 'deadbeefdeadbeef', systems: [] };
-        expect(() => systems.install(manifest, {}, HASH, () => undefined))
-            .toThrow(/contract deadbeefdeadbeef but this engine has/);
+        const manifest: AotManifest = {
+            engineAbi: 'deadbeefdeadbeef', projectShapes: SHAPES, systems: [],
+        };
+        // The message has to name the fix, and the fix for this one is to rebuild
+        // the module — not the project.
+        expect(() => systems.install(manifest, {}, () => undefined))
+            .toThrow(/Rebuild the module against this engine/);
         expect(systems.size).toBe(0);
+    });
+
+    it('a module built for other COMPONENT SHAPES is refused, and says which', () => {
+        const w = makeWorld();
+        const systems = new AotSystems();
+        const manifest: AotManifest = {
+            engineAbi: ENGINE,
+            // What a build would have written before someone added a field.
+            projectShapes: projectShapeDigest([{ name: 'Decay', fields: ['remaining'] }]),
+            systems: [{
+                name: 'Decay', symbol: 'es_sys_Decay',
+                queries: [[{ comp: 'Decay', mut: true }]], resources: [],
+            }],
+        };
+        expect(() => systems.install(manifest, { es_sys_Decay: () => { /* */ } },
+            (name) => (name === 'Decay' ? w.Decay : undefined)))
+            .toThrow(/Rebuild the project/);
+    });
+
+    it('a component nobody compiled against does not invalidate a module', () => {
+        const w = makeWorld();
+        // Declared in this project and named by no compiled system: the digest is
+        // scoped to what the module reads, so this must not refuse it.
+        defineComponent('Unrelated', { whatever: 1 });
+        const systems = new AotSystems();
+        systems.install({
+            engineAbi: ENGINE, projectShapes: SHAPES,
+            systems: [{
+                name: 'Decay', symbol: 'es_sys_Decay',
+                queries: [[{ comp: 'Decay', mut: true }]], resources: [],
+            }],
+        }, { es_sys_Decay: () => { /* */ } }, (name) => (name === 'Decay' ? w.Decay : undefined));
+        expect(systems.size).toBe(1);
     });
 
     it('a manifest naming a symbol the module lacks is refused too', () => {
         const systems = new AotSystems();
         const manifest: AotManifest = {
-            contractHash: HASH,
+            engineAbi: ENGINE, projectShapes: projectShapeDigest([]),
             systems: [{ name: 'Ghost', symbol: 'es_sys_Ghost', queries: [], resources: [] }],
         };
-        expect(() => systems.install(manifest, {}, HASH, () => undefined))
+        expect(() => systems.install(manifest, {}, () => undefined))
             .toThrow(/exports no 'es_sys_Ghost'/);
     });
 });

@@ -143,7 +143,8 @@ describe('the AOT build step', () => {
       queries: [[{ comp: 'Transform', mut: true }, { comp: 'Mover', mut: false }]],
       resources: ['Time'],
     }]);
-    expect(out.manifest!.contractHash).toMatch(/^[0-9a-f]{16}$/);
+    expect(out.manifest!.engineAbi).toMatch(/^[0-9a-f]{16}$/);
+    expect(out.manifest!.projectShapes).toMatch(/^[0-9a-f]{16}$/);
   });
 
   it.skipIf(!EMCC)('rebuilding is not additive: the cache is what this build made', async () => {

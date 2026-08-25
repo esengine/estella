@@ -18,23 +18,23 @@
  *          Field offsets come from PTR_LAYOUTS via builtins.ts — the same EHT
  *          table the engine and the SDK's accessors already agree on.
  */
-import { ehtStamp, resourceNames } from './builtins';
+import {
+    CMD_WORDS as CMD_WORDS_, CMD_DESPAWN as CMD_DESPAWN_, CMD_REMOVE as CMD_REMOVE_,
+    QUERYROWS_WORDS as QUERYROWS_WORDS_, SYSCTX_WORDS as SYSCTX_WORDS_,
+    engineAbiDigest, projectShapeDigest, type ShapeDigestInput,
+} from '../../sdk/src/ecs/aot/abiDigest';
+import { resourceNames } from './builtins';
 import { encBytes, type CompShape, type EirSystem, type EirType, type LeafEnc, type QueryArg } from './eir';
 import { runSystemOn, type EirHost, type Fns } from './interp';
 
-/** One command record: 16 bytes, four u32 (docs/REARCH_AOT_ABI.md §2.3). */
-export const CMD_WORDS = 4;
-export const CMD_DESPAWN = 1;
-export const CMD_REMOVE = 2;
-
 /**
- * Words in `SysCtx` and in `QueryRows` (docs/REARCH_AOT_ABI.md §2.1, §2.2).
- * Exported because three things count them — this host, the code generator and
- * the handshake hash — and a field count with three authors is the drift this
- * file prevents. §6.3 makes the first a number that needs a reason to grow.
+ * The struct sizes and command kinds, from the SDK's `abiDigest.ts` — the one
+ * author both sides read, so a field count cannot have two answers. Re-exported
+ * because the code generator and this host both name them.
  */
-export const SYSCTX_WORDS = 6;
-export const QUERYROWS_WORDS = 2;
+export {
+    CMD_WORDS, CMD_DESPAWN, CMD_REMOVE, SYSCTX_WORDS, QUERYROWS_WORDS,
+} from '../../sdk/src/ecs/aot/abiDigest';
 
 /**
  * Where a field lives and HOW it is encoded, both from the shape, which got them
@@ -88,7 +88,7 @@ export class AbiMemory {
         this.u32 = new Uint32Array(this.buffer);
         this.u8 = new Uint8Array(this.buffer);
         this.scratchNext = bytes;
-        this.cmdBuf = this.alloc(this.cmdCap * CMD_WORDS * 4);
+        this.cmdBuf = this.alloc(this.cmdCap * CMD_WORDS_ * 4);
     }
 
     private alloc(size: number): number {
@@ -245,7 +245,7 @@ export interface AbiCall {
  */
 export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     mem.beginCall();
-    const queryTable = mem.scratch(Math.max(1, plan.queries.length) * QUERYROWS_WORDS * 4);
+    const queryTable = mem.scratch(Math.max(1, plan.queries.length) * QUERYROWS_WORDS_ * 4);
     plan.queries.forEach((args, k) => {
         const stride = 1 + args.length;
         const matched: number[] = [];
@@ -256,8 +256,8 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
         }
         const rows = mem.scratch(Math.max(4, matched.length * 4));
         for (let i = 0; i < matched.length; i++) mem.u32[(rows >> 2) + i] = matched[i]!;
-        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS] = rows;
-        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS + 1] = matched.length / stride;
+        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_] = rows;
+        mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_ + 1] = matched.length / stride;
     });
 
     const resTable = mem.scratch(Math.max(4, plan.resources.length * 4));
@@ -266,7 +266,7 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     const cmdCount = mem.scratch(4);
     mem.u32[cmdCount >> 2] = 0;
 
-    const ctx = mem.scratch(SYSCTX_WORDS * 4);
+    const ctx = mem.scratch(SYSCTX_WORDS_ * 4);
     const w = ctx >> 2;
     mem.u32[w] = queryTable;
     mem.u32[w + 1] = resTable;
@@ -299,8 +299,8 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
         *rows(args: readonly QueryArg[]) {
             const k = plan.queries.indexOf(args);
             if (k < 0) throw new Error(`ABI: '${plan.system}' walks a query it did not declare`);
-            const rows = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS]!;
-            const count = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS + 1]!;
+            const rows = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_]!;
+            const count = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_ + 1]!;
             const stride = 1 + args.length;
             for (let i = 0; i < count; i++) {
                 const at = (rows >> 2) + i * stride;
@@ -323,8 +323,8 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
         emit(record, args) {
             const n = mem.u32[call.cmdCount >> 2]!;
             if (n >= cmdCap) throw new Error('ABI: command buffer overflow');
-            const at = (cmdBuf >> 2) + n * CMD_WORDS;
-            mem.u32[at] = record === 'despawn' ? CMD_DESPAWN : CMD_REMOVE;
+            const at = (cmdBuf >> 2) + n * CMD_WORDS_;
+            mem.u32[at] = record === 'despawn' ? CMD_DESPAWN_ : CMD_REMOVE_;
             mem.u32[at + 1] = args[0] as number;
             mem.u32[at + 2] = 0;
             mem.u32[at + 3] = 0;
@@ -345,8 +345,8 @@ export function flushCommands(mem: AbiMemory, call: AbiCall): void {
     const n = mem.u32[call.cmdCount >> 2]!;
     const at = mem.cmdBuf >> 2;
     for (let i = 0; i < n; i++) {
-        const kind = mem.u32[at + i * CMD_WORDS]!;
-        if (kind === CMD_DESPAWN) mem.despawn(mem.u32[at + i * CMD_WORDS + 1]!);
+        const kind = mem.u32[at + i * CMD_WORDS_]!;
+        if (kind === CMD_DESPAWN_) mem.despawn(mem.u32[at + i * CMD_WORDS_ + 1]!);
     }
     mem.u32[call.cmdCount >> 2] = 0;
 }
@@ -363,33 +363,37 @@ export function runOnAbi(sys: EirSystem, mem: AbiMemory, layout: AbiLayout, fns:
 }
 
 /**
- * The §2.5 handshake: EHT's offsets, the shape of the three structs, and every
- * system's parameter order, in one number the loader compares before it maps
- * anything. A mismatch is a read of a DIFFERENT FIELD, not a wrong answer, so it
- * is refused. FNV-1a, as `mkbc` and the asset hashes use; not a new mechanism.
+ * The §2.5 handshake, as TWO numbers because the fixes differ: `engineAbi` means
+ * rebuild the module against this engine, `projectShapes` means rebuild the
+ * project. Parameter order is in neither — the manifest DRIVES the layout at run
+ * time, so it is followed rather than compared.
  */
-export function abiHash(layout: AbiLayout, plans: readonly SysPlan[]): string {
-    const parts: string[] = [
-        `eht=${ehtStamp()}`,
-        `sysctx=${SYSCTX_WORDS} queryrows=${QUERYROWS_WORDS} cmd=${CMD_WORDS}`,
-    ];
-    const table = (kind: string, m: ReadonlyMap<string, FieldOffsets>): void => {
-        for (const [name, f] of m) {
-            const leaves = [...f.leaves].map(([p, l]) => `${p}@${l.byteOffset}:${l.enc}`).join(',');
-            parts.push(`${kind} ${name} stride=${f.stride} ${leaves}`);
-        }
-    };
-    table('comp', layout.comps);
-    table('res', layout.resources);
-    for (const p of plans) {
-        const qs = p.queries.map((q) => q.map((a) => (a.mut ? `mut ${a.comp}` : a.comp)).join('+')).join('|');
-        // The ORDER parameters were declared in, not just what they were: two
-        // systems taking a Query and a Res differ only here, and a loader that
-        // could not tell them apart would read the row array as the resource.
-        const order = [...p.slots.values()].map((s) => `${s.table}${s.slot}`).join(',');
-        parts.push(`sys ${p.system} order=${order} q=${qs} r=${p.resources.join('|')} c=${p.channels.join('|')}`);
+export interface AbiHandshake {
+    readonly engineAbi: string;
+    readonly projectShapes: string;
+}
+
+export function abiHandshake(
+    comps: ReadonlyMap<string, CompShape>,
+    plans: readonly SysPlan[],
+    addressBytes: 4 | 8 = 4,
+): AbiHandshake {
+    // Scoped to the components the compiled systems NAME: adding an unrelated
+    // component to a project must not invalidate a module that never reads it.
+    const named = new Set<string>();
+    for (const p of plans) for (const q of p.queries) for (const a of q) named.add(a.comp);
+
+    const shapes: ShapeDigestInput[] = [];
+    for (const name of named) {
+        const shape = comps.get(name);
+        // Engine components are covered by `engineAbi`, from EHT's own table.
+        if (!shape || shape.storage !== 'host') continue;
+        shapes.push({ name, fields: [...shape.fields.keys()] });
     }
-    return fnv1a64(parts.join('\n'));
+    return {
+        engineAbi: engineAbiDigest(addressBytes),
+        projectShapes: projectShapeDigest(shapes),
+    };
 }
 
 /**
@@ -402,16 +406,6 @@ export function abiHashFor(contract: string, addrBytes: 4 | 8): string {
     const mixed = (BigInt(contract.padStart(16, '0').replace(/^/, '0x'))
         ^ ((0x9e3779b97f4a7c15n * BigInt(addrBytes)) & MASK)) & MASK;
     return mixed.toString(16).padStart(16, '0');
-}
-
-function fnv1a64(text: string): string {
-    const MASK = (1n << 64n) - 1n;
-    let h = 0xcbf29ce484222325n;
-    for (let i = 0; i < text.length; i++) {
-        h = (h ^ BigInt(text.charCodeAt(i) & 0xff)) & MASK;
-        h = (h * 0x100000001b3n) & MASK;
-    }
-    return h.toString(16).padStart(16, '0');
 }
 
 /**

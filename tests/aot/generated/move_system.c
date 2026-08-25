@@ -3,14 +3,14 @@
 #include "estella_abi.h"
 #include "estella_offsets.h"
 
-/* §2.5: the loader compares this before it maps anything. A mismatch is
-   not a wrong answer, it is a read of a different field.
-   The address width belongs to the MACHINE, not to the contract, so it
-   mixes in here rather than in the compiler: one hash per (contract,
-   width) pair, and a 32-bit artifact cannot load into a 64-bit host. */
-#define ES_ABI_CONTRACT_HASH 0x52ced52de3f13ce2ULL
+/* §2.5: what this module baked in about the engine it was built for. A
+   host compares before it maps anything — a mismatch is not a wrong
+   answer, it is a read of a different field. The address width belongs
+   to the MACHINE, so it mixes in here rather than in the compiler and a
+   32-bit artifact cannot load into a 64-bit host. */
+#define ES_ABI_ENGINE_DIGEST 0x36cbaec9128499cdULL
 const uint64_t es_abi_hash =
-    ES_ABI_CONTRACT_HASH ^ (0x9e3779b97f4a7c15ULL * (uint64_t)sizeof(es_addr_t));
+    ES_ABI_ENGINE_DIGEST ^ (0x9e3779b97f4a7c15ULL * (uint64_t)sizeof(es_addr_t));
 
 void es_sys_MoveSystem(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);

@@ -48,8 +48,13 @@ export interface CompiledSystemInfo {
 }
 
 export interface CompiledSystemsManifest {
-  /** The §2.5 contract hash. The loader refuses a module that disagrees. */
-  contractHash: string;
+  /**
+   * What this module baked in, so a loader can say WHICH one moved: the engine
+   * it was built against, and the project's own component shapes. The fixes
+   * differ — rebuild the module, or rebuild the project — so the numbers do too.
+   */
+  engineAbi: string;
+  projectShapes: string;
   systems: CompiledSystemInfo[];
 }
 
@@ -185,7 +190,8 @@ export async function buildCompiledSystems(
   }
 
   const manifest: CompiledSystemsManifest = {
-    contractHash: c.hash,
+    engineAbi: c.handshake.engineAbi,
+    projectShapes: c.handshake.projectShapes,
     systems: inlined.map((sys) => {
       const plan = planFor(sys);
       return {
