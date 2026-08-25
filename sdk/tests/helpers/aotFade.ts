@@ -121,6 +121,26 @@ void es_sys_KeyProbe(es_addr_t ctx) {
 `;
 }
 
+/**
+ * The same fade, but the query also filters on a TAG. A tag has no bytes, so
+ * its row slot carries a filler the code never reads — and a host that treated
+ * a missing address as a missing row would drop every row instead.
+ */
+export const FADE_TAGGED_C = FADE_C
+    .replace('void es_sys_Fade', 'void es_sys_FadeTagged')
+    .replace('rows[i * 2u + 1u]', 'rows[i * 3u + 1u]');
+
+export function fadeTaggedManifest(): AotManifest {
+    return {
+        engineAbi: engineAbiDigest(4),
+        projectShapes: projectShapeDigest([{ name: 'Fade', fields: FADE_FIELDS }, { name: 'Lit', fields: [] }]),
+        systems: [{
+            name: 'FadeTagged', symbol: 'es_sys_FadeTagged',
+            queries: [[{ comp: 'Fade', mut: true }, { comp: 'Lit', mut: false }]], resources: [],
+        }],
+    };
+}
+
 /** What a build writes for the probe above. */
 export function keyProbeManifest(): AotManifest {
     return {

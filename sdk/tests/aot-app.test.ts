@@ -12,12 +12,13 @@
 import { describe, it, expect } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import {
-    buildAotModule, buildFadeModule, fadeManifest, keyProbeC, keyProbeManifest, timeScaleManifest,
+    buildAotModule, buildFadeModule, fadeManifest, fadeTaggedManifest, keyProbeC, keyProbeManifest,
+    timeScaleManifest, FADE_TAGGED_C,
     FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
 } from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
-import { defineComponent } from '../src/ecs/component';
+import { defineComponent, defineTag } from '../src/ecs/component';
 import { Time } from '../src/ecs/resource';
 import { Input } from '../src/input/input';
 import { defineSystem, Schedule } from '../src/ecs/system';
@@ -164,6 +165,34 @@ describe('an App told to run its compiled twins', () => {
         input.noteKeyUp('KeyW');
         await app.tick(1 / 60);
         expect(alphas(app, Fade, entities).every((a) => a === 0)).toBe(true);
+    });
+
+    it.skipIf(!EMCC)('reaches its rows when the query also filters on a tag', async () => {
+        const { app } = bootMockApp();
+        const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
+        const Lit = defineTag('Lit') as AnyComponentDef;
+        app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(Fade), Lit)], () => {
+            /* the twin is the point */
+        }, { name: 'FadeTagged' }));
+        await app.useCompiledSystems({
+            host: new FakeEngine(), manifest: fadeTaggedManifest(),
+            wasm: buildAotModule(EMCC!, FADE_TAGGED_C, 'es_sys_FadeTagged'),
+        });
+
+        const lit: Entity[] = [];
+        const unlit: Entity[] = [];
+        for (let i = 1; i <= 4; i++) {
+            const e = app.world.spawn();
+            app.world.insert(e, Fade, { alpha: 1, step: 0.25 });
+            if (i % 2 === 0) { app.world.insert(e, Lit, {}); lit.push(e); } else unlit.push(e);
+        }
+        await app.tick(1 / 60);
+
+        // A tag carries no address, and a host that read that as "no row" would
+        // leave these untouched — which is the same thing an uninstalled twin
+        // looks like, so the untagged half is what tells them apart.
+        expect(alphas(app, Fade, lit)).toEqual(lit.map(() => 0.75));
+        expect(alphas(app, Fade, unlit)).toEqual(unlit.map(() => 1));
     });
 
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {

@@ -393,6 +393,12 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
 // System Runner
 // =============================================================================
 
+/** A component with no fields: a query filters on it and nothing reads it. */
+function isTagDef(def: AnyComponentDef): boolean {
+    const shape = (def as { _default?: unknown })._default;
+    return typeof shape === 'object' && shape !== null && Object.keys(shape).length === 0;
+}
+
 export class SystemRunner {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;

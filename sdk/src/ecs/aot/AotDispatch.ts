@@ -92,6 +92,21 @@ interface Plan {
  * One per installed runtime, holding one plan per twin — a system's shape is
  * fixed by the build that produced it, so nothing here is recomputed per frame.
  */
+/** A component with no fields: a query filters on it and nothing reads it. */
+function isTagDef(def: AnyComponentDef): boolean {
+    const shape = (def as { _default?: unknown })._default;
+    return typeof shape === 'object' && shape !== null && Object.keys(shape).length === 0;
+}
+
+/**
+ * A TAG has no fields, so no bytes and no address — and a resolver answering
+ * `undefined` would drop the whole row. Its slot is never read (the verifier
+ * refuses a field read against a shape with none), so zero is a filler.
+ */
+function resolverFor(world: World, def: AnyComponentDef): (entity: Entity) => number | undefined {
+    return isTagDef(def) ? () => 0 : world.addressResolver(def);
+}
+
 export class AotDispatch {
     private readonly plans = new Map<AotTwin, Plan>();
 
@@ -215,7 +230,7 @@ export class AotDispatch {
             const resolved = comps.length === args.length;
             return {
                 comps,
-                resolvers: comps.map((c) => this.world.addressResolver(c)),
+                resolvers: comps.map((c) => resolverFor(this.world, c)),
                 mutated: [...(twin.mutated[k] ?? [])],
                 key: computeQueryCacheKey(comps),
                 depIds: comps.map((c) => c._id as symbol),
