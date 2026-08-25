@@ -41,7 +41,8 @@ in order:
   itself; `ResMut` gives you a handle around it — `.get()` / `.set(v)` /
   `.modify(fn)`.
 - **`Commands()`** — deferred structural changes (spawn / despawn / add / remove),
-  applied at the next flush.
+  applied **when the declaring system returns** — the same frame, so a system
+  running later that frame already sees them.
 - **`EventReader(E)`** / **`EventWriter(E)`** — read or send a typed event stream.
 
 <Aside type="caution">
