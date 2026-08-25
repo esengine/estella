@@ -88,7 +88,7 @@ describe('the AOT build step', () => {
 
   it('a project that promised nothing is not a build step', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': UNMARKED });
-    const out = await buildCompiledSystems(root, { emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
     expect(out.ok).toBe(true);
     expect(out.wasmPath).toBeNull();
     // The refusal is still reported, as information: §3.2's fallback is the
@@ -97,13 +97,13 @@ describe('the AOT build step', () => {
   });
 
   it('a project with no sources at all is fine', async () => {
-    const out = await buildCompiledSystems(project({}), { emcc: EMCC, run });
+    const out = await buildCompiledSystems(project({}), { mode: 'release', emcc: EMCC, run });
     expect(out).toMatchObject({ ok: true, wasmPath: null, errors: [] });
   });
 
   it('a broken promise fails the build, naming the file and the line', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': BROKEN });
-    const out = await buildCompiledSystems(root, { emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
     expect(out.ok).toBe(false);
     expect(out.wasmPath).toBeNull();
     expect(out.errors).toHaveLength(1);
@@ -114,14 +114,14 @@ describe('the AOT build step', () => {
 
   it('says what is missing when a promise needs a toolchain that is absent', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const out = await buildCompiledSystems(root, { emcc: null, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', emcc: null, run });
     expect(out.ok).toBe(false);
     expect(out.errors[0]).toMatch(/marked @compiled but there is no emcc/);
   });
 
   it.skipIf(!EMCC)('builds a module the engine can load, and a manifest for it', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const out = await buildCompiledSystems(root, { emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
     expect(out.errors).toEqual([]);
     expect(out.ok).toBe(true);
     expect(out.wasmPath).not.toBeNull();
@@ -148,12 +148,35 @@ describe('the AOT build step', () => {
 
   it.skipIf(!EMCC)('rebuilding is not additive: the cache is what this build made', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    await buildCompiledSystems(root, { emcc: EMCC, run });
+    await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
     writeFileSync(path.join(root, '.esengine/cache/aot/stale.c'), 'int leftover;\n');
 
-    await buildCompiledSystems(root, { emcc: EMCC, run });
+    await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
     // A file from a previous shape of the project must not survive into the one
     // the engine loads next.
     expect(existsSync(path.join(root, '.esengine/cache/aot/stale.c'))).toBe(false);
+  });
+
+  it('a dev build never compiles, so a marker costs it nothing', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    // No emcc, and a project that promised something: in release this is an
+    // error, and in dev it is not a build step at all. §9 — the preview
+    // interprets, so a machine with no emsdk still builds and runs everything.
+    const out = await buildCompiledSystems(root, { mode: 'dev', emcc: null, run });
+    expect(out).toMatchObject({ ok: true, wasmPath: null, errors: [] });
+  });
+
+  it('and a dev build does not fail on a promise it is not collecting', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': BROKEN });
+    const out = await buildCompiledSystems(root, { mode: 'dev', emcc: EMCC, run });
+    expect(out.ok).toBe(true);
+    expect(out.errors).toEqual([]);
+  });
+
+  it.skipIf(!EMCC)('ship compiles exactly as release does', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const ship = await buildCompiledSystems(root, { mode: 'ship', emcc: EMCC, run });
+    expect(ship.ok).toBe(true);
+    expect(ship.manifest?.systems.map((s) => s.name)).toEqual(['MoveSystem']);
   });
 });

@@ -15,11 +15,11 @@
  * build step; a marked system that will not compile IS one, because that is what
  * the marker means.
  *
- * NOT yet called by `estella build`. Wiring it in makes emcc a requirement for
- * any project carrying a marker, and whether that is an error or a warning is a
- * question the dev / release / ship modes answer — they do not exist yet, and
- * failing every build on a machine without emsdk is the wrong default to pick
- * by accident.
+ * The mode decides whether it runs at all. `dev` never compiles: §9 says the
+ * editor's preview always interprets, so a machine with no emsdk builds and runs
+ * every project. `release` and `ship` do compile, and there a promise the subset
+ * cannot keep is an error rather than a quiet fallback — which is the difference
+ * the marker exists to make.
  */
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -52,6 +52,12 @@ export interface CompiledSystemsManifest {
   contractHash: string;
   systems: CompiledSystemInfo[];
 }
+
+/**
+ * Which build this is. Not a verbosity setting: it decides whether a `@compiled`
+ * marker is a promise anyone is collecting on.
+ */
+export type BuildMode = 'dev' | 'release' | 'ship';
 
 export interface BuildCompiledResult {
   ok: boolean;
@@ -88,12 +94,20 @@ function sources(root: string): string[] {
 export async function buildCompiledSystems(
   root: string,
   opts: {
+    /** dev never compiles; release and ship require what the markers promised. */
+    mode: BuildMode;
     /** Absolute path to emcc, or null when the toolchain has none. */
     emcc: string | null;
     /** Runs a command; the toolchain's own runner, so env and logging match. */
     run: (cmd: string, args: string[], cwd: string) => Promise<{ code: number; stderr: string }>;
   },
 ): Promise<BuildCompiledResult> {
+  if (opts.mode === 'dev') {
+    // Nothing is compiled and nothing is checked, so a marker costs a dev build
+    // nothing at all — not a toolchain, not a second of build time, not a
+    // failure on a machine that has neither.
+    return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
+  }
   const files = sources(root);
   if (files.length === 0) {
     return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
