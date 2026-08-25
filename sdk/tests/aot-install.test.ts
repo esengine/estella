@@ -19,7 +19,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,30 +37,15 @@ import type { AotManifest } from '../src/ecs/aot/AotSystems';
 import type { AnyComponentDef } from '../src/ecs/component';
 import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 import type { Entity } from '../src/types';
+import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { FakeEngine } from './fakeEngine';
+import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const N = 16;
 
-function findEmcc(): string | null {
-    const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
-        process.platform === 'win32' ? 'emcc.bat' : 'emcc');
-    return existsSync(at) ? at : null;
-}
-const EMCC = findEmcc();
+const EMCC = emccPath();
 
 /** The engine module, as far as a compiled system needs one. */
-class Host implements WasmHeap {
-    readonly memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
-    HEAPU8 = new Uint8Array(this.memory.buffer);
-    private next = 4096;
-    _malloc(size: number): number {
-        const at = this.next;
-        this.next += (size + 15) & ~15;
-        return at;
-    }
-    _free(): void { /* a bump allocator frees nothing */ }
-}
-
 /** `Fade`: alpha -= step, in the shape the compiler emits. */
 const SYSTEM_C = `#include <stdint.h>
 #include <string.h>
@@ -114,8 +99,7 @@ function buildModule(): { bytes: Uint8Array; path: string } {
     const out = path.join(dir, 'sys.wasm');
     const built = spawnSync(EMCC!, [
         '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY',
-        '-sERROR_ON_UNDEFINED_SYMBOLS=1', '-sEXPORTED_FUNCTIONS=_es_sys_Fade',
+        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Fade',
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
@@ -176,8 +160,9 @@ describe('installing a built module', () => {
         const interpretedEntities = seed(interpreted.world, interpreted.Fade);
 
         const compiled = project();
+        const engine = new FakeEngine();
         await installAot({
-            world: compiled.world, runner: compiled.runner, host: new Host(),
+            world: compiled.world, runner: compiled.runner, host: engine,
             manifest: manifestFor(), wasm, resources: () => undefined,
         });
         const compiledEntities = seed(compiled.world, compiled.Fade);
@@ -193,12 +178,15 @@ describe('installing a built module', () => {
             .toEqual(alphas(interpreted.world, interpreted.Fade, interpretedEntities));
         // A world nothing touched would compare two untouched worlds.
         expect(alphas(compiled.world, compiled.Fade, compiledEntities)[0]).not.toBeCloseTo(0.1, 10);
+        // Loading wrote a data section, or running spilled to a stack, only if
+        // the engine's own bytes moved. Both land at link-time addresses.
+        expect(engine.staticsIntact()).toBe(true);
     });
 
     it.skipIf(!EMCC)('refuses a module built for other component shapes', async () => {
         const p = project();
         await expect(installAot({
-            world: p.world, runner: p.runner, host: new Host(),
+            world: p.world, runner: p.runner, host: new FakeEngine(),
             // What a build would have written before `step` was added.
             manifest: manifestFor(projectShapeDigest([{ name: 'Fade', fields: ['alpha'] }])),
             wasm: moduleFor('a host that takes bytes', buildModule()),
@@ -210,7 +198,7 @@ describe('installing a built module', () => {
         const p = project();
         const entities = seed(p.world, p.Fade);
         await installAot({
-            world: p.world, runner: p.runner, host: new Host(),
+            world: p.world, runner: p.runner, host: new FakeEngine(),
             manifest: manifestFor(), wasm: moduleFor('a host that takes bytes', buildModule()),
             resources: () => undefined,
         }).catch(() => { /* the ordering check below is the point */ });

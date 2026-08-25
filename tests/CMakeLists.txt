@@ -36,9 +36,14 @@ add_test(NAME test_tilemap COMMAND test_tilemap)
 # fresh); this harness is what holds the generated OFFSETS against the C++
 # structs they are claims about. Header-only ECS + Log.cpp, so it builds without
 # linking esengine and therefore without emscripten.
+# Both translation units: this host LINKS the artifact, so it reads the
+# declaration table out of it. A wasm host loads the module into the engine's
+# memory instead and must not compile that half — the table is a data section,
+# and its bytes land where the engine already keeps its own.
 add_executable(test_aot_host
     aot/test_aot_host.cpp
     aot/generated/move_system.c
+    aot/generated/move_system_decl.c
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_aot_host PRIVATE

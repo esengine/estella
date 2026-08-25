@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  AOT step: a project's `@compiled` systems, as wasm (docs/REARCH_AOT.md).
+ * @file  AOT step: a project's `@compiled` systems, as wasm.
  *
  * The rest of `buildScripts` hands the realm JavaScript. This hands it a module
  * of machine code for the systems the author PROMISED would compile, built with
@@ -9,14 +9,14 @@
  *
  * It imports the engine's memory rather than owning one, which is what keeps
  * this cheap: the engine wasm stays prebuilt and only the game's own systems are
- * compiled here — a few hundred bytes, not a link (REARCH_AOT.md §6.1).
+ * compiled here — a few hundred bytes, not a link.
  *
  * Never throws. A project with no marked system is not a failure and not a
  * build step; a marked system that will not compile IS one, because that is what
  * the marker means.
  *
- * The mode decides whether it runs at all. `dev` never compiles: §9 says the
- * editor's preview always interprets, so a machine with no emsdk builds and runs
+ * The mode decides whether it runs at all. `dev` never compiles, because the
+ * editor's preview always interprets: a machine with no emsdk builds and runs
  * every project. `release` and `ship` do compile, and there a promise the subset
  * cannot keep is an error rather than a quiet fallback — which is the difference
  * the marker exists to make.
@@ -28,7 +28,7 @@ import { verifySystem } from '../../../compiler/src/verify';
 import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout, planFor } from '../../../compiler/src/abi';
-import { CFLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
+import { CFLAGS, WASM_LINK_FLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
 
 /** Where the C and the wasm land, beside the script bundle. */
 const CACHE_DIR = '.esengine/cache/aot';
@@ -203,13 +203,12 @@ export async function buildCompiledSystems(
   const built = await opts.run(opts.emcc, [
     ...CFLAGS, '-Wall', '-Wextra',
     // No entry point and no JS glue, so the module's only import is the memory
-    // it is given. §6.5 is a property of this command line as much as of the C.
-    '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY', '-sERROR_ON_UNDEFINED_SYMBOLS=1',
-    // An import may not declare a smaller maximum than the memory handed to it,
-    // and the engine's grows (2GB). Without this the module takes a hand-made
-    // 256-page test memory and REFUSES the real engine's.
-    '-sALLOW_MEMORY_GROWTH=1',
+    // it is given. An empty import section is a property of this command line
+    // as much as of the C.
+    ...WASM_LINK_FLAGS,
     `-sEXPORTED_FUNCTIONS=${exported}`,
+    // `c.decls` is deliberately NOT compiled here. It is the data half, and a
+    // data section is written at a link-time address the engine already owns.
     '-o', wasmPath, path.join(dir, 'systems.c'),
   ], dir);
   if (built.code !== 0 || !existsSync(wasmPath)) {

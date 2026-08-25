@@ -14,7 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,8 +31,10 @@ import type { AotAddresses, AotRuntime } from '../src/ecs/aot/AotRuntime';
 import type { AnyComponentDef } from '../src/ecs/component';
 import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
 import type { Entity } from '../src/types';
+import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { FakeEngine } from './fakeEngine';
+import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const N = 20;
 const FRAMES = 10;
 /** What a build for THIS engine would have written into the manifest. */
@@ -40,25 +42,7 @@ const ENGINE = engineAbiDigest(4);
 const DECAY_FIELDS = ['remaining', 'rate'];
 const SHAPES = projectShapeDigest([{ name: 'Decay', fields: DECAY_FIELDS }]);
 
-function findEmcc(): string | null {
-    const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
-        process.platform === 'win32' ? 'emcc.bat' : 'emcc');
-    return existsSync(at) ? at : null;
-}
-const EMCC = findEmcc();
-
-/** A linear memory and a bump allocator: the engine, as far as rows care. */
-class Heap implements WasmHeap {
-    readonly memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
-    HEAPU8 = new Uint8Array(this.memory.buffer);
-    private next = 4096;
-    _malloc(size: number): number {
-        const at = this.next;
-        this.next += (size + 15) & ~15;
-        return at;
-    }
-    _free(): void { /* a bump allocator frees nothing */ }
-}
+const EMCC = emccPath();
 
 /** `Decay`: remaining -= rate, and despawn once it reaches zero. */
 const SYSTEM_C = `#include <stdint.h>
@@ -98,8 +82,7 @@ function buildModule(): Uint8Array {
     const out = path.join(dir, 'sys.wasm');
     const built = spawnSync(EMCC!, [
         '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY',
-        '-sERROR_ON_UNDEFINED_SYMBOLS=1', '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
+        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
@@ -173,7 +156,7 @@ describe('the scheduler and its compiled twin', () => {
 
         // Compiled, over rows in a linear memory the module shares.
         const b = makeWorld();
-        const heap = new Heap();
+        const heap = new FakeEngine();
         const memory = new WasmPoolMemory(heap);
         b.world.useScriptPoolMemory(memory);
         const bEntities = seed(b.world, b.Decay);
@@ -209,6 +192,9 @@ describe('the scheduler and its compiled twin', () => {
         // only that neither moved.
         expect(aEntities.filter((e) => a.world.valid(e)).length).toBeLessThan(N);
         expect(aEntities.filter((e) => a.world.valid(e)).length).toBeGreaterThan(0);
+        // Nothing the module did may reach the bytes the engine keeps for
+        // itself — not its data section on load, not a stack spill on a call.
+        expect(heap.staticsIntact()).toBe(true);
     });
 
     it.skipIf(!EMCC)('a twin marks Changed, which it cannot do for itself', async () => {
@@ -225,7 +211,7 @@ describe('the scheduler and its compiled twin', () => {
                 for (const _ of query as Iterable<unknown>) n++;
                 watched.push(n);
             }, { name: 'Watcher' });
-            const heap = new Heap();
+            const heap = new FakeEngine();
             const memory = new WasmPoolMemory(heap);
             if (compiled) w.world.useScriptPoolMemory(memory);
             seed(w.world, w.Decay);

@@ -18,7 +18,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,8 +28,10 @@ import { WasmPoolMemory, type WasmHeap } from '../src/ecs/WasmPoolMemory';
 import { AotContext, CMD_DESPAWN } from '../src/ecs/aot/AotContext';
 import { AotResources } from '../src/ecs/aot/AotResources';
 import type { Entity } from '../src/types';
+import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { FakeEngine } from './fakeEngine';
+import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const e = (n: number): Entity => n as unknown as Entity;
 const N = 16;
 
@@ -52,34 +54,12 @@ function packed(rows: readonly (readonly number[])[]): {
 }
 const FRAMES = 8;
 
-function findEmcc(): string | null {
-    const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
-        process.platform === 'win32' ? 'emcc.bat' : 'emcc');
-    return existsSync(at) ? at : null;
-}
-const EMCC = findEmcc();
+const EMCC = emccPath();
 
 /**
  * The engine, as far as this test needs one: a linear memory and a bump
  * allocator over it. A real module differs in size, not in kind.
  */
-class Engine implements WasmHeap {
-    // The module declares the minimum it expects; a host has to meet it.
-    readonly memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
-    HEAPU8 = new Uint8Array(this.memory.buffer);
-    private next = 1024;
-    _malloc(size: number): number {
-        const at = this.next;
-        this.next += (size + 15) & ~15;
-        while (this.next > this.HEAPU8.byteLength) {
-            this.memory.grow(1);
-            this.HEAPU8 = new Uint8Array(this.memory.buffer);
-        }
-        return at;
-    }
-    _free(): void { /* a bump allocator frees nothing */ }
-}
-
 /**
  * A hand-written system in the shape the compiler emits. Written out rather than
  * taken from the corpus so the test says what it is testing; the corpus version
@@ -131,8 +111,7 @@ function buildModule(): Uint8Array {
     const out = path.join(dir, 'sys.wasm');
     const built = spawnSync(EMCC!, [
         '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY',
-        '-sERROR_ON_UNDEFINED_SYMBOLS=1', '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
+        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
@@ -149,7 +128,7 @@ describe('a compiled system, called by the SDK', () => {
     });
 
     it.skipIf(!EMCC)('moves the SDK\'s own rows, exactly as TypeScript does', async () => {
-        const engine = new Engine();
+        const engine = new FakeEngine();
         const memory = new WasmPoolMemory(engine);
         const instance = await WebAssembly.instantiate(
             new WebAssembly.Module(buildModule() as unknown as BufferSource),
@@ -217,7 +196,7 @@ describe('a compiled system, called by the SDK', () => {
     });
 
     it.skipIf(!EMCC)('a call with no rows is a call, not a crash', async () => {
-        const engine = new Engine();
+        const engine = new FakeEngine();
         const memory = new WasmPoolMemory(engine);
         const instance = await WebAssembly.instantiate(
             new WebAssembly.Module(buildModule() as unknown as BufferSource),

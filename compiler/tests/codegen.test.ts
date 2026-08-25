@@ -4,8 +4,7 @@
  * @file    codegen.test.ts
  * @brief   The compiled code and the interpreter must produce the SAME BYTES.
  *
- * @details Stage 2's exit criterion in miniature (docs/REARCH_AOT.md §10). Up to
- *          here every test has compared an interpreter against node; both are
+ * @details Up to here every test has compared an interpreter against node; both are
  *          JavaScript, and neither is what ships. This one compiles the emitted
  *          C with a real compiler and runs it in another process.
  *
@@ -19,8 +18,8 @@
  *
  *          Two more properties are asserted because they are what make this a
  *          contract rather than a convention: the object file has no undefined
- *          symbol besides the memory base (§6.5's empty import section, as far
- *          as a native build can show it), and the generated C compiles with no
+ *          symbol besides the memory base — the empty import section, as far as
+ *          a native build can show it — and the generated C compiles with no
  *          warning at all.
  *
  *          If no C compiler is on PATH the differential CANNOT run, and this
@@ -181,7 +180,7 @@ int main(int argc, char **argv) {
 /**
  * One executable per system. The entry symbol is a -D so main is shared, and so
  * is the address model: `offset` is a host that owns one block (a wasm2c
- * deployment, §5), `pointer` is one that hands over real addresses (the C++
+ * deployment), `pointer` is one that hands over real addresses (the C++
  * engine). Same generated source, compiled twice.
  */
 type Addressing = 'offset' | 'pointer';
@@ -496,8 +495,8 @@ describe('the emitted C says what the interpreter says', () => {
         expect(out.status, out.stderr).toBe(0);
         expect(out.stderr.trim()).toBe('');
 
-        // §6.5 is about the wasm import section; natively the same property is
-        // "no undefined symbol". `es_memory` is the linear memory itself, which
+        // The contract is about the wasm import section; natively the same
+        // property is "no undefined symbol". `es_memory` is the linear memory itself, which
         // on wasm is not an import at all — it IS the module's memory.
         const nm = spawnSync('nm', [obj], { encoding: 'utf8' });
         if (nm.status !== 0) {
@@ -516,7 +515,7 @@ describe('the emitted C says what the interpreter says', () => {
     it('the artifact carries what it baked in about the engine', () => {
         const layout = packLayout(shipped.module.comps);
         const c = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
-        expect(c.source).toContain(`#define ES_ABI_ENGINE_DIGEST 0x${c.handshake.engineAbi}ULL`);
+        expect(c.decls).toContain(`#define ES_ABI_ENGINE_DIGEST 0x${c.handshake.engineAbi}ULL`);
         expect(c.handshake.engineAbi).toMatch(/^[0-9a-f]{16}$/);
         expect(c.handshake.projectShapes).toMatch(/^[0-9a-f]{16}$/);
     });
@@ -550,9 +549,9 @@ describe('the emitted C says what the interpreter says', () => {
         // A digest could only say "something moved". The order is what the host
         // follows when it fills the ctx, so it is carried rather than compared.
         const layout = packLayout(shipped.module.comps);
-        const { source } = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
-        expect(source).toContain('{ "Transform", "Mover" }');
-        expect(source).toContain('{ "Time" }');
+        const { decls } = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
+        expect(decls).toContain('{ "Transform", "Mover" }');
+        expect(decls).toContain('{ "Time" }');
     });
 
     it('what the artifact exports is what a host computes, at both widths', () => {
@@ -566,6 +565,7 @@ describe('the emitted C says what the interpreter says', () => {
         writeFileSync(join(dir, 'estella_abi.h'), c.header);
         writeFileSync(join(dir, 'estella_offsets.h'), c.offsets);
         writeFileSync(join(dir, 'systems.c'), c.source);
+        writeFileSync(join(dir, 'systems_decl.c'), c.decls);
         writeFileSync(join(dir, 'main.c'), [
             '#include <stdio.h>',
             '#include "estella_abi.h"',
@@ -582,7 +582,8 @@ describe('the emitted C says what the interpreter says', () => {
         for (const [flags, bytes] of [[['-DES_ADDR_BASE'], 4], [[], 8]] as const) {
             const exe = join(dir, `h${bytes}${process.platform === 'win32' ? '.exe' : ''}`);
             const built = spawnSync(CC!, [...CFLAGS, '-Wall', '-Wextra', ...flags, '-o', exe,
-                join(dir, 'main.c'), join(dir, 'systems.c'), '-lm'], { encoding: 'utf8' });
+                join(dir, 'main.c'), join(dir, 'systems.c'), join(dir, 'systems_decl.c'), '-lm'],
+                { encoding: 'utf8' });
             expect(built.status, built.stderr).toBe(0);
             expect(built.stderr.trim()).toBe('');
             const [got, width] = execFileSync(exe, { encoding: 'utf8' }).trim().split(' ');
@@ -596,7 +597,7 @@ describe('the emitted C says what the interpreter says', () => {
     it('a component field is one load at a constant offset', () => {
         const layout = packLayout(shipped.module.comps);
         const { source } = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
-        // §4.2's whole reason for existing, readable in the output itself.
+        // EIR's whole reason for existing, readable in the output itself.
         expect(source).toMatch(/es_f32\(\w+ \+ ES_OFF_Transform_position_x\)/);
         expect(emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]).offsets)
             .toMatch(/#define ES_OFF_Transform_position_x \d+u/);

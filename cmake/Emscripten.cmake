@@ -239,10 +239,9 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    # 'wasmMemory' is the AOT contract: a compiled system module IMPORTS this
-    # memory rather than owning one, so the game's own systems read the rows
-    # where they already are (docs/REARCH_AOT.md §6.1). The glue keeps it in a
-    # local otherwise, and an ArrayBuffer cannot be turned back into a Memory.
+    # wasmMemory is the Memory OBJECT, not a view of it. A compiled system module
+    # imports it as `env.memory` so it addresses the same bytes the engine does;
+    # HEAPU8.buffer is an ArrayBuffer and cannot be imported.
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','wasmMemory']"
     -O3
     -flto

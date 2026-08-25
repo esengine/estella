@@ -8,12 +8,12 @@
  *          Web is the first target on the roadmap, and two of the contract's
  *          claims can only be asked of the real artifact.
  *
- *          §6.5 — the import section must be empty — was `nm` on an object file,
- *          with a comment admitting that was as close as a native build gets.
+ *          "The import section must be empty" was `nm` on an object file, with a
+ *          comment admitting that was as close as a native build gets.
  *          `WebAssembly.Module.imports()` is the actual question.
  *
- *          §2.1.1 — an address is a pointer, and on wasm32 a pointer IS the
- *          offset — stops being an argument and becomes a run.
+ *          "An address is a pointer, and on wasm32 a pointer IS the offset"
+ *          stops being an argument and becomes a run.
  *
  *          Two shapes are built, and the second is the one that ships: a module
  *          that IMPORTS the engine's memory rather than owning one. See the
@@ -24,7 +24,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +37,7 @@ import { AbiMemory, flushCommands, materialize, packLayout, planFor, runOnAbi } 
 import { CFLAGS, cSymbol, emitC } from '../src/codegen';
 import type { AbiLayout } from '../src/abi';
 import type { EirSystem } from '../src/eir';
+import { emccPath } from '../../build-tools/utils/emscripten.js';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const N = 24;
@@ -46,14 +47,7 @@ const IMAGE = 1 << 16;
 /** Where the world goes in an IMPORTED memory: clear of the module's own data. */
 const GUEST_BASE = 1 << 20;
 
-/** emsdk lives in the repo, unpacked by `pnpm emsdk:setup`. */
-function findEmcc(): string | null {
-    const bat = join(ROOT, 'tools/emsdk/upstream/emscripten',
-        process.platform === 'win32' ? 'emcc.bat' : 'emcc');
-    return existsSync(bat) ? bat : null;
-}
-
-const EMCC = findEmcc();
+const EMCC = emccPath();
 
 /** Whose linear memory the module runs in. */
 type Memory = 'own' | 'imported';
@@ -209,7 +203,7 @@ describe('the emitted C as wasm', () => {
     const moduleOf = (b: Buffer): WebAssembly.Module =>
         new WebAssembly.Module(b as unknown as BufferSource);
 
-    it('imports nothing at all — §6.5, asked of the wasm itself', () => {
+    it('imports nothing at all, asked of the wasm itself', () => {
         // Not "no imports that matter": none. The contract has no call to make,
         // so the section is empty by construction rather than by trimming.
         expect(WebAssembly.Module.imports(moduleOf(own.bytes))).toEqual([]);
@@ -249,10 +243,10 @@ describe('the emitted C as wasm', () => {
     });
 
     /**
-     * The shape that ships (§6.1). A module that IMPORTS the engine's memory is
-     * in the same memory at the same offsets, so there is no boundary to
-     * rebuild: §6's warning was about a module with its OWN, which is a
-     * different thing.
+     * The shape that ships. A module that IMPORTS the engine's memory is in the
+     * same memory at the same offsets, so there is no boundary to rebuild — the
+     * cost that ruled out a standalone module was about one with its OWN memory,
+     * which is a different thing.
      */
     it('a module that imports the engine memory imports NO functions', () => {
         const imports = WebAssembly.Module.imports(moduleOf(guest.bytes));

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    index.ts
- * @brief   Estella AOT compiler — public surface (docs/REARCH_AOT.md Stages 1-2).
+ * @brief   Estella AOT compiler — public surface.
  */
 export * from './eir';
 export { brokenPromises, lowerProgram, type Diagnostic, type LowerResult } from './frontend';
@@ -15,5 +15,5 @@ export {
     CMD_DESPAWN, CMD_REMOVE, CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS,
     type AbiCall, type AbiHandshake, type AbiLayout, type FieldOffsets, type Leaf, type SysPlan,
 } from './abi';
-export { ADDR_MIX, CFLAGS, RUNTIME_H, cSymbol, emitC, type CModule } from './codegen';
+export { ADDR_MIX, CFLAGS, RUNTIME_H, WASM_LINK_FLAGS, cSymbol, emitC, type CModule } from './codegen';
 export { builtinShapes } from './builtins';

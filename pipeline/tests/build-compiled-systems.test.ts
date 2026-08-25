@@ -9,23 +9,49 @@
  *          it. Real emcc where emsdk is unpacked, and a loud skip where it is
  *          not — a gate that never saw its subject is worse than a missing one.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildCompiledSystems, readCompiledManifest } from '../src/bundle/buildCompiledSystems';
+import { emccPath } from '../../build-tools/utils/emscripten.js';
+
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const EMCC = emccPath();
 
-function findEmcc(): string | null {
-  const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
-    process.platform === 'win32' ? 'emcc.bat' : 'emcc');
-  return existsSync(at) ? at : null;
+/**
+ * A memory shaped like the engine's: growable to 2GB, and already 16MB, which
+ * is also the size the module REQUIRES — emcc writes its INITIAL_MEMORY into
+ * the import's declared minimum, so a host with a smaller memory gets a
+ * LinkError rather than a module that copes.
+ */
+const engineMemory = (): WebAssembly.Memory =>
+  new WebAssembly.Memory({ initial: 256, maximum: 32768 });
+
+/** wasm section ids, by the numbers the format assigns them. */
+const DATA_SECTION = 11;
+
+/** Section id -> byte length, read straight out of the binary. */
+function sectionSizes(buf: Buffer): Map<number, number> {
+  const out = new Map<number, number>();
+  let p = 8;
+  const leb = (): number => {
+    let r = 0, shift = 0, b = 0;
+    do { b = buf[p++]!; r |= (b & 0x7f) << shift; shift += 7; } while (b & 0x80);
+    return r >>> 0;
+  };
+  while (p < buf.length) {
+    const id = buf[p++]!;
+    const size = leb();
+    out.set(id, (out.get(id) ?? 0) + size);
+    p += size;
+  }
+  return out;
 }
 
-const EMCC = findEmcc();
 
 /** The toolchain's runner, in miniature: emcc is a .bat on Windows. */
 const run = (cmd: string, args: string[], cwd: string): Promise<{ code: number; stderr: string }> =>
@@ -78,6 +104,57 @@ const UNMARKED = PROMISED.replace(`/**
  * @compiled
  */
 `, '').replace("{ name: 'MoveSystem' }", "{ name: 'QuietSystem' }");
+
+/**
+ * The engine wasm a build produces, or null on a checkout that has not built
+ * one. `build/wasm/web` is where the build writes it; desktop/public is the
+ * editor's copy, and is inside a submodule this repo may not have.
+ */
+function engineGlue(): string | null {
+  for (const at of ['build/wasm/web/esengine.js', 'desktop/public/wasm/esengine.js']) {
+    const p = path.join(ROOT, at);
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+const ENGINE_GLUE = engineGlue();
+
+/**
+ * The one place both halves are real: the engine wasm this repo builds, and a
+ * module compiled from a shipped system. Every other gate substitutes a fake
+ * for one of them, and the two things that go wrong here are invisible against
+ * a fake — a memory that cannot grow, and low addresses nobody owns.
+ */
+describe.skipIf(!EMCC || !ENGINE_GLUE)('loaded into the engine the build produces', () => {
+  it('reports whether this gate could run at all', () => {
+    if (EMCC && ENGINE_GLUE) console.log(`[real-engine] against ${ENGINE_GLUE}`);
+    else console.warn('[real-engine] did NOT run — no emsdk, or no built engine wasm.');
+  });
+
+  it('instantiates against the real memory and leaves the engine intact', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    expect(out.errors).toEqual([]);
+
+    const { default: createEngine } = await import(pathToFileURL(ENGINE_GLUE!).href) as
+      { default: () => Promise<{ wasmMemory: WebAssembly.Memory; HEAPU8: Uint8Array; _malloc(n: number): number }> };
+    const engine = await createEngine();
+
+    // Without this export there is no way to hand a module the engine's memory:
+    // HEAPU8.buffer is an ArrayBuffer, and an import needs the Memory itself.
+    expect(engine.wasmMemory, 'the engine must export wasmMemory').toBeInstanceOf(WebAssembly.Memory);
+    expect(engine.HEAPU8.buffer).toBe(engine.wasmMemory.buffer);
+
+    const canary = engine.HEAPU8.slice(1024, 1024 + 4096);
+    const bytes = readFileSync(out.wasmPath!);
+    new WebAssembly.Instance(new WebAssembly.Module(bytes as unknown as BufferSource),
+      { env: { memory: engine.wasmMemory } });
+
+    expect([...engine.HEAPU8.slice(1024, 1024 + 4096)]).toEqual([...canary]);
+    expect(engine._malloc(16)).toBeGreaterThan(0);
+  });
+});
 
 describe('the AOT build step', () => {
   it('reports whether this gate could run at all', () => {
@@ -145,6 +222,79 @@ describe('the AOT build step', () => {
     }]);
     expect(out.manifest!.engineAbi).toMatch(/^[0-9a-f]{16}$/);
     expect(out.manifest!.projectShapes).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  /**
+   * What a module loaded into the ENGINE's memory must not do, asked of the
+   * artifact rather than of the command line that made it. A fake host with a
+   * fixed-size memory and nothing at the low addresses answers neither.
+   */
+  describe.skipIf(!EMCC)('the module a real engine would load', () => {
+    let bytes: Buffer;
+    beforeAll(async () => {
+      const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+      const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+      expect(out.errors).toEqual([]);
+      bytes = readFileSync(out.wasmPath!);
+    });
+
+    it('carries no data section, because those bytes are the engine\'s', () => {
+      // A data section is written at instantiation, at an address the linker
+      // chose — which for a module built against an imported memory is wherever
+      // the ENGINE already keeps its statics.
+      expect(sectionSizes(bytes).get(DATA_SECTION) ?? 0).toBe(0);
+    });
+
+    it('instantiates against a GROWABLE memory, which is the only kind an engine has', () => {
+      // The engine links with -sALLOW_MEMORY_GROWTH, so its memory declares a
+      // maximum of 32768 pages. A module declaring a smaller one does not run
+      // slower — it does not instantiate at all, with a LinkError.
+      expect(() => new WebAssembly.Instance(
+        new WebAssembly.Module(bytes as unknown as BufferSource),
+        { env: { memory: engineMemory() } })).not.toThrow();
+    });
+
+    /**
+     * The same two checks against a module that DOES carry data, built the same
+     * way. Without it they could be passing because emcc dropped an unreferenced
+     * table — which is luck, not the property.
+     */
+    it('and both checks can see their subject', async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'estella-aot-control-'));
+      writeFileSync(path.join(dir, 'has-data.c'), [
+        '#include <stdint.h>',
+        'static const double kTable[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };',
+        'void es_sys_Control(uint32_t ctx) {',
+        '    double *out = (double *)(uintptr_t)ctx;',
+        // A RUNTIME index: with a constant one the compiler folds the table into
+        // the instructions and the module has no data after all.
+        '    out[1] = kTable[(unsigned)out[0] & 7u];',
+        '}',
+      ].join('\n'));
+      const wasm = path.join(dir, 'has-data.wasm');
+      const built = await run(EMCC!, ['-O2', '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY',
+        '-sALLOW_MEMORY_GROWTH=1', '-sEXPORTED_FUNCTIONS=_es_sys_Control', '-o', wasm,
+        path.join(dir, 'has-data.c')], dir);
+      expect(built.code, built.stderr).toBe(0);
+
+      const withData = readFileSync(wasm);
+      expect(sectionSizes(withData).get(DATA_SECTION) ?? 0).toBeGreaterThan(0);
+
+      const memory = engineMemory();
+      const sentinel = new Uint8Array(memory.buffer, 1024, 4096).fill(0xab);
+      new WebAssembly.Instance(
+        new WebAssembly.Module(withData as unknown as BufferSource), { env: { memory } });
+      expect(sentinel.every((b) => b === 0xab)).toBe(false);
+    });
+
+    it('and leaves the bytes already in that memory alone', () => {
+      const memory = engineMemory();
+      // Where a linker puts a module's data. The engine's own statics live here.
+      const sentinel = new Uint8Array(memory.buffer, 1024, 4096).fill(0xab);
+      new WebAssembly.Instance(
+        new WebAssembly.Module(bytes as unknown as BufferSource), { env: { memory } });
+      expect(sentinel.every((b) => b === 0xab)).toBe(true);
+    });
   });
 
   it.skipIf(!EMCC)('rebuilding is not additive: the cache is what this build made', async () => {
