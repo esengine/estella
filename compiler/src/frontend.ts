@@ -30,7 +30,7 @@ import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
     BOOL, ENTITY, F64, HOST_ENC,
     type CompShape, type EirModule, type EirSystem, type EirType,
-    MATH_FNS,
+    MATH_CONSTS, MATH_FNS,
     type FieldSpec, type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
     type MathFn,
 } from './eir';
@@ -665,6 +665,11 @@ class SystemLowerer {
         if (!ts.isIdentifier(cur)) return null;
         // A local of the same name shadows the module constant, as it does in TS.
         if (this.scopes.some((sc) => sc.has(cur.text))) return null;
+        // `Math.PI` is a value the spec pins exactly, so it folds like any other
+        // literal — the same double on both sides, unlike `Math.sin`.
+        if (cur.text === 'Math' && path.length === 1 && MATH_CONSTS.includes(path[0]!)) {
+            return { e: 'const', value: (Math as unknown as Record<string, number>)[path[0]!]!, type: F64 };
+        }
         const v = this.constAt(cur.text, path);
         if (v === null || typeof v === 'object') return null;
         return typeof v === 'boolean'

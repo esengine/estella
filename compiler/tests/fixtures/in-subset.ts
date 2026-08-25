@@ -59,7 +59,9 @@ export const tunedSystem = defineSystem(
     [Query(Mut(Transform), Drift), Res(Time)],
     (query, time) => {
         for (const [, transform, drift] of query) {
-            const step = drift.rate * time.delta * TUNING.damping;
+            // `Math.PI` folds like a module constant does, and for the same
+            // reason: the spec pins it to one double. `Math.sin` does not.
+            const step = drift.rate * time.delta * TUNING.damping * (Math.PI / Math.SQRT2);
             const nx = transform.position.x + step * (drift.enabled ? TUNING.boost : 1);
             transform.position.x = nx > WRAP ? nx - WRAP * 2 : nx;
             if (drift.enabled) {
