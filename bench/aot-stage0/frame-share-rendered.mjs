@@ -21,8 +21,9 @@
  *              node bench/aot-stage0/frame-share-rendered.mjs
  */
 import { spawnSync } from 'node:child_process';
+import { writeFileSync as io_writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
@@ -73,16 +74,25 @@ if (!drive) {
     process.exit(1);
 }
 
+// One derivation, not two: the SDK's own tree builder, loaded from the same
+// dist the render host bundled.
+const { buildFrameProfile } = await import(
+    pathToFileURL(join(ROOT, 'sdk', 'dist', 'index.node.js')).href);
+
 const result = JSON.parse(drive[1]);
+if (process.env.BENCH_DUMP_FRAME) {
+    const f = (result.profile?.frames ?? []).at(-1);
+    io_writeFileSync(process.env.BENCH_DUMP_FRAME, JSON.stringify(f));
+}
 const frames = result.profile?.frames ?? [];
 if (!frames.length) {
     console.error('DRIVE_RESULT carried no profile frames. ESTELLA_VERIFY_PROFILE not honoured?');
     process.exit(1);
 }
 
-// The engine's C++ scopes run INSIDE a system's wall clock (submitScene is three
-// wasm calls), so summing systems + nativeScopes counts that time twice and books
-// it as script. The frame IS the systems; TS is what is left after the C++ in them.
+// buildFrameProfile is the SDK's own derivation, the same one the editor panel
+// reads, so this computes no second answer. It nests render.collect/.finalize
+// under render.submit (which declares remainder:'wait' at CameraPlugin.ts:733).
 const tsPer = [];
 const cppPer = [];
 const cpuPer = [];
@@ -90,11 +100,14 @@ const systemTotals = new Map();
 const scopeTotals = new Map();
 const jsScopeTotals = new Map();
 for (const f of frames) {
-    const cpuF = sum((f.systems ?? []).map((s) => s.ms));
+    const prof = buildFrameProfile({
+        frameMs: f.dtMs, systems: f.systems ?? [], scopes: f.scopes ?? [],
+        nativeScopes: f.nativeScopes ?? [], gpuMs: f.gpuMs,
+    });
     const cpp = sum((f.nativeScopes ?? []).map((s) => s.ms));
-    cpuPer.push(cpuF);
+    cpuPer.push(prof.cpuMs);
     cppPer.push(cpp);
-    tsPer.push(Math.max(0, cpuF - cpp));
+    tsPer.push(Math.max(0, prof.cpuMs - cpp));
     for (const s of f.systems ?? []) systemTotals.set(s.name, (systemTotals.get(s.name) ?? 0) + s.ms);
     for (const s of f.nativeScopes ?? []) scopeTotals.set(s.name, (scopeTotals.get(s.name) ?? 0) + s.ms);
     for (const s of f.scopes ?? []) jsScopeTotals.set(s.name, (jsScopeTotals.get(s.name) ?? 0) + s.ms);
