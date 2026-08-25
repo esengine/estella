@@ -50,9 +50,9 @@ import { builtinShapes } from '../src/builtins';
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** Per-frame systems only. See the file header before lowering these. */
-const FRAME_FLOOR = 12;
+const FRAME_FLOOR = 13;
 /** Per-frame systems the contract could take once the pending work is done. */
-const CEILING_FLOOR = 75;
+const CEILING_FLOOR = 85;
 
 function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -80,14 +80,27 @@ function byProject(all: readonly string[]): Map<string, string[]> {
 }
 
 const projects = byProject(files);
-const results = [...projects.values()].map((fs) => lowerProgram(fs, builtinShapes()));
-const seen = results.flatMap((r) => r.seen);
-const diagnostics = results.flatMap((r) => r.diagnostics);
-const systemBindings = new Map(results.flatMap((r) => [...r.systemBindings]));
-const verifiedNames = new Set(results.flatMap(
-    (r) => r.module.systems.filter((s) => verifySystem(s, r.module.comps, r.module.fns).length === 0).map((s) => s.name)));
-const unverified = results.flatMap((r) => r.module.systems
-    .map((s) => ({ name: s.name, errors: verifySystem(s, r.module.comps, r.module.fns) }))
+const results = [...projects.entries()].map(([project, fs]) => ({
+    project, lowered: lowerProgram(fs, builtinShapes()),
+}));
+
+/**
+ * A system is identified by its PROJECT and its name, never by the name alone.
+ * Two projects both call a system `MoveSystem`, and counting by name merges
+ * them: one project's compiling would have reported the other's as compiled
+ * too. The same shape as the two different `Health` components, one layer up.
+ */
+const key = (project: string, name: string): string => `${project}::${name}`;
+
+const seen = results.flatMap(({ project, lowered }) => lowered.seen.map((n) => key(project, n)));
+const diagnostics = results.flatMap(({ project, lowered }) => lowered.diagnostics.map((d) => ({
+    ...d, system: d.system === undefined ? undefined : key(project, d.system),
+})));
+const verifiedNames = new Set(results.flatMap(({ project, lowered }) => lowered.module.systems
+    .filter((s) => verifySystem(s, lowered.module.comps, lowered.module.fns).length === 0)
+    .map((s) => key(project, s.name))));
+const unverified = results.flatMap(({ project, lowered }) => lowered.module.systems
+    .map((s) => ({ name: key(project, s.name), errors: verifySystem(s, lowered.module.comps, lowered.module.fns) }))
     .filter((x) => x.errors.length > 0));
 
 const SCHEDULED = /addSystemToSchedule\s*\(\s*Schedule\.\w+\s*,\s*(\w+)\s*\)/g;
@@ -100,10 +113,14 @@ const BARE_ADD = /\baddSystem\s*\(\s*(\w+)\s*\)/g;
  */
 function perFrameSystems(): Set<string> {
     const frame = new Set<string>();
-    for (const f of files.filter((p) => p.endsWith('main.ts'))) {
-        const src = readFileSync(f, 'utf8');
-        for (const re of [SCHEDULED, BARE_ADD]) {
-            for (const m of src.matchAll(re)) frame.add(systemBindings.get(m[1]!) ?? m[1]!);
+    for (const { project, lowered } of results) {
+        for (const f of projects.get(project)!.filter((p) => p.endsWith('main.ts'))) {
+            const src = readFileSync(f, 'utf8');
+            for (const re of [SCHEDULED, BARE_ADD]) {
+                for (const m of src.matchAll(re)) {
+                    frame.add(key(project, lowered.systemBindings.get(m[1]!) ?? m[1]!));
+                }
+            }
         }
     }
     return frame;
@@ -115,6 +132,23 @@ describe('AOT coverage over examples/', () => {
         expect(projects.size).toBeGreaterThan(20);
         expect(files.length).toBeGreaterThan(20);
         expect(seen.length).toBeGreaterThan(20);
+    });
+
+    it('counts a system per project, because two projects share a system name', () => {
+        const projectsByName = new Map<string, Set<string>>();
+        for (const { project, lowered } of results) {
+            for (const n of lowered.seen) {
+                if (!projectsByName.has(n)) projectsByName.set(n, new Set());
+                projectsByName.get(n)!.add(project);
+            }
+        }
+        const shared = [...projectsByName].filter(([, ps]) => ps.size > 1);
+        // Without a duplicate in the corpus the distinction is untested, and
+        // counting by name alone would pass while merging two systems into one.
+        expect(shared.length).toBeGreaterThan(0);
+        for (const [name, ps] of shared) {
+            for (const project of ps) expect(seen).toContain(key(project, name));
+        }
     });
 
     it('no project declares one component name twice', () => {
@@ -204,7 +238,7 @@ describe('AOT coverage over examples/', () => {
  * It is the number that can be 100% and STAY 100%.
  */
 describe('systems the corpus promises to compile', () => {
-    const promised = results.flatMap((r) => r.required);
+    const promised = results.flatMap(({ project, lowered }) => lowered.required.map((n) => key(project, n)));
 
     it('finds the marker in the corpus at all', () => {
         // At zero this whole block asserts nothing, which is the failure a gate
@@ -214,7 +248,7 @@ describe('systems the corpus promises to compile', () => {
     });
 
     it('keeps every one of them', () => {
-        expect(results.flatMap((r) => brokenPromises(r))).toEqual([]);
+        expect(results.flatMap(({ lowered }) => brokenPromises(lowered))).toEqual([]);
     });
 
     it('and each also verifies, not merely lowers', () => {

@@ -92,6 +92,15 @@ export type CallTarget =
  * them without disagreeing with the interpreter. sin/cos/tan/exp/log/pow are
  * implementation-defined and deliberately absent — see frontend.ts.
  */
+/**
+ * The Math CONSTANTS, which ECMAScript pins to an exact double each — unlike
+ * `Math.sin`, whose result it leaves to the implementation. Folded rather than
+ * loaded, and safe to fold because the value is the same number everywhere.
+ */
+export const MATH_CONSTS: readonly string[] = [
+    'E', 'LN10', 'LN2', 'LOG10E', 'LOG2E', 'PI', 'SQRT1_2', 'SQRT2',
+];
+
 export const MATH_FNS = {
     abs: 1, floor: 1, ceil: 1, round: 1, trunc: 1, sqrt: 1, sign: 1,
     min: 2, max: 2,
