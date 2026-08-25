@@ -285,10 +285,9 @@ describe('the emitted C says what the interpreter says', () => {
         expect(same(byC, movedWorld(layout)), 'nothing moved, so agreeing proves nothing').toBe(false);
     });
 
-    // Every feature the subset gained after MoveSystem, each in a system that
-    // exercises it: branches and `&&`, ternaries and the exact half of Math,
-    // folded module constants with a shadowing local, an inlined helper, and the
-    // Math arguments where libm and ECMAScript give different answers.
+    // Every feature the subset gained after MoveSystem: branches and `&&`,
+    // ternaries, folded module constants with a shadowing local, an inlined
+    // helper, and the Math arguments where libm and ECMAScript disagree.
     for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers', 'FixtureMathOps']) {
         it(`${name}: the whole image agrees with the interpreter`, () => {
             const sys = systemOf(fixtures, name);

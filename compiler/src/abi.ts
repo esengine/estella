@@ -29,10 +29,9 @@ export const CMD_REMOVE = 2;
 
 /**
  * Words in `SysCtx` and in `QueryRows` (docs/REARCH_AOT_ABI.md §2.1, §2.2).
- * Exported because THREE things count them — the host below, the code generator,
- * and the handshake hash — and a contract whose field count has three authors
- * is the drift this file exists to prevent. §6.3 makes the first of these a
- * number that needs a reason to grow.
+ * Exported because three things count them — this host, the code generator and
+ * the handshake hash — and a field count with three authors is the drift this
+ * file prevents. §6.3 makes the first a number that needs a reason to grow.
  */
 export const SYSCTX_WORDS = 6;
 export const QUERYROWS_WORDS = 2;
@@ -98,13 +97,10 @@ export class AbiMemory {
     }
 
     /**
-     * Reset the arena the host refills before every call. Row arrays and the
-     * SysCtx itself live here because §2.2 says they are valid for one call and
-     * the compiled code may not hold them; giving them a region that is thrown
-     * away each time is how that is enforced rather than merely stated.
-     *
-     * It grows DOWN from the end of the image while world data grows up, so the
-     * two allocators cannot silently overlap — they meet, and `alloc` says so.
+     * Reset the arena the host refills each call. §2.2 gives row arrays and the
+     * SysCtx a one-call lifetime, and a region thrown away each time ENFORCES
+     * that rather than restating it. It grows down from the end of the image
+     * while world data grows up, so an overlap is caught by `alloc`, not silent.
      */
     beginCall(): void {
         this.scratchNext = this.buffer.byteLength;
@@ -230,13 +226,10 @@ export interface AbiCall {
 }
 
 /**
- * Do the host's half of §2.1: pack the rows, resolve the resource addresses,
- * zero the count, and write the SysCtx. Everything the compiled code will read
- * is in linear memory when this returns, and it is the ONLY thing there for it.
- *
- * Row materialisation follows the strategy `View.hpp` already uses — walk the
- * entities, keep the ones carrying every named component. The ABI exposes the
- * existing strategy rather than inventing a second one.
+ * The host's half of §2.1: pack the rows, resolve the resource addresses, zero
+ * the count, write the SysCtx. When it returns, linear memory holds everything
+ * the compiled code reads and nothing else it may reach. Rows are materialised
+ * the way `View.hpp` already does — existing strategy, not a second one.
  */
 export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     mem.beginCall();
@@ -274,12 +267,9 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
 
 /**
  * The host a compiled system sees, reaching the world through NOTHING but the
- * ctx `materialize` wrote. Every field access below is a load or store at a
- * declared offset, and there is no engine call to make.
- *
- * It reads the packed row array rather than re-deriving the rows, so that the
- * interpreter and the generated C consume the same bytes. A host that walked
- * `mem.entities` again would agree with the compiled code only by coincidence.
+ * ctx `materialize` wrote. It reads the packed row array rather than re-deriving
+ * the rows, so the interpreter and the generated C consume the same bytes: a
+ * host that walked `mem.entities` again would agree only by coincidence.
  */
 export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: AbiCall): EirHost {
     const leafAt = (owner: string, path: readonly string[]): Leaf => {
@@ -361,12 +351,10 @@ export function runOnAbi(sys: EirSystem, mem: AbiMemory, layout: AbiLayout, fns:
 }
 
 /**
- * The handshake constant of §2.5: EHT's component offsets, the shape of the
- * three structs, and every system's parameter order, in one 64-bit number the
- * loader compares before it maps anything. A mismatch is not a wrong answer —
- * it is a read of a DIFFERENT FIELD — so this is refused, not warned about.
- *
- * FNV-1a, as `mkbc` and the asset hashes already use; not a new mechanism.
+ * The §2.5 handshake: EHT's offsets, the shape of the three structs, and every
+ * system's parameter order, in one number the loader compares before it maps
+ * anything. A mismatch is a read of a DIFFERENT FIELD, not a wrong answer, so it
+ * is refused. FNV-1a, as `mkbc` and the asset hashes use; not a new mechanism.
  */
 export function abiHash(layout: AbiLayout, plans: readonly SysPlan[]): string {
     const parts: string[] = [

@@ -68,12 +68,10 @@ const TIME: CompShape = {
 };
 
 /**
- * A stamp over EHT's table, for the §2.5 handshake. It hashes the OFFSETS
- * themselves rather than importing `ABI_LAYOUT_HASH`, for two reasons: that
- * constant lives in `component.generated.ts`, whose imports reach the whole SDK
- * runtime and would make the compiler depend on it; and the raw table is
- * strictly more information than a hash of it. Same property either way — it
- * changes when the C++ structs change, which is the only thing asked of it.
+ * EHT's table, flattened for the §2.5 handshake. It stamps the OFFSETS rather
+ * than importing `ABI_LAYOUT_HASH`: that constant lives in
+ * `component.generated.ts`, whose imports reach the whole SDK runtime. The raw
+ * table is more information than a hash of it, and changes for the same reason.
  */
 export function ehtStamp(): string {
     const parts: string[] = [];
