@@ -120,7 +120,10 @@ async function loadPipeline(entry, outName) {
     format: 'esm',
     platform: 'node',
     target: 'node20',
-    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf',
+    // typescript is CommonJS that probes `__filename`, which an ESM bundle does
+    // not have: bundling it throws at load, for EVERY export rather than only
+    // one that compiles a system.
+    external: ['esbuild', 'typescript', 'electron', 'sharp', 'draco3dgltf',
       '../../../build-tools/basis/encoder.mjs', '../../../build-tools/ufbx/reader.mjs'],
     logLevel: 'error',
     banner: {
