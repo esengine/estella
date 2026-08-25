@@ -10,7 +10,7 @@ import { ComponentDef } from './component';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from '../util/validation';
 import { log } from '../util/logger';
 import { reorderMapByRank, type RankOf } from './entityOrder';
-import { ScriptPool, poolShape } from './ScriptPool';
+import { ScriptPool, poolShape, HEAP_MEMORY, type PoolMemory } from './ScriptPool';
 
 export interface InsertResult<T> {
     value: T;
@@ -27,6 +27,19 @@ export class ScriptStorage {
      * object has no address (docs/REARCH_AOT_ABI.md §2.4).
      */
     private pools_ = new Map<symbol, ScriptPool>();
+    private poolMemory_: PoolMemory = HEAP_MEMORY;
+
+    /**
+     * @internal Where pools allocate from. A wasm runtime installs one backed by
+     * linear memory before any component is added, because compiled code cannot
+     * reach a JS-heap array; a native one leaves the default.
+     */
+    usePoolMemory(memory: PoolMemory): void {
+        if (this.pools_.size > 0) {
+            throw new Error('ScriptPool memory must be chosen before the first pooled component');
+        }
+        this.poolMemory_ = memory;
+    }
 
     /** @internal The rows behind `component`, or undefined if it has none. */
     poolFor(id: symbol): ScriptPool | undefined {
@@ -44,7 +57,7 @@ export class ScriptStorage {
         if (this.notPooled_.has(component._id)) return null;
         const fields = poolShape(component._default);
         if (!fields) { this.notPooled_.add(component._id); return null; }
-        const pool = new ScriptPool(fields);
+        const pool = new ScriptPool(fields, 64, this.poolMemory_);
         this.pools_.set(component._id, pool);
         return pool;
     }

@@ -11,7 +11,7 @@
  *          component still reads and writes as an object.
  */
 import { describe, it, expect } from 'vitest';
-import { ScriptPool, poolShape, POOL_SLOT_BYTES } from '../src/ecs/ScriptPool';
+import { ScriptPool, poolShape, POOL_SLOT_BYTES, HEAP_MEMORY, type PoolMemory } from '../src/ecs/ScriptPool';
 import type { Entity } from '../src/types';
 
 const e = (n: number): Entity => n as unknown as Entity;
@@ -126,5 +126,69 @@ describe('a row, and the view onto it', () => {
         expect([...pool.buffer.slice(0, 16)].filter((_, k) => k % 4 === 0))
             .toEqual([10, 20, 30, 40]);
         expect(pool.baseOf(e(3))! - pool.baseOf(e(2))!).toBe(pool.stride);
+    });
+});
+
+/**
+ * A wasm host cannot let a pool allocate on the JS heap: compiled code inside
+ * the module has no way to reach it. So the rows come out of one block the host
+ * owns, and an address is an offset into THAT.
+ */
+describe('rows carved out of a host-owned block', () => {
+    /** Stands in for the wasm heap: one buffer, a bump pointer, nothing freed. */
+    function heapOf(bytes: number): { memory: PoolMemory; all: Float64Array; used: () => number } {
+        const all = new Float64Array(bytes / POOL_SLOT_BYTES);
+        let at = 8;   // a nonzero start, so an address that forgot byteOffset is wrong
+        return {
+            all,
+            used: () => at,
+            memory: {
+                alloc(slots) {
+                    const view = new Float64Array(all.buffer, at * POOL_SLOT_BYTES, slots);
+                    at += slots;
+                    return view;
+                },
+                release: () => { /* a bump allocator frees nothing */ },
+            },
+        };
+    }
+
+    it('an address is an offset into the block, not into the pool', () => {
+        const heap = heapOf(1 << 16);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, heap.memory);
+        pool.put(e(1), DEFAULTS, { speed: 11 });
+        pool.put(e(2), DEFAULTS, { speed: 22 });
+
+        // baseOf is where the row is inside the pool; address is where it is in
+        // the memory a host would hand to compiled code.
+        expect(pool.baseOf(e(2))).toBe(pool.stride);
+        expect(pool.address(e(2))).toBe(pool.buffer.byteOffset + pool.stride);
+        expect(pool.address(e(2))).toBeGreaterThan(pool.baseOf(e(2))!);
+
+        // Read the field back through the BLOCK at that address, which is what
+        // the compiled code does.
+        for (const [entity, want] of [[1, 11], [2, 22]] as const) {
+            const at = pool.address(e(entity))! / POOL_SLOT_BYTES;
+            expect(heap.all[at], `entity ${entity} speed`).toBe(want);
+        }
+    });
+
+    it('growing moves the rows, and the addresses move with them', () => {
+        const heap = heapOf(1 << 16);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 2, heap.memory);
+        for (let i = 1; i <= 12; i++) pool.put(e(i), DEFAULTS, { speed: i });
+        expect(heap.used()).toBeGreaterThan(8);
+
+        for (let i = 1; i <= 12; i++) {
+            const at = pool.address(e(i))! / POOL_SLOT_BYTES;
+            expect(heap.all[at], `entity ${i} after growth`).toBe(i);
+        }
+    });
+
+    it('the default keeps the rows on the JS heap, where native wants them', () => {
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 4, HEAP_MEMORY);
+        pool.put(e(1), DEFAULTS);
+        expect(pool.buffer.byteOffset).toBe(0);
+        expect(pool.address(e(1))).toBe(pool.baseOf(e(1)));
     });
 });

@@ -35,6 +35,25 @@ export interface PoolField {
 export const POOL_SLOT_BYTES = 8;
 
 /**
+ * Where a pool's rows are allocated FROM. The default is a plain array, which
+ * suits a native host: same process, real address. A wasm host must pass one
+ * carved out of linear memory, because compiled code inside the module cannot
+ * reach a JS-heap array — and unreachable is what rows exist to stop being.
+ */
+export interface PoolMemory {
+    /** A view of `slots` doubles the pool may keep. */
+    alloc(slots: number): Float64Array;
+    /** A view the pool has finished with. */
+    release(view: Float64Array): void;
+}
+
+/** Rows on the JS heap: right for native, useless to a wasm module. */
+export const HEAP_MEMORY: PoolMemory = {
+    alloc: (slots) => new Float64Array(slots),
+    release: () => { /* the collector owns it */ },
+};
+
+/**
  * The fields a pool can back, or null when the defaults are not all scalars.
  * Anything else — a string, an asset ref, a nested object, an array — has no
  * fixed-width encoding, and a component holding one keeps the JS object path.
@@ -68,11 +87,15 @@ export class ScriptPool {
     private readonly free_: number[] = [];
     private next_ = 0;
 
-    constructor(fields: readonly PoolField[], capacity = 64) {
+    constructor(
+        fields: readonly PoolField[],
+        capacity = 64,
+        private readonly memory_: PoolMemory = HEAP_MEMORY,
+    ) {
         this.fields = fields;
         this.stride = fields.length * POOL_SLOT_BYTES;
         this.capacity_ = Math.max(1, capacity);
-        this.slots_ = new Float64Array(this.capacity_ * fields.length);
+        this.slots_ = memory_.alloc(this.capacity_ * fields.length);
     }
 
     /** The backing store. Its byteOffset moves when the pool grows, so an
@@ -85,10 +108,21 @@ export class ScriptPool {
         return this.slotOf_.size;
     }
 
-    /** Byte offset of `entity`'s row inside `buffer`, for a host to hand over. */
+    /** Byte offset of `entity`'s row inside `buffer`. */
     baseOf(entity: Entity): number | undefined {
         const slot = this.slotOf_.get(entity);
         return slot === undefined ? undefined : slot * this.stride;
+    }
+
+    /**
+     * The address a host hands to compiled code: the row's offset in the memory
+     * the pool allocated from, not in the pool's own view. The two differ by
+     * `byteOffset` once the rows are carved out of a larger block. Valid until
+     * the next growth, which §2.2 requires anyway.
+     */
+    address(entity: Entity): number | undefined {
+        const base = this.baseOf(entity);
+        return base === undefined ? undefined : this.slots_.byteOffset + base;
     }
 
     has(entity: Entity): boolean {
@@ -145,9 +179,11 @@ export class ScriptPool {
 
     private grow_(): void {
         this.capacity_ *= 2;
-        const wider = new Float64Array(this.capacity_ * this.fields.length);
+        const wider = this.memory_.alloc(this.capacity_ * this.fields.length);
         wider.set(this.slots_);
+        const old = this.slots_;
         this.slots_ = wider;
+        this.memory_.release(old);
         // Views hold a slot index, not a reference into the old array, so they
         // survive this. An ADDRESS taken before it does not, which is why
         // `baseOf` says so.
