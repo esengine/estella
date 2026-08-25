@@ -50,6 +50,12 @@ export interface PoolBlock {
 export interface PoolMemory {
     alloc(bytes: number): PoolBlock;
     release(block: PoolBlock): void;
+    /**
+     * The block's buffer as it is NOW. A wasm heap that grows DETACHES the one
+     * handed out at `alloc` while the bytes stay at the same offset, so a pool
+     * that held the old object would read undefined and never say why.
+     */
+    current?(block: PoolBlock): ArrayBufferLike;
 }
 
 /** Storage on the JS heap: right for native, useless to a wasm module. */
@@ -135,6 +141,25 @@ export class ScriptPool {
     /** The sparse table itself, for a host that reads it in this address space. */
     get sparseTable(): Uint32Array {
         return this.sparse_;
+    }
+
+    /**
+     * Rebuild the views over whatever buffer the blocks are in now: a grown wasm
+     * heap leaves the bytes at the same offsets but detaches every view of the
+     * old ArrayBuffer. Cheap and idempotent, so call it when unsure — the
+     * per-entity views read `slots_` on access and need no rebuild.
+     */
+    refresh(): void {
+        const rows = this.memory_.current?.(this.rows_);
+        if (rows && rows !== this.slots_.buffer) {
+            this.slots_ = new Float64Array(rows, this.rows_.byteOffset,
+                this.capacity_ * this.fields.length);
+        }
+        const sparse = this.memory_.current?.(this.sparseBlock_);
+        if (sparse && sparse !== this.sparse_.buffer) {
+            this.sparse_ = new Uint32Array(sparse, this.sparseBlock_.byteOffset,
+                this.sparse_.length);
+        }
     }
 
     /** The rows themselves. Its byteOffset moves when the pool grows, so an
@@ -226,12 +251,16 @@ export class ScriptPool {
     }
 
     private growRows_(): void {
-        this.capacity_ *= 2;
-        const block = this.memory_.alloc(this.capacity_ * this.stride);
+        const want = this.capacity_ * 2;
+        const block = this.memory_.alloc(want * this.stride);
+        // Before reading the old rows, not after: allocating may have grown the
+        // heap, and a grown heap detaches the view this is about to copy FROM.
+        this.refresh();
         const wider = new Float64Array(block.buffer, block.byteOffset,
-            this.capacity_ * this.fields.length);
+            want * this.fields.length);
         wider.set(this.slots_);
         const old = this.rows_;
+        this.capacity_ = want;
         this.rows_ = block;
         this.slots_ = wider;
         this.memory_.release(old);
@@ -250,6 +279,7 @@ export class ScriptPool {
         let size = Math.max(this.sparse_.length * 2, 8);
         while (size < want) size *= 2;
         const block = this.memory_.alloc(size * 4);
+        this.refresh();   // same trap as growRows_: the source may have detached
         const wider = new Uint32Array(block.buffer, block.byteOffset, size);
         wider.set(this.sparse_);
         const old = this.sparseBlock_;
