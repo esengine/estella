@@ -380,6 +380,18 @@ export function abiHash(layout: AbiLayout, plans: readonly SysPlan[]): string {
     return fnv1a64(parts.join('\n'));
 }
 
+/**
+ * The constant the artifact actually exports, for a host that has to compare.
+ * `addrBytes` is `sizeof(es_addr_t)` on the side doing the comparing — 4 where
+ * an address is an offset into one block, 8 where it is a real pointer.
+ */
+export function abiHashFor(contract: string, addrBytes: 4 | 8): string {
+    const MASK = (1n << 64n) - 1n;
+    const mixed = (BigInt(contract.padStart(16, '0').replace(/^/, '0x'))
+        ^ ((0x9e3779b97f4a7c15n * BigInt(addrBytes)) & MASK)) & MASK;
+    return mixed.toString(16).padStart(16, '0');
+}
+
 function fnv1a64(text: string): string {
     const MASK = (1n << 64n) - 1n;
     let h = 0xcbf29ce484222325n;

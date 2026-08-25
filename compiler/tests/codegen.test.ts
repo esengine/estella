@@ -40,6 +40,7 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { AbiMemory, flushCommands, materialize, packLayout, planFor, runOnAbi } from '../src/abi';
 import { CFLAGS, cSymbol, emitC, type CModule } from '../src/codegen';
+import { abiHashFor } from '../src/abi';
 import type { AbiLayout } from '../src/abi';
 import type { EirSystem } from '../src/eir';
 import type { Row } from '../src/interp';
@@ -85,32 +86,97 @@ const MAIN_C = `/* Test scaffolding, not compiler output. */
 #endif
 #include "estella_abi.h"
 
+#if defined(ES_ADDR_BASE)
 unsigned char *es_memory;
+#endif
 
-void ES_ENTRY(uint32_t ctx);
+void ES_ENTRY(es_addr_t ctx);
+
+static unsigned char *img;
+
+#if !defined(ES_ADDR_BASE)
+static uint32_t rd32(uint32_t off) { uint32_t v; memcpy(&v, img + off, 4); return v; }
+
+/*
+ * The other address model: the image carries a ctx of OFFSETS, and this rebuilds
+ * it out of real pointers. Every write the system makes still lands inside the
+ * image, which is what makes the two models comparable byte for byte.
+ */
+static es_addr_t at(uint32_t off) { return (es_addr_t)(uintptr_t)(img + off); }
+
+static es_addr_t relocate(uint32_t ctxOff, int nq, const int *comps, int nres) {
+    static EsSysCtx c;
+    EsQueryRows *qs = (EsQueryRows *)calloc((size_t)(nq > 0 ? nq : 1), sizeof(EsQueryRows));
+    es_addr_t *res = (es_addr_t *)calloc((size_t)(nres > 0 ? nres : 1), sizeof(es_addr_t));
+    uint32_t qOff = rd32(ctxOff);
+    uint32_t rOff = rd32(ctxOff + 4u);
+    int k, j;
+    for (k = 0; k < nq; ++k) {
+        uint32_t rowsOff = rd32(qOff + (uint32_t)(k * 2) * 4u);
+        uint32_t count = rd32(qOff + (uint32_t)(k * 2 + 1) * 4u);
+        uint32_t stride = (uint32_t)comps[k] + 1u;
+        uint32_t n = count * stride, i;
+        es_addr_t *rows = (es_addr_t *)calloc(n > 0 ? n : 1, sizeof(es_addr_t));
+        for (i = 0; i < n; ++i) {
+            uint32_t w = rd32(rowsOff + i * 4u);
+            /* Slot 0 of a row is an entity id, not an address. */
+            rows[i] = (i % stride == 0u) ? (es_addr_t)w : at(w);
+        }
+        qs[k].rows = (es_addr_t)(uintptr_t)rows;
+        qs[k].count = count;
+    }
+    for (j = 0; j < nres; ++j) res[j] = at(rd32(rOff + (uint32_t)j * 4u));
+    c.queries = (es_addr_t)(uintptr_t)qs;
+    c.resources = (es_addr_t)(uintptr_t)res;
+    c.cmdBuf = at(rd32(ctxOff + 8u));
+    c.cmdCap = rd32(ctxOff + 12u);
+    c.cmdCount = at(rd32(ctxOff + 16u));
+    c.events = 0;
+    return (es_addr_t)(uintptr_t)&c;
+}
+#endif
 
 int main(int argc, char **argv) {
     long n;
-    uint32_t ctx;
-    if (argc != 3) { fprintf(stderr, "usage: run <bytes> <ctx>\\n"); return 2; }
+    uint32_t ctxOff;
+    int nq, nres, i;
+    int comps[16];
+    if (argc < 5) { fprintf(stderr, "usage: run <bytes> <ctx> <nres> <nq> [comps...]\\n"); return 2; }
     n = strtol(argv[1], NULL, 10);
-    ctx = (uint32_t)strtoul(argv[2], NULL, 10);
-    es_memory = (unsigned char *)malloc((size_t)n);
-    if (!es_memory) return 3;
+    ctxOff = (uint32_t)strtoul(argv[2], NULL, 10);
+    nres = (int)strtol(argv[3], NULL, 10);
+    nq = (int)strtol(argv[4], NULL, 10);
+    if (nq > 16 || argc < 5 + nq) { fprintf(stderr, "too many queries\\n"); return 6; }
+    for (i = 0; i < nq; ++i) comps[i] = (int)strtol(argv[5 + i], NULL, 10);
+    img = (unsigned char *)malloc((size_t)n);
+    if (!img) return 3;
 #if defined(_WIN32)
     /* Text mode would insert a 0x0d before every 0x0a in the image. */
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
 #endif
-    if (fread(es_memory, 1, (size_t)n, stdin) != (size_t)n) return 4;
-    ES_ENTRY(ctx);
-    if (fwrite(es_memory, 1, (size_t)n, stdout) != (size_t)n) return 5;
+    if (fread(img, 1, (size_t)n, stdin) != (size_t)n) return 4;
+#if defined(ES_ADDR_BASE)
+    es_memory = img;
+    (void)nres; (void)nq; (void)comps;
+    ES_ENTRY((es_addr_t)ctxOff);
+#else
+    ES_ENTRY(relocate(ctxOff, nq, comps, nres));
+#endif
+    if (fwrite(img, 1, (size_t)n, stdout) != (size_t)n) return 5;
     return 0;
 }
 `;
 
-/** Build one executable per system; the entry symbol is a -D, so main is shared. */
-function build(dir: string, cModule: CModule, symbol: string): string {
+/**
+ * One executable per system. The entry symbol is a -D so main is shared, and so
+ * is the address model: `offset` is a host that owns one block (a wasm2c
+ * deployment, §5), `pointer` is one that hands over real addresses (the C++
+ * engine). Same generated source, compiled twice.
+ */
+type Addressing = 'offset' | 'pointer';
+
+function build(dir: string, cModule: CModule, symbol: string, how: Addressing = 'offset'): string {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'estella_abi.h'), cModule.header);
     writeFileSync(join(dir, 'systems.c'), cModule.source);
@@ -118,6 +184,7 @@ function build(dir: string, cModule: CModule, symbol: string): string {
     const exe = join(dir, `${symbol}${process.platform === 'win32' ? '.exe' : ''}`);
     const out = spawnSync(CC!, [
         ...CFLAGS, '-Wall', '-Wextra',
+        ...(how === 'offset' ? ['-DES_ADDR_BASE'] : []),
         `-DES_ENTRY=${symbol}`,
         '-o', exe,
         join(dir, 'main.c'), join(dir, 'systems.c'),
@@ -132,9 +199,17 @@ function build(dir: string, cModule: CModule, symbol: string): string {
 
 /** One call of the contract: materialise, run the compiled code, flush. */
 function frameOfC(exe: string, mem: AbiMemory, sys: EirSystem): void {
-    const call = materialize(mem, planFor(sys));
+    const plan = planFor(sys);
+    const call = materialize(mem, plan);
     const image = Buffer.from(mem.buffer);
-    const out = execFileSync(exe, [String(image.length), String(call.ctx)], {
+    // The shape of the ctx, which a pointer-addressing host needs in order to
+    // rebuild it. A real host knows this from the system it is calling.
+    const shape = [
+        String(plan.resources.length),
+        String(plan.queries.length),
+        ...plan.queries.map((q) => String(q.length)),
+    ];
+    const out = execFileSync(exe, [String(image.length), String(call.ctx), ...shape], {
         input: image,
         maxBuffer: image.length * 2 + (1 << 16),
     });
@@ -340,6 +415,26 @@ describe('the emitted C says what the interpreter says', () => {
         }
     });
 
+    it('the same source addressed as pointers gives the same image', () => {
+        // Why the address is a machine property: the C++ engine hands over
+        // 64-bit component pointers, which no 32-bit offset can name. Compiling
+        // the SAME file both ways makes that claim checkable.
+        const move = systemOf(shipped, 'MoveSystem');
+        const layout = packLayout(shipped.module.comps);
+        const c = emitC(shipped.module, layout, [move]);
+        const byOffset = build(join(tmp, 'addr-off'), c, cSymbol('MoveSystem'), 'offset');
+        const byPointer = build(join(tmp, 'addr-ptr'), c, cSymbol('MoveSystem'), 'pointer');
+
+        const a = movedWorld(layout);
+        const b = movedWorld(layout);
+        for (let f = 0; f < FRAMES; f++) {
+            frameOfC(byOffset, a, move);
+            frameOfC(byPointer, b, move);
+            expect(same(a, b), `address models diverged at frame ${f}`).toBe(true);
+        }
+        expect(same(a, movedWorld(layout)), 'nothing moved, so agreeing proves nothing').toBe(false);
+    });
+
     it('the object file has nothing to import but the memory it lives in', () => {
         const layout = packLayout(shipped.module.comps);
         const cModule = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
@@ -365,6 +460,8 @@ describe('the emitted C says what the interpreter says', () => {
             .filter((l) => /\s[Uu]\s/.test(l))
             .map((l) => l.trim().split(/\s+/).pop()!)
             .filter((s) => s !== 'es_memory');
+        // Compiled WITHOUT ES_ADDR_BASE, so there is not even a memory base to
+        // resolve: an address is a pointer and the object file is closed.
         expect(undef, 'a compiled system may not call the engine').toEqual([]);
     });
 
@@ -372,12 +469,49 @@ describe('the emitted C says what the interpreter says', () => {
         const layout = packLayout(shipped.module.comps);
         const move = systemOf(shipped, 'MoveSystem');
         const a = emitC(shipped.module, layout, [move]);
-        expect(a.source).toContain(`0x${a.hash}ULL`);
+        expect(a.source).toContain(`#define ES_ABI_CONTRACT_HASH 0x${a.hash}ULL`);
 
         // The same system with its parameters swapped reads the ctx tables in
         // the other order, so the loader has to refuse it. §2.5.
         const swapped: EirSystem = { ...move, params: [...move.params].reverse() };
         expect(emitC(shipped.module, layout, [swapped]).hash).not.toBe(a.hash);
+    });
+
+    it('what the artifact exports is what a host computes, at both widths', () => {
+        // The C compiler folds it out of the contract hash and its own
+        // sizeof(es_addr_t), so ask one for both widths and compare against the
+        // TS side a loader would use.
+        const layout = packLayout(shipped.module.comps);
+        const c = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
+        const dir = join(tmp, 'handshake');
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'estella_abi.h'), c.header);
+        writeFileSync(join(dir, 'systems.c'), c.source);
+        writeFileSync(join(dir, 'main.c'), [
+            '#include <stdio.h>',
+            '#include "estella_abi.h"',
+            'extern const uint64_t es_abi_hash;',
+            '#if defined(ES_ADDR_BASE)',
+            'unsigned char *es_memory;',
+            '#endif',
+            'int main(void) {',
+            '    printf("%016llx %d\\n", (unsigned long long)es_abi_hash, (int)sizeof(es_addr_t));',
+            '    return 0;',
+            '}',
+        ].join('\n'));
+
+        for (const [flags, bytes] of [[['-DES_ADDR_BASE'], 4], [[], 8]] as const) {
+            const exe = join(dir, `h${bytes}${process.platform === 'win32' ? '.exe' : ''}`);
+            const built = spawnSync(CC!, [...CFLAGS, '-Wall', '-Wextra', ...flags, '-o', exe,
+                join(dir, 'main.c'), join(dir, 'systems.c'), '-lm'], { encoding: 'utf8' });
+            expect(built.status, built.stderr).toBe(0);
+            expect(built.stderr.trim()).toBe('');
+            const [got, width] = execFileSync(exe, { encoding: 'utf8' }).trim().split(' ');
+            // 8 only where the platform's pointers are; a 32-bit host would say 4
+            // and the assertion below would then be about the width it really has.
+            expect(abiHashFor(c.hash, Number(width) as 4 | 8)).toBe(got);
+            if (flags.length > 0) expect(Number(width)).toBe(bytes);
+        }
     });
 
     it('a component field is one load at a constant offset', () => {
