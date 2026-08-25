@@ -112,6 +112,7 @@ export class AotContext {
         w[5] = 0;                            // events: no channel carries one yet
         this.countAt_ = countAt;
         this.cmdAt_ = cmdBuf;
+        this.address_ = base;
         return base;
     }
 
@@ -130,6 +131,12 @@ export class AotContext {
 
     private countAt_ = 0;
     private cmdAt_ = 0;
+    private address_ = 0;
+
+    /** The ctx `build` last laid out. */
+    get address(): number {
+        return this.address_;
+    }
 
     private reserve_(words: number): void {
         if (this.block !== null && words * 4 <= this.block.byteLength) {

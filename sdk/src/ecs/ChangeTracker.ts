@@ -87,6 +87,15 @@ export class ChangeTracker {
         map.set(entity, this.worldTick_);
     }
 
+    /**
+     * Whether anything is asking about this component's changes. `recordChanged`
+     * self-gates on the same answer; this exists so a caller marking a whole
+     * query's worth of entities can ask ONCE instead of per entity.
+     */
+    isTracked(component: AnyComponentDef): boolean {
+        return this.trackedComponents_.has(component._id);
+    }
+
     recordChanged(component: AnyComponentDef, entity: Entity): void {
         if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentChangedTicks_.get(component._id);

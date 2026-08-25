@@ -11,6 +11,7 @@ import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
+import type { PoolMemory } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
@@ -1155,5 +1156,29 @@ export class World {
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void {
         this.changes_.recordChanged(component, entity);
+    }
+
+    /** @internal Whether any query is asking about `component`'s changes. */
+    isChangeTracked(component: AnyComponentDef): boolean {
+        return this.changes_.isTracked(component);
+    }
+
+    /**
+     * @internal Where script-component rows are allocated from. A wasm runtime
+     * installs linear memory here BEFORE any component is added, because
+     * compiled code cannot reach a JS-heap array (docs/REARCH_AOT_ABI.md §2.4).
+     */
+    useScriptPoolMemory(memory: PoolMemory): void {
+        this.scripts_.usePoolMemory(memory);
+    }
+
+    /**
+     * @internal `component`'s bytes for `entity`, in the memory the pool was
+     * allocated from — what a compiled system is handed. Undefined for a
+     * component with no flat rows, which is a component no system compiles
+     * against.
+     */
+    addressOfScriptComponent(component: AnyComponentDef, entity: Entity): number | undefined {
+        return this.scripts_.poolFor(component._id as symbol)?.address(entity);
     }
 }

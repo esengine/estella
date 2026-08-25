@@ -7897,6 +7897,7 @@ touches: SystemTouches | (() => SystemTouches) | undefined
 
 ## SystemRunner — class @experimental
 ```
+@internal useAot: (runtime: AotRuntime | null) => void
 clearTimings: () => void
 evict: (systemId: symbol) => void
 getQueryCosts: () => ReadonlyMap<string, QueryCost> | null
@@ -9496,6 +9497,7 @@ tabIndex: number | undefined
 
 ## World — class @public
 ```
+@internal addressOfScriptComponent: (component: AnyComponentDef, entity: Entity) => number | undefined
 @internal advanceTick: () => void
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void
@@ -9516,6 +9518,7 @@ tabIndex: number | undefined
 @internal getWorldVersion: () => number
 @internal hasCpp: boolean
 @internal isAddedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
+@internal isChangeTracked: (component: AnyComponentDef) => boolean
 @internal isChangedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
 @internal isIterating: () => boolean
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
@@ -9531,6 +9534,7 @@ tabIndex: number | undefined
 @internal resumeIteration: (depth: number) => void
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal suspendIteration: () => number
+@internal useScriptPoolMemory: (memory: PoolMemory) => void
 despawn: (entity: Entity) => void
 entityCount: () => number
 findEntityByName: (name: string) => Entity | null
