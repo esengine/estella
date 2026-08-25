@@ -9,6 +9,7 @@
 #include "../store/LightConstants.hpp"
 #include "../store/ShadowAtlas.hpp"
 #include "../graph/TargetPool.hpp"
+#include "../graph/RenderGraph.hpp"
 #include "../RenderTypePlugin.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "./PostProcessPipeline.hpp"
@@ -360,6 +361,8 @@ private:
      *          of it is ShadowAtlas's answer rather than the light type's.
      */
     void renderShadowMap(ecs::Registry& registry);
+    /// The scene pass's body: the draw, and the constants it needs current.
+    void drawScene();
     /// Gives back every target this frame borrowed from {@link target_pool_}.
     void releaseFrameTargets();
 
@@ -411,6 +414,18 @@ private:
     /// frame is done with them — shared with the post chains, which is what lets
     /// the atlas be a loan rather than a framebuffer held for the whole run.
     rg::TargetPool target_pool_;
+    /// Every pass a frame runs, declared in one place and executed in end():
+    /// the scene, and the post chains that read it. One per CAMERA, which is
+    /// what a chain has always been — begin() opens it, end() runs it.
+    rg::RenderGraph graph_;
+    /// What the scene draws into, declared at begin(): the post capture when a
+    /// chain is engaged, the frame's own target otherwise.
+    rg::ResourceId scene_resource_ = rg::kNoResource;
+    /// The framebuffer behind it, bound eagerly so a host draw between calls
+    /// (the editor's grid) lands in the scene rather than on the screen.
+    FramebufferHandle scene_fbo_ = FramebufferHandle::Default;
+    /// The camera's rect within its target; the scene pass carries it.
+    GfxDevice::Viewport scene_viewport_{};
     /// The atlas this frame borrowed, released at end(). kNoTarget = none.
     rg::TargetHandle shadow_target_ = rg::kNoTarget;
     /// Who owns which square of it. Rebuilt every frame: a tile means nothing once

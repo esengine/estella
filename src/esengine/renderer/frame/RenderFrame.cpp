@@ -120,7 +120,8 @@ RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context,
     , context_(context)
     , resource_manager_(resource_manager)
     , pool_(device)
-    , target_pool_(device) {
+    , target_pool_(device)
+    , graph_(device, target_pool_) {
     target_manager_.setDevice(device);
 }
 
@@ -141,7 +142,7 @@ void RenderFrame::init(u32 width, u32 height) {
 
 #ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_,
-                                                    target_pool_);
+                                                    graph_);
     post_process_->setLinearOutput(linear_color_);
     // The requirement may have been declared before the pipeline existed (a depth
     // layer arrives with the project, init happens on the first frame) — and until
@@ -230,6 +231,31 @@ void RenderFrame::resize(u32 width, u32 height) {
 #endif
 }
 
+// The scene pass's body. The graph has bound the target and set the camera's
+// viewport; this is the draw and the constants it needs current.
+void RenderFrame::drawScene() {
+    context_.updateCameraConstants(view_projection_);
+    // Here and not in flush(): the shadow pass runs before this one and decides
+    // which atlas tile each light reads, so the block has to go up after it.
+    context_.lights().uploadAndBind();
+
+    gpu_timer_.poll(device_);
+    {
+        ES_PROFILE_SCOPE("render.submit");
+        gpu_timer_.begin(device_);
+        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
+                           &frame_capture_, context_.skinUbo());
+        gpu_timer_.end(device_);
+    }
+    FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
+
+    // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
+    // from each fullscreen pass's own pipeline, but scissor is dynamic state and
+    // a chain pass would inherit whatever the last scene draw left.
+    device_.invalidatePipelineCache();
+    device_.setScissorTest(false);
+}
+
 // Every target this frame borrowed, given back. Three callers owe it: the end
 // of a frame, a device loss, and shutdown.
 void RenderFrame::releaseFrameTargets() {
@@ -295,11 +321,25 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     clip_state_.clear();
 
     openPass(clear, target);
+
+    // What the scene pass writes. With a chain engaged the capture is already a
+    // graph resource (the pipeline declared it when it opened); without one the
+    // frame's own target is imported, and the graph culls back from it.
+    scene_resource_ = rg::kNoResource;
+#ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_ && post_process_->isEngaged()) {
+        scene_resource_ = post_process_->sceneResource();
+    }
+#endif
+    if (scene_resource_ == rg::kNoResource) {
+        graph_.begin(width_, height_);
+        scene_resource_ = graph_.importTarget(scene_fbo_, width_, height_);
+    }
 }
 
-// Opening the frame's target: the load-op clear, the post-process capture when one is
-// engaged, the default surface otherwise. Its own method because the shadow pass draws
-// through a target of its own and has to hand this one back when it is done.
+// Opening the frame's target: the load-op clear, the post-process capture when
+// one is engaged, the default surface otherwise. Bound EAGERLY, before the graph
+// runs, so a host draw between this call and end() lands in the scene.
 void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle target) {
 #ifdef ES_ENABLE_POSTPROCESS
     const bool usePostProcess = post_process_ && post_process_->isEngaged();
@@ -338,7 +378,7 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
         // began the capture (renderCamera drives pp.begin first) this no-ops.
         post_process_->begin(pass.clearColorValue);
         // Then BIND it, clear or no clear: this is where the frame gets its target
-        // back after the shadow pass drew through one of its own. Skipping that for
+        // back after the shadow pass drew through one of its own. Skipping it for
         // a camera with nothing to clear left the atlas current — a black frame.
         pass.target = post_process_->currentSceneFBO();
         device_.beginRenderPass(pass);
@@ -358,6 +398,11 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
 #endif
         device_.beginRenderPass(pass);
     }
+
+    // What the scene pass will draw into. Bound already, because a host draw
+    // between this call and the graph's run (the editor's grid) has to land in
+    // the scene; the pass re-opens it with a load, so that work survives.
+    scene_fbo_ = pass.target;
 }
 
 void RenderFrame::flush() {
@@ -374,25 +419,18 @@ void RenderFrame::flush() {
     device_.invalidatePipelineCache();
 
     // finalize() sorts + coalesces and rewrites per-vertex texIndex into the staging, so it
-    // must run before upload() ships that staging to the GPU.
+    // must run before upload() ships that staging to the GPU. Both stay here rather
+    // than riding the pass: the counters below read what finalize decided, and the
+    // host asks for them before the graph has run.
     {
         ES_PROFILE_SCOPE("render.finalize");
         draw_list_.finalize(pool_);
         pool_.upload();
     }
 
-    context_.updateCameraConstants(view_projection_);
-    context_.lights().uploadAndBind();
-
-    gpu_timer_.poll(device_);
-    {
-        ES_PROFILE_SCOPE("render.submit");
-        gpu_timer_.begin(device_);
-        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.skinUbo());
-        gpu_timer_.end(device_);
-    }
-    FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
+    // The rect the scene draws into. Opening a pass resets the viewport, so the
+    // pass carries the camera's own rather than inheriting it.
+    scene_viewport_ = device_.viewport();
 
     stats_.draw_calls = draw_list_.mergedDrawCallCount();
     for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
@@ -452,14 +490,40 @@ void RenderFrame::end() {
     const bool usePostProcess = false;
 #endif
 
+    // Everything this camera draws, declared in one place and run once. The
+    // scene is a pass like the effects that read it: the graph binds its target,
+    // sets the camera's rect and calls drawScene.
+    if (scene_resource_ != rg::kNoResource) {
+        rg::PassDesc scene;
+        scene.name = "scene";
+        scene.write = scene_resource_;
+        scene.viewportX = static_cast<u32>(std::max(scene_viewport_.x, 0));
+        scene.viewportY = static_cast<u32>(std::max(scene_viewport_.y, 0));
+        scene.viewportW = scene_viewport_.w;
+        scene.viewportH = scene_viewport_.h;
+        scene.execute = [this](const rg::PassContext&) { drawScene(); };
+        graph_.addPass(std::move(scene));
+    }
+
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
-        ES_PROFILE_SCOPE("render.postprocess");
+        post_process_->declareChain();
+#endif
+    }
+
+    {
+        ES_PROFILE_SCOPE("render.graph");
         gpu_timer_pp_.poll(device_);
         gpu_timer_pp_.begin(device_);
-        post_process_->end();
+        graph_.execute();
         gpu_timer_pp_.end(device_);
-        FrameProfiler::get().gpuScope("postprocess", gpu_timer_pp_.lastMs());
+        FrameProfiler::get().gpuScope("graph", gpu_timer_pp_.lastMs());
+    }
+    scene_resource_ = rg::kNoResource;
+
+    if (usePostProcess) {
+#ifdef ES_ENABLE_POSTPROCESS
+        post_process_->chainDone();
 #endif
     } else if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(current_target_);
@@ -468,9 +532,11 @@ void RenderFrame::end() {
         }
     }
 
-    const f32 submitMs = gpu_timer_.lastMs();
-    const f32 ppMs = usePostProcess ? gpu_timer_pp_.lastMs() : 0.0f;
-    stats_.gpu_time_ms = submitMs < 0.0f ? -1.0f : submitMs + (ppMs > 0.0f ? ppMs : 0.0f);
+    // The graph's own time is the whole of it — the scene pass runs inside it, so
+    // adding the submit timer to this would count the scene twice. The submit
+    // timer stays as the scene's own share, published as its gpuScope.
+    const f32 graphMs = gpu_timer_pp_.lastMs();
+    stats_.gpu_time_ms = graphMs < 0.0f ? gpu_timer_.lastMs() : graphMs;
 
     // The frame's pass closes HERE, not at the next begin: a WebGPU backend
     // submits on endRenderPass, and a surface texture acquired this task must

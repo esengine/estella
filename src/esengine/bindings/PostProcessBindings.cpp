@@ -101,8 +101,10 @@ void postprocess_begin() {
 }
 
 void postprocess_end() {
+    // The chain itself ran inside Renderer.end(), declared to the frame's graph
+    // beside the scene pass that feeds it. This closes the capture.
     if (g_postProcessPipeline) {
-        g_postProcessPipeline->end();
+        g_postProcessPipeline->chainDone();
     }
 }
 

@@ -88,6 +88,18 @@ struct PassDesc {
     ResourceId write = kNoResource;
     bool clear = false;
     f32 clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    /**
+     * @brief The rect of its target this pass draws into. Zero width = all of it.
+     *
+     * @details Opening a render pass resets the viewport, so a pass that does
+     *          not cover its whole target has to carry the rect: a fullscreen
+     *          effect always covers its own, a camera's scene covers whatever
+     *          slice of a shared target that camera was given.
+     */
+    u32 viewportX = 0;
+    u32 viewportY = 0;
+    u32 viewportW = 0;
+    u32 viewportH = 0;
     std::function<void(const PassContext&)> execute;
 };
 

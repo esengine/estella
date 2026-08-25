@@ -36,6 +36,26 @@ published separately; it ships inside the editor.
 
 - **`estella.mjs export --minify`**, for the targets whose default it is not.
 
+- **A frame states what it draws in one place, and runs it once.** The scene was
+  not a pass: `openPass` bound a target, `flush` drew into whatever was bound,
+  and `end` ran the post chain through a graph of its own — three places, and a
+  fourth wart where the shadow pass had to hand the frame's target back after
+  drawing through one of its own. The render graph belongs to the FRAME now, not
+  to the post-process pipeline, and the scene is a declared pass on it beside
+  the effects that read it: the graph binds its target, sets the camera's rect,
+  and calls the draw. One `execute()` per camera runs the lot.
+
+  A pass carries its viewport (`PassDesc.viewportW/H`), which a fullscreen effect
+  leaves at zero to mean "all of my target". That is not decoration: opening a
+  render pass resets the viewport, so a scene drawing into one camera's slice of
+  a shared target has to carry the rect rather than inherit it.
+
+  `RenderGraph` compiles unconditionally now rather than behind
+  `ES_ENABLE_POSTPROCESS` — the frame declares its own passes to it whether or
+  not a post stack was built in. The frame's GPU time is the graph's, not the
+  submit timer plus the chain: the scene runs inside the graph, so adding them
+  would have counted it twice.
+
 - **An effect can read the scene's DEPTH.** Nothing could: the depth attachment
   was written every frame and sampled by nothing, and on WebGPU it was not even
   sampleable — `createTexture` gave depth formats `RenderAttachment` alone, with

@@ -80,21 +80,20 @@ struct PostProcessPass {
 class PostProcessPipeline {
 public:
     /**
-     * @brief Builds a pipeline whose chains draw from the frame's target pool.
+     * @brief Builds a pipeline that declares its chains onto the FRAME's graph.
      *
-     * @details The pool is the FRAME's, not a chain's. Every camera's chain and
-     *          the screen stack borrow from the same physical targets, and so
-     *          does whatever the frame holds across them — the shadow atlas.
+     * @details A chain is not a graph of its own: the frame declares the scene
+     *          and the effects that read it to one graph and executes it once,
+     *          so every pass a frame runs is stated in one place.
      */
     PostProcessPipeline(GfxDevice& device, RenderContext& context,
-                        resource::ResourceManager& resourceManager, rg::TargetPool& pool);
+                        resource::ResourceManager& resourceManager, rg::RenderGraph& graph);
 
     /**
-     * @brief Builds one with no frame behind it; its chains get a pool of their own.
+     * @brief Builds one with no frame behind it; it gets a graph of its own.
      *
      * @details The fallback path in the bindings, for a pipeline that exists
-     *          without a RenderFrame having made one. Same terms as
-     *          {@link rg::RenderGraph}'s pool-owning constructor.
+     *          without a RenderFrame having made one.
      */
     PostProcessPipeline(GfxDevice& device, RenderContext& context,
                         resource::ResourceManager& resourceManager);
@@ -172,11 +171,14 @@ public:
      */
     void begin(const f32* clearColor = nullptr);
 
-    /**
-     * @brief Ends and processes all passes
-     * @details Applies all enabled passes and outputs to screen.
-     */
-    void end();
+    /** The graph resource the scene is captured into, for the frame to declare
+     *  its scene pass against. kNoResource when no capture is open. */
+    rg::ResourceId sceneResource() const { return inFrame_ ? sceneResource_ : rg::kNoResource; }
+
+    /** Declares this camera's chain onto the frame's graph. The frame runs it. */
+    void declareChain();
+    /** Closes the capture once the graph has run it. */
+    void chainDone();
 
     /**
      * @brief Checks if pipeline is initialized
@@ -331,9 +333,9 @@ private:
     RenderContext& context_;
     resource::ResourceManager& resourceManager_;
 
-    /// The frame's pool when one was given, null when the graph owns its own.
-    rg::TargetPool* pool_ = nullptr;
-    Unique<rg::RenderGraph> graph_;
+    /// The frame's graph when one was given; `ownedGraph_` otherwise.
+    rg::RenderGraph* graph_ = nullptr;
+    Unique<rg::RenderGraph> ownedGraph_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;

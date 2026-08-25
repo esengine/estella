@@ -189,7 +189,11 @@ void RenderGraph::execute() {
             for (u32 c = 0; c < 4; ++c) rp.clearColorValue[c] = pass.clearColor[c];
         }
         device_.beginRenderPass(rp);
-        device_.setViewport(0, 0, target.width, target.height);
+        if (pass.viewportW > 0 && pass.viewportH > 0) {
+            device_.setViewport(pass.viewportX, pass.viewportY, pass.viewportW, pass.viewportH);
+        } else {
+            device_.setViewport(0, 0, target.width, target.height);
+        }
 
         inputScratch_.clear();
         for (u32 unit = 0; unit < pass.reads.size(); ++unit) {

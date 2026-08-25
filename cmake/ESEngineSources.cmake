@@ -18,9 +18,10 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Buffer.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Texture.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Framebuffer.cpp
-    # Not behind ES_ENABLE_POSTPROCESS with RenderGraph: the frame borrows its
-    # own targets from this pool whether or not a post stack is compiled in.
+    # Not behind ES_ENABLE_POSTPROCESS: the frame declares its own passes to the
+    # graph and borrows their targets from this pool, post stack or no post stack.
     ${ESENGINE_ROOT}/src/esengine/renderer/graph/TargetPool.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/graph/RenderGraph.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrame.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameMask.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameSubmit.cpp
@@ -98,7 +99,6 @@ endif()
 if(ES_ENABLE_POSTPROCESS)
     list(APPEND ESENGINE_SOURCES
         ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp
-        ${ESENGINE_ROOT}/src/esengine/renderer/graph/RenderGraph.cpp
     )
 endif()
 

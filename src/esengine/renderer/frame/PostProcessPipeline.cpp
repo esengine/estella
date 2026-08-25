@@ -30,11 +30,11 @@ namespace esengine {
 PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
                                          RenderContext& context,
                                          resource::ResourceManager& resourceManager,
-                                         rg::TargetPool& pool)
+                                         rg::RenderGraph& graph)
     : device_(device)
     , context_(context)
     , resourceManager_(resourceManager)
-    , pool_(&pool) {
+    , graph_(&graph) {
 }
 
 PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
@@ -112,8 +112,10 @@ GfxPixelFormat PostProcessPipeline::interFormat() const {
 
 void PostProcessPipeline::ensureGraph() {
     if (graph_) return;
-    graph_ = pool_ ? makeUnique<rg::RenderGraph>(device_, *pool_)
-                   : makeUnique<rg::RenderGraph>(device_);
+    // Only the frame-less fallback reaches here; with a frame, graph_ is the
+    // frame's from construction and this is a no-op.
+    ownedGraph_ = makeUnique<rg::RenderGraph>(device_);
+    graph_ = ownedGraph_.get();
     if (linear_output_) {
         ES_LOG_INFO("PostProcess intermediates: {}",
                     interFormat() == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"
@@ -154,7 +156,8 @@ void PostProcessPipeline::shutdown() {
         screen_quad_layout_ = VertexLayoutHandle::Invalid;
     }
 
-    graph_.reset();
+    ownedGraph_.reset();
+    graph_ = nullptr;
     screenFBO_.reset();
     sceneResource_ = rg::kNoResource;
     screenCaptureActive_ = false;
@@ -358,26 +361,24 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     inFrame_ = true;
 }
 
-void PostProcessPipeline::end() {
+void PostProcessPipeline::declareChain() {
     // Gated on inFrame_ alone, not on isEngaged(): whatever begin() opened has
     // to be resolved even if the answer changed underneath in between.
     if (!initialized_ || !inFrame_) return;
 
-    auto* device = &device_;
-
-    // Blend/depth/stencil/color-mask come from the fullscreen pass pipeline;
-    // scissor is dynamic state and must be dropped explicitly.
-    device->invalidatePipelineCache();
-    device->setScissorTest(false);
-
+    // Read while the resource still holds its target — the graph hands it back
+    // at the last pass that reads it.
     sceneTexture_ = graph_->textureOf(sceneResource_);
     // What Framebuffer::unbind did for the FBO this replaced: a WebGPU pass
-    // encoder has to be closed before the graph opens the first chain pass.
-    device->endRenderPass();
+    // encoder has to be closed before the graph opens the first one of its own.
+    device_.endRenderPass();
 
     runChain(passes_, sceneResource_);
+}
 
-    device->invalidatePipelineCache();
+void PostProcessPipeline::chainDone() {
+    if (!initialized_ || !inFrame_) return;
+    device_.invalidatePipelineCache();
     inFrame_ = false;
     output_target_fbo_ = FramebufferHandle::Default;
 }
@@ -547,8 +548,6 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     blit.write = out;
     blit.execute = [this](const rg::PassContext&) { blitPass(); };
     graph_->addPass(std::move(blit));
-
-    graph_->execute();
 }
 
 void PostProcessPipeline::ensureScreenFBO() {
@@ -610,6 +609,9 @@ void PostProcessPipeline::executeScreenPasses() {
     // of its own.
     graph_->begin(width_, height_);
     runChain(screenPasses_, graph_->importTexture(sceneTexture_, width_, height_));
+    // Its own graph and its own run: this chain composes what every camera drew
+    // and happens after the last of them ended, so no frame is declaring here.
+    graph_->execute();
 
     device->invalidatePipelineCache();
 }
