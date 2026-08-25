@@ -521,7 +521,7 @@ systems: readonly AotSystemDecl[]
 ```
 name: string
 queries: readonly (readonly { comp: string; mut: boolean; }[])[]
-resources: readonly string[]
+resources: readonly { name: string; mut: boolean; }[]
 symbol: string
 ```
 

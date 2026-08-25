@@ -589,10 +589,17 @@ export class SystemRunner {
             queries.push(rows);
         }
 
-        const resources = twin.decl.resources.map((name) => aot.addresses.resourceAt(name) ?? 0);
+        const resources = twin.decl.resources.map((r) => aot.addresses.resourceAt(r.name) ?? 0);
         aot.ctx.build(queries, resources);
         twin.call(aot.ctx.address);
         aot.systems.noteCall();
+
+        // A resource is a MIRROR: a `ResMut` write lands in the block and
+        // nowhere else. Only the declared ones — copying a read-only mirror back
+        // would overwrite what the engine wrote this frame.
+        for (const r of twin.decl.resources) {
+            if (r.mut) aot.addresses.resourceWriteBack(r.name);
+        }
 
         for (const cmd of aot.ctx.commands()) {
             // Only despawn is in the v1 record set.

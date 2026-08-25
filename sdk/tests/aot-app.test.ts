@@ -11,10 +11,14 @@
  */
 import { describe, it, expect } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
-import { buildFadeModule, fadeManifest, FADE_PROBE_ALPHA, FADE_PROBE_C } from './helpers/aotFade';
+import {
+    buildAotModule, buildFadeModule, fadeManifest, timeScaleManifest,
+    FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
+} from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { defineComponent } from '../src/ecs/component';
+import { Time } from '../src/ecs/resource';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { Query, Mut } from '../src/ecs/query';
 import type { AnyComponentDef } from '../src/ecs/component';
@@ -115,6 +119,22 @@ describe('an App told to run its compiled twins', () => {
         // Installed is one question and dispatched is another: a module can load
         // and never be reached, and the numbers would not say so.
         expect(app.compiledSystems).toEqual({ installed: ['Fade'], calls: 3 });
+    });
+
+    it.skipIf(!EMCC)('writes a ResMut resource back, and leaves a Res one alone', async () => {
+        const wasm = buildAotModule(EMCC!, TIME_SCALE_C, 'es_sys_Speed');
+        const scaleAfter = async (mut: boolean): Promise<number> => {
+            const { app } = bootMockApp();
+            app.addSystemToSchedule(Schedule.Update, defineSystem([], () => { /* the twin is the point */ },
+                { name: 'Speed' }));
+            await app.useCompiledSystems({ host: new FakeEngine(), manifest: timeScaleManifest(mut), wasm });
+            await app.tick(1 / 60);
+            return app.getResource(Time).scale;
+        };
+        // A resource is mirrored into the block, so the twin's write reaches the
+        // world only if the host copies it back — and only when ResMut asked.
+        expect(await scaleAfter(true)).toBe(2);
+        expect(await scaleAfter(false)).toBe(1);
     });
 
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {

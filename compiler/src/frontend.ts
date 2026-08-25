@@ -303,10 +303,10 @@ class SystemLowerer {
                 throw new NotInSubset(el, 'each parameter must be Query(...) or Res(...)');
             }
             const kind = el.expression.text;
-            if (kind === 'Res') {
+            if (kind === 'Res' || kind === 'ResMut') {
                 const arg = el.arguments[0];
-                if (!arg || !ts.isIdentifier(arg)) throw new NotInSubset(el, 'Res(...) needs a named resource');
-                return { k: 'res', name: this.compName(arg.text) } as EirType;
+                if (!arg || !ts.isIdentifier(arg)) throw new NotInSubset(el, `${kind}(...) needs a named resource`);
+                return { k: 'res', name: this.compName(arg.text), mut: kind === 'ResMut' } as EirType;
             }
             if (kind === 'Commands') {
                 if (el.arguments.length !== 0) throw new NotInSubset(el, 'Commands() takes no arguments');

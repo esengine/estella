@@ -104,5 +104,6 @@ export function worldAddresses(world: World, resources: AotResources): AotAddres
         componentAt: (component: AnyComponentDef, entity: Entity) =>
             world.addressOfComponent(component, entity),
         resourceAt: (name: string) => resources.addressOf(name),
+        resourceWriteBack: (name: string) => resources.writeBack(name),
     };
 }

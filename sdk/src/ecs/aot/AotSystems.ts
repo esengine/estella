@@ -24,7 +24,9 @@ export interface AotSystemDecl {
     readonly symbol: string;
     /** One entry per declared Query, in the order the system names them. */
     readonly queries: readonly (readonly { comp: string; mut: boolean }[])[];
-    readonly resources: readonly string[];
+    /** One per declared Res/ResMut. `mut` is what makes a host write the mirror
+     *  back after the call — without it the write is silently dropped. */
+    readonly resources: readonly { name: string; mut: boolean }[];
 }
 
 export interface AotManifest {

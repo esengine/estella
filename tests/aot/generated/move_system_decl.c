@@ -21,8 +21,9 @@ static const char *const es_sys_MoveSystem_q0_comps[] = { "Transform", "Mover" }
 static const unsigned char es_sys_MoveSystem_q0_mut[] = { 1u, 0u };
 static const EsQueryDecl es_sys_MoveSystem_queries[] = { { es_sys_MoveSystem_q0_comps, es_sys_MoveSystem_q0_mut, 2u } };
 static const char *const es_sys_MoveSystem_resources[] = { "Time" };
+static const unsigned char es_sys_MoveSystem_resources_mut[] = { 0u };
 
 const EsSystemDecl es_systems[] = {
-    { "MoveSystem", es_sys_MoveSystem, es_sys_MoveSystem_queries, es_sys_MoveSystem_resources, 1u, 1u },
+    { "MoveSystem", es_sys_MoveSystem, es_sys_MoveSystem_queries, es_sys_MoveSystem_resources, es_sys_MoveSystem_resources_mut, 1u, 1u },
 };
 const uint32_t es_system_count = 1u;
