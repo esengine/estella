@@ -70,6 +70,13 @@ describe('exportGame (playable)', () => {
       outDir: out,
       title: 'Playable Demo',
       platform: 'playable',
+      // Structure is what this asserts, so it reads the unminified shape. The
+      // stub SDK below exports `defineComponent(){}` — an empty function, and
+      // esbuild is right to drop a call to one, which takes `SpawnMarker` with
+      // it. The real SDK's writes a registry, so the same project keeps its
+      // components minified (verified on platformer: identical to the pixel).
+      // The default is asserted on its own, below.
+      minify: false,
     });
 
     expect(res.ok).toBe(true);
@@ -103,6 +110,34 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('@media (orientation');
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
+
+  // A playable is uploaded to an ad network under a hard byte cap and there is no
+  // dev build of one, so this target minifies unless told not to — the opposite
+  // default from every other. Shipping it unminified spent 0.31MB of a 2MB budget
+  // on whitespace, and the CLI had no flag to say otherwise, so every packaged
+  // playable CI ever weighed was the unshipped shape.
+  it('minifies by default, and still honours an explicit no', async () => {
+    const run = async (minify: boolean | undefined, dir: string): Promise<number> => {
+      const res = await exportGame({
+        root,
+        entryScene: 'scenes/main.esscene',
+        gameHostEntry: 'unused-for-playable',
+        playableHostEntry: PLAYABLE_HOST,
+        scriptsEntry: 'src/main.ts',
+        sdkDistDir: path.join(root, '_sdk'),
+        wasmDir: path.join(root, '_wasm'),
+        outDir: path.join(out, dir),
+        platform: 'playable',
+        minify,
+      });
+      expect(res.ok).toBe(true);
+      return res.inlineParts?.find((p) => p.path === 'game-bundle.js')?.bytes ?? 0;
+    };
+    const [byDefault, askedFor, refused] = [await run(undefined, 'd'), await run(true, 'y'), await run(false, 'n')];
+    expect(byDefault).toBeGreaterThan(0);
+    expect(byDefault).toBe(askedFor);            // the default IS the shipping shape
+    expect(byDefault).toBeLessThan(refused);     // and an explicit false still opts out
+  }, 120_000);
 
   // The ad network is a PROFILE, not a branch: what it contributes is head markup, a
   // CTA bridge, and the size it accepts. A project profile and a built-in one reach

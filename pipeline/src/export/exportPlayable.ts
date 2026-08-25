@@ -179,6 +179,18 @@ export async function exportPlayable(opts: {
    *  pin it — a playable must fit whatever container the SDK gives it — this only
    *  reaches the ad-network profile, which may declare it to the platform. */
   orientation?: ScreenOrientation;
+  /**
+   * Defaults to ON here, unlike every other target.
+   *
+   * A playable exists to be uploaded to an ad network under a hard byte cap;
+   * there is no dev build of one, and shipping it unminified spent 0.31MB of a
+   * 2MB budget on whitespace. Verified as a no-op on what it draws: the same
+   * platformer package minified and not is identical to the pixel (frame
+   * distance 0.0000, against a 0.06 tolerance).
+   *
+   * An explicit `false` is still honoured — the editor's Development
+   * configuration passes one.
+   */
   minify?: boolean;
   /** The project's runtime settings, derived once by `runtimeConfigOf`; the page
    *  carries the packaged slice of them as one global the host reads. */
@@ -270,7 +282,7 @@ export async function exportPlayable(opts: {
       // esengine is INLINED (single-file, no import map) → resolve it from the SDK
       // dist; the project root has no esengine installed.
       alias: esengineAlias(opts.sdkDir),
-      minify: opts.minify ?? false,
+      minify: opts.minify ?? true,
       write: false,
       outfile: 'game-bundle.js',
       logLevel: 'silent',

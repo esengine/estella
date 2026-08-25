@@ -27,6 +27,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
   --output project    android: emit a Gradle project instead of an apk
   --json <file>       also write the result here, for a caller that reads it back
   --enforce-budget    fail (exit 1) when the package is over a size limit
+  --minify            minify the bundled scripts, as a shipping build does
   --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
   --steam-appid <id>  desktop: also write the Steam depot scripts for this app id
 
@@ -50,7 +51,7 @@ The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
-const FLAGS = new Set(['enforce-budget']);
+const FLAGS = new Set(['enforce-budget', 'minify']);
 
 function parseArgs(argv) {
   const [command, projectDir, ...rest] = argv;
@@ -388,6 +389,7 @@ try {
       : undefined,
     iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
     androidOutput: opts.output === 'project' ? 'project' : undefined,
+    minify: opts.minify,
     sizeBudgetBytes,
   });
   const report = { ...result, outDir };
