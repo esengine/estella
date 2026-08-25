@@ -13,12 +13,17 @@
  *          thing — the failure a gate is least able to notice about itself. The
  *          all-systems number is printed beside it, for information.
  *
+ *          Each example is lowered as its OWN program, because that is the unit
+ *          pipeline/ cooks. Compiling all of examples/ at once merged two
+ *          different components both named 'Health' and silently gave one
+ *          project the other's shape.
+ *
  *          The floor is committed. Raising it is the point; lowering it needs a
  *          reason in the commit message, because the corpus lost ground.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
@@ -27,7 +32,7 @@ import { builtinShapes } from '../src/builtins';
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** Per-frame systems only. See the file header before lowering this. */
-const FRAME_FLOOR = 4;
+const FRAME_FLOOR = 6;
 
 function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -39,7 +44,31 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const files = walk(join(ROOT, 'examples')).filter((f) => f.includes('src'));
-const { module, diagnostics, seen, systemBindings } = lowerProgram(files, builtinShapes());
+
+/** examples/<name>/… -> one program each. */
+function byProject(all: readonly string[]): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    for (const f of all) {
+        const rest = f.slice(join(ROOT, 'examples').length + 1);
+        // path.sep, not a regex: a backslash inside one is too easy to lose,
+        // and losing it made every FILE its own program without a word.
+        const project = rest.split(sep)[0]!;
+        const list = out.get(project);
+        if (list) list.push(f); else out.set(project, [f]);
+    }
+    return out;
+}
+
+const projects = byProject(files);
+const results = [...projects.values()].map((fs) => lowerProgram(fs, builtinShapes()));
+const seen = results.flatMap((r) => r.seen);
+const diagnostics = results.flatMap((r) => r.diagnostics);
+const systemBindings = new Map(results.flatMap((r) => [...r.systemBindings]));
+const verifiedNames = new Set(results.flatMap(
+    (r) => r.module.systems.filter((s) => verifySystem(s, r.module.comps).length === 0).map((s) => s.name)));
+const unverified = results.flatMap((r) => r.module.systems
+    .map((s) => ({ name: s.name, errors: verifySystem(s, r.module.comps) }))
+    .filter((x) => x.errors.length > 0));
 
 const SCHEDULED = /addSystemToSchedule\s*\(\s*Schedule\.\w+\s*,\s*(\w+)\s*\)/g;
 const BARE_ADD = /\baddSystem\s*\(\s*(\w+)\s*\)/g;
@@ -62,9 +91,16 @@ function perFrameSystems(): Set<string> {
 const perFrame = perFrameSystems();
 
 describe('AOT coverage over examples/', () => {
-    it('found systems to measure', () => {
+    it('found systems to measure, one program per project', () => {
+        expect(projects.size).toBeGreaterThan(20);
         expect(files.length).toBeGreaterThan(20);
         expect(seen.length).toBeGreaterThan(20);
+    });
+
+    it('no project declares one component name twice', () => {
+        // Across projects the same name is fine and expected; within one it is a
+        // shape nobody can pin down.
+        expect(diagnostics.filter((d) => d.message.includes('already declared'))).toEqual([]);
     });
 
     it('classified the corpus by schedule', () => {
@@ -75,8 +111,8 @@ describe('AOT coverage over examples/', () => {
     });
 
     it(`compiles at least ${FRAME_FLOOR} of the per-frame systems`, () => {
-        const verified = module.systems.filter((s) => verifySystem(s, module.comps).length === 0);
-        const verifiedFrame = verified.filter((s) => perFrame.has(s.name));
+        const verified = [...verifiedNames];
+        const verifiedFrame = verified.filter((n) => perFrame.has(n));
         const seenFrame = seen.filter((n) => perFrame.has(n));
 
         // The breakdown is the point of running this: the commonest refusal is
@@ -104,9 +140,6 @@ describe('AOT coverage over examples/', () => {
     it('every system that compiles also verifies', () => {
         // A system the frontend accepted but the IR verifier rejects is a
         // frontend bug, not a coverage number — it must never be counted.
-        const broken = module.systems
-            .map((s) => ({ name: s.name, errors: verifySystem(s, module.comps) }))
-            .filter((r) => r.errors.length > 0);
-        expect(broken).toEqual([]);
+        expect(unverified).toEqual([]);
     });
 });

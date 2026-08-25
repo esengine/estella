@@ -454,6 +454,15 @@ function componentShape(call: ts.CallExpression): CompShape | null {
     return { name: nameArg.text, fields };
 }
 
+/** Two declarations of one name are the same component only if every field matches. */
+function sameShape(a: CompShape, b: CompShape): boolean {
+    if (a.fields.size !== b.fields.size) return false;
+    for (const [k, t] of a.fields) {
+        if (b.fields.get(k)?.k !== t.k) return false;
+    }
+    return true;
+}
+
 function normalizePath(p: string): string {
     return p.split(sep).join('/').toLowerCase();
 }
@@ -471,6 +480,10 @@ function lineOf(sf: ts.SourceFile, node: ts.Node): number {
  * Lower every `defineSystem` in `files`. Builtin component and resource shapes
  * come in from the caller — EHT is their authority, and inventing a second copy
  * here is exactly the drift the ABI hash exists to prevent.
+ *
+ * `files` is ONE PROGRAM — one game project, the unit pipeline/ cooks. A
+ * component's identity is its declared name WITHIN that program; declaring one
+ * name twice with different fields is a diagnostic, never an overwrite.
  */
 export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<string, CompShape>): LowerResult {
     const program = ts.createProgram([...files], {
@@ -519,6 +532,15 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 diagnostics.push({
                     file: sf.fileName, line: lineOf(sf, node),
                     message: 'defineComponent needs a string literal name and an object literal of literal defaults',
+                });
+                return;
+            }
+            const existing = comps.get(shape.name);
+            if (existing && !sameShape(existing, shape)) {
+                diagnostics.push({
+                    file: sf.fileName, line: lineOf(sf, node),
+                    message: `component '${shape.name}' is already declared with a different shape`
+                        + ` — one program cannot hold two`,
                 });
                 return;
             }
