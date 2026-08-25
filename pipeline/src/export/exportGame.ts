@@ -236,6 +236,8 @@ export interface ExportGameResult {
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
+  /** Playable: what the single file is made of. See ExportPlayableResult. */
+  inlineParts?: { path: string; bytes: number }[];
   /** What the package weighs, and how it fared against the limits in force.
    *  Absent when the export failed, or when measuring itself did. */
   size?: BuildSizeReport;
@@ -467,6 +469,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       projectMaxBytes: opts.sizeBudgetBytes,
       deliverable,
       packages,
+      inlineOf: result.inlineParts ? { file: 'index.html', parts: result.inlineParts } : undefined,
     });
     return { ...result, size };
   } catch {

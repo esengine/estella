@@ -274,7 +274,15 @@ export async function measureBuild(opts: {
   profileBudgets?: readonly SizeBudget[];
   /** `packaging.sizeBudget[platform]`, in bytes. */
   projectMaxBytes?: number;
-  /** Absolute path to the single uploaded file, when the target makes one. */
+  /**
+   * Absolute path to the single uploaded file, when the target makes one.
+   *
+   * Weighed on its own; it does NOT exclude itself from the directory totals.
+   * A deliverable that repackages loose files is already in {@link packages},
+   * and the playable's is not a repackaging at all — its `index.html` IS the
+   * build, so excluding it left the composition of the one target where size is
+   * a hard cap reading as an empty directory.
+   */
   deliverable?: string;
   /**
    * Absolute paths to packages written INSIDE `root` — the .apk, the .aab, the
@@ -284,11 +292,26 @@ export async function measureBuild(opts: {
    * counting both would double every byte and report a build at twice its
    * weight. They are measured on their own (as the deliverable) and left out of
    * the directory totals.
+   *
+   * This is the ONLY thing that excludes a file, so a caller that writes a new
+   * kind of package has to name it here — which is the question being asked
+   * ("does this repackage what is already there?"), rather than a proxy for it.
    */
   packages?: readonly string[];
+  /**
+   * A single-file target's file, and what it is made of — each span under the
+   * path those bytes would carry loose. The file is replaced by its spans, so a
+   * playable is composed in the same vocabulary as every other target instead of
+   * weighing in as one nameless `other`.
+   *
+   * The producer supplies these, because the assembly is where the bytes are
+   * joined and it already knows; parsing the finished file back apart would be a
+   * second account of the same concatenation.
+   */
+  inlineOf?: { file: string; parts: readonly { path: string; bytes: number }[] };
 }): Promise<BuildSizeReport> {
   const excluded: string[] = [];
-  for (const file of [...(opts.packages ?? []), ...(opts.deliverable ? [opts.deliverable] : [])]) {
+  for (const file of opts.packages ?? []) {
     const rel = path.relative(opts.root, file);
     // path-sandbox: not a boundary — classifying which built files a report counts.
     if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) excluded.push(normalizeRel(rel));
@@ -297,7 +320,10 @@ export async function measureBuild(opts: {
   // is the assembled app DIRECTORY, and excluding only its own name would leave
   // every byte inside it counted a second time.
   const files = (await collectBuildFiles(opts.root))
-    .filter((f) => !isUnder(normalizeRel(f.path), excluded));
+    .filter((f) => !isUnder(normalizeRel(f.path), excluded))
+    .flatMap((f) => (opts.inlineOf && normalizeRel(f.path) === normalizeRel(opts.inlineOf.file)
+      ? [...opts.inlineOf.parts]
+      : [f]));
   let manifest: unknown = null;
   try {
     manifest = JSON.parse(await readFile(path.join(opts.root, 'asset-manifest.json'), 'utf8'));

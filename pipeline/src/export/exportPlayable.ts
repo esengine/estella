@@ -44,6 +44,14 @@ export interface ExportPlayableResult {
   htmlBytes: number;
   /** The archive written for a zip-delivery network (absolute path). */
   zipFile?: string;
+  /**
+   * What the single file is MADE OF, each span under the path those bytes would
+   * carry if this target shipped them loose. Sums to {@link htmlBytes}.
+   *
+   * Without it the size report can only say the build is one `index.html` of
+   * n bytes — true, and useless on the one target where size is a hard cap.
+   */
+  inlineParts: { path: string; bytes: number }[];
   warnings: string[];
   errors: string[];
 }
@@ -188,6 +196,13 @@ export async function exportPlayable(opts: {
   const errors: string[] = [];
   await mkdir(absOut, { recursive: true });
   const cookDir = path.join(absOut, '.playable-cook');
+  // What each span of the finished file costs, under the path those bytes would
+  // carry if this target shipped them loose — so a playable's composition reads
+  // in the same vocabulary as the web and WeChat ones, rather than being one
+  // opaque file. Filled where the bytes are JOINED: a reader that parsed the
+  // finished HTML back apart would be a second account of the same
+  // concatenation, and the one that drifts.
+  const spans: { path: string; bytes: number }[] = [];
 
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
   progress({ phase: 'Cooking assets' });
@@ -219,6 +234,9 @@ export async function exportPlayable(opts: {
       const key = `@uuid:${e.uuid}`;
       assets[key] = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
+      // The data URL, not the file: base64 is what this asset actually costs the
+      // package, and the +33% is the thing a developer is being asked to see.
+      spans.push({ path: e.path, bytes: assets[key].length });
     }
   } catch (err) {
     errors.push(`assets: ${err instanceof Error ? err.message : String(err)}`);
@@ -291,13 +309,17 @@ export async function exportPlayable(opts: {
 
   // 6. Assemble the single HTML, then drop the temp cook dir.
   progress({ phase: 'Assembling HTML' });
+  const span = (p: string, text: string): string => {
+    spans.push({ path: p, bytes: Buffer.byteLength(text, 'utf8') });
+    return text;
+  };
   const globals =
-    `window.__ENGINE_GLUE__=${JSON.stringify(glue)};` +
-    `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};` +
-    `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};` +
+    span('wasm/esengine.js', `window.__ENGINE_GLUE__=${JSON.stringify(glue)};`) +
+    span('wasm/esengine.wasm', `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};`) +
+    span('wasm/side-modules', `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};`) +
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
-    `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
+    span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(scenes)};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     // ONE global for the project's settings, in the same shape game.config.json
     // carries them. Five separate globals meant the host and the export had to
@@ -308,10 +330,16 @@ export async function exportPlayable(opts: {
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');
+  span('game-bundle.js', bundle);
   await writeFile(outFile, indexHtml(title, globals, bundle, network));
   await rm(cookDir, { recursive: true, force: true });
 
   const htmlBytes = (await stat(outFile)).size;
+  // The page itself, plus the JSON scaffolding around the spans above (each
+  // asset's key and quotes, the small globals). Derived rather than summed so
+  // the parts always add up to the file, whatever else the assembly gains.
+  const inlined = spans.reduce((n, s) => n + s.bytes, 0);
+  spans.push({ path: 'index.html', bytes: Math.max(0, htmlBytes - inlined) });
 
   // A network that uploads an archive gets one, with index.html at the root. The HTML
   // stays beside it: it is what "Preview over http" serves, and what a developer opens
@@ -336,6 +364,6 @@ export async function exportPlayable(opts: {
 
   return {
     ok: errors.length === 0, platform: 'playable', outDir: absOut,
-    included: cook.included.length, bytes, htmlBytes, zipFile, warnings, errors,
+    included: cook.included.length, bytes, htmlBytes, zipFile, inlineParts: spans, warnings, errors,
   };
 }

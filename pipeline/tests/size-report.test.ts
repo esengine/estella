@@ -242,6 +242,26 @@ describe('measuring a build on disk', () => {
     expect(report.deliverableBytes).toBe(5020);    // everything inside the app
   });
 
+  it('still weighs the single file a playable ships, which is the build rather than a copy of it', async () => {
+    // The playable's whole output is one index.html — nothing sits loose beside
+    // it to double-count, so the repackaging rule that covers an .apk does not
+    // apply. Excluding it left byKind, largest and fileCount empty on the ONE
+    // target whose size is a hard cap, so the export could say "over by 64%" and
+    // not one byte of where it went. Note there is no `packages` here: that is
+    // the shape, and it is what the two cases above never exercise.
+    await write('index.html', 3_444_304);
+    const report = await measureBuild({
+      root: dir,
+      platform: 'playable',
+      deliverable: path.join(dir, 'index.html'),
+    });
+    expect(report.fileCount).toBe(1);
+    expect(report.packageBytes).toBe(3_444_304);
+    expect(report.byKind).toEqual([{ kind: 'other', bytes: 3_444_304, count: 1 }]);
+    expect(report.largest[0]?.path).toBe('index.html');
+    expect(report.deliverableBytes).toBe(3_444_304);   // and still weighed as the upload
+  });
+
   it('reads the manifest the export wrote, so buckets agree with the runtime', async () => {
     await write('asset-manifest.json', 0);
     await writeFile(path.join(dir, 'asset-manifest.json'), JSON.stringify(MANIFEST));
