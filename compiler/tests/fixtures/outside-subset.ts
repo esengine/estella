@@ -11,17 +11,17 @@ import { defineComponent, defineSystem, Query, Mut, Res, Time, Transform } from 
 
 export const Speed = defineComponent('FixtureSpeed', { value: 100 });
 
-/** A branch: no control flow beyond the row loop is lowered yet. */
-export const branching = defineSystem(
+/** A loop of its own: only the row loop is lowered. */
+export const looping = defineSystem(
     [Query(Mut(Transform), Speed)],
     (query) => {
         for (const [_e, t, s] of query) {
-            if (s.value > 0) {
-                t.position.x += s.value;
+            while (t.position.x < s.value) {
+                t.position.x += 1;
             }
         }
     },
-    { name: 'FixtureBranching' },
+    { name: 'FixtureLooping' },
 );
 
 /** A field the component does not declare — a typo, caught at compile time. */
@@ -35,12 +35,31 @@ export const typoField = defineSystem(
     { name: 'FixtureTypo' },
 );
 
+/**
+ * A Math operation ECMAScript leaves implementation-defined. Refused on purpose:
+ * a native backend and the interpreter would be free to disagree, and a pixel
+ * gate would then go red on trig instead of on a bug.
+ */
+export const trig = defineSystem(
+    [Query(Mut(Transform), Speed), Res(Time)],
+    (query, time) => {
+        for (const [_e, t, s] of query) {
+            t.position.x += Math.sin(s.value * time.delta);
+        }
+    },
+    { name: 'FixtureTrig' },
+);
+
+function damp(v: number): number {
+    return v * 0.5;
+}
+
 /** A call: nothing outside the intrinsics is reachable from a compiled system. */
 export const calling = defineSystem(
     [Query(Mut(Transform), Speed), Res(Time)],
     (query, time) => {
         for (const [_e, t, s] of query) {
-            t.position.x += Math.sin(s.value) * time.delta;
+            t.position.x += damp(s.value) * time.delta;
         }
     },
     { name: 'FixtureCalling' },

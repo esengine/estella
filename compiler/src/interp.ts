@@ -66,6 +66,23 @@ function evalExpr(e: Expr, frame: Frame): number | boolean {
         case 'const': return e.value;
         case 'read': return readPlace(e.place, frame) as number | boolean;
         case 'neg': return -(evalExpr(e.v, frame) as number);
+        case 'not': return !(evalExpr(e.v, frame) as boolean);
+        case 'select':
+            return evalExpr(e.cond, frame) ? evalExpr(e.then, frame) : evalExpr(e.otherwise, frame);
+        case 'call': {
+            const a = e.args.map((x) => evalExpr(x, frame) as number);
+            // The frontend admits only the exactly-specified operations, so
+            // deferring to the host's Math is the same answer everywhere.
+            const fn = (Math as unknown as Record<string, (...xs: number[]) => number>)[e.fn]!;
+            return fn(...a);
+        }
+        case 'logic': {
+            // Short-circuit, which is why this is not a `bin`: `a && b(…)` must
+            // not evaluate b when a is false.
+            const l = evalExpr(e.l, frame) as boolean;
+            if (e.op === '&&') return l ? (evalExpr(e.r, frame) as boolean) : false;
+            return l ? true : (evalExpr(e.r, frame) as boolean);
+        }
         case 'bin': {
             const l = evalExpr(e.l, frame) as number;
             const r = evalExpr(e.r, frame) as number;
@@ -99,6 +116,10 @@ function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
                 break;
             case 'assign':
                 writePlace(s.target, frame, evalExpr(s.value, frame));
+                break;
+            case 'if':
+                if (evalExpr(s.cond, frame)) exec(s.then, frame, world);
+                else exec(s.otherwise, frame, world);
                 break;
             case 'rowLoop': {
                 const q = readPlace(s.query, frame) as { args: readonly QueryArg[] };

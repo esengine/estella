@@ -15,6 +15,7 @@
  *          wrong, not a source file that was outside the subset.
  */
 import {
+    MATH_FNS,
     type CompShape, type EirSystem, type EirType, type Expr, type Local, type Place, type Stmt,
     typeName,
 } from './eir';
@@ -83,6 +84,37 @@ class Verifier {
                 if (t && t.k !== 'f64') this.fail(`negation of a ${typeName(t)}`);
                 return t;
             }
+            case 'not': {
+                const t = this.exprType(e.v);
+                if (t && t.k !== 'bool') this.fail(`'!' applied to a ${typeName(t)}`);
+                return e.type;
+            }
+            case 'logic': {
+                for (const t of [this.exprType(e.l), this.exprType(e.r)]) {
+                    if (t && t.k !== 'bool') this.fail(`operator '${e.op}' applied to a ${typeName(t)}`);
+                }
+                return e.type;
+            }
+            case 'select': {
+                const c = this.exprType(e.cond);
+                if (c && c.k !== 'bool') this.fail(`a ternary condition is a ${typeName(c)}`);
+                const t = this.exprType(e.then);
+                const f = this.exprType(e.otherwise);
+                if (t && f && t.k !== f.k) this.fail(`ternary arms are ${typeName(t)} and ${typeName(f)}`);
+                return e.type;
+            }
+            case 'call': {
+                const arity = (MATH_FNS as Record<string, number | undefined>)[e.fn];
+                if (arity === undefined) this.fail(`'${e.fn}' is not an intrinsic`);
+                else if (arity !== e.args.length) {
+                    this.fail(`${e.fn} called with ${e.args.length} argument(s), not ${arity}`);
+                }
+                for (const a of e.args) {
+                    const t = this.exprType(a);
+                    if (t && t.k !== 'f64') this.fail(`${e.fn} applied to a ${typeName(t)}`);
+                }
+                return e.type;
+            }
             case 'bin': {
                 const l = this.exprType(e.l);
                 const r = this.exprType(e.r);
@@ -110,6 +142,12 @@ class Verifier {
                 if (target && value && target.k !== value.k) {
                     this.fail(`assigning ${typeName(value)} into a ${typeName(target)}`);
                 }
+                break;
+            }
+            case 'if': {
+                const c = this.exprType(s.cond);
+                if (c && c.k !== 'bool') this.fail(`if condition is a ${typeName(c)}`);
+                for (const b of [...s.then, ...s.otherwise]) this.stmt(b);
                 break;
             }
             case 'rowLoop': {
@@ -148,6 +186,7 @@ class Verifier {
         for (const s of body) {
             if (s.s === 'assign' && rootOf(s.target) === id) return true;
             if (s.s === 'rowLoop' && this.writesTo(s.body, id)) return true;
+            if (s.s === 'if' && (this.writesTo(s.then, id) || this.writesTo(s.otherwise, id))) return true;
         }
         return false;
     }

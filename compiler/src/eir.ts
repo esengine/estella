@@ -51,11 +51,38 @@ export type Place =
     | { readonly p: 'local'; readonly id: number }
     | { readonly p: 'field'; readonly base: Place; readonly path: readonly string[] };
 
+export type LogicOp = '&&' | '||';
+
 export type Expr =
     | { readonly e: 'const'; readonly value: number | boolean; readonly type: EirType }
     | { readonly e: 'read'; readonly place: Place; readonly type: EirType }
     | { readonly e: 'bin'; readonly op: BinOp; readonly l: Expr; readonly r: Expr; readonly type: EirType }
-    | { readonly e: 'neg'; readonly v: Expr; readonly type: EirType };
+    | { readonly e: 'neg'; readonly v: Expr; readonly type: EirType }
+    | { readonly e: 'not'; readonly v: Expr; readonly type: EirType }
+    /** Separate from `bin` because both sides must NOT be evaluated. */
+    | { readonly e: 'logic'; readonly op: LogicOp; readonly l: Expr; readonly r: Expr; readonly type: EirType }
+    /** `a ? b : c`; like `logic`, only one arm runs. */
+    | {
+        readonly e: 'select';
+        readonly cond: Expr;
+        readonly then: Expr;
+        readonly otherwise: Expr;
+        readonly type: EirType;
+    }
+    /** An intrinsic call. Only the exactly-specified Math operations (§3.3). */
+    | { readonly e: 'call'; readonly fn: MathFn; readonly args: readonly Expr[]; readonly type: EirType };
+
+/**
+ * The Math operations ECMAScript specifies EXACTLY, so a backend can compute
+ * them without disagreeing with the interpreter. sin/cos/tan/exp/log/pow are
+ * implementation-defined and deliberately absent — see frontend.ts.
+ */
+export const MATH_FNS = {
+    abs: 1, floor: 1, ceil: 1, round: 1, trunc: 1, sqrt: 1, sign: 1,
+    min: 2, max: 2,
+} as const;
+
+export type MathFn = keyof typeof MATH_FNS;
 
 export type Stmt =
     /**
@@ -70,7 +97,13 @@ export type Stmt =
         readonly body: readonly Stmt[];
     }
     | { readonly s: 'assign'; readonly target: Place; readonly value: Expr }
-    | { readonly s: 'let'; readonly id: number; readonly value: Expr };
+    | { readonly s: 'let'; readonly id: number; readonly value: Expr }
+    | {
+        readonly s: 'if';
+        readonly cond: Expr;
+        readonly then: readonly Stmt[];
+        readonly otherwise: readonly Stmt[];
+    };
 
 /** A local's name and type; the name is for diagnostics and printing only. */
 export interface Local {
@@ -121,8 +154,14 @@ function exprText(e: Expr, locals: ReadonlyMap<number, Local>): string {
     switch (e.e) {
         case 'const': return String(e.value);
         case 'read': return placeName(e.place, locals);
-        case 'bin': return `(${exprText(e.l, locals)} ${e.op} ${exprText(e.r, locals)})`;
+        case 'bin':
+        case 'logic': return `(${exprText(e.l, locals)} ${e.op} ${exprText(e.r, locals)})`;
         case 'neg': return `-${exprText(e.v, locals)}`;
+        case 'not': return `!${exprText(e.v, locals)}`;
+        case 'select':
+            return `(${exprText(e.cond, locals)} ? ${exprText(e.then, locals)} : ${exprText(e.otherwise, locals)})`;
+        case 'call':
+            return `${e.fn}(${e.args.map((a) => exprText(a, locals)).join(', ')})`;
     }
 }
 
@@ -139,6 +178,16 @@ function stmtText(s: Stmt, locals: ReadonlyMap<number, Local>, indent: string): 
             return [`${indent}${placeName(s.target, locals)} = ${exprText(s.value, locals)}`];
         case 'let':
             return [`${indent}let ${locals.get(s.id)?.name ?? `%${s.id}`} = ${exprText(s.value, locals)}`];
+        case 'if': {
+            const out = [`${indent}if ${exprText(s.cond, locals)} {`];
+            out.push(...s.then.flatMap((b) => stmtText(b, locals, `${indent}  `)));
+            if (s.otherwise.length > 0) {
+                out.push(`${indent}} else {`);
+                out.push(...s.otherwise.flatMap((b) => stmtText(b, locals, `${indent}  `)));
+            }
+            out.push(`${indent}}`);
+            return out;
+        }
     }
 }
 

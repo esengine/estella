@@ -26,13 +26,14 @@ const compiled = (system: string) => result.module.systems.some((s) => s.name ==
 describe('the subset refuses, and says why', () => {
     it('saw every system in the file, compiled or not', () => {
         expect(result.seen).toEqual([
-            'FixtureBranching', 'FixtureTypo', 'FixtureCalling', 'FixtureWritesReadOnly',
+            'FixtureLooping', 'FixtureTypo', 'FixtureTrig', 'FixtureCalling', 'FixtureWritesReadOnly',
         ]);
     });
 
     it.each([
-        ['FixtureBranching', /IfStatement is not a statement/],
+        ['FixtureLooping', /WhileStatement is not a statement/],
         ['FixtureTypo', /has no field 'valeu'/],
+        ['FixtureTrig', /Math\.sin is not exactly specified by ECMAScript/],
         ['FixtureCalling', /CallExpression is not an expression/],
     ])('refuses %s', (name, why) => {
         const d = diagOf(name);

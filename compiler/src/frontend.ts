@@ -23,7 +23,9 @@ import ts from 'typescript';
 import {
     BOOL, ENTITY, F64,
     type CompShape, type EirModule, type EirSystem, type EirType,
-    type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp,
+    MATH_FNS,
+    type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
+    type MathFn,
 } from './eir';
 
 export interface Diagnostic {
@@ -55,6 +57,20 @@ const COMPOUND: ReadonlyMap<ts.SyntaxKind, BinOp> = new Map([
     [ts.SyntaxKind.AsteriskEqualsToken, '*'], [ts.SyntaxKind.SlashEqualsToken, '/'],
 ] as const);
 
+const LOGIC_OPS: ReadonlyMap<ts.SyntaxKind, LogicOp> = new Map([
+    [ts.SyntaxKind.AmpersandAmpersandToken, '&&'],
+    [ts.SyntaxKind.BarBarToken, '||'],
+] as const);
+
+/**
+ * A token's source text WITHOUT touching the node. `getText()` walks parent
+ * pointers, which exist only after the program has bound — the same trap that
+ * has now caught line numbers, binding resolution and this.
+ */
+function tokenText(kind: ts.SyntaxKind): string {
+    return ts.tokenToString(kind) ?? ts.SyntaxKind[kind];
+}
+
 /** Thrown internally to abandon one system; never escapes lowerProgram. */
 class NotInSubset extends Error {
     constructor(readonly node: ts.Node, message: string) { super(message); }
@@ -63,7 +79,8 @@ class NotInSubset extends Error {
 class SystemLowerer {
     private readonly locals: Local[] = [];
     private next = 0;
-    private readonly scope = new Map<string, Local>();
+    /** A stack, not one map: a `const` in a row loop must not outlive the loop. */
+    private readonly scopes: Map<string, Local>[] = [new Map()];
 
     constructor(
         private readonly comps: Map<string, CompShape>,
@@ -79,14 +96,21 @@ class SystemLowerer {
     private define(name: string, type: EirType): Local {
         const l: Local = { id: this.next++, name, type };
         this.locals.push(l);
-        this.scope.set(name, l);
+        this.scopes[this.scopes.length - 1]!.set(name, l);
         return l;
     }
 
     private lookup(node: ts.Node, name: string): Local {
-        const l = this.scope.get(name);
-        if (!l) throw new NotInSubset(node, `'${name}' is not a value this system declared`);
-        return l;
+        for (let i = this.scopes.length - 1; i >= 0; i--) {
+            const l = this.scopes[i]!.get(name);
+            if (l) return l;
+        }
+        throw new NotInSubset(node, `'${name}' is not a value this system declared`);
+    }
+
+    private scoped<T>(fn: () => T): T {
+        this.scopes.push(new Map());
+        try { return fn(); } finally { this.scopes.pop(); }
     }
 
     /** `[Query(Mut(Transform), Mover), Res(Time)]` -> one param type each. */
@@ -147,8 +171,31 @@ class SystemLowerer {
     private stmt(node: ts.Statement): Stmt[] {
         if (ts.isForOfStatement(node)) return [this.rowLoop(node)];
         if (ts.isExpressionStatement(node)) return [this.assignment(node.expression)];
-        if (ts.isBlock(node)) return node.statements.flatMap((s) => this.stmt(s));
+        if (ts.isBlock(node)) return this.scoped(() => node.statements.flatMap((s) => this.stmt(s)));
+        if (ts.isVariableStatement(node)) return this.declarations(node);
+        if (ts.isIfStatement(node)) return [this.ifStmt(node)];
         throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not a statement this subset lowers`);
+    }
+
+    /** `const x = expr` — the local takes the initializer's type; there is none to declare. */
+    private declarations(node: ts.VariableStatement): Stmt[] {
+        return node.declarationList.declarations.map((d) => {
+            if (!ts.isIdentifier(d.name)) throw new NotInSubset(d, 'a declaration must bind a plain name');
+            if (!d.initializer) throw new NotInSubset(d, 'a local must be initialized where it is declared');
+            const value = this.expr(d.initializer);
+            if (value.type.k !== 'f64' && value.type.k !== 'bool') {
+                throw new NotInSubset(d, `a local cannot hold a ${value.type.k}`);
+            }
+            return { s: 'let', id: this.define(d.name.text, value.type).id, value } as Stmt;
+        });
+    }
+
+    private ifStmt(node: ts.IfStatement): Stmt {
+        const cond = this.expr(node.expression);
+        if (cond.type.k !== 'bool') throw new NotInSubset(node.expression, 'an if condition must be a boolean');
+        const then = this.scoped(() => this.stmt(node.thenStatement));
+        const otherwise = node.elseStatement ? this.scoped(() => this.stmt(node.elseStatement!)) : [];
+        return { s: 'if', cond, then, otherwise };
     }
 
     /** `for (const [e, a, b] of query) { ... }` — the shape a system iterates rows in. */
@@ -164,14 +211,22 @@ class SystemLowerer {
         if (!decl || !decl.name || !ts.isArrayBindingPattern(decl.name)) {
             throw new NotInSubset(node, 'a row loop must destructure [entity, ...components]');
         }
+        // A destructuring may bind a PREFIX and may elide holes — `[, transform,
+        // player]` is what most of the corpus writes. Demanding one name per
+        // yielded value refused legal TypeScript for no reason.
         const elements = decl.name.elements;
-        if (elements.length !== qt.args.length + 1) {
+        if (elements.length > qt.args.length + 1) {
             throw new NotInSubset(node, `the row binds ${elements.length} names but the query yields ${qt.args.length + 1}`);
         }
 
         let entity: number | null = null;
         const binds: number[] = [];
         elements.forEach((el, i) => {
+            if (ts.isOmittedExpression(el)) {
+                // A hole still occupies its position; the row just does not name it.
+                if (i > 0) binds.push(this.define(`_hole${i}`, { k: 'comp', name: qt.args[i - 1]!.comp }).id);
+                return;
+            }
             if (!ts.isBindingElement(el) || !ts.isIdentifier(el.name)) {
                 throw new NotInSubset(el, 'a row binding must be a plain name');
             }
@@ -186,10 +241,15 @@ class SystemLowerer {
             const arg = qt.args[i - 1]!;
             binds.push(this.define(nm, { k: 'comp', name: arg.comp }).id);
         });
+        // A prefix binding still needs the trailing components bound, because the
+        // interpreter and every later pass index binds positionally.
+        for (let i = elements.length; i < qt.args.length + 1; i++) {
+            binds.push(this.define(`_tail${i}`, { k: 'comp', name: qt.args[i - 1]!.comp }).id);
+        }
 
-        const body = ts.isBlock(node.statement)
+        const body = this.scoped(() => (ts.isBlock(node.statement)
             ? node.statement.statements.flatMap((s) => this.stmt(s))
-            : this.stmt(node.statement);
+            : this.stmt(node.statement)));
         return { s: 'rowLoop', query: { p: 'local', id: q.id }, entity, binds, body };
     }
 
@@ -206,7 +266,7 @@ class SystemLowerer {
             return { s: 'assign', target, value: { e: 'bin', op: compound, l: read, r, type } };
         }
         if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
-            throw new NotInSubset(node, `'${node.operatorToken.getText()}' is not an assignment this subset lowers`);
+            throw new NotInSubset(node, `'${tokenText(node.operatorToken.kind)}' is not an assignment this subset lowers`);
         }
         return { s: 'assign', target, value: this.expr(node.right) };
     }
@@ -254,6 +314,34 @@ class SystemLowerer {
         throw new NotInSubset(node, `'${base.name}' has no fields to read`);
     }
 
+    /**
+     * `Math.abs(x)` and friends. Only the operations ECMAScript specifies to the
+     * bit: sin/cos/tan/exp/log/pow are implementation-defined, so a native
+     * backend and the interpreter would be free to disagree — and a pixel gate
+     * would go red on trig rather than on a bug.
+     */
+    private mathCall(node: ts.CallExpression): Expr {
+        const callee = node.expression;
+        if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)
+            || callee.expression.text !== 'Math') {
+            throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers');
+        }
+        const fn = callee.name.text as MathFn;
+        const arity = (MATH_FNS as Record<string, number | undefined>)[fn];
+        if (arity === undefined) {
+            throw new NotInSubset(node,
+                `Math.${fn} is not exactly specified by ECMAScript, so a compiled build would be free to disagree with the interpreter`);
+        }
+        if (node.arguments.length !== arity) {
+            throw new NotInSubset(node, `Math.${fn} takes ${arity} argument(s), not ${node.arguments.length}`);
+        }
+        const args = node.arguments.map((a) => this.expr(a));
+        for (const a of args) {
+            if (a.type.k !== 'f64') throw new NotInSubset(node, `Math.${fn} takes numbers, not a ${a.type.k}`);
+        }
+        return { e: 'call', fn, args, type: F64 };
+    }
+
     private expr(node: ts.Expression): Expr {
         if (ts.isParenthesizedExpression(node)) return this.expr(node.expression);
         if (ts.isNumericLiteral(node)) return { e: 'const', value: Number(node.text), type: F64 };
@@ -263,15 +351,33 @@ class SystemLowerer {
             const v = this.expr(node.operand);
             return { e: 'neg', v, type: v.type };
         }
+        if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+            return { e: 'not', v: this.expr(node.operand), type: BOOL };
+        }
         if (ts.isBinaryExpression(node)) {
+            const logic = LOGIC_OPS.get(node.operatorToken.kind);
+            if (logic) {
+                return { e: 'logic', op: logic, l: this.expr(node.left), r: this.expr(node.right), type: BOOL };
+            }
             const op = BIN_OPS.get(node.operatorToken.kind);
-            if (!op) throw new NotInSubset(node, `operator '${node.operatorToken.getText()}' is not in this subset`);
+            if (!op) throw new NotInSubset(node, `operator '${tokenText(node.operatorToken.kind)}' is not in this subset`);
             const l = this.expr(node.left);
             const r = this.expr(node.right);
             const type = op === '<' || op === '<=' || op === '>' || op === '>=' || op === '==' || op === '!='
                 ? BOOL : F64;
             return { e: 'bin', op, l, r, type };
         }
+        if (ts.isConditionalExpression(node)) {
+            const cond = this.expr(node.condition);
+            if (cond.type.k !== 'bool') throw new NotInSubset(node.condition, 'a ternary condition must be a boolean');
+            const then = this.expr(node.whenTrue);
+            const otherwise = this.expr(node.whenFalse);
+            if (then.type.k !== otherwise.type.k) {
+                throw new NotInSubset(node, 'the two arms of a ternary must have the same type');
+            }
+            return { e: 'select', cond, then, otherwise, type: then.type };
+        }
+        if (ts.isCallExpression(node)) return this.mathCall(node);
         if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
             return { e: 'read', place: this.place(node), type: this.placeType(node) };
         }
@@ -287,7 +393,13 @@ function componentShape(call: ts.CallExpression): CompShape | null {
     const fields = new Map<string, EirType>();
     for (const prop of defaults.properties) {
         if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return null;
-        const init = prop.initializer;
+        // `-50` parses as a prefix expression, not a numeric literal. A default
+        // of a negative number is ordinary, and refusing it took FixtureClamp
+        // out of the corpus for no reason anyone would guess from the message.
+        const init = ts.isPrefixUnaryExpression(prop.initializer)
+            && prop.initializer.operator === ts.SyntaxKind.MinusToken
+            ? prop.initializer.operand
+            : prop.initializer;
         if (ts.isNumericLiteral(init)) fields.set(prop.name.text, F64);
         else if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
             fields.set(prop.name.text, BOOL);
