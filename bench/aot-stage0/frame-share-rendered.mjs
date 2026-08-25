@@ -80,25 +80,30 @@ if (!frames.length) {
     process.exit(1);
 }
 
-// Per frame: TS is every system's ms; C++ is every engine scope's ms. GPU time is
-// neither — it is the device's, and compiling script does not touch it.
+// The engine's C++ scopes run INSIDE a system's wall clock (submitScene is three
+// wasm calls), so summing systems + nativeScopes counts that time twice and books
+// it as script. The frame IS the systems; TS is what is left after the C++ in them.
 const tsPer = [];
 const cppPer = [];
+const cpuPer = [];
 const systemTotals = new Map();
 const scopeTotals = new Map();
+const jsScopeTotals = new Map();
 for (const f of frames) {
-    const ts = sum((f.systems ?? []).map((s) => s.ms));
+    const cpuF = sum((f.systems ?? []).map((s) => s.ms));
     const cpp = sum((f.nativeScopes ?? []).map((s) => s.ms));
-    tsPer.push(ts);
+    cpuPer.push(cpuF);
     cppPer.push(cpp);
+    tsPer.push(Math.max(0, cpuF - cpp));
     for (const s of f.systems ?? []) systemTotals.set(s.name, (systemTotals.get(s.name) ?? 0) + s.ms);
     for (const s of f.nativeScopes ?? []) scopeTotals.set(s.name, (scopeTotals.get(s.name) ?? 0) + s.ms);
+    for (const s of f.scopes ?? []) jsScopeTotals.set(s.name, (jsScopeTotals.get(s.name) ?? 0) + s.ms);
 }
 
 const n = frames.length;
 const ts = median(tsPer);
 const cpp = median(cppPer);
-const cpu = ts + cpp;
+const cpu = median(cpuPer);
 const c = cpu > 0 ? cpp / cpu : 0;
 // nativeScopes and systems are both ScopeCost[]/SystemCost[] — {name, ms} — not
 // Records. Reading either as a Record yields string concatenation and a silent
@@ -120,11 +125,12 @@ const show = (title, totals) => {
 };
 show('TypeScript systems', systemTotals);
 show('engine C++ scopes (ES_PROFILE_SCOPE)', scopeTotals);
+show('JS sub-frame scopes (measureFrameScope)', jsScopeTotals);
 
 console.log('\n  ' + '-'.repeat(66));
-console.log(`    TS   ${ms(ts).padStart(10)} ms   ${(100 * (1 - c)).toFixed(1)}%`);
-console.log(`    C++  ${ms(cpp).padStart(10)} ms   ${(100 * c).toFixed(1)}%   <- c`);
-console.log(`    CPU  ${ms(cpu).padStart(10)} ms`);
+console.log(`    CPU frame (the systems)  ${ms(cpu).padStart(10)} ms`);
+console.log(`      of which C++ inside them ${ms(cpp).padStart(9)} ms   ${(100 * c).toFixed(1)}%   <- c`);
+console.log(`      leaving script           ${ms(ts).padStart(9)} ms   ${(100 * (1 - c)).toFixed(1)}%`);
 console.log(`    GPU  ${ms(gpu).padStart(10)} ms   (the device's; compiling script does not touch it)`);
 
 // Two MEASURED inputs, not the Stage 0 factor: 396x came from a numeric loop
@@ -151,14 +157,23 @@ console.log(`    compiled TS runs at native speed ........ ${ceilX.toFixed(1)}x 
 console.log(`
   gate (REARCH_AOT §13.4): >= 3x opens Stage 1  ->  ${floorX >= 3 ? 'OPEN' : 'HOLD'}`);
 
-// The frame's hottest thing is TypeScript, and it is not a game system.
-const hottest = [...systemTotals.entries()].sort((a, b) => b[1] - a[1])[0];
-if (hottest) {
-    const hm = hottest[1] / n;
-    console.log('\n  the finding that does not depend on AOT at all');
-    console.log('  ' + '-'.repeat(66));
-    console.log(`    ${hottest[0]} is ${ms(hm)} ms — ${(100 * hm / ts).toFixed(0)}% of the TS and`);
-    console.log(`    ${(100 * hm / cpu).toFixed(0)}% of the CPU frame. The hottest thing in a rendered frame is`);
-    console.log('    script, and it is the SDK own draw submission, not game code.');
+// This scene carries no game logic (VelocitySystem ~0.01 ms — the copies have no
+// Velocity), so c is at its RENDERING end; headless is the other end at ~4%. The
+// payoff follows c across that range, so one number cannot answer this.
+const hottestScope = [...scopeTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+console.log('\n  what this scene actually is, and what it is not');
+console.log('  ' + '-'.repeat(66));
+if (hottestScope) {
+    console.log(`    hottest thing in the frame: ${hottestScope[0]} at ${ms(hottestScope[1] / n)} ms`);
+    console.log('    — already C++. Compiling script does not touch it.');
+}
+console.log('    This scene carries no game logic, so c is at its RENDERING end.');
+console.log('    frame-share.mjs (headless, all game logic) is the other end at ~4%.');
+console.log('    A real game sits between; the payoff follows c:');
+for (const cc of [0.05, 0.25, 0.5, c, 0.9]) {
+    const njF = K * (1 - cc) + cc;
+    const sp = njF / ((1 - cc) / NATIVE_OVER_V8 + cc);
+    const mark = Math.abs(cc - c) < 1e-9 ? '  <- measured here' : '';
+    console.log(`      c = ${(100 * cc).toFixed(0).padStart(3)}%   ${sp.toFixed(1).padStart(5)}x${mark}`);
 }
 console.log('='.repeat(70));
