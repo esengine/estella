@@ -144,6 +144,18 @@ class Verifier {
                 }
                 break;
             }
+            case 'emit': {
+                const ch = this.placeType(s.channel);
+                if (ch && ch.k !== 'channel') this.fail(`emit to a ${typeName(ch)}`);
+                if (s.record === 'despawn') {
+                    const t = s.args[0] ? this.exprType(s.args[0]) : null;
+                    if (s.args.length !== 1) this.fail(`despawn takes 1 argument, not ${s.args.length}`);
+                    else if (t && t.k !== 'entity') this.fail(`despawn applied to a ${typeName(t)}`);
+                } else {
+                    this.fail(`'${s.record}' is not a record the verifier knows`);
+                }
+                break;
+            }
             case 'if': {
                 const c = this.exprType(s.cond);
                 if (c && c.k !== 'bool') this.fail(`if condition is a ${typeName(c)}`);

@@ -41,6 +41,12 @@ export interface LowerResult {
     readonly diagnostics: readonly Diagnostic[];
     /** Systems seen, whether or not they compiled — the coverage gate's denominator. */
     readonly seen: readonly string[];
+    /**
+     * The `const` each system is bound to -> its declared name. Registration in
+     * main.ts names the BINDING, so this is what lets a caller ask whether a
+     * system runs per frame or once at startup.
+     */
+    readonly systemBindings: ReadonlyMap<string, string>;
 }
 
 const BIN_OPS: ReadonlyMap<ts.SyntaxKind, BinOp> = new Map([
@@ -70,6 +76,13 @@ const LOGIC_OPS: ReadonlyMap<ts.SyntaxKind, LogicOp> = new Map([
 function tokenText(kind: ts.SyntaxKind): string {
     return ts.tokenToString(kind) ?? ts.SyntaxKind[kind];
 }
+
+/**
+ * Command records this subset emits, and how many arguments each carries.
+ * `spawn` is absent on purpose: it returns a builder that the corpus chains
+ * `.insert(Component, {…})` onto, which needs component literals as values.
+ */
+const COMMAND_RECORDS: Record<string, number | undefined> = { despawn: 1 };
 
 /** Thrown internally to abandon one system; never escapes lowerProgram. */
 class NotInSubset extends Error {
@@ -128,6 +141,10 @@ class SystemLowerer {
                 if (!arg || !ts.isIdentifier(arg)) throw new NotInSubset(el, 'Res(...) needs a named resource');
                 return { k: 'res', name: this.compName(arg.text) } as EirType;
             }
+            if (kind === 'Commands') {
+                if (el.arguments.length !== 0) throw new NotInSubset(el, 'Commands() takes no arguments');
+                return { k: 'channel', name: 'Commands' } as EirType;
+            }
             if (kind !== 'Query') throw new NotInSubset(el, `'${kind}' is not a parameter intrinsic`);
             const args: QueryArg[] = el.arguments.map((a) => this.queryArg(a));
             return { k: 'query', args } as EirType;
@@ -170,7 +187,10 @@ class SystemLowerer {
 
     private stmt(node: ts.Statement): Stmt[] {
         if (ts.isForOfStatement(node)) return [this.rowLoop(node)];
-        if (ts.isExpressionStatement(node)) return [this.assignment(node.expression)];
+        if (ts.isExpressionStatement(node)) {
+            if (ts.isCallExpression(node.expression)) return [this.emit(node.expression)];
+            return [this.assignment(node.expression)];
+        }
         if (ts.isBlock(node)) return this.scoped(() => node.statements.flatMap((s) => this.stmt(s)));
         if (ts.isVariableStatement(node)) return this.declarations(node);
         if (ts.isIfStatement(node)) return [this.ifStmt(node)];
@@ -251,6 +271,32 @@ class SystemLowerer {
             ? node.statement.statements.flatMap((s) => this.stmt(s))
             : this.stmt(node.statement)));
         return { s: 'rowLoop', query: { p: 'local', id: q.id }, entity, binds, body };
+    }
+
+    /**
+     * `cmds.despawn(entity)` — a record appended to a channel, not a call. The
+     * SDK already defers these to a flush at system end, so this models what it
+     * does rather than pretending the mutation happens here.
+     */
+    private emit(node: ts.CallExpression): Stmt {
+        const callee = node.expression;
+        if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)) {
+            throw new NotInSubset(node, 'a call statement must be a method on a declared channel');
+        }
+        const target = this.lookup(callee.expression, callee.expression.text);
+        if (target.type.k !== 'channel') {
+            throw new NotInSubset(node, `'${target.name}' is not a channel this subset can emit to`);
+        }
+        const record = callee.name.text;
+        const arity = COMMAND_RECORDS[record];
+        if (arity === undefined) {
+            throw new NotInSubset(node, `Commands.${record} is not a record this subset emits yet`);
+        }
+        if (node.arguments.length !== arity) {
+            throw new NotInSubset(node, `Commands.${record} takes ${arity} argument(s), not ${node.arguments.length}`);
+        }
+        const args = node.arguments.map((a) => this.expr(a));
+        return { s: 'emit', channel: { p: 'local', id: target.id }, record, args };
     }
 
     private assignment(node: ts.Expression): Stmt {
@@ -439,6 +485,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     const systems: EirSystem[] = [];
     const diagnostics: Diagnostic[] = [];
     const seen: string[] = [];
+    const systemBindings = new Map<string, string>();
 
     // ts normalises fileName to forward slashes; a caller on Windows will not
     // have. Comparing them raw lowers nothing and reports no error at all.
@@ -486,6 +533,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             if (node.expression.text !== 'defineSystem') return;
             const name = systemName(node, binding);
             seen.push(name);
+            if (binding) systemBindings.set(binding, name);
             try {
                 const [params, fn] = node.arguments;
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
@@ -501,7 +549,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         });
     }
 
-    return { module: { systems, comps }, diagnostics, seen };
+    return { module: { systems, comps }, diagnostics, seen, systemBindings };
 }
 
 /** `{ name: 'MoveSystem' }` if given, else the const it is assigned to. */

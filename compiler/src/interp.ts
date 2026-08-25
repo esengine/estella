@@ -19,11 +19,17 @@ import type { EirSystem, Expr, Local, Place, QueryArg, Stmt } from './eir';
 export type Row = Record<string, unknown>;
 
 export interface EirWorld {
-    /** Entity ids in the order a query walks them. */
-    readonly entities: readonly number[];
+    /** Entity ids in the order a query walks them. Mutable: a flush removes from it. */
+    entities: number[];
     /** component name -> entity -> its row. An absent entity simply has none. */
     readonly comps: ReadonlyMap<string, Map<number, Row>>;
     readonly resources: ReadonlyMap<string, Row>;
+}
+
+/** One appended record, waiting for the flush at system end. */
+interface Command {
+    readonly record: string;
+    readonly args: readonly unknown[];
 }
 
 class Frame {
@@ -117,6 +123,11 @@ function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
             case 'assign':
                 writePlace(s.target, frame, evalExpr(s.value, frame));
                 break;
+            case 'emit': {
+                const queue = readPlace(s.channel, frame) as Command[];
+                queue.push({ record: s.record, args: s.args.map((a) => evalExpr(a, frame)) });
+                break;
+            }
             case 'if':
                 if (evalExpr(s.cond, frame)) exec(s.then, frame, world);
                 else exec(s.otherwise, frame, world);
@@ -143,17 +154,40 @@ function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld): void {
  */
 export function runSystem(sys: EirSystem, world: EirWorld): void {
     const frame = new Frame();
-    for (const p of sys.params) bindParam(p, frame, world);
+    const queues: Command[][] = [];
+    for (const p of sys.params) {
+        const q = bindParam(p, frame, world);
+        if (q) queues.push(q);
+    }
     exec(sys.body, frame, world);
+    // At system end, not at the call: the SDK's runner flushes in flushSystem_,
+    // and a despawn taking effect mid-row would change what the row loop walks.
+    for (const q of queues) flush(q, world);
 }
 
-function bindParam(p: Local, frame: Frame, world: EirWorld): void {
-    if (p.type.k === 'query') { frame.set(p.id, { args: p.type.args }); return; }
+function flush(queue: Command[], world: EirWorld): void {
+    for (const c of queue) {
+        if (c.record !== 'despawn') throw new Error(`EIR: no flush for '${c.record}'`);
+        const e = c.args[0] as number;
+        const at = world.entities.indexOf(e);
+        if (at >= 0) world.entities.splice(at, 1);
+        for (const rows of world.comps.values()) rows.delete(e);
+    }
+    queue.length = 0;
+}
+
+function bindParam(p: Local, frame: Frame, world: EirWorld): Command[] | null {
+    if (p.type.k === 'query') { frame.set(p.id, { args: p.type.args }); return null; }
     if (p.type.k === 'res') {
         const row = world.resources.get(p.type.name);
         if (!row) throw new Error(`EIR: no resource '${p.type.name}' in the world`);
         frame.set(p.id, row);
-        return;
+        return null;
+    }
+    if (p.type.k === 'channel') {
+        const q: Command[] = [];
+        frame.set(p.id, q);
+        return q;
     }
     throw new Error(`EIR: '${p.name}' has no parameter binding for ${p.type.k}`);
 }

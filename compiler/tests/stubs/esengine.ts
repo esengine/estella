@@ -31,6 +31,10 @@ export function Mut(comp: unknown): unknown {
 export function Res(resource: unknown): unknown {
     return { kind: 'res', resource };
 }
+export function Commands(): unknown {
+    return { kind: 'commands' };
+}
+export const Sprite = { _name: 'Sprite' };
 export function defineSystem(
     params: readonly unknown[],
     fn: (...args: any[]) => void,

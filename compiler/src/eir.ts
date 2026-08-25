@@ -28,7 +28,9 @@ export type EirType =
     | { readonly k: 'comp'; readonly name: string }
     /** A resource, addressed by field like a component. */
     | { readonly k: 'res'; readonly name: string }
-    | { readonly k: 'query'; readonly args: readonly QueryArg[] };
+    | { readonly k: 'query'; readonly args: readonly QueryArg[] }
+    /** A deferred-mutation channel: Commands, and later an EventWriter. */
+    | { readonly k: 'channel'; readonly name: string };
 
 export const F64: EirType = { k: 'f64' };
 export const BOOL: EirType = { k: 'bool' };
@@ -98,6 +100,17 @@ export type Stmt =
     }
     | { readonly s: 'assign'; readonly target: Place; readonly value: Expr }
     | { readonly s: 'let'; readonly id: number; readonly value: Expr }
+    /**
+     * Append one record to a channel. Commands are a QUEUE the runner flushes at
+     * system end, not calls — so `despawn`, `spawn` and `EventWriter.send` are
+     * one statement with the record name as data, rather than an opcode each.
+     */
+    | {
+        readonly s: 'emit';
+        readonly channel: Place;
+        readonly record: string;
+        readonly args: readonly Expr[];
+    }
     | {
         readonly s: 'if';
         readonly cond: Expr;
@@ -140,6 +153,7 @@ export function typeName(t: EirType): string {
     switch (t.k) {
         case 'comp': return `comp<${t.name}>`;
         case 'res': return `res<${t.name}>`;
+        case 'channel': return `channel<${t.name}>`;
         case 'query': return `query<${t.args.map((a) => (a.mut ? `mut ${a.comp}` : a.comp)).join(', ')}>`;
         default: return t.k;
     }
@@ -178,6 +192,9 @@ function stmtText(s: Stmt, locals: ReadonlyMap<number, Local>, indent: string): 
             return [`${indent}${placeName(s.target, locals)} = ${exprText(s.value, locals)}`];
         case 'let':
             return [`${indent}let ${locals.get(s.id)?.name ?? `%${s.id}`} = ${exprText(s.value, locals)}`];
+        case 'emit':
+            return [`${indent}emit ${placeName(s.channel, locals)}.${s.record}(`
+                + `${s.args.map((a) => exprText(a, locals)).join(', ')})`];
         case 'if': {
             const out = [`${indent}if ${exprText(s.cond, locals)} {`];
             out.push(...s.then.flatMap((b) => stmtText(b, locals, `${indent}  `)));
