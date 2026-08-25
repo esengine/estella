@@ -180,6 +180,7 @@ type Addressing = 'offset' | 'pointer';
 function build(dir: string, cModule: CModule, symbol: string, how: Addressing = 'offset'): string {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'estella_abi.h'), cModule.header);
+    writeFileSync(join(dir, 'estella_offsets.h'), cModule.offsets);
     writeFileSync(join(dir, 'systems.c'), cModule.source);
     writeFileSync(join(dir, 'main.c'), MAIN_C);
     const exe = join(dir, `${symbol}${process.platform === 'win32' ? '.exe' : ''}`);
@@ -444,7 +445,8 @@ describe('the emitted C says what the interpreter says', () => {
         expect(cam.leaves.get('priority')!.enc).toBe('i32');
 
         const { source } = emitC(fixtures.module, layout, [systemOf(fixtures, 'FixtureCamera')]);
-        expect(source).toContain('#define ES_OFF_Camera_isActive 24u');
+        expect(emitC(fixtures.module, layout, [systemOf(fixtures, 'FixtureCamera')]).offsets)
+            .toContain('#define ES_OFF_Camera_isActive 24u');
         // One byte. Read as a float it would take three bytes of `priority` with
         // it, and produce a number rather than an error.
         expect(source).toMatch(/es_bool\(\w+ \+ ES_OFF_Camera_isActive\)/);
@@ -477,6 +479,7 @@ describe('the emitted C says what the interpreter says', () => {
         const dir = join(tmp, 'imports');
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'estella_abi.h'), cModule.header);
+        writeFileSync(join(dir, 'estella_offsets.h'), cModule.offsets);
         writeFileSync(join(dir, 'systems.c'), cModule.source);
         const obj = join(dir, 'systems.o');
         const out = spawnSync(CC!, [...CFLAGS, '-Wall', '-Wextra', '-c',
@@ -522,6 +525,7 @@ describe('the emitted C says what the interpreter says', () => {
         const dir = join(tmp, 'handshake');
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'estella_abi.h'), c.header);
+        writeFileSync(join(dir, 'estella_offsets.h'), c.offsets);
         writeFileSync(join(dir, 'systems.c'), c.source);
         writeFileSync(join(dir, 'main.c'), [
             '#include <stdio.h>',
@@ -555,7 +559,8 @@ describe('the emitted C says what the interpreter says', () => {
         const { source } = emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]);
         // §4.2's whole reason for existing, readable in the output itself.
         expect(source).toMatch(/es_f32\(\w+ \+ ES_OFF_Transform_position_x\)/);
-        expect(source).toMatch(/#define ES_OFF_Transform_position_x \d+u/);
+        expect(emitC(shipped.module, layout, [systemOf(shipped, 'MoveSystem')]).offsets)
+            .toMatch(/#define ES_OFF_Transform_position_x \d+u/);
         // And the thing v0 had that v1 does not: a call back across the boundary.
         expect(source).not.toMatch(/\bes_abi_\w+\(/);
     });
