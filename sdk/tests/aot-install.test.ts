@@ -39,7 +39,7 @@ import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 import type { Entity } from '../src/types';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { FakeEngine } from './fakeEngine';
-import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
+import { buildFadeModule, FADE_FIELDS, fadeManifest } from './helpers/aotFade';
 
 const N = 16;
 
@@ -163,7 +163,7 @@ describe('installing a built module', () => {
         const engine = new FakeEngine();
         await installAot({
             world: compiled.world, runner: compiled.runner, host: engine,
-            manifest: manifestFor(), wasm, resources: () => undefined,
+            manifest: fadeManifest(), wasm, resources: () => undefined,
         });
         const compiledEntities = seed(compiled.world, compiled.Fade);
 

@@ -132,7 +132,7 @@ describe('a compiled system, called by the SDK', () => {
         const memory = new WasmPoolMemory(engine);
         const instance = await WebAssembly.instantiate(
             new WebAssembly.Module(buildModule() as unknown as BufferSource),
-            { env: { memory: engine.memory } });
+            { env: { memory: engine.wasmMemory } });
         const api = instance.exports as unknown as Record<string, unknown>;
         (api['_initialize'] as (() => void) | undefined)?.();
         const decay = api['es_sys_Decay'] as (ctx: number) => void;
@@ -200,7 +200,7 @@ describe('a compiled system, called by the SDK', () => {
         const memory = new WasmPoolMemory(engine);
         const instance = await WebAssembly.instantiate(
             new WebAssembly.Module(buildModule() as unknown as BufferSource),
-            { env: { memory: engine.memory } });
+            { env: { memory: engine.wasmMemory } });
         const api = instance.exports as unknown as Record<string, unknown>;
         (api['_initialize'] as (() => void) | undefined)?.();
 

@@ -16,6 +16,28 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A system can promise to compile, and a shipped build keeps it.** Mark one
+  `@compiled` in its JSDoc and the export lowers it to C, builds it with emcc,
+  and ships a few-hundred-byte wasm module beside the bundle; the scheduler then
+  calls that instead of the closure. The module imports the ENGINE's memory
+  rather than owning one, so the engine wasm stays prebuilt and there is nothing
+  to link — it reads the components where they already are.
+
+  The marker is a promise, not a hint: in a `release` or `ship` export, anything
+  the subset cannot lower is a build error naming the file and the line. A `dev`
+  export never compiles, so the editor's preview keeps interpreting and a machine
+  with no emsdk builds and runs every project. A project that marks nothing is
+  unaffected — no toolchain, no build step, no file.
+
+  Loading refuses rather than degrades. A module built against other engine
+  offsets, or other `defineComponent` shapes, does not produce a wrong answer —
+  it reads a different field — so the two digests it carries are checked before
+  anything is registered, and the message says which one moved: rebuild the
+  module, or rebuild the project.
+
+  Hosts embedding the runtime themselves can do the same through
+  `App.useCompiledSystems` (`@experimental`).
+
 - **A playable ad now fits the networks it is made for.** The single-file
   transport inlined its engine as plain base64 — a +33% tax on a payload that is
   mostly a 1.5MB wasm — and never minified the bundle, because the CLI had no

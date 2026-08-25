@@ -163,7 +163,7 @@ describe('the scheduler and its compiled twin', () => {
 
         const instance = await WebAssembly.instantiate(
             new WebAssembly.Module(bytes as unknown as BufferSource),
-            { env: { memory: heap.memory } });
+            { env: { memory: heap.wasmMemory } });
         const exports = instance.exports as unknown as Record<string, unknown>;
         (exports['_initialize'] as (() => void) | undefined)?.();
 
@@ -219,7 +219,7 @@ describe('the scheduler and its compiled twin', () => {
             if (compiled) {
                 const instance = await WebAssembly.instantiate(
                     new WebAssembly.Module(bytes as unknown as BufferSource),
-                    { env: { memory: heap.memory } });
+                    { env: { memory: heap.wasmMemory } });
                 const exports = instance.exports as unknown as Record<string, unknown>;
                 (exports['_initialize'] as (() => void) | undefined)?.();
                 const systems = new AotSystems();

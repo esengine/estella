@@ -21,6 +21,7 @@
  */
 import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
+import { spawn } from 'node:child_process';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -39,6 +40,9 @@ import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from '../bundle/esengineResolve';
+import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
+import { AOT_MANIFEST, AOT_WASM } from '../bundle/aotArtifacts';
+import { emccPath } from '../../../build-tools/utils/emscripten.js';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
@@ -415,6 +419,9 @@ export interface ExportGameOptions {
   /** `packaging.sizeBudget[platform]` — the project's own package-size ceiling in
    *  bytes, replacing whatever limit the target declares. See sizeBudget.ts. */
   sizeBudgetBytes?: number;
+  /** Whether a `@compiled` marker is collected on. Default `release`, because an
+   *  export IS the shipping build; `dev` skips the toolchain entirely. */
+  aot?: BuildMode;
 }
 
 /**
@@ -491,6 +498,16 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
   } catch {
     return result;  // measuring is reporting, never a reason to fail a build
   }
+}
+
+/** emcc, as buildCompiledSystems wants it: a .bat on Windows, so through a shell. */
+function runEmcc(cmd: string, args: string[], cwd: string): Promise<{ code: number; stderr: string }> {
+  return new Promise((done) => {
+    const child = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += String(d); });
+    child.on('close', (code) => done({ code: code ?? 1, stderr }));
+  });
 }
 
 async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult> {
@@ -702,6 +719,24 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         })
         : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
       errors.push(...explainBundleErrors(proj.errors));
+    }
+
+    // 3b. The systems the project PROMISED would compile, as wasm beside the
+    //     bundle: no marker is not a build step, a promise the subset cannot
+    //     keep is an error. The engine wasm stays prebuilt.
+    if (!nativeContent) {
+      const aot = await buildCompiledSystems(opts.root, {
+        mode: opts.aot ?? 'release',
+        emcc: emccPath(),
+        run: runEmcc,
+      });
+      errors.push(...aot.errors);
+      for (const note of aot.notes) warnings.push(note);
+      if (aot.ok && aot.wasmPath && aot.manifest) {
+        progress({ phase: 'Compiling promised systems' });
+        await cp(aot.wasmPath, path.join(payloadDir, AOT_WASM));
+        await writeFile(path.join(payloadDir, AOT_MANIFEST), JSON.stringify(aot.manifest));
+      }
     }
   } catch (err) {
     const e = err as { errors?: BundleMessage[]; message?: string };

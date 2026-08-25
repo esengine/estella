@@ -368,3 +368,10 @@ export type { EngineApi } from './ecs/bridge/engineApi';
 // =============================================================================
 
 export { AppContext, getDefaultContext, setDefaultContext, type EditorBridge } from './ecs/context';
+
+/** What `App.useCompiledSystems` takes: the engine module, and what a build
+ *  wrote beside the wasm it produced.
+ *
+ *  @experimental */
+export type { AotHost } from './ecs/aot/installAot';
+export type { AotManifest, AotSystemDecl } from './ecs/aot/AotSystems';

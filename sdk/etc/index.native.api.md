@@ -586,6 +586,7 @@ stepFrame: () => void
 stepFrames: (frames?: number, dt?: number) => Promise<void>
 subsystems: SubsystemRegistry
 tick: (delta: number) => Promise<void>
+useCompiledSystems: (opts: { readonly host: AotHost; readonly manifest: AotManifest; readonly wasm: BufferSource; }) => Promise<void>
 waitForPhysics: () => Promise<void>
 world: World
 static new (): App

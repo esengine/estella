@@ -7,7 +7,10 @@
 
 import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
-import { ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { BUILTIN_RESOURCES, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { prepareAot, type AotHost } from '../ecs/aot/installAot';
+import type { AotManifest } from '../ecs/aot/AotSystems';
+import type { AotRuntime } from '../ecs/aot/AotRuntime';
 import { EventRegistry, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { OutputTransform } from '../postprocess';
@@ -610,6 +613,37 @@ export class App {
         return this.world_;
     }
 
+    /**
+     * Run the compiled twins a build produced instead of the systems' closures.
+     * Call it BEFORE the world has any pooled component: the rows must be in the
+     * memory the module reads. Refuses rather than degrades — a module built for
+     * other offsets reads a different field, which is not an error.
+     *
+     * @experimental
+     */
+    async useCompiledSystems(opts: {
+        readonly host: AotHost;
+        readonly manifest: AotManifest;
+        readonly wasm: BufferSource;
+    }): Promise<void> {
+        this.aot_ = await prepareAot({
+            world: this.world_,
+            host: opts.host,
+            manifest: opts.manifest,
+            wasm: opts.wasm,
+            resources: (name) => {
+                const def = BUILTIN_RESOURCES[name];
+                return def !== undefined && this.resources_.has(def)
+                    ? this.resources_.get(def) as Readonly<Record<string, unknown>>
+                    : undefined;
+            },
+        });
+        this.runner_?.useAot(this.aot_);
+    }
+
+    /** Held until there is a runner to give them to: one is made on the first frame. */
+    private aot_: AotRuntime | null = null;
+
     // =========================================================================
     // Configuration
     // =========================================================================
@@ -1024,6 +1058,12 @@ export class App {
     private ensureRunner_(): SystemRunner {
         if (!this.runner_) {
             this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
+            // Twins prepared before there was a runner. `useCompiledSystems` can be
+            // called on a fresh App, and its `runner_?.useAot` would drop them for
+            // good — a compiled build that silently runs its closures instead.
+            if (this.aot_) {
+                this.runner_.useAot(this.aot_);
+            }
             if (this.statsEnabled_) {
                 this.runner_.setTimingEnabled(true);
             }

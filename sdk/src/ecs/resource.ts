@@ -279,3 +279,15 @@ export interface TimeData {
  */
 export const Time = defineResource<TimeData>({ ...RESOURCE_SHAPES.Time }, 'Time');
 
+/**
+ * The engine's own resources, by the name a compiled system names them with.
+ * Not a general registry: `defineResource` identifies by REFERENCE, so a name
+ * answers a resource only for the ones the engine itself declares — which is
+ * exactly the set that has a layout to read at an address.
+ *
+ * @internal
+ */
+export const BUILTIN_RESOURCES: Readonly<Record<string, ResourceDef<unknown>>> = {
+    Time: Time as ResourceDef<unknown>,
+};
+

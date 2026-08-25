@@ -29,11 +29,12 @@ import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout, planFor } from '../../../compiler/src/abi';
 import { CFLAGS, WASM_LINK_FLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
+import { AOT_MANIFEST, AOT_WASM } from './aotArtifacts';
 
 /** Where the C and the wasm land, beside the script bundle. */
 const CACHE_DIR = '.esengine/cache/aot';
-const WASM = 'systems.wasm';
-const MANIFEST = 'systems.json';
+const WASM = AOT_WASM;
+const MANIFEST = AOT_MANIFEST;
 
 /** What the runtime needs in order to call one compiled system. */
 export interface CompiledSystemInfo {
