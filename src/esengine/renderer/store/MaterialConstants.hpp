@@ -25,4 +25,14 @@ inline constexpr const char* MATERIAL_CONSTANTS_BLOCK = "MaterialConstants";
 /** @brief First sampler unit a material texture parameter may use (batch owns units 0..7). */
 inline constexpr u32 MATERIAL_TEXTURE_UNIT_BASE = 8;
 
+/**
+ * @brief The unit a PostProcess pass reads the scene's DEPTH at.
+ *
+ * @details The top of the engine range on purpose: units 0 and 1 are the pass
+ *          input and the scene, and the loose-uniform path fills upward from 2,
+ *          so the last one is the only one nothing else can reach. A fullscreen
+ *          pass has no use for the batch's other units.
+ */
+inline constexpr u32 kSceneDepthUnit = 7;
+
 }  // namespace esengine

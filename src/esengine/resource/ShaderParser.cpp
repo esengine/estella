@@ -13,6 +13,7 @@
 
 #include "ShaderParser.hpp"
 #include "../core/Log.hpp"
+#include "../renderer/store/MaterialConstants.hpp"
 
 #include <sstream>
 #include <algorithm>
@@ -766,10 +767,17 @@ const char* kTimeHeaderWGSL =
 // de-combined into texture_2d t0..t7 (bindings 0..7) + samplers s0..s7
 // (bindings 8..15) — the group-1 convention (WebGPUMappings). Bodies sample
 // `textureSampleLevel(t0, s0, uv, 0.0)` where GLSL reads u_textures[0].
-std::string wgslBatchTextureDecls() {
+std::string wgslBatchTextureDecls(bool postProcess) {
     std::string src;
     for (u32 i = 0; i < 8; ++i) {
         const std::string n = std::to_string(i);
+        // A fullscreen pass reads the scene's DEPTH at the top engine unit, and a
+        // depth texture is its own WGSL type with no sampler under it. PostProcess
+        // only: unit 7 is an ordinary batch texture in every other domain.
+        if (postProcess && i == kSceneDepthUnit) {
+            src += "@group(1) @binding(" + n + ") var t" + n + " : texture_depth_2d;\n";
+            continue;
+        }
         src += "@group(1) @binding(" + n + ") var t" + n + " : texture_2d<f32>;\n";
         src += "@group(1) @binding(" + std::to_string(8 + i) + ") var s" + n + " : sampler;\n";
     }
@@ -1340,7 +1348,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         // engine texture contract — fragment-only twins run under the batch
         // conventions (PostProcess reads its input/scene as t0/s0 and t1/s1).
         inject(parsed.domain == "PostProcess" ? wgslPPVSOut() : wgslCanonicalVSOut(lit));
-        inject(wgslBatchTextureDecls());
+        inject(wgslBatchTextureDecls(parsed.domain == "PostProcess"));
     }
     inject(kFrameHeaderWGSL);
     inject(kTimeHeaderWGSL);

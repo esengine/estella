@@ -117,6 +117,11 @@ TextureHandle TargetPool::textureOf(TargetHandle handle) const {
     return entry ? entry->fbo->getColorAttachment() : TextureHandle::Invalid;
 }
 
+TextureHandle TargetPool::depthTextureOf(TargetHandle handle) const {
+    const Entry* entry = resolve(handle);
+    return entry ? entry->fbo->getDepthAttachment() : TextureHandle::Invalid;
+}
+
 void TargetPool::age() {
     for (auto& entry : entries_) {
         if (!entry.fbo || entry.inUse) continue;

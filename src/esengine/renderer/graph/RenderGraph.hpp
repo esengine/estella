@@ -153,6 +153,10 @@ public:
      *  only while it holds a physical target. */
     TextureHandle textureOf(ResourceId id) const;
 
+    /** Its depth attachment, for a resource declared with one. Invalid for an
+     *  import (the graph did not make it) and for a target without depth. */
+    TextureHandle depthTextureOf(ResourceId id) const;
+
     /** Drops every pooled target. For shutdown and for device loss, after which
      *  the handles the pool holds name nothing. */
     void releasePool();

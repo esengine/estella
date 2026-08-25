@@ -421,6 +421,14 @@ export const SCENES = [
   // Two quads crossing: one flat, one turned 60° about Y, so each is nearer on
   // one side. Painter's order cannot draw that — with `opaque` the halves resolve
   // by depth (left green, right red), and without it the later draw takes both.
+  // Two quads of the SAME colour, one in front of the other: a luma Sobel has
+  // nothing to find between them, so the edge in the middle of the frame came
+  // from the scene's DEPTH or it came from nowhere.
+  { id: "depth-outline", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/depth-outline.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/depth-outline.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.2725,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.15,\"y\":0.5,\"rgb\":[204,51,51],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[204,51,51],\"tol\":20}]" } },
+  // The same effect over a scene that writes no depth at all. Nothing to
+  // find, so the frame must come out exactly as it went in — the picture is
+  // identical to scale-sprites' own, probe for probe.
+  { id: "depth-outline-flat", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/depth-outline-flat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[230,102,26],\"tol\":20}]" } },
   { id: "mesh-opaque", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.58,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "mesh-opaque-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"MeshRenderer\",\"key\":\"opaque\",\"value\":false}", ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.58,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   // A normal map over FLAT normals: the quad faces the viewer, so without the map

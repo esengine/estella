@@ -327,6 +327,10 @@ private:
     struct TextureRec {
         WGPUTexture texture = nullptr;
         WGPUTextureView view = nullptr;  ///< Default full view, created with the texture.
+        /// The view a SAMPLE binds. Depth-stencil textures cannot be sampled
+        /// through an all-aspects view, so theirs is depth-only; for every other
+        /// format this is `view` and is not released twice.
+        WGPUTextureView sampleView = nullptr;
         u32 width = 0;
         u32 height = 0;
         WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
@@ -347,6 +351,8 @@ private:
          *         so an unused declaration is as legal as in GLSL. */
         u32 group0Mask = 0;
         u32 group1Mask = 0;
+        /// Which of group1Mask's bindings are `texture_depth_2d`.
+        u32 group1DepthMask = 0;
     };
     struct PipelineRec {
         PipelineDesc desc;
@@ -381,11 +387,11 @@ private:
      *         are texture_2d/sampler pairs per the WebGPUMappings unit→binding
      *         convention (engine units 0..7 at 0..7/8..15, material units 8..15
      *         at 16..23/24..31). */
-    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask);
+    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask, u32 depthMask = 0);
     /** @brief Returns the cached explicit pipeline layout for a program's masks.
      *         A program with group-1 bindings but an empty group 0 still gets a
      *         (zero-entry) group-0 layout, so group indices stay positional. */
-    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask);
+    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask, u32 group1DepthMask = 0);
     /** @brief Lazily creates the dummy backfill resources: a zeroed uniform
      *         buffer and a 1x1 white texture, standing in for declared-but-
      *         unbound bindings (GL reads an unbound block/unit without
@@ -563,6 +569,10 @@ private:
     std::unordered_map<u64, WGPUPipelineLayout> pipeline_layouts_;
     BufferHandle dummy_ubo_{};   ///< Zeroed backfill for declared-but-unbound UBO slots.
     u32 dummy_texture_ = 0;      ///< 1x1 white backfill for declared-but-unbound units.
+    /// The same for a depth unit: an RGBA8 dummy under a `sampleType = Depth`
+    /// entry is a validation error, so a declared-but-unbound depth binding
+    /// needs a depth texture to stand in.
+    u32 dummy_depth_texture_ = 0;
 
     u32 next_id_ = 1;
     std::unordered_map<u32, BufferRec> buffers_;

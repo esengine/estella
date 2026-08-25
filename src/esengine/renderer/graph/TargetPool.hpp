@@ -77,6 +77,10 @@ public:
     FramebufferHandle framebufferOf(TargetHandle handle) const;
     TextureHandle textureOf(TargetHandle handle) const;
 
+    /** The depth attachment, for a target that has one — an effect reading the
+     *  scene's depth samples this. Invalid when the shape carried no depth. */
+    TextureHandle depthTextureOf(TargetHandle handle) const;
+
     /**
      * @brief One tick of the clock every borrowed target is aged against.
      *

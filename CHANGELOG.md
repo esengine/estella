@@ -36,6 +36,49 @@ published separately; it ships inside the editor.
 
 - **`estella.mjs export --minify`**, for the targets whose default it is not.
 
+- **An effect can read the scene's DEPTH.** Nothing could: the depth attachment
+  was written every frame and sampled by nothing, and on WebGPU it was not even
+  sampleable — `createTexture` gave depth formats `RenderAttachment` alone, with
+  a comment saying the engine never reads them. So the whole family of effects
+  that needs to know how far away a pixel is — outlines that follow geometry,
+  fog, depth of field, anything screen-space — had no way to exist.
+
+  The scene's depth now reaches a PostProcess pass at texture unit 7. On WebGPU
+  that meant three things a colour texture never needed: the texture carries
+  `TextureBinding`; a **depth-only view** stands under the binding, and its
+  format is the ASPECT's (`depth24plus`) rather than the texture's, which Dawn
+  rejects as incompatible; and the bind-group layout learns which of its units
+  are depth (`sampleType = Depth`) by scanning the WGSL for `texture_depth_2d`,
+  with a depth dummy to back a declared-but-unbound one — a white RGBA8 dummy
+  under a depth entry is a validation error, not a blank sample. Depth is read
+  by texel (`texelFetch` / `textureLoad`): a fullscreen pass is 1:1 with the
+  scene, and a depth texture is not filterable.
+
+- **`depthOutline`, a post effect that outlines geometry rather than shading.**
+  The existing `outline` runs a Sobel over scene luma, so it draws an edge
+  wherever the picture changes — texture detail, a shadow's border, two shades
+  of one wall — and misses a silhouette between two surfaces of the same colour.
+  This one reads depth, so an edge is a place the geometry steps, at any
+  contrast including none. Depth is compared as a RATIO to the nearest
+  neighbour, which is what lets one threshold hold across the whole view: an
+  absolute difference of 0.001 is a wall's thickness up close and a kilometre
+  out.
+
+  Two gates, both backends. `depth-outline` puts two SAME-COLOURED quads at
+  different depths, so the edge in the middle of the frame came from depth or it
+  came from nowhere — sabotage-verified by moving the near quad back to the far
+  one's z, which is a change to the fixture and needs no rebuild.
+  `depth-outline-flat` runs the same effect over a scene that writes no depth
+  and requires the frame to come out exactly as it went in.
+
+  **One thing that did not survive its own test.** The pipeline first forced the
+  scene target to carry depth whenever an enabled effect read it — a sensible
+  safety net that turned out to change nothing: with it removed, the flat gate
+  still passed on both backends, because an unbound depth unit reads zero and an
+  effect that finds no step draws no edge. It was deleted rather than kept, on
+  the rule this repo already holds its budgets to: a guard nothing can fail is a
+  guard nothing is checking.
+
 - **The shadow atlas is a loan now, not a framebuffer held for the run.** It was
   created on the first frame that cast a shadow and never given back — 2048²
   with depth, ~32MB, for as long as the process lived, so a game that walked out

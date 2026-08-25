@@ -668,6 +668,83 @@ fn lum(uv : vec2f) -> f32 {
         return Material.compileShader(source);
     },
 
+    createDepthOutline(): ShaderHandle {
+        // The silhouette, not the shading: `outline` Sobels scene LUMA and draws
+        // an edge wherever the picture changes, while this reads DEPTH, so an
+        // edge is a place the geometry steps — at any contrast, including none.
+
+        // Depth is compared as a RATIO, which is what makes one threshold hold
+        // across the view: an absolute 0.001 is a wall up close and a kilometre
+        // out. Fetched by texel — the pass is 1:1 and depth is not filterable.
+        const source = `#pragma shader "PP Depth Outline"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1) range(0,1)
+#pragma param u_threshold float default(0.01) range(0.0005,0.2)
+#pragma param u_thickness float default(1) range(1,4)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+float depthAt(ivec2 texel, ivec2 size) {
+    return texelFetch(u_sceneDepth, clamp(texel, ivec2(0), size - ivec2(1)), 0).r;
+}
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    ivec2 size = textureSize(u_sceneDepth, 0);
+    ivec2 here = ivec2(gl_FragCoord.xy);
+    int step = int(max(u_thickness, 1.0));
+
+    float d = depthAt(here, size);
+    // Nothing was drawn here: the cleared far plane has no silhouette to find,
+    // and testing it would ring the whole frame in an outline.
+    if (d >= 1.0) { fragColor = src; return; }
+
+    float dl = depthAt(here + ivec2(-step, 0), size);
+    float dr = depthAt(here + ivec2( step, 0), size);
+    float dd = depthAt(here + ivec2(0, -step), size);
+    float du = depthAt(here + ivec2(0,  step), size);
+    // The NEAREST neighbour only: an edge belongs to the surface in front, so
+    // the far side of a silhouette does not get a second outline of its own.
+    float far = max(max(dl, dr), max(dd, du));
+    float edge = clamp(((far - d) / max(d, 1e-6) - u_threshold) * 20.0, 0.0, 1.0);
+    fragColor = vec4(mix(src.rgb, vec3(0.0), edge * u_intensity), src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn depthAt(texel : vec2i, size : vec2i) -> f32 {
+    return textureLoad(t7, clamp(texel, vec2i(0), size - vec2i(1)), 0);
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let size = vec2i(textureDimensions(t7, 0));
+    let here = vec2i(v.pos.xy);
+    let step = i32(max(mc.u_thickness, 1.0));
+
+    let d = depthAt(here, size);
+    if (d >= 1.0) { return src; }
+
+    let dl = depthAt(here + vec2i(-step, 0), size);
+    let dr = depthAt(here + vec2i( step, 0), size);
+    let dd = depthAt(here + vec2i(0, -step), size);
+    let du = depthAt(here + vec2i(0,  step), size);
+    let far = max(max(dl, dr), max(dd, du));
+    let edge = clamp(((far - d) / max(d, 1e-6) - mc.u_threshold) * 20.0, 0.0, 1.0);
+    return vec4f(mix(src.rgb, vec3f(0.0), vec3f(edge * mc.u_intensity)), src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
     createPixelate(): ShaderHandle {
         // Snaps sampling to a grid of u_pixelSize-device-pixel blocks — the
         // canonical retro/mosaic 2D look. u_pixelSize <= 1 samples per-texel

@@ -394,6 +394,9 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
         // input/scene as the t0/s0 and t1/s1 bind-group pairs.
         shader->setUniform("u_texture", 0);
         if (shader->hasUniform("u_sceneTexture")) shader->setUniform("u_sceneTexture", 1);
+        if (shader->hasUniform("u_sceneDepth")) {
+            shader->setUniform("u_sceneDepth", static_cast<i32>(kSceneDepthUnit));
+        }
     }
 
     // #pragma-param effects: params ride the reflected MaterialConstants block
@@ -433,7 +436,16 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
                 device->setUniformBuffer(MATERIAL_CONSTANTS_BINDING, pass.paramUbo);
             }
         }
-        // Texture params (LUTs, masks) bind at their reflected material units;
+        // Scene depth, bound whether or not this pass reads it: the WGSL twin
+    // declares the unit either way, and the scene is already every pass's
+    // declared read, so its depth lives exactly as long as it does.
+
+    // A target with no depth binds nothing, and an effect over a scene that
+    // wrote none then finds no edge — the right answer for a flat one.
+    device->bindTexture(kSceneDepthUnit, graph_ ? graph_->depthTextureOf(sceneResource_)
+                                                : TextureHandle::Invalid);
+
+    // Texture params (LUTs, masks) bind at their reflected material units;
         // an unset param gets its declared default (white/black/flatnormal).
         for (const auto& slot : layout->textures) {
             TextureHandle gpu = context_.materials().builtinDefault(slot.defaultTexture);
@@ -453,6 +465,9 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
         }
         u32 extraUnit = 2;
         for (const auto& [name, glId] : pass.textureUniforms) {
+            // Stops below the scene-depth unit rather than walking into it: a
+            // sixth loose texture would otherwise take the binding depth is on.
+            if (extraUnit >= kSceneDepthUnit) break;
             if (glId != 0 && shader->hasUniform(name)) {
                 device->bindTexture(extraUnit, TextureHandle{glId});
                 shader->setUniform(name, static_cast<i32>(extraUnit));

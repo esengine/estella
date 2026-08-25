@@ -221,6 +221,13 @@ TextureHandle RenderGraph::textureOf(ResourceId id) const {
     return resources_[id].texture;
 }
 
+TextureHandle RenderGraph::depthTextureOf(ResourceId id) const {
+    if (id >= resources_.size()) return TextureHandle::Invalid;
+    const Resource& res = resources_[id];
+    if (res.kind != Kind::Transient || res.pooled == kNoTarget) return TextureHandle::Invalid;
+    return pool_.depthTextureOf(res.pooled);
+}
+
 void RenderGraph::releasePool() {
     for (auto& res : resources_) {
         res.pooled = kNoTarget;

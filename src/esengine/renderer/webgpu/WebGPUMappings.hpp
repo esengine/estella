@@ -402,6 +402,38 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
     return mask;
 }
 
+/**
+ * @brief Bit mask of the group's bindings a WGSL source declares as DEPTH textures.
+ * @details A `texture_depth_2d` binding needs `sampleType = Depth` in its layout
+ *          entry and a depth-aspect view under it; bound as an ordinary float
+ *          texture WebGPU rejects the pipeline. Same source scan as
+ *          {@link scanWGSLBindingMask}, reading the declaration that follows.
+ */
+inline u32 scanWGSLDepthTextureMask(const char* source, u32 group) {
+    if (!source) return 0;
+    u32 mask = 0;
+    for (const char* p = source; (p = std::strstr(p, "@group(")) != nullptr;) {
+        p += 7;
+        char* end = nullptr;
+        const unsigned long g = std::strtoul(p, &end, 10);
+        if (end == p) continue;
+        p = end;
+        if (g != group) continue;
+        const char* b = std::strstr(p, "@binding(");
+        if (!b) break;
+        b += 9;
+        const unsigned long idx = std::strtoul(b, &end, 10);
+        if (end == b) continue;
+        p = end;
+        // The declaration this binding attributes: up to the `;` that ends it,
+        // so a `texture_depth_2d` further down the file cannot be read as this one's.
+        const char* semi = std::strchr(p, ';');
+        const char* depth = std::strstr(p, "texture_depth_2d");
+        if (idx < 32 && depth && (!semi || depth < semi)) mask |= (1u << idx);
+    }
+    return mask;
+}
+
 /// WriteBuffer's size (and offset) must be a 4-byte multiple; buffers are allocated
 /// rounded up so the slack exists. Callers supply exactly `size` bytes, so an
 /// unaligned size must be staged, never read up to `alignedWriteSize` in place.

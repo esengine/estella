@@ -218,6 +218,7 @@ void WebGPUDevice::releaseDeviceObjects() {
     group_layouts_.clear();
     dummy_ubo_ = BufferHandle{};  // the WGPUBuffer/WGPUTexture went with the maps above
     dummy_texture_ = 0;
+    dummy_depth_texture_ = 0;
     framebuffers_.clear();
     // Erase before release: aborting a pending map fires the callback, which must
     // miss the lookup rather than see a half-dead record.
@@ -745,11 +746,11 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
     td.size = WGPUExtent3D{desc.width, desc.height, 1};
     td.mipLevelCount = 1;
     td.sampleCount = 1;
-    // Depth-stencil textures are attachment-only: writeTexture cannot fill them
-    // and the engine never samples its depth attachments. Color textures carry
-    // CopySrc so an offscreen target can serve the async readback seam.
+    // Depth-stencil takes no upload and no readback (writeTexture cannot fill
+    // it, CopySrc is refused on depth24plus) but IS sampled: an effect reads the
+    // scene's depth. Colour carries CopySrc for the async readback seam.
     td.usage = isDepthFormat(td.format)
-                   ? WGPUTextureUsage_RenderAttachment
+                   ? (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment)
                    : (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst |
                       WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment);
 
@@ -759,8 +760,28 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
         return TextureHandle::Invalid;
     }
 
+    WGPUTextureView view = wgpuTextureCreateView(texture, nullptr);
+    // A depth-stencil texture has two aspects and a sample may name only one, so
+    // the view a binding uses is depth-only. Every other format samples through
+    // the view it already has — the two members alias, and cleanup knows it.
+    WGPUTextureView sampleView = view;
+    if (isDepthFormat(td.format)) {
+        WGPUTextureViewDescriptor vd{};
+        // The ASPECT's format, not the texture's: a depth-only view of a
+        // depth24plus-stencil8 texture is a depth24plus view, and asking for it
+        // under the combined format is rejected as incompatible.
+        vd.format = td.format == WGPUTextureFormat_Depth24PlusStencil8
+                        ? WGPUTextureFormat_Depth24Plus
+                        : td.format;
+        vd.dimension = WGPUTextureViewDimension_2D;
+        vd.mipLevelCount = 1;
+        vd.arrayLayerCount = 1;
+        vd.aspect = WGPUTextureAspect_DepthOnly;
+        sampleView = wgpuTextureCreateView(texture, &vd);
+    }
+
     const u32 id = next_id_++;
-    textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
+    textures_[id] = TextureRec{texture, view, sampleView,
                                desc.width, desc.height, td.format, desc.format,
                                packSamplerKey(desc.minFilter, desc.magFilter,
                                               desc.wrapS, desc.wrapT)};
@@ -826,7 +847,10 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
     }
 
     const u32 id = next_id_++;
-    textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
+    // A compressed texture is never a depth one, so it samples through the view
+    // it already has — the two members alias, as they do for any colour format.
+    WGPUTextureView view = wgpuTextureCreateView(texture, nullptr);
+    textures_[id] = TextureRec{texture, view, view,
                                desc.width, desc.height, wgpuFmt, desc.format,
                                packSamplerKey(desc.minFilter, desc.magFilter,
                                               desc.wrapS, desc.wrapT)};
@@ -847,6 +871,12 @@ TextureHandle WebGPUDevice::importExternalTexture(u32 nativeId, const TextureDes
 void WebGPUDevice::deleteTexture(TextureHandle texture) {
     auto it = textures_.find(static_cast<u32>(texture));
     if (it == textures_.end()) return;
+    // The sample view first, and only when it is a view of its own: for a colour
+    // texture it aliases `view`, and releasing that twice frees a live object.
+    if (it->second.sampleView && it->second.sampleView != it->second.view) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.sampleView)));
+        wgpuTextureViewRelease(it->second.sampleView);
+    }
     if (it->second.view) {
         evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.view)));
         wgpuTextureViewRelease(it->second.view);
@@ -974,6 +1004,8 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
                      scanWGSLBindingMask(source.fragmentSrc, 0);
     rec.group1Mask = scanWGSLBindingMask(source.vertexSrc, 1) |
                      scanWGSLBindingMask(source.fragmentSrc, 1);
+    rec.group1DepthMask = scanWGSLDepthTextureMask(source.vertexSrc, 1) |
+                          scanWGSLDepthTextureMask(source.fragmentSrc, 1);
     if (!rec.vertex || !rec.fragment) {
         if (rec.vertex) wgpuShaderModuleRelease(rec.vertex);
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
@@ -1096,7 +1128,8 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     // objects flushBindGroup builds bind groups against, so declared-but-
     // unbound bindings are legal (dummy backfill) and group compatibility
     // holds by identity.
-    pd.layout = pipelineLayoutFor(progIt->second.group0Mask, progIt->second.group1Mask);
+    pd.layout = pipelineLayoutFor(progIt->second.group0Mask, progIt->second.group1Mask,
+                                  progIt->second.group1DepthMask);
     pd.vertex.module = progIt->second.vertex;
     pd.vertex.entryPoint = sv("vs_main");
     pd.vertex.bufferCount = slotCount;
@@ -1314,8 +1347,12 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     bind_group_dirty_ = true;
 }
 
-WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask) {
-    const u64 key = (static_cast<u64>(group) << 32) | mask;
+WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthMask) {
+    // depthMask is part of the key: the same bindings sampled as depth are a
+    // DIFFERENT layout, and sharing one entry would bind a float texture under a
+    // depth declaration.
+    const u64 key = (static_cast<u64>(group) << 32) | mask
+                    ^ (static_cast<u64>(depthMask) << 48);
     auto cached = group_layouts_.find(key);
     if (cached != group_layouts_.end()) return cached->second;
     if (!device_) return nullptr;
@@ -1345,7 +1382,9 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask) {
                 WGPUBindGroupLayoutEntry e{};
                 e.binding = tb;
                 e.visibility = WGPUShaderStage_Fragment;
-                e.texture.sampleType = WGPUTextureSampleType_Float;
+                e.texture.sampleType = (depthMask & (1u << tb))
+                                           ? WGPUTextureSampleType_Depth
+                                           : WGPUTextureSampleType_Float;
                 e.texture.viewDimension = WGPUTextureViewDimension_2D;
                 entries[count++] = e;
             }
@@ -1367,8 +1406,12 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask) {
     return layout;
 }
 
-WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mask) {
-    const u64 key = (static_cast<u64>(group1Mask) << 32) | group0Mask;
+WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mask,
+                                                   u32 group1DepthMask) {
+    // The depth mask changes the group-1 layout under this pipeline, so it has
+    // to reach the key here too — see groupLayoutFor.
+    const u64 key = ((static_cast<u64>(group1Mask) << 32) | group0Mask)
+                    ^ (static_cast<u64>(group1DepthMask) << 16);
     auto cached = pipeline_layouts_.find(key);
     if (cached != pipeline_layouts_.end()) return cached->second;
     if (!device_) return nullptr;
@@ -1378,7 +1421,7 @@ WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mas
     WGPUBindGroupLayout bgls[2];
     u32 count = 0;
     if (group0Mask != 0 || group1Mask != 0) bgls[count++] = groupLayoutFor(0, group0Mask);
-    if (group1Mask != 0) bgls[count++] = groupLayoutFor(1, group1Mask);
+    if (group1Mask != 0) bgls[count++] = groupLayoutFor(1, group1Mask, group1DepthMask);
 
     WGPUPipelineLayoutDescriptor pld{};
     pld.bindGroupLayoutCount = count;
@@ -1399,6 +1442,13 @@ void WebGPUDevice::ensureDummies() {
         const u8 white[4] = {255, 255, 255, 255};
         TextureDesc td{};
         dummy_texture_ = static_cast<u32>(createTexture(td, white));
+    }
+    if (dummy_depth_texture_ == 0 || textures_.find(dummy_depth_texture_) == textures_.end()) {
+        // Never written, only bound: a depth format takes no upload, and the
+        // point is a texture of the right KIND under a declared depth binding.
+        TextureDesc td{};
+        td.format = GfxPixelFormat::Depth24Stencil8;
+        dummy_depth_texture_ = static_cast<u32>(createTexture(td, nullptr));
     }
 }
 
@@ -1484,6 +1534,9 @@ void WebGPUDevice::flushBindGroup() {
     if (prog->group1Mask != 0) {
         auto dummyIt = textures_.find(dummy_texture_);
         const TextureRec* dummy = (dummyIt != textures_.end()) ? &dummyIt->second : nullptr;
+        auto depthDummyIt = textures_.find(dummy_depth_texture_);
+        const TextureRec* depthDummy =
+            (depthDummyIt != textures_.end()) ? &depthDummyIt->second : nullptr;
 
         WGPUBindGroupEntry texEntries[kTextureSlots * 2];
         u32 texCount = 0;
@@ -1500,9 +1553,16 @@ void WebGPUDevice::flushBindGroup() {
             const u32 tb = textureBindingForUnit(unit);
             const u32 sb = samplerBindingForUnit(unit);
             if (prog->group1Mask & (1u << tb)) {
+                // A depth declaration must be fed a depth texture even when the
+                // unit is unbound: the white dummy under `sampleType = Depth` is
+                // a validation error, not a blank sample.
+                const bool wantsDepth = (prog->group1DepthMask & (1u << tb)) != 0;
+                const TextureRec* src = rec;
+                if (wantsDepth && !isDepthFormat(src->format)) src = depthDummy;
+                if (!src) continue;
                 WGPUBindGroupEntry e{};
                 e.binding = tb;
-                e.textureView = rec->view;
+                e.textureView = src->sampleView;
                 texEntries[texCount++] = e;
             }
             if (prog->group1Mask & (1u << sb)) {
@@ -1514,7 +1574,7 @@ void WebGPUDevice::flushBindGroup() {
         }
 
         WGPUBindGroupDescriptor tgd{};
-        tgd.layout = groupLayoutFor(1, prog->group1Mask);
+        tgd.layout = groupLayoutFor(1, prog->group1Mask, prog->group1DepthMask);
         tgd.entryCount = texCount;
         tgd.entries = texEntries;
         u64 tids[kTextureSlots * 2];
