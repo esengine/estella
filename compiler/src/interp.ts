@@ -34,6 +34,12 @@ export interface EirHost {
     writeField(base: unknown, comp: string, path: readonly string[], v: number | boolean): void;
     /** An opaque base for a resource, addressed by field like a component. */
     resource(name: string): unknown;
+    /**
+     * `resource.method(key)`. The two hosts answer it differently and that is
+     * the point: one calls the live object, the other reads the bit a host
+     * mirrored the answer into. Agreeing is what the differential proves.
+     */
+    service(resource: string, method: string, key: string | number): boolean;
     emit(record: string, args: readonly (number | boolean)[]): void;
     /** Called once after the body, where the SDK's runner flushes. */
     flush(): void;
@@ -100,6 +106,11 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns, host: EirHost, owners: Owners
         case 'not': return !(evalExpr(e.v, frame, fns, host, owners) as boolean);
         case 'select':
             return evalExpr(e.cond, frame, fns, host, owners) ? evalExpr(e.then, frame, fns, host, owners) : evalExpr(e.otherwise, frame, fns, host, owners);
+        case 'svc': {
+            const owner = owners.get((e.base as { id: number }).id);
+            if (!owner) throw new Error(`EIR: '${e.method}' called on an unbound receiver`);
+            return host.service(owner, e.method, e.key);
+        }
         case 'call': {
             const a = e.args.map((x) => evalExpr(x, frame, fns, host, owners));
             if (e.target.k === 'math') {
@@ -113,7 +124,11 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns, host: EirHost, owners: Owners
             const inner = new Frame();
             def.params.forEach((p, i) => inner.set(p.id, a[i]));
             const out = exec(def.body, inner, fns, host, owners);
-            if (out === undefined) throw new Error(`EIR: '${def.name}' returned nothing`);
+            // A module function's body is one `return <expr>`; the control-flow
+            // exits belong to a system and cannot reach here.
+            if (typeof out !== 'number' && typeof out !== 'boolean') {
+                throw new Error(`EIR: '${def.name}' returned nothing`);
+            }
             return out;
         }
         case 'logic': {
@@ -145,13 +160,26 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns, host: EirHost, owners: Owners
 
 /** Entities carrying every component the query names, in world order. */
 /** Rows the query matches, from the host. */
+/**
+ * How a block ended. A value is a module function returning one; the three
+ * symbols are control flow, and only a row loop consumes two of them — anything
+ * else passes them up, which is what makes `continue` inside an `if` work.
+ */
+const LEFT = Symbol('return');
+const NEXT_ROW = Symbol('continue');
+const NO_MORE_ROWS = Symbol('break');
+
+type Exit = number | boolean | undefined | typeof LEFT | typeof NEXT_ROW | typeof NO_MORE_ROWS;
+
 function exec(
     stmts: readonly Stmt[], frame: Frame, fns: Fns, host: EirHost, owners: Owners,
-): number | boolean | undefined {
+): Exit {
     for (const s of stmts) {
         switch (s.s) {
             case 'return':
-                return evalExpr(s.value, frame, fns, host, owners);
+                return s.value === null ? LEFT : evalExpr(s.value, frame, fns, host, owners);
+            case 'continue': return NEXT_ROW;
+            case 'break': return NO_MORE_ROWS;
             case 'let':
                 frame.set(s.id, evalExpr(s.value, frame, fns, host, owners));
                 break;
@@ -174,7 +202,9 @@ function exec(
                     if (s.entity !== null) frame.set(s.entity, row.entity);
                     s.binds.forEach((id, i) => frame.set(id, row.binds[i]));
                     const out = exec(s.body, frame, fns, host, owners);
-                    if (out !== undefined) return out;
+                    if (out === NEXT_ROW || out === undefined) continue;
+                    if (out === NO_MORE_ROWS) break;
+                    return out;
                 }
                 break;
             }
@@ -236,6 +266,13 @@ export function jsHost(world: EirWorld): EirHost {
             const row = world.resources.get(name);
             if (!row) throw new Error(`EIR: no resource '${name}' in the world`);
             return row;
+        },
+        service(name, method, key) {
+            // Over live objects there is nothing to mirror: ask the service.
+            const row = world.resources.get(name) as Record<string, unknown> | undefined;
+            const fn = row?.[method];
+            if (typeof fn !== 'function') throw new Error(`EIR: resource '${name}' has no method '${method}'`);
+            return (fn as (k: unknown) => unknown).call(row, key) === true;
         },
         emit(record, args) {
             queued.push({ record, args });

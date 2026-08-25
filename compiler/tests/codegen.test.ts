@@ -45,7 +45,7 @@ import { F64, type EirSystem } from '../src/eir';
 import type { Row } from '../src/interp';
 
 import { moveSystem } from '../../examples/ecs-basics/src/systems/move';
-import { driftSystem } from './fixtures/in-subset';
+import { driftSystem, gateSystem } from './fixtures/in-subset';
 import { PROBE } from './probe';
 import { builtinShapes as shapesForPins } from '../src/builtins';
 import type { StubSystem } from './stubs/esengine';
@@ -295,6 +295,11 @@ function movedWorld(layout: AbiLayout): AbiMemory {
 function fixtureWorld(layout: AbiLayout): AbiMemory {
     const mem = new AbiMemory(layout, IMAGE);
     mem.addResource('Time', { delta: 1 / 30, elapsed: 0 });
+    // A service, mirrored: the same two answers the interpreter's fake object
+    // gives, placed the way a host places them.
+    mem.addResource('Input', {});
+    mem.setResourceBit('Input', 'isKeyDown', 'KeyW', true);
+    mem.setResourceBit('Input', 'isKeyPressed', 'Space', true);
     for (let i = 1; i <= N; i++) {
         const s = seed(i);
         mem.addComponent('Transform', i, { 'position.x': s['tx']!, 'position.y': s['ty']! });
@@ -380,7 +385,7 @@ describe('the emitted C says what the interpreter says', () => {
     // ternaries, folded module constants with a shadowing local, an inlined
     // helper, and the Math arguments where libm and ECMAScript disagree.
     for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers',
-        'FixtureMathOps', 'FixtureCamera']) {
+        'FixtureMathOps', 'FixtureCamera', 'FixtureGate']) {
         it(`${name}: the whole image agrees with the interpreter`, () => {
             const sys = systemOf(fixtures, name);
             const layout = packLayout(fixtures.module.comps);
@@ -396,6 +401,42 @@ describe('the emitted C says what the interpreter says', () => {
             expect(same(byC, fixtureWorld(layout)), `${name} changed nothing`).toBe(false);
         });
     }
+
+    /**
+     * The one comparison that judges the MIRROR. Everything else has both sides
+     * reading bits; here the C reads a bit and node calls the method, so they
+     * agree only if the host placed the answer where the compiler expects it.
+     */
+    it('FixtureGate: a bit the host set answers what the method answers', () => {
+        const gate = systemOf(fixtures, 'FixtureGate');
+        const layout = packLayout(fixtures.module.comps);
+        const exe = build(join(tmp, 'gate-node'), emitC(fixtures.module, layout, [gate]), cSymbol('FixtureGate'));
+
+        const mem = fixtureWorld(layout);
+        const drifts = new Map<number, Row>();
+        const entities: number[] = [];
+        for (let i = 1; i <= N; i++) {
+            entities.push(i);
+            drifts.set(i, { rate: seed(i)['rate']!, wrap: 100, enabled: i % 4 !== 0 });
+        }
+        // The object the bits were mirrored FROM, answering by method.
+        const input = { isKeyDown: (k: string) => k === 'KeyW', isKeyPressed: (k: string) => k === 'Space' };
+        const stub = (gateSystem as unknown as StubSystem).fn as unknown as (q: unknown, i: unknown) => void;
+
+        for (let f = 0; f < FRAMES; f++) {
+            frameOfC(exe, mem, gate);
+            stub({
+                *[Symbol.iterator]() { for (const e of entities) yield [e, drifts.get(e)!]; },
+            }, input);
+        }
+        for (const e of entities) {
+            expect([e, mem.read('FixtureDrift', e, 'rate')])
+                .toEqual([e, (drifts.get(e)! as { rate: number }).rate]);
+        }
+        // With the key up neither side moves, which is the `return` arriving in
+        // both — and it is a different assertion from "they agree".
+        expect(entities.some((e) => (drifts.get(e)! as { rate: number }).rate !== seed(e)['rate']!)).toBe(true);
+    });
 
     it('FixtureDrift also agrees with node, not only with the interpreter', () => {
         const drift = systemOf(fixtures, 'FixtureDrift');

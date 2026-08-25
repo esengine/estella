@@ -90,6 +90,7 @@ export class AotSystems {
         manifest: AotManifest,
         exports: Readonly<Record<string, unknown>>,
         resolve: (name: string) => AnyComponentDef | undefined,
+        hasResource: (name: string) => boolean = () => true,
     ): void {
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
@@ -107,6 +108,14 @@ export class AotSystems {
                 + `has ${shapes}. Rebuild the project — a component's fields moved under it.`);
         }
         for (const decl of manifest.systems) {
+            for (const r of decl.resources) {
+                // A resource with no address is not a slow path: the ctx would
+                // carry 0 and the compiled code would read whatever is there.
+                if (!hasResource(r.name)) {
+                    throw new Error(`AOT module refused: '${decl.name}' reads resource `
+                        + `'${r.name}', which this runtime does not have`);
+                }
+            }
             const call = exports[decl.symbol];
             if (typeof call !== 'function') {
                 throw new Error(`AOT module refused: it declares '${decl.name}' but exports no `

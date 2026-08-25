@@ -7,7 +7,7 @@
 
 import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
-import { BUILTIN_RESOURCES, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { builtinResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { prepareAot, type AotHost } from '../ecs/aot/installAot';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
@@ -631,11 +631,15 @@ export class App {
             host: opts.host,
             manifest: opts.manifest,
             wasm: opts.wasm,
+            knowsResource: (name) => builtinResource(name) !== undefined,
             resources: (name) => {
-                const def = BUILTIN_RESOURCES[name];
-                return def !== undefined && this.resources_.has(def)
-                    ? this.resources_.get(def) as Readonly<Record<string, unknown>>
-                    : undefined;
+                const def = builtinResource(name);
+                // `get`, not `has` then `get`: a slot holding a materialised
+                // default is what an INTERPRETED system reads, and a twin has to
+                // see the same world or the two stop being the same program.
+                return def === undefined
+                    ? undefined
+                    : this.resources_.get(def) as Readonly<Record<string, unknown>>;
             },
         });
         this.runner_?.useAot(this.aot_);

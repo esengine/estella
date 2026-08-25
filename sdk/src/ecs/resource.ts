@@ -39,11 +39,31 @@ let resourceCounter = 0;
  */
 export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T> {
     const id = ++resourceCounter;
-    return {
+    const def: ResourceDef<T> = {
         _id: Symbol(`Resource_${id}_${name ?? ''}`),
         _name: name ?? `Resource_${id}`,
         _default: defaultValue
     };
+    // The engine's own resources answer to their NAME too, because a compiled
+    // module's manifest carries names. Only the DECLARED ones: a project's
+    // resource is identified by reference, and two may share a name.
+    if (name && RESOURCE_SHAPES[name]) builtinByName.set(name, def as ResourceDef<unknown>);
+    return def;
+}
+
+/** Registered by `defineResource` for the names `resourceShapes.ts` declares. */
+const builtinByName = new Map<string, ResourceDef<unknown>>();
+
+/**
+ * The engine resource a manifest's NAME refers to, or undefined when the module
+ * that declared it was never loaded — a trimmed build without the input plugin
+ * would be one, and a twin reading a resource with no address is not something
+ * to discover at the first row.
+ *
+ * @internal
+ */
+export function builtinResource(name: string): ResourceDef<unknown> | undefined {
+    return builtinByName.get(name);
 }
 
 // =============================================================================
@@ -277,17 +297,7 @@ export interface TimeData {
  *
  * @public
  */
-export const Time = defineResource<TimeData>({ ...RESOURCE_SHAPES.Time }, 'Time');
+export const Time = defineResource<TimeData>(
+    { ...RESOURCE_SHAPES['Time']!.fields } as unknown as TimeData, 'Time');
 
-/**
- * The engine's own resources, by the name a compiled system names them with.
- * Not a general registry: `defineResource` identifies by REFERENCE, so a name
- * answers a resource only for the ones the engine itself declares — which is
- * exactly the set that has a layout to read at an address.
- *
- * @internal
- */
-export const BUILTIN_RESOURCES: Readonly<Record<string, ResourceDef<unknown>>> = {
-    Time: Time as ResourceDef<unknown>,
-};
 

@@ -12,13 +12,14 @@
 import { describe, it, expect } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import {
-    buildAotModule, buildFadeModule, fadeManifest, timeScaleManifest,
+    buildAotModule, buildFadeModule, fadeManifest, keyProbeC, keyProbeManifest, timeScaleManifest,
     FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
 } from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { defineComponent } from '../src/ecs/component';
 import { Time } from '../src/ecs/resource';
+import { Input } from '../src/input/input';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { Query, Mut } from '../src/ecs/query';
 import type { AnyComponentDef } from '../src/ecs/component';
@@ -135,6 +136,34 @@ describe('an App told to run its compiled twins', () => {
         // world only if the host copies it back — and only when ResMut asked.
         expect(await scaleAfter(true)).toBe(2);
         expect(await scaleAfter(false)).toBe(1);
+    });
+
+    it.skipIf(!EMCC)('mirrors a service question into the bit the twin reads', async () => {
+        const wasm = buildAotModule(EMCC!, keyProbeC(), 'es_sys_KeyProbe');
+        // Named for the twin: dispatch is by system name, so a mismatch here
+        // would quietly run the closure and prove nothing.
+        const { app } = bootMockApp();
+        const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
+        app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(Fade))], () => {
+            /* the twin is the point */
+        }, { name: 'KeyProbe' }));
+        // The engine's own Input, answering by method — the mirror is what has
+        // to turn that into the bit, and nothing else in the suite asks it to.
+        const input = app.getResource(Input);
+        await app.useCompiledSystems({ host: new FakeEngine(), manifest: keyProbeManifest(), wasm });
+        const entities = seed(app, Fade);
+
+        await app.tick(1 / 60);
+        expect(alphas(app, Fade, entities).every((a) => a === 0)).toBe(true);
+
+        input.noteKeyDown('KeyW');
+        await app.tick(1 / 60);
+        expect(alphas(app, Fade, entities).every((a) => a === 1)).toBe(true);
+
+        // And back: a mirror that only ever sets bits would pass the line above.
+        input.noteKeyUp('KeyW');
+        await app.tick(1 / 60);
+        expect(alphas(app, Fade, entities).every((a) => a === 0)).toBe(true);
     });
 
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {

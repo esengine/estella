@@ -51,6 +51,12 @@ export interface InstallAotOptions {
     readonly wasm: string | BufferSource;
     /** The live value of a named resource, for the mirror to copy in. */
     readonly resources: ResourceReader;
+    /**
+     * Whether this runtime HAS such a resource, asked once at install. Distinct
+     * from `resources`, which asks for a value: a resource the engine creates on
+     * its first frame has no value yet and is not missing.
+     */
+    readonly knowsResource?: (name: string) => boolean;
 }
 
 /**
@@ -83,7 +89,8 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
     (exports['_initialize'] as (() => void) | undefined)?.();
 
     const systems = new AotSystems();
-    systems.install(opts.manifest, exports, componentNamed);
+    systems.install(opts.manifest, exports, componentNamed,
+        opts.knowsResource ?? ((name) => opts.resources(name) !== undefined));
 
     return {
         systems,

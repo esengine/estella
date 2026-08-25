@@ -22,12 +22,20 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { printSystem } from '../src/eir';
 
-import { driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem } from './fixtures/in-subset';
+import { driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem, gateSystem } from './fixtures/in-subset';
 import { PROBE, probeRow } from './probe';
 import type { StubSystem } from './stubs/esengine';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
 const ENTITIES = 48;
+
+/** Two keys held and one not, so both answers are exercised every frame. */
+function fakeInput(): { isKeyDown(k: string): boolean; isKeyPressed(k: string): boolean } {
+    return {
+        isKeyDown: (k) => k === 'KeyW',
+        isKeyPressed: (k) => k === 'Space',
+    };
+}
 
 function makeWorld(): EirWorld {
     let a = 0x51ed270b >>> 0;
@@ -55,7 +63,12 @@ function makeWorld(): EirWorld {
     return {
         entities,
         comps: new Map([['Transform', transforms], ['FixtureDrift', drifts]]),
-        resources: new Map<string, Row>([['Time', { delta: 1 / 30, elapsed: 0 }]]),
+        resources: new Map<string, Row>([
+            ['Time', { delta: 1 / 30, elapsed: 0 }],
+            // A service, not a record: the interpreter asks it, and a compiled
+            // build reads what a host mirrored the same answers into.
+            ['Input', fakeInput() as unknown as Row],
+        ]),
     };
 }
 
@@ -77,6 +90,7 @@ const { module, diagnostics } = lowerProgram([FIXTURE], builtinShapes());
 const drift = module.systems.find((s) => s.name === 'FixtureDrift');
 const clamp = module.systems.find((s) => s.name === 'FixtureClampSys');
 const tuned = module.systems.find((s) => s.name === 'FixtureTuned');
+const gate = module.systems.find((s) => s.name === 'FixtureGate');
 
 describe('conformance — locals, branches, logic', () => {
     it('compiles', () => {
@@ -138,6 +152,72 @@ describe('conformance — locals, branches, logic', () => {
         expect(yMoved.size, 'the !fast && enabled branch never ran').toBeGreaterThan(0);
         // And some entity must have been excluded by `enabled`.
         expect(yMoved.size).toBeLessThan(ENTITIES);
+    });
+});
+
+describe('conformance — a service question, and the ways out of a row loop', () => {
+    /** The author's own system, over the same world the interpreter walks. */
+    const runGateNative = (world: EirWorld): void => {
+        const drifts = world.comps.get('FixtureDrift')!;
+        const query = {
+            *[Symbol.iterator]() {
+                for (const e of world.entities) if (drifts.has(e)) yield [e, drifts.get(e)!];
+            },
+        };
+        (gateSystem as unknown as StubSystem).fn(query, world.resources.get('Input'));
+    };
+
+    it('compiles, and verifies', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixtureGate')).toEqual([]);
+        expect(gate).toBeDefined();
+        expect(verifySystem(gate!, module.comps, module.fns)).toEqual([]);
+    });
+
+    it('reads back as the question and the jumps, not as calls', () => {
+        expect(printSystem(gate!)).toMatchInlineSnapshot(`
+          "system FixtureGate(query: query<mut FixtureDrift>, input: res<Input>) {
+            if !input.isKeyDown("KeyW") {
+              return
+            }
+            rowLoop query -> (_, d) {
+              if !d.enabled {
+                continue
+              }
+              if (d.rate > 110) {
+                break
+              }
+              d.rate = (d.rate + (input.isKeyPressed("Space") ? 2 : 1))
+            }
+          }"
+        `);
+    });
+
+    it('agrees with node over 40 frames', () => {
+        const byNode = makeWorld();
+        const byEir = makeWorld();
+        for (let f = 0; f < 40; f++) {
+            runGateNative(byNode);
+            runSystem(gate!, byEir);
+        }
+        expect(byEir.comps.get('FixtureDrift')).toEqual(byNode.comps.get('FixtureDrift'));
+    });
+
+    it('took each exit — an agreement over an untaken jump proves nothing', () => {
+        const world = makeWorld();
+        const rows = [...world.comps.get('FixtureDrift')!.values()] as { rate: number; enabled: boolean }[];
+        // `continue`: rows with enabled false, which must never move.
+        const skipped = rows.filter((r) => !r.enabled).map((r) => r.rate);
+        // `break`: a row over the limit exists, so the loop ends early and the
+        // rows after it are untouched this frame.
+        expect(rows.some((r) => r.rate > 110)).toBe(true);
+        for (let f = 0; f < 40; f++) runSystem(gate!, world);
+        expect(rows.filter((r) => !r.enabled).map((r) => r.rate)).toEqual(skipped);
+        // `return`: with the key up, nothing at all moves.
+        const quiet = makeWorld();
+        quiet.resources.set('Input', { isKeyDown: () => false, isKeyPressed: () => false } as never);
+        const before = JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()]);
+        for (let f = 0; f < 4; f++) runSystem(gate!, quiet);
+        expect(JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()])).toBe(before);
     });
 });
 

@@ -34,6 +34,10 @@ export function Res(resource: unknown): unknown {
 export function Commands(): unknown {
     return { kind: 'commands' };
 }
+export function ResMut(resource: unknown): unknown {
+    return { kind: 'resmut', resource };
+}
+export const Input = { _name: 'Input' };
 export const Sprite = { _name: 'Sprite' };
 export const Camera = { _name: 'Camera' };
 export function defineSystem(

@@ -26,6 +26,7 @@
  */
 import { sep } from 'node:path';
 import ts from 'typescript';
+import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
     BOOL, ENTITY, F64, HOST_ENC,
     type CompShape, type EirModule, type EirSystem, type EirType,
@@ -174,6 +175,14 @@ function constValue(node: ts.Expression): ConstValue | null {
 function annotatedType(node: ts.TypeNode): EirType | null {
     if (node.kind === ts.SyntaxKind.NumberKeyword) return F64;
     if (node.kind === ts.SyntaxKind.BooleanKeyword) return BOOL;
+    return null;
+}
+
+/** A string or integer literal argument, or null when it is neither. */
+function literalKey(node: ts.Expression | undefined): string | number | null {
+    if (!node) return null;
+    if (ts.isStringLiteral(node)) return node.text;
+    if (ts.isNumericLiteral(node)) return Number(node.text);
     return null;
 }
 
@@ -367,6 +376,20 @@ class SystemLowerer {
         if (ts.isBlock(node)) return this.scoped(() => node.statements.flatMap((s) => this.stmt(s)));
         if (ts.isVariableStatement(node)) return this.declarations(node);
         if (ts.isIfStatement(node)) return [this.ifStmt(node)];
+        // A bare `return` leaves the SYSTEM; one with a value belongs to a
+        // module function, which `fn()` lowers on its own.
+        if (ts.isReturnStatement(node)) {
+            if (node.expression) throw new NotInSubset(node, 'a system returns no value');
+            return [{ s: 'return', value: null }];
+        }
+        if (ts.isContinueStatement(node)) {
+            if (node.label) throw new NotInSubset(node, 'a labelled continue is not lowered');
+            return [{ s: 'continue' }];
+        }
+        if (ts.isBreakStatement(node)) {
+            if (node.label) throw new NotInSubset(node, 'a labelled break is not lowered');
+            return [{ s: 'break' }];
+        }
         throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not a statement this subset lowers`);
     }
 
@@ -598,9 +621,19 @@ class SystemLowerer {
                 ? this.tryLookup(callee.expression.text)
                 : null;
             if (recv && recv.type.k === 'res') {
-                throw new NotInSubset(node,
-                    `${recv.name}.${(callee as ts.PropertyAccessExpression).name.text}(…) is a resource method`
-                    + ' — the contract wants it read as memory, and nothing lowers it yet');
+                const method = (callee as ts.PropertyAccessExpression).name.text;
+                const key = literalKey(node.arguments[0]);
+                // A service question the shape declares: the host mirrors the
+                // answer into a bit, so this is a load and a mask. The KEY has
+                // to be a literal — a bit index is chosen at compile time.
+                if (node.arguments.length === 1 && key !== null
+                    && resourceMethodBit(recv.type.name, method, key)) {
+                    return { e: 'svc', base: { p: 'local', id: recv.id }, method, key, type: BOOL };
+                }
+                throw new NotInSubset(node, resourceMethodBit(recv.type.name, method, '') !== null
+                    ? `${recv.name}.${method}(…) needs a literal key the shape declares`
+                    : `${recv.name}.${method}(…) is a resource method`
+                        + ' — the contract wants it read as memory, and nothing lowers it yet');
             }
             throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers', 'permanent');
         }

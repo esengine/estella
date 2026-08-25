@@ -8,7 +8,7 @@
  *          by conformance.test.ts — a feature the frontend lowers but nobody
  *          runs both ways is a feature nobody has checked.
  */
-import { defineComponent, defineSystem, Query, Mut, Res, Camera, Time, Transform } from 'esengine';
+import { defineComponent, defineSystem, Query, Mut, Res, Camera, Input, Time, Transform } from 'esengine';
 
 export const Drift = defineComponent('FixtureDrift', { rate: 40, wrap: 100, enabled: true });
 
@@ -136,4 +136,23 @@ export const cameraSystem = defineSystem(
         }
     },
     { name: 'FixtureCamera' },
+);
+
+/**
+ * A SERVICE question, and the three ways out of a row loop. The two sides
+ * answer `isKeyDown` differently by construction — the interpreter over live
+ * objects calls the method, compiled code reads the bit a host mirrored it
+ * into — so agreement here is the only thing that says the mirror is right.
+ */
+export const gateSystem = defineSystem(
+    [Query(Mut(Drift)), Res(Input)],
+    (query, input) => {
+        if (!input.isKeyDown('KeyW')) return;
+        for (const [, d] of query) {
+            if (!d.enabled) continue;
+            if (d.rate > 110) break;
+            d.rate = d.rate + (input.isKeyPressed('Space') ? 2 : 1);
+        }
+    },
+    { name: 'FixtureGate' },
 );

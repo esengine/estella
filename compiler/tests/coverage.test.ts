@@ -24,6 +24,13 @@
  *          the top line usually reveals the next one rather than raising the
  *          number.
  *
+ *          Which is also why the CEILING falls as pending work lands. It counts
+ *          a system reachable when every refusal against it is pending, and it
+ *          can only see the first — so it is an optimistic estimate that gets
+ *          less optimistic as systems get further and meet what is permanent.
+ *          A drop there is the number becoming true, not the corpus losing
+ *          ground; the floor below it moves with a reason in the commit.
+ *
  *          It also reports the CEILING: how much of the corpus the contract could
  *          ever take, counting a system as reachable when every refusal against
  *          it is `pending` rather than `permanent`. That number is what says the
@@ -43,9 +50,9 @@ import { builtinShapes } from '../src/builtins';
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** Per-frame systems only. See the file header before lowering these. */
-const FRAME_FLOOR = 9;
+const FRAME_FLOOR = 12;
 /** Per-frame systems the contract could take once the pending work is done. */
-const CEILING_FLOOR = 88;
+const CEILING_FLOOR = 75;
 
 function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {

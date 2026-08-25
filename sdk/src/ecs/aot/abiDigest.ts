@@ -28,7 +28,7 @@
  */
 
 import { PTR_LAYOUTS } from '../../wasm/ptrLayouts.generated';
-import { RESOURCE_SHAPES } from '../resourceShapes';
+import { RESOURCE_NAMES, RESOURCE_SHAPES, resourceLayout } from '../resourceShapes';
 
 /** Sizes of the three ABI structs, in address-wide words. */
 export const SYSCTX_WORDS = 6;
@@ -54,6 +54,16 @@ export interface ShapeDigestInput {
  * what it ships, which is what makes this the check that can actually run.
  */
 export function engineAbiDigest(addressBytes: AddressBytes): string {
+    return fnv1a64(engineAbiParts(addressBytes).join('\n'));
+}
+
+/**
+ * What the digest is taken OF, so a test can ask whether something is covered.
+ * A digest can only say two things differ; this says what it was looking at.
+ *
+ * @internal
+ */
+export function engineAbiParts(addressBytes: AddressBytes): readonly string[] {
     const parts: string[] = [
         `addr=${addressBytes}`,
         `sysctx=${SYSCTX_WORDS} rows=${QUERYROWS_WORDS} cmd=${CMD_WORDS}`,
@@ -70,10 +80,21 @@ export function engineAbiDigest(addressBytes: AddressBytes): string {
         });
         parts.push(`comp ${name}=${fields.join(',')}`);
     }
-    for (const [name, shape] of Object.entries(RESOURCE_SHAPES)) {
-        parts.push(`res ${name}=${Object.keys(shape).join(',')}`);
+    // The whole layout, not the spec's own keys: a member's OFFSET is what a
+    // compiled system reads at, and for a bit set the KEY ORDER is what picks
+    // the bit. Either moving under a built module is a read of something else.
+    for (const name of RESOURCE_NAMES) {
+        const spec = RESOURCE_SHAPES[name]!;
+        const members = (resourceLayout(name) ?? []).map((m) => {
+            if (m.kind === 'scalar') return `${m.name}@${m.offset}`;
+            const how = spec.bits?.[m.name];
+            const domain = how?.keys ? how.keys.join('/') : `0..${(how?.count ?? 0) - 1}`;
+            return `${m.name}@${m.offset}[${domain}]`;
+        });
+        const methods = Object.entries(spec.methods ?? {}).map(([m, set]) => `${m}->${set}`);
+        parts.push(`res ${name}=${members.join(',')}|${methods.join(',')}`);
     }
-    return fnv1a64(parts.join('\n'));
+    return parts;
 }
 
 /**
