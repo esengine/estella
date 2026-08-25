@@ -29,6 +29,16 @@ namespace esengine {
 
 PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
                                          RenderContext& context,
+                                         resource::ResourceManager& resourceManager,
+                                         rg::TargetPool& pool)
+    : device_(device)
+    , context_(context)
+    , resourceManager_(resourceManager)
+    , pool_(&pool) {
+}
+
+PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
+                                         RenderContext& context,
                                          resource::ResourceManager& resourceManager)
     : device_(device)
     , context_(context)
@@ -102,7 +112,8 @@ GfxPixelFormat PostProcessPipeline::interFormat() const {
 
 void PostProcessPipeline::ensureGraph() {
     if (graph_) return;
-    graph_ = makeUnique<rg::RenderGraph>(device_);
+    graph_ = pool_ ? makeUnique<rg::RenderGraph>(device_, *pool_)
+                   : makeUnique<rg::RenderGraph>(device_);
     if (linear_output_) {
         ES_LOG_INFO("PostProcess intermediates: {}",
                     interFormat() == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"

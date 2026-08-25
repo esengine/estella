@@ -154,6 +154,7 @@ add_test(NAME test_texture_fb COMMAND test_texture_fb)
 add_executable(test_render_graph
     renderer/test_render_graph.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/graph/RenderGraph.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/graph/TargetPool.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Framebuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp

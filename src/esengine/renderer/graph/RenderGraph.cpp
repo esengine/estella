@@ -13,7 +13,11 @@
 
 namespace esengine::rg {
 
-RenderGraph::RenderGraph(GfxDevice& device) : device_(device) {}
+RenderGraph::RenderGraph(GfxDevice& device, TargetPool& pool)
+    : device_(device), pool_(pool) {}
+
+RenderGraph::RenderGraph(GfxDevice& device)
+    : device_(device), ownedPool_(makeUnique<TargetPool>(device)), pool_(*ownedPool_) {}
 
 RenderGraph::~RenderGraph() = default;
 
@@ -23,8 +27,17 @@ void RenderGraph::begin(u32 refWidth, u32 refHeight) {
     resources_.clear();
     passes_.clear();
     inputScratch_.clear();
-    for (auto& entry : pool_) entry.inUse = false;
     finalTarget_ = kNoResource;
+
+    // Only what THIS graph borrowed goes back: the pool is shared with the
+    // frame's other chains and with whatever holds a target across them.
+    for (const TargetHandle handle : borrowed_) pool_.release(handle);
+    borrowed_.clear();
+    // The pool's OWNER ticks its clock. A borrowed one is ticked once per frame
+    // by the frame; ticking it per chain would age a target faster on a scene
+    // that happens to have more cameras.
+    if (ownedPool_) pool_.age();
+
     refWidth_ = refWidth;
     refHeight_ = refHeight;
     executed_ = 0;
@@ -64,8 +77,8 @@ ResourceId RenderGraph::createExternalTarget(const TargetDesc& desc) {
     const ResourceId id = createTarget(desc);
     Resource& res = resources_[id];
     res.pooled = acquire(res);
-    if (res.pooled == kNoPooled) return kNoResource;
-    res.texture = pool_[res.pooled].fbo->getColorAttachment();
+    if (res.pooled == kNoTarget) return kNoResource;
+    res.texture = pool_.textureOf(res.pooled);
     return id;
 }
 
@@ -73,8 +86,8 @@ FramebufferHandle RenderGraph::framebufferOf(ResourceId id) const {
     if (id >= resources_.size()) return FramebufferHandle::Default;
     const Resource& res = resources_[id];
     if (res.kind == Kind::ImportedTarget) return res.target;
-    if (res.pooled == kNoPooled) return FramebufferHandle::Default;
-    return pool_[res.pooled].fbo->handle();
+    if (res.pooled == kNoTarget) return FramebufferHandle::Default;
+    return pool_.framebufferOf(res.pooled);
 }
 
 void RenderGraph::addPass(PassDesc pass) {
@@ -82,6 +95,14 @@ void RenderGraph::addPass(PassDesc pass) {
 }
 
 void RenderGraph::resolveSize(Resource& res) const {
+    // An absolute size is the target saying its texels are its own — a shadow
+    // atlas divides into tiles of a fixed size, so a fraction of the window
+    // would change how many maps fit when the window changed.
+    if (res.desc.width > 0 && res.desc.height > 0) {
+        res.width = res.desc.width;
+        res.height = res.desc.height;
+        return;
+    }
     const f32 scale = res.desc.scale > 0.0f ? res.desc.scale : 1.0f;
     res.width = std::max(1u, static_cast<u32>(static_cast<f32>(refWidth_) * scale));
     res.height = std::max(1u, static_cast<u32>(static_cast<f32>(refHeight_) * scale));
@@ -106,45 +127,22 @@ void RenderGraph::cull(std::vector<bool>& live) const {
     }
 }
 
-u32 RenderGraph::acquire(const Resource& res) {
-    for (u32 i = 0; i < pool_.size(); ++i) {
-        PooledTarget& entry = pool_[i];
-        if (entry.inUse || !entry.fbo) continue;
-        if (entry.width != res.width || entry.height != res.height) continue;
-        if (entry.format != res.desc.format || entry.linearFilter != res.desc.linearFilter) continue;
-        if (entry.depthStencil != res.desc.depthStencil) continue;
-        entry.inUse = true;
-        return i;
-    }
-
-    FramebufferSpec spec;
-    spec.width = res.width;
-    spec.height = res.height;
-    spec.depthStencil = res.desc.depthStencil;
-    spec.linearFilter = res.desc.linearFilter;
-    spec.colorFormat = res.desc.format;
-    auto fbo = Framebuffer::create(device_, spec);
-    if (!fbo) {
-        ES_LOG_ERROR("RenderGraph: failed to create a {}x{} target", res.width, res.height);
-        return kNoPooled;
-    }
-
-    PooledTarget entry;
-    entry.fbo = std::move(fbo);
-    entry.width = res.width;
-    entry.height = res.height;
-    entry.format = res.desc.format;
-    entry.linearFilter = res.desc.linearFilter;
-    entry.depthStencil = res.desc.depthStencil;
-    entry.inUse = true;
-    pool_.push_back(std::move(entry));
-    return static_cast<u32>(pool_.size() - 1);
+TargetHandle RenderGraph::acquire(const Resource& res) {
+    TargetShape shape;
+    shape.width = res.width;
+    shape.height = res.height;
+    shape.format = res.desc.format;
+    shape.linearFilter = res.desc.linearFilter;
+    shape.depthStencil = res.desc.depthStencil;
+    const TargetHandle handle = pool_.acquire(shape);
+    if (handle != kNoTarget) borrowed_.push_back(handle);
+    return handle;
 }
 
 void RenderGraph::release(Resource& res) {
-    if (res.pooled == kNoPooled) return;
-    pool_[res.pooled].inUse = false;
-    res.pooled = kNoPooled;
+    if (res.pooled == kNoTarget) return;
+    pool_.release(res.pooled);
+    res.pooled = kNoTarget;
     res.texture = TextureHandle::Invalid;
 }
 
@@ -174,12 +172,12 @@ void RenderGraph::execute() {
 
         FramebufferHandle fbo = FramebufferHandle::Default;
         if (target.kind == Kind::Transient) {
-            if (target.pooled == kNoPooled) {
+            if (target.pooled == kNoTarget) {
                 target.pooled = acquire(target);
-                if (target.pooled == kNoPooled) continue;
-                target.texture = pool_[target.pooled].fbo->getColorAttachment();
+                if (target.pooled == kNoTarget) continue;
+                target.texture = pool_.textureOf(target.pooled);
             }
-            fbo = pool_[target.pooled].fbo->handle();
+            fbo = pool_.framebufferOf(target.pooled);
         } else {
             fbo = target.target;
         }
@@ -225,9 +223,10 @@ TextureHandle RenderGraph::textureOf(ResourceId id) const {
 
 void RenderGraph::releasePool() {
     for (auto& res : resources_) {
-        res.pooled = kNoPooled;
+        res.pooled = kNoTarget;
         if (res.kind == Kind::Transient) res.texture = TextureHandle::Invalid;
     }
+    borrowed_.clear();
     pool_.clear();
 }
 

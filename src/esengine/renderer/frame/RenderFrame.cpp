@@ -119,7 +119,8 @@ RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context,
     : device_(device)
     , context_(context)
     , resource_manager_(resource_manager)
-    , pool_(device) {
+    , pool_(device)
+    , target_pool_(device) {
     target_manager_.setDevice(device);
 }
 
@@ -139,7 +140,8 @@ void RenderFrame::init(u32 width, u32 height) {
     linear_color_ = resource::ShaderParser::linearColorSpace();
 
 #ifdef ES_ENABLE_POSTPROCESS
-    post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);
+    post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_,
+                                                    target_pool_);
     post_process_->setLinearOutput(linear_color_);
     // The requirement may have been declared before the pipeline existed (a depth
     // layer arrives with the project, init happens on the first frame) — and until
@@ -172,6 +174,8 @@ void RenderFrame::shutdown() {
     }
     plugins_.clear();
     pool_.shutdown();
+    releaseFrameTargets();
+    target_pool_.clear();
 
 #ifdef ES_ENABLE_POSTPROCESS
     if (post_process_) {
@@ -186,6 +190,11 @@ void RenderFrame::shutdown() {
 void RenderFrame::recreateGpuResources() {
     pool_.recreateGpuResources();
     target_manager_.recreateGpuResources();
+    // The framebuffers the pool is holding died with the device: the loans go
+    // back and the memory behind them goes with it, or the next frame would draw
+    // its shadows into a handle that names nothing. Re-borrowed on demand.
+    releaseFrameTargets();
+    target_pool_.clear();
     // The variant handles are unchanged; this re-reads the program ids behind them.
     batch_shader_id_ = initBatchShader();
 #ifdef ES_ENABLE_POSTPROCESS
@@ -221,7 +230,23 @@ void RenderFrame::resize(u32 width, u32 height) {
 #endif
 }
 
+// Every target this frame borrowed, given back. Three callers owe it: the end
+// of a frame, a device loss, and shutdown.
+void RenderFrame::releaseFrameTargets() {
+    if (shadow_target_ != rg::kNoTarget) {
+        target_pool_.release(shadow_target_);
+        shadow_target_ = rg::kNoTarget;
+    }
+    shadow_texture_id_ = 0;
+}
+
 void RenderFrame::beginFrame() {
+    // Here and not at end(), which runs once per CAMERA: the atlas is borrowed
+    // once, spans every camera that reads it, and goes back before the next
+    // frame. Then one tick of the clock, by the frame that owns the pool.
+    releaseFrameTargets();
+    target_pool_.age();
+
     // Last frame's answer becomes this frame's, once. A frame that collected
     // nothing answered nothing — an editor frame that only blits, a frame the host
     // skipped — so it neither latches nor releases.
@@ -393,6 +418,12 @@ void RenderFrame::flush() {
         default: break;
         }
     }
+
+    // What the frame's render targets cost. The atlas and every chain
+    // intermediate come out of one pool, so one number answers for all of them —
+    // and a pool that stopped giving targets back is visible in no pixel.
+    ES_PROFILE_COUNTER("render.targets", target_pool_.count());
+    ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes());
 
     ES_PROFILE_COUNTER("render.culled", stats_.culled);
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
@@ -925,12 +956,24 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
     if (!in_frame_ || shadow_casters_.empty() || !device_.isDeviceUsable()) return;
 
-    if (shadow_rt_ == 0) {
-        shadow_rt_ = target_manager_.create(kShadowAtlasSize, kShadowAtlasSize,
-                                            /*depth=*/true, /*linearFilter=*/false);
+    // Borrowed for the frame rather than created once and held for the run:
+    // 2048² with depth is ~32MB, and a game that walks out of its one shadowed
+    // room should stop paying for it. Given back at the next beginFrame.
+
+    // A resize reclaims every target at the old size and a device loss frees
+    // the lot, so this handle can outlive what it named. It comes back stale
+    // rather than naming whatever refilled the slot, and re-borrows here.
+    if (!target_pool_.holds(shadow_target_)) shadow_target_ = rg::kNoTarget;
+    if (shadow_target_ == rg::kNoTarget) {
+        rg::TargetShape shape;
+        shape.width = kShadowAtlasSize;
+        shape.height = kShadowAtlasSize;
+        shape.depthStencil = true;
+        shape.linearFilter = false;
+        shadow_target_ = target_pool_.acquire(shape);
     }
-    auto* rt = target_manager_.get(shadow_rt_);
-    if (!rt) return;
+    const FramebufferHandle shadowFbo = target_pool_.framebufferOf(shadow_target_);
+    if (shadowFbo == FramebufferHandle::Default) return;
 
     const glm::mat4 invVP = glm::inverse(view_projection_);
     // Clip's z axis back in world: w != 0 is an eye point, w == 0 says the projection
@@ -1124,7 +1167,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // A self-contained pass, in the shape renderToTarget uses: swap what the frame
             // looks through, draw, hand the target back. The first tile with anything in it
             // clears the atlas — white, which is depth 1 unpacked: nothing here.
-            RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/!cleared};
+            RenderPassDesc pass{shadowFbo, /*clearColor=*/!cleared};
             pass.clearDepth = !cleared;
             pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
             pass.clearColorValue[3] = 1.0f;
@@ -1161,11 +1204,11 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
     ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
     ES_PROFILE_COUNTER("render.shadow.collects", shadowCollects);
 
-    rt->unbind();
+    device_.endRenderPass();
     device_.invalidatePipelineCache();
 
     if (anyTile) {
-        shadow_texture_id_ = static_cast<u32>(rt->getColorTexture());
+        shadow_texture_id_ = static_cast<u32>(target_pool_.textureOf(shadow_target_));
         context_.lights().setShadowTiles(
             matrices, tiles, shadow_atlas_.tileCount(),
             glm::vec4(1.0f, 1.0f / static_cast<f32>(kShadowAtlasSize), 0.0f, 0.0f));

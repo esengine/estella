@@ -113,7 +113,7 @@ export const SCENES = [
   // A POINT light opens no cone, so its map is a cube and a fragment is shadowed by the face
   // it lands in: report one tile for every tile and both shadows come back lit. The casters
   // are probed too, and the sixth face never renders — nothing above the lamp is a mesh.
-  { id: "point-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.tiles\":5}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.833,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.333,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
+  { id: "point-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/point-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.tiles\":5,\"render.targets\":1,\"render.targets.bytes\":33554432}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.833,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.333,\"y\":0.5,\"rgb\":[108,108,108],\"tol\":25},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[242,242,242],\"tol\":20}]" } },
   // A shadow map holds depth, so only geometry drawn depth-only belongs in one. A BLACK
   // sprite stands opposite a mesh blocker, both between lamp and floor: black unpacks as
   // depth 0, so a collected sprite would shadow its half — which has to come back lit.
@@ -180,7 +180,7 @@ export const SCENES = [
   // Does an atlas draw scale with the CASTER count: 3249 casters are two draws (a ground quad,
   // then every cube instanced), and a fallback to one draw each changes no pixel. The probes take
   // the only ground the grid leaves bare — lit past its left edge, shadowed past its right.
-  { id: "shadow-scale-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/scale-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SCALE: "{\"copies\":3249,\"cols\":57,\"spacing\":[10,10],\"keep\":[\"Camera\",\"Light\",\"Ground\"]}", ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.shadow.draws\":8}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.012,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.984,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  { id: "shadow-scale-cost", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/scale-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SCALE: "{\"copies\":3249,\"cols\":57,\"spacing\":[10,10],\"keep\":[\"Camera\",\"Light\",\"Ground\"]}", ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.shadow.draws\":8,\"render.targets.bytes\":33554432}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.012,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.984,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // Two opaque cubes overlapping on screen, the red one 120 units nearer. Declares NO
   // depth layer and boots LINEAR — the cheap way to engage the post-process capture.
   // Opaque sorts front-to-back, so with no attachment the far cube paints over.

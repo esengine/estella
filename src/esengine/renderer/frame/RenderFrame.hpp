@@ -8,6 +8,7 @@
 #include "./RenderContext.hpp"
 #include "../store/LightConstants.hpp"
 #include "../store/ShadowAtlas.hpp"
+#include "../graph/TargetPool.hpp"
 #include "../RenderTypePlugin.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "./PostProcessPipeline.hpp"
@@ -359,6 +360,8 @@ private:
      *          of it is ShadowAtlas's answer rather than the light type's.
      */
     void renderShadowMap(ecs::Registry& registry);
+    /// Gives back every target this frame borrowed from {@link target_pool_}.
+    void releaseFrameTargets();
 
     /// The world box the resident meshes occupy — what a shadow map must cover.
     /// False when nothing 3D is in the scene.
@@ -404,7 +407,12 @@ private:
     /// Every light that asked for a map this frame, in UBO slot order. Written by
     /// collectLights, read by renderShadowMap; empty = nobody asked.
     std::vector<ShadowCaster> shadow_casters_;
-    RenderTargetManager::Handle shadow_rt_ = 0;
+    /// The frame's render targets, borrowed by shape and given back when the
+    /// frame is done with them — shared with the post chains, which is what lets
+    /// the atlas be a loan rather than a framebuffer held for the whole run.
+    rg::TargetPool target_pool_;
+    /// The atlas this frame borrowed, released at end(). kNoTarget = none.
+    rg::TargetHandle shadow_target_ = rg::kNoTarget;
     /// Who owns which square of it. Rebuilt every frame: a tile means nothing once
     /// the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};

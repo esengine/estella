@@ -24,8 +24,10 @@
 #include "../../core/Types.hpp"
 #include "../rhi/Framebuffer.hpp"
 #include "../rhi/GfxEnums.hpp"
+#include "TargetPool.hpp"
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -46,9 +48,16 @@ constexpr ResourceId kNoResource = static_cast<ResourceId>(-1);
  *          a half-size blur stays half-size when the window resizes, and the
  *          pool can hand the same physical target to any pass asking for that
  *          fraction.
+ *
+ *          `width`/`height` name pixels directly instead, for a target whose
+ *          texels are its own: a shadow atlas is 2048² because that is how many
+ *          its tiling divides, and as a `scale` it would be a different resource
+ *          on every monitor. Zero (the default) follows `scale`.
  */
 struct TargetDesc {
     f32 scale = 1.0f;
+    u32 width = 0;
+    u32 height = 0;
     GfxPixelFormat format = GfxPixelFormat::RGBA8;
     bool linearFilter = true;
     bool depthStencil = false;
@@ -88,9 +97,17 @@ struct PassDesc {
  * @details One instance is reused across frames: the graph is rebuilt every
  *          frame (cheap — a handful of passes) while the target pool it draws
  *          from persists, which is what makes reuse possible at all.
+ *
+ *          The pool is BORROWED, not owned: a graph is one chain and a frame
+ *          holds several (per camera, plus the screen stack), so a pool inside
+ *          the graph could hold nothing across two of them. Given one, every
+ *          chain draws from the same targets, and so can a frame-lived resource.
  */
 class RenderGraph {
 public:
+    /** Borrows the caller's pool: a frame's chains share one. */
+    RenderGraph(GfxDevice& device, TargetPool& pool);
+    /** Owns a pool of its own — for a lone chain and for tests. */
     explicit RenderGraph(GfxDevice& device);
     ~RenderGraph();
 
@@ -140,8 +157,16 @@ public:
      *  the handles the pool holds name nothing. */
     void releasePool();
 
+    /** The targets this graph draws from — shared with the frame's other chains
+     *  when one was given, its own otherwise. */
+    TargetPool& pool() { return pool_; }
+
     /** How many physical targets the pool is holding. Diagnostics and tests. */
-    u32 pooledTargetCount() const { return static_cast<u32>(pool_.size()); }
+    u32 pooledTargetCount() const { return pool_.count(); }
+
+    /** What those targets cost in GPU memory, so the number a budget reads is
+     *  bytes rather than a count of things with no common size. */
+    u64 pooledTargetBytes() const { return pool_.bytes(); }
 
     /** Passes the last execute() ran, after culling. Diagnostics and tests. */
     u32 lastExecutedPassCount() const { return executed_; }
@@ -156,33 +181,28 @@ private:
         FramebufferHandle target = FramebufferHandle::Default;
         u32 width = 0;
         u32 height = 0;
-        /// Index into pool_ while a transient holds one; kNoPooled otherwise.
-        u32 pooled = kNoPooled;
+        /// The pool target a transient holds; kNoTarget when it holds none.
+        TargetHandle pooled = kNoTarget;
         i32 lastRead = -1;
     };
 
-    struct PooledTarget {
-        Unique<Framebuffer> fbo;
-        u32 width = 0;
-        u32 height = 0;
-        GfxPixelFormat format = GfxPixelFormat::RGBA8;
-        bool linearFilter = true;
-        bool depthStencil = false;
-        bool inUse = false;
-    };
-
-    static constexpr u32 kNoPooled = static_cast<u32>(-1);
 
     void resolveSize(Resource& res) const;
-    u32 acquire(const Resource& res);
+    TargetHandle acquire(const Resource& res);
     void release(Resource& res);
     /// Marks the passes that reach the imported target; false for everything else.
     void cull(std::vector<bool>& live) const;
 
     GfxDevice& device_;
+    /// Set only by the pool-owning constructor; pool_ refers into it.
+    Unique<TargetPool> ownedPool_;
+    TargetPool& pool_;
     std::vector<Resource> resources_;
     std::vector<PassDesc> passes_;
-    std::vector<PooledTarget> pool_;
+    /// What this graph has borrowed and still owes back, released at the next
+    /// begin() — a transient nothing reads is never released mid-execute, and
+    /// the pool is no longer the graph's to reset wholesale.
+    std::vector<TargetHandle> borrowed_;
     std::vector<TextureHandle> inputScratch_;
     ResourceId finalTarget_ = kNoResource;
     u32 refWidth_ = 0;

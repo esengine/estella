@@ -36,6 +36,38 @@ published separately; it ships inside the editor.
 
 - **`estella.mjs export --minify`**, for the targets whose default it is not.
 
+- **The shadow atlas is a loan now, not a framebuffer held for the run.** It was
+  created on the first frame that cast a shadow and never given back — 2048²
+  with depth, ~32MB, for as long as the process lived, so a game that walked out
+  of its one shadowed room went on paying for it. It comes out of the frame's
+  target pool instead: borrowed once per frame, spanning every camera that reads
+  it, returned before the next one, and released for good when nothing has asked
+  for it in 120 frames.
+
+  What made that possible is that **a `RenderGraph` is one CHAIN and a frame
+  holds several** — one per camera, plus the screen stack — and the pool used to
+  live inside the graph, so every `begin()` handed every target back and nothing
+  could be held across two chains. The pool is its own object now
+  (`rg::TargetPool`), owned by the frame and borrowed by each chain: the atlas
+  and the post-process intermediates come out of the same physical targets, and
+  a target's lifetime is the borrower's to state rather than a side effect of
+  which chain began last. Its handles carry a generation, so one held across a
+  resize (which reclaims every target at the old size) comes back naming nothing
+  rather than naming whatever refilled its slot.
+
+  `rg::TargetDesc` gained a `width`/`height` in pixels for targets that are not
+  a fraction of the frame: an atlas is 2048² because that is what its tiling
+  divides, and as a `scale` it would have been a different resource on every
+  monitor.
+
+- **`render.targets` and `render.targets.bytes`** — what a frame's render
+  targets cost, which no counter answered for. `point-shadow` pins a shadowed
+  frame at exactly one target and 33,554,432 bytes, and `shadow-scale-cost`
+  holds 3249 casters to the same ceiling. Sabotage-checked: a frame stranding
+  its atlas each frame reaches 3 targets and 96MB **with every pixel probe still
+  passing** — target memory is invisible in the image, which is why it needed a
+  number.
+
 ### Changed
 
 - `EmbeddedSideModuleEntry` carries decoded bytes (`glue`, `wasm`) rather than

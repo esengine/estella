@@ -79,7 +79,25 @@ struct PostProcessPass {
  */
 class PostProcessPipeline {
 public:
-    PostProcessPipeline(GfxDevice& device, RenderContext& context, resource::ResourceManager& resourceManager);
+    /**
+     * @brief Builds a pipeline whose chains draw from the frame's target pool.
+     *
+     * @details The pool is the FRAME's, not a chain's. Every camera's chain and
+     *          the screen stack borrow from the same physical targets, and so
+     *          does whatever the frame holds across them — the shadow atlas.
+     */
+    PostProcessPipeline(GfxDevice& device, RenderContext& context,
+                        resource::ResourceManager& resourceManager, rg::TargetPool& pool);
+
+    /**
+     * @brief Builds one with no frame behind it; its chains get a pool of their own.
+     *
+     * @details The fallback path in the bindings, for a pipeline that exists
+     *          without a RenderFrame having made one. Same terms as
+     *          {@link rg::RenderGraph}'s pool-owning constructor.
+     */
+    PostProcessPipeline(GfxDevice& device, RenderContext& context,
+                        resource::ResourceManager& resourceManager);
     ~PostProcessPipeline();
 
     PostProcessPipeline(const PostProcessPipeline&) = delete;
@@ -313,6 +331,8 @@ private:
     RenderContext& context_;
     resource::ResourceManager& resourceManager_;
 
+    /// The frame's pool when one was given, null when the graph owns its own.
+    rg::TargetPool* pool_ = nullptr;
     Unique<rg::RenderGraph> graph_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;

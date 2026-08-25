@@ -18,6 +18,9 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Buffer.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Texture.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Framebuffer.cpp
+    # Not behind ES_ENABLE_POSTPROCESS with RenderGraph: the frame borrows its
+    # own targets from this pool whether or not a post stack is compiled in.
+    ${ESENGINE_ROOT}/src/esengine/renderer/graph/TargetPool.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrame.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameMask.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameSubmit.cpp
