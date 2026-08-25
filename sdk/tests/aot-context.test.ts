@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { ScriptPool, poolShape } from '../src/ecs/ScriptPool';
 import { WasmPoolMemory, type WasmHeap } from '../src/ecs/WasmPoolMemory';
 import { AotContext, CMD_DESPAWN } from '../src/ecs/aot/AotContext';
+import { AotResources } from '../src/ecs/aot/AotResources';
 import type { Entity } from '../src/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -150,15 +151,18 @@ describe('a compiled system, called by the SDK', () => {
             live.push(i);
         }
 
-        // Time is a host record too, so it needs an address like anything else.
-        const timeBlock = memory.alloc(8);
+        // Time is a host record too, so it needs an address like anything else —
+        // and the mirror is what gives it one, in the layout both sides derive
+        // from the SDK's own declaration.
         const delta = 1 / 30;
-        new Float64Array(engine.memory.buffer, timeBlock.byteOffset, 1)[0] = delta;
+        const time = { delta, elapsed: 0, frameCount: 0, fixedDelta: 1 / 60,
+            fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 };
+        const resources = new AotResources(memory, (name) => (name === 'Time' ? time : undefined));
 
         const ctx = new AotContext(memory);
         for (let f = 0; f < FRAMES; f++) {
             const rows = live.map((id) => [id, pool.address(e(id))!] as const);
-            const at = ctx.build([rows], [timeBlock.byteOffset]);
+            const at = ctx.build([rows], [resources.addressOf('Time')!]);
             decay(at);
 
             // The same loop, in TypeScript, over the plain objects.
@@ -202,12 +206,11 @@ describe('a compiled system, called by the SDK', () => {
         const api = instance.exports as unknown as Record<string, unknown>;
         (api['_initialize'] as (() => void) | undefined)?.();
 
-        const timeBlock = memory.alloc(8);
-        new Float64Array(engine.memory.buffer, timeBlock.byteOffset, 1)[0] = 1 / 30;
+        const resources = new AotResources(memory, () => ({ delta: 1 / 30 }));
         const ctx = new AotContext(memory);
         // An empty query still needs a well-formed table: `count` is zero and
         // `rows` must point somewhere the code will not read.
-        (api['es_sys_Decay'] as (c: number) => void)(ctx.build([[]], [timeBlock.byteOffset]));
+        (api['es_sys_Decay'] as (c: number) => void)(ctx.build([[]], [resources.addressOf('Time')!]));
         expect(ctx.commands()).toEqual([]);
     });
 });

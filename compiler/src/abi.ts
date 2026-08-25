@@ -18,7 +18,7 @@
  *          Field offsets come from PTR_LAYOUTS via builtins.ts — the same EHT
  *          table the engine and the SDK's accessors already agree on.
  */
-import { ehtStamp } from './builtins';
+import { ehtStamp, resourceNames } from './builtins';
 import { encBytes, type CompShape, type EirSystem, type EirType, type LeafEnc, type QueryArg } from './eir';
 import { runSystemOn, type EirHost, type Fns } from './interp';
 
@@ -449,8 +449,7 @@ export function packLayout(shapes: ReadonlyMap<string, CompShape>): AbiLayout {
 }
 
 /**
- * Which host-stored shapes are RESOURCES rather than components. This is the one
- * thing the shape cannot yet say, because resources have no generator — see the
- * note in builtins.ts. It goes away when they get one.
+ * Which host-stored shapes are RESOURCES rather than components — the SDK's own
+ * declarations, so this list has no second author to drift from.
  */
-const RESOURCES = new Set(['Time', 'Input']);
+const RESOURCES = new Set(resourceNames());

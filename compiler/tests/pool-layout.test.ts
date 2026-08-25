@@ -24,6 +24,7 @@ import { packLayout } from '../src/abi';
 import { encBytes } from '../src/eir';
 import { ScriptPool, poolShape, POOL_SLOT_BYTES } from '../../sdk/src/ecs/ScriptPool';
 import * as sdkAbi from '../../sdk/src/ecs/aot/AotContext';
+import { RESOURCE_NAMES, resourceFields } from '../../sdk/src/ecs/resourceShapes';
 import { CMD_DESPAWN, CMD_REMOVE, CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS } from '../src/abi';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
@@ -87,5 +88,29 @@ describe('the SDK and the compiler count the same words', () => {
     it('and the command kinds, which are what a flush switches on', () => {
         expect(sdkAbi.CMD_DESPAWN).toBe(CMD_DESPAWN);
         expect(sdkAbi.CMD_REMOVE).toBe(CMD_REMOVE);
+    });
+});
+
+/**
+ * A resource is laid out from the SAME declaration on both sides: the compiler
+ * derives its shape from it, and the SDK mirrors its values into that layout.
+ */
+describe('a resource has one layout too', () => {
+    it('the compiler knows exactly the resources the SDK declares', () => {
+        expect([...layout.resources.keys()].sort()).toEqual([...RESOURCE_NAMES].sort());
+    });
+
+    it('and lays their fields out in the order the SDK declares', () => {
+        for (const name of RESOURCE_NAMES) {
+            const fields = resourceFields(name)!;
+            const shape = layout.resources.get(name)!;
+            expect([...shape.leaves.keys()], `${name} field order`).toEqual([...fields]);
+            fields.forEach((field, i) => {
+                // The mirror writes field i at slot i; anything else and a system
+                // reading `delta` would get `elapsed`.
+                expect(shape.leaves.get(field)!.byteOffset, `${name}.${field}`)
+                    .toBe(i * POOL_SLOT_BYTES);
+            });
+        }
     });
 });

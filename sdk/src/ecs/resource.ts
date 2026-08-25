@@ -6,6 +6,7 @@
  */
 
 import { deepClone } from '../util/deepClone';
+import { RESOURCE_SHAPES } from './resourceShapes';
 
 // =============================================================================
 // Resource Definition
@@ -276,14 +277,5 @@ export interface TimeData {
  *
  * @public
  */
-export const Time = defineResource<TimeData>({
-    delta: 0,
-    elapsed: 0,
-    frameCount: 0,
-    fixedDelta: 1 / 60,
-    fixedAlpha: 0,
-    fixedTick: 0,
-    scale: 1,
-    unscaledDelta: 0,
-}, 'Time');
+export const Time = defineResource<TimeData>({ ...RESOURCE_SHAPES.Time }, 'Time');
 

@@ -14,6 +14,7 @@
  *          file exists to avoid.
  */
 import { PTR_LAYOUTS } from '../../sdk/src/wasm/ptrLayouts.generated';
+import { RESOURCE_NAMES, RESOURCE_SHAPES } from '../../sdk/src/ecs/resourceShapes';
 import { BOOL, F64, HOST_ENC, type CompShape, type FieldSpec, type LeafEnc } from './eir';
 
 /** Leaf member names per composite field, in memory order. Every one is f32. */
@@ -62,20 +63,33 @@ export function builtinShapes(): Map<string, CompShape> {
         // engine-stored. Nothing downstream has to ask by name.
         out.set(name, { name, storage: 'engine', fields });
     }
-    out.set('Time', TIME);
+    for (const [name, shape] of Object.entries(RESOURCE_SHAPES)) {
+        out.set(name, resourceShape(name, shape));
+    }
     return out;
 }
 
-// NOT generated. Resources have no EHT table, so this is a hand-written shape and
-// will drift the moment Time gains a field. Generating it is owed before the
-// compiler reads any resource beyond this one.
-const TIME: CompShape = {
-    name: 'Time',
-    storage: 'host',
-    fields: new Map<string, FieldSpec>(
-        ['delta', 'elapsed', 'frameCount', 'fixedDelta', 'fixedAlpha', 'fixedTick', 'scale', 'unscaledDelta']
-            .map((k) => [k, { type: F64, enc: HOST_ENC, offset: null }] as const)),
-};
+/**
+ * A resource's shape, from the SDK's own declaration: a host record, so f64
+ * throughout and laid out by the ABI rather than by EHT. The field ORDER is the
+ * declaration order, and it IS the layout.
+ */
+function resourceShape(name: string, shape: Readonly<Record<string, number | boolean>>): CompShape {
+    const fields = new Map<string, FieldSpec>();
+    for (const [field, value] of Object.entries(shape)) {
+        fields.set(field, {
+            type: typeof value === 'boolean' ? BOOL : F64,
+            enc: HOST_ENC,
+            offset: null,
+        });
+    }
+    return { name, storage: 'host', fields };
+}
+
+/** Which host-stored shapes are resources; see `abi.ts`, which asks. */
+export function resourceNames(): readonly string[] {
+    return RESOURCE_NAMES;
+}
 
 /**
  * EHT's table, flattened for the §2.5 handshake. It stamps the OFFSETS rather
