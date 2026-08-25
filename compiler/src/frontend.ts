@@ -30,7 +30,7 @@ import {
     BOOL, ENTITY, F64,
     type CompShape, type EirModule, type EirSystem, type EirType,
     MATH_FNS,
-    type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
+    type FieldSpec, type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
     type MathFn,
 } from './eir';
 
@@ -448,15 +448,15 @@ class SystemLowerer {
         if (base.type.k === 'comp') {
             const shape = this.comps.get(base.type.name);
             if (!shape) throw new NotInSubset(node, `no declared shape for component '${base.type.name}'`);
-            const t = shape.fields.get(key);
-            if (!t) throw new NotInSubset(node, `'${base.type.name}' has no field '${key}'`);
-            return t;
+            const f = shape.fields.get(key);
+            if (!f) throw new NotInSubset(node, `'${base.type.name}' has no field '${key}'`);
+            return f.type;
         }
         if (base.type.k === 'res') {
             const shape = this.comps.get(base.type.name);
-            const t = shape?.fields.get(key);
-            if (!t) throw new NotInSubset(node, `resource '${base.type.name}' has no field '${key}'`);
-            return t;
+            const f = shape?.fields.get(key);
+            if (!f) throw new NotInSubset(node, `resource '${base.type.name}' has no field '${key}'`);
+            return f.type;
         }
         throw new NotInSubset(node, `'${base.name}' has no fields to read`);
     }
@@ -580,7 +580,7 @@ function componentShape(call: ts.CallExpression): CompShape | null {
     const [nameArg, defaults] = call.arguments;
     if (!nameArg || !ts.isStringLiteral(nameArg)) return null;
     if (!defaults || !ts.isObjectLiteralExpression(defaults)) return null;
-    const fields = new Map<string, EirType>();
+    const fields = new Map<string, FieldSpec>();
     for (const prop of defaults.properties) {
         if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return null;
         // `-50` parses as a prefix expression, not a numeric literal. A default
@@ -590,19 +590,22 @@ function componentShape(call: ts.CallExpression): CompShape | null {
             && prop.initializer.operator === ts.SyntaxKind.MinusToken
             ? prop.initializer.operand
             : prop.initializer;
-        if (ts.isNumericLiteral(init)) fields.set(prop.name.text, F64);
+        if (ts.isNumericLiteral(init)) fields.set(prop.name.text, { type: F64, bits: 64 });
         else if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
-            fields.set(prop.name.text, BOOL);
+            fields.set(prop.name.text, { type: BOOL, bits: 64 });
         } else return null;
     }
-    return { name: nameArg.text, fields };
+    // defineComponent lands in ScriptStorage — a Map of JS objects — so its
+    // numbers are f64, unlike an engine component's f32 pool.
+    return { name: nameArg.text, storage: 'host', fields };
 }
 
 /** Two declarations of one name are the same component only if every field matches. */
 function sameShape(a: CompShape, b: CompShape): boolean {
     if (a.fields.size !== b.fields.size) return false;
-    for (const [k, t] of a.fields) {
-        if (b.fields.get(k)?.k !== t.k) return false;
+    for (const [k, f] of a.fields) {
+        const other = b.fields.get(k);
+        if (other?.type.k !== f.type.k || other.bits !== f.bits) return false;
     }
     return true;
 }

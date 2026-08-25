@@ -14,7 +14,7 @@
  *          file exists to avoid.
  */
 import { PTR_LAYOUTS } from '../../sdk/src/wasm/ptrLayouts.generated';
-import { BOOL, F64, type CompShape, type EirType } from './eir';
+import { BOOL, F64, storageBits, type CompShape, type EirType, type FieldSpec, type Storage } from './eir';
 
 /** Leaf member names per composite field, in memory order. */
 const MEMBERS: Record<string, readonly string[]> = {
@@ -25,8 +25,8 @@ const MEMBERS: Record<string, readonly string[]> = {
     color: ['r', 'g', 'b', 'a'],
 };
 
-function leafType(t: string): EirType {
-    return t === 'bool' ? BOOL : F64;
+function leafSpec(t: string, storage: Storage): FieldSpec {
+    return { type: t === 'bool' ? BOOL : F64, bits: storageBits(storage) };
 }
 
 /**
@@ -37,18 +37,20 @@ function leafType(t: string): EirType {
 export function builtinShapes(): Map<string, CompShape> {
     const out = new Map<string, CompShape>();
     for (const [name, layout] of Object.entries(PTR_LAYOUTS)) {
-        const fields = new Map<string, EirType>();
+        const fields = new Map<string, FieldSpec>();
         for (const f of layout.fields) {
             const members = MEMBERS[f.type];
             if (members) {
-                for (const m of members) fields.set(`${f.name}.${m}`, F64);
+                for (const m of members) fields.set(`${f.name}.${m}`, leafSpec('f32', 'engine'));
             } else if (f.type === 'struct') {
-                for (const m of f.members ?? []) fields.set(`${f.name}.${m.name}`, leafType(m.type));
+                for (const m of f.members ?? []) fields.set(`${f.name}.${m.name}`, leafSpec(m.type, 'engine'));
             } else {
-                fields.set(f.name, leafType(f.type));
+                fields.set(f.name, leafSpec(f.type, 'engine'));
             }
         }
-        out.set(name, { name, fields });
+        // EHT's table IS the engine's flat pools, so everything from it is
+        // engine-stored. Nothing downstream has to ask by name.
+        out.set(name, { name, storage: 'engine', fields });
     }
     out.set('Time', TIME);
     return out;
@@ -59,9 +61,8 @@ export function builtinShapes(): Map<string, CompShape> {
 // compiler reads any resource beyond this one.
 const TIME: CompShape = {
     name: 'Time',
-    fields: new Map<string, EirType>([
-        ['delta', F64], ['elapsed', F64], ['frameCount', F64],
-        ['fixedDelta', F64], ['fixedAlpha', F64], ['fixedTick', F64],
-        ['scale', F64], ['unscaledDelta', F64],
-    ]),
+    storage: 'host',
+    fields: new Map<string, FieldSpec>(
+        ['delta', 'elapsed', 'frameCount', 'fixedDelta', 'fixedAlpha', 'fixedTick', 'scale', 'unscaledDelta']
+            .map((k) => [k, { type: F64, bits: 64 }] as const)),
 };

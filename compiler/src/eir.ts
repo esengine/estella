@@ -148,11 +148,31 @@ export interface EirSystem {
     readonly body: readonly Stmt[];
 }
 
+/**
+ * Where a shape's bytes live: `engine` is a C++ flat pool at EHT offsets with
+ * 32-bit fields, `host` a JS-side record (ScriptStorage, resources) with 64.
+ * Carried on the SHAPE so no consumer has to ask by name, which is how a table
+ * grows one entry per surprise.
+ */
+export type Storage = 'engine' | 'host';
+
+/** One leaf field: what it computes as, and how wide it is stored. */
+export interface FieldSpec {
+    readonly type: EirType;
+    readonly bits: 32 | 64;
+}
+
 /** A component's field shape, flattened to leaf paths of one scalar each. */
 export interface CompShape {
     readonly name: string;
-    /** `position.x` -> f64. Order is the declaration order EHT would give. */
-    readonly fields: ReadonlyMap<string, EirType>;
+    readonly storage: Storage;
+    /** `position.x` -> its spec. Order is the declaration order EHT would give. */
+    readonly fields: ReadonlyMap<string, FieldSpec>;
+}
+
+/** Bits every field of a shape in this storage is stored at. */
+export function storageBits(storage: Storage): 32 | 64 {
+    return storage === 'engine' ? 32 : 64;
 }
 
 export interface EirModule {

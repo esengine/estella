@@ -61,9 +61,9 @@ class Verifier {
         }
         const shape = this.comps.get(base.name);
         if (!shape) { this.fail(`no declared shape for '${base.name}'`); return null; }
-        const t = shape.fields.get(p.path.join('.'));
-        if (!t) { this.fail(`'${base.name}' has no field '${p.path.join('.')}'`); return null; }
-        return t;
+        const f = shape.fields.get(p.path.join('.'));
+        if (!f) { this.fail(`'${base.name}' has no field '${p.path.join('.')}'`); return null; }
+        return f.type;
     }
 
     exprType(e: Expr): EirType | null {

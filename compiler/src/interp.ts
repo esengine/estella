@@ -21,6 +21,24 @@ export type Fns = ReadonlyMap<string, EirFn>;
 /** One component instance, nested exactly as a system reads it. */
 export type Row = Record<string, unknown>;
 
+/**
+ * How a system reaches the world. Two implementations: the JS-object host below,
+ * and the ABI host (abi.ts) that reads flat memory through a SysCtx. One
+ * interpreter over both is what proves the ABI is sufficient — a second
+ * evaluator would only prove the two evaluators agree.
+ */
+export interface EirHost {
+    /** Rows the query matches, each binding one opaque base per component. */
+    rows(args: readonly QueryArg[]): Iterable<{ entity: number; binds: readonly unknown[] }>;
+    readField(base: unknown, comp: string, path: readonly string[]): number | boolean;
+    writeField(base: unknown, comp: string, path: readonly string[], v: number | boolean): void;
+    /** An opaque base for a resource, addressed by field like a component. */
+    resource(name: string): unknown;
+    emit(record: string, args: readonly (number | boolean)[]): void;
+    /** Called once after the body, where the SDK's runner flushes. */
+    flush(): void;
+}
+
 export interface EirWorld {
     /** Entity ids in the order a query walks them. Mutable: a flush removes from it. */
     entities: number[];
@@ -56,33 +74,34 @@ function walk(root: unknown, path: readonly string[]): { owner: Record<string, u
     return { owner: cur, key: path[path.length - 1]! };
 }
 
-function readPlace(p: Place, frame: Frame): unknown {
+/** The component or resource a local holds, for the host to resolve fields on. */
+type Owners = ReadonlyMap<number, string>;
+
+function readPlace(p: Place, frame: Frame, host: EirHost, owners: Owners): unknown {
     if (p.p === 'local') return frame.get(p.id);
-    const base = readPlace(p.base, frame);
-    const { owner, key } = walk(base, p.path);
-    return owner[key];
+    const base = readPlace(p.base, frame, host, owners);
+    const id = p.base.p === 'local' ? p.base.id : -1;
+    return host.readField(base, owners.get(id) ?? '', p.path);
 }
 
-function writePlace(p: Place, frame: Frame, value: unknown): void {
+function writePlace(p: Place, frame: Frame, host: EirHost, owners: Owners, value: unknown): void {
     if (p.p === 'local') { frame.set(p.id, value); return; }
-    const base = readPlace(p.base, frame);
-    const { owner, key } = walk(base, p.path);
-    owner[key] = value;
+    const base = readPlace(p.base, frame, host, owners);
+    const id = p.base.p === 'local' ? p.base.id : -1;
+    host.writeField(base, owners.get(id) ?? '', p.path, value as number | boolean);
 }
 
 /** A pure function cannot see the world, so calling one needs only its own frame. */
-const EMPTY_WORLD: EirWorld = { entities: [], comps: new Map(), resources: new Map() };
-
-function evalExpr(e: Expr, frame: Frame, fns: Fns): number | boolean {
+function evalExpr(e: Expr, frame: Frame, fns: Fns, host: EirHost, owners: Owners): number | boolean {
     switch (e.e) {
         case 'const': return e.value;
-        case 'read': return readPlace(e.place, frame) as number | boolean;
-        case 'neg': return -(evalExpr(e.v, frame, fns) as number);
-        case 'not': return !(evalExpr(e.v, frame, fns) as boolean);
+        case 'read': return readPlace(e.place, frame, host, owners) as number | boolean;
+        case 'neg': return -(evalExpr(e.v, frame, fns, host, owners) as number);
+        case 'not': return !(evalExpr(e.v, frame, fns, host, owners) as boolean);
         case 'select':
-            return evalExpr(e.cond, frame, fns) ? evalExpr(e.then, frame, fns) : evalExpr(e.otherwise, frame, fns);
+            return evalExpr(e.cond, frame, fns, host, owners) ? evalExpr(e.then, frame, fns, host, owners) : evalExpr(e.otherwise, frame, fns, host, owners);
         case 'call': {
-            const a = e.args.map((x) => evalExpr(x, frame, fns));
+            const a = e.args.map((x) => evalExpr(x, frame, fns, host, owners));
             if (e.target.k === 'math') {
                 // The frontend admits only the exactly-specified operations, so
                 // deferring to the host's Math is the same answer everywhere.
@@ -93,20 +112,20 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns): number | boolean {
             if (!def) throw new Error(`EIR: no function '${e.target.name}'`);
             const inner = new Frame();
             def.params.forEach((p, i) => inner.set(p.id, a[i]));
-            const out = exec(def.body, inner, EMPTY_WORLD, fns);
+            const out = exec(def.body, inner, fns, host, owners);
             if (out === undefined) throw new Error(`EIR: '${def.name}' returned nothing`);
             return out;
         }
         case 'logic': {
             // Short-circuit, which is why this is not a `bin`: `a && b(…)` must
             // not evaluate b when a is false.
-            const l = evalExpr(e.l, frame, fns) as boolean;
-            if (e.op === '&&') return l ? (evalExpr(e.r, frame, fns) as boolean) : false;
-            return l ? true : (evalExpr(e.r, frame, fns) as boolean);
+            const l = evalExpr(e.l, frame, fns, host, owners) as boolean;
+            if (e.op === '&&') return l ? (evalExpr(e.r, frame, fns, host, owners) as boolean) : false;
+            return l ? true : (evalExpr(e.r, frame, fns, host, owners) as boolean);
         }
         case 'bin': {
-            const l = evalExpr(e.l, frame, fns) as number;
-            const r = evalExpr(e.r, frame, fns) as number;
+            const l = evalExpr(e.l, frame, fns, host, owners) as number;
+            const r = evalExpr(e.r, frame, fns, host, owners) as number;
             switch (e.op) {
                 case '+': return l + r;
                 case '-': return l - r;
@@ -125,90 +144,116 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns): number | boolean {
 }
 
 /** Entities carrying every component the query names, in world order. */
-function matching(world: EirWorld, args: readonly QueryArg[]): number[] {
-    return world.entities.filter((e) => args.every((a) => world.comps.get(a.comp)?.has(e)));
-}
-
-/** Returns the value a `return` produced, or undefined if control ran off the end. */
-function exec(stmts: readonly Stmt[], frame: Frame, world: EirWorld, fns: Fns): number | boolean | undefined {
+/** Rows the query matches, from the host. */
+function exec(
+    stmts: readonly Stmt[], frame: Frame, fns: Fns, host: EirHost, owners: Owners,
+): number | boolean | undefined {
     for (const s of stmts) {
         switch (s.s) {
             case 'return':
-                return evalExpr(s.value, frame, fns);
+                return evalExpr(s.value, frame, fns, host, owners);
             case 'let':
-                frame.set(s.id, evalExpr(s.value, frame, fns));
+                frame.set(s.id, evalExpr(s.value, frame, fns, host, owners));
                 break;
             case 'assign':
-                writePlace(s.target, frame, evalExpr(s.value, frame, fns));
+                writePlace(s.target, frame, host, owners, evalExpr(s.value, frame, fns, host, owners));
                 break;
-            case 'emit': {
-                const queue = readPlace(s.channel, frame) as Command[];
-                queue.push({ record: s.record, args: s.args.map((a) => evalExpr(a, frame, fns)) });
+            case 'emit':
+                host.emit(s.record, s.args.map((a) => evalExpr(a, frame, fns, host, owners)));
                 break;
-            }
             case 'if': {
-                const out = evalExpr(s.cond, frame, fns)
-                    ? exec(s.then, frame, world, fns)
-                    : exec(s.otherwise, frame, world, fns);
+                const out = evalExpr(s.cond, frame, fns, host, owners)
+                    ? exec(s.then, frame, fns, host, owners)
+                    : exec(s.otherwise, frame, fns, host, owners);
                 if (out !== undefined) return out;
                 break;
             }
             case 'rowLoop': {
-                const q = readPlace(s.query, frame) as { args: readonly QueryArg[] };
-                for (const entity of matching(world, q.args)) {
-                    if (s.entity !== null) frame.set(s.entity, entity);
-                    s.binds.forEach((id, i) => {
-                        frame.set(id, world.comps.get(q.args[i]!.comp)!.get(entity)!);
-                    });
-                    exec(s.body, frame, world, fns);
+                const q = readPlace(s.query, frame, host, owners) as { args: readonly QueryArg[] };
+                for (const row of host.rows(q.args)) {
+                    if (s.entity !== null) frame.set(s.entity, row.entity);
+                    s.binds.forEach((id, i) => frame.set(id, row.binds[i]));
+                    const out = exec(s.body, frame, fns, host, owners);
+                    if (out !== undefined) return out;
                 }
                 break;
             }
         }
     }
+    return undefined;
+}
+
+/** Which component or resource each local names, so the host can resolve fields. */
+function ownersOf(sys: EirSystem): Map<number, string> {
+    const out = new Map<number, string>();
+    for (const l of [...sys.params, ...sys.locals]) {
+        if (l.type.k === 'comp' || l.type.k === 'res') out.set(l.id, l.type.name);
+    }
+    return out;
 }
 
 /**
- * Run `sys` against `world`, mutating it in place. Parameters are bound from
- * their declared types: a query becomes its own argument list, a resource its
- * row — the same two things the SDK's runner resolves.
+ * Run `sys` against `host`. Parameters are bound from their declared types, the
+ * two things the SDK's runner also resolves, and the host flushes at the end
+ * because that is where flushSystem_ does.
  */
-export function runSystem(sys: EirSystem, world: EirWorld, fns: Fns = new Map()): void {
+export function runSystemOn(sys: EirSystem, host: EirHost, fns: Fns = new Map()): void {
     const frame = new Frame();
-    const queues: Command[][] = [];
+    const owners = ownersOf(sys);
     for (const p of sys.params) {
-        const q = bindParam(p, frame, world);
-        if (q) queues.push(q);
+        if (p.type.k === 'query') frame.set(p.id, { args: p.type.args });
+        else if (p.type.k === 'res') frame.set(p.id, host.resource(p.type.name));
+        else if (p.type.k === 'channel') frame.set(p.id, null);
+        else throw new Error(`EIR: '${p.name}' has no parameter binding for ${p.type.k}`);
     }
-    exec(sys.body, frame, world, fns);
-    // At system end, not at the call: the SDK's runner flushes in flushSystem_,
-    // and a despawn taking effect mid-row would change what the row loop walks.
-    for (const q of queues) flush(q, world);
+    exec(sys.body, frame, fns, host, owners);
+    host.flush();
 }
 
-function flush(queue: Command[], world: EirWorld): void {
-    for (const c of queue) {
-        if (c.record !== 'despawn') throw new Error(`EIR: no flush for '${c.record}'`);
-        const e = c.args[0] as number;
-        const at = world.entities.indexOf(e);
-        if (at >= 0) world.entities.splice(at, 1);
-        for (const rows of world.comps.values()) rows.delete(e);
-    }
-    queue.length = 0;
+/**
+ * The JS-object host: components are nested records, as a test builds them.
+ * Kept because it is what makes the differential readable; the ABI host in
+ * abi.ts is the one that proves the contract.
+ */
+export function jsHost(world: EirWorld): EirHost {
+    const queued: Command[] = [];
+    return {
+        *rows(args) {
+            for (const e of world.entities) {
+                if (!args.every((a) => world.comps.get(a.comp)?.has(e))) continue;
+                yield { entity: e, binds: args.map((a) => world.comps.get(a.comp)!.get(e)!) };
+            }
+        },
+        readField(base, _comp, path) {
+            const { owner, key } = walk(base, path);
+            return owner[key] as number | boolean;
+        },
+        writeField(base, _comp, path, v) {
+            const { owner, key } = walk(base, path);
+            owner[key] = v;
+        },
+        resource(name) {
+            const row = world.resources.get(name);
+            if (!row) throw new Error(`EIR: no resource '${name}' in the world`);
+            return row;
+        },
+        emit(record, args) {
+            queued.push({ record, args });
+        },
+        flush() {
+            for (const c of queued) {
+                if (c.record !== 'despawn') throw new Error(`EIR: no flush for '${c.record}'`);
+                const e = c.args[0] as number;
+                const at = world.entities.indexOf(e);
+                if (at >= 0) world.entities.splice(at, 1);
+                for (const rows of world.comps.values()) rows.delete(e);
+            }
+            queued.length = 0;
+        },
+    };
 }
 
-function bindParam(p: Local, frame: Frame, world: EirWorld): Command[] | null {
-    if (p.type.k === 'query') { frame.set(p.id, { args: p.type.args }); return null; }
-    if (p.type.k === 'res') {
-        const row = world.resources.get(p.type.name);
-        if (!row) throw new Error(`EIR: no resource '${p.type.name}' in the world`);
-        frame.set(p.id, row);
-        return null;
-    }
-    if (p.type.k === 'channel') {
-        const q: Command[] = [];
-        frame.set(p.id, q);
-        return q;
-    }
-    throw new Error(`EIR: '${p.name}' has no parameter binding for ${p.type.k}`);
+/** Run against a JS-object world. Shorthand for runSystemOn(sys, jsHost(world)). */
+export function runSystem(sys: EirSystem, world: EirWorld, fns: Fns = new Map()): void {
+    runSystemOn(sys, jsHost(world), fns);
 }
