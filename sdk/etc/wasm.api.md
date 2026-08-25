@@ -422,6 +422,7 @@ uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
 uiRenderOrder_update: (registry: CppRegistry) => void
 ui_getCullBit: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
+wasmMemory: WebAssembly.Memory
 ```
 
 ## EmscriptenFS — interface @experimental

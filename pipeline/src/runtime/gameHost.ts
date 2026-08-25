@@ -18,7 +18,8 @@ import {
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice,
 } from 'esengine';
-import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
+import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, AotManifest } from 'esengine';
+import { AOT_MANIFEST, AOT_WASM } from '../bundle/aotArtifacts';
 import type { ESEngineModule } from 'esengine/wasm';
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -106,6 +107,20 @@ async function boot(): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
+
+  // The compiled twins, if the build made any. A project with no `@compiled`
+  // marker ships neither file and interprets, which the 404 below detects.
+  // Once the manifest IS there the wasm must be too.
+  const aotManifest = await fetch(new URL(`./${AOT_MANIFEST}`, import.meta.url)).catch(() => null);
+  if (aotManifest?.ok) {
+    const wasm = await fetch(new URL(`./${AOT_WASM}`, import.meta.url));
+    if (!wasm.ok) throw new Error(`${AOT_MANIFEST} shipped without ${AOT_WASM}`);
+    await app.useCompiledSystems({
+      host: module,
+      manifest: await aotManifest.json() as AotManifest,
+      wasm: await wasm.arrayBuffer(),
+    });
+  }
   if (headless) {
     (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = {
       capture(): { width: number; height: number; rgba: Uint8Array } {

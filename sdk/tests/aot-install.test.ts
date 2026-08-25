@@ -31,60 +31,11 @@ import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 import type { Entity } from '../src/types';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { FakeEngine } from './fakeEngine';
-import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
+import { buildFadeModule, FADE_FIELDS, fadeManifest } from './helpers/aotFade';
 
 const N = 16;
 
 const EMCC = emccPath();
-
-/** The engine module, as far as a compiled system needs one. */
-/** `Fade`: alpha -= step, in the shape the compiler emits. */
-const SYSTEM_C = `#include <stdint.h>
-#include <string.h>
-typedef uint32_t es_addr_t;
-#define ES_PTR(a) ((unsigned char *)(a))
-typedef struct { es_addr_t rows, count; } EsQueryRows;
-typedef struct { es_addr_t queries, resources, cmdBuf, cmdCap, cmdCount, events; } EsSysCtx;
-static double ld(const unsigned char *p) { double v; memcpy(&v, p, 8); return v; }
-static void st(unsigned char *p, double v) { memcpy(p, &v, 8); }
-
-void es_sys_Fade(es_addr_t ctx) {
-    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
-    const EsQueryRows *q = (const EsQueryRows *)ES_PTR(c->queries);
-    const es_addr_t *rows = (const es_addr_t *)ES_PTR(q[0].rows);
-    for (es_addr_t i = 0; i < q[0].count; ++i) {
-        unsigned char *f = ES_PTR(rows[i * 2u + 1u]);
-        st(f, ld(f) - ld(f + 8));           /* alpha -= step */
-    }
-}
-`;
-
-function buildModule(): Uint8Array {
-    const dir = mkdtempSync(path.join(tmpdir(), 'estella-install-'));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'sys.c'), SYSTEM_C);
-    const out = path.join(dir, 'sys.wasm');
-    const built = spawnSync(EMCC!, [
-        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Fade',
-        '-o', out, path.join(dir, 'sys.c'),
-    ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
-    if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
-    return readFileSync(out);
-}
-
-const FADE_FIELDS = ['alpha', 'step'];
-
-function manifestFor(shapes = projectShapeDigest([{ name: 'Fade', fields: FADE_FIELDS }])): AotManifest {
-    return {
-        engineAbi: engineAbiDigest(4),
-        projectShapes: shapes,
-        systems: [{
-            name: 'Fade', symbol: 'es_sys_Fade',
-            queries: [[{ comp: 'Fade', mut: true }]], resources: [],
-        }],
-    };
-}
 
 /** A world and the system the author wrote, before anything is installed. */
 function project(): {
@@ -120,7 +71,7 @@ describe('installing a built module', () => {
     });
 
     it.skipIf(!EMCC)('one call, and the scheduler runs the twin', async () => {
-        const wasm = buildModule();
+        const wasm = buildFadeModule(EMCC!);
 
         const interpreted = project();
         const interpretedEntities = seed(interpreted.world, interpreted.Fade);
@@ -129,7 +80,7 @@ describe('installing a built module', () => {
         const engine = new FakeEngine();
         await installAot({
             world: compiled.world, runner: compiled.runner, host: engine,
-            manifest: manifestFor(), wasm, resources: () => undefined,
+            manifest: fadeManifest(), wasm, resources: () => undefined,
         });
         const compiledEntities = seed(compiled.world, compiled.Fade);
 
@@ -154,8 +105,8 @@ describe('installing a built module', () => {
         await expect(installAot({
             world: p.world, runner: p.runner, host: new FakeEngine(),
             // What a build would have written before `step` was added.
-            manifest: manifestFor(projectShapeDigest([{ name: 'Fade', fields: ['alpha'] }])),
-            wasm: buildModule(), resources: () => undefined,
+            manifest: fadeManifest(projectShapeDigest([{ name: 'Fade', fields: ['alpha'] }])),
+            wasm: buildFadeModule(EMCC!), resources: () => undefined,
         })).rejects.toThrow(/Rebuild the project/);
     });
 
@@ -164,7 +115,7 @@ describe('installing a built module', () => {
         const entities = seed(p.world, p.Fade);
         await installAot({
             world: p.world, runner: p.runner, host: new FakeEngine(),
-            manifest: manifestFor(), wasm: buildModule(), resources: () => undefined,
+            manifest: fadeManifest(), wasm: buildFadeModule(EMCC!), resources: () => undefined,
         }).catch(() => { /* the ordering check below is the point */ });
         // Rows already existed, so pool memory could not move: the install threw
         // before any twin was registered, and the closure still runs.

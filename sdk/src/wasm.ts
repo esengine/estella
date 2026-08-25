@@ -157,6 +157,12 @@ export interface ESEngineModule {
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
+    /**
+     * The Memory OBJECT, which a compiled system module imports as `env.memory`
+     * so it addresses the same bytes. A HEAP view's `.buffer` is an ArrayBuffer
+     * and cannot be imported; this is exported for that one reason.
+     */
+    wasmMemory: WebAssembly.Memory;
 
     FS: EmscriptenFS;
 
