@@ -36,7 +36,11 @@ published separately; it ships inside the editor.
   module, or rebuild the project.
 
   Hosts embedding the runtime themselves can do the same through
-  `App.useCompiledSystems` (`@experimental`).
+  `App.useCompiledSystems`, and `App.compiledSystems` reports which systems are
+  running compiled and how many twin calls have happened (both
+  `@experimental`). Installed and dispatched are separate questions: a module
+  can load and never be reached, and comparing results cannot tell, because the
+  closure a twin replaced computes the same answer.
 
 - **A playable ad now fits the networks it is made for.** The single-file
   transport inlined its engine as plain base64 — a +33% tax on a payload that is

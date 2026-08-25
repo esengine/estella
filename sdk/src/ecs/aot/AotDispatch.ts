@@ -104,9 +104,10 @@ export class AotDispatch {
         const resources = plan.resources.map((name) => this.runtime.addresses.resourceAt(name) ?? 0);
         this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
         twin.call(this.runtime.ctx.address);
+        this.runtime.systems.noteCall();
 
         for (const cmd of this.runtime.ctx.commands()) {
-            // Only despawn is in the v1 record set (REARCH_AOT_ABI.md §2.3).
+            // Only despawn is in the v1 record set.
             if (cmd.kind === CMD_DESPAWN) this.world.despawn(cmd.a as unknown as Entity);
         }
         this.markChanged_(plan);

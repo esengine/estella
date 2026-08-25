@@ -644,6 +644,21 @@ export class App {
     /** Held until there is a runner to give them to: one is made on the first frame. */
     private aot_: AotRuntime | null = null;
 
+    /**
+     * Which systems this App is running compiled, and how many twin calls have
+     * happened. `installed` without `calls` rising means the module loaded and
+     * nothing dispatched to it — which no differential can report, because the
+     * closure it replaced computes the same answer.
+     *
+     * @experimental
+     */
+    get compiledSystems(): { readonly installed: readonly string[]; readonly calls: number } {
+        return {
+            installed: this.aot_?.systems.names() ?? [],
+            calls: this.aot_?.systems.calls ?? 0,
+        };
+    }
+
     // =========================================================================
     // Configuration
     // =========================================================================

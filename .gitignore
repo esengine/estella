@@ -163,3 +163,4 @@ native/ios/app.generated.yml
 # The export pipeline bundles through a scratch dir inside its own tree (node
 # resolution), and a crashed run leaves one behind for the source gates to judge.
 pipeline/src/.build-*/
+.aot-verify/

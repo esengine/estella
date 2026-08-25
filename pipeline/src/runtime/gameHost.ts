@@ -139,6 +139,16 @@ async function boot(): Promise<void> {
         return app.compiledSystemCount;
       },
       /**
+       * Which systems this package is running compiled, and how many twin calls
+       * have happened. Installed and dispatched are separate questions, and a
+       * driver comparing positions can answer neither — the closure a twin
+       * replaced moves the entity to the same place.
+       */
+      compiled(): { installed: readonly string[]; calls: number } {
+        return app.compiledSystems;
+      },
+
+      /**
        * Where things are, for a driver that has to play rather than just look.
        * Capture answers "did it draw"; walking a route needs "am I there yet",
        * and guessing that from frame counts breaks on the first enemy in the
