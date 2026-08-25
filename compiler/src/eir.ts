@@ -72,6 +72,13 @@ export type Expr =
         readonly otherwise: Expr;
         readonly type: EirType;
     }
+    /**
+     * `resource.method(key)` with a compile-time key: a SERVICE asked one
+     * question. Kept as itself rather than lowered here, because the backends
+     * answer it differently — an interpreter over live objects calls the method,
+     * and compiled code reads the bit a host mirrored the answer into.
+     */
+    | { readonly e: 'svc'; readonly base: Place; readonly method: string; readonly key: string | number; readonly type: EirType }
     /** A call. One node, parameterised by target — as `emit` is by record. */
     | { readonly e: 'call'; readonly target: CallTarget; readonly args: readonly Expr[]; readonly type: EirType };
 
@@ -105,7 +112,11 @@ export type Stmt =
         readonly body: readonly Stmt[];
     }
     | { readonly s: 'assign'; readonly target: Place; readonly value: Expr }
-    | { readonly s: 'return'; readonly value: Expr }
+    /** `value` is null for a SYSTEM's early exit; a module function returns one. */
+    | { readonly s: 'return'; readonly value: Expr | null }
+    /** Only inside a row loop, where they mean the next row and no more rows. */
+    | { readonly s: 'continue' }
+    | { readonly s: 'break' }
     | { readonly s: 'let'; readonly id: number; readonly value: Expr }
     /**
      * Append one record to a channel. Commands are a QUEUE the runner flushes at
@@ -231,6 +242,8 @@ function exprText(e: Expr, locals: ReadonlyMap<number, Local>): string {
         case 'not': return `!${exprText(e.v, locals)}`;
         case 'select':
             return `(${exprText(e.cond, locals)} ? ${exprText(e.then, locals)} : ${exprText(e.otherwise, locals)})`;
+        case 'svc':
+            return `${placeName(e.base, locals)}.${e.method}(${JSON.stringify(e.key)})`;
         case 'call': {
             const name = e.target.k === 'math' ? e.target.fn : e.target.name;
             return `${name}(${e.args.map((a) => exprText(a, locals)).join(', ')})`;
@@ -252,7 +265,9 @@ function stmtText(s: Stmt, locals: ReadonlyMap<number, Local>, indent: string): 
         case 'let':
             return [`${indent}let ${locals.get(s.id)?.name ?? `%${s.id}`} = ${exprText(s.value, locals)}`];
         case 'return':
-            return [`${indent}return ${exprText(s.value, locals)}`];
+            return [s.value ? `${indent}return ${exprText(s.value, locals)}` : `${indent}return`];
+        case 'continue': return [`${indent}continue`];
+        case 'break': return [`${indent}break`];
         case 'emit':
             return [`${indent}emit ${placeName(s.channel, locals)}.${s.record}(`
                 + `${s.args.map((a) => exprText(a, locals)).join(', ')})`];

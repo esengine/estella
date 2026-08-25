@@ -13,6 +13,7 @@
  *          and the failure this catches is a frontend that lowered something
  *          wrong, not a source file that was outside the subset.
  */
+import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
     MATH_FNS,
     type CompShape, type EirFn, type EirSystem, type EirType, type Expr, type Local, type Place, type Stmt,
@@ -26,6 +27,8 @@ export interface VerifyError {
 
 class Verifier {
     private readonly byId = new Map<number, Local>();
+    /** Row loops entered, so a `continue` can be asked whether it has a target. */
+    private loopDepth = 0;
     readonly errors: VerifyError[] = [];
 
     constructor(
@@ -83,6 +86,21 @@ class Verifier {
                     this.fail(`a read declared ${typeName(e.type)} resolves to ${typeName(t)}`);
                 }
                 return t;
+            }
+            case 'svc': {
+                const base = this.placeType(e.base);
+                if (base && base.k !== 'res') {
+                    this.fail(`'${e.method}(…)' called on a ${typeName(base)}`);
+                    return null;
+                }
+                // Re-asked of the shape rather than trusted from the frontend:
+                // an undeclared method has no bit, and reading a bit that was
+                // never mirrored answers zero instead of failing.
+                if (base && !resourceMethodBit(base.name, e.method, e.key)) {
+                    this.fail(`'${base.name}.${e.method}(${JSON.stringify(e.key)})' is not a declared service question`);
+                }
+                if (e.type.k !== 'bool') this.fail(`'${e.method}(…)' is declared ${typeName(e.type)}, not bool`);
+                return e.type;
             }
             case 'neg': {
                 const t = this.exprType(e.v);
@@ -147,6 +165,14 @@ class Verifier {
 
     stmt(s: Stmt): void {
         switch (s.s) {
+            // A jump out of a row loop that is not in one has no target: C would
+            // take it to whatever encloses the emitted code instead.
+            case 'continue': case 'break':
+                if (this.loopDepth === 0) this.fail(`'${s.s}' outside a row loop`);
+                break;
+            case 'return':
+                if (s.value !== null) this.fail('a system statement returns a value');
+                break;
             case 'let': {
                 const declared = this.local(s.id)?.type;
                 const actual = this.exprType(s.value);
@@ -213,7 +239,9 @@ class Verifier {
                     const l = this.local(s.entity);
                     if (l && l.type.k !== 'entity') this.fail(`row entity bound as ${typeName(l.type)}`);
                 }
+                this.loopDepth++;
                 for (const b of s.body) this.stmt(b);
+                this.loopDepth--;
                 break;
             }
         }

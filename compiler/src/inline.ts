@@ -50,7 +50,8 @@ function walkExprs(stmts: readonly Stmt[], visit: (e: Expr) => void): void {
     };
     for (const s of stmts) {
         switch (s.s) {
-            case 'let': case 'return': expr(s.value); break;
+            case 'let': expr(s.value); break;
+            case 'return': if (s.value) expr(s.value); break;
             case 'assign': expr(s.value); break;
             case 'emit': for (const a of s.args) expr(a); break;
             case 'if': expr(s.cond); walkExprs(s.then, visit); walkExprs(s.otherwise, visit); break;
@@ -93,7 +94,8 @@ class Inliner {
     private stmt(s: Stmt): Stmt {
         switch (s.s) {
             case 'let': return { ...s, value: this.expr(s.value) };
-            case 'return': return { ...s, value: this.expr(s.value) };
+            case 'return': return s.value ? { ...s, value: this.expr(s.value) } : s;
+            case 'continue': case 'break': return s;
             case 'assign': return { ...s, value: this.expr(s.value) };
             case 'emit': return { ...s, args: s.args.map((a) => this.expr(a)) };
             case 'if': return {
@@ -110,7 +112,7 @@ class Inliner {
 
     private expr(e: Expr): Expr {
         switch (e.e) {
-            case 'const': case 'read': return e;
+            case 'const': case 'read': case 'svc': return e;
             case 'neg': return { ...e, v: this.expr(e.v) };
             case 'not': return { ...e, v: this.expr(e.v) };
             case 'bin': return { ...e, l: this.expr(e.l), r: this.expr(e.r) };
@@ -129,7 +131,7 @@ class Inliner {
                     subst.set(p.id, { e: 'read', place: { p: 'local', id: tmp.id }, type: p.type });
                 });
                 const only = def.body[0];
-                if (!only || only.s !== 'return') return { ...e, args };
+                if (!only || only.s !== 'return' || !only.value) return { ...e, args };
                 // The body is one `return <expr>`, so inlining is substitution.
                 return this.expr(substitute(only.value, subst));
             }
@@ -143,6 +145,9 @@ function substitute(e: Expr, subst: ReadonlyMap<number, Expr>): Expr {
         case 'const': return e;
         case 'read':
             return e.place.p === 'local' ? (subst.get(e.place.id) ?? e) : e;
+        // A service question is asked of a PARAMETER, which inlining never
+        // rebinds — a module function cannot take one.
+        case 'svc': return e;
         case 'neg': return { ...e, v: substitute(e.v, subst) };
         case 'not': return { ...e, v: substitute(e.v, subst) };
         case 'bin': return { ...e, l: substitute(e.l, subst), r: substitute(e.r, subst) };

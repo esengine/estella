@@ -35,6 +35,16 @@ published separately; it ships inside the editor.
   anything is registered, and the message says which one moved: rebuild the
   module, or rebuild the project.
 
+  A system may also declare `ResMut(X)` to write a resource, and may ask a
+  SERVICE a question with a compile-time key: `input.isKeyDown('KeyW')` compiles
+  to a load and a mask, because the runtime mirrors the answer the method would
+  have given into one bit. That is what makes input-reading systems compilable
+  at all — 117 of the 120 such calls in the examples pass a literal. A key the
+  table does not declare, or one computed at run time, is refused and the system
+  keeps interpreting. `Input` and `UICameraInfo` gained the layout that needs;
+  `UICameraInfo.viewProjection` is deliberately not in it, since a member has to
+  have a fixed width.
+
   Hosts embedding the runtime themselves can do the same through
   `App.useCompiledSystems`, and `App.compiledSystems` reports which systems are
   running compiled and how many twin calls have happened (both

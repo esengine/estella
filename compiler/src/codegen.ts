@@ -27,6 +27,7 @@
  *          `-ffp-contract=off` in CFLAGS — a fused multiply-add is more accurate
  *          than what JS computes, and more accurate is still different.
  */
+import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
     CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS, CMD_DESPAWN, CMD_REMOVE,
     abiHandshake, planFor,
@@ -205,6 +206,8 @@ static inline void es_set_f64(unsigned char *p, double v) { memcpy(p, &v, 8); }
 /* A bool in the C++ structs is ONE byte. Reading it as a float would read three
    bytes of whatever follows it, which is a value rather than an error. */
 static inline int es_bool(const unsigned char *p) { return *p != 0; }
+/* One question of a service, as the host mirrored it: a byte and a mask. */
+static inline int es_bit(const unsigned char *p, unsigned bit) { return (*p >> bit) & 1u; }
 static inline void es_set_bool(unsigned char *p, int v) { *p = (unsigned char)(v ? 1 : 0); }
 
 /* ---------------------------------------------------------------------------
@@ -363,12 +366,16 @@ function readsOf(stmts: readonly Stmt[], out: Set<number>): void {
             case 'neg': case 'not': expr(e.v); break;
             case 'bin': case 'logic': expr(e.l); expr(e.r); break;
             case 'select': expr(e.cond); expr(e.then); expr(e.otherwise); break;
+            // The receiver IS read: the bit is at an offset from its base.
+            case 'svc': place(e.base); break;
             case 'call': for (const a of e.args) expr(a); break;
         }
     };
     for (const s of stmts) {
         switch (s.s) {
-            case 'let': case 'return': expr(s.value); break;
+            case 'let': expr(s.value); break;
+            case 'return': if (s.value) expr(s.value); break;
+            case 'continue': case 'break': break;
             // A field target READS its base to compute the address; a local
             // target does not, which is exactly the distinction that decides
             // whether a bound row local is dead.
@@ -479,6 +486,13 @@ class Emitter {
                 return typeof e.value === 'boolean' ? (e.value ? '1' : '0') : num(e.value);
             case 'read':
                 return this.read(e.place, e.type);
+            case 'svc': {
+                const at = e.base.p === 'local'
+                    ? resourceMethodBit(this.owners.get(e.base.id) ?? '', e.method, e.key) : null;
+                if (!at) throw new Error(`codegen: '${e.method}' is not a declared service question`);
+                if (e.base.p !== 'local') throw new Error('codegen: a service receiver must be a local');
+                return `es_bit(${cName(this.local(e.base.id))} + ${at.offset}u, ${at.bit}u)`;
+            }
             case 'neg':
                 return `(-${coerce(this.expr(e.v), e.v.type, F64)})`;
             case 'not':
@@ -517,8 +531,11 @@ class Emitter {
                 break;
             }
             case 'return':
-                this.line(indent, `return ${this.expr(s.value)};`);
+                this.line(indent, s.value ? `return ${this.expr(s.value)};` : 'return;');
                 break;
+            // A row loop IS the C for-loop, so these need no translation.
+            case 'continue': this.line(indent, 'continue;'); break;
+            case 'break': this.line(indent, 'break;'); break;
             case 'assign': {
                 if (s.target.p === 'local') {
                     const l = this.local(s.target.id);
@@ -826,7 +843,8 @@ function calledFns(module: EirModule, systems: readonly EirSystem[]): string[] {
     const visit = (stmts: readonly Stmt[]): void => {
         for (const s of stmts) {
             switch (s.s) {
-                case 'let': case 'return': case 'assign': visitExpr(s.value); break;
+                case 'let': case 'assign': visitExpr(s.value); break;
+                case 'return': if (s.value) visitExpr(s.value); break;
                 case 'emit': for (const a of s.args) visitExpr(a); break;
                 case 'if': visitExpr(s.cond); visit(s.then); visit(s.otherwise); break;
                 case 'rowLoop': visit(s.body); break;

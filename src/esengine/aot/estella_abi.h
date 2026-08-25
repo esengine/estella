@@ -100,6 +100,8 @@ static inline void es_set_f64(unsigned char *p, double v) { memcpy(p, &v, 8); }
 /* A bool in the C++ structs is ONE byte. Reading it as a float would read three
    bytes of whatever follows it, which is a value rather than an error. */
 static inline int es_bool(const unsigned char *p) { return *p != 0; }
+/* One question of a service, as the host mirrored it: a byte and a mask. */
+static inline int es_bit(const unsigned char *p, unsigned bit) { return (*p >> bit) & 1u; }
 static inline void es_set_bool(unsigned char *p, int v) { *p = (unsigned char)(v ? 1 : 0); }
 
 /* ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@
  */
 
 import { POOL_SLOT_BYTES, type PoolBlock, type PoolMemory } from '../ScriptPool';
-import { resourceFields } from '../resourceShapes';
+import { resourceBitSource, resourceBlockBytes, resourceLayout } from '../resourceShapes';
 
 /** Reads the live value of a named resource, or undefined if the world has none. */
 export type ResourceReader = (name: string) => Readonly<Record<string, unknown>> | undefined;
@@ -32,7 +32,7 @@ export type ResourceReader = (name: string) => Readonly<Record<string, unknown>>
  */
 export class AotResources {
     private readonly blocks = new Map<string, PoolBlock>();
-    private readonly views = new Map<string, Float64Array>();
+    private readonly views = new Map<string, Uint8Array>();
 
     constructor(private readonly memory: PoolMemory, private readonly read: ResourceReader) {}
 
@@ -41,14 +41,14 @@ export class AotResources {
      * undefined when the resource has no layout or the world has no value.
      */
     addressOf(name: string): number | undefined {
-        const fields = resourceFields(name);
-        if (!fields) return undefined;
+        const layout = resourceLayout(name);
+        if (!layout) return undefined;
         const value = this.read(name);
         if (!value) return undefined;
 
         let block = this.blocks.get(name);
         if (!block) {
-            block = this.memory.alloc(fields.length * POOL_SLOT_BYTES);
+            block = this.memory.alloc(resourceBlockBytes(name));
             this.blocks.set(name, block);
         }
         // Re-viewed rather than held: allocating anything may have grown the
@@ -56,14 +56,42 @@ export class AotResources {
         const buffer = this.memory.current?.(block) ?? block.buffer;
         let view = this.views.get(name);
         if (!view || view.buffer !== buffer) {
-            view = new Float64Array(buffer, block.byteOffset, fields.length);
+            view = new Uint8Array(buffer, block.byteOffset, resourceBlockBytes(name));
             this.views.set(name, view);
         }
-        fields.forEach((field, i) => {
-            const v = value[field];
-            view![i] = typeof v === 'boolean' ? (v ? 1 : 0) : (typeof v === 'number' ? v : 0);
-        });
+        const f64 = new Float64Array(view.buffer, view.byteOffset, view.byteLength / POOL_SLOT_BYTES);
+        for (const member of layout) {
+            if (member.kind === 'scalar') {
+                const v = value[member.name];
+                f64[member.offset / POOL_SLOT_BYTES] =
+                    typeof v === 'boolean' ? (v ? 1 : 0) : (typeof v === 'number' ? v : 0);
+                continue;
+            }
+            this.fillBits(name, member.name, member.offset, member.bits, view, value);
+        }
         return block.byteOffset;
+    }
+
+    /**
+     * One bit per key, from the resource's OWN method. That is a call per key
+     * per system call — bounded by the declared table, and paid only by a system
+     * that named the resource. Reading the state behind the method instead would
+     * be cheaper and would answer a different question inside a fixed step.
+     */
+    private fillBits(
+        resource: string, set: string, offset: number, bits: number,
+        view: Uint8Array, value: Readonly<Record<string, unknown>>,
+    ): void {
+        const bytes = Math.ceil(bits / 8);
+        view.fill(0, offset, offset + bytes);
+        const source = resourceBitSource(resource, set);
+        const ask = source && value[source.method];
+        if (!source || typeof ask !== 'function') return;
+        source.keys.forEach((key, i) => {
+            if ((ask as (k: unknown) => unknown).call(value, key) === true) {
+                view[offset + (i >> 3)]! |= 1 << (i & 7);
+            }
+        });
     }
 
     /**
@@ -73,15 +101,20 @@ export class AotResources {
      * skipped, because the block never carried it.
      */
     writeBack(name: string): void {
-        const fields = resourceFields(name);
+        const layout = resourceLayout(name);
         const view = this.views.get(name);
         const value = this.read(name) as Record<string, unknown> | undefined;
-        if (!fields || !view || !value) return;
-        fields.forEach((field, i) => {
-            const was = value[field];
-            if (typeof was === 'boolean') value[field] = view[i] !== 0;
-            else if (typeof was === 'number') value[field] = view[i]!;
-        });
+        if (!layout || !view || !value) return;
+        const f64 = new Float64Array(view.buffer, view.byteOffset, view.byteLength / POOL_SLOT_BYTES);
+        for (const member of layout) {
+            // Bit sets are a service's answers, not its state: there is nothing
+            // on the other side to assign back to.
+            if (member.kind !== 'scalar') continue;
+            const was = value[member.name];
+            const now = f64[member.offset / POOL_SLOT_BYTES]!;
+            if (typeof was === 'boolean') value[member.name] = now !== 0;
+            else if (typeof was === 'number') value[member.name] = now;
+        }
     }
 
     dispose(): void {

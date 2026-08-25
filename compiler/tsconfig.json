@@ -8,7 +8,6 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": { "esengine": ["./tests/stubs/esengine.ts"] },
     "types": []
   },

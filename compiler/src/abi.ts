@@ -24,6 +24,7 @@ import {
     engineAbiDigest, projectShapeDigest, type ShapeDigestInput,
 } from '../../sdk/src/ecs/aot/abiDigest';
 import { resourceNames } from './builtins';
+import { resourceBlockBytes, resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import { encBytes, type CompShape, type EirSystem, type EirType, type LeafEnc, type QueryArg } from './eir';
 import { runSystemOn, type EirHost, type Fns } from './interp';
 
@@ -135,6 +136,19 @@ export class AbiMemory {
         this.resBase.set(name, base);
         for (const [path, v] of Object.entries(fields)) this.writeLeaf(shape, base, path, v);
         return base;
+    }
+
+    /**
+     * Set one bit of a service's mirror, as a host would after asking it. The
+     * bit is chosen the same way the compiled code chooses it, which is the
+     * point: a test placing it by hand would be a third answer.
+     */
+    setResourceBit(name: string, method: string, key: string | number, on: boolean): void {
+        const at = resourceMethodBit(name, method, key);
+        if (!at) throw new Error(`ABI: '${name}.${method}' is not a declared service question`);
+        const byte = this.resourceBase(name) + at.offset;
+        if (on) this.u8[byte] = (this.u8[byte]! | (1 << at.bit));
+        else this.u8[byte] = (this.u8[byte]! & ~(1 << at.bit));
     }
 
     private writeLeaf(shape: FieldOffsets, base: number, path: string, v: number | boolean): void {
@@ -322,6 +336,17 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
             const leaf = leafAt(owner, path);
             store(mem, (base as number) + leaf.byteOffset, leaf.enc, v);
         },
+        service(name, method, key) {
+            // The mirrored answer, read as one bit — which is exactly what the
+            // compiled code does, and the reason the interpreter over live
+            // objects has to agree with it.
+            const at = resourceMethodBit(name, method, key);
+            if (!at) throw new Error(`ABI: '${name}.${method}' is not a declared service question`);
+            const k = plan.resources.findIndex((r) => r.name === name);
+            if (k < 0) throw new Error(`ABI: '${plan.system}' asks a resource it did not declare`);
+            const base = mem.u32[(resTable >> 2) + k]!;
+            return ((mem.u8[base + at.offset]! >> at.bit) & 1) !== 0;
+        },
         resource(name) {
             const k = plan.resources.findIndex((r) => r.name === name);
             if (k < 0) throw new Error(`ABI: '${plan.system}' reads a resource it did not declare`);
@@ -441,10 +466,16 @@ export function packLayout(shapes: ReadonlyMap<string, CompShape>): AbiLayout {
             leaves.set(path, { byteOffset: at, enc: spec.enc, type: spec.type });
             end = Math.max(end, at + width);
         }
-        const packed: FieldOffsets = { leaves, stride: Math.max(8, (end + 7) & ~7) };
         // A resource is addressed by field exactly as a component is, so the two
-        // tables differ only in which one a `Res(...)` parameter looks in.
-        (shape.storage === 'host' && RESOURCES.has(name) ? resources : comps).set(name, packed);
+        // tables differ only in which one a `Res(...)` parameter looks in. Its
+        // SIZE is not derived here though: a service's bit sets are members no
+        // field walk sees, and a block sized to the last scalar is too small.
+        const isResource = shape.storage === 'host' && RESOURCES.has(name);
+        const packed: FieldOffsets = {
+            leaves,
+            stride: isResource ? resourceBlockBytes(name) : Math.max(8, (end + 7) & ~7),
+        };
+        (isResource ? resources : comps).set(name, packed);
     }
     return { comps, resources };
 }
