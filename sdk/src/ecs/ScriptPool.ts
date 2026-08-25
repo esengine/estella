@@ -100,6 +100,7 @@ export class ScriptPool {
     /** Entity index -> slot + 1, so zero means absent. The engine's sparse set
      *  in the same shape, and the reason a host needs no call to resolve a row. */
     private sparse_: Uint32Array;
+    private sparseLen_: number;
     private capacity_: number;
     private readonly slotOf_ = new Map<Entity, number>();
     private readonly views_ = new Map<Entity, Record<string, unknown>>();
@@ -114,12 +115,15 @@ export class ScriptPool {
         this.fields = fields;
         this.stride = fields.length * POOL_SLOT_BYTES;
         this.capacity_ = Math.max(1, capacity);
+        // BOTH allocations before EITHER view. The second can grow the heap, and
+        // a grown heap detaches a view built after the first — which is a bug
+        // this constructor had, and the reason every view is built in one place.
         this.rows_ = memory_.alloc(this.capacity_ * this.stride);
-        this.slots_ = new Float64Array(this.rows_.buffer, this.rows_.byteOffset,
-            this.capacity_ * fields.length);
         this.sparseBlock_ = memory_.alloc(this.capacity_ * 4);
-        this.sparse_ = new Uint32Array(this.sparseBlock_.buffer, this.sparseBlock_.byteOffset,
-            this.capacity_);
+        this.sparseLen_ = this.capacity_;
+        this.slots_ = EMPTY_F64;
+        this.sparse_ = EMPTY_U32;
+        this.rebuild_();
     }
 
     /**
@@ -150,16 +154,21 @@ export class ScriptPool {
      * per-entity views read `slots_` on access and need no rebuild.
      */
     refresh(): void {
-        const rows = this.memory_.current?.(this.rows_);
-        if (rows && rows !== this.slots_.buffer) {
-            this.slots_ = new Float64Array(rows, this.rows_.byteOffset,
-                this.capacity_ * this.fields.length);
-        }
-        const sparse = this.memory_.current?.(this.sparseBlock_);
-        if (sparse && sparse !== this.sparse_.buffer) {
-            this.sparse_ = new Uint32Array(sparse, this.sparseBlock_.byteOffset,
-                this.sparse_.length);
-        }
+        this.rebuild_();
+    }
+
+    /** Every view of this pool's storage, made in ONE place. Anything that can
+     *  have detached a view calls this rather than fixing up the one it knows
+     *  about — the heap grows for all of them at once. */
+    private rebuild_(): void {
+        this.slots_ = new Float64Array(this.bufferOf_(this.rows_), this.rows_.byteOffset,
+            this.capacity_ * this.fields.length);
+        this.sparse_ = new Uint32Array(this.bufferOf_(this.sparseBlock_),
+            this.sparseBlock_.byteOffset, this.sparseLen_);
+    }
+
+    private bufferOf_(block: PoolBlock): ArrayBufferLike {
+        return this.memory_.current?.(block) ?? block.buffer;
     }
 
     /** The rows themselves. Its byteOffset moves when the pool grows, so an
@@ -255,8 +264,8 @@ export class ScriptPool {
         const block = this.memory_.alloc(want * this.stride);
         // Before reading the old rows, not after: allocating may have grown the
         // heap, and a grown heap detaches the view this is about to copy FROM.
-        this.refresh();
-        const wider = new Float64Array(block.buffer, block.byteOffset,
+        this.rebuild_();
+        const wider = new Float64Array(this.bufferOf_(block), block.byteOffset,
             want * this.fields.length);
         wider.set(this.slots_);
         const old = this.rows_;
@@ -275,16 +284,17 @@ export class ScriptPool {
     /** The sparse table is indexed by ENTITY INDEX, which the world hands out
      *  and this pool does not control, so it grows on its own schedule. */
     private reserveSparse_(want: number): void {
-        if (want <= this.sparse_.length) return;
-        let size = Math.max(this.sparse_.length * 2, 8);
+        if (want <= this.sparseLen_) return;
+        let size = Math.max(this.sparseLen_ * 2, 8);
         while (size < want) size *= 2;
         const block = this.memory_.alloc(size * 4);
-        this.refresh();   // same trap as growRows_: the source may have detached
-        const wider = new Uint32Array(block.buffer, block.byteOffset, size);
+        this.rebuild_();   // same trap as growRows_: the source may have detached
+        const wider = new Uint32Array(this.bufferOf_(block), block.byteOffset, size);
         wider.set(this.sparse_);
         const old = this.sparseBlock_;
         this.sparseBlock_ = block;
         this.sparse_ = wider;
+        this.sparseLen_ = size;
         this.memory_.release(old);
     }
 
@@ -321,6 +331,10 @@ export class ScriptPool {
         return view;
     }
 }
+
+/** Placeholders, so the constructor can allocate before it views. */
+const EMPTY_F64 = new Float64Array(0);
+const EMPTY_U32 = new Uint32Array(0);
 
 /** A slot holds a number; a boolean is the 0/1 the ABI stores it as. */
 function toSlot(v: unknown): number {

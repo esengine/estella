@@ -47,6 +47,15 @@ export class ScriptStorage {
     }
 
     /**
+     * @internal Re-view every pool. A wasm heap grows for one pool and detaches
+     * the views of all of them, so this is a set operation and not a per-pool
+     * one. Idempotent: a caller that is unsure may call it.
+     */
+    refreshPools(): void {
+        for (const pool of this.pools_.values()) pool.refresh();
+    }
+
+    /**
      * The pool `component` uses, creating it on first sight. `null` once for a
      * shape that cannot be flat, and remembered as null so the check is not
      * repeated per insert.
@@ -59,6 +68,8 @@ export class ScriptStorage {
         if (!fields) { this.notPooled_.add(component._id); return null; }
         const pool = new ScriptPool(fields, 64, this.poolMemory_);
         this.pools_.set(component._id, pool);
+        // Creating one may have grown the heap every OTHER pool also lives in.
+        this.refreshPools();
         return pool;
     }
 
