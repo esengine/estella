@@ -23,6 +23,7 @@ import {
     finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
+    ProfileRecorder,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -43,6 +44,7 @@ const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Nu
 const depthLayers = Number(params.get('depthLayers')) || undefined;
 
 let app: App | null = null;
+let profiler: ProfileRecorder | null = null;
 let module: ESEngineModule | null = null;
 let canvas: HTMLCanvasElement | null = null;
 // A driver addresses entities by the id the SCENE FILE gives them, not by the
@@ -420,6 +422,24 @@ const api = {
         } catch {
             return {};
         }
+    },
+
+    /** Records whole frames — TS system ms beside the engine's own C++ scope ms,
+     *  which is the only pairing that says what SHARE of a frame is script.
+     *  ProfileRecorder.start() engages both sides; engaging one reads as an
+     *  engine that costs nothing rather than one that was not measured. */
+    startProfile(): void {
+        if (!app) throw new Error('startProfile: no app — load a scene first');
+        profiler ??= new ProfileRecorder(app);
+        profiler.start();
+    },
+
+    /** The frames recorded since startProfile, then stops recording. */
+    takeProfile(): unknown {
+        if (!profiler) return { frames: [] };
+        const capture = profiler.take();
+        profiler.stop();
+        return capture;
     },
 
     /** Runs the gameplay systems the authoring mode freezes. */

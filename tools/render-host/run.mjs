@@ -28,6 +28,7 @@
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
+ *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
@@ -293,6 +294,17 @@ app.whenReady().then(async () => {
       })()`);
     } else {
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
+
+    // ESTELLA_VERIFY_PROFILE = N: record N more frames through the SDK's own
+    // ProfileRecorder — TS system ms beside the engine's C++ scope ms. Recorded
+    // AFTER the steps above, so scene load is not charged to a frame.
+    let profile = null;
+    if (process.env.ESTELLA_VERIFY_PROFILE) {
+      const n = Number(process.env.ESTELLA_VERIFY_PROFILE) || 60;
+      await exec('window.__estellaHeadless.api.startProfile()');
+      await exec(`window.__estellaHeadless.api.step(${n}, 1 / 60)`);
+      profile = await exec('window.__estellaHeadless.api.takeProfile()');
     }
 
     // Loads an .esmesh through the asset layer and points the scene's meshes at
@@ -699,7 +711,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, counters, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -121,11 +121,54 @@ headless 帧里 `rest` 只有 0.04 ms,因为渲染器根本不在。拿它乘 St
 **结论的形状:渲染器的 C++ 得占到无 JIT 帧的一半以上,AOT 才会掉到 2× 以下。**
 无 JIT 下 TS 那半边还会再涨 ~12 倍而 C++ 不变,`c` 只会更小。
 
-### 还欠一次测量
+---
 
-**真实带渲染的一帧里,渲染器的 C++ 花多少。** wasm 构建已经在记
-(`render.collect` / `.submit` / `.graph` / `.finalize`,走 `ES_PROFILE_SCOPE`)。
+## `frame-share-rendered.mjs` —— `c` 的实测值
 
-**原生构建之前记不了** —— `es_profile_now_ms()` 在非 Emscripten 下 `return 0.0`,
-所以那四个 scope 在桌面 / Android / iOS 上**从来就是 0**。没人发现,是因为一个报 0 的
-profiler 看起来就像一个在报「这帧很快」的 profiler。已修(`std::chrono::steady_clock`)。
+上面那个跑 headless,看不见渲染器。这个驱动 pixel-gate 的 render host:真 WebGL2 上下文、
+`scale-sprites` 场景、9801 个精灵,读 SDK 自己的 `ProfileRecorder`
+(它把每系统 TS ms 和引擎 C++ `ES_PROFILE_SCOPE` ms 配在一起)。
+
+```sh
+node bench/aot-stage0/frame-share-rendered.mjs
+```
+
+**没有新埋点。** `ProfileRecorder.start()` 本来就同时打开两侧——它的注释写着为什么:
+只开一侧「看起来像一个不花钱的引擎,而不是一个没被量的引擎」。缺的是 render host 上的
+一扇门,不是一个 harness。
+
+| | ms/帧 |
+|---|---|
+| TS 系统 | 1.30(56.5%) |
+| C++ scope | 1.00(**c = 43.5%**) |
+| GPU | 4.07(设备的,编译脚本碰不到) |
+
+`render.collect` 0.74 / `.finalize` 0.31 / `.graph` 0.04 / `.submit` 0.01。
+
+### 不要用 Stage 0 的 396× 去乘整个 TS
+
+第一版这么干了,打印出 231×。**那是错的**:396× 是在组件字节上的数值循环量的(AOT 最好情形),
+而这里 94% 的 TS 是 `RenderSystem` —— draw 提交和过桥调用,不是算术。改用两个实测输入:
+
+- `K` = QuickJS/V8 在真实 SDK 代码上 = **12×**
+- 无 JIT 帧 = `K·TS + C++` = **16.6 ms CPU**,其中 TS 占 94%
+
+| 编译后的 TS | 帧加速 |
+|---|---|
+| 只追平 JIT(下界) | **7.2×** |
+| 跑到原生速度(上界) | **16.0×** |
+
+### 两个与 AOT 无关的发现
+
+1. **`RenderSystem` 占 CPU 帧的 53%。** 一帧里最烫的是脚本,而且不是游戏代码,
+   是 SDK 自己的 draw 提交。
+2. **无 JIT 下这一帧要 16.6 ms CPU**,正好是 60fps 预算。原生宿主在 9801 精灵上已经贴边跑。
+
+### 路上修的两个「报零」bug
+
+- `es_profile_now_ms()` 在非 Emscripten 下 `return 0.0` —— 那四个 render scope 在
+  桌面 / Android / iOS 上**从来就是 0**。已修成 `std::chrono::steady_clock`。
+- `nativeScopes` 是 `{name, ms}[]` 不是 Record,按 Record 读会得到安静的 `(none recorded)`,
+  报出 `c = 0%`。
+
+两个是同一类错误:**一个报零的测量,看起来像一个好消息。**
