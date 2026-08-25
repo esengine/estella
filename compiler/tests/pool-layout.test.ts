@@ -23,6 +23,8 @@ import { builtinShapes } from '../src/builtins';
 import { packLayout } from '../src/abi';
 import { encBytes } from '../src/eir';
 import { ScriptPool, poolShape, POOL_SLOT_BYTES } from '../../sdk/src/ecs/ScriptPool';
+import * as sdkAbi from '../../sdk/src/ecs/aot/AotContext';
+import { CMD_DESPAWN, CMD_REMOVE, CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS } from '../src/abi';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
 
@@ -67,5 +69,23 @@ describe('a script component has one layout, not two', () => {
             expect(spec.enc).toBe('f64');
             expect(spec.offset, 'a host record is laid out by the ABI, not by EHT').toBeNull();
         }
+    });
+});
+
+/**
+ * The SDK cannot import a build tool, so it keeps its own copy of the three
+ * struct sizes — and a contract with two authors is a contract with none. This
+ * is the seam that keeps them one number each.
+ */
+describe('the SDK and the compiler count the same words', () => {
+    it('SysCtx, QueryRows and Cmd', () => {
+        expect(sdkAbi.SYSCTX_WORDS).toBe(SYSCTX_WORDS);
+        expect(sdkAbi.QUERYROWS_WORDS).toBe(QUERYROWS_WORDS);
+        expect(sdkAbi.CMD_WORDS).toBe(CMD_WORDS);
+    });
+
+    it('and the command kinds, which are what a flush switches on', () => {
+        expect(sdkAbi.CMD_DESPAWN).toBe(CMD_DESPAWN);
+        expect(sdkAbi.CMD_REMOVE).toBe(CMD_REMOVE);
     });
 });

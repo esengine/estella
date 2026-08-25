@@ -1,0 +1,213 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    aot-context.test.ts
+ * @brief   A compiled system, called by the SDK, over the SDK's own rows.
+ *
+ * @details Everything before this tested one link. This runs the chain: emcc
+ *          builds the module, `ScriptPool` holds the components in the same
+ *          linear memory, `AotContext` lays out the SysCtx there, and the
+ *          exported symbol is called with it. What comes back is compared to the
+ *          same loop written in TypeScript.
+ *
+ *          The module imports the engine's memory and nothing else, so the
+ *          memory here stands in for the engine's exactly.
+ *
+ *          Loud skip without emsdk: a gate that never saw its subject is worse
+ *          than a missing one.
+ */
+import { describe, it, expect } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { ScriptPool, poolShape } from '../src/ecs/ScriptPool';
+import { WasmPoolMemory, type WasmHeap } from '../src/ecs/WasmPoolMemory';
+import { AotContext, CMD_DESPAWN } from '../src/ecs/aot/AotContext';
+import type { Entity } from '../src/types';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const e = (n: number): Entity => n as unknown as Entity;
+const N = 16;
+const FRAMES = 8;
+
+function findEmcc(): string | null {
+    const at = path.join(ROOT, 'tools/emsdk/upstream/emscripten',
+        process.platform === 'win32' ? 'emcc.bat' : 'emcc');
+    return existsSync(at) ? at : null;
+}
+const EMCC = findEmcc();
+
+/**
+ * The engine, as far as this test needs one: a linear memory and a bump
+ * allocator over it. A real module differs in size, not in kind.
+ */
+class Engine implements WasmHeap {
+    // The module declares the minimum it expects; a host has to meet it.
+    readonly memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
+    HEAPU8 = new Uint8Array(this.memory.buffer);
+    private next = 1024;
+    _malloc(size: number): number {
+        const at = this.next;
+        this.next += (size + 15) & ~15;
+        while (this.next > this.HEAPU8.byteLength) {
+            this.memory.grow(1);
+            this.HEAPU8 = new Uint8Array(this.memory.buffer);
+        }
+        return at;
+    }
+    _free(): void { /* a bump allocator frees nothing */ }
+}
+
+/**
+ * A hand-written system in the shape the compiler emits. Written out rather than
+ * taken from the corpus so the test says what it is testing; the corpus version
+ * is held to the same bytes by compiler/tests.
+ */
+const SYSTEM_C = `#include <stdint.h>
+#include <string.h>
+
+typedef uint32_t es_addr_t;
+#define ES_PTR(a) ((unsigned char *)(a))
+
+typedef struct EsQueryRows { es_addr_t rows; es_addr_t count; } EsQueryRows;
+typedef struct EsCmd { uint32_t kind, a, b, c; } EsCmd;
+typedef struct EsSysCtx {
+    es_addr_t queries, resources, cmdBuf, cmdCap, cmdCount, events;
+} EsSysCtx;
+
+static double ld(const unsigned char *p) { double v; memcpy(&v, p, 8); return v; }
+static void st(unsigned char *p, double v) { memcpy(p, &v, 8); }
+
+/* One Mut(Mover) query and one Res(Time): remaining -= delta, and despawn at 0. */
+void es_sys_Decay(es_addr_t ctx) {
+    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
+    const EsQueryRows *q = (const EsQueryRows *)ES_PTR(c->queries);
+    const es_addr_t *res = (const es_addr_t *)ES_PTR(c->resources);
+    unsigned char *time = ES_PTR(res[0]);
+    EsCmd *cmds = (EsCmd *)ES_PTR(c->cmdBuf);
+    uint32_t *count = (uint32_t *)ES_PTR(c->cmdCount);
+    uint32_t n = *count;
+    const es_addr_t *rows = (const es_addr_t *)ES_PTR(q[0].rows);
+    for (es_addr_t i = 0; i < q[0].count; ++i) {
+        const es_addr_t *row = rows + i * 2u;
+        unsigned char *m = ES_PTR(row[1]);
+        st(m, ld(m) - ld(time));               /* remaining is field 0 */
+        if (ld(m) <= 0.0 && n < (uint32_t)c->cmdCap) {
+            cmds[n].kind = 1u; cmds[n].a = (uint32_t)row[0];
+            cmds[n].b = 0u; cmds[n].c = 0u;
+            n += 1u;
+        }
+    }
+    *count = n;
+}
+`;
+
+function buildModule(): Uint8Array {
+    const dir = mkdtempSync(path.join(tmpdir(), 'estella-sdk-aot-'));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'sys.c'), SYSTEM_C);
+    const out = path.join(dir, 'sys.wasm');
+    const built = spawnSync(EMCC!, [
+        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
+        '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY',
+        '-sERROR_ON_UNDEFINED_SYMBOLS=1', '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
+        '-o', out, path.join(dir, 'sys.c'),
+    ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
+    if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
+    return readFileSync(out);
+}
+
+const DEFAULTS = { remaining: 0, rate: 1 };
+
+describe('a compiled system, called by the SDK', () => {
+    it('reports whether this gate could run at all', () => {
+        if (EMCC) console.log('[aot-context] built and ran a real module');
+        else console.warn('[aot-context] NO EMSDK — the chain did NOT run (pnpm emsdk:setup).');
+        expect(true).toBe(true);
+    });
+
+    it.skipIf(!EMCC)('moves the SDK\'s own rows, exactly as TypeScript does', async () => {
+        const engine = new Engine();
+        const memory = new WasmPoolMemory(engine);
+        const instance = await WebAssembly.instantiate(
+            new WebAssembly.Module(buildModule() as unknown as BufferSource),
+            { env: { memory: engine.memory } });
+        const api = instance.exports as unknown as Record<string, unknown>;
+        (api['_initialize'] as (() => void) | undefined)?.();
+        const decay = api['es_sys_Decay'] as (ctx: number) => void;
+
+        // The world: rows in the engine's memory, and the same values in a plain
+        // object per entity for TypeScript to walk.
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, memory);
+        const byHand = new Map<number, { remaining: number }>();
+        const live: number[] = [];
+        for (let i = 1; i <= N; i++) {
+            pool.put(e(i), DEFAULTS, { remaining: i * 0.05 });
+            byHand.set(i, { remaining: i * 0.05 });
+            live.push(i);
+        }
+
+        // Time is a host record too, so it needs an address like anything else.
+        const timeBlock = memory.alloc(8);
+        const delta = 1 / 30;
+        new Float64Array(engine.memory.buffer, timeBlock.byteOffset, 1)[0] = delta;
+
+        const ctx = new AotContext(memory);
+        for (let f = 0; f < FRAMES; f++) {
+            const rows = live.map((id) => [id, pool.address(e(id))!] as const);
+            const at = ctx.build([rows], [timeBlock.byteOffset]);
+            decay(at);
+
+            // The same loop, in TypeScript, over the plain objects.
+            const dead: number[] = [];
+            for (const id of live) {
+                const row = byHand.get(id)!;
+                row.remaining -= delta;
+                if (row.remaining <= 0) dead.push(id);
+            }
+
+            const commands = ctx.commands();
+            expect(commands.map((c) => c.a).sort((a, b) => a - b), `frame ${f} despawns`)
+                .toEqual(dead.sort((a, b) => a - b));
+            for (const c of commands) expect(c.kind).toBe(CMD_DESPAWN);
+
+            for (const id of live) {
+                expect(pool.get(e(id))!['remaining'], `frame ${f} entity ${id}`)
+                    .toBe(byHand.get(id)!.remaining);
+            }
+            // The host applies the commands; the compiled code only records them.
+            for (const id of dead) {
+                pool.delete(e(id));
+                byHand.delete(id);
+                live.splice(live.indexOf(id), 1);
+            }
+        }
+
+        expect(live.length, 'nothing despawned, so the commands proved nothing')
+            .toBeLessThan(N);
+        expect(live.length, 'everything despawned, so the reads proved nothing')
+            .toBeGreaterThan(0);
+        ctx.dispose();
+    });
+
+    it.skipIf(!EMCC)('a call with no rows is a call, not a crash', async () => {
+        const engine = new Engine();
+        const memory = new WasmPoolMemory(engine);
+        const instance = await WebAssembly.instantiate(
+            new WebAssembly.Module(buildModule() as unknown as BufferSource),
+            { env: { memory: engine.memory } });
+        const api = instance.exports as unknown as Record<string, unknown>;
+        (api['_initialize'] as (() => void) | undefined)?.();
+
+        const timeBlock = memory.alloc(8);
+        new Float64Array(engine.memory.buffer, timeBlock.byteOffset, 1)[0] = 1 / 30;
+        const ctx = new AotContext(memory);
+        // An empty query still needs a well-formed table: `count` is zero and
+        // `rows` must point somewhere the code will not read.
+        (api['es_sys_Decay'] as (c: number) => void)(ctx.build([[]], [timeBlock.byteOffset]));
+        expect(ctx.commands()).toEqual([]);
+    });
+});
