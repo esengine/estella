@@ -886,9 +886,12 @@ export class World {
             }
             return (e, d) => methods.add(e, convertForWasm(d as Record<string, unknown>, colorKeys));
         }
+        // Through ScriptStorage, not into the map: a pooled component's stored
+        // value is a live view onto its row, and replacing it with a plain
+        // object would leave the row behind.
         const storage = this.scripts_.getStorageById(component._id);
         if (!storage) return null;
-        return (e, d) => storage.set(e, d);
+        return (e, d) => { this.scripts_.set(e, component as ComponentDef<any>, d); };
     }
 
     // =========================================================================

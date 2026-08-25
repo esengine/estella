@@ -10,6 +10,7 @@ import { ComponentDef } from './component';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from '../util/validation';
 import { log } from '../util/logger';
 import { reorderMapByRank, type RankOf } from './entityOrder';
+import { ScriptPool, poolShape } from './ScriptPool';
 
 export interface InsertResult<T> {
     value: T;
@@ -19,6 +20,36 @@ export interface InsertResult<T> {
 export class ScriptStorage {
     private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
     private entityComponents_ = new Map<Entity, Set<symbol>>();
+    /**
+     * Components held as rows rather than objects, by id. A component qualifies
+     * when its defaults are all scalars, which is exactly the set a compiled
+     * system can reach — a compiled system addresses a component, and a JS
+     * object has no address (docs/REARCH_AOT_ABI.md §2.4).
+     */
+    private pools_ = new Map<symbol, ScriptPool>();
+
+    /** @internal The rows behind `component`, or undefined if it has none. */
+    poolFor(id: symbol): ScriptPool | undefined {
+        return this.pools_.get(id);
+    }
+
+    /**
+     * The pool `component` uses, creating it on first sight. `null` once for a
+     * shape that cannot be flat, and remembered as null so the check is not
+     * repeated per insert.
+     */
+    private pool_(component: ComponentDef<any>): ScriptPool | null {
+        const held = this.pools_.get(component._id);
+        if (held) return held;
+        if (this.notPooled_.has(component._id)) return null;
+        const fields = poolShape(component._default);
+        if (!fields) { this.notPooled_.add(component._id); return null; }
+        const pool = new ScriptPool(fields);
+        this.pools_.set(component._id, pool);
+        return pool;
+    }
+
+    private notPooled_ = new Set<symbol>();
 
     insert<T>(entity: Entity, component: ComponentDef<T>, data?: unknown): InsertResult<T> {
         let filtered: Partial<T> | undefined;
@@ -41,8 +72,20 @@ export class ScriptStorage {
             filtered = clean as Partial<T>;
         }
 
-        const value = component.create(filtered);
         const storage = this.getStorage(component);
+        const pool = this.pool_(component);
+        if (pool) {
+            // Defaults then the caller's fields, into the row. `create` would
+            // give the same object for an all-scalar shape, one allocation and
+            // one address short of what a compiled system needs.
+            const { view, isNew } = pool.put(
+                entity, component._default as Record<string, unknown>,
+                filtered as Record<string, unknown> | undefined);
+            storage.set(entity, view);
+            this.note_(entity, component);
+            return { value: view as T, isNew };
+        }
+        const value = component.create(filtered);
         const isNew = !storage.has(entity);
         storage.set(entity, value);
         this.note_(entity, component);
@@ -79,6 +122,7 @@ export class ScriptStorage {
     remove<T>(entity: Entity, component: ComponentDef<T>): void {
         const storage = this.tsStorage_.get(component._id);
         storage?.delete(entity);
+        this.pools_.get(component._id)?.delete(entity);
         const ids = this.entityComponents_.get(entity);
         if (ids) {
             ids.delete(component._id);
@@ -104,6 +148,15 @@ export class ScriptStorage {
             }
         }
         const storage = this.getStorage(component);
+        const pool = this.pool_(component);
+        if (pool) {
+            const { view, isNew } = pool.put(
+                entity, component._default as Record<string, unknown>,
+                (data ?? undefined) as Record<string, unknown> | undefined);
+            storage.set(entity, view);
+            this.note_(entity, component);
+            return { isNew };
+        }
         const isNew = !storage.has(entity);
         storage.set(entity, data);
         this.note_(entity, component);
@@ -139,6 +192,7 @@ export class ScriptStorage {
         const removed: symbol[] = [];
         for (const id of ids) {
             this.tsStorage_.get(id)?.delete(entity);
+            this.pools_.get(id)?.delete(entity);
             removed.push(id);
         }
         this.entityComponents_.delete(entity);
