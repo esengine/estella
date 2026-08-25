@@ -9,12 +9,9 @@
  *          registry that lacks a module the scene needs is an export bug, not a
  *          silent runtime degrade.
  *
- *          How those bytes were ENCODED to survive the trip inside an HTML file
- *          is the host page's business, not this module's: they arrive already
- *          decoded. They used to arrive base64, which put one page's transport
- *          decision in the SDK and meant a change to it (they are deflated now,
- *          which is worth ~1MB of an ad network's 2MB cap) could not be made
- *          without changing this file too.
+ *          Bytes arrive DECODED: how they survived the trip inside an HTML file
+ *          is the host page's business, and naming an encoding here would put
+ *          one page's transport decision in the SDK.
  */
 import { createSideModuleHost, instantiateFromGlueText, type SideModuleHost } from './host';
 import type { SideModuleId } from './registry';

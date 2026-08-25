@@ -219,11 +219,8 @@ const fmtMB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 /**
  * The limits the export judged itself against, from the report it already
  * writes. Read rather than recomputed: the pipeline owns what a package weighs
- * and which limits are in force (an ad network's profile, a project's own
- * budget), and a second opinion here is the one that drifts.
- *
- * An unreadable report yields nothing rather than failing — a target that
- * declares no limit writes no verdicts, which is not the same as being over one.
+ * and which limits are in force, and a second opinion here is the one that
+ * drifts. No verdicts is not the same as being over one.
  */
 function readSizeVerdicts(reportPath) {
   try {
@@ -257,13 +254,9 @@ for (const { id, target } of pairs) {
     continue;
   }
 
-  // A package that does not fit is one nobody can ship, and until now nothing in
-  // this chain asked. The measurement existed and the CLI could already enforce
-  // it, so the limits a target declares — Meta's 2MB index.html, WeChat's 4MB
-  // main package — were judged only by whoever happened to read the output.
-  // Left as a stage rather than an export flag so a build that is over still
-  // launches and reports everything else it can, the way an over-tolerance
-  // parity does.
+  // A package that does not fit is one nobody can ship. A stage rather than an
+  // export flag, so a build that is over still launches and reports everything
+  // else it can — the way an over-tolerance parity does.
   for (const verdict of readSizeVerdicts(sizeReport)) {
     const ok = verdict.status !== 'over';
     results.push({

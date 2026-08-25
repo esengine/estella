@@ -280,13 +280,9 @@ export const GOLDEN = [
   },
   {
     id: 'video-puzzle',
-    // `startup-size` was a declared gap until the playable transport stopped
-    // spending a third of the budget on base64: the runtime floor was 2.8MB
-    // against a 2MB cap, so no project could have carried the claim. It is
-    // 1.38MB for an empty project now, and this one packages at 1.78MB — so the
-    // claim is carried by the biggest playable in the corpus rather than the
-    // smallest thing that would pass. What JUDGES it is the `size` stage, which
-    // holds every target to the limits its own export reports.
+    // `startup-size` was a declared gap while the runtime floor (2.8MB) exceeded
+    // the 2MB cap; it is 1.38MB empty now and this packages at 1.78MB — the
+    // biggest playable in the corpus, not the smallest thing that would pass.
     certifies: ['single-file', 'startup-size'],
     targets: ['playable', 'web'],
     tier: 'nightly',

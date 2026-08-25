@@ -278,10 +278,8 @@ export async function measureBuild(opts: {
    * Absolute path to the single uploaded file, when the target makes one.
    *
    * Weighed on its own; it does NOT exclude itself from the directory totals.
-   * A deliverable that repackages loose files is already in {@link packages},
-   * and the playable's is not a repackaging at all — its `index.html` IS the
-   * build, so excluding it left the composition of the one target where size is
-   * a hard cap reading as an empty directory.
+   * One that repackages loose files is already in {@link packages}, and the
+   * playable's `index.html` IS the build — excluding it emptied the report.
    */
   deliverable?: string;
   /**
@@ -300,13 +298,9 @@ export async function measureBuild(opts: {
   packages?: readonly string[];
   /**
    * A single-file target's file, and what it is made of — each span under the
-   * path those bytes would carry loose. The file is replaced by its spans, so a
-   * playable is composed in the same vocabulary as every other target instead of
-   * weighing in as one nameless `other`.
-   *
-   * The producer supplies these, because the assembly is where the bytes are
-   * joined and it already knows; parsing the finished file back apart would be a
-   * second account of the same concatenation.
+   * path those bytes would carry loose. The file is replaced by its spans, so
+   * it composes like every other target instead of weighing in as one nameless
+   * `other`. Supplied by the assembly, which is where the bytes are joined.
    */
   inlineOf?: { file: string; parts: readonly { path: string; bytes: number }[] };
 }): Promise<BuildSizeReport> {

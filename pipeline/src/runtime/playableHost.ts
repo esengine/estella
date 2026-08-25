@@ -23,11 +23,9 @@ import { inflateRaw } from './inflate';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
-// large base64 blobs aren't re-parsed as code). The glue is the WEB esengine.js
-// (ESM) text; the wasm is esengine.wasm. __SIDE_MODULES__ holds glue+wasm for
-// exactly the optional modules (physics/spine) the scene uses — the exporter ran
-// the runtime's gating scan to pick them. Every one of them is `PackedBytes`:
-// raw-deflated, then base64.
+// large blobs aren't re-parsed as code). __SIDE_MODULES__ holds exactly the
+// optional modules the scene uses, chosen by the runtime's own gating scan.
+// Each payload is raw-deflated then base64 — see PackedBytes in exportPlayable.
 interface PackedBytes { z: string; n: number }
 declare const __ENGINE_GLUE__: PackedBytes;
 declare const __ENGINE_WASM__: PackedBytes;
@@ -58,11 +56,9 @@ const unpackText = (p: PackedBytes): string => new TextDecoder().decode(unpack(p
 /**
  * The inlined side-module registry, decoded on first use.
  *
- * Lazily because the scan that chose these modules asks what the CONTENT could
- * reach, not what a given run does: a scene that can spawn a Spine skeleton
- * carries the runtime whether or not it spawns one. Inflating all of them at
- * boot would spend that cost on every play, and these are the big ones —
- * basis is 1MB before deflating.
+ * Lazy because the scan that chose these asks what the CONTENT could reach, not
+ * what a run does: a scene that CAN spawn a Spine skeleton carries the runtime
+ * either way, and basis is 1MB before deflating.
  */
 function unpackSideModules(): EmbeddedSideModuleRegistry {
   if (typeof __SIDE_MODULES__ === 'undefined') return {};
@@ -135,10 +131,7 @@ async function boot(): Promise<void> {
     ...packagedAppOptions(runtimeConfig),
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     // Physics + spine resolve from the inlined registry (no fetch). Unpacked
-    // here rather than inside the SDK: how these bytes survived a trip inside an
-    // HTML file is this page's business, and the SDK takes them decoded.
-    // Lazily, because a module the scene never asks for should not be paid for
-    // at boot — spine and basis are ~1MB each before deflating.
+    // here rather than in the SDK: the transport is this page's business.
     sideModules: createEmbeddedSideModuleHost(unpackSideModules()),
   });
   setEditorMode(false);

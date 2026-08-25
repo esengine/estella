@@ -76,15 +76,9 @@ const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script')
 /**
  * A binary payload on its way into an HTML file: deflated, then base64.
  *
- * Base64 costs +33% over the bytes it carries, and the bytes are wasm — which
- * deflates to under a third. Compressing before encoding is worth more than any
- * denser encoding could be: the engine's own module goes 1.542MB → 2.056MB
- * encoded raw, against 0.597MB encoded this way.
- *
- * `n` is the original length, so the decoder allocates once and a stream that
- * does not fill it exactly is caught here rather than at some later use. Raw
- * deflate: `inflateRaw` is the only reader, and a wrapper's checksum would only
- * re-answer what instantiating the module answers immediately after.
+ * Deflating first beats any denser encoding — the engine module is 2.056MB
+ * encoded raw, 0.597MB this way. `n` is the length before deflating, so the
+ * decoder allocates once and catches a short stream.
  */
 interface PackedBytes {
   /** base64 of the raw-deflated bytes. */
@@ -205,16 +199,10 @@ export async function exportPlayable(opts: {
    *  reaches the ad-network profile, which may declare it to the platform. */
   orientation?: ScreenOrientation;
   /**
-   * Defaults to ON here, unlike every other target.
-   *
-   * A playable exists to be uploaded to an ad network under a hard byte cap;
-   * there is no dev build of one, and shipping it unminified spent 0.31MB of a
-   * 2MB budget on whitespace. Verified as a no-op on what it draws: the same
-   * platformer package minified and not is identical to the pixel (frame
-   * distance 0.0000, against a 0.06 tolerance).
-   *
-   * An explicit `false` is still honoured — the editor's Development
-   * configuration passes one.
+   * Defaults to ON here, unlike every other target: a playable is uploaded
+   * under a hard byte cap and has no dev build, and unminified spent 0.31MB of
+   * a 2MB budget on whitespace. A no-op on what it draws (measured: identical
+   * to the pixel). An explicit `false` is still honoured.
    */
   minify?: boolean;
   /** The project's runtime settings, derived once by `runtimeConfigOf`; the page
@@ -233,12 +221,9 @@ export async function exportPlayable(opts: {
   const errors: string[] = [];
   await mkdir(absOut, { recursive: true });
   const cookDir = path.join(absOut, '.playable-cook');
-  // What each span of the finished file costs, under the path those bytes would
-  // carry if this target shipped them loose — so a playable's composition reads
-  // in the same vocabulary as the web and WeChat ones, rather than being one
-  // opaque file. Filled where the bytes are JOINED: a reader that parsed the
-  // finished HTML back apart would be a second account of the same
-  // concatenation, and the one that drifts.
+  // What each span costs, under the path those bytes would carry shipped loose,
+  // so a playable composes in the same vocabulary as web and WeChat. Filled
+  // where the bytes are JOINED — reading the finished HTML back would drift.
   const spans: { path: string; bytes: number }[] = [];
 
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
@@ -271,8 +256,7 @@ export async function exportPlayable(opts: {
       const key = `@uuid:${e.uuid}`;
       assets[key] = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
-      // The data URL, not the file: base64 is what this asset actually costs the
-      // package, and the +33% is the thing a developer is being asked to see.
+      // The data URL, not the file: base64 is what the asset costs the package.
       spans.push({ path: e.path, bytes: assets[key].length });
     }
   } catch (err) {
@@ -372,9 +356,8 @@ export async function exportPlayable(opts: {
   await rm(cookDir, { recursive: true, force: true });
 
   const htmlBytes = (await stat(outFile)).size;
-  // The page itself, plus the JSON scaffolding around the spans above (each
-  // asset's key and quotes, the small globals). Derived rather than summed so
-  // the parts always add up to the file, whatever else the assembly gains.
+  // The page, plus the JSON scaffolding around the spans. Derived rather than
+  // summed, so the parts add up to the file whatever the assembly gains later.
   const inlined = spans.reduce((n, s) => n + s.bytes, 0);
   spans.push({ path: 'index.html', bytes: Math.max(0, htmlBytes - inlined) });
 

@@ -12,6 +12,57 @@ Version numbers here track the **Estella release** — the engine + editor + SDK
 shipped together, matching the Git tags and GitHub Releases. The SDK is not
 published separately; it ships inside the editor.
 
+## [Unreleased]
+
+### Added
+
+- **A playable ad now fits the networks it is made for.** The single-file
+  transport inlined its engine as plain base64 — a +33% tax on a payload that is
+  mostly a 1.5MB wasm — and never minified the bundle, because the CLI had no
+  flag to ask for it and only the editor's Shipping configuration passed one.
+  Every payload is deflated before encoding now (the engine module goes 2.056MB
+  → 0.597MB), side modules inflate on first use rather than at boot, and the
+  target minifies unless told otherwise. `hello-world` packages at 1.38MB
+  against 2.82MB before, `video-puzzle` at 1.78MB and `spine-demo` at 1.91MB —
+  all three under Meta's 2MB cap, which nothing in the corpus had ever met.
+  Every package was launched and compared: platformer and spine-demo are
+  identical to the pixel, and spine-demo also matches its own web export, which
+  shares none of this path.
+
+  The decoder is the engine's own rather than `DecompressionStream`, which
+  landed in Safari 16.4: a playable that white-screens on an older WebView is
+  worse than a larger one, since the impression is paid for either way. One path
+  runs on every device, so every device runs what the tests run.
+
+- **`estella.mjs export --minify`**, for the targets whose default it is not.
+
+### Changed
+
+- `EmbeddedSideModuleEntry` carries decoded bytes (`glue`, `wasm`) rather than
+  base64 strings. How a payload survived a trip inside an HTML file is the host
+  page's business; with the SDK naming the encoding, the transport could not
+  change without changing the SDK. @experimental, and its only consumer is the
+  playable host.
+
+### Fixed
+
+- **A playable's size report described an empty directory.** The report excludes
+  each package written inside the output dir, since an .apk sits beside the
+  loose files it was made from and counting both doubles the build — and it
+  excluded the uploaded file on the same rule. For every other target that was
+  merely redundant, but a playable's `index.html` repackages nothing and nothing
+  else is in the directory, so excluding it excluded everything. On the one
+  target where size is a hard cap, an export could say "over by 64%" without
+  naming a byte of where it went. It now reports what the assembly joined, so a
+  playable composes in the same vocabulary as the web and WeChat builds.
+
+- **The golden chain never weighed what it packaged.** `verify-golden` gets a
+  `size` stage holding every pair to the limits its own export reports, so
+  Meta's 2MB and WeChat's 4MB are judged by a criterion rather than by whoever
+  reads the output. With it in place `startup-size` stops being a declared gap —
+  it was one because the runtime floor exceeded the cap — and the corpus
+  certifies 38/39 capabilities.
+
 ## [0.57.0] - 2026-08-24
 
 ### Added

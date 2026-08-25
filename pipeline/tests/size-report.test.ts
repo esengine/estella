@@ -243,12 +243,9 @@ describe('measuring a build on disk', () => {
   });
 
   it('still weighs the single file a playable ships, which is the build rather than a copy of it', async () => {
-    // The playable's whole output is one index.html — nothing sits loose beside
-    // it to double-count, so the repackaging rule that covers an .apk does not
-    // apply. Excluding it left byKind, largest and fileCount empty on the ONE
-    // target whose size is a hard cap, so the export could say "over by 64%" and
-    // not one byte of where it went. Note there is no `packages` here: that is
-    // the shape, and it is what the two cases above never exercise.
+    // One index.html, nothing loose beside it to double-count, so the .apk
+    // repackaging rule does not apply. Note there is no `packages` here — the
+    // shape the two cases above never exercise.
     await write('index.html', 3_444_304);
     const report = await measureBuild({
       root: dir,

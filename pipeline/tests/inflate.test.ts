@@ -133,10 +133,9 @@ describe.skipIf(!existsSync(engine))('inflateRaw — the payloads that ship', ()
     const started = performance.now();
     inflateRaw(deflated, bytes.length);
     const ms = performance.now() - started;
-    // Measured ~16ms for 1.5MB on a development machine (~95 MB/s). The ceiling
-    // is deliberately an order of magnitude above that: what it guards against
-    // is a rewrite that drops to something unusable on a phone, not the spread
-    // between one machine and another — which is all a tight bound would time.
+    // ~16ms for 1.5MB here (~95 MB/s); the ceiling sits an order of magnitude
+    // above so it catches a rewrite gone unusable, not the spread between
+    // machines — which is all a tight bound would time.
     expect(ms).toBeLessThan(500);
   });
 });

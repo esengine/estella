@@ -20,13 +20,14 @@ import { inflateRaw } from '../src/runtime/inflate';
 /**
  * Read an inlined payload back out of the page, the way the host does.
  *
- * The engine and every side module travel deflated-then-base64 (see PackedBytes
- * in exportPlayable), so "the bytes are in the file" cannot be asked by looking
- * for their base64 — that only ever held while the transport was plain. Asking
- * it through the decoder is the stronger question anyway: it says the bytes
- * arrived AND that what shipped can be turned back into them.
+ * Payloads travel deflated, so looking for their base64 asks nothing. Through
+ * the decoder is the stronger question: the bytes arrived AND what shipped can
+ * be turned back into them.
  */
-function inlinedText(html: string, global: string, pick?: (v: never) => { z: string; n: number }): string {
+type Packed = { z: string; n: number };
+type PackedModules = Record<string, { glue: Packed; wasm: Packed }>;
+
+function inlinedText(html: string, global: string, pick?: (v: PackedModules) => Packed): string {
   const at = html.indexOf(`window.${global}=`);
   if (at < 0) throw new Error(`${global} is not in the page`);
   const json = html.slice(at + `window.${global}=`.length);
@@ -34,8 +35,8 @@ function inlinedText(html: string, global: string, pick?: (v: never) => { z: str
   // `;` that leaves the JSON balanced — JSON.parse of the prefix finds it.
   for (let end = json.indexOf(';'); end > 0; end = json.indexOf(';', end + 1)) {
     try {
-      const value = JSON.parse(json.slice(0, end));
-      const packed = pick ? pick(value) : value;
+      const value: unknown = JSON.parse(json.slice(0, end));
+      const packed = pick ? pick(value as PackedModules) : (value as Packed);
       const raw = Uint8Array.from(atob(packed.z), (c) => c.charCodeAt(0));
       return new TextDecoder().decode(inflateRaw(raw, packed.n));
     } catch { /* that `;` was inside the JSON — try the next one */ }
@@ -97,12 +98,9 @@ describe('exportGame (playable)', () => {
       outDir: out,
       title: 'Playable Demo',
       platform: 'playable',
-      // Structure is what this asserts, so it reads the unminified shape. The
-      // stub SDK below exports `defineComponent(){}` — an empty function, and
-      // esbuild is right to drop a call to one, which takes `SpawnMarker` with
-      // it. The real SDK's writes a registry, so the same project keeps its
-      // components minified (verified on platformer: identical to the pixel).
-      // The default is asserted on its own, below.
+      // Structure, so the unminified shape. The stub SDK's `defineComponent(){}`
+      // is empty, and esbuild is right to drop a call to one — taking
+      // `SpawnMarker` with it. The real SDK's writes a registry. Default below.
       minify: false,
     });
 
@@ -138,11 +136,9 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
-  // A playable is uploaded to an ad network under a hard byte cap and there is no
-  // dev build of one, so this target minifies unless told not to — the opposite
-  // default from every other. Shipping it unminified spent 0.31MB of a 2MB budget
-  // on whitespace, and the CLI had no flag to say otherwise, so every packaged
-  // playable CI ever weighed was the unshipped shape.
+  // No dev build of a playable exists, so this target minifies unless told not
+  // to — the opposite default from every other. Unminified spent 0.31MB of a
+  // 2MB budget on whitespace.
   it('minifies by default, and still honours an explicit no', async () => {
     const run = async (minify: boolean | undefined, dir: string): Promise<number> => {
       const res = await exportGame({
