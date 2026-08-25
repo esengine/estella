@@ -30,7 +30,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lowerProgram } from '../src/frontend';
+import { brokenPromises, lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
 import { builtinShapes } from '../src/builtins';
 
@@ -181,5 +181,30 @@ describe('AOT coverage over examples/', () => {
         // A system the frontend accepted but the IR verifier rejects is a
         // frontend bug, not a coverage number — it must never be counted.
         expect(unverified).toEqual([]);
+    });
+});
+
+/**
+ * The coverage number above measures a corpus nobody promised anything about.
+ * This one measures the promises: a system carrying `@compiled` must compile and
+ * verify, and a refusal against one is an error rather than a quiet fallback.
+ * It is the number that can be 100% and STAY 100%.
+ */
+describe('systems the corpus promises to compile', () => {
+    const promised = results.flatMap((r) => r.required);
+
+    it('finds the marker in the corpus at all', () => {
+        // At zero this whole block asserts nothing, which is the failure a gate
+        // is least able to notice about itself.
+        expect(promised.length).toBeGreaterThan(0);
+        console.log(`@compiled promises: ${promised.length} — ${promised.join(', ')}`);
+    });
+
+    it('keeps every one of them', () => {
+        expect(results.flatMap((r) => brokenPromises(r))).toEqual([]);
+    });
+
+    it('and each also verifies, not merely lowers', () => {
+        expect(promised.filter((n) => !verifiedNames.has(n))).toEqual([]);
     });
 });

@@ -91,3 +91,35 @@ export const writesConst = defineSystem(
     },
     { name: 'FixtureWritesConst' },
 );
+
+/**
+ * The same refusal as `FixtureTrig`, but PROMISED.
+ *
+ * @compiled
+ * Without the marker a system that stops compiling just gets slower and nothing
+ * goes red; with it, the refusal is an error naming this line.
+ */
+export const promised = defineSystem(
+    [Query(Mut(Transform), Speed), Res(Time)],
+    (query, time) => {
+        for (const [_e, t, s] of query) {
+            t.position.x += Math.cos(s.value * time.delta);
+        }
+    },
+    { name: 'FixturePromised' },
+);
+
+/**
+ * Marked, and inside the subset: the promise is kept.
+ *
+ * @compiled
+ */
+export const promiseKept = defineSystem(
+    [Query(Mut(Transform), Speed), Res(Time)],
+    (query, time) => {
+        for (const [_e, t, s] of query) {
+            t.position.x += s.value * time.delta;
+        }
+    },
+    { name: 'FixturePromiseKept' },
+);

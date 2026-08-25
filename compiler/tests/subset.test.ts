@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lowerProgram } from '../src/frontend';
+import { brokenPromises, lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
 import { builtinShapes } from '../src/builtins';
 
@@ -28,6 +28,7 @@ describe('the subset refuses, and says why', () => {
         expect(result.seen).toEqual([
             'FixtureLooping', 'FixtureTypo', 'FixtureTrig', 'FixtureCalling',
             'FixtureWritesReadOnly', 'FixtureWritesConst',
+            'FixturePromised', 'FixturePromiseKept',
         ]);
     });
 
@@ -65,5 +66,31 @@ describe('the subset refuses, and says why', () => {
         expect(dyn.module.comps.has('FixtureDynamic')).toBe(false);
         expect(dyn.diagnostics).toHaveLength(1);
         expect(dyn.diagnostics[0]!.message).toMatch(/object literal of literal defaults/);
+    });
+});
+
+/**
+ * `@compiled` does not change what the subset takes; it changes who has to act.
+ * An unmarked refusal is §3.2's design. A marked one is a build error.
+ */
+describe('a promise the author wrote down', () => {
+    it('sees the marker, and only where it was written', () => {
+        expect(result.required).toEqual(['FixturePromised', 'FixturePromiseKept']);
+    });
+
+    it('makes the same refusal an error, with the same reason and line', () => {
+        const promised = diagOf('FixturePromised')!;
+        const unmarked = diagOf('FixtureTrig')!;
+        expect(promised.severity).toBe('error');
+        expect(unmarked.severity).toBe('note');
+        // The marker is not a second rule: both are refused for the same reason.
+        expect(promised.message).toMatch(/Math\.cos is not exactly specified/);
+        expect(promised.kind).toBe(unmarked.kind);
+        expect(promised.line).toBeGreaterThan(0);
+    });
+
+    it('a kept promise is not a broken one', () => {
+        expect(compiled('FixturePromiseKept')).toBe(true);
+        expect(brokenPromises(result).map((d) => d.system)).toEqual(['FixturePromised']);
     });
 });

@@ -39,6 +39,12 @@ export interface Diagnostic {
     readonly line: number;
     readonly message: string;
     readonly kind: RefusalKind;
+    /**
+     * Whether the author PROMISED this would compile. `@compiled` on a system
+     * makes its refusal an error: without the marker a system that quietly stops
+     * compiling just gets slower, and nothing anywhere goes red.
+     */
+    readonly severity: 'error' | 'note';
     /** The system this killed, when the failure happened inside one. */
     readonly system?: string;
 }
@@ -54,6 +60,49 @@ export interface LowerResult {
      * system runs per frame or once at startup.
      */
     readonly systemBindings: ReadonlyMap<string, string>;
+    /**
+     * Systems the author marked `@compiled`. Compiling these is a PROMISE, and
+     * `brokenPromises` is what a build asks whether it was kept.
+     */
+    readonly required: readonly string[];
+}
+
+/**
+ * A `@compiled` tag, read straight off the parse tree. `ts.getJSDocTags` walks
+ * parent pointers, which this file may not touch (see the header); `node.jsDoc`
+ * is what the parser attached and needs nothing bound.
+ */
+interface WithJsDoc {
+    readonly jsDoc?: readonly ts.JSDoc[];
+}
+
+function marksCompiled(node: ts.Node): boolean {
+    const doc = (node as WithJsDoc).jsDoc;
+    if (!doc) return false;
+    return doc.some((d) => d.tags?.some((t) => t.tagName.text === 'compiled') ?? false);
+}
+
+/**
+ * The promises this program did not keep: every marked system that refused, plus
+ * any that vanished without a diagnostic. A build fails on this list; an unmarked
+ * refusal stays a note, because §3.2's fallback is a design and not a defect.
+ */
+export function brokenPromises(result: LowerResult): readonly Diagnostic[] {
+    const compiled = new Set(result.module.systems.map((s) => s.name));
+    const spoken = new Set<string>();
+    const out = result.diagnostics.filter((d) => {
+        if (d.severity !== 'error') return false;
+        if (d.system) spoken.add(d.system);
+        return true;
+    });
+    for (const name of result.required) {
+        if (compiled.has(name) || spoken.has(name)) continue;
+        out.push({
+            file: '', line: 0, kind: 'pending', severity: 'error', system: name,
+            message: `'${name}' is marked @compiled but the compiler never produced it`,
+        });
+    }
+    return out;
 }
 
 const BIN_OPS: ReadonlyMap<ts.SyntaxKind, BinOp> = new Map([
@@ -698,6 +747,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     const diagnostics: Diagnostic[] = [];
     const seen: string[] = [];
     const systemBindings = new Map<string, string>();
+    const required: string[] = [];
 
     // ts normalises fileName to forward slashes; a caller on Windows will not
     // have. Comparing them raw lowers nothing and reports no error at all.
@@ -708,17 +758,20 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     // Both scans carry the enclosing `const` name down instead of reading
     // node.parent: parent pointers exist only once the program has bound, which
     // is a side effect of getTypeChecker() and not a thing to depend on.
-    type Visit = (node: ts.Node, binding: string | null) => void;
+    /** `marked` is the `@compiled` tag from the enclosing statement, carried down
+     *  to the `defineSystem` call the same way `binding` is. */
+    type Visit = (node: ts.Node, binding: string | null, marked: boolean) => void;
     const walkTop = (sf: ts.SourceFile, visit: Visit): void => {
-        const go = (node: ts.Node, binding: string | null): void => {
-            visit(node, binding);
+        const go = (node: ts.Node, binding: string | null, marked: boolean): void => {
+            const here = marked || marksCompiled(node);
+            visit(node, binding, here);
             if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-                go(node.initializer, node.name.text);
+                go(node.initializer, node.name.text, here);
                 return;
             }
-            ts.forEachChild(node, (c) => go(c, null));
+            ts.forEachChild(node, (c) => go(c, null, here));
         };
-        ts.forEachChild(sf, (c) => go(c, null));
+        ts.forEachChild(sf, (c) => go(c, null, false));
     };
 
     // Constants and components first: a system in one file names both from another.
@@ -739,7 +792,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             if (!shape) {
                 diagnostics.push({
                     file: sf.fileName, line: lineOf(sf, node),
-                    kind: 'permanent',
+                    kind: 'permanent', severity: 'note',
                     message: 'defineComponent needs a string literal name and an object literal of literal defaults',
                 });
                 return;
@@ -747,7 +800,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             const existing = comps.get(shape.name);
             if (existing && !sameShape(existing, shape)) {
                 diagnostics.push({
-                    file: sf.fileName, line: lineOf(sf, node), kind: 'permanent',
+                    file: sf.fileName, line: lineOf(sf, node), kind: 'permanent', severity: 'note',
                     message: `component '${shape.name}' is already declared with a different shape`
                         + ` — one program cannot hold two`,
                 });
@@ -786,12 +839,13 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     }
 
     for (const sf of sources) {
-        walkTop(sf, (node, binding) => {
+        walkTop(sf, (node, binding, marked) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
             if (node.expression.text !== 'defineSystem') return;
             const name = systemName(node, binding);
             seen.push(name);
             if (binding) systemBindings.set(binding, name);
+            if (marked) required.push(name);
             try {
                 const [params, fn] = node.arguments;
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
@@ -801,13 +855,17 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({
-                    file: sf.fileName, line: lineOf(sf, e.node), message: e.message, kind: e.kind, system: name,
+                    file: sf.fileName, line: lineOf(sf, e.node), message: e.message, kind: e.kind,
+                    // The marker does not change WHY a system was refused, only
+                    // whether anybody has to act on it.
+                    severity: marked ? 'error' : 'note',
+                    system: name,
                 });
             }
         });
     }
 
-    return { module: { systems, comps, fns }, diagnostics, seen, systemBindings };
+    return { module: { systems, comps, fns }, diagnostics, seen, systemBindings, required };
 }
 
 /** `{ name: 'MoveSystem' }` if given, else the const it is assigned to. */
