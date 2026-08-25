@@ -84,6 +84,35 @@ function tokenText(kind: ts.SyntaxKind): string {
  */
 const COMMAND_RECORDS: Record<string, number | undefined> = { despawn: 1 };
 
+/**
+ * A module-level `const` the compiler can read at compile time: a literal, or a
+ * record of them. `WORLD_HALF_W` and `FOLLOW.damping` are values, not storage,
+ * so a system reading one gets a constant rather than a load.
+ */
+export type ConstValue = number | boolean | { readonly [k: string]: ConstValue };
+
+/** `const X = 800` / `const F = { damping: 5 }` -> a value, or null if not literal. */
+function constValue(node: ts.Expression): ConstValue | null {
+    if (ts.isNumericLiteral(node)) return Number(node.text);
+    if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
+    if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
+    if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.MinusToken) {
+        const inner = constValue(node.operand);
+        return typeof inner === 'number' ? -inner : null;
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+        const out: Record<string, ConstValue> = {};
+        for (const prop of node.properties) {
+            if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return null;
+            const v = constValue(prop.initializer);
+            if (v === null) return null;
+            out[prop.name.text] = v;
+        }
+        return out;
+    }
+    return null;
+}
+
 /** Thrown internally to abandon one system; never escapes lowerProgram. */
 class NotInSubset extends Error {
     constructor(readonly node: ts.Node, message: string) { super(message); }
@@ -100,7 +129,21 @@ class SystemLowerer {
         /** `const Speed = defineComponent('FixtureSpeed', …)` — a query names the
          *  BINDING, and the shape is filed under the declared name. */
         private readonly bindings: ReadonlyMap<string, string>,
+        /** Module-level literals, folded where they are read. */
+        private readonly consts: ReadonlyMap<string, ConstValue>,
     ) {}
+
+    /** The constant a dotted path names, or null when the root is not one. */
+    private constAt(root: string, path: readonly string[]): ConstValue | null {
+        let cur = this.consts.get(root);
+        if (cur === undefined) return null;
+        for (const key of path) {
+            if (cur === null || typeof cur !== 'object') return null;
+            cur = (cur as Record<string, ConstValue>)[key];
+            if (cur === undefined) return null;
+        }
+        return cur;
+    }
 
     private compName(binding: string): string {
         return this.bindings.get(binding) ?? binding;
@@ -319,7 +362,12 @@ class SystemLowerer {
 
     /** A place is a local, or a dotted path from one. Nothing else is addressable. */
     private place(node: ts.Expression): Place {
-        if (ts.isIdentifier(node)) return { p: 'local', id: this.lookup(node, node.text).id };
+        if (ts.isIdentifier(node)) {
+            if (this.consts.has(node.text) && !this.scopes.some((sc) => sc.has(node.text))) {
+                throw new NotInSubset(node, `'${node.text}' is a constant and cannot be assigned`);
+            }
+            return { p: 'local', id: this.lookup(node, node.text).id };
+        }
         if (!ts.isPropertyAccessExpression(node)) {
             throw new NotInSubset(node, 'only a name or a dotted path can be read or assigned here');
         }
@@ -330,6 +378,9 @@ class SystemLowerer {
             cur = cur.expression;
         }
         if (!ts.isIdentifier(cur)) throw new NotInSubset(node, 'a dotted path must start at a declared name');
+        if (this.consts.has(cur.text) && !this.scopes.some((sc) => sc.has(cur.text))) {
+            throw new NotInSubset(node, `'${cur.text}' is a constant and cannot be assigned`);
+        }
         return { p: 'field', base: { p: 'local', id: this.lookup(cur, cur.text).id }, path };
     }
 
@@ -388,6 +439,24 @@ class SystemLowerer {
         return { e: 'call', fn, args, type: F64 };
     }
 
+    /** A read of a module-level constant becomes the value, not a load. */
+    private foldConst(node: ts.Expression): Expr | null {
+        const path: string[] = [];
+        let cur: ts.Expression = node;
+        while (ts.isPropertyAccessExpression(cur)) {
+            path.unshift(cur.name.text);
+            cur = cur.expression;
+        }
+        if (!ts.isIdentifier(cur)) return null;
+        // A local of the same name shadows the module constant, as it does in TS.
+        if (this.scopes.some((sc) => sc.has(cur.text))) return null;
+        const v = this.constAt(cur.text, path);
+        if (v === null || typeof v === 'object') return null;
+        return typeof v === 'boolean'
+            ? { e: 'const', value: v, type: BOOL }
+            : { e: 'const', value: v, type: F64 };
+    }
+
     private expr(node: ts.Expression): Expr {
         if (ts.isParenthesizedExpression(node)) return this.expr(node.expression);
         if (ts.isNumericLiteral(node)) return { e: 'const', value: Number(node.text), type: F64 };
@@ -425,6 +494,8 @@ class SystemLowerer {
         }
         if (ts.isCallExpression(node)) return this.mathCall(node);
         if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
+            const folded = this.foldConst(node);
+            if (folded) return folded;
             return { e: 'read', place: this.place(node), type: this.placeType(node) };
         }
         throw new NotInSubset(node, `${ts.SyntaxKind[node.kind]} is not an expression this subset lowers`);
@@ -495,6 +566,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     // things; move.ts happens to use one word for both, which is why this was
     // missing until a fixture used two.
     const bindings = new Map<string, string>();
+    const consts = new Map<string, ConstValue>();
     const systems: EirSystem[] = [];
     const diagnostics: Diagnostic[] = [];
     const seen: string[] = [];
@@ -522,7 +594,16 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         ts.forEachChild(sf, (c) => go(c, null));
     };
 
-    // Components first: a system in one file names a component declared in another.
+    // Constants and components first: a system in one file names both from another.
+    for (const sf of sources) {
+        walkTop(sf, (node, binding) => {
+            // The declaration's own name, not the binding walkTop passes DOWN to
+            // an initializer: at the declaration node itself that is still null.
+            if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return;
+            const v = constValue(node.initializer);
+            if (v !== null) consts.set(node.name.text, v);
+        });
+    }
     for (const sf of sources) {
         walkTop(sf, (node, binding) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
@@ -561,7 +642,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
                     throw new NotInSubset(node, 'defineSystem takes a parameter array and an arrow function');
                 }
-                systems.push(new SystemLowerer(comps, bindings).lower(name, params, fn));
+                systems.push(new SystemLowerer(comps, bindings, consts).lower(name, params, fn));
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({

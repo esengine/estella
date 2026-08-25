@@ -75,3 +75,17 @@ export const writesReadOnly = defineSystem(
     },
     { name: 'FixtureWritesReadOnly' },
 );
+
+const LIMIT = 42;
+
+/** Assigning to a module constant: it is a value, not storage. */
+export const writesConst = defineSystem(
+    [Query(Mut(Transform), Speed)],
+    (query) => {
+        for (const [_e, t, s] of query) {
+            t.position.x = LIMIT + s.value;
+            LIMIT.foo = 1;
+        }
+    },
+    { name: 'FixtureWritesConst' },
+);

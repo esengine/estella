@@ -21,7 +21,7 @@ import { runSystem, type EirWorld, type Row } from '../src/interp';
 import { builtinShapes } from '../src/builtins';
 import { printSystem } from '../src/eir';
 
-import { driftSystem, clampSystem } from './fixtures/in-subset';
+import { driftSystem, clampSystem, tunedSystem } from './fixtures/in-subset';
 import type { StubSystem } from './stubs/esengine';
 
 const FIXTURE = resolve(fileURLToPath(new URL('./fixtures/in-subset.ts', import.meta.url)));
@@ -74,6 +74,7 @@ function runNative(world: EirWorld): void {
 const { module, diagnostics } = lowerProgram([FIXTURE], builtinShapes());
 const drift = module.systems.find((s) => s.name === 'FixtureDrift');
 const clamp = module.systems.find((s) => s.name === 'FixtureClampSys');
+const tuned = module.systems.find((s) => s.name === 'FixtureTuned');
 
 describe('conformance — locals, branches, logic', () => {
     it('compiles', () => {
@@ -195,4 +196,52 @@ describe('conformance — ternaries and exact Math', () => {
         expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
     });
 
+});
+
+describe('conformance — module constants', () => {
+    function runTunedNative(world: EirWorld): void {
+        const sys = tunedSystem as unknown as StubSystem;
+        const transforms = world.comps.get('Transform')!;
+        const drifts = world.comps.get('FixtureDrift')!;
+        const query = {
+            *[Symbol.iterator]() {
+                for (const e of world.entities) {
+                    if (transforms.has(e) && drifts.has(e)) yield [e, transforms.get(e)!, drifts.get(e)!];
+                }
+            },
+        };
+        (sys.fn as unknown as (q: unknown, t: unknown) => void)(query, world.resources.get('Time'));
+    }
+
+    it('compiles and verifies', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixtureTuned').map((d) => d.message)).toEqual([]);
+        expect(tuned).toBeDefined();
+        expect(verifySystem(tuned!, module.comps)).toEqual([]);
+    });
+
+    it('folds the constants rather than loading them', () => {
+        const text = printSystem(tuned!);
+        // The values, not the names: WRAP is 120 and TUNING.damping is 0.9.
+        expect(text).toContain('120');
+        expect(text).toContain('0.9');
+        expect(text).not.toContain('WRAP)');
+        expect(text).not.toContain('TUNING');
+    });
+
+    it('lets a local shadow a module constant', () => {
+        // Inside the if, WRAP is a local; folding that ignored scope would print
+        // the module value 120 in its place.
+        expect(printSystem(tuned!)).toContain('let WRAP = drift.rate');
+        expect(printSystem(tuned!)).toContain('(WRAP > 100)');
+    });
+
+    it('agrees with node over 40 frames', () => {
+        const byNode = makeWorld();
+        const byEir = makeWorld();
+        for (let f = 0; f < 40; f++) {
+            runTunedNative(byNode);
+            runSystem(tuned!, byEir);
+        }
+        expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
+    });
 });

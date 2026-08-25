@@ -49,3 +49,26 @@ export const clampSystem = defineSystem(
     },
     { name: 'FixtureClampSys' },
 );
+
+// Module-level literals: values, not storage. A system reading one gets a
+// constant folded in, and a local of the same name must still shadow it.
+const WRAP = 120;
+const TUNING = { damping: 0.9, boost: 2 };
+
+export const tunedSystem = defineSystem(
+    [Query(Mut(Transform), Drift), Res(Time)],
+    (query, time) => {
+        for (const [, transform, drift] of query) {
+            const step = drift.rate * time.delta * TUNING.damping;
+            const nx = transform.position.x + step * (drift.enabled ? TUNING.boost : 1);
+            transform.position.x = nx > WRAP ? nx - WRAP * 2 : nx;
+            if (drift.enabled) {
+                // Genuinely shadows the module constant: a read of WRAP in here
+                // must be the local, not 120.
+                const WRAP = drift.rate;
+                transform.position.y = WRAP > 100 ? 1 : 0;
+            }
+        }
+    },
+    { name: 'FixtureTuned' },
+);
