@@ -11,15 +11,25 @@
 #include <cstdio>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#include <chrono>
 #endif
 
 namespace esengine {
 
+/**
+ * Milliseconds from a monotonic origin; only differences mean anything.
+ *
+ * Off Emscripten this returned 0.0 until 2026-08-24, so render.collect,
+ * .submit, .graph and .finalize measured exactly zero on desktop, Android and
+ * iOS — a profiler reporting zero reads as one reporting a fast frame.
+ */
 inline double es_profile_now_ms() {
 #ifdef __EMSCRIPTEN__
     return emscripten_get_now();
 #else
-    return 0.0;
+    using clock = std::chrono::steady_clock;
+    return std::chrono::duration<double, std::milli>(clock::now().time_since_epoch()).count();
 #endif
 }
 

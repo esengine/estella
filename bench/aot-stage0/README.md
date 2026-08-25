@@ -74,3 +74,58 @@ build\cmake\aot-stage0\bench_aot_stage0.exe
 2. **这量的是系统循环，不是一帧。** 一帧里还有 C++ 的工作、渲染提交、调度本身。
    系统循环快 400 倍**不等于**帧快 400 倍 —— Amdahl 说了算。把这个数字翻译成帧预算，
    需要先量出「一帧里有多大比例是 TS 系统代码」，那是另一次测量，这里没做。
+
+---
+
+## `frame-share.mjs` —— Amdahl 的分母
+
+上面那个装置量的是**系统循环**。它决定不了任何事:**一个快 400 倍、却只占一帧 5% 的循环,
+只能让帧快 1.05 倍。** Stage 1 真正取决于的是**占比**。
+
+```sh
+node bench/aot-stage0/frame-share.mjs
+BENCH_ENTITIES=20000 node bench/aot-stage0/frame-share.mjs
+```
+
+它启动真实引擎(headless)、打开 SDK 自带的 profiler(`App.enableStats()` 一直在记这些,
+不需要新埋点),读出每个系统的 ms、各 phase 的 ms 和整帧。
+
+**5000 实体 / node 24 / V8:**
+
+| | ms/帧 | 占比 |
+|---|---|---|
+| `VelocitySystem` | 0.92 | 94% |
+| 其余 11 个 TS 系统 | 0.01 | 1.6% |
+| **TS 系统合计** | **0.93** | **95.6%** |
+| 其余(C++/wasm + 调度) | 0.04 | 4.4% |
+
+**一个交叉验证,值得单独说:** 真实的 `VelocitySystem` 在 V8 下 0.92 ms,而 Stage 0 手抄的
+variant A 在 QuickJS 下 10.4–11.8 ms —— **比值 ~12×,是一个合理的解释器/JIT 比**。
+说明 Stage 0 那份对生成访问器的转写没有在量别的东西。
+
+### 但它看不见渲染器,所以它不报一个数字,报一张表
+
+headless 帧里 `rest` 只有 0.04 ms,因为渲染器根本不在。拿它乘 Stage 0 的因子会得到一个
+凯旋的数字,而那是**分母缺失的产物,不是发现**(本文件第一版就打印了一个)。所以改成扫描未知量:
+
+设 `c` = 无 JIT 帧里原生 C++ 的占比,把 TS 那半边编译掉 F 倍后剩 `c + (1-c)/F`:
+
+| C++ 占比 `c` | 帧加速 |
+|---|---|
+| 5% | 19.1× |
+| 20% | 4.95× |
+| **50%** | **1.99×** ← 再往上 AOT 就不是那根杠杆了 |
+| 80% | 1.25× |
+| 95% | 1.05× |
+
+**结论的形状:渲染器的 C++ 得占到无 JIT 帧的一半以上,AOT 才会掉到 2× 以下。**
+无 JIT 下 TS 那半边还会再涨 ~12 倍而 C++ 不变,`c` 只会更小。
+
+### 还欠一次测量
+
+**真实带渲染的一帧里,渲染器的 C++ 花多少。** wasm 构建已经在记
+(`render.collect` / `.submit` / `.graph` / `.finalize`,走 `ES_PROFILE_SCOPE`)。
+
+**原生构建之前记不了** —— `es_profile_now_ms()` 在非 Emscripten 下 `return 0.0`,
+所以那四个 scope 在桌面 / Android / iOS 上**从来就是 0**。没人发现,是因为一个报 0 的
+profiler 看起来就像一个在报「这帧很快」的 profiler。已修(`std::chrono::steady_clock`)。
