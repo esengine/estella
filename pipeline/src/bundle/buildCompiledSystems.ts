@@ -44,8 +44,9 @@ export interface CompiledSystemInfo {
   symbol: string;
   /** One entry per declared Query: its components, in the order it names them. */
   queries: { comp: string; mut: boolean }[][];
-  /** One entry per declared Res, in declaration order. */
-  resources: string[];
+  /** One per declared Res/ResMut, in declaration order. `mut` is what makes the
+   *  runtime write a mirrored resource back after the call. */
+  resources: { name: string; mut: boolean }[];
 }
 
 export interface CompiledSystemsManifest {
@@ -225,7 +226,7 @@ export async function buildCompiledSystems(
         name: sys.name,
         symbol: cSymbol(sys.name),
         queries: plan.queries.map((q) => q.map((a) => ({ comp: a.comp, mut: a.mut }))),
-        resources: [...plan.resources],
+        resources: plan.resources.map((r) => ({ name: r.name, mut: r.mut })),
       };
     }),
   };

@@ -26,6 +26,8 @@ export interface AotAddresses {
      * doing that per call rather than per row is why it is one call.
      */
     resourceAt(name: string): number | undefined;
+    /** Copy the mirror back, for a resource the system declared `ResMut`. */
+    resourceWriteBack(name: string): void;
     /** The definition a manifest's component NAME refers to in this world. */
     componentNamed(name: string): AnyComponentDef | undefined;
 }

@@ -69,7 +69,7 @@ interface QueryPlan {
 
 interface Plan {
     readonly queries: QueryPlan[];
-    readonly resources: readonly string[];
+    readonly resources: readonly { name: string; mut: boolean }[];
     /** Rows for every query, back to back, in query order. */
     scratch: Uint32Array;
     /** Rows written per query this call. */
@@ -101,10 +101,17 @@ export class AotDispatch {
         const plan = this.planFor_(twin);
         this.packRows_(plan, this.world.layoutEpoch());
 
-        const resources = plan.resources.map((name) => this.runtime.addresses.resourceAt(name) ?? 0);
+        const resources = plan.resources.map((r) => this.runtime.addresses.resourceAt(r.name) ?? 0);
         this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
         twin.call(this.runtime.ctx.address);
         this.runtime.systems.noteCall();
+
+        // A resource is a MIRROR: a `ResMut` write lands in the block and nowhere
+        // else. Only the declared ones — copying a read-only mirror back would
+        // overwrite what the engine wrote this frame with a pre-call snapshot.
+        for (const r of plan.resources) {
+            if (r.mut) this.runtime.addresses.resourceWriteBack(r.name);
+        }
 
         for (const cmd of this.runtime.ctx.commands()) {
             // Only despawn is in the v1 record set.

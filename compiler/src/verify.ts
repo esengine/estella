@@ -49,6 +49,11 @@ class Verifier {
         return l;
     }
 
+    /** What a place is rooted in, which is what says whether writing is allowed. */
+    private rootType(p: Place): EirType | null {
+        return p.p === 'local' ? this.local(p.id)?.type ?? null : this.rootType(p.base);
+    }
+
     /** The type a place reads as, or null when it does not resolve. */
     placeType(p: Place): EirType | null {
         if (p.p === 'local') return this.local(p.id)?.type ?? null;
@@ -155,6 +160,13 @@ class Verifier {
                 const value = this.exprType(s.value);
                 if (target && value && target.k !== value.k) {
                     this.fail(`assigning ${typeName(value)} into a ${typeName(target)}`);
+                }
+                // The read-only half of ResMut, proved on the IR: a host writes
+                // a resource block back only when the declaration asked for it,
+                // so a write through `Res` would be dropped rather than refused.
+                const root = this.rootType(s.target);
+                if (root && root.k === 'res' && !root.mut) {
+                    this.fail(`'${root.name}' is written but the system declared Res, not ResMut`);
                 }
                 break;
             }

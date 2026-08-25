@@ -98,13 +98,13 @@ describe('the promised systems in a web package', () => {
 
     const manifest = JSON.parse(readFileSync(path.join(f.out, AOT_MANIFEST), 'utf8')) as {
       engineAbi: string; projectShapes: string;
-      systems: { name: string; symbol: string; queries: { comp: string; mut: boolean }[][]; resources: string[] }[];
+      systems: { name: string; symbol: string; queries: { comp: string; mut: boolean }[][]; resources: { name: string; mut: boolean }[] }[];
     };
     expect(manifest.systems).toEqual([{
       name: 'MoveSystem',
       symbol: 'es_sys_MoveSystem',
       queries: [[{ comp: 'Transform', mut: true }, { comp: 'Mover', mut: false }]],
-      resources: ['Time'],
+      resources: [{ name: 'Time', mut: false }],
     }]);
     expect(manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
 

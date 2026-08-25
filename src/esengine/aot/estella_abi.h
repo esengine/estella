@@ -74,6 +74,9 @@ typedef struct EsSystemDecl {
     void (*fn)(es_addr_t);
     const EsQueryDecl *queries;
     const char *const *resources;
+    /* 1 where the system declared ResMut: a host that MIRRORS a resource into
+       the block has to write that block back, or the write is dropped. */
+    const unsigned char *resourcesMut;
     uint32_t queryCount;
     uint32_t resourceCount;
 } EsSystemDecl;

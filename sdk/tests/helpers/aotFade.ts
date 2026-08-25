@@ -53,18 +53,50 @@ export const FADE_PROBE_ALPHA = -1;
 
 export const FADE_FIELDS = ['alpha', 'step'];
 
-export function buildFadeModule(emcc: string, source: string = FADE_C): Uint8Array {
-    const dir = mkdtempSync(path.join(tmpdir(), 'estella-fade-'));
+export function buildAotModule(emcc: string, source: string, symbol: string): Uint8Array {
+    const dir = mkdtempSync(path.join(tmpdir(), 'estella-aot-'));
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, 'sys.c'), source);
     const out = path.join(dir, 'sys.wasm');
     const built = spawnSync(emcc, [
         '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Fade',
+        ...WASM_LINK_FLAGS, `-sEXPORTED_FUNCTIONS=_${symbol}`,
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
     return readFileSync(out);
+}
+
+export function buildFadeModule(emcc: string, source: string = FADE_C): Uint8Array {
+    return buildAotModule(emcc, source, 'es_sys_Fade');
+}
+
+/**
+ * A system that writes a RESOURCE: `Time.scale = 2`. Time is the resource with
+ * a layout, and `scale` is slot 6 of it — the order in `resourceShapes.ts` IS
+ * the layout, which is why both sides read that one file.
+ */
+export const TIME_SCALE_C = `#include <stdint.h>
+#include <string.h>
+typedef uint32_t es_addr_t;
+#define ES_PTR(a) ((unsigned char *)(a))
+typedef struct { es_addr_t queries, resources, cmdBuf, cmdCap, cmdCount, events; } EsSysCtx;
+static void st(unsigned char *p, double v) { memcpy(p, &v, 8); }
+
+void es_sys_Speed(es_addr_t ctx) {
+    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
+    const es_addr_t *res = (const es_addr_t *)ES_PTR(c->resources);
+    st(ES_PTR(res[0]) + 6u * 8u, 2.0);      /* Time.scale = 2 */
+}
+`;
+
+/** What a build writes for that one, with Time declared writable or not. */
+export function timeScaleManifest(mut: boolean): AotManifest {
+    return {
+        engineAbi: engineAbiDigest(4),
+        projectShapes: projectShapeDigest([]),
+        systems: [{ name: 'Speed', symbol: 'es_sys_Speed', queries: [], resources: [{ name: 'Time', mut }] }],
+    };
 }
 
 /** What a build would have written beside that module, for THIS engine. */

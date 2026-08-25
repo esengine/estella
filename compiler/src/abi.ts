@@ -193,12 +193,19 @@ function store(mem: AbiMemory, at: number, enc: LeafEnc, v: number | boolean): v
  * time — so this function, not a convention, is what both the host and the code
  * generator ask. Two readers of one answer; not two answers.
  */
+/** A resource a system declared, and whether it declared it writable. */
+export interface ResourceArg {
+    readonly name: string;
+    readonly mut: boolean;
+}
+
 export interface SysPlan {
     readonly system: string;
     /** One entry per declared `Query`, in declaration order. */
     readonly queries: readonly (readonly QueryArg[])[];
-    /** One entry per declared `Res`, in declaration order. */
-    readonly resources: readonly string[];
+    /** One entry per declared `Res`/`ResMut`, in declaration order. `mut` is
+     *  what tells a mirroring host to write the block back after the call. */
+    readonly resources: readonly ResourceArg[];
     /** One entry per declared channel (`Commands`, later an event reader). */
     readonly channels: readonly string[];
     /** A parameter's local id -> which of the three tables, and which slot. */
@@ -207,7 +214,7 @@ export interface SysPlan {
 
 export function planFor(sys: EirSystem): SysPlan {
     const queries: (readonly QueryArg[])[] = [];
-    const resources: string[] = [];
+    const resources: ResourceArg[] = [];
     const channels: string[] = [];
     const slots = new Map<number, { table: 'query' | 'res' | 'channel'; slot: number }>();
     for (const p of sys.params) {
@@ -218,7 +225,7 @@ export function planFor(sys: EirSystem): SysPlan {
                 break;
             case 'res':
                 slots.set(p.id, { table: 'res', slot: resources.length });
-                resources.push(p.type.name);
+                resources.push({ name: p.type.name, mut: p.type.mut });
                 break;
             case 'channel':
                 slots.set(p.id, { table: 'channel', slot: channels.length });
@@ -261,7 +268,7 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     });
 
     const resTable = mem.scratch(Math.max(4, plan.resources.length * 4));
-    plan.resources.forEach((name, k) => { mem.u32[(resTable >> 2) + k] = mem.resourceBase(name); });
+    plan.resources.forEach((r, k) => { mem.u32[(resTable >> 2) + k] = mem.resourceBase(r.name); });
 
     const cmdCount = mem.scratch(4);
     mem.u32[cmdCount >> 2] = 0;
@@ -316,7 +323,7 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
             store(mem, (base as number) + leaf.byteOffset, leaf.enc, v);
         },
         resource(name) {
-            const k = plan.resources.indexOf(name);
+            const k = plan.resources.findIndex((r) => r.name === name);
             if (k < 0) throw new Error(`ABI: '${plan.system}' reads a resource it did not declare`);
             return mem.u32[(resTable >> 2) + k]!;
         },

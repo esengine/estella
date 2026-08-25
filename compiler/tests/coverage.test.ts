@@ -18,6 +18,12 @@
  *          different components both named 'Health' and silently gave one
  *          project the other's shape.
  *
+ *          The breakdown counts ONE refusal per system: lowering stops at the
+ *          first thing it cannot take, so the list says what systems hit FIRST,
+ *          not everything that would have to be built to compile them. Clearing
+ *          the top line usually reveals the next one rather than raising the
+ *          number.
+ *
  *          It also reports the CEILING: how much of the corpus the contract could
  *          ever take, counting a system as reachable when every refusal against
  *          it is `pending` rather than `permanent`. That number is what says the

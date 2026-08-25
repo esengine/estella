@@ -27,7 +27,8 @@ export type EirType =
     /** A component row — its fields come from the component's declared shape. */
     | { readonly k: 'comp'; readonly name: string }
     /** A resource, addressed by field like a component. */
-    | { readonly k: 'res'; readonly name: string }
+    /** `mut` is `ResMut`: the host has to write the block back after the call. */
+    | { readonly k: 'res'; readonly name: string; readonly mut: boolean }
     | { readonly k: 'query'; readonly args: readonly QueryArg[] }
     /** A deferred-mutation channel: Commands, and later an EventWriter. */
     | { readonly k: 'channel'; readonly name: string };

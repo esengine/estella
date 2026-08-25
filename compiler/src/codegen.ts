@@ -179,6 +179,9 @@ typedef struct EsSystemDecl {
     void (*fn)(es_addr_t);
     const EsQueryDecl *queries;
     const char *const *resources;
+    /* 1 where the system declared ResMut: a host that MIRRORS a resource into
+       the block has to write that block back, or the write is dropped. */
+    const unsigned char *resourcesMut;
     uint32_t queryCount;
     uint32_t resourceCount;
 } EsSystemDecl;
@@ -780,13 +783,16 @@ function emitManifest(systems: readonly EirSystem[], plans: readonly SysPlan[]):
         }
         if (plan.resources.length > 0) {
             out.push(`static const char *const ${tag}_resources[] = { `
-                + `${plan.resources.map((r) => JSON.stringify(r)).join(', ')} };`);
+                + `${plan.resources.map((r) => JSON.stringify(r.name)).join(', ')} };`);
+            out.push(`static const unsigned char ${tag}_resources_mut[] = { `
+                + `${plan.resources.map((r) => (r.mut ? '1u' : '0u')).join(', ')} };`);
         }
         // C has no zero-length array, so an empty table is a null pointer and a
         // count of zero — which is also what a host would check anyway.
         rows.push(`    { ${JSON.stringify(sys.name)}, ${tag}, `
             + `${plan.queries.length > 0 ? `${tag}_queries` : 'NULL'}, `
             + `${plan.resources.length > 0 ? `${tag}_resources` : 'NULL'}, `
+            + `${plan.resources.length > 0 ? `${tag}_resources_mut` : 'NULL'}, `
             + `${plan.queries.length}u, ${plan.resources.length}u },`);
     });
     out.push('');

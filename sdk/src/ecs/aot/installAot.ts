@@ -116,5 +116,6 @@ export function worldAddresses(resources: AotResources): AotAddresses {
     return {
         componentNamed,
         resourceAt: (name: string) => resources.addressOf(name),
+        resourceWriteBack: (name: string) => resources.writeBack(name),
     };
 }

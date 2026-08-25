@@ -66,6 +66,24 @@ export class AotResources {
         return block.byteOffset;
     }
 
+    /**
+     * Copy `name`'s block back onto the live resource, for a system that
+     * declared `ResMut`: a mirror nobody reads back is a write that did not
+     * happen. A field the resource does not hold as a number or a boolean is
+     * skipped, because the block never carried it.
+     */
+    writeBack(name: string): void {
+        const fields = resourceFields(name);
+        const view = this.views.get(name);
+        const value = this.read(name) as Record<string, unknown> | undefined;
+        if (!fields || !view || !value) return;
+        fields.forEach((field, i) => {
+            const was = value[field];
+            if (typeof was === 'boolean') value[field] = view[i] !== 0;
+            else if (typeof was === 'number') value[field] = view[i]!;
+        });
+    }
+
     dispose(): void {
         for (const block of this.blocks.values()) this.memory.release(block);
         this.blocks.clear();

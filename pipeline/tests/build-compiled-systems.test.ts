@@ -218,7 +218,7 @@ describe('the AOT build step', () => {
       name: 'MoveSystem',
       symbol: 'es_sys_MoveSystem',
       queries: [[{ comp: 'Transform', mut: true }, { comp: 'Mover', mut: false }]],
-      resources: ['Time'],
+      resources: [{ name: 'Time', mut: false }],
     }]);
     expect(out.manifest!.engineAbi).toMatch(/^[0-9a-f]{16}$/);
     expect(out.manifest!.projectShapes).toMatch(/^[0-9a-f]{16}$/);
