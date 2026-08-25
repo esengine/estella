@@ -158,11 +158,13 @@ export class World {
         module?: ESEngineModule,
         options?: BridgeConnectOptions,
     ): void {
+        this.addressOf_.clear();
         this.builtin_.connect(cppRegistry, module, options);
     }
 
     /** @internal */
     disconnectCpp(): void {
+        this.addressOf_.clear();
         this.builtin_.disconnect();
     }
 
@@ -1173,12 +1175,26 @@ export class World {
     }
 
     /**
-     * @internal `component`'s bytes for `entity`, in the memory the pool was
-     * allocated from — what a compiled system is handed. Undefined for a
-     * component with no flat rows, which is a component no system compiles
-     * against.
+     * @internal `component`'s bytes for `entity`, in the memory compiled code
+     * reads: an engine component through the bridge, a script one through its
+     * pool. Undefined where there are no flat bytes. The resolver is cached per
+     * component — finding it walks a generated table, and this is asked once per
+     * entity per frame.
      */
-    addressOfScriptComponent(component: AnyComponentDef, entity: Entity): number | undefined {
-        return this.scripts_.poolFor(component._id as symbol)?.address(entity);
+    addressOfComponent(component: AnyComponentDef, entity: Entity): number | undefined {
+        let at = this.addressOf_.get(component._id as symbol);
+        if (at === undefined) {
+            at = isBuiltinComponent(component)
+                ? (this.builtin_.resolveComponentAddress(component._cppName) ?? NO_ADDRESS)
+                : (e: Entity) => this.scripts_.poolFor(component._id as symbol)?.address(e);
+            this.addressOf_.set(component._id as symbol, at);
+        }
+        return at(entity);
     }
+
+    /** Cleared with the bridge, because a reconnect may serve other memory. */
+    private readonly addressOf_ = new Map<symbol, (entity: Entity) => number | undefined>();
 }
+
+/** A component whose backend serves no flat memory: never has an address. */
+const NO_ADDRESS = (): undefined => undefined;

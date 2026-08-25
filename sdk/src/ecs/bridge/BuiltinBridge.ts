@@ -668,6 +668,19 @@ export class BuiltinBridge {
     }
 
     /**
+     * Where `cppName`'s bytes are for an entity: what compiled code adds an EHT
+     * offset to (§2.4). Through the {@link MemoryProvider}, the seam the fast
+     * accessors already use — an address resolved a second way can disagree.
+     * Null where this backend serves no flat memory.
+     */
+    resolveComponentAddress(cppName: string): ((entity: Entity) => number | undefined) | null {
+        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
+        if (!resolveHeap) return null;
+        const heap: ComponentHeap = SCRATCH_HEAP();
+        return (e: Entity) => (resolveHeap(e, heap) ? heap.ptr : undefined);
+    }
+
+    /**
      * The wasm-exported pointer function for `cppName` — `(entity) => byte offset
      * of that entity's component in the wasm heap`. Web/emscripten only (there is
      * no such numeric address on native); the fast path itself goes through the
