@@ -4,10 +4,9 @@
  * @file    verify.ts
  * @brief   Re-prove an EIR system's types, without looking at the TypeScript.
  *
- * @details docs/REARCH_AOT.md §4.1 asks for this because tsc's types are not
- *          sound — structural typing, method bivariance and `any` leak through
- *          generics — so a pass has to prove, on the IR, that every value is the
- *          type it claims.
+ * @details tsc's types are not sound — structural typing, method bivariance and
+ *          `any` all leak through generics — so a pass has to prove, on the IR,
+ *          that every value is the type it claims.
  *
  *          It reads only EIR, never the AST. That is the point: re-running the
  *          frontend's own reasoning would agree with the frontend's own bugs,

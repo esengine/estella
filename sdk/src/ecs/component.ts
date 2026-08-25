@@ -283,7 +283,7 @@ function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; 
 // component storage instead of minting a fresh identity that silently misses every
 // existing entity. Component DATA stays isolated per-App at the World/storage layer,
 // not at the id, so sharing ids by name across contexts is safe — the same reason
-// builtins share one global id across every App. See docs/REARCH_HOT_RELOAD.md §3.
+// builtins share one global id across every App.
 const componentIdRegistry = new Map<string, symbol>();
 function componentId(name: string): symbol {
     let id = componentIdRegistry.get(name);

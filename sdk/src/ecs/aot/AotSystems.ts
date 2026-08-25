@@ -4,12 +4,12 @@
  * @file    AotSystems.ts
  * @brief   The compiled twins a build produced, and how a system finds its own.
  *
- * @details `REARCH_AOT.md` §9 settles when a twin is used: the editor's preview
- *          always interprets, and AOT is a shipping mode. So the runner has one
- *          rule — call the twin if there IS one — and the decision lives in who
+ * @details When a twin is used is settled: the editor's preview always
+ *          interprets, and AOT is a shipping mode. So the runner has one rule —
+ *          call the twin if there IS one — and the decision lives in who
  *          installs, which is the build, once, at load.
  *
- *          Installing verifies the handshake first (§2.5). A module whose
+ *          Installing verifies the handshake first. A module whose
  *          contract hash disagrees is REFUSED, not warned about: mismatched
  *          offsets do not produce an error, they produce a read of a different
  *          field.

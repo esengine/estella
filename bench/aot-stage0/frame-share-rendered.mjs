@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    frame-share-rendered.mjs
- * @brief   `c` — the C++ share of a REAL rendered frame (docs/REARCH_AOT.md §14).
+ * @brief   `c` — the C++ share of a REAL rendered frame.
  *
  * @details frame-share.mjs runs headless, so the renderer is missing and the TS
  *          share it reports is an upper bound. This drives the pixel-gate host
@@ -124,7 +124,7 @@ const c = cpu > 0 ? cpp / cpu : 0;
 const gpu = median(frames.map((f) => (typeof f.gpuMs === 'number' ? f.gpuMs : -1)));
 
 console.log('\n' + '='.repeat(70));
-console.log('Estella AOT — `c` from a rendered frame   (REARCH_AOT.md §14)');
+console.log('Estella AOT — `c` from a rendered frame');
 console.log(`  frames    : ${n} recorded, ${result.entityCount} entities, ${result.drawCalls} draw call(s)`);
 console.log(`  runtime   : wasm under V8 — see the header for which way that biases c`);
 console.log('='.repeat(70));
@@ -168,7 +168,7 @@ console.log('');
 console.log(`    compiled TS merely matches a JIT ........ ${floorX.toFixed(1)}x   <- floor`);
 console.log(`    compiled TS runs at native speed ........ ${ceilX.toFixed(1)}x   <- ceiling`);
 console.log(`
-  gate (REARCH_AOT §13.4): >= 3x opens Stage 1  ->  ${floorX >= 3 ? 'OPEN' : 'HOLD'}`);
+  gate: >= 3x opens Stage 1  ->  ${floorX >= 3 ? 'OPEN' : 'HOLD'}`);
 
 // This scene carries no game logic (VelocitySystem ~0.01 ms — the copies have no
 // Velocity), so c is at its RENDERING end; headless is the other end at ~4%. The

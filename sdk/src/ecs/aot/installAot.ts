@@ -10,8 +10,8 @@
  *          wiring that was waiting for the handshake to be decided.
  *
  *          The module IMPORTS the engine's memory, so there is nothing to link
- *          and no engine change: it reads the components where they already are
- *          (docs/REARCH_AOT.md §6.1).
+ *          and no engine change: it reads the components where they already
+ *          are.
  *
  *          Refuses rather than degrades. A module built for other offsets does
  *          not produce a wrong answer, it produces a read of a different field,

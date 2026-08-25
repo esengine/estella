@@ -7,7 +7,7 @@
  * @details PTR_LAYOUTS is generated from the C++ structs and is what the SDK's
  *          accessors and the ABI hash already agree on. The compiler consumes it
  *          for the same reason: a component's fields must have exactly one
- *          author (docs/REARCH_AOT.md §1.2).
+ *          author.
  *
  *          Resources have no such table yet — `Time` is spelled out below and
  *          marked, because a shape with no generator is exactly the drift this
@@ -92,7 +92,7 @@ export function resourceNames(): readonly string[] {
 }
 
 /**
- * EHT's table, flattened for the §2.5 handshake. It stamps the OFFSETS rather
+ * EHT's table, flattened for the handshake. It stamps the OFFSETS rather
  * than importing `ABI_LAYOUT_HASH`: that constant lives in
  * `component.generated.ts`, whose imports reach the whole SDK runtime. The raw
  * table is more information than a hash of it, and changes for the same reason.

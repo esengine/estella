@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    abi.test.ts
- * @brief   Is the ABI SUFFICIENT? (docs/REARCH_AOT_ABI.md)
+ * @brief   Is the ABI SUFFICIENT?
  *
  * @details The same interpreter runs the same system twice: once over JS objects
  *          and once over flat memory reached only through what SysCtx carries.
@@ -161,6 +161,6 @@ describe('the ABI is sufficient for the systems the subset compiles', () => {
     });
 
     // "Zero calls into the engine" is not asserted here: it is a property of the
-    // shipped artifact (an empty wasm import section) that the build checks,
-    // per docs/REARCH_AOT_ABI.md §6.5.
+    // shipped artifact — an empty wasm import section — and wasm.test.ts asks it
+    // of the artifact itself.
 });

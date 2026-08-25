@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    move-system.test.ts
- * @brief   Stage 1's exit criterion, end to end (docs/REARCH_AOT.md §10).
+ * @brief   A shipped system, lowered and run — end to end.
  *
  * @details Takes a real system out of examples/, lowers it to EIR, and holds
  *          the interpreter's result against node's.

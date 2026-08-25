@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Project-script bundler (REARCH_EDITOR_REALM.md Phase P1 / RC12 §E8-1).
+ * @file  Project-script bundler.
  *
  * Bundles a project's `src/main.ts` into a single ESM with `esengine` left
  * EXTERNAL, written to `.esengine/cache/`. The bundle's bare `import ... from

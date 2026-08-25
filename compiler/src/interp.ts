@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    interp.ts
- * @brief   A reference interpreter for EIR-high (docs/REARCH_AOT.md §8.1).
+ * @brief   A reference interpreter for EIR-high.
  *
  * @details Written before any code generation, for two reasons. It proves the IR
  *          means something on its own, and it is the third implementation a

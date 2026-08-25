@@ -408,7 +408,7 @@ export class SystemRunner {
     /**
      * Compiled twins, when a shipping build installed them. Absent in the editor
      * and in dev, which is the whole of the mode policy — with nothing installed
-     * there is nothing to dispatch to (docs/REARCH_AOT.md §9).
+     * there is nothing to dispatch to.
      */
     private aot_: AotRuntime | null = null;
 
@@ -594,7 +594,7 @@ export class SystemRunner {
         twin.call(aot.ctx.address);
 
         for (const cmd of aot.ctx.commands()) {
-            // Only despawn is in the v1 record set (REARCH_AOT_ABI.md §2.3).
+            // Only despawn is in the v1 record set.
             if (cmd.kind === CMD_DESPAWN) this.world_.despawn(cmd.a as unknown as Entity);
         }
         this.markCompiledChanges_(twin, queries);

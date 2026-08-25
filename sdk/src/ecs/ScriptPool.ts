@@ -31,7 +31,7 @@ export interface PoolField {
     readonly kind: PoolKind;
 }
 
-/** One f64 per field: what the ABI gives a host record (REARCH_AOT_ABI §2.4). */
+/** One f64 per field: what the ABI gives a host record. */
 export const POOL_SLOT_BYTES = 8;
 
 /** A byte range the pool was given, and where it starts in the host's memory. */
@@ -131,7 +131,7 @@ export class ScriptPool {
      * a constant stride, and a sparse table saying which slot an entity is in.
      * Every address is in the memory the pool allocated from.
      *
-     * Valid until the next growth, which is per call anyway (§2.2).
+     * Valid until the next growth, which is per call anyway.
      */
     span(): { rows: number; stride: number; sparse: number; sparseCount: number } {
         return {
@@ -191,7 +191,7 @@ export class ScriptPool {
      * The address a host hands to compiled code: the row's offset in the memory
      * the pool allocated from, not in the pool's own view. The two differ by
      * `byteOffset` once the rows are carved out of a larger block. Valid until
-     * the next growth, which §2.2 requires anyway.
+     * the next growth, which a one-call lifetime requires anyway.
      */
     address(entity: Entity): number | undefined {
         const base = this.baseOf(entity);

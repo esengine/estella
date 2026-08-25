@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    eir.ts
- * @brief   Estella IR, high level — typed, and ECS-aware (docs/REARCH_AOT.md §4).
+ * @brief   Estella IR, high level — typed, and ECS-aware.
  *
  * @details The reason this layer exists rather than lowering the TS AST straight
  *          to LLVM: by LLVM IR a query is an opaque call, and the optimisations
@@ -75,7 +75,7 @@ export type Expr =
     | { readonly e: 'call'; readonly target: CallTarget; readonly args: readonly Expr[]; readonly type: EirType };
 
 export type CallTarget =
-    /** Only the exactly-specified Math operations (§3.3). */
+    /** Only the Math operations ECMAScript specifies exactly. */
     | { readonly k: 'math'; readonly fn: MathFn }
     | { readonly k: 'fn'; readonly name: string };
 

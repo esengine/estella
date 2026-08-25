@@ -30,7 +30,7 @@
 import { PTR_LAYOUTS } from '../../wasm/ptrLayouts.generated';
 import { RESOURCE_SHAPES } from '../resourceShapes';
 
-/** Sizes of the three ABI structs, in address-wide words (§2.1–2.3). */
+/** Sizes of the three ABI structs, in address-wide words. */
 export const SYSCTX_WORDS = 6;
 export const QUERYROWS_WORDS = 2;
 /** A command is four u32 at every address width. */
