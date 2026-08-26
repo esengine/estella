@@ -1186,6 +1186,19 @@ export class World {
     }
 
     /**
+     * @internal One number for "could any component have moved since you last
+     * asked": the engine's pools (`Registry::layoutEpoch`) plus this SDK's own (a
+     * claimed, released or grown script row). Null where the engine cannot be
+     * asked, which means re-resolve. It says nothing about which entities MATCH;
+     * that is the query cache's answer, and a caller needing both asks both.
+     */
+    layoutEpoch(): number | null {
+        const engine = this.builtin_.layoutEpoch();
+        if (engine === null && this.builtin_.hasCpp) return null;
+        return (engine ?? 0) + this.scripts_.layoutEpoch;
+    }
+
+    /**
      * @internal The same answer as a function, for a caller with a whole column
      * to walk: the lookup above is per entity, and a loop that pays it per row is
      * paying to be told the same thing every time.

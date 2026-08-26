@@ -34,6 +34,18 @@ export class ScriptStorage {
      * linear memory before any component is added, because compiled code cannot
      * reach a JS-heap array; a native one leaves the default.
      */
+    /**
+     * Bumped whenever a pooled row is claimed, released, or moved by a growth —
+     * i.e. whenever an address this storage handed out may have stopped meaning
+     * what it meant. The engine's own pools answer the same question through
+     * `Registry::layoutEpoch`; a caller that holds addresses reads both.
+     */
+    get layoutEpoch(): number {
+        return this.layoutEpoch_;
+    }
+
+    private layoutEpoch_ = 0;
+
     usePoolMemory(memory: PoolMemory): void {
         if (this.pools_.size > 0) {
             throw new Error('ScriptPool memory must be chosen before the first pooled component');
@@ -105,6 +117,9 @@ export class ScriptStorage {
             const { view, isNew } = pool.put(
                 entity, component._default as Record<string, unknown>,
                 filtered as Record<string, unknown> | undefined);
+            // Only a NEW row moves anything: it claims a slot, and claiming may
+            // have grown the pool. Overwriting one leaves every address alone.
+            if (isNew) this.layoutEpoch_++;
             storage.set(entity, view);
             this.note_(entity, component);
             return { value: view as T, isNew };
@@ -146,7 +161,7 @@ export class ScriptStorage {
     remove<T>(entity: Entity, component: ComponentDef<T>): void {
         const storage = this.tsStorage_.get(component._id);
         storage?.delete(entity);
-        this.pools_.get(component._id)?.delete(entity);
+        if (this.pools_.get(component._id)?.delete(entity)) this.layoutEpoch_++;
         const ids = this.entityComponents_.get(entity);
         if (ids) {
             ids.delete(component._id);
@@ -177,6 +192,7 @@ export class ScriptStorage {
             const { view, isNew } = pool.put(
                 entity, component._default as Record<string, unknown>,
                 (data ?? undefined) as Record<string, unknown> | undefined);
+            if (isNew) this.layoutEpoch_++;
             storage.set(entity, view);
             this.note_(entity, component);
             return { isNew };
@@ -216,7 +232,7 @@ export class ScriptStorage {
         const removed: symbol[] = [];
         for (const id of ids) {
             this.tsStorage_.get(id)?.delete(entity);
-            this.pools_.get(id)?.delete(entity);
+            if (this.pools_.get(id)?.delete(entity)) this.layoutEpoch_++;
             removed.push(id);
         }
         this.entityComponents_.delete(entity);

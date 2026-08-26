@@ -334,6 +334,7 @@ postprocess_setUniformVec4: (passName: string, uniform: string, x: number, y: nu
 postprocess_shutdown: () => void
 provideReplacementDevice: (() => boolean) | undefined
 recoverDevice: (() => boolean) | undefined
+registryLayoutEpoch: (registry: CppRegistry) => number
 registry_batchSyncPhysicsTransforms: (registry: CppRegistry, bufferPtr: number, count: number, ppu: number) => void
 registry_getCameraEntities: (registry: CppRegistry) => number[]
 registry_getCanvasEntities: ((registry: CppRegistry) => number[]) | undefined

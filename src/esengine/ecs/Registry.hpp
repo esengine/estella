@@ -513,6 +513,23 @@ public:
         return rank;
     }
 
+    /**
+     * @brief Sum of every pool's version — one number for "did anything move"
+     * @return Equal across two reads ⇒ no stored component changed address
+     *
+     * @details A holder of RAW ADDRESSES (the AOT row table) needs one cheap
+     *          question, and one that covers pools it never asked about: a C++
+     *          insert moves that pool with no JS call in it. u64 so it cannot
+     *          wrap onto a value already seen; double because JS takes that.
+     */
+    double layoutEpoch() const {
+        u64 sum = 0;
+        for (const auto& pool : pools_) {
+            if (pool) sum += pool->version();
+        }
+        return static_cast<double>(sum);
+    }
+
     /** @brief Reorders every component pool by a rank table from buildEntityRank. */
     void applyEntityRank(const std::vector<u32>& rank) {
         for (auto& pool : pools_) {

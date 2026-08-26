@@ -571,6 +571,14 @@ export interface ESEngineModule {
     anim_updateTweens(registry: CppRegistry, deltaTime: number): void;
     anim_getTweenState(registry: CppRegistry, tweenEntity: number): number;
 
+    /**
+     * Every component pool's version, summed (`Registry::layoutEpoch`). Equal
+     * across two reads means no stored component changed address between them —
+     * which is what a holder of raw addresses (the AOT row table) asks before
+     * trusting them for another frame.
+     */
+    registryLayoutEpoch(registry: CppRegistry): number;
+
     // Pointer-based component access
     getTransformPtr(registry: CppRegistry, entity: number): number;
     getSpritePtr(registry: CppRegistry, entity: number): number;

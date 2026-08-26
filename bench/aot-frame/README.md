@@ -58,10 +58,21 @@ now a plan built once per system and a flat block written straight through
 | script compiled | 81.9 ns | 27.3 ns |
 | thin interpreted (control) | 163.2 ns | 162.3 ns |
 
-**The body is only now becoming visible.** Under 83 ns of plumbing, thin and heavy
-compiled to the same number; under 27 ns, heavy costs about 20% more than thin. That is
-the shape to expect from here: the closer the plumbing gets to zero, the more a ratio
-depends on what the system actually computes.
+**Then the rows stopped being repacked at all.** A row table is a function of which
+entities match and where their components are; both have an authority that answers
+cheaply (the query cache hands back the same array while its answer stands, and
+`Registry::layoutEpoch` sums every pool's own version), so when neither moved, last
+frame's rows are this frame's. Same bench, after that:
+
+| | packed every frame | kept |
+|---|---|---|
+| thin compiled | 27.5 ns | **2.1 ns** |
+| script compiled | 27.3 ns | **2.8 ns** |
+| heavy compiled | 33.8 ns | **9.4 ns** |
+
+**The body is the cost now**, which is the shape AOT should have: heavy is 4x thin
+where under 83 ns of plumbing the two were indistinguishable. Ratios at 5,000 entities
+run 19x (heavy) to 110x (script).
 
 ## What this is NOT
 

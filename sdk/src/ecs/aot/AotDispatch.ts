@@ -22,6 +22,19 @@
  *          block. The nested `[entity, addr, addr]` arrays this replaced were two
  *          allocations per entity per frame and then a word-by-word copy of the
  *          same numbers.
+ *
+ *          And then they are KEPT. A row table is a function of two things: which
+ *          entities match, and where their components are. Each has an authority
+ *          that already answers cheaply — the query cache hands back the very same
+ *          array while its answer stands, and `World.layoutEpoch` is one number
+ *          over every pool's own version. When neither moved, last frame's rows
+ *          are this frame's rows, and packing is the cost that disappears
+ *          (bench/aot-frame: 27.5 ns per entity per frame to under 2).
+ *
+ *          A world that cannot answer the second question — an engine artifact
+ *          with no epoch binding — repacks every frame. Trusting an address
+ *          because nobody could tell us it moved is how a compiled system reads
+ *          somebody else's bytes.
  */
 
 import type { AnyComponentDef } from '../component';
@@ -33,6 +46,8 @@ import type { AotTwin } from './AotSystems';
 
 /** No `With`/`Without` on a compiled query; the subset has no syntax for one. */
 const NO_FILTERS: AnyComponentDef[] = [];
+/** What a query that named an unknown component matches. */
+const EMPTY_ENTITIES: readonly Entity[] = [];
 
 /** What one declared Query needs, resolved once. */
 interface QueryPlan {
@@ -63,6 +78,12 @@ interface Plan {
     readonly offsets: Uint32Array;
     /** How much of `scratch` this call filled. */
     rowWords: number;
+    /** The entity array each query was packed from, by identity: the query cache
+     *  returns the same one while its answer stands, and a different one the
+     *  moment the set or the order changed. */
+    readonly packedFrom: (readonly Entity[] | null)[];
+    /** `World.layoutEpoch` when they were packed; null when it cannot be had. */
+    packedAt: number | null;
 }
 
 /**
@@ -78,7 +99,7 @@ export class AotDispatch {
 
     run(twin: AotTwin): void {
         const plan = this.planFor_(twin);
-        this.packRows_(plan);
+        this.packRows_(plan, this.world.layoutEpoch());
 
         const resources = plan.resources.map((name) => this.runtime.addresses.resourceAt(name) ?? 0);
         this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
@@ -102,17 +123,32 @@ export class AotDispatch {
      * A row whose components cannot all answer is not written: an address of zero
      * is a real address, and the compiled code would read somebody else's bytes.
      */
-    private packRows_(plan: Plan): void {
+    private packRows_(plan: Plan, epoch: number | null): void {
+        // The whole table or none of it: one query's rows moving says nothing
+        // about another's, but a repack is a walk of both and this way there is
+        // one condition to reason about rather than one per query.
+        let reuse = epoch !== null && epoch === plan.packedAt;
+        const lists: (readonly Entity[])[] = [];
+        for (let k = 0; k < plan.queries.length; k++) {
+            const q = plan.queries[k];
+            const entities = q.resolved
+                ? this.world.queryEntities(q.comps, NO_FILTERS, NO_FILTERS, q.key, undefined, q.depIds)
+                : EMPTY_ENTITIES;
+            lists.push(entities);
+            if (entities !== plan.packedFrom[k]) reuse = false;
+        }
+        if (reuse) return;
+
         let at = 0;
         for (let k = 0; k < plan.queries.length; k++) {
             const q = plan.queries[k];
             plan.offsets[k] = at;
+            plan.packedFrom[k] = lists[k]!;
             if (!q.resolved) {
                 plan.counts[k] = 0;
                 continue;
             }
-            const entities = this.world.queryEntities(
-                q.comps, NO_FILTERS, NO_FILTERS, q.key, undefined, q.depIds);
+            const entities = lists[k]!;
             plan.scratch = grow(plan.scratch, at + entities.length * q.width);
             const rows = plan.scratch;
             const width = q.width;
@@ -135,6 +171,7 @@ export class AotDispatch {
             at += n * width;
         }
         plan.rowWords = at;
+        plan.packedAt = epoch;
     }
 
     /**
@@ -185,6 +222,8 @@ export class AotDispatch {
             counts: new Uint32Array(queries.length),
             offsets: new Uint32Array(queries.length),
             rowWords: 0,
+            packedFrom: queries.map(() => null),
+            packedAt: null,
         };
         this.plans.set(twin, plan);
         return plan;

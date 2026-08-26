@@ -546,6 +546,20 @@ export class BuiltinBridge {
         return this.builtinMethodCache_;
     }
 
+    /**
+     * Every engine pool's version in one number, or null where this build cannot
+     * be asked (no registry, or an artifact older than the binding). Null means
+     * "assume everything moved": a holder of addresses must re-resolve rather
+     * than trust a number it could not read.
+     */
+    layoutEpoch(): number | null {
+        const registry = this.cppRegistry_;
+        if (!registry) return null;
+        const fn = (this.module_ as unknown as Record<string, unknown> | null)?.['registryLayoutEpoch'];
+        if (typeof fn !== 'function') return null;
+        return (fn as (r: CppRegistry) => number)(registry);
+    }
+
     getEntitySet(cppName: string): Set<Entity> | undefined {
         return this.builtinEntitySets_.get(cppName);
     }

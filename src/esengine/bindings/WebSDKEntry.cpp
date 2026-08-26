@@ -387,6 +387,12 @@ int getTransformPtr(ecs::Registry& r, u32 e) {
     return static_cast<int>(reinterpret_cast<uintptr_t>(t));
 }
 
+// Every pool's version in one number: what a holder of raw component addresses
+// asks before trusting them for another frame (Registry::layoutEpoch).
+double registryLayoutEpoch(ecs::Registry& r) {
+    return r.layoutEpoch();
+}
+
 int getSpritePtr(ecs::Registry& r, u32 e) {
     auto* s = r.tryGet<ecs::Sprite>(Entity::fromRaw(e));
     if (!s) return 0;
@@ -427,6 +433,7 @@ int getCircleCollider2DPtr(ecs::Registry& r, u32 e) {
 
 EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
     emscripten::function("getTransformPtr", &esengine::getTransformPtr);
+    emscripten::function("registryLayoutEpoch", &esengine::registryLayoutEpoch);
     emscripten::function("getSpritePtr", &esengine::getSpritePtr);
     emscripten::function("getVelocityPtr", &esengine::getVelocityPtr);
     emscripten::function("getCameraPtr", &esengine::getCameraPtr);
