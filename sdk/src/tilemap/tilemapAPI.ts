@@ -96,12 +96,10 @@ export function shutdownTilemapAPI(): void {
  * App is in scope. Both names are the same object.
  */
 /**
- * u32s per slot in the `tilemap_setTilesets` buffer, and the order they are in:
- * [firstId, textureHandle, columns, margin, spacing, extrude].
- *
- * Two files unpack this — here and `TilemapBindings.cpp`. There is no generator
- * for it, so the number is named on both sides and the field list is stated
- * once, rather than a bare 6 appearing twice and drifting.
+ * u32s per slot in the `tilemap_setTilesets` buffer, in the order
+ * [firstId, textureHandle, columns, margin, spacing, extrude]. Two files unpack
+ * it and no generator spans them, so the number is named on both sides —
+ * `TilemapBindings.cpp` is the other half.
  */
 export const TILESET_SLOT_STRIDE = 6;
 

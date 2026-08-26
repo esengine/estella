@@ -61,18 +61,9 @@ private:
         f32 uvStepX = 0.0f;
         f32 uvOffsetY = 0.0f;
         f32 uvStepY = 0.0f;
-        // How far each tile-corner UV is pulled in from the cell rect, so an
-        // interpolated sample never crosses into the neighbouring atlas cell.
-        //
-        // ZERO when the tileset is extruded, which is the case worth having: the
-        // atlas itself guarantees no crossing, so the quad's UV rect equals its
-        // geometry rect and the tile is drawn undistorted.
-        //
-        // HALF A TEXEL on a packed atlas, where the two cannot both hold. It buys
-        // no-bleed by shrinking the sampled rect a whole texel while the quad keeps
-        // the full tile — so every tile is stretched by N/(N-1) and the sampling
-        // phase resets at each boundary, which is a visible seam on tiles meant to
-        // butt together. Extrude the tileset to stop paying it.
+        // How far a tile-corner UV is pulled in from the cell rect. Zero when the
+        // tileset is extruded (the atlas guarantees no crossing, so UV rect ==
+        // geometry rect); half a texel on a packed atlas, which stretches the tile.
         f32 insetU = 0.0f;
         f32 insetV = 0.0f;
         // How many tiles the texture actually holds, at this layer's cell size.

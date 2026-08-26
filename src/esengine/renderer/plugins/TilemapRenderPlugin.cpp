@@ -235,11 +235,9 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].uvOffsetY = margin / th;
             resolved[i].uvStepX = (layer.tile_width + spacing) / tw;
             resolved[i].uvStepY = (layer.tile_height + spacing) / th;
-            // An extruded atlas already carries the guarantee the inset was
-            // buying — a sample that leaves the cell reads a copy of that cell's
-            // own edge — so the exact rect is safe, and the exact rect is the
-            // only one that does not stretch the tile. On a packed atlas the
-            // inset is still the trade that has to be made.
+            // An extruded atlas guarantees a stray sample reads the cell's own
+            // edge, so the exact rect is safe — and it is the only rect that does
+            // not stretch the tile. A packed atlas must still inset.
             const bool extruded = slots[i].extrude > 0;
             resolved[i].insetU = extruded ? 0.0f : 0.5f / tw;
             resolved[i].insetV = extruded ? 0.0f : 0.5f / th;

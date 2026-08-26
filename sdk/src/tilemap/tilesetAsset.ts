@@ -115,21 +115,10 @@ export interface TilesetAsset {
     /** Gap (px) between adjacent tiles. */
     spacing: number;
     /**
-     * Border of duplicated edge pixels each cell carries in the atlas, in px.
-     *
-     * A PROPERTY OF THE TEXTURE, established by whoever produced it — the import
-     * writes an extruded atlas and stamps the number here. Non-zero means a
-     * sample that strays outside a cell reads a copy of that cell's own edge, so
-     * the renderer sends the exact cell rect and insets nothing.
-     *
-     * Zero means it must still buy no-bleed with a half-texel inset, and on a
-     * gapless atlas those two cannot both hold from UVs alone: the inset shrinks
-     * the sampled rect by a whole texel while the quad keeps the full tile, so
-     * every tile is stretched by N/(N-1) and the sampling phase resets at each
-     * boundary. That is a seam on tiles meant to butt together.
-     *
-     * Non-zero implies `margin === extrude` and `spacing === 2 * extrude`: the
-     * extruded layout is the only one where every cell gets its own border.
+     * Border of duplicated edge pixels each cell carries in the atlas, in px — a
+     * property of the TEXTURE, stamped by whoever produced it. Non-zero lets the
+     * renderer send the exact cell rect instead of insetting half a texel (which
+     * stretches the tile), and implies `margin === extrude`, `spacing === 2 * extrude`.
      */
     extrude: number;
     /** Total tile count (optional; otherwise derived from the texture + grid). */

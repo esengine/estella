@@ -163,23 +163,10 @@ describe('extrudeTileset — the property the seam came from', () => {
 
 describe('extrudeTileset — the seam itself, as the renderer draws it', () => {
   /**
-   * Two cells of art that is continuous across their shared edge — a ramp — is
-   * the shape the reported bug appeared on: a wall of tiles meant to butt
-   * together. Draw a scanline the way TilemapRenderPlugin does and compare it
-   * with the ramp it is supposed to reproduce.
-   *
-   * Three modes, and the third is why extrusion is the answer rather than just
-   * dropping the inset. Measured at 6 screen px per texel, worst departure from
-   * the art in levels (the ramp rises 16 per texel):
-   *
-   *   mode           whole tile   interior only   step at the boundary
-   *   packed+inset       7.83          6.83              18.33
-   *   extruded           6.67          0.00              16.00
-   *   packed+exact       0.00          0.00               2.67
-   *
-   * `packed+exact` looks perfect ONLY because this fixture's atlas neighbour is
-   * also its map neighbour. In a real map the next tile is an arbitrary cell, so
-   * that column is reading foreign content — which the bleed test below shows.
+   * Two cells of art continuous across their shared edge — a wall of tiles meant
+   * to butt together, which is the shape a seam shows on. Draws a scanline the
+   * way TilemapRenderPlugin does. Dropping the inset without extruding measures
+   * perfectly HERE only because this atlas's neighbour is also the map's.
    */
   const TILE = 8, COLS = 2, SCALE = 6.0;
 
@@ -247,12 +234,9 @@ describe('extrudeTileset — the seam itself, as the renderer draws it', () => {
   });
 
   it('what extrusion does NOT do: the filter still stops at the tile boundary', () => {
-    // Stated so it cannot be mistaken for a regression later. The map's next tile
-    // is not the atlas's next cell, so no atlas layout can let the filter blend
-    // across a tile edge; the border clamps instead. The step is therefore one
-    // texel of art — the same as NEAREST would give there — and it is a residual,
-    // not a defect. It is still SMALLER than the inset's, which adds its own
-    // displacement on top.
+    // The map's next tile is not the atlas's next cell, so no atlas layout lets the
+    // filter blend across a tile edge — the border clamps, leaving one texel of
+    // step. A residual, not a defect, and smaller than the inset's.
     const src = ramp();
     const out = extrudeTileset(src, { tileWidth: TILE, tileHeight: TILE, margin: 0, spacing: 0 });
     const step = (l: number[]) => Math.abs(l[BOUNDARY]! - l[BOUNDARY - 1]!);

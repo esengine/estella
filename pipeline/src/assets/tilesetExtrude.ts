@@ -1,27 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Tileset atlas extrusion for the asset import. Pure and deterministic:
- *        the same pixels and grid produce byte-identical output, so it composes
- *        with content-addressed staging exactly like {@link atlasPacker}.
+ * @file  Tileset atlas extrusion for the asset import. Pure and deterministic —
+ *        same pixels and grid, byte-identical output, so it composes with
+ *        content-addressed staging like {@link atlasPacker}.
  *
- * WHY THIS EXISTS. A tile quad's UV rect and its geometry rect must be the same
- * rect, or the tile's texture is stretched and the sampling phase resets at every
- * cell boundary — a visible seam on a wall of repeated tiles, and one that moves
- * as the camera does, because which boundary lands mid-pixel keeps changing.
- * The renderer used to buy no-bleed by insetting the UV half a texel per edge,
- * which is exactly that stretch: the sampled rect lost a whole texel while the
- * quad kept the full tile.
- *
- * On a gapless atlas the two cannot both hold from UVs alone. Extrusion removes
- * the conflict from the DATA instead: give every cell a border made of copies of
- * its own edge pixels, and a sample that strays outside the cell reads the value
- * it would have clamped to anyway. The renderer then sends the exact cell rect
- * and insets nothing.
- *
- * The output is a repack, not an edit in place: cells move to `margin = extrude`,
- * `spacing = 2 * extrude`, which is the only layout where every cell gets its own
- * border regardless of what the source spacing was.
+ * A tile quad's UV rect must equal its geometry rect, and on a gapless atlas that
+ * cannot hold together with no-bleed from UVs alone. Extrusion puts the no-bleed
+ * guarantee in the DATA: every cell gets a border of copies of its own edge
+ * pixels, so a stray sample reads what it would have clamped to.
  */
 import { PNG } from 'pngjs';
 import { atlasCells } from '../../../sdk/src/tilemap/tilesetResolve';
@@ -58,12 +45,10 @@ export interface ExtrudedTileset extends RgbaImage {
 }
 
 /**
- * ONE texel is enough, and the reason is a property of the filter rather than of
- * the art: `GL_LINEAR` without mipmaps weights a 2x2 texel neighbourhood, so a
- * sample taken anywhere inside a cell reaches at most one texel outside it.
- * A tileset that ever gains mipmaps needs this to grow with the chain — mip n
- * reaches 2^n texels — which is why the renderer reads the number back off the
- * asset instead of assuming it.
+ * One texel, because `GL_LINEAR` without mipmaps weights a 2x2 neighbourhood: a
+ * sample inside a cell reaches at most one texel out. Mipmaps would need this to
+ * grow with the chain (mip n reaches 2^n), which is why the renderer reads the
+ * number off the asset rather than assuming it.
  */
 export const DEFAULT_EXTRUDE = 1;
 
@@ -83,15 +68,10 @@ export function gridCells(img: RgbaImage, grid: TilesetGrid): { columns: number;
 }
 
 /**
- * Rebuild `img` with `extrude` px of its own edge pixels around every cell.
- *
- * Each output cell block is filled by sampling the source cell at clamped
- * coordinates — which IS per-cell `CLAMP_TO_EDGE`, and gets the four corners
- * right for free rather than as four more cases.
- *
- * Throws on a grid that describes no cells: an atlas that silently extruded to
- * nothing would ship a blank tileset, and the caller can still choose to leave
- * the texture alone.
+ * Rebuild `img` with `extrude` px of its own edge pixels around every cell, by
+ * sampling each source cell at clamped coordinates — per-cell `CLAMP_TO_EDGE`,
+ * which gets the corners right rather than as four more cases. Throws on a grid
+ * describing no cells, rather than emitting a blank tileset.
  */
 export function extrudeTileset(
     img: RgbaImage,
@@ -133,9 +113,8 @@ export function extrudeTileset(
         }
     }
 
-    // margin = e and spacing = 2e is not a choice among layouts, it is the only
-    // one: every cell needs its own e-px border, and two neighbours contribute
-    // one each to the gap between them.
+    // margin = e, spacing = 2e is the only layout that works: every cell needs its
+    // own e-px border, and two neighbours contribute one each to the gap.
     return { width: outW, height: outH, rgba: out, margin: e, spacing: 2 * e, extrude: e, columns, rows };
 }
 

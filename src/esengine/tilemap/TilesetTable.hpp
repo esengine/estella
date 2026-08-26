@@ -23,10 +23,9 @@ struct TilesetSlot {
     uint32_t columns = 1;         // tiles per row in the tileset texture
     uint32_t margin = 0;          // atlas border in px before the first tile (Tiled margin)
     uint32_t spacing = 0;         // gap in px between adjacent tiles (Tiled spacing)
-    // Duplicated-edge border each cell carries, in px. Non-zero says a sample may
-    // leave the cell and still read that cell's own colour, which is what lets the
-    // renderer send the exact cell rect instead of insetting half a texel and
-    // stretching every tile. 0 = a packed atlas, and the inset is still needed.
+    // Duplicated-edge border each cell carries, in px. Non-zero lets the renderer
+    // send the exact cell rect; 0 = a packed atlas, where it must inset half a
+    // texel and stretch the tile instead.
     uint32_t extrude = 0;
 };
 
