@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    planPresent, worldPerRenderedPixel, viewportPixels, RenderResolution,
+    planPresent, worldPerRenderedPixel, viewportPixels, presentIsWholeMultiple, RenderResolution,
 } from '../src/camera/presentPlan';
 
 /** The surfaces a 1080-tall design actually meets: a panel, a window, a big screen. */
@@ -98,7 +98,7 @@ describe('planPresent — IntegerMultiple', () => {
         expect(plan.renderWidth).toBe(960);
         expect(plan.height).toBe(1080);
         expect(plan.width).toBe(1920);
-        expect(plan.linear).toBe(false);
+        expect(presentIsWholeMultiple(plan)).toBe(true);
         expect(plan.x).toBe(0);
         expect(plan.y).toBe(0);
     });
@@ -110,7 +110,9 @@ describe('planPresent — IntegerMultiple', () => {
         expect(plan.height).toBe(540);
         expect(plan.y).toBe(180);
         expect(plan.x).toBe((1600 - plan.width) / 2);
-        expect(plan.linear).toBe(false);
+        // At 1x the present does not scale at all, so no filter question arises —
+        // a 1:1 blit lands on texel centres whatever the sampler says.
+        expect(plan.oneToOne).toBe(true);
     });
 
     it('the whole-multiple rect is exactly k times the render size, both axes', () => {
@@ -118,19 +120,27 @@ describe('planPresent — IntegerMultiple', () => {
         // resample, which is the thing this policy promises never to do.
         for (const [w, h] of SURFACES) {
             const plan = planPresent(RenderResolution.IntegerMultiple, 360, w, h);
-            if (!plan.linear) {
+            if (presentIsWholeMultiple(plan)) {
                 expect(plan.width / plan.renderWidth).toBe(plan.height / plan.renderHeight);
                 expect(Number.isInteger(plan.width / plan.renderWidth)).toBe(true);
             }
         }
     });
 
-    it('says linear rather than pretending, when it must shrink', () => {
-        // A render taller than the surface has no whole multiple. Claiming crisp
-        // here would be the promise `pixelPerfect` already makes and cannot keep.
+    it('stops being a whole multiple when it must shrink, rather than pretending', () => {
+        // A render taller than the surface has no whole multiple, so the rect says
+        // so and the engine interpolates. Claiming crisp here would be the promise
+        // `pixelPerfect` already makes and cannot keep.
         const plan = planPresent(RenderResolution.IntegerMultiple, 2160, 1244, 700);
-        expect(plan.linear).toBe(true);
+        expect(presentIsWholeMultiple(plan)).toBe(false);
         expect(worldPerRenderedPixel(plan, 2160)).toBe(1);
+    });
+
+    it('Design can land on a whole multiple too, and the engine will see it', () => {
+        // The filter follows the RECT, not the policy. A smooth-scaling project
+        // whose surface happens to be an exact 2x gets the exact copy for free.
+        const plan = planPresent(RenderResolution.Design, 540, 1920, 1080);
+        expect(presentIsWholeMultiple(plan)).toBe(true);
     });
 });
 

@@ -218,6 +218,20 @@ public:
     }
 
     /**
+     * @brief Whether the present is a whole-multiple upscale of the chain.
+     *
+     * @details Inferred from the two rects, for the reason presentScales() is:
+     *          the rect is the one authority, and a filter beside it is a second
+     *          one to disagree with. A whole multiple copies exactly, and
+     *          interpolating it blurs a picture that needed no resampling.
+     */
+    bool presentIsWholeMultiple() const {
+        if (!presentScales() || width_ == 0 || height_ == 0) return false;
+        if (output_vp_w_ % width_ || output_vp_h_ % height_) return false;
+        return output_vp_w_ / width_ == output_vp_h_ / height_;
+    }
+
+    /**
      * @brief Skip the EFFECTS, not the chain.
      *
      * @details It gates the authored passes and nothing else. The linear encode,
@@ -331,6 +345,7 @@ private:
     GfxPixelFormat interFormat() const;
     /** The shape of every target in a chain, the scene target included. */
     rg::TargetDesc chainTarget(bool withDepth) const;
+    rg::TargetDesc blitSourceTarget(bool withDepth) const;
     void ensureGraph();
     void ensureScreenQuad();
     void drawScreenQuad();

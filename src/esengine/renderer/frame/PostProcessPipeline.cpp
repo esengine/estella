@@ -138,6 +138,18 @@ rg::TargetDesc PostProcessPipeline::chainTarget(bool withDepth) const {
     return desc;
 }
 
+/**
+ * The last target in the chain, which only the blit samples. Bilinear everywhere
+ * else for the reason above; here the present decides, because a whole-multiple
+ * upscale wants an exact copy and interpolating it blurs a picture that needed
+ * no resampling.
+ */
+rg::TargetDesc PostProcessPipeline::blitSourceTarget(bool withDepth) const {
+    rg::TargetDesc desc = chainTarget(withDepth);
+    if (presentIsWholeMultiple()) desc.linearFilter = false;
+    return desc;
+}
+
 void PostProcessPipeline::shutdown() {
     if (!initialized_) return;
 
@@ -336,7 +348,11 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     // The graph opens HERE and not at end(), because the scene target is its
     // first resource and the scene is drawn before any pass can be declared.
     graph_->begin(width_, height_);
-    sceneResource_ = graph_->createExternalTarget(chainTarget(scene_needs_depth_));
+    // With no pass to run, the blit samples the scene target itself, so the
+    // present's filter is the one that applies to it.
+    const bool sceneIsBlitSource = bypass_ || passes_.empty();
+    sceneResource_ = graph_->createExternalTarget(
+        sceneIsBlitSource ? blitSourceTarget(scene_needs_depth_) : chainTarget(scene_needs_depth_));
     if (sceneResource_ == rg::kNoResource) {
         ES_LOG_ERROR("PostProcessPipeline: no scene target this frame");
         return;
@@ -531,9 +547,17 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     const u32 outH = std::max(height_, output_vp_y_ + output_vp_h_);
     const rg::ResourceId out = graph_->importTarget(output_target_fbo_, outW, outH);
     const rg::TargetDesc desc = chainTarget(/*withDepth=*/false);
+    const rg::TargetDesc blitDesc = blitSourceTarget(/*withDepth=*/false);
+
+    // Which enabled pass is last decides which target the blit will sample.
+    usize lastEnabled = passes.size();
+    for (usize i = passes.size(); i-- > 0;) {
+        if (passes[i].enabled) { lastEnabled = i; break; }
+    }
 
     rg::ResourceId input = scene;
-    for (auto& pass : passes) {
+    for (usize i = 0; i < passes.size(); ++i) {
+        auto& pass = passes[i];
         if (!pass.enabled) continue;
         rg::PassDesc node;
         node.name = pass.name;
@@ -541,7 +565,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         // composite (bloom's last link) needs the un-blurred image, and the
         // shaders address it as unit 1 — the declaration IS that wiring.
         node.reads = {input, scene};
-        node.write = graph_->createTarget(desc);
+        node.write = graph_->createTarget(i == lastEnabled ? blitDesc : desc);
         node.execute = [this, &pass](const rg::PassContext& ctx) { renderPass(pass, ctx); };
         input = node.write;
         graph_->addPass(std::move(node));

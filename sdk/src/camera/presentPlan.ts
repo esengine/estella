@@ -33,8 +33,9 @@ export enum RenderResolution {
     Design = 1,
     /**
      * As {@link Design}, but the image is presented at a WHOLE multiple of its
-     * own size and unfiltered, so no resampling happens at all. Costs black bars
-     * wherever a whole multiple does not fill the surface.
+     * own size. That rect IS the instruction — the engine reads whole-multiple-ness
+     * off it and copies rather than interpolates, so nothing carries a second
+     * answer. Costs black bars wherever a whole multiple does not fill the surface.
      */
     IntegerMultiple = 2,
 }
@@ -49,8 +50,6 @@ export interface PresentPlan {
     y: number;
     width: number;
     height: number;
-    /** Whether the present may interpolate. False = a whole-pixel copy. */
-    linear: boolean;
     /** True when render size equals the destination rect — the present is a no-op copy. */
     oneToOne: boolean;
 }
@@ -108,7 +107,7 @@ export function planPresent(
     // same answer: draw where you present. Also the fallback for a nonsense
     // world height, because a zero-tall render target is not a picture.
     if (policy === RenderResolution.Surface || !(worldHeight > 0)) {
-        return { renderWidth: sw, renderHeight: sh, x: 0, y: 0, width: sw, height: sh, linear: true, oneToOne: true };
+        return { renderWidth: sw, renderHeight: sh, x: 0, y: 0, width: sw, height: sh, oneToOne: true };
     }
 
     // The render target keeps the SURFACE's aspect, not the design resolution's:
@@ -118,9 +117,9 @@ export function planPresent(
     const renderWidth = clampDim(renderHeight * (sw / sh));
 
     if (policy === RenderResolution.IntegerMultiple) {
-        // The largest whole multiple that still fits. Below 1 there is none, and
-        // a downscale cannot be whole-pixel — so it falls back to filling, and
-        // says so through `linear` rather than pretending to be crisp.
+        // The largest whole multiple that still fits. Below 1 there is none and a
+        // downscale cannot be whole-pixel, so it falls back to filling — the rect
+        // stops being a whole multiple, which is the engine reading the truth.
         const k = Math.floor(Math.min(sw / renderWidth, sh / renderHeight));
         if (k >= 1) {
             const w = renderWidth * k;
@@ -129,7 +128,6 @@ export function planPresent(
                 renderWidth, renderHeight,
                 x: Math.floor((sw - w) / 2), y: Math.floor((sh - h) / 2),
                 width: w, height: h,
-                linear: false,
                 oneToOne: k === 1,
             };
         }
@@ -138,7 +136,6 @@ export function planPresent(
     return {
         renderWidth, renderHeight,
         x: 0, y: 0, width: sw, height: sh,
-        linear: true,
         oneToOne: renderWidth === sw && renderHeight === sh,
     };
 }
@@ -149,4 +146,16 @@ export function planPresent(
  */
 export function worldPerRenderedPixel(plan: PresentPlan, worldHeight: number): number {
     return plan.renderHeight > 0 ? worldHeight / plan.renderHeight : 0;
+}
+
+/**
+ * Whether a plan's present is a whole multiple of its render size — the property
+ * the engine derives from the same two rects to decide whether to interpolate.
+ * Here so a test can assert the rect rather than a claim about it.
+ */
+export function presentIsWholeMultiple(plan: PresentPlan): boolean {
+    if (plan.oneToOne) return false;
+    const kx = plan.width / plan.renderWidth;
+    const ky = plan.height / plan.renderHeight;
+    return Number.isInteger(kx) && kx === ky;
 }
