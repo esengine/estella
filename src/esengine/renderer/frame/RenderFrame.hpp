@@ -282,8 +282,14 @@ private:
     i32 pollReadback(ReadbackHandle& handle, std::vector<u8>& pixels, u32 w, u32 h);
 
     Stats stats_;
+    /**
+     * ONE per frame, spanning the graph. GL's TIME_ELAPSED has a single global
+     * target and WebGPU's timestamps land in one queue, so a second timer opened
+     * inside this one's span does not measure a nested region — it ends this
+     * query on GL and steals this reading on WebGPU. The scene is a pass of the
+     * graph, so its own share is a per-pass question, not a second timer.
+     */
     GpuTimer gpu_timer_;
-    GpuTimer gpu_timer_pp_;
     FrameCapture frame_capture_;
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;

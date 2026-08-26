@@ -239,15 +239,11 @@ void RenderFrame::drawScene() {
     // which atlas tile each light reads, so the block has to go up after it.
     context_.lights().uploadAndBind();
 
-    gpu_timer_.poll(device_);
     {
         ES_PROFILE_SCOPE("render.submit");
-        gpu_timer_.begin(device_);
         draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
                            &frame_capture_, context_.skinUbo());
-        gpu_timer_.end(device_);
     }
-    FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
 
     // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
     // from each fullscreen pass's own pipeline, but scissor is dynamic state and
@@ -513,11 +509,11 @@ void RenderFrame::end() {
 
     {
         ES_PROFILE_SCOPE("render.graph");
-        gpu_timer_pp_.poll(device_);
-        gpu_timer_pp_.begin(device_);
+        gpu_timer_.poll(device_);
+        gpu_timer_.begin(device_);
         graph_.execute();
-        gpu_timer_pp_.end(device_);
-        FrameProfiler::get().gpuScope("graph", gpu_timer_pp_.lastMs());
+        gpu_timer_.end(device_);
+        FrameProfiler::get().gpuScope("graph", gpu_timer_.lastMs());
     }
     scene_resource_ = rg::kNoResource;
 
@@ -532,11 +528,8 @@ void RenderFrame::end() {
         }
     }
 
-    // The graph's own time is the whole of it — the scene pass runs inside it, so
-    // adding the submit timer to this would count the scene twice. The submit
-    // timer stays as the scene's own share, published as its gpuScope.
-    const f32 graphMs = gpu_timer_pp_.lastMs();
-    stats_.gpu_time_ms = graphMs < 0.0f ? gpu_timer_.lastMs() : graphMs;
+    // The graph's own time is the whole frame's — the scene pass runs inside it.
+    stats_.gpu_time_ms = gpu_timer_.lastMs();
 
     // The frame's pass closes HERE, not at the next begin: a WebGPU backend
     // submits on endRenderPass, and a surface texture acquired this task must
