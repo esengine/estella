@@ -14,13 +14,13 @@ import { bootMockApp } from './helpers/mockApp';
 import {
     buildAotModule, buildFadeModule, eventManifest, fadeManifest, fadeTaggedManifest,
     keyProbeC, keyProbeManifest, EVENT_C,
-    timeScaleManifest, FADE_TAGGED_C,
+    timeScaleManifest, userResManifest, FADE_TAGGED_C, USER_RES_C,
     FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
 } from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { defineComponent, defineTag } from '../src/ecs/component';
-import { Time } from '../src/ecs/resource';
+import { defineResource, ResMut, Time } from '../src/ecs/resource';
 import { defineEvent, EventReader, EventWriter } from '../src/ecs/event';
 import { Input } from '../src/input/input';
 import { defineSystem, Schedule } from '../src/ecs/system';
@@ -242,6 +242,37 @@ describe('an App told to run its compiled twins', () => {
         // Sent in the first frame and read in the second, on the same bus an
         // interpreted reader walks — the only way they could arrive.
         expect(seen).toEqual(entities.map((_, i) => (i + 1) * 0.1));
+    });
+
+    it.skipIf(!EMCC)("reads a resource the PROJECT declared, at the layout the build derived", async () => {
+        const wasm = buildAotModule(EMCC!, USER_RES_C, 'es_sys_Tally');
+        const { app } = bootMockApp();
+        // Declared by the project, not by the engine: nothing in the SDK knows
+        // these fields, so the only description of them is the manifest's.
+        const Score = defineResource({ step: 3, total: 0 }, 'Score');
+        app.insertResource(Score, { step: 3, total: 0 });
+        app.addSystemToSchedule(Schedule.Update, defineSystem([ResMut(Score)], () => {
+            /* the twin is the point */
+        }, { name: 'Tally' }));
+        await app.useCompiledSystems({
+            host: new FakeEngine(), manifest: userResManifest(['step', 'total']), wasm,
+        });
+
+        await app.tick(1 / 60);
+        await app.tick(1 / 60);
+        expect(app.getResource(Score)).toEqual({ step: 3, total: 6 });
+    });
+
+    it.skipIf(!EMCC)('and refuses a module built for a different field order', async () => {
+        const { app } = bootMockApp();
+        const Score = defineResource({ step: 3, total: 0 }, 'Score');
+        app.insertResource(Score, { step: 3, total: 0 });
+        // Swapped: same fields, and every one of them at the wrong offset. This
+        // is the failure a digest exists for — not an error, a different field.
+        await expect(app.useCompiledSystems({
+            host: new FakeEngine(), manifest: userResManifest(['total', 'step']),
+            wasm: buildAotModule(EMCC!, USER_RES_C, 'es_sys_Tally'),
+        })).rejects.toThrow(/Rebuild the project/);
     });
 
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {

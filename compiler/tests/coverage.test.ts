@@ -50,7 +50,7 @@ import { builtinShapes } from '../src/builtins';
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
 /** Per-frame systems only. See the file header before lowering these. */
-const FRAME_FLOOR = 14;
+const FRAME_FLOOR = 15;
 /** Per-frame systems the contract could take once the pending work is done. */
 const CEILING_FLOOR = 84;
 

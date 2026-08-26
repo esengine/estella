@@ -44,9 +44,13 @@ export interface CompiledSystemInfo {
   symbol: string;
   /** One entry per declared Query: its components, in the order it names them. */
   queries: { comp: string; mut: boolean }[][];
-  /** One per declared Res/ResMut, in declaration order. `mut` is what makes the
-   *  runtime write a mirrored resource back after the call. */
-  resources: { name: string; mut: boolean }[];
+  /**
+   * One per declared Res/ResMut, in declaration order. `mut` is what makes the
+   * runtime write a mirrored resource back after the call; `fields` is present
+   * for a resource the PROJECT declared, because its layout is not something
+   * the engine knows — it was derived from the declaration.
+   */
+  resources: { name: string; mut: boolean; fields?: string[] }[];
   /** Event readers and writers, with the payload layout each one uses. */
   readers: { slot: number; event: string; fields: string[] }[];
   writers: { slot: number; event: string; fields: string[] }[];
@@ -77,6 +81,12 @@ export interface BuildCompiledResult {
   errors: string[];
   /** Systems the subset refused that were NOT promised — information, not failure. */
   notes: string[];
+}
+
+/** A project resource's fields in LAYOUT order, as the code reads them. */
+function fieldsOfShape(module: { comps: ReadonlyMap<string, { fields: ReadonlyMap<string, unknown> }> },
+  name: string): string[] {
+  return [...(module.comps.get(name)?.fields.keys() ?? [])];
 }
 
 /** A payload's fields in LAYOUT order, which is the order the code reads them. */
@@ -235,7 +245,9 @@ export async function buildCompiledSystems(
         name: sys.name,
         symbol: cSymbol(sys.name),
         queries: plan.queries.map((q) => q.map((a) => ({ comp: a.comp, mut: a.mut }))),
-        resources: plan.resources.map((r) => ({ name: r.name, mut: r.mut })),
+        resources: plan.resources.map((r) => (lowered.module.userResources.has(r.name)
+            ? { name: r.name, mut: r.mut, fields: fieldsOfShape(lowered.module, r.name) }
+            : { name: r.name, mut: r.mut })),
         // The payload layout travels with the manifest: the runtime flattens an
         // object into it, and the compiled code reads at those offsets.
         readers: plan.readers.map((r) => ({

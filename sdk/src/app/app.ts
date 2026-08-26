@@ -631,7 +631,12 @@ export class App {
             host: opts.host,
             manifest: opts.manifest,
             wasm: opts.wasm,
-            knowsResource: (name) => builtinResource(name) !== undefined,
+            resourceFields: (name) => {
+                const def = builtinResource(name) ?? this.resources_.getByName(name);
+                if (def === undefined) return undefined;
+                const value = this.resources_.get(def);
+                return typeof value === 'object' && value !== null ? Object.keys(value) : [];
+            },
             // A manifest carries event NAMES; the registry answers for the ones
             // some system has asked for a reader or a writer of.
             events: (name) => {
@@ -644,7 +649,9 @@ export class App {
                 return { read: () => bus.getReadBuffer(), send: (payload) => bus.send(payload) };
             },
             resources: (name) => {
-                const def = builtinResource(name);
+                // The engine's own by name, and the PROJECT's through the
+                // storage's own name registry — a compiled system reads either.
+                const def = builtinResource(name) ?? this.resources_.getByName(name);
                 // `get`, not `has` then `get`: a slot holding a materialised
                 // default is what an INTERPRETED system reads, and a twin has to
                 // see the same world or the two stop being the same program.

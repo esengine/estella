@@ -517,7 +517,7 @@ systems: readonly AotSystemDecl[]
 name: string
 queries: readonly (readonly { comp: string; mut: boolean; }[])[]
 readers: readonly { slot: number; event: string; fields: readonly string[]; }[] | undefined
-resources: readonly { name: string; mut: boolean; }[]
+resources: readonly { name: string; mut: boolean; fields?: readonly string[]; }[]
 symbol: string
 writers: readonly { slot: number; event: string; fields: readonly string[]; }[] | undefined
 ```

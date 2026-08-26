@@ -26,7 +26,7 @@ export interface AotSystemDecl {
     readonly queries: readonly (readonly { comp: string; mut: boolean }[])[];
     /** One per declared Res/ResMut. `mut` is what makes a host write the mirror
      *  back after the call — without it the write is silently dropped. */
-    readonly resources: readonly { name: string; mut: boolean }[];
+    readonly resources: readonly { name: string; mut: boolean; fields?: readonly string[] }[];
     /**
      * Event readers, and the query slot each one's payloads go into. `fields`
      * is the payload's layout, in the order the compiled code reads it — the
@@ -99,7 +99,12 @@ export class AotSystems {
         manifest: AotManifest,
         exports: Readonly<Record<string, unknown>>,
         resolve: (name: string) => AnyComponentDef | undefined,
-        hasResource: (name: string) => boolean = () => true,
+        /**
+          * The fields this runtime's copy of a resource has, in ITS order, or
+          * undefined when there is no such resource. Asked rather than taken
+          * from the manifest: a manifest compared against itself always agrees.
+          */
+        resourceFields: (name: string) => readonly string[] | undefined = () => [],
     ): void {
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
@@ -110,7 +115,7 @@ export class AotSystems {
                 + 'Rebuild the module against this engine — a wrong offset reads a different '
                 + 'field rather than failing.');
         }
-        const shapes = projectShapeDigest(scriptShapes(manifest, resolve));
+        const shapes = projectShapeDigest(scriptShapes(manifest, resolve, resourceFields));
         if (manifest.projectShapes !== shapes) {
             throw new Error(
                 `AOT module refused: built for components ${manifest.projectShapes}, this project `
@@ -120,7 +125,7 @@ export class AotSystems {
             for (const r of decl.resources) {
                 // A resource with no address is not a slow path: the ctx would
                 // carry 0 and the compiled code would read whatever is there.
-                if (!hasResource(r.name)) {
+                if (!resourceFields(r.name)) {
                     throw new Error(`AOT module refused: '${decl.name}' reads resource `
                         + `'${r.name}', which this runtime does not have`);
                 }
@@ -157,10 +162,21 @@ export class AotSystems {
 function scriptShapes(
     manifest: AotManifest,
     resolve: (name: string) => AnyComponentDef | undefined,
+    resourceFields: (name: string) => readonly string[] | undefined,
 ): ShapeDigestInput[] {
     const seen = new Set<string>();
     const out: ShapeDigestInput[] = [];
     for (const decl of manifest.systems) {
+        // A resource the project declared is a project shape: its fields are
+        // what the code reads at each offset, so a change has to refuse a
+        // module built before it.
+        for (const r of decl.resources) {
+            if (!r.fields || seen.has(r.name)) continue;
+            seen.add(r.name);
+            // As the RUNTIME has it: the module baked in an order, and this is
+            // what says whether that order is still the one here.
+            out.push({ name: r.name, fields: [...(resourceFields(r.name) ?? [])] });
+        }
         for (const query of decl.queries) {
             for (const arg of query) {
                 if (seen.has(arg.comp)) continue;

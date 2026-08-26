@@ -53,11 +53,12 @@ export interface InstallAotOptions {
     /** The live value of a named resource, for the mirror to copy in. */
     readonly resources: ResourceReader;
     /**
-     * Whether this runtime HAS such a resource, asked once at install. Distinct
-     * from `resources`, which asks for a value: a resource the engine creates on
-     * its first frame has no value yet and is not missing.
+     * The fields this runtime's `name` has, in its own order, or undefined when
+     * there is no such resource. Two questions at once, and both are asked at
+     * install: whether it exists, and whether it still looks the way the module
+     * was built against.
      */
-    readonly knowsResource?: (name: string) => boolean;
+    readonly resourceFields?: (name: string) => readonly string[] | undefined;
     /** The bus a manifest's event NAME refers to, for reading and for sending. */
     readonly events?: EventBusAccess;
 }
@@ -93,11 +94,15 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
 
     const systems = new AotSystems();
     systems.install(opts.manifest, exports, componentNamed,
-        opts.knowsResource ?? ((name) => opts.resources(name) !== undefined));
+        opts.resourceFields ?? ((name) => {
+            const value = opts.resources(name);
+            return value === undefined ? undefined : Object.keys(value);
+        }));
 
     return {
         systems,
-        addresses: worldAddresses(new AotResources(memory, opts.resources),
+        addresses: worldAddresses(
+            new AotResources(memory, opts.resources, declaredLayouts(opts.manifest)),
             new AotEvents(memory, opts.events ?? (() => undefined))),
         ctx: new AotContext(memory),
     };
@@ -111,6 +116,15 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
 function wasmSource(wasm: string | BufferSource): string | ArrayBuffer {
     if (typeof wasm === 'string' || wasm instanceof ArrayBuffer) return wasm;
     return wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer;
+}
+
+/** Layouts the BUILD derived for the project's own resources, by name. */
+function declaredLayouts(manifest: AotManifest): Map<string, readonly string[]> {
+    const out = new Map<string, readonly string[]>();
+    for (const decl of manifest.systems) {
+        for (const r of decl.resources) if (r.fields) out.set(r.name, r.fields);
+    }
+    return out;
 }
 
 /** What a manifest's component NAME means in this runtime. */
