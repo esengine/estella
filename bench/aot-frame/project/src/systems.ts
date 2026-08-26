@@ -15,6 +15,8 @@
 import { defineComponent, defineSystem, Query, Mut, Res, Time, Transform } from 'esengine';
 
 export const Mover = defineComponent('BenchMover', { dx: 0, dy: 0, speed: 0, boost: 0 });
+/** A script component standing where `Transform` stands, for the `script` body. */
+export const Pos = defineComponent('BenchPos', { x: 0, y: 0, z: 0 });
 
 /**
  * Three multiply-adds per entity.
@@ -30,6 +32,26 @@ export const thinSystem = defineSystem(
         }
     },
     { name: 'BenchThin' },
+);
+
+/**
+ * `thin` again, over a script component instead of the engine's `Transform`.
+ *
+ * The difference between the two is the BRIDGE: an engine component's address
+ * comes from a wasm call per entity per frame, a script one's from a pool this
+ * SDK owns. Which of them the plumbing is made of decides where Stage 3 goes.
+ *
+ * @compiled
+ */
+export const scriptSystem = defineSystem(
+    [Query(Mut(Pos), Mover), Res(Time)],
+    (query, time) => {
+        for (const [, pos, mover] of query) {
+            pos.x += mover.dx * mover.speed * time.delta;
+            pos.y += mover.dy * mover.speed * time.delta;
+        }
+    },
+    { name: 'BenchScript' },
 );
 
 /**

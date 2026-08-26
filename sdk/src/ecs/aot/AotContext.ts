@@ -34,8 +34,6 @@ export interface AotCommand {
     readonly a: number;
 }
 
-/** A row: the entity, then one address per component the query names. */
-export type AotRow = readonly number[];
 
 /**
  * The per-call scratch, in engine memory. One instance per system is enough —
@@ -60,15 +58,21 @@ export class AotContext {
     /**
      * Lay out one call and answer the ctx address.
      *
-     * `queries[k]` is the rows of the k-th declared Query, in the order the
-     * system will walk them; `resources[j]` is the address of the j-th declared
-     * Res. Both are the caller's because both come from maps the caller owns.
+     * The rows arrive packed — every query's, back to back, in query order —
+     * because the caller wrote them there as it walked. `offsets[k]`/`counts[k]`
+     * locate the k-th Query's; `resources[j]` is the j-th Res. One `set` copies
+     * the block, where a row at a time was a word at a time (bench/aot-frame).
      */
-    build(queries: readonly (readonly AotRow[])[], resources: readonly number[]): number {
-        const rowWords = queries.reduce(
-            (n, rows) => n + rows.reduce((m, r) => m + r.length, 0), 0);
+    build(
+        rows: Uint32Array,
+        rowWords: number,
+        offsets: Uint32Array,
+        counts: Uint32Array,
+        resources: readonly number[],
+    ): number {
+        const queryCount = counts.length;
         const need = SYSCTX_WORDS
-            + queries.length * QUERYROWS_WORDS
+            + queryCount * QUERYROWS_WORDS
             + rowWords
             + resources.length
             + 1                              // the count, which the code writes back
@@ -79,27 +83,21 @@ export class AotContext {
         const w = this.words;
         // Laid out in one pass, each table after the last, so the addresses are
         // known before anything that points at them is written.
-        let at = SYSCTX_WORDS;
-        const queryTable = at;
-        at += queries.length * QUERYROWS_WORDS;
-        const rowsAt: number[] = [];
-        for (const rows of queries) {
-            rowsAt.push(at);
-            for (const row of rows) {
-                for (const v of row) w[at++] = v;
-            }
-        }
+        const queryTable = SYSCTX_WORDS;
+        const rowsAt = queryTable + queryCount * QUERYROWS_WORDS;
+        w.set(rows.subarray(0, rowWords), rowsAt);
+        let at = rowsAt + rowWords;
         const resTable = at;
         for (const r of resources) w[at++] = r;
         const countAt = at++;
         w[countAt] = 0;
         const cmdBuf = at;
 
-        queries.forEach((rows, k) => {
+        for (let k = 0; k < queryCount; k++) {
             const slot = queryTable + k * QUERYROWS_WORDS;
-            w[slot] = base + rowsAt[k]! * 4;
-            w[slot + 1] = rows.length;
-        });
+            w[slot] = base + (rowsAt + offsets[k]!) * 4;
+            w[slot + 1] = counts[k]!;
+        }
         w[0] = base + queryTable * 4;
         w[1] = base + resTable * 4;
         w[2] = base + cmdBuf * 4;

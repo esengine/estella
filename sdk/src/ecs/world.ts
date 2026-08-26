@@ -11,7 +11,7 @@ import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
-import type { PoolMemory } from './ScriptPool';
+import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
@@ -1182,14 +1182,23 @@ export class World {
      * entity per frame.
      */
     addressOfComponent(component: AnyComponentDef, entity: Entity): number | undefined {
+        return this.addressResolver(component)(entity);
+    }
+
+    /**
+     * @internal The same answer as a function, for a caller with a whole column
+     * to walk: the lookup above is per entity, and a loop that pays it per row is
+     * paying to be told the same thing every time.
+     */
+    addressResolver(component: AnyComponentDef): (entity: Entity) => number | undefined {
         let at = this.addressOf_.get(component._id as symbol);
         if (at === undefined) {
             at = isBuiltinComponent(component)
                 ? (this.builtin_.resolveComponentAddress(component._cppName) ?? NO_ADDRESS)
-                : (e: Entity) => this.scripts_.poolFor(component._id as symbol)?.address(e);
+                : scriptAddress(this.scripts_, component._id as symbol);
             this.addressOf_.set(component._id as symbol, at);
         }
-        return at(entity);
+        return at;
     }
 
     /** Cleared with the bridge, because a reconnect may serve other memory. */
@@ -1198,3 +1207,17 @@ export class World {
 
 /** A component whose backend serves no flat memory: never has an address. */
 const NO_ADDRESS = (): undefined => undefined;
+
+/**
+ * A script component's address, with the pool looked up once rather than per
+ * entity. Sound because a pool is never dropped once made, and because the pool
+ * re-views itself after a growth — the block moving is its business, not this
+ * closure's.
+ */
+function scriptAddress(scripts: ScriptStorage, id: symbol): (entity: Entity) => number | undefined {
+    let pool: ScriptPool | undefined;
+    return (entity: Entity) => {
+        pool ??= scripts.poolFor(id);
+        return pool?.address(entity);
+    };
+}

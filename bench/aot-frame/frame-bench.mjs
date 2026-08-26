@@ -135,9 +135,13 @@ async function measure(sdk, fixture, wasmDir, body, compiled) {
         world.insert(e, fixture.Mover, {
             dx: rand() - 0.5, dy: rand() - 0.5, speed: 40 + rand() * 80, boost: rand() < 0.5 ? 1 : 0,
         });
+        if (body === 'script') world.insert(e, fixture.Pos, { x: 0, y: 0, z: 0 });
         entities.push(e);
     }
-    const systems = { thin: fixture.thinSystem, thick: fixture.thickSystem, heavy: fixture.heavySystem };
+    const systems = {
+        thin: fixture.thinSystem, thick: fixture.thickSystem,
+        heavy: fixture.heavySystem, script: fixture.scriptSystem,
+    };
     if (body) app.addSystemToSchedule(Schedule.Update, systems[body]);
 
     const step = async () => {
@@ -157,7 +161,7 @@ async function measure(sdk, fixture, wasmDir, body, compiled) {
     // measurements of one thing, and the ratio between them means nothing.
     let checksum = 0;
     for (const e of entities) {
-        const p = world.get(e, Transform).position;
+        const p = body === 'script' ? world.get(e, fixture.Pos) : world.get(e, Transform).position;
         checksum += p.x + p.y + p.z;
     }
 
@@ -172,6 +176,8 @@ const CONFIGS = [
     { key: 'thick compiled', body: 'thick', compiled: true },
     { key: 'heavy interpreted', body: 'heavy', compiled: false },
     { key: 'heavy compiled', body: 'heavy', compiled: true },
+    { key: 'script interpreted', body: 'script', compiled: false },
+    { key: 'script compiled', body: 'script', compiled: true },
     { key: 'idle scene', body: null, compiled: false },
 ];
 
@@ -239,7 +245,7 @@ async function main() {
             + `${c.body ? ((r.median - idle.median) * 1e6 / ENTITIES).toFixed(1) : ''}`);
     }
     console.log('-'.repeat(72));
-    for (const body of ['thin', 'thick', 'heavy']) {
+    for (const body of ['thin', 'thick', 'heavy', 'script']) {
         const i = of(`${body} interpreted`);
         const c = of(`${body} compiled`);
         const agree = i.checksum === c.checksum;
@@ -247,7 +253,7 @@ async function main() {
             + `frame ${(i.median / c.median).toFixed(2)}x   `
             + `${agree ? 'same result' : `RESULT MISMATCH ${i.checksum} vs ${c.checksum}`}`);
     }
-    const mismatched = ['thin', 'thick', 'heavy'].some((body) =>
+    const mismatched = ['thin', 'thick', 'heavy', 'script'].some((body) =>
         of(`${body} interpreted`).checksum !== of(`${body} compiled`).checksum);
     console.log('-'.repeat(72));
     console.log('A ratio here is a FLOOR: this runtime has a JIT, and AOT exists for the ones');

@@ -32,6 +32,24 @@ import type { Entity } from '../src/types';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const e = (n: number): Entity => n as unknown as Entity;
 const N = 16;
+
+/**
+ * The rows as the dispatcher hands them over: one flat block in query order,
+ * with where each query starts and how many it has. Packing them is
+ * `AotDispatch`'s job in a running world; this is the same shape by hand, which
+ * is what keeps this test about the ARENA and not about the packer.
+ */
+function packed(rows: readonly (readonly number[])[]): {
+    words: Uint32Array; rowWords: number; offsets: Uint32Array; counts: Uint32Array;
+} {
+    const width = rows.length > 0 ? rows[0]!.length : 0;
+    const words = new Uint32Array(rows.length * width);
+    rows.forEach((r, i) => words.set(r, i * width));
+    return {
+        words, rowWords: rows.length * width,
+        offsets: new Uint32Array([0]), counts: new Uint32Array([rows.length]),
+    };
+}
 const FRAMES = 8;
 
 function findEmcc(): string | null {
@@ -161,8 +179,9 @@ describe('a compiled system, called by the SDK', () => {
 
         const ctx = new AotContext(memory);
         for (let f = 0; f < FRAMES; f++) {
-            const rows = live.map((id) => [id, pool.address(e(id))!] as const);
-            const at = ctx.build([rows], [resources.addressOf('Time')!]);
+            const rows = packed(live.map((id) => [id, pool.address(e(id))!]));
+            const at = ctx.build(rows.words, rows.rowWords, rows.offsets, rows.counts,
+                [resources.addressOf('Time')!]);
             decay(at);
 
             // The same loop, in TypeScript, over the plain objects.
@@ -210,7 +229,10 @@ describe('a compiled system, called by the SDK', () => {
         const ctx = new AotContext(memory);
         // An empty query still needs a well-formed table: `count` is zero and
         // `rows` must point somewhere the code will not read.
-        (api['es_sys_Decay'] as (c: number) => void)(ctx.build([[]], [resources.addressOf('Time')!]));
+        const none = packed([]);
+        (api['es_sys_Decay'] as (c: number) => void)(ctx.build(
+            none.words, none.rowWords, none.offsets, none.counts,
+            [resources.addressOf('Time')!]));
         expect(ctx.commands()).toEqual([]);
     });
 });

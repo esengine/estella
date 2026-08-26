@@ -33,28 +33,35 @@ computed different things have no ratio between them.
 recomposed every frame whether or not it moved, so the idle run is the same engine
 work minus the system.
 
-Per entity per frame, across the three bodies (a run varies about ±10% here, so
-these are ranges over the bodies AND over repeated runs):
+Per entity per frame, in nanoseconds:
 
-| entities | interpreted | compiled | ratio |
-|---|---|---|---|
-| 1,000 | 181–239 ns | 95–99 ns | 1.8–2.5× |
-| 5,000 | 213–252 ns | 97–117 ns | 1.9–2.3× |
-| 20,000 | 253–301 ns | 142–147 ns | 1.7–2.1× |
+| entities | body | interpreted | compiled | ratio |
+|---|---|---|---|---|
+| 1,000 | thin / thick / heavy / script | 159 / 182 / 171 / 245 | 28 / 30 / 33 / 23 | 5.2–10.6× |
+| 5,000 | thin / thick / heavy / script | 162 / 183 / 168 / 251 | 28 / 30 / 34 / 27 | 5.0–9.2× |
+| 20,000 | thin / thick / heavy / script | 200 / 241 / 200 / 354 | 32 / 37 / 37 / 29 | 5.4–12.2× |
 
-**The compiled cost does not move with the body.** Thin is three multiply-adds; heavy
-is four unrolled integration substeps with a square root and a bounce test each. The
-compiled column is the same number for both, at every scale. What a compiled system
-costs today is not its code — it is the row array, the address per component per row,
-the SysCtx and the `Changed` marking the host does around the call. That is the
-measurement REARCH_AOT.md §7.2 was owed: **~110 ns per entity per frame of plumbing**.
+`script` is `thin` again over a script component instead of the engine's `Transform`.
+Interpreted, it is the most expensive row on the board — a pooled component costs more
+to hand to a closure than an engine one does. Compiled, it is the cheapest.
 
-**The interpreted cost barely moves with the body either** — under V8 the body is
-JIT-compiled to machine code, so thirty extra flops disappear next to the per-entity
-protocol (a component copy in, a proxy, a write-back). Both sides are plumbing.
+**The first measurement of this said 83 ns compiled, and the plumbing was the reason.**
+Packing rows was allocating a `[entity, addr, addr]` array per entity per frame,
+copying it word by word into the arena, rebuilding the query cache's key from scratch
+every frame, and re-finding each component's address resolver per entity. That work is
+now a plan built once per system and a flat block written straight through
+(`AotDispatch`). Same machine, same minute, interpreted column unchanged:
 
-So the ~2× here is **entirely the cheaper boundary**, not faster arithmetic, and it is
-the same effect §16 measured for §12.B from the other side.
+| | before | after |
+|---|---|---|
+| thin compiled | 83.1 ns | 27.5 ns |
+| script compiled | 81.9 ns | 27.3 ns |
+| thin interpreted (control) | 163.2 ns | 162.3 ns |
+
+**The body is only now becoming visible.** Under 83 ns of plumbing, thin and heavy
+compiled to the same number; under 27 ns, heavy costs about 20% more than thin. That is
+the shape to expect from here: the closer the plumbing gets to zero, the more a ratio
+depends on what the system actually computes.
 
 ## What this is NOT
 

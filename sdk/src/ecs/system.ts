@@ -17,7 +17,7 @@ import {
 } from './event';
 import type { Entity } from '../types';
 import type { World } from './world';
-import { CMD_DESPAWN, type AotRow } from './aot/AotContext';
+import { AotDispatch } from './aot/AotDispatch';
 import type { AotRuntime } from './aot/AotRuntime';
 import type { AotTwin } from './aot/AotSystems';
 
@@ -411,6 +411,9 @@ export class SystemRunner {
      * there is nothing to dispatch to (docs/REARCH_AOT.md §9).
      */
     private aot_: AotRuntime | null = null;
+    /** The compiled half of this runner: everything a twin needs around its call
+     *  (docs/REARCH_AOT_ABI.md §2.1), and the plans that keep it off the frame. */
+    private aotDispatch_: AotDispatch | null = null;
 
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry) {
         this.world_ = world;
@@ -421,6 +424,7 @@ export class SystemRunner {
     /** @internal Install the twins a build produced. */
     useAot(runtime: AotRuntime | null): void {
         this.aot_ = runtime;
+        this.aotDispatch_ = runtime ? new AotDispatch(this.world_, runtime) : null;
     }
 
     setTimingEnabled(enabled: boolean): void {
@@ -555,72 +559,17 @@ export class SystemRunner {
     }
 
     /**
-     * One call of the contract in place of the closure: materialise the rows,
-     * lay out a SysCtx, call the compiled symbol, apply what it recorded. The
-     * compiled code calls nothing, so everything it could not do is here — the
-     * commands it appended, and the Changed ticks a `Mut` implies.
+     * A compiled system's frame: the dispatcher does the contract, this keeps the
+     * scheduler's own books — what it cost, and when it last ran.
      */
     private runCompiled_(system: SystemDef, twin: AotTwin): void {
-        const aot = this.aot_!;
         const t0 = this.timings_ ? performance.now() : 0;
-
-        const queries: AotRow[][] = [];
-        for (const args of twin.decl.queries) {
-            const comps: AnyComponentDef[] = [];
-            for (const a of args) {
-                const def = aot.addresses.componentNamed(a.comp);
-                if (def) comps.push(def);
-            }
-            const rows: AotRow[] = [];
-            if (comps.length === args.length) {
-                for (const entity of this.world_.getEntitiesWithComponents(comps)) {
-                    const row: number[] = [entity as unknown as number];
-                    let whole = true;
-                    for (const def of comps) {
-                        const at = aot.addresses.componentAt(def, entity);
-                        // A query that matched but whose storage cannot answer is
-                        // not a row. Reading zero would be a read of address zero.
-                        if (at === undefined) { whole = false; break; }
-                        row.push(at);
-                    }
-                    if (whole) rows.push(row);
-                }
-            }
-            queries.push(rows);
-        }
-
-        const resources = twin.decl.resources.map((name) => aot.addresses.resourceAt(name) ?? 0);
-        aot.ctx.build(queries, resources);
-        twin.call(aot.ctx.address);
-
-        for (const cmd of aot.ctx.commands()) {
-            // Only despawn is in the v1 record set (REARCH_AOT_ABI.md §2.3).
-            if (cmd.kind === CMD_DESPAWN) this.world_.despawn(cmd.a as unknown as Entity);
-        }
-        this.markCompiledChanges_(twin, queries);
-
+        this.aotDispatch_!.run(twin);
         if (this.timings_) {
             const name = system._name;
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
         this.systemTicks_.set(system._id, this.world_.getWorldTick());
-    }
-
-    /**
-     * The Changed ticks the compiled code could not record. Asked ONCE per
-     * component rather than per entity: `recordChanged` self-gates on the same
-     * answer, and on the hot path with nothing listening this is where a
-     * per-row loop would have been spent for nothing.
-     */
-    private markCompiledChanges_(twin: AotTwin, queries: readonly AotRow[][]): void {
-        twin.mutated.forEach((comps, k) => {
-            const rows = queries[k];
-            if (!rows || rows.length === 0) return;
-            for (const def of comps) {
-                if (!this.world_.isChangeTracked(def)) continue;
-                for (const row of rows) this.world_.markChanged(row[0] as unknown as Entity, def);
-            }
-        });
     }
 
     private flushSystem_(system: SystemDef, args: unknown[], t0: number): void {

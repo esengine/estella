@@ -9271,6 +9271,7 @@ tabIndex: number | undefined
 ## World — class @public
 ```
 @internal addressOfComponent: (component: AnyComponentDef, entity: Entity) => number | undefined
+@internal addressResolver: (component: AnyComponentDef) => (entity: Entity) => number | undefined
 @internal advanceTick: () => void
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void

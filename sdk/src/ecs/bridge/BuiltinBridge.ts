@@ -674,6 +674,11 @@ export class BuiltinBridge {
      * Null where this backend serves no flat memory.
      */
     resolveComponentAddress(cppName: string): ((entity: Entity) => number | undefined) | null {
+        // Where there is a pointer function, ask it: the heap resolver below also
+        // fills three typed-array views for the accessors to read fields through,
+        // and a caller that wants only the address pays for them per entity.
+        const ptrFn = this.resolvePtrFn(cppName);
+        if (ptrFn) return (e: Entity) => ptrFn(e) || undefined;
         const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
         if (!resolveHeap) return null;
         const heap: ComponentHeap = SCRATCH_HEAP();
