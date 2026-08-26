@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  parseManifest, cameraScaleModeValue, resolveScreenFit, trimSortingLayers, SORTING_LAYER_COUNT,
+  parseManifest, cameraScaleModeValue, renderResolutionValue, resolveScreenFit, trimSortingLayers, SORTING_LAYER_COUNT,
 } from '../src/project/format';
 
 describe('parseManifest — rendering.outputTransform', () => {
@@ -123,12 +123,37 @@ describe('cameraScaleModeValue / resolveScreenFit', () => {
 
   it('builds the runtime screenFit from design resolution + fit; off by default', () => {
     expect(resolveScreenFit({ designResolution: { width: 1280, height: 720 } }))
-      .toEqual({ designWidth: 1280, designHeight: 720, scaleMode: -1, matchWidthOrHeight: 0.5 });
+      .toEqual({ designWidth: 1280, designHeight: 720, scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy: 0 });
     expect(resolveScreenFit({
       designResolution: { width: 1080, height: 1920 },
       features: { rendering: { cameraScaleMode: 'expand', cameraMatch: 0.25 } },
-    })).toEqual({ designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.25 });
+    })).toEqual({ designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.25, renderPolicy: 0 });
     // No design resolution ⇒ the engine default, still off.
-    expect(resolveScreenFit({})).toEqual({ designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 });
+    expect(resolveScreenFit({})).toEqual({ designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy: 0 });
+  });
+
+  it('maps the render resolution, surface by default', () => {
+    expect(renderResolutionValue('design')).toBe(1);
+    expect(renderResolutionValue('integer')).toBe(2);
+    expect(renderResolutionValue('surface')).toBe(0);
+    expect(renderResolutionValue(undefined)).toBe(0);
+  });
+
+  it('the render policy does NOT need a camera fit', () => {
+    // Independent settings: the policy takes the camera's world height whatever
+    // produced it. Coupling them forces a project that wants only 1:1 rendering
+    // to opt into a design-resolution fit it never asked for.
+    expect(resolveScreenFit({ features: { rendering: { renderResolution: 'design' } } }))
+      .toEqual({ designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy: 1 });
+  });
+
+  it('persists only the opt-in, like every other rendering feature', () => {
+    const on = parseManifest({ name: 'p', features: { rendering: { renderResolution: 'integer' } } });
+    expect(on.features?.rendering?.renderResolution).toBe('integer');
+    // 'surface' is the default and is expressed by absence, not by a stored word.
+    expect(parseManifest({ name: 'p', features: { rendering: { renderResolution: 'surface' } } })
+      .features?.rendering?.renderResolution).toBeUndefined();
+    expect(parseManifest({ name: 'p', features: { rendering: { renderResolution: 'nonsense' } } })
+      .features?.rendering?.renderResolution).toBeUndefined();
   });
 });

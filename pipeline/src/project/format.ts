@@ -151,6 +151,11 @@ export interface ProjectFeatures {
     cameraScaleMode?: CameraScaleMode;
     /** Match-mode blend 0..1 (0 = fit width, 1 = fit height); cameraScaleMode='match' only. */
     cameraMatch?: number;
+    /** Whether the scene renders at its own resolution and is then scaled to the
+     *  surface. Independent of cameraScaleMode — it takes the camera's world
+     *  height whatever produced it. Absent/'surface' ⇒ straight to the surface,
+     *  the zero-regression default. See {@link renderResolutionValue}. */
+    renderResolution?: RenderResolutionMode;
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
@@ -169,6 +174,11 @@ export type ScreenOrientation = 'portrait' | 'landscape';
 /** Project camera fit — how the main camera scales the design resolution (a superset of
  *  the engine's CanvasScaleMode names, plus 'none' = off). See {@link cameraScaleModeValue}. */
 export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand' | 'shrink' | 'match';
+
+/** How the scene's own render resolution is chosen (the engine's RenderResolution
+ *  names). 'integer' also presents unfiltered, because the engine reads
+ *  whole-multiple-ness off the rect. See {@link renderResolutionValue}. */
+export type RenderResolutionMode = 'surface' | 'design' | 'integer';
 
 /** Per-platform packaging config (the platform-specific Project Settings pages).
  *  Orientation is NOT here — it is one project-wide {@link ProjectPackaging.orientation}
@@ -567,6 +577,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (typeof r.cameraMatch === 'number' && Number.isFinite(r.cameraMatch)) {
         rendering.cameraMatch = Math.min(1, Math.max(0, r.cameraMatch));
       }
+      // Same shape again: only the opt-in persists, 'surface' is absence.
+      if (r.renderResolution === 'design' || r.renderResolution === 'integer') {
+        rendering.renderResolution = r.renderResolution;
+      }
       if (Object.keys(rendering).length > 0) features.rendering = rendering;
     }
     if (f.audio && typeof f.audio === 'object') {
@@ -782,10 +796,21 @@ export function cameraScaleModeValue(m: CameraScaleMode | undefined): number {
   }
 }
 
+/** The engine's RenderResolution, mirrored the way cameraScaleModeValue mirrors
+ *  CanvasScaleMode: a number, so this module stays free of the runtime. */
+export function renderResolutionValue(m: RenderResolutionMode | undefined): number {
+  switch (m) {
+    case 'design': return 1;
+    case 'integer': return 2;
+    default: return 0;   // 'surface'
+  }
+}
+
 /** The runtime screen-fit config (createWebApp `screenFit` / ScreenScaling) for a
  *  project: its design resolution + the mapped camera fit. `scaleMode` -1 ⇒ off. */
 export function resolveScreenFit(manifest: Pick<ProjectManifest, 'designResolution' | 'features'>): {
   designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number;
+  renderPolicy: number;
 } {
   const dr = manifest.designResolution;
   return {
@@ -793,6 +818,7 @@ export function resolveScreenFit(manifest: Pick<ProjectManifest, 'designResoluti
     designHeight: dr?.height ?? 1080,
     scaleMode: cameraScaleModeValue(manifest.features?.rendering?.cameraScaleMode),
     matchWidthOrHeight: manifest.features?.rendering?.cameraMatch ?? 0.5,
+    renderPolicy: renderResolutionValue(manifest.features?.rendering?.renderResolution),
   };
 }
 

@@ -37,6 +37,7 @@ import { setLinearColorSpace } from '../ecs/env';
 import { seedEngineComponents } from '../ecs/component';
 import { cameraPlugin } from '../camera/CameraPlugin';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
+import { RenderResolution } from '../camera/presentPlan';
 import { Physics2DRuntime } from '../physics/Physics2DRuntime';
 import { SubsystemRegistry } from './subsystems';
 import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
@@ -1514,7 +1515,12 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // Project camera fit: only install the resource when the project opts in (a real
     // scaleMode). Absent ⇒ CameraPlugin.resolveFitSource sees no resource and keeps
     // the legacy Canvas-or-raw fit, so an unconfigured game is byte-for-byte unchanged.
-    if (options?.screenFit && options.screenFit.scaleMode > SCREEN_FIT_OFF) {
+    // Either opt-in installs it. The render policy does not need a camera fit —
+    // it takes the camera's world height whatever produced it — and gating one on
+    // the other made a project that wanted only the policy get neither.
+    if (options?.screenFit
+        && (options.screenFit.scaleMode > SCREEN_FIT_OFF
+            || (options.screenFit.renderPolicy ?? RenderResolution.Surface) !== RenderResolution.Surface)) {
         app.insertResource(ScreenScaling, { ...options.screenFit });
     }
 

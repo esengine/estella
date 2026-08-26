@@ -73,7 +73,7 @@ describe('packagedRuntimeFields', () => {
     // and a desktop window opens at it. Everything else stays absent so a build
     // with default settings keeps the config it has always had.
     expect(packagedRuntimeFields(runtimeConfigOf({}))).toEqual({
-      screenFit: { designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 },
+      screenFit: { designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy: 0 },
     });
   });
 
@@ -100,7 +100,7 @@ describe('packagedRuntimeFields', () => {
        'ySortLayers'],
     );
     expect(fields.screenFit).toEqual({
-      designWidth: 800, designHeight: 600, scaleMode: 2, matchWidthOrHeight: 0.5,
+      designWidth: 800, designHeight: 600, scaleMode: 2, matchWidthOrHeight: 0.5, renderPolicy: 0
     });
   });
 
@@ -112,7 +112,7 @@ describe('packagedRuntimeFields', () => {
       designResolution: { width: 1080, height: 1920 },
     }));
     expect(fields.screenFit).toEqual({
-      designWidth: 1080, designHeight: 1920, scaleMode: -1, matchWidthOrHeight: 0.5,
+      designWidth: 1080, designHeight: 1920, scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy: 0
     });
   });
 

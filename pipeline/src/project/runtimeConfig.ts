@@ -35,6 +35,8 @@ export interface RuntimeScreenFit {
   designHeight: number;
   scaleMode: number;
   matchWidthOrHeight: number;
+  /** The engine's RenderResolution; 0 = straight to the surface. */
+  renderPolicy: number;
 }
 
 /**
