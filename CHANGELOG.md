@@ -117,9 +117,18 @@ published separately; it ships inside the editor.
 
   `RenderGraph` compiles unconditionally now rather than behind
   `ES_ENABLE_POSTPROCESS` — the frame declares its own passes to it whether or
-  not a post stack was built in. The frame's GPU time is the graph's, not the
-  submit timer plus the chain: the scene runs inside the graph, so adding them
-  would have counted it twice.
+  not a post stack was built in. The frame's GPU time is the graph's, because the
+  scene runs inside it.
+
+  That is now the frame's ONLY GPU timer, and `render.submit` is no longer
+  reported as a GPU scope. A second timer opened around the scene sat inside the
+  graph's own span, which is not a thing either backend does: GL has one global
+  `TIME_ELAPSED` target, so the inner query failed to open, the inner `endQuery`
+  closed the OUTER one, and both numbers were wrong; WebGPU says nothing and let
+  the two drain one queue in turns, each reporting whichever pass came next. The
+  scene's own share was never a nested region — it is a pass of the graph, and a
+  per-pass question. Nothing read the `submit` key, and one that always read -1
+  was worse than an absent one.
 
 - **An effect can read the scene's DEPTH.** Nothing could: the depth attachment
   was written every frame and sampled by nothing, and on WebGPU it was not even
