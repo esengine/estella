@@ -84,6 +84,14 @@ describe('checkSeam', () => {
         const good = checkSeam(wall(0), W, H, { band: BAND, period: PERIOD, limit: 2 });
         expect(good.ok).toBe(true);
     });
+
+    it('asserts a FLOOR too, which is what a paired gate needs', () => {
+        // The twin of "the seam is gone" is "the same measurement still finds one
+        // with the fix off". Without a floor that half cannot be written, and the
+        // first half proves nothing on its own.
+        expect(checkSeam(wall(40), W, H, { band: BAND, period: PERIOD, atLeast: 2.5 }).ok).toBe(true);
+        expect(checkSeam(wall(0), W, H, { band: BAND, period: PERIOD, atLeast: 2.5 }).ok).toBe(false);
+    });
 });
 
 describe('columnSteps', () => {

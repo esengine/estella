@@ -40,6 +40,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { serveHost } from '../lib/staticServer.mjs';
+import { checkSeam } from '../lib/seamProbe.mjs';
 
 // SwiftShader rasterizes on the CPU; run the whole electron tree below normal
 // priority (child processes inherit the class) so a verify never starves the
@@ -162,7 +163,7 @@ function finish(result, server) {
   // which no pixel in the frame can show.
   const pickOk = !result.pick || result.pick.hit === result.pick.want;
   const renderedOk = result.capture?.rendered ?? false;
-  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) &&
+  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) && (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
@@ -581,6 +582,30 @@ app.whenReady().then(async () => {
         return { points: out, ok: out.every((o) => o.ok) };
       `);
     }
+    // ESTELLA_VERIFY_SEAM is JSON { period, phase, band:{y0,y1}, limit?, atLeast? }
+    // in TOP-DOWN screen pixels. The pixels come back to node so seamProbe stays
+    // one implementation rather than being re-typed into an injected script.
+    let seam = null;
+    if (process.env.ESTELLA_VERIFY_SEAM) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_SEAM);
+      const frame = await readFrame(`
+        let s = '';
+        const CH = 0x8000;
+        for (let i = 0; i < px.length; i += CH) {
+          s += String.fromCharCode.apply(null, px.subarray(i, Math.min(i + CH, px.length)));
+        }
+        return { b64: btoa(s), w, h };
+      `);
+      const raw = Buffer.from(frame.b64, 'base64');
+      // Readback rows are bottom-up; the band is stated the way a viewer reads a
+      // frame, so the rows are flipped rather than the caller doing the arithmetic.
+      const rows = Buffer.alloc(raw.length);
+      const stride = frame.w * 4;
+      for (let y = 0; y < frame.h; y++) {
+        raw.copy(rows, y * stride, (frame.h - 1 - y) * stride, (frame.h - y) * stride);
+      }
+      seam = checkSeam(rows, frame.w, frame.h, spec);
+    }
     // Optional PNG dump (ESTELLA_VERIFY_OUT) of the engine framebuffer (not the
     // page) so the rendered frame can be eyeballed. GL readback is bottom-up → flip.
     if (process.env.ESTELLA_VERIFY_OUT) {
@@ -716,7 +741,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

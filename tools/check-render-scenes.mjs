@@ -44,7 +44,10 @@ for (const s of SCENES) {
   // the sharper kind: what a frame cost is the half no pixel can show — as an
   // exact value where a scene is small enough to enumerate, and as a CEILING
   // where it is not.
-  const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
+  // A SEAM is an expectation too, and the kind a point probe cannot state: a
+  // column that behaves unlike its neighbours on a grid is not a pixel colour.
+  const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_SEAM
+    || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
     || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_COUNTERS_MAX
     || s.env.ESTELLA_VERIFY_DRAW_CALLS

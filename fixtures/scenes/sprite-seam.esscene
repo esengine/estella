@@ -1,0 +1,174 @@
+{
+  "version": 4,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 112,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Slice0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -96,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 64
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "texture": "@uuid:aaaaaaaa-5ea0-4000-8000-000000000000"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Slice1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -32,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 64
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "texture": "@uuid:aaaaaaaa-5ea0-4000-8000-000000000001"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Slice2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 32,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 64
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "texture": "@uuid:aaaaaaaa-5ea0-4000-8000-000000000002"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Slice3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 96,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 64,
+              "y": 64
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "texture": "@uuid:aaaaaaaa-5ea0-4000-8000-000000000003"
+          }
+        }
+      ]
+    }
+  ]
+}

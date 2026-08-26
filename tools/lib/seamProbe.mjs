@@ -88,10 +88,20 @@ export function seamRatio(px, w, h, band, period, phase, slack = 1) {
 }
 
 /**
- * Verdict for a gate: the ratio, and whether it clears `limit`.
- * Kept separate from {@link seamRatio} so a failure can report the number.
+ * Verdict for a gate: the ratio, and whether it sits where it was told to.
+ *
+ * `atLeast` is the other direction, and a pair needs it: a scene asserting the
+ * seam is GONE proves nothing on its own until its twin asserts the same
+ * measurement still finds one with the fix off.
  */
-export function checkSeam(px, w, h, { band, period, phase = 0, slack = 1, limit = 2 }) {
+export function checkSeam(px, w, h, { band, period, phase = 0, slack = 1, limit, atLeast }) {
     const ratio = seamRatio(px, w, h, band, period, phase, slack);
-    return { ratio, limit, ok: ratio <= limit };
+    const cap = limit ?? (atLeast === undefined ? 2 : Infinity);
+    const floor = atLeast ?? 0;
+    // Only the bounds that were asked for appear: a JSON `Infinity` serialises to
+    // null, and a failing gate's report should not read like a bug of its own.
+    const out = { ratio, ok: ratio <= cap && ratio >= floor };
+    if (Number.isFinite(cap)) out.limit = cap;
+    if (floor > 0) out.atLeast = floor;
+    return out;
 }
