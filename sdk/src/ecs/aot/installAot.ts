@@ -27,6 +27,7 @@ import type { Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotContext } from './AotContext';
 import { AotResources, type ResourceReader } from './AotResources';
+import { AotEvents, type EventBusAccess } from './AotEvents';
 import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
 
@@ -53,6 +54,8 @@ export interface InstallAotOptions {
      * its first frame has no value yet and is not missing.
      */
     readonly knowsResource?: (name: string) => boolean;
+    /** The bus a manifest's event NAME refers to, for reading and for sending. */
+    readonly events?: EventBusAccess;
 }
 
 /**
@@ -90,7 +93,8 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
 
     return {
         systems,
-        addresses: worldAddresses(opts.world, new AotResources(memory, opts.resources)),
+        addresses: worldAddresses(opts.world, new AotResources(memory, opts.resources),
+            new AotEvents(memory, opts.events ?? (() => undefined))),
         ctx: new AotContext(memory),
     };
 }
@@ -105,12 +109,16 @@ function componentNamed(name: string): AnyComponentDef | undefined {
  * component, because a system may name an engine one and a script one in the
  * same query and the runner has no business knowing which is which.
  */
-export function worldAddresses(world: World, resources: AotResources): AotAddresses {
+export function worldAddresses(
+    world: World, resources: AotResources, payloads: AotEvents,
+): AotAddresses {
     return {
         componentNamed,
         componentAt: (component: AnyComponentDef, entity: Entity) =>
             world.addressOfComponent(component, entity),
         resourceAt: (name: string) => resources.addressOf(name),
         resourceWriteBack: (name: string) => resources.writeBack(name),
+        payloadRows: (event, fields) => payloads.rowsFor(event, fields),
+        sendEvent: (event, fields, values) => payloads.send(event, fields, values),
     };
 }

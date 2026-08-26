@@ -27,6 +27,15 @@ export interface AotSystemDecl {
     /** One per declared Res/ResMut. `mut` is what makes a host write the mirror
      *  back after the call — without it the write is silently dropped. */
     readonly resources: readonly { name: string; mut: boolean }[];
+    /**
+     * Event readers, and the query slot each one's payloads go into. `fields`
+     * is the payload's layout, in the order the compiled code reads it — the
+     * host flattens an object into exactly that order or the code reads a
+     * different field.
+     */
+    readonly readers?: readonly { slot: number; event: string; fields: readonly string[] }[];
+    /** Event writers, by the slot the appended record names. */
+    readonly writers?: readonly { slot: number; event: string; fields: readonly string[] }[];
 }
 
 export interface AotManifest {

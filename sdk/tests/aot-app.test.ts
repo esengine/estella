@@ -12,7 +12,8 @@
 import { describe, it, expect } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import {
-    buildAotModule, buildFadeModule, fadeManifest, fadeTaggedManifest, keyProbeC, keyProbeManifest,
+    buildAotModule, buildFadeModule, eventManifest, fadeManifest, fadeTaggedManifest,
+    keyProbeC, keyProbeManifest, EVENT_C,
     timeScaleManifest, FADE_TAGGED_C,
     FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
 } from './helpers/aotFade';
@@ -20,6 +21,7 @@ import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { defineComponent, defineTag } from '../src/ecs/component';
 import { Time } from '../src/ecs/resource';
+import { defineEvent, EventReader, EventWriter } from '../src/ecs/event';
 import { Input } from '../src/input/input';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { Query, Mut } from '../src/ecs/query';
@@ -193,6 +195,53 @@ describe('an App told to run its compiled twins', () => {
         // looks like, so the untagged half is what tells them apart.
         expect(alphas(app, Fade, lit)).toEqual(lit.map(() => 0.75));
         expect(alphas(app, Fade, unlit)).toEqual(unlit.map(() => 1));
+    });
+
+    it.skipIf(!EMCC)('walks the payloads a reader was given', async () => {
+        const wasm = buildAotModule(EMCC!, EVENT_C, 'es_sys_Absorb');
+        const { app } = bootMockApp();
+        const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
+        const Hit = defineEvent<{ amount: number }>('Hit');
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [EventReader(Hit), Query(Mut(Fade))], () => { /* the twin is the point */ },
+            { name: 'Absorb' }));
+        await app.useCompiledSystems({ host: new FakeEngine(), manifest: eventManifest('Absorb'), wasm });
+        const entities = seed(app, Fade);
+
+        // Sent before a frame, readable during it, gone from the next — and the
+        // last half is what says the twin read a buffer, not a list.
+        const bus = (app as unknown as { eventRegistry_: { getBus(e: unknown): { send(v: unknown): void } } })
+            .eventRegistry_.getBus(Hit);
+        bus.send({ amount: 3 });
+        bus.send({ amount: 4 });
+        await app.tick(1 / 60);
+        expect(alphas(app, Fade, entities)).toEqual(entities.map(() => 7));
+        await app.tick(1 / 60);
+        expect(alphas(app, Fade, entities).every((a) => a === 0)).toBe(true);
+    });
+
+    it.skipIf(!EMCC)('and delivers the payloads it appended', async () => {
+        const wasm = buildAotModule(EMCC!, EVENT_C, 'es_sys_Emit');
+        const { app } = bootMockApp();
+        const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
+        const Hit = defineEvent<{ amount: number }>('Sent');
+        const seen: number[] = [];
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Query(Fade), EventWriter(Hit)], () => { /* the twin is the point */ },
+            { name: 'Emit' }));
+        // A reader in the same world, interpreted: what the twin sent has to
+        // arrive the ordinary way or it went nowhere.
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [EventReader(Hit)], (hits) => { for (const h of hits) seen.push(h.amount); },
+            { name: 'Watch' }));
+        await app.useCompiledSystems({ host: new FakeEngine(), manifest: eventManifest('Emit'), wasm });
+        const entities = seed(app, Fade);
+
+        await app.tick(1 / 60);
+        await app.tick(1 / 60);
+        // Sent in the first frame and read in the second, on the same bus an
+        // interpreted reader walks — the only way they could arrive.
+        expect(seen).toEqual(entities.map((_, i) => (i + 1) * 0.1));
     });
 
     it.skipIf(!EMCC)('refuses a module built for other shapes, and the App keeps interpreting', async () => {

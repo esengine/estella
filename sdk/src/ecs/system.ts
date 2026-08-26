@@ -600,7 +600,14 @@ export class SystemRunner {
             queries.push(rows);
         }
 
+        // A reader's rows are this frame's payloads, flattened into the layout
+        // the manifest declares. The query slot was reserved for them, so this
+        // replaces what the component walk above left there (nothing).
+        for (const r of twin.decl.readers ?? []) {
+            queries[r.slot] = aot.addresses.payloadRows(r.event, r.fields) as AotRow[];
+        }
         const resources = twin.decl.resources.map((r) => aot.addresses.resourceAt(r.name) ?? 0);
+        aot.ctx.setRecordLengths((twin.decl.writers ?? []).map((wr) => wr.fields.length));
         aot.ctx.build(queries, resources);
         twin.call(aot.ctx.address);
         aot.systems.noteCall();
@@ -610,6 +617,16 @@ export class SystemRunner {
         // would overwrite what the engine wrote this frame.
         for (const r of twin.decl.resources) {
             if (r.mut) aot.addresses.resourceWriteBack(r.name);
+        }
+
+        // What it sent. The compiled code appended numbers; the payload is
+        // rebuilt from the same field list that flattened it.
+        const writers = twin.decl.writers ?? [];
+        if (writers.length > 0) {
+            for (const rec of aot.ctx.events()) {
+                const decl = writers.find((wr) => wr.slot === rec.slot);
+                if (decl) aot.addresses.sendEvent(decl.event, decl.fields, rec.fields);
+            }
         }
 
         for (const cmd of aot.ctx.commands()) {

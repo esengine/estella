@@ -169,6 +169,18 @@ typedef struct EsSysCtx {
 /* What a host needs in order to CALL a system without glue written by hand.
    The compiler knows a system's queries and resources -- that is what _params
    is -- so it says so here rather than leaving each host to be told twice. */
+/* Where a system APPENDS events: f64 records, because a payload is fields and
+   not four words. A record is [writer slot, ...fields], and how long one is
+   comes from the manifest — the host declared it.
+
+   Its own queue rather than a wider EsCmd: fixed-width records and
+   variable-width ones cannot share a buffer without stride guesswork. */
+typedef struct EsEventOut {
+    es_addr_t buf;      /* double * */
+    es_addr_t cap;      /* capacity, in doubles */
+    es_addr_t count;    /* address of the used-doubles word */
+} EsEventOut;
+
 typedef struct EsQueryDecl {
     const char *const *comps;   /* component names, in the order the query names them */
     const unsigned char *mut;   /* 1 where the system may write that component */
@@ -573,6 +585,11 @@ class Emitter {
      * contract's: writing past it is forbidden, and the host is what sized it.
      */
     private emitCommand(s: Stmt & { s: 'emit' }, indent: number): void {
+        const writer = s.channel.p === 'local'
+            ? this.plan!.writers.find((w) => w.slot === this.plan!.slots.get(s.channel.p === 'local'
+                ? s.channel.id : -1)?.slot)
+            : undefined;
+        if (writer) { this.emitEvent(s, writer.slot, indent); return; }
         const kind = s.record === 'despawn' ? 'ES_CMD_DESPAWN' : 'ES_CMD_REMOVE';
         const fields = ['a', 'b', 'c'];
         this.line(indent, 'if (es_cmd_n < es_cmd_cap) {');
@@ -584,6 +601,24 @@ class Emitter {
             this.line(indent + 1, `es_at->${fields[i]} = ${v};`);
         }
         this.line(indent + 1, 'es_cmd_n += 1u;');
+        this.line(indent, '}');
+    }
+
+    /**
+     * One payload appended: the writer's slot, then its fields in declared
+     * order. Bounds-checked against the capacity the host set, and silent when
+     * full for the same reason a command queue is — a system that overran would
+     * otherwise write past a buffer it does not own.
+     */
+    private emitEvent(s: Stmt & { s: 'emit' }, slot: number, indent: number): void {
+        const stride = s.args.length + 1;
+        this.line(indent, `if (es_ev_n + ${stride}u <= es_ev_cap) {`);
+        this.line(indent + 1, `double *es_rec = es_ev_buf + es_ev_n;`);
+        this.line(indent + 1, `es_rec[0] = ${slot}.0;`);
+        s.args.forEach((a, i) => {
+            this.line(indent + 1, `es_rec[${i + 1}] = ${coerce(this.expr(a), a.type, F64)};`);
+        });
+        this.line(indent + 1, `es_ev_n += ${stride}u;`);
         this.line(indent, '}');
     }
 
@@ -655,14 +690,22 @@ class Emitter {
         if (usesRes) {
             this.line(1, 'const es_addr_t *es_resources = (const es_addr_t *)ES_PTR(es_c->resources);');
         }
-        const emits = hasEmit(sys.body);
+        const sends = plan.writers.length > 0 && hasEmit(sys.body);
+        const emits = hasEmit(sys.body) && plan.channels.length > plan.writers.length;
         if (emits) {
             this.line(1, 'EsCmd *es_cmd_buf = (EsCmd *)ES_PTR(es_c->cmdBuf);');
             this.line(1, 'const uint32_t es_cmd_cap = (uint32_t)es_c->cmdCap;');
             this.line(1, 'uint32_t *es_cmd_at = (uint32_t *)ES_PTR(es_c->cmdCount);');
             this.line(1, 'uint32_t es_cmd_n = *es_cmd_at;');
         }
-        if (plan.queries.length === 0 && !usesRes && !emits) this.line(1, '(void)es_c;');
+        if (sends) {
+            this.line(1, 'const EsEventOut *es_ev = (const EsEventOut *)ES_PTR(es_c->events);');
+            this.line(1, 'double *es_ev_buf = (double *)ES_PTR(es_ev->buf);');
+            this.line(1, 'const uint32_t es_ev_cap = (uint32_t)es_ev->cap;');
+            this.line(1, 'uint32_t *es_ev_at = (uint32_t *)ES_PTR(es_ev->count);');
+            this.line(1, 'uint32_t es_ev_n = *es_ev_at;');
+        }
+        if (plan.queries.length === 0 && !usesRes && !emits && !sends) this.line(1, '(void)es_c;');
         // A resource base is one indirection, resolved once at entry rather than
         // per row: the host already put the address in the table.
         for (const p of sys.params) {
@@ -673,6 +716,7 @@ class Emitter {
         this.declare(sys.locals.filter((l) => !bound.has(l.id)), reads, 1);
         this.stmts(sys.body, 1);
         if (emits) this.line(1, '*es_cmd_at = es_cmd_n;');
+        if (sends) this.line(1, '*es_ev_at = es_ev_n;');
         this.line(0, '}');
         this.line(0, '');
     }

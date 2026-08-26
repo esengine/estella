@@ -8,7 +8,10 @@
  *          by conformance.test.ts — a feature the frontend lowers but nobody
  *          runs both ways is a feature nobody has checked.
  */
-import { defineComponent, defineSystem, Query, Mut, Res, Camera, Input, Time, Transform } from 'esengine';
+import {
+    defineComponent, defineEvent, defineSystem, EventReader, EventWriter,
+    Query, Mut, Res, Camera, Input, Time, Transform,
+} from 'esengine';
 
 export const Drift = defineComponent('FixtureDrift', { rate: 40, wrap: 100, enabled: true });
 
@@ -157,4 +160,29 @@ export const gateSystem = defineSystem(
         }
     },
     { name: 'FixtureGate' },
+);
+
+/** One payload, and the two halves that put it into memory and take it out. */
+export const Pinged = defineEvent<{ by: number }>('FixturePinged');
+
+export const pingSystem = defineSystem(
+    [Query(Mut(Drift)), EventWriter(Pinged)],
+    (query, out) => {
+        for (const [, d] of query) {
+            if (d.enabled) out.send({ by: d.rate });
+        }
+    },
+    { name: 'FixturePing' },
+);
+
+export const pongSystem = defineSystem(
+    [EventReader(Pinged), Query(Mut(Drift))],
+    (pings, query) => {
+        let total = 0;
+        for (const p of pings) total = total + p.by;
+        for (const [, d] of query) {
+            d.wrap = total;
+        }
+    },
+    { name: 'FixturePong' },
 );

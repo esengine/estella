@@ -31,7 +31,10 @@ export type EirType =
     | { readonly k: 'res'; readonly name: string; readonly mut: boolean }
     | { readonly k: 'query'; readonly args: readonly QueryArg[] }
     /** A deferred-mutation channel: Commands, and later an EventWriter. */
-    | { readonly k: 'channel'; readonly name: string };
+    /** Something a system APPENDS to: the command queue, or one event's writer. */
+    | { readonly k: 'channel'; readonly name: string; readonly channel: 'commands' | 'event' }
+    /** `EventReader(E)`: this frame's payloads of one event, walked like rows. */
+    | { readonly k: 'events'; readonly name: string };
 
 export const F64: EirType = { k: 'f64' };
 export const BOOL: EirType = { k: 'bool' };
@@ -220,6 +223,9 @@ export interface EirModule {
     readonly systems: readonly EirSystem[];
     readonly comps: ReadonlyMap<string, CompShape>;
     readonly fns: ReadonlyMap<string, EirFn>;
+    /** Event payloads, by declared name. A separate namespace from components:
+     *  a program may name one of each the same thing without meaning one. */
+    readonly events: ReadonlyMap<string, CompShape>;
 }
 
 // =============================================================================

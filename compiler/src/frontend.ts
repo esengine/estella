@@ -219,7 +219,16 @@ class SystemLowerer {
         private readonly fns: ReadonlyMap<string, EirFn>,
         /** Why a function is absent, so the call site can say more than "no". */
         private readonly fnFailures: ReadonlyMap<string, string> = new Map(),
+        /** Event payloads by declared name, and the const each is bound to. */
+        private readonly events: ReadonlyMap<string, CompShape> = new Map(),
+        private readonly eventBindings: ReadonlyMap<string, string> = new Map(),
     ) {}
+
+    /** The event a binding names, or null when the program declares no such one. */
+    private eventName(binding: string): string | null {
+        const name = this.eventBindings.get(binding) ?? binding;
+        return this.events.has(name) ? name : null;
+    }
 
     /** Lower a module-level function; `lower` does the same for a system body. */
     lowerFn(name: string, params: readonly ts.ParameterDeclaration[], body: ts.ConciseBody): EirFn {
@@ -317,9 +326,20 @@ class SystemLowerer {
                 if (!arg || !ts.isIdentifier(arg)) throw new NotInSubset(el, `${kind}(...) needs a named resource`);
                 return { k: 'res', name: this.compName(arg.text), mut: kind === 'ResMut' } as EirType;
             }
+            if (kind === 'EventWriter' || kind === 'EventReader') {
+                const arg = el.arguments[0];
+                if (!arg || !ts.isIdentifier(arg)) throw new NotInSubset(el, `${kind}(...) needs a named event`);
+                const name = this.eventName(arg.text);
+                if (!name) {
+                    throw new NotInSubset(el, `'${arg.text}' is not an event this program declares`);
+                }
+                return kind === 'EventWriter'
+                    ? { k: 'channel', name, channel: 'event' } as EirType
+                    : { k: 'events', name } as EirType;
+            }
             if (kind === 'Commands') {
                 if (el.arguments.length !== 0) throw new NotInSubset(el, 'Commands() takes no arguments');
-                return { k: 'channel', name: 'Commands' } as EirType;
+                return { k: 'channel', name: 'Commands', channel: 'commands' } as EirType;
             }
             if (kind !== 'Query') {
                 // GetWorld hands over the whole World — arbitrary access, the one
@@ -423,6 +443,9 @@ class SystemLowerer {
         }
         const q = this.lookup(node.expression, node.expression.text);
         const qt = q.type;
+        // An event reader yields ONE payload per step, so it binds a plain name
+        // rather than destructuring a row of components.
+        if (qt.k === 'events') return this.eventLoop(node, q, qt.name);
         if (qt.k !== 'query') throw new NotInSubset(node.expression, `'${q.name}' is not a query`);
 
         const decl = ts.isVariableDeclarationList(node.initializer) ? node.initializer.declarations[0] : undefined;
@@ -486,6 +509,12 @@ class SystemLowerer {
             throw new NotInSubset(node, `'${target.name}' is not a channel this subset can emit to`);
         }
         const record = callee.name.text;
+        if (target.type.channel === 'event') {
+            if (record !== 'send') {
+                throw new NotInSubset(node, `an event writer has only 'send', not '${record}'`);
+            }
+            return this.sendEvent(node, target, target.type.name);
+        }
         const arity = COMMAND_RECORDS[record];
         if (arity === undefined) {
             throw new NotInSubset(node, `Commands.${record} is not a record this subset emits yet`);
@@ -495,6 +524,69 @@ class SystemLowerer {
         }
         const args = node.arguments.map((a) => this.expr(a));
         return { s: 'emit', channel: { p: 'local', id: target.id }, record, args };
+    }
+
+    /**
+     * `for (const blow of blows)` over an `EventReader`. One binding, no entity:
+     * an event is a payload rather than a row of components, and the loop is
+     * the same statement so every later pass walks one shape.
+     */
+    private eventLoop(node: ts.ForOfStatement, reader: Local, event: string): Stmt {
+        const decl = ts.isVariableDeclarationList(node.initializer)
+            ? node.initializer.declarations[0] : undefined;
+        if (!decl || !decl.name || !ts.isIdentifier(decl.name)) {
+            throw new NotInSubset(node, 'an event loop binds one plain name');
+        }
+        const bindingName = decl.name.text;
+        return this.scoped(() => {
+            const bound = this.define(bindingName, { k: 'comp', name: event });
+            const body = ts.isBlock(node.statement)
+                ? node.statement.statements.flatMap((st) => this.stmt(st))
+                : this.stmt(node.statement);
+            return { s: 'rowLoop', query: { p: 'local', id: reader.id }, entity: null, binds: [bound.id], body };
+        });
+    }
+
+    /**
+     * `writer.send({ target: e, amount: 3 })` — the payload is FLATTENED into
+     * the fields the event declares, in that order, so nothing needs a heap.
+     * A field the event does not declare, or one it declares and the literal
+     * omits, is refused: the record's shape is the contract.
+     */
+    private sendEvent(node: ts.CallExpression, writer: Local, event: string): Stmt {
+        const arg = node.arguments[0];
+        if (node.arguments.length !== 1 || !arg || !ts.isObjectLiteralExpression(arg)) {
+            throw new NotInSubset(node, 'send takes one object literal');
+        }
+        const shape = this.events.get(event);
+        if (!shape) throw new NotInSubset(node, `'${event}' has no declared payload`);
+
+        const given = new Map<string, ts.Expression>();
+        const collect = (obj: ts.ObjectLiteralExpression, prefix: string): void => {
+            for (const prop of obj.properties) {
+                if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) {
+                    throw new NotInSubset(prop, 'a payload field must be `name: value`');
+                }
+                const path = prefix ? `${prefix}.${prop.name.text}` : prop.name.text;
+                if (ts.isObjectLiteralExpression(prop.initializer)) {
+                    collect(prop.initializer, path);
+                    continue;
+                }
+                given.set(path, prop.initializer);
+            }
+        };
+        collect(arg, '');
+
+        const args: Expr[] = [];
+        for (const field of shape.fields.keys()) {
+            const value = given.get(field);
+            if (!value) throw new NotInSubset(node, `send is missing '${field}' of event '${event}'`);
+            args.push(this.expr(value));
+            given.delete(field);
+        }
+        const extra = [...given.keys()][0];
+        if (extra) throw new NotInSubset(node, `event '${event}' has no field '${extra}'`);
+        return { s: 'emit', channel: { p: 'local', id: writer.id }, record: 'send', args };
     }
 
     private assignment(node: ts.Expression): Stmt {
@@ -754,6 +846,57 @@ function componentShape(call: ts.CallExpression, tag: boolean): CompShape | null
     return { name: nameArg.text, storage: 'host', fields };
 }
 
+/**
+ * `defineEvent<{ target: Entity; amount: number }>('DamageDealt')` -> a shape.
+ *
+ * A payload's fields live only in the TYPE argument, read as syntax rather than
+ * asked of the checker. A named type resolves against the program's own
+ * interfaces; nesting flattens to dotted paths, as a component's does.
+ */
+function eventShape(
+    call: ts.CallExpression, interfaces: ReadonlyMap<string, ts.InterfaceDeclaration>,
+): CompShape | null {
+    const nameArg = call.arguments[0];
+    const arg = call.typeArguments?.[0];
+    if (!nameArg || !ts.isStringLiteral(nameArg) || !arg) return null;
+
+    const fields = new Map<string, FieldSpec>();
+    const members = (t: ts.TypeNode): readonly ts.TypeElement[] | null => {
+        if (ts.isTypeLiteralNode(t)) return t.members;
+        if (ts.isTypeReferenceNode(t) && ts.isIdentifier(t.typeName)) {
+            return interfaces.get(t.typeName.text)?.members ?? null;
+        }
+        return null;
+    };
+    const walk = (t: ts.TypeNode, prefix: string): boolean => {
+        const ms = members(t);
+        if (!ms) return false;
+        for (const m of ms) {
+            if (!ts.isPropertySignature(m) || !ts.isIdentifier(m.name) || !m.type) return false;
+            const path = prefix ? `${prefix}.${m.name.text}` : m.name.text;
+            const leaf = eventLeaf(m.type);
+            if (leaf) { fields.set(path, leaf); continue; }
+            if (!walk(m.type, path)) return false;
+        }
+        return true;
+    };
+    if (!walk(arg, '') || fields.size === 0) return null;
+    // A host record like a `defineComponent` shape: f64 per leaf, laid out by
+    // the ABI rather than by any C++ struct.
+    return { name: nameArg.text, storage: 'host', fields };
+}
+
+/** A payload leaf: the three types an event field may be. */
+function eventLeaf(t: ts.TypeNode): FieldSpec | null {
+    if (t.kind === ts.SyntaxKind.NumberKeyword) return { type: F64, enc: HOST_ENC, offset: null };
+    if (t.kind === ts.SyntaxKind.BooleanKeyword) return { type: BOOL, enc: HOST_ENC, offset: null };
+    // `Entity` is a branded number, and the ABI carries it as one.
+    if (ts.isTypeReferenceNode(t) && ts.isIdentifier(t.typeName) && t.typeName.text === 'Entity') {
+        return { type: ENTITY, enc: HOST_ENC, offset: null };
+    }
+    return null;
+}
+
 /** Two declarations of one name are the same component only if every field matches. */
 function sameShape(a: CompShape, b: CompShape): boolean {
     if (a.fields.size !== b.fields.size) return false;
@@ -796,6 +939,9 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     // things; move.ts happens to use one word for both, which is why this was
     // missing until a fixture used two.
     const bindings = new Map<string, string>();
+    /** Event payloads, by declared name — a second namespace from components. */
+    const events = new Map<string, CompShape>();
+    const eventBindings = new Map<string, string>();
     const consts = new Map<string, ConstValue>();
     const fns = new Map<string, EirFn>();
     // Why a function could not be lowered, reported at the CALL SITE rather than
@@ -843,9 +989,42 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
             if (v !== null) consts.set(node.name.text, v);
         });
     }
+    // Interfaces first: an event's payload may name one declared in another file.
+    const interfaces = new Map<string, ts.InterfaceDeclaration>();
+    for (const sf of sources) {
+        ts.forEachChild(sf, (node) => {
+            if (ts.isInterfaceDeclaration(node)) interfaces.set(node.name.text, node);
+        });
+    }
     for (const sf of sources) {
         walkTop(sf, (node, binding) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
+            if (node.expression.text === 'defineEvent') {
+                const shape = eventShape(node, interfaces);
+                if (!shape) {
+                    diagnostics.push({
+                        file: sf.fileName, line: lineOf(sf, node), kind: 'pending', severity: 'note',
+                        message: 'defineEvent needs a payload whose fields are all number, boolean or Entity',
+                    });
+                    return;
+                }
+                const clash = comps.get(shape.name);
+                if (clash && !sameShape(clash, shape)) {
+                    diagnostics.push({
+                        file: sf.fileName, line: lineOf(sf, node), kind: 'permanent', severity: 'note',
+                        message: `'${shape.name}' is declared both as an event and as something else`
+                            + ' — one program cannot hold two',
+                    });
+                    return;
+                }
+                events.set(shape.name, shape);
+                // ONE shape table downstream: a payload's fields are read the
+                // same way a component's are, so every later pass finds them
+                // without asking which kind of thing this name is.
+                comps.set(shape.name, shape);
+                if (binding) eventBindings.set(binding, shape.name);
+                return;
+            }
             const tag = node.expression.text === 'defineTag';
             if (!tag && node.expression.text !== 'defineComponent') return;
             const shape = componentShape(node, tag);
@@ -890,7 +1069,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 }
                 if (!name || !params || !body || fns.has(name)) return;
                 try {
-                    fns.set(name, new SystemLowerer(comps, bindings, consts, fns, fnFailures)
+                    fns.set(name, new SystemLowerer(comps, bindings, consts, fns, fnFailures, events, eventBindings)
                         .lowerFn(name, params, body));
                 } catch (e) {
                     if (!(e instanceof NotInSubset)) throw e;
@@ -915,7 +1094,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
                     throw new NotInSubset(node, 'defineSystem takes a parameter array and an arrow function');
                 }
-                systems.push(new SystemLowerer(comps, bindings, consts, fns, fnFailures).lower(name, params, fn));
+                systems.push(new SystemLowerer(comps, bindings, consts, fns, fnFailures, events, eventBindings).lower(name, params, fn));
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({
@@ -929,7 +1108,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         });
     }
 
-    return { module: { systems, comps, fns }, diagnostics, seen, systemBindings, required };
+    return { module: { systems, comps, fns, events }, diagnostics, seen, systemBindings, required };
 }
 
 /** `{ name: 'MoveSystem' }` if given, else the const it is assigned to. */

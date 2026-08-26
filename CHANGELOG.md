@@ -45,6 +45,14 @@ published separately; it ships inside the editor.
   `UICameraInfo.viewProjection` is deliberately not in it, since a member has to
   have a fixed width.
 
+  Events compile too, both directions. `EventWriter(E)` and `EventReader(E)` are
+  parameters a compiled system may declare: `writer.send({ … })` flattens the
+  payload into the fields the event declares and appends one record, and
+  `for (const e of reader)` walks this frame's payloads as memory. A payload's
+  shape comes from the TYPE argument of `defineEvent`, including one named by an
+  interface and one that nests — `color: { r, g, b }` is three fields, not a
+  refusal. Fields must be `number`, `boolean` or `Entity`.
+
   Hosts embedding the runtime themselves can do the same through
   `App.useCompiledSystems`, and `App.compiledSystems` reports which systems are
   running compiled and how many twin calls have happened (both

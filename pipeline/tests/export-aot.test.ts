@@ -98,13 +98,17 @@ describe('the promised systems in a web package', () => {
 
     const manifest = JSON.parse(readFileSync(path.join(f.out, AOT_MANIFEST), 'utf8')) as {
       engineAbi: string; projectShapes: string;
-      systems: { name: string; symbol: string; queries: { comp: string; mut: boolean }[][]; resources: { name: string; mut: boolean }[] }[];
+      systems: { name: string; symbol: string; queries: { comp: string; mut: boolean }[][]; resources: { name: string; mut: boolean }[]; readers: unknown[]; writers: unknown[] }[];
     };
     expect(manifest.systems).toEqual([{
       name: 'MoveSystem',
       symbol: 'es_sys_MoveSystem',
       queries: [[{ comp: 'Transform', mut: true }, { comp: 'Mover', mut: false }]],
       resources: [{ name: 'Time', mut: false }],
+      // A system with no events still declares the two lists, so a runtime
+      // never has to tell "none" from "an older manifest".
+      readers: [],
+      writers: [],
     }]);
     expect(manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
 

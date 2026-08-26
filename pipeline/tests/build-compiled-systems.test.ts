@@ -219,6 +219,10 @@ describe('the AOT build step', () => {
       symbol: 'es_sys_MoveSystem',
       queries: [[{ comp: 'Transform', mut: true }, { comp: 'Mover', mut: false }]],
       resources: [{ name: 'Time', mut: false }],
+      // A system with no events still declares the two lists, so a runtime
+      // never has to tell "none" from "an older manifest".
+      readers: [],
+      writers: [],
     }]);
     expect(out.manifest!.engineAbi).toMatch(/^[0-9a-f]{16}$/);
     expect(out.manifest!.projectShapes).toMatch(/^[0-9a-f]{16}$/);
