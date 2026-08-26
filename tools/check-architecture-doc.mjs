@@ -20,9 +20,11 @@
  *
  * Run: node tools/check-architecture-doc.mjs   (exit 1 on a dead name)
  */
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOC = path.join(ROOT, 'docs', 'ARCHITECTURE.md');
@@ -60,24 +62,25 @@ const ENTRY_SPECIFIERS = new Set(
  */
 const GONE = new Set(['getTypeId', 'DynamicComponentPool', 'SchemaComponentPool', 'BatchRenderer2D']);
 
-const SELF = path.join(ROOT, 'tools', 'check-architecture-doc.mjs');
+const SELF = 'tools/check-architecture-doc.mjs';
 
-function walk(dir, out = []) {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-        if (e.name === 'node_modules' || e.name === 'dist' || e.name === 'build') continue;
-        // This file names every dead symbol on purpose; reading it would revive them all.
-        if (path.join(dir, e.name) === SELF) continue;
-        const p = path.join(dir, e.name);
-        if (e.isDirectory()) walk(p, out);
-        else if (SOURCE_EXT.test(e.name)) out.push(p);
-    }
-    return out;
+/**
+ * The index, not the disk. An export leaves gitignored bundles under
+ * `pipeline/src`, and a walk that reads those judges the doc against a bundle of
+ * the sources rather than the sources — which revived `getTypeId` and turned this
+ * gate red on any machine that had run one.
+ */
+const { files: tracked, missing } = listTrackedSources(SOURCES);
+if (missing.length > 0) {
+    console.error(`check-architecture-doc: no checkout to read for ${missing.join(', ')}`);
+    console.error('A gate that cannot see part of its corpus must not report on it.');
+    process.exit(2);
 }
 
-const haystack = SOURCES
-    .filter((d) => existsSync(path.join(ROOT, d)))
-    .flatMap((d) => walk(path.join(ROOT, d)))
-    .map((f) => readFileSync(f, 'utf8'))
+const haystack = tracked
+    // This file names every dead symbol on purpose; reading it would revive them all.
+    .filter((f) => f !== SELF && SOURCE_EXT.test(f))
+    .map((f) => readFileSync(path.join(ROOT, f), 'utf8'))
     .join('\n');
 
 const doc = readFileSync(DOC, 'utf8');

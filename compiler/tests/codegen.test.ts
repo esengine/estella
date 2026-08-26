@@ -67,10 +67,19 @@ const IMAGE = 1 << 16;
  * aarch64 path is clang. gcc is accepted, and is arguably the better witness:
  * agreeing with a SECOND independent implementation of C says more than
  * agreeing with the one the lowering was written against.
+ *
+ * The candidate has to BUILD something, not merely answer `--version`. emsdk's
+ * clang shadows the system one on PATH, reports `Target: unknown`, and answers
+ * `--version` with 0 while refusing every host compile — so the wrong probe
+ * reddens this differential on exactly the machines that can run AOT.
  */
 function findCC(): string | null {
+    const dir = mkdtempSync(join(tmpdir(), 'estella-cc-'));
+    const src = join(dir, 'probe.c');
+    writeFileSync(src, 'int main(void) { return 0; }\n');
     for (const cc of ['clang', 'gcc', 'cc']) {
-        if (spawnSync(cc, ['--version'], { encoding: 'utf8' }).status === 0) return cc;
+        const out = spawnSync(cc, ['-std=c11', '-o', join(dir, `probe-${cc}`), src], { encoding: 'utf8' });
+        if (out.status === 0) return cc;
     }
     return null;
 }
