@@ -4,25 +4,22 @@
  * @file    AotRuntime.ts
  * @brief   What the runner needs to call a twin instead of a closure.
  *
- * @details Three things, and no more: which twins exist, where a component's and
- *          a resource's bytes are, and one arena to lay a call out in.
+ * @details Three things, and no more: which twins exist, what the manifest's
+ *          names mean here, and one arena to lay a call out in.
  *
- *          Addresses are asked for by DEFINITION and by NAME rather than
- *          resolved here, because where a component lives depends on which kind
- *          it is — an engine component is at an EHT offset in the C++ pools, a
- *          `defineComponent` one is a row in a `ScriptPool` — and that is the
- *          storage layer's knowledge, not this one's.
+ *          A COMPONENT's address is deliberately absent: `AotDispatch` asks the
+ *          world for a resolver once per system and calls it per row, and a
+ *          second door onto the same fact is a second thing to keep true.
+ *          A resource's is here because a resource has no address of its own
+ *          until something mirrors it, and that something is per world.
  */
 
 import type { AnyComponentDef } from '../component';
-import type { Entity } from '../../types';
 import type { AotContext } from './AotContext';
 import type { AotSystems } from './AotSystems';
 
 /** Where the bytes are, in the memory the compiled code reads. */
 export interface AotAddresses {
-    /** `component`'s bytes for `entity`, or undefined when it has none. */
-    componentAt(component: AnyComponentDef, entity: Entity): number | undefined;
     /**
      * The named resource's bytes, ready for THIS call. A resource is a host
      * record with no address of its own, so an implementation mirrors it — and

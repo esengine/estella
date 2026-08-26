@@ -71,7 +71,7 @@ export async function installAot(opts: InstallAotOptions): Promise<AotRuntime> {
 
     const runtime: AotRuntime = {
         systems,
-        addresses: worldAddresses(opts.world, new AotResources(memory, opts.resources)),
+        addresses: worldAddresses(new AotResources(memory, opts.resources)),
         ctx: new AotContext(memory),
     };
     opts.runner.useAot(runtime);
@@ -94,15 +94,13 @@ function componentNamed(name: string): AnyComponentDef | undefined {
 }
 
 /**
- * Where things are, asked of the world. One question for both kinds of
- * component, because a system may name an engine one and a script one in the
- * same query and the runner has no business knowing which is which.
+ * What the manifest's names mean here, and where a resource's mirror is. A
+ * COMPONENT's address is not among them: `AotDispatch` takes a resolver from the
+ * world once per system rather than asking per row.
  */
-export function worldAddresses(world: World, resources: AotResources): AotAddresses {
+export function worldAddresses(resources: AotResources): AotAddresses {
     return {
         componentNamed,
-        componentAt: (component: AnyComponentDef, entity: Entity) =>
-            world.addressOfComponent(component, entity),
         resourceAt: (name: string) => resources.addressOf(name),
     };
 }

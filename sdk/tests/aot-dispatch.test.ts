@@ -197,7 +197,6 @@ describe('the scheduler and its compiled twin', () => {
 
         const addresses: AotAddresses = {
             componentNamed: (name) => (name === 'Decay' ? b.Decay : undefined),
-            componentAt: (comp, entity) => b.world.addressOfComponent(comp, entity),
             resourceAt: () => undefined,
         };
         const runtime: AotRuntime = { systems, addresses, ctx: new AotContext(memory) };
@@ -250,7 +249,6 @@ describe('the scheduler and its compiled twin', () => {
                     systems,
                     addresses: {
                         componentNamed: (name) => (name === 'Decay' ? w.Decay : undefined),
-                        componentAt: (c, e) => w.world.addressOfComponent(c, e),
                         resourceAt: () => undefined,
                     },
                     ctx: new AotContext(memory),
