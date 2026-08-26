@@ -284,10 +284,8 @@ private:
     Stats stats_;
     /**
      * ONE per frame, spanning the graph. GL's TIME_ELAPSED has a single global
-     * target and WebGPU's timestamps land in one queue, so a second timer opened
-     * inside this one's span does not measure a nested region — it ends this
-     * query on GL and steals this reading on WebGPU. The scene is a pass of the
-     * graph, so its own share is a per-pass question, not a second timer.
+     * target and WebGPU's timestamps land in one queue, so a timer opened inside
+     * this one's span ends this query on GL and steals this reading on WebGPU.
      */
     GpuTimer gpu_timer_;
     FrameCapture frame_capture_;
