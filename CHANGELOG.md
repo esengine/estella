@@ -23,11 +23,14 @@ published separately; it ships inside the editor.
   rather than owning one, so the engine wasm stays prebuilt and there is nothing
   to link — it reads the components where they already are.
 
-  The marker is a promise, not a hint: in a `release` or `ship` export, anything
-  the subset cannot lower is a build error naming the file and the line. A `dev`
-  export never compiles, so the editor's preview keeps interpreting and a machine
-  with no emsdk builds and runs every project. A project that marks nothing is
-  unaffected — no toolchain, no build step, no file.
+  The marker is a promise, not a hint: anything the subset cannot lower is a
+  build error naming the file and the line, because an export is the shipping
+  build and a promise someone is collecting on. A machine with no emsdk is told
+  so BEFORE the export rather than during it — the targets that would compile
+  are offered as not-ready with the toolchain named, which a silent fallback to
+  the interpreter could never say. The editor's preview keeps interpreting
+  either way, and a project that marks nothing is unaffected: no toolchain, no
+  build step, no file.
 
   Loading refuses rather than degrades. A module built against other engine
   offsets, or other `defineComponent` shapes, does not produce a wrong answer —
