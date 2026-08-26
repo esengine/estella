@@ -144,7 +144,7 @@ export const CRITERIA = [
   },
   {
     id: 'flagship-plays-through',
-    says: 'the flagship can be played from its first room to its boss, as a package',
+    says: 'the flagship can be played from its first room to its boss, as a package (reached, not defeated)',
     // Every other gate asks whether something works. This asks the only thing a
     // player asks — and a game whose second door cannot be opened passes all of
     // the others.

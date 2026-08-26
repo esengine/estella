@@ -23,6 +23,9 @@
  *     --trace            print what the driver decided, periodically
  *
  * A route is a list of legs: `{ area, goal, arriveWithin?, swing?, timeout? }`.
+ * A leg ends when its goal is GONE — taken, or dead — or when the area changed.
+ * `arriveWithin` ends it on distance instead, which is a weaker claim and so is
+ * never assumed: a leg that wants it says so, and says why.
  * `goal` is an entity name the probe can find, so a leg survives the level being
  * re-authored — the door moves, the route does not.
  *

@@ -61,7 +61,9 @@
       "area": "spire",
       "goal": "Vesper",
       "swing": true,
-      "timeout": 3000
+      "timeout": 3000,
+      "arriveWithin": 90,
+      "note": "reaching Vesper, not defeating her: this driver walks and swings, it does not fight a phased boss, so the leg ends on arrival and says so"
     }
   ]
 }

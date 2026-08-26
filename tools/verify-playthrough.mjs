@@ -11,7 +11,9 @@
  * Packages the flagship and hands it to the closed-loop driver, which walks the
  * route by asking the running game where things are. What that proves is the
  * game's own progression: the pickups its doors ask for, the doors those open,
- * and the boss at the end of them.
+ * and that the boss can be REACHED. Defeating her is not measured — this driver
+ * walks and swings, it does not fight a phased boss, and the route's last leg
+ * declares the arrival it ends on rather than implying a kill.
  *
  *   node tools/verify-playthrough.mjs [--project <id>] [--route <file>] [--keep]
  */
