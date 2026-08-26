@@ -196,6 +196,9 @@ public:
      *          never resolved.
      */
     bool isEngaged() const {
+        // `initialized_` leads, and that is load-bearing: init refuses when the
+        // blit shader will not compile, so a chain that cannot present degrades
+        // to drawing straight at the surface rather than to a black frame.
         return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_
                                 || output_transform_ != OutputTransform::None
                                 || presentScales());
