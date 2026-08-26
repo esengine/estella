@@ -206,7 +206,10 @@ async function main() {
   for (const leg of route.legs) {
     const label = `${leg.area}:${leg.goal}`;
     const timeout = Number(leg.timeout ?? 1800);
-    const arriveWithin = Number(leg.arriveWithin ?? 90);
+    // Only when the route asks for it: "gone" is the game's own answer, a distance
+    // is this driver guessing at one. A default of 90 outran a PICKUP_RADIUS of
+    // 70, leaving a ring that reports arrival while the game hands over nothing.
+    const arriveWithin = leg.arriveWithin === undefined ? 0 : Number(leg.arriveWithin);
     let spent = 0;
     let arrived = false;
     let sawArea = false;
