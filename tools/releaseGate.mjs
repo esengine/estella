@@ -90,6 +90,15 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'compiled-game-packages-and-draws',
+    says: 'a game whose systems were compiled packages, boots and draws the game it drew interpreted',
+    // Not "the same pixels": the loop is wall-clock, so two launches of ONE
+    // package already differ by more than a wrong field offset does (the file
+    // carries the measurement). This settles black, dead, or a different game.
+    answeredBy: 'node tools/verify-aot-parity.mjs',
+    needs: ['tools/verify-aot-parity.mjs', 'examples/space-shooter/src/systems/effects.ts'],
+  },
+  {
     id: 'old-projects-open',
     says: 'projects released by older versions still open, with nothing dropped',
     answeredBy: 'node tools/verify-legacy.mjs --tier release',

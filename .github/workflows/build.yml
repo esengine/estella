@@ -454,6 +454,14 @@ jobs:
 
     - uses: ./.github/actions/editor-host
 
+    # A golden project marks a system @compiled, so packaging one now runs the
+    # AOT step — and a promise the build cannot keep fails the export rather
+    # than falling back. This job packages, so this job needs the toolchain.
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+
     # The golden corpus, packaged and opened the way a player opens it, then held
     # against the editor's own frame of the same game. Exporting was checked and
     # the engine was checked; the package never was — and "it launched" is not the
@@ -462,6 +470,14 @@ jobs:
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-golden.mjs --tier pr
+
+    # The same game packaged twice from one tree, compiled and interpreted, and
+    # the two frames held against each other — the only check that sees what a
+    # compiled system does to a PIXEL.
+    - name: Compare a compiled game's frame to an interpreted one (PR tier)
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a node tools/verify-aot-parity.mjs
 
     # Projects as they were RELEASED, opened by the editor of today. The golden
     # corpus is re-saved by whoever last touched it, so it can only say that this

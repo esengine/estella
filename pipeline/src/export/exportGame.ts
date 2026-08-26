@@ -56,7 +56,7 @@ import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
 import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
-import { buildCompiledSystems } from '../bundle/buildCompiledSystems';
+import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 export type { ExportPlatform };
 
@@ -360,6 +360,14 @@ export interface ExportGameOptions {
    * the repo's own submodule; a project that promised nothing never needs one.
    */
   emcc?: string | null;
+  /**
+   * Whether this export compiles what the project marked `@compiled`.
+   *
+   * Default `release`: it compiles, and a promise the subset cannot keep fails
+   * the build. `dev` skips the step, which is how one project is packaged twice
+   * for the differential that proves the two frames agree (REARCH_AOT.md §8.2).
+   */
+  aotMode?: BuildMode;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
@@ -517,6 +525,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       emcc: opts.emcc,
+      aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
@@ -541,6 +550,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       emcc: opts.emcc,
+      aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
@@ -708,7 +718,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     // promise someone is collecting on, so a promise the subset cannot keep
     // fails the build rather than quietly falling back to the interpreter.
     const built = await buildCompiledSystems(opts.root, {
-      mode: 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
+      mode: opts.aotMode ?? 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
     });
     if (!built.ok) {
       errors.push(...built.errors);

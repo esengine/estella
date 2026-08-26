@@ -44,7 +44,7 @@ import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnos
 import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
-import { buildCompiledSystems } from '../bundle/buildCompiledSystems';
+import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 
@@ -164,6 +164,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
    * promised nothing never needs one.
    */
   emcc?: string | null;
+  /** Whether this export compiles `@compiled` systems; see exportGame. */
+  aotMode?: BuildMode;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
   /** Encode raster textures to GPU-compressed KTX2 at cook time. */
@@ -325,7 +327,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // the target AOT exists for (docs/REARCH_AOT.md §1.1: iOS mini-games have no
   // JIT). A PATH, because WXWebAssembly cannot compile bytes.
   const built = await buildCompiledSystems(opts.root, {
-    mode: 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
+    mode: opts.aotMode ?? 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
   });
   if (!built.ok) {
     errors.push(...built.errors);

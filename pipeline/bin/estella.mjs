@@ -28,6 +28,8 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
   --json <file>       also write the result here, for a caller that reads it back
   --enforce-budget    fail (exit 1) when the package is over a size limit
   --minify            minify the bundled scripts, as a shipping build does
+  --no-aot            package without compiling the systems marked @compiled, so
+                      the same project runs both ways and the frames are compared
   --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
   --steam-appid <id>  desktop: also write the Steam depot scripts for this app id
 
@@ -51,7 +53,7 @@ The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
-const FLAGS = new Set(['enforce-budget', 'minify']);
+const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot']);
 
 function parseArgs(argv) {
   const [command, projectDir, ...rest] = argv;
@@ -401,6 +403,9 @@ try {
     iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
     androidOutput: opts.output === 'project' ? 'project' : undefined,
     minify: opts.minify,
+    // `dev` is what the AOT step calls "do not compile" — the editor's preview
+    // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
+    ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),
     sizeBudgetBytes,
   });
   const report = { ...result, outDir };

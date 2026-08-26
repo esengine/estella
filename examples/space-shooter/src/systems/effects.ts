@@ -5,6 +5,13 @@ import {
 import { Explosion, Star, Bullet, Enemy } from '../components';
 import { HALF_HEIGHT, HALF_WIDTH, DESTROY_Y, SPAWN_Y } from '../resources';
 
+/**
+ * Carries every live bullet along its own axis.
+ *
+ * @compiled
+ * The frame this moves is what verify-aot-parity holds against an interpreted
+ * one: a twin reading the wrong offset puts the bullets somewhere visible.
+ */
 export const bulletMoveSystem = defineSystem(
     [Res(Time), Query(Mut(Transform), Bullet)],
     (time, query) => {
