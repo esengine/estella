@@ -217,6 +217,10 @@ public:
             && (output_vp_w_ != width_ || output_vp_h_ != height_);
     }
 
+    // KNOWN GAP: a 1x letterbox is same-size-but-OFFSET, indistinguishable here
+    // from a split-screen viewport — engaging on offset alone would put a blit
+    // under every split-screen camera. Closing it needs the surface size.
+
     /**
      * @brief Whether the present is a whole-multiple upscale of the chain.
      *

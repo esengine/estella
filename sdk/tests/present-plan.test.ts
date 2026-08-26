@@ -110,9 +110,9 @@ describe('planPresent — IntegerMultiple', () => {
         expect(plan.height).toBe(540);
         expect(plan.y).toBe(180);
         expect(plan.x).toBe((1600 - plan.width) / 2);
-        // At 1x the present does not scale at all, so no filter question arises —
-        // a 1:1 blit lands on texel centres whatever the sampler says.
-        expect(plan.oneToOne).toBe(true);
+        // NOT one-to-one: the sizes match but the rect does not cover the surface,
+        // and a plan that called this a no-op would drop the bars it just asked for.
+        expect(plan.oneToOne).toBe(false);
     });
 
     it('the whole-multiple rect is exactly k times the render size, both axes', () => {

@@ -50,7 +50,12 @@ export interface PresentPlan {
     y: number;
     width: number;
     height: number;
-    /** True when render size equals the destination rect — the present is a no-op copy. */
+    /**
+     * True when the render target IS the destination: same size AND covering the
+     * whole surface. Not merely "the same size" — a whole-multiple of 1 that sits
+     * letterboxed inside a larger surface still has to be placed and the rest
+     * cleared, so calling that a no-op drops the bars.
+     */
     oneToOne: boolean;
 }
 
@@ -128,7 +133,7 @@ export function planPresent(
                 renderWidth, renderHeight,
                 x: Math.floor((sw - w) / 2), y: Math.floor((sh - h) / 2),
                 width: w, height: h,
-                oneToOne: k === 1,
+                oneToOne: k === 1 && w === sw && h === sh,
             };
         }
     }
