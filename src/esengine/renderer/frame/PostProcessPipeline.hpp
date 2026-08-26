@@ -201,7 +201,7 @@ public:
         // to drawing straight at the surface rather than to a black frame.
         return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_
                                 || output_transform_ != OutputTransform::None
-                                || presentScales());
+                                || presentScales() || present_required_);
     }
 
     /**
@@ -217,9 +217,15 @@ public:
             && (output_vp_w_ != width_ || output_vp_h_ != height_);
     }
 
-    // KNOWN GAP: a 1x letterbox is same-size-but-OFFSET, indistinguishable here
-    // from a split-screen viewport — engaging on offset alone would put a blit
-    // under every split-screen camera. Closing it needs the surface size.
+    /**
+     * @brief The caller has decided this frame needs a present.
+     *
+     * @details A DECISION, not a rect — which is why it is set rather than
+     *          inferred like presentScales(). A 1x letterbox and a split-screen
+     *          viewport are the same geometry, same size and offset, and differ
+     *          only in intent; the two rects cannot say which is which.
+     */
+    void setPresentRequired(bool required) { present_required_ = required; }
 
     /**
      * @brief Whether the present is a whole-multiple upscale of the chain.
@@ -397,6 +403,7 @@ private:
     FramebufferHandle output_target_fbo_ = FramebufferHandle::Default;
     u32 output_vp_x_ = 0;
     u32 output_vp_y_ = 0;
+    bool present_required_ = false;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;
 

@@ -326,6 +326,7 @@ postprocess_setBypass: (bypass: boolean) => void
 postprocess_setOutputTransform: ((transform: number) => void) | undefined
 postprocess_setOutputViewport: (x: number, y: number, w: number, h: number) => void
 postprocess_setPassTexture: (passName: string, uniform: string, textureHandle: number) => void
+postprocess_setPresentRequired: ((required: boolean) => void) | undefined
 postprocess_setScreenUniformFloat: (passName: string, uniform: string, value: number) => void
 postprocess_setScreenUniformVec4: (passName: string, uniform: string, x: number, y: number, z: number, w: number) => void
 postprocess_setUniformFloat: (passName: string, uniform: string, value: number) => void

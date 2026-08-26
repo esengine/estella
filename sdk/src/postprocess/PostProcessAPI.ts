@@ -18,7 +18,7 @@ type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
     | 'postprocess_isInitialized' | 'postprocess_begin' | 'postprocess_end'
     | 'postprocess_clearPasses' | 'postprocess_addPass' | 'postprocess_setPassTexture'
     | 'postprocess_setUniformFloat' | 'postprocess_setUniformVec4'
-    | 'postprocess_setBypass' | 'postprocess_setOutputTransform'
+    | 'postprocess_setBypass' | 'postprocess_setOutputTransform' | 'postprocess_setPresentRequired'
     | 'postprocess_setOutputViewport'
     | 'postprocess_beginScreenCapture' | 'postprocess_endScreenCapture'
     | 'postprocess_executeScreenPasses' | 'postprocess_addScreenPass'
@@ -256,6 +256,16 @@ export class PostProcessAPI {
             getModule().postprocess_end();
         } catch (e) {
             handleWasmError(e, 'PostProcess.end');
+        }
+    }
+
+    /** Say the frame needs a present when the rects alone cannot: a 1x letterbox
+     *  and a split-screen viewport are the same geometry and differ only in intent. */
+    setPresentRequired(required: boolean): void {
+        try {
+            getModule().postprocess_setPresentRequired?.(required);
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.setPresentRequired');
         }
     }
 

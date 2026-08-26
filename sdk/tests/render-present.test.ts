@@ -30,6 +30,7 @@ function fakePostProcess(hasStack: boolean) {
         init: vi.fn(),
         resize: vi.fn(),
         setOutputViewport: vi.fn(),
+        setPresentRequired: vi.fn(),
         begin: vi.fn(),
         end: vi.fn(),
         _applyForCamera: vi.fn(),
@@ -80,6 +81,14 @@ describe('renderCamera — the render size and the present rect', () => {
         // No stack means no per-camera effect state to apply or unwind.
         expect(pp._applyForCamera).not.toHaveBeenCalled();
         expect(pp._resetAfterCamera).not.toHaveBeenCalled();
+    });
+
+    it('SAYS a present is needed, because the rects alone cannot', () => {
+        // A 1x letterbox is the same size as its chain and merely offset, which is
+        // also what a split-screen viewport looks like. The engine cannot infer the
+        // difference, so the decision is stated.
+        expect(run(RenderResolution.Design, false).setPresentRequired)
+            .toHaveBeenCalledWith(true);
     });
 
     it('brings the pipeline up itself — with no stack nothing else ever would', () => {

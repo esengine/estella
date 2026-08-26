@@ -30,6 +30,7 @@ vi.mock('../src/postprocess', () => ({
         resize: vi.fn(),
         setBypass: vi.fn(),
         setOutputViewport: vi.fn(),
+        setPresentRequired: vi.fn(),
         _applyForCamera: vi.fn(),
         _resetAfterCamera: vi.fn(),
         begin: vi.fn(),

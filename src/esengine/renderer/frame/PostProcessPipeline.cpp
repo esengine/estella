@@ -397,6 +397,9 @@ void PostProcessPipeline::chainDone() {
     device_.invalidatePipelineCache();
     inFrame_ = false;
     output_target_fbo_ = FramebufferHandle::Default;
+    // Per-frame, like the target above: a camera that asked for a present must not
+    // leave the next one engaged for a frame it never asked about.
+    present_required_ = false;
 }
 
 void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContext& ctx) {

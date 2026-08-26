@@ -6056,6 +6056,7 @@ screenStack: PostProcessStack | null
 setBypass: (bypass: boolean) => void
 setOutputTransform: (transform: OutputTransform) => void
 setOutputViewport: (x: number, y: number, w: number, h: number) => void
+setPresentRequired: (required: boolean) => void
 setScreenStack: (stack: PostProcessStack | null) => void
 shutdown: () => void
 state: PostProcessState

@@ -179,6 +179,9 @@ export class RenderPipeline {
             if (hasStack) pp!._applyForCamera(cameraEntity!);
             pp!.resize(scene.w, scene.h);
             pp!.setOutputViewport(present.x, present.y, present.w, present.h);
+            // A letterbox at 1x is the same size as its chain and merely offset, so
+            // the engine cannot read the need for it off the rects.
+            pp!.setPresentRequired(!plan.oneToOne);
             pp!.begin();
         }
 

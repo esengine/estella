@@ -139,6 +139,12 @@ void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
     }
 }
 
+void postprocess_setPresentRequired(bool required) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setPresentRequired(required);
+    }
+}
+
 void postprocess_beginScreenCapture() {
     if (!g_postProcessPipeline) return;
     g_postProcessPipeline->beginScreenCapture();

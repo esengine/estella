@@ -388,6 +388,8 @@ export interface ESEngineModule {
     postprocess_setOutputTransform?(transform: number): void;
     postprocess_clearPasses(): void;
     postprocess_setOutputViewport(x: number, y: number, w: number, h: number): void;
+    /** Say a present is needed when the rects cannot: see PostProcessPipeline. */
+    postprocess_setPresentRequired?(required: boolean): void;
     postprocess_beginScreenCapture(): void;
     postprocess_endScreenCapture(): void;
     postprocess_executeScreenPasses(): void;

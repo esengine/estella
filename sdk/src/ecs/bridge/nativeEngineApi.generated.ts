@@ -96,6 +96,7 @@ export interface NativeEngineApi {
     postprocess_setOutputTransform?(transform: number): void;
     postprocess_setOutputViewport?(x: number, y: number, w: number, h: number): void;
     postprocess_setPassTexture?(passName: string, uniform: string, textureHandle: number): void;
+    postprocess_setPresentRequired?(required: boolean): void;
     postprocess_setScreenUniformFloat?(passName: string, uniform: string, value: number): void;
     postprocess_setScreenUniformVec4?(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     postprocess_setUniformFloat?(passName: string, uniform: string, value: number): void;
@@ -322,6 +323,7 @@ export function createNativeEngineApi(
     bind('postprocess_setOutputTransform', 'es_postprocess_setOutputTransform', false);
     bind('postprocess_setOutputViewport', 'es_postprocess_setOutputViewport', false);
     bind('postprocess_setPassTexture', 'es_postprocess_setPassTexture', false);
+    bind('postprocess_setPresentRequired', 'es_postprocess_setPresentRequired', false);
     bind('postprocess_setScreenUniformFloat', 'es_postprocess_setScreenUniformFloat', false);
     bind('postprocess_setScreenUniformVec4', 'es_postprocess_setScreenUniformVec4', false);
     bind('postprocess_setUniformFloat', 'es_postprocess_setUniformFloat', false);

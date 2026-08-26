@@ -27,6 +27,9 @@ void postprocess_setBypass(bool bypass);
 void postprocess_setOutputTransform(u32 transform);
 void postprocess_clearPasses();
 void postprocess_setOutputViewport(u32 x, u32 y, u32 w, u32 h);
+/** Say the frame needs a present even when the two rects look alike; see
+ *  PostProcessPipeline::setPresentRequired. */
+void postprocess_setPresentRequired(bool required);
 
 void postprocess_beginScreenCapture();
 void postprocess_endScreenCapture();
