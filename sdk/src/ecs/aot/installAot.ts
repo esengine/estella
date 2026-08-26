@@ -19,6 +19,7 @@
  *          hide exactly the thing worth knowing.
  */
 
+import { platformInstantiateWasm } from '../../platform';
 import { getComponent } from '../component';
 import type { AnyComponentDef } from '../component';
 import type { World } from '../world';
@@ -40,7 +41,10 @@ export interface InstallAotOptions {
     readonly host: AotHost;
     /** What the build wrote beside the module. */
     readonly manifest: AotManifest;
-    readonly wasm: BufferSource;
+    /** The module: a package-relative path, or its bytes. A path is the only
+     *  form WeChat takes (WXWebAssembly cannot compile a buffer), so the
+     *  platform seam is what instantiates rather than this. */
+    readonly wasm: string | BufferSource;
     /** The live value of a named resource, for the mirror to copy in. */
     readonly resources: ResourceReader;
 }
@@ -55,8 +59,8 @@ export async function installAot(opts: InstallAotOptions): Promise<AotRuntime> {
     const memory = new WasmPoolMemory(opts.host);
     opts.world.useScriptPoolMemory(memory);
 
-    const instance = await WebAssembly.instantiate(
-        new WebAssembly.Module(opts.wasm), { env: { memory: opts.host.memory } });
+    const { instance } = await platformInstantiateWasm(
+        wasmSource(opts.wasm), { env: { memory: opts.host.memory } });
     const exports = instance.exports as unknown as Record<string, unknown>;
     // A STANDALONE_WASM reactor runs its data setup here rather than at an entry
     // point, and the module has none.
@@ -72,6 +76,16 @@ export async function installAot(opts: InstallAotOptions): Promise<AotRuntime> {
     };
     opts.runner.useAot(runtime);
     return runtime;
+}
+
+/**
+ * The module as the platform seam takes it. A view over a pooled buffer (what
+ * node hands back for a file read) is a window onto other bytes, so it gives up
+ * its own rather than the pool's.
+ */
+function wasmSource(wasm: string | BufferSource): string | ArrayBuffer {
+    if (typeof wasm === 'string' || wasm instanceof ArrayBuffer) return wasm;
+    return wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer;
 }
 
 /** What a manifest's component NAME means in this runtime. */

@@ -847,7 +847,9 @@ export class App {
      * rows in the ENGINE's memory, and refuses rather than move rows already
      * allocated elsewhere, or trust a module built for other offsets.
      */
-    async installCompiledSystems(wasm: BufferSource, manifest: AotManifest): Promise<number> {
+    async installCompiledSystems(
+        wasm: string | BufferSource, manifest: AotManifest,
+    ): Promise<number> {
         const module = this.module_;
         if (!module) {
             throw new Error('installCompiledSystems: this App has no engine module, and a compiled '

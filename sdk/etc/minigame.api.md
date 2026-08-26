@@ -551,7 +551,7 @@ getTargetFrameRate: () => number
 hasResource: <T>(resource: ResourceDef<T>) => boolean
 hotSwapSystems: (incoming: ReadonlyArray<{ schedule: number; system: SystemDef; }>) => boolean
 insertResource: <T>(resource: ResourceDef<T>, value: T) => App
-installCompiledSystems: (wasm: BufferSource, manifest: AotManifest) => Promise<number>
+installCompiledSystems: (wasm: string | BufferSource, manifest: AotManifest) => Promise<number>
 isPaused: () => boolean
 isPhysicsReady: boolean
 measureFrameScope: <T>(name: string, fn: () => T, options?: { remainder?: ScopeRemainder; }) => T
@@ -4807,6 +4807,7 @@ url: string
 
 ## MiniGameRuntimeConfig — interface @experimental
 ```
+aot: { wasm: string; manifest: AotManifest; } | undefined
 audioConfig: AudioProjectConfig | undefined
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
@@ -6839,7 +6840,7 @@ textureCacheBudget: number | undefined
 ## RuntimeInitConfig — interface @experimental
 ```
 achievements: string[] | undefined
-aot: { wasm: BufferSource; manifest: AotManifest; } | undefined
+aot: { wasm: string | BufferSource; manifest: AotManifest; } | undefined
 app: App
 aspectRatio: number | undefined
 audioConfig: AudioProjectConfig | undefined

@@ -44,6 +44,8 @@ import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnos
 import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
+import { buildCompiledSystems } from '../bundle/buildCompiledSystems';
+import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 
 export interface ExportMiniGameResult {
@@ -156,6 +158,12 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
    *  generated boot passes the packaged slice of them to the vendor runtime. */
   runtime?: RuntimeProjectConfig;
   minify?: boolean;
+  /**
+   * Where emcc is, for the systems a project marked `@compiled`
+   * (docs/REARCH_AOT.md). Absent ⇒ found from the environment; a project that
+   * promised nothing never needs one.
+   */
+  emcc?: string | null;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
   /** Encode raster textures to GPU-compressed KTX2 at cook time. */
@@ -312,13 +320,31 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // factories arrive separately (game.js require()s the glue); this is what tells
   // the runtime where each binary sits in the package.
   const projectDeclarations = sideModuleDeclarations(projectModules, profile.id);
+
+  // The compiled twins, staged as a package file and named in the boot call —
+  // the target AOT exists for (docs/REARCH_AOT.md §1.1: iOS mini-games have no
+  // JIT). A PATH, because WXWebAssembly cannot compile bytes.
+  const built = await buildCompiledSystems(opts.root, {
+    mode: 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
+  });
+  if (!built.ok) {
+    errors.push(...built.errors);
+    return { ok: false, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
+  }
+  let aotArg = '';
+  if (built.wasmPath && built.manifest) {
+    progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
+    await mkdir(path.join(absOut, 'aot'), { recursive: true });
+    await cp(built.wasmPath, path.join(absOut, 'aot', 'systems.wasm'));
+    aotArg = `, aot: ${JSON.stringify({ wasm: 'aot/systems.wasm', manifest: built.manifest })}`;
+  }
   const entrySrc =
     `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(profile.runtimeProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

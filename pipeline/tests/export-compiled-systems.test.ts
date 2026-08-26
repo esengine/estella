@@ -51,6 +51,18 @@ const BROKEN = PROMISED.replace('drift.x += drift.step;', 'drift.x += Math.rando
 /** A project with no marker at all — the state every project starts in. */
 const UNMARKED = PROMISED.replace(/\n \* @compiled\n/, '\n');
 
+/** A mini-game package needs the vendor SDK entry and its own glue staged. */
+function miniGameStubs(root: string): void {
+  // The names the fixture project imports: a stub entry missing one fails the
+  // bundle, and the bundle is what carries the boot call under test.
+  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'),
+    'export function initWeChatRuntime(){return Promise.resolve();}\n'
+    + 'export const defineComponent = () => {};\nexport const defineSystem = () => {};\n'
+    + 'export const Query = () => {};\nexport const Mut = () => {};\n');
+  writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');
+  writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.wasm'), 'wasmbytes');
+}
+
 function project(source: string | null): { root: string; out: string } {
   const root = mkdtempSync(path.join(tmpdir(), 'estella-aot-export-'));
   mkdirSync(path.join(root, 'scenes'), { recursive: true });
@@ -82,6 +94,13 @@ const run = (f: { root: string; out: string }) => exportGame({
 const config = (out: string): PackagedGameConfig =>
   JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')) as PackagedGameConfig;
 
+const runWeChat = (f: { root: string; out: string }) => exportGame({
+  root: f.root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-wechat',
+  scriptsEntry: 'src/main.ts', platform: 'wechat', wechatAppid: 'wxTEST0123456789',
+  sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
+  outDir: f.out,
+});
+
 describe('what a package carries for a compiled system', () => {
   it('reports whether this gate could run at all', () => {
     if (EMCC) console.log(`[aot-export] emcc at ${EMCC}`);
@@ -111,6 +130,21 @@ describe('what a package carries for a compiled system', () => {
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/main\.ts:\d+:.*ExportDriftSystem is @compiled/);
       expect(existsSync(path.join(f.out, 'aot', 'systems.wasm'))).toBe(false);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  }, 120_000);
+
+  it.skipIf(!EMCC)('a mini-game carries it too, and boots from the path', async () => {
+    const f = project(PROMISED);
+    miniGameStubs(f.root);
+    try {
+      const res = await runWeChat(f);
+      expect(res.errors).toEqual([]);
+      expect(existsSync(path.join(f.out, 'aot', 'systems.wasm'))).toBe(true);
+      // A mini-game has no game.config.json — its configuration IS the generated
+      // boot call, and WXWebAssembly takes the PATH, never the bytes.
+      const boot = readFileSync(path.join(f.out, 'game-bundle.js'), 'utf8');
+      expect(boot).toContain('aot/systems.wasm');
+      expect(boot).toContain('ExportDriftSystem');
     } finally { rmSync(f.root, { recursive: true, force: true }); }
   }, 120_000);
 

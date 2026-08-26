@@ -201,17 +201,14 @@ async function boot(): Promise<void> {
     decodePixels: (path) => fetchDecodePixels(path),
   });
   applyAssetRefResolvers(app, index.resolvePath);
-  // The compiled twins this build produced, if it produced any. Fetched here
-  // rather than inside initRuntime because fetching is what a transport does and
-  // initRuntime serves every one of them (docs/REARCH_AOT.md §9).
-  const aot = cfg.aot
-    ? { wasm: await (await fetch(`./${cfg.aot.wasm}`)).arrayBuffer(), manifest: cfg.aot.manifest }
-    : undefined;
   await initRuntime({
     app,
     module,
     source,
-    ...(aot ? { aot } : {}),
+    // The compiled twins this build produced, if any. The path, not the bytes:
+    // reading it is the platform seam's job, and on a mini-game only the seam
+    // knows how (docs/REARCH_AOT.md §9).
+    ...(cfg.aot ? { aot: cfg.aot } : {}),
     manifest: index.manifest,
     catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,

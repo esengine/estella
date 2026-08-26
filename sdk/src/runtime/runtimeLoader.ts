@@ -575,7 +575,7 @@ export interface RuntimeInitConfig {
      * before the first scene registers, the only moment where no component
      * exists yet to be left behind in the wrong memory.
      */
-    aot?: { wasm: BufferSource; manifest: AotManifest };
+    aot?: { wasm: string | BufferSource; manifest: AotManifest };
 }
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {

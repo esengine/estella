@@ -9,6 +9,12 @@
  *          ORDER: pool memory before any component, module instantiated against
  *          the engine's memory, digests checked before anything is installed.
  *
+ *          It runs on both shapes of host, because they are not interchangeable:
+ *          a browser takes the bytes, and WeChat's WXWebAssembly takes ONLY a
+ *          package path and cannot compile a buffer at all. Instantiating
+ *          through the platform seam is what makes one road serve both, and a
+ *          host here refuses the form it would refuse on a device.
+ *
  *          Loud skip without emsdk — the module here is really compiled.
  */
 import { describe, it, expect } from 'vitest';
@@ -18,6 +24,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { setPlatform } from '../src/platform/base';
+import type { PlatformAdapter, WasmInstantiateResult } from '../src/platform/types';
 import { World } from '../src/ecs/world';
 import { defineComponent } from '../src/ecs/component';
 import { defineSystem, SystemRunner } from '../src/ecs/system';
@@ -74,7 +82,32 @@ void es_sys_Fade(es_addr_t ctx) {
 }
 `;
 
-function buildModule(): Uint8Array {
+/**
+ * The two hosts, each refusing what it refuses on a device. Nothing else of a
+ * platform is reached by an install, so nothing else is here.
+ */
+const HOSTS = {
+    'a host that takes bytes': {
+        instantiateWasm(src: string | ArrayBuffer, imports: WebAssembly.Imports) {
+            if (typeof src === 'string') throw new Error('this host was handed a path');
+            return WebAssembly.instantiate(src, imports) as Promise<WasmInstantiateResult>;
+        },
+    },
+    'a host that takes only a path': {
+        instantiateWasm(src: string | ArrayBuffer, imports: WebAssembly.Imports) {
+            if (typeof src !== 'string') throw new Error('WXWebAssembly requires a file path string');
+            return WebAssembly.instantiate(readFileSync(src), imports) as Promise<WasmInstantiateResult>;
+        },
+    },
+} as const;
+
+/** What that host is given: the same module, in the form it accepts. */
+function moduleFor(kind: keyof typeof HOSTS, built: { bytes: Uint8Array; path: string }): string | BufferSource {
+    setPlatform(HOSTS[kind] as unknown as PlatformAdapter);
+    return kind === 'a host that takes only a path' ? built.path : built.bytes;
+}
+
+function buildModule(): { bytes: Uint8Array; path: string } {
     const dir = mkdtempSync(path.join(tmpdir(), 'estella-install-'));
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, 'sys.c'), SYSTEM_C);
@@ -86,7 +119,7 @@ function buildModule(): Uint8Array {
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
-    return readFileSync(out);
+    return { bytes: readFileSync(out), path: out };
 }
 
 const FADE_FIELDS = ['alpha', 'step'];
@@ -135,8 +168,9 @@ describe('installing a built module', () => {
         expect(true).toBe(true);
     });
 
-    it.skipIf(!EMCC)('one call, and the scheduler runs the twin', async () => {
-        const wasm = buildModule();
+    it.skipIf(!EMCC).each(Object.keys(HOSTS) as (keyof typeof HOSTS)[])(
+        'one call, and the scheduler runs the twin — on %s', async (kind) => {
+        const wasm = moduleFor(kind, buildModule());
 
         const interpreted = project();
         const interpretedEntities = seed(interpreted.world, interpreted.Fade);
@@ -167,7 +201,8 @@ describe('installing a built module', () => {
             world: p.world, runner: p.runner, host: new Host(),
             // What a build would have written before `step` was added.
             manifest: manifestFor(projectShapeDigest([{ name: 'Fade', fields: ['alpha'] }])),
-            wasm: buildModule(), resources: () => undefined,
+            wasm: moduleFor('a host that takes bytes', buildModule()),
+            resources: () => undefined,
         })).rejects.toThrow(/Rebuild the project/);
     });
 
@@ -176,7 +211,8 @@ describe('installing a built module', () => {
         const entities = seed(p.world, p.Fade);
         await installAot({
             world: p.world, runner: p.runner, host: new Host(),
-            manifest: manifestFor(), wasm: buildModule(), resources: () => undefined,
+            manifest: manifestFor(), wasm: moduleFor('a host that takes bytes', buildModule()),
+            resources: () => undefined,
         }).catch(() => { /* the ordering check below is the point */ });
         // Rows already existed, so pool memory could not move: the install threw
         // before any twin was registered, and the closure still runs.

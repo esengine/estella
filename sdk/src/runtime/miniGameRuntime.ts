@@ -29,6 +29,7 @@ import {
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
+import type { AotManifest } from '../ecs/aot/AotSystems';
 import { log } from '../util/logger';
 
 // =============================================================================
@@ -118,6 +119,12 @@ export interface MiniGameRuntimeConfig {
      * need no entry; the engine's table already has them.
      */
     sideModules?: Array<{ id: string; file: string; globalName?: string }>;
+    /**
+     * The compiled twins this build produced (docs/REARCH_AOT.md), as the path
+     * the export staged them at. A path and never bytes: WXWebAssembly compiles
+     * a package file and nothing else, which is also why the seam instantiates.
+     */
+    aot?: { wasm: string; manifest: AotManifest };
 }
 
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
@@ -213,6 +220,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
         aspectRatio: canvas.width / canvas.height,
+        ...(config.aot ? { aot: config.aot } : {}),
     });
 
     app.run();

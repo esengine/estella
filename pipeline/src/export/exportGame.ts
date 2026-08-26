@@ -23,7 +23,6 @@ import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups, type CookManifest } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
@@ -58,7 +57,7 @@ import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from 
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
 import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
 import { buildCompiledSystems } from '../bundle/buildCompiledSystems';
-import { resolveEmcc } from '../bundle/emccPath';
+import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 export type { ExportPlatform };
 
 /**
@@ -486,22 +485,6 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
   }
 }
 
-/**
- * Run a build tool. The AOT step is the only part of an export that shells out,
- * and emcc is a `.bat` on Windows — which is why this asks for a shell there and
- * nowhere else. Never rejects: a missing binary is a code and a message, so the
- * step that called it decides what that means.
- */
-function runCommand(cmd: string, args: string[], cwd: string): Promise<{ code: number; stderr: string }> {
-  return new Promise((done) => {
-    const child = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
-    let stderr = '';
-    child.stderr.on('data', (d) => { stderr += String(d); });
-    child.on('error', (e) => done({ code: 1, stderr: `${stderr}${e.message}` }));
-    child.on('close', (code) => done({ code: code ?? 1, stderr }));
-  });
-}
-
 async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -533,6 +516,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      emcc: opts.emcc,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
@@ -556,6 +540,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      emcc: opts.emcc,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
@@ -714,16 +699,16 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
-  // 3b. Compiled systems (docs/REARCH_AOT.md), only where a runtime installs one:
-  //     the web page host. A mini-game and a playable have their own transports
-  //     and do not ask yet; QuickJS cannot instantiate a module at all.
+  // 3b. Compiled systems (docs/REARCH_AOT.md), for the page host. A mini-game
+  //     stages its own above and takes a path; a playable inlines everything and
+  //     has nowhere to put a module, and QuickJS cannot instantiate one at all.
   let aot: PackagedGameConfig['aot'];
   if (platform === 'web') {
     // An export is not the editor's preview: here a `@compiled` marker is a
     // promise someone is collecting on, so a promise the subset cannot keep
     // fails the build rather than quietly falling back to the interpreter.
     const built = await buildCompiledSystems(opts.root, {
-      mode: 'release', emcc: resolveEmcc(opts.emcc), run: runCommand,
+      mode: 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
     });
     if (!built.ok) {
       errors.push(...built.errors);
