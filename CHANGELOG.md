@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-08-26
+
 ### Added
 
 - **A system can promise to compile, and a shipped build keeps it.** Mark one
@@ -9318,7 +9320,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.57.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.58.0...HEAD
+[0.58.0]: https://github.com/esengine/estella/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/esengine/estella/compare/v0.56.0...v0.57.0
 [0.56.0]: https://github.com/esengine/estella/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/esengine/estella/compare/v0.54.0...v0.55.0
