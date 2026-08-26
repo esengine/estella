@@ -26,6 +26,8 @@ import { RenderResolution } from '../src/camera/presentPlan';
 function fakePostProcess(hasStack: boolean) {
     return {
         getStack: vi.fn().mockReturnValue(hasStack ? {} : null),
+        isInitialized: vi.fn().mockReturnValue(false),
+        init: vi.fn(),
         resize: vi.fn(),
         setOutputViewport: vi.fn(),
         begin: vi.fn(),
@@ -78,6 +80,14 @@ describe('renderCamera — the render size and the present rect', () => {
         // No stack means no per-camera effect state to apply or unwind.
         expect(pp._applyForCamera).not.toHaveBeenCalled();
         expect(pp._resetAfterCamera).not.toHaveBeenCalled();
+    });
+
+    it('brings the pipeline up itself — with no stack nothing else ever would', () => {
+        // Only a stack initialises it, and an uninitialised pipeline reports
+        // itself disengaged. Without this the policy goes quietly missing on
+        // every project that uses no post-process at all.
+        const pp = run(RenderResolution.Design, /*hasStack=*/false);
+        expect(pp.init).toHaveBeenCalled();
     });
 
     it('draws the scene into the whole render target, not the panel rect', () => {

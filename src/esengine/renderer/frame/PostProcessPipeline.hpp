@@ -215,8 +215,12 @@ public:
     }
 
     /**
-     * @brief Sets bypass mode to skip FBO rendering entirely
-     * @param bypass If true, begin()/end() become no-ops
+     * @brief Skip the EFFECTS, not the chain.
+     *
+     * @details It gates the authored passes and nothing else. The linear encode,
+     *          the output transform and a scaling present all still engage —
+     *          none of them is an effect, they are how the image reaches the
+     *          screen, and a camera with no stack still needs them.
      */
     void setBypass(bool bypass) { bypass_ = bypass; }
 
@@ -252,8 +256,6 @@ public:
     /**
      * @brief Checks if bypass mode is enabled
      */
-    bool isBypassed() const { return bypass_; }
-
     /**
      * @brief Clears all passes
      */

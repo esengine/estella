@@ -172,6 +172,10 @@ export class RenderPipeline {
         const hasPostProcess = pp !== null && (hasStack || !plan.oneToOne);
 
         if (hasPostProcess) {
+            // A present is not an effect: with no stack nothing else would ever
+            // bring the pipeline up, and an uninitialised one reports itself
+            // disengaged — so the policy would go quietly missing.
+            if (!pp!.isInitialized()) pp!.init(1, 1);
             if (hasStack) pp!._applyForCamera(cameraEntity!);
             pp!.resize(scene.w, scene.h);
             pp!.setOutputViewport(present.x, present.y, present.w, present.h);
