@@ -276,7 +276,7 @@ describe('conformance — an event out of memory and back into it', () => {
             }
             runSystem(ping!, world);
             const sent = (world.sent?.get('FixturePinged') ?? []) as (readonly number[])[];
-            (world as { events?: Map<string, Row[]> }).events =
+            (world as unknown as { events?: Map<string, Row[]> }).events =
                 new Map([['FixturePinged', sent.map((args) => ({ by: args[0]! }))]]);
             world.sent?.clear();
             runSystem(pong!, world);

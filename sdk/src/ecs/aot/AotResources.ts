@@ -20,7 +20,9 @@
  */
 
 import { POOL_SLOT_BYTES, type PoolBlock, type PoolMemory } from '../ScriptPool';
-import { resourceBitSource, resourceBlockBytes, resourceLayout } from '../resourceShapes';
+import {
+    resourceBitSource, resourceBlockBytes, resourceLayout, type ResourceMember,
+} from '../resourceShapes';
 
 /** Reads the live value of a named resource, or undefined if the world has none. */
 export type ResourceReader = (name: string) => Readonly<Record<string, unknown>> | undefined;
@@ -34,21 +36,46 @@ export class AotResources {
     private readonly blocks = new Map<string, PoolBlock>();
     private readonly views = new Map<string, Uint8Array>();
 
-    constructor(private readonly memory: PoolMemory, private readonly read: ResourceReader) {}
+    constructor(
+        private readonly memory: PoolMemory,
+        private readonly read: ResourceReader,
+        /**
+         * Layouts for the resources the PROJECT declared, from the manifest.
+         * The engine's own come from `resourceShapes.ts`; a project's cannot,
+         * and a build is the only thing that knows the order it compiled for.
+         */
+        private readonly declared: ReadonlyMap<string, readonly string[]> = new Map(),
+    ) {}
+
+    /** `name`'s members, from the engine's table or from what the build said. */
+    private layoutOf(name: string): readonly ResourceMember[] | null {
+        const engine = resourceLayout(name);
+        if (engine) return engine;
+        const fields = this.declared.get(name);
+        return fields
+            ? fields.map((field, i) => ({ kind: 'scalar', name: field, offset: i * POOL_SLOT_BYTES }))
+            : null;
+    }
+
+    /** Bytes `name`'s block needs, by whichever layout answers for it. */
+    private bytesOf(name: string): number {
+        const declared = this.declared.get(name);
+        return declared ? declared.length * POOL_SLOT_BYTES : resourceBlockBytes(name);
+    }
 
     /**
      * The address of `name`'s bytes, with this frame's values in them, or
      * undefined when the resource has no layout or the world has no value.
      */
     addressOf(name: string): number | undefined {
-        const layout = resourceLayout(name);
+        const layout = this.layoutOf(name);
         if (!layout) return undefined;
         const value = this.read(name);
         if (!value) return undefined;
 
         let block = this.blocks.get(name);
         if (!block) {
-            block = this.memory.alloc(resourceBlockBytes(name));
+            block = this.memory.alloc(this.bytesOf(name));
             this.blocks.set(name, block);
         }
         // Re-viewed rather than held: allocating anything may have grown the
@@ -56,7 +83,7 @@ export class AotResources {
         const buffer = this.memory.current?.(block) ?? block.buffer;
         let view = this.views.get(name);
         if (!view || view.buffer !== buffer) {
-            view = new Uint8Array(buffer, block.byteOffset, resourceBlockBytes(name));
+            view = new Uint8Array(buffer, block.byteOffset, this.bytesOf(name));
             this.views.set(name, view);
         }
         const f64 = new Float64Array(view.buffer, view.byteOffset, view.byteLength / POOL_SLOT_BYTES);
@@ -101,7 +128,7 @@ export class AotResources {
      * skipped, because the block never carried it.
      */
     writeBack(name: string): void {
-        const layout = resourceLayout(name);
+        const layout = this.layoutOf(name);
         const view = this.views.get(name);
         const value = this.read(name) as Record<string, unknown> | undefined;
         if (!layout || !view || !value) return;

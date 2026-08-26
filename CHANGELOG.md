@@ -45,6 +45,13 @@ published separately; it ships inside the editor.
   `UICameraInfo.viewProjection` is deliberately not in it, since a member has to
   have a fixed width.
 
+  A resource the PROJECT declares compiles as well, with no engine change per
+  resource: `defineResource({ value: 0 }, 'Score')` has literal defaults, so the
+  build derives the layout from the declaration the same way it does for a
+  component, and carries it in the manifest. The runtime lays the block out at
+  that layout and refuses a module whose field ORDER no longer matches, because
+  a moved field is not an error — it is a read of a different one.
+
   Events compile too, both directions. `EventWriter(E)` and `EventReader(E)` are
   parameters a compiled system may declare: `writer.send({ … })` flattens the
   payload into the fields the event declares and appends one record, and

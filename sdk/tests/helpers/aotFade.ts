@@ -186,6 +186,39 @@ void es_sys_Emit(es_addr_t ctx) {
 }
 `;
 
+/**
+ * A system over a resource the PROJECT declared: `score.value += 1`. Nothing in
+ * the engine knows this resource's layout — the build derived it from the
+ * declaration and put it in the manifest, which is the point of the fixture.
+ */
+export const USER_RES_C = `#include <stdint.h>
+#include <string.h>
+typedef uint32_t es_addr_t;
+#define ES_PTR(a) ((unsigned char *)(a))
+typedef struct { es_addr_t queries, resources, cmdBuf, cmdCap, cmdCount, events; } EsSysCtx;
+static double ld(const unsigned char *p) { double v; memcpy(&v, p, 8); return v; }
+static void st(unsigned char *p, double v) { memcpy(p, &v, 8); }
+
+void es_sys_Tally(es_addr_t ctx) {
+    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
+    const es_addr_t *res = (const es_addr_t *)ES_PTR(c->resources);
+    unsigned char *score = ES_PTR(res[0]);
+    st(score + 8u, ld(score + 8u) + ld(score));   /* total += step, slot 1 += slot 0 */
+}
+`;
+
+/** What a build writes for it: the field ORDER is the layout, and it travels. */
+export function userResManifest(fields: readonly string[]): AotManifest {
+    return {
+        engineAbi: engineAbiDigest(4),
+        projectShapes: projectShapeDigest([{ name: 'Score', fields: [...fields] }]),
+        systems: [{
+            name: 'Tally', symbol: 'es_sys_Tally', queries: [],
+            resources: [{ name: 'Score', mut: true, fields: [...fields] }],
+        }],
+    };
+}
+
 /** The manifest for whichever half is being run. */
 export function eventManifest(which: 'Absorb' | 'Emit'): AotManifest {
     const shapes = projectShapeDigest([{ name: 'Fade', fields: FADE_FIELDS }]);

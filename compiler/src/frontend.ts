@@ -897,6 +897,28 @@ function eventLeaf(t: ts.TypeNode): FieldSpec | null {
     return null;
 }
 
+/**
+ * `defineResource<T>({ value: 0 }, 'Score')` -> a shape. The same rule a
+ * component's defaults meet, for the same reason: every field is one f64, and
+ * anything else has no fixed width.
+ */
+function resourceShapeOf(call: ts.CallExpression, name: string): CompShape | null {
+    const defaults = call.arguments[0];
+    if (!defaults || !ts.isObjectLiteralExpression(defaults)) return null;
+    const fields = new Map<string, FieldSpec>();
+    for (const prop of defaults.properties) {
+        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return null;
+        const init = ts.isPrefixUnaryExpression(prop.initializer)
+            && prop.initializer.operator === ts.SyntaxKind.MinusToken
+            ? prop.initializer.operand : prop.initializer;
+        if (ts.isNumericLiteral(init)) fields.set(prop.name.text, { type: F64, enc: HOST_ENC, offset: null });
+        else if (init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword) {
+            fields.set(prop.name.text, { type: BOOL, enc: HOST_ENC, offset: null });
+        } else return null;
+    }
+    return fields.size === 0 ? null : { name, storage: 'host', fields };
+}
+
 /** Two declarations of one name are the same component only if every field matches. */
 function sameShape(a: CompShape, b: CompShape): boolean {
     if (a.fields.size !== b.fields.size) return false;
@@ -942,6 +964,8 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     /** Event payloads, by declared name — a second namespace from components. */
     const events = new Map<string, CompShape>();
     const eventBindings = new Map<string, string>();
+    /** Resources the PROJECT declared, whose layout travels in the manifest. */
+    const userResources = new Set<string>();
     const consts = new Map<string, ConstValue>();
     const fns = new Map<string, EirFn>();
     // Why a function could not be lowered, reported at the CALL SITE rather than
@@ -999,6 +1023,26 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     for (const sf of sources) {
         walkTop(sf, (node, binding) => {
             if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) return;
+            if (node.expression.text === 'defineResource') {
+                // A project's own resource is a shape like any other: its
+                // DEFAULTS are a literal, so nothing here has to be taught
+                // about it the way an engine service does.
+                const named = node.arguments[1];
+                if (!named || !ts.isStringLiteral(named)) return;
+                const shape = resourceShapeOf(node, named.text);
+                if (!shape) {
+                    diagnostics.push({
+                        file: sf.fileName, line: lineOf(sf, node), kind: 'permanent', severity: 'note',
+                        message: `defineResource('${named.text}') has a default that is not a literal `
+                            + 'number or boolean',
+                    });
+                    return;
+                }
+                comps.set(shape.name, shape);
+                userResources.add(shape.name);
+                if (binding) bindings.set(binding, shape.name);
+                return;
+            }
             if (node.expression.text === 'defineEvent') {
                 const shape = eventShape(node, interfaces);
                 if (!shape) {
@@ -1108,7 +1152,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
         });
     }
 
-    return { module: { systems, comps, fns, events }, diagnostics, seen, systemBindings, required };
+    return { module: { systems, comps, fns, events, userResources }, diagnostics, seen, systemBindings, required };
 }
 
 /** `{ name: 'MoveSystem' }` if given, else the const it is assigned to. */

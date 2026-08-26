@@ -226,6 +226,9 @@ export interface EirModule {
     /** Event payloads, by declared name. A separate namespace from components:
      *  a program may name one of each the same thing without meaning one. */
     readonly events: ReadonlyMap<string, CompShape>;
+    /** Resources the PROJECT declared, as opposed to the engine's own. Their
+     *  layout is derived from the declaration, so nothing adapts to each one. */
+    readonly userResources: ReadonlySet<string>;
 }
 
 // =============================================================================

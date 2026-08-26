@@ -497,6 +497,10 @@ export function abiHandshake(
     // component to a project must not invalidate a module that never reads it.
     const named = new Set<string>();
     for (const p of plans) for (const q of p.queries) for (const a of q) named.add(a.comp);
+    // A project's own RESOURCE is a project shape; the ENGINE's is not, being
+    // covered by `engineAbi`. Counting one twice puts it in a digest the
+    // runtime computes without it.
+    for (const p of plans) for (const r of p.resources) if (!RESOURCES.has(r.name)) named.add(r.name);
 
     const shapes: ShapeDigestInput[] = [];
     for (const name of named) {
