@@ -29,6 +29,10 @@ export const SCOPES = ['local', 'ci'];
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
+  // Up here rather than beside `tsc-pipeline`: the compiler resolves `esengine`
+  // to its own stub (compiler/tsconfig.json), so it needs nothing built and has
+  // no reason to wait for `sdk-build`.
+  { id: 'tsc-compiler', run: 'pnpm --filter @estella/compiler exec tsc --noEmit -p tsconfig.json' },
   { id: 'gl-boundary', run: 'node tools/check-gl-boundary.mjs' },
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
   { id: 'sidemodule-gates', run: 'node tools/check-sidemodule-gates.mjs' },
