@@ -111,8 +111,8 @@ void TilemapRenderPlugin::rebuildChunk(
 
             // Base tile UV rect (GL v increases upward, so vBottom < vTop), with
             // the atlas margin + spacing folded into offset/step so a Tiled tileset
-            // with gaps samples the right cell; inset half a texel per edge so
-            // samples stay inside this tile.
+            // with gaps samples the right cell. `inset` is zero on an extruded
+            // atlas and half a texel on a packed one — see where it is resolved.
             f32 uMin = rs.uvOffsetX + static_cast<f32>(tileCol) * rs.uvStepX + rs.insetU;
             f32 uMax = uMin + uvTileW - 2.0f * rs.insetU;
             f32 vBottom = 1.0f - rs.uvOffsetY - static_cast<f32>(tileRow) * rs.uvStepY - uvTileH + rs.insetV;
@@ -235,8 +235,14 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].uvOffsetY = margin / th;
             resolved[i].uvStepX = (layer.tile_width + spacing) / tw;
             resolved[i].uvStepY = (layer.tile_height + spacing) / th;
-            resolved[i].insetU = 0.5f / tw;
-            resolved[i].insetV = 0.5f / th;
+            // An extruded atlas already carries the guarantee the inset was
+            // buying — a sample that leaves the cell reads a copy of that cell's
+            // own edge — so the exact rect is safe, and the exact rect is the
+            // only one that does not stretch the tile. On a packed atlas the
+            // inset is still the trade that has to be made.
+            const bool extruded = slots[i].extrude > 0;
+            resolved[i].insetU = extruded ? 0.0f : 0.5f / tw;
+            resolved[i].insetV = extruded ? 0.0f : 0.5f / th;
             resolved[i].atlasCols = tilemap::atlasCells(tw, margin, layer.tile_width, spacing);
             resolved[i].atlasRows = tilemap::atlasCells(th, margin, layer.tile_height, spacing);
             anySlotValid = true;

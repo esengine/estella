@@ -37,6 +37,8 @@ export interface TilesetModelSlot {
     /** Atlas border (px) before the first tile, and gap (px) between tiles (Tiled). */
     margin: number;
     spacing: number;
+    /** Duplicated-edge border each cell carries; 0 = none. See `TilesetAsset.extrude`. */
+    extrude: number;
 }
 
 /**
@@ -149,6 +151,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
         slots.push({
             firstId, textureHandle, columns: asset.columns,
             margin: asset.margin || 0, spacing: asset.spacing || 0,
+            extrude: asset.extrude || 0,
         });
         const tw = asset.tileWidth || 1;
         const th = asset.tileHeight || 1;

@@ -18,7 +18,7 @@ describe('tilesetAsset (.estileset format)', () => {
                 version: TILESET_FORMAT_VERSION,
                 texture: '@uuid:abc',
                 tileWidth: 16, tileHeight: 16, columns: 8,
-                margin: 0, spacing: 0, tiles: {},
+                margin: 0, spacing: 0, extrude: 0, tiles: {},
             });
         });
     });
@@ -83,7 +83,9 @@ describe('tilesetAsset (.estileset format)', () => {
         it('parse(serialize(x)) is identity over a rich tileset', () => {
             const original: TilesetAsset = {
                 version: '1', texture: '@uuid:t', tileWidth: 16, tileHeight: 16,
-                columns: 8, margin: 1, spacing: 2, tileCount: 64,
+                // margin 1 / spacing 2 IS the extruded layout for extrude 1, which is
+                // the case that exercises the serializer's write-only-when-set branch.
+                columns: 8, margin: 1, spacing: 2, extrude: 1, tileCount: 64,
                 tiles: {
                     5: { collision: { type: 'box' } },
                     12: { collision: { type: 'polygon', points: [[0, 0], [16, 0], [16, 16]] }, properties: { kind: 'slope' } },
@@ -91,6 +93,23 @@ describe('tilesetAsset (.estileset format)', () => {
                 },
             };
             expect(parseTileset(serializeTileset(original))).toEqual(original);
+        });
+
+        it('a packed tileset round-trips too, with no extrude key written', () => {
+            // The other branch: an asset made before extrusion existed, and every
+            // asset that has not been re-imported. It must come back as extrude 0
+            // WITHOUT the serializer adding a key that says nothing.
+            const packed: TilesetAsset = {
+                version: '1', texture: '@uuid:t', tileWidth: 16, tileHeight: 16,
+                columns: 8, margin: 0, spacing: 0, extrude: 0, tiles: {},
+            };
+            expect(serializeTileset(packed)).not.toHaveProperty('extrude');
+            expect(parseTileset(serializeTileset(packed))).toEqual(packed);
+            // And a file written before the field existed reads back the same way.
+            expect(parseTileset({
+                version: '1', texture: '@uuid:t', tileWidth: 16, tileHeight: 16,
+                columns: 8, margin: 0, spacing: 0, tiles: {},
+            })).toEqual(packed);
         });
     });
 

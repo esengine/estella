@@ -114,6 +114,24 @@ export interface TilesetAsset {
     margin: number;
     /** Gap (px) between adjacent tiles. */
     spacing: number;
+    /**
+     * Border of duplicated edge pixels each cell carries in the atlas, in px.
+     *
+     * A PROPERTY OF THE TEXTURE, established by whoever produced it — the import
+     * writes an extruded atlas and stamps the number here. Non-zero means a
+     * sample that strays outside a cell reads a copy of that cell's own edge, so
+     * the renderer sends the exact cell rect and insets nothing.
+     *
+     * Zero means it must still buy no-bleed with a half-texel inset, and on a
+     * gapless atlas those two cannot both hold from UVs alone: the inset shrinks
+     * the sampled rect by a whole texel while the quad keeps the full tile, so
+     * every tile is stretched by N/(N-1) and the sampling phase resets at each
+     * boundary. That is a seam on tiles meant to butt together.
+     *
+     * Non-zero implies `margin === extrude` and `spacing === 2 * extrude`: the
+     * extruded layout is the only one where every cell gets its own border.
+     */
+    extrude: number;
     /** Total tile count (optional; otherwise derived from the texture + grid). */
     tileCount?: number;
     /** Per-tile metadata keyed by tile id (1-based; id 0 = empty). */
@@ -242,6 +260,7 @@ export function parseTileset(rawJson: unknown): TilesetAsset {
         columns: posInt(raw?.columns, 1),
         margin: nonNeg(raw?.margin, 0),
         spacing: nonNeg(raw?.spacing, 0),
+        extrude: nonNeg(raw?.extrude, 0),
         tileCount: Number.isInteger(raw?.tileCount) ? raw?.tileCount : undefined,
         tiles,
         ...(terrains.length > 0 ? { terrains } : {}),
@@ -262,6 +281,9 @@ export function serializeTileset(asset: TilesetAsset): Record<string, unknown> {
         spacing: asset.spacing,
         tiles,
     };
+    // Only written when it is true: an `extrude: 0` on every tileset ever made
+    // would be a field that says nothing, and older assets already mean 0.
+    if (asset.extrude > 0) out.extrude = asset.extrude;
     if (asset.tileCount !== undefined) out.tileCount = asset.tileCount;
     if (asset.terrains && asset.terrains.length > 0) out.terrains = asset.terrains;
     return out;
@@ -274,7 +296,7 @@ export function createTileset(
     return {
         version: TILESET_FORMAT_VERSION,
         texture, tileWidth, tileHeight, columns,
-        margin: 0, spacing: 0, tiles: {},
+        margin: 0, spacing: 0, extrude: 0, tiles: {},
     };
 }
 

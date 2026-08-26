@@ -83,22 +83,29 @@ void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
     getTilemapSystem().setTiles(e, tiles, count);
 }
 
-// Multi-tileset table: `count` slots, each 3 packed u32 [first_id, textureHandle,
-// columns]. Empty table reverts the layer to its single tileset.
+// Multi-tileset table: `count` slots, each SLOT_STRIDE packed u32
+// [first_id, textureHandle, columns, margin, spacing, extrude].
+// Empty table reverts the layer to its single tileset.
 void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
+    // The SDK's TILESET_SLOT_STRIDE. No generator spans this boundary, so the
+    // field list above is the contract and this number is the other half of it.
+    constexpr u32 SLOT_STRIDE = 6;
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* d = count ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * 5, "tilemap_setTilesets") : nullptr;
+    const auto* d = count
+        ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * SLOT_STRIDE, "tilemap_setTilesets")
+        : nullptr;
     if (count && !d) return;
     std::vector<tilemap::TilesetSlot> slots;
     slots.reserve(count);
     for (u32 i = 0; i < count; ++i) {
         tilemap::TilesetSlot slot;
-        slot.first_id = static_cast<u16>(d[i * 5 + 0]);
-        slot.texture_handle = d[i * 5 + 1];
-        slot.columns = d[i * 5 + 2];
-        slot.margin = d[i * 5 + 3];
-        slot.spacing = d[i * 5 + 4];
+        slot.first_id = static_cast<u16>(d[i * SLOT_STRIDE + 0]);
+        slot.texture_handle = d[i * SLOT_STRIDE + 1];
+        slot.columns = d[i * SLOT_STRIDE + 2];
+        slot.margin = d[i * SLOT_STRIDE + 3];
+        slot.spacing = d[i * SLOT_STRIDE + 4];
+        slot.extrude = d[i * SLOT_STRIDE + 5];
         slots.push_back(slot);
     }
     getTilemapSystem().setTilesets(e, std::move(slots));

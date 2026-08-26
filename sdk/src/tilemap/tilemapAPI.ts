@@ -95,6 +95,16 @@ export function shutdownTilemapAPI(): void {
  * calls are the host/tooling surface (the editor's tile tools, tests) where no
  * App is in scope. Both names are the same object.
  */
+/**
+ * u32s per slot in the `tilemap_setTilesets` buffer, and the order they are in:
+ * [firstId, textureHandle, columns, margin, spacing, extrude].
+ *
+ * Two files unpack this — here and `TilemapBindings.cpp`. There is no generator
+ * for it, so the number is named on both sides and the field list is stated
+ * once, rather than a bare 6 appearing twice and drifting.
+ */
+export const TILESET_SLOT_STRIDE = 6;
+
 export const TilemapAPI = {
     initLayer(entity: number, width: number, height: number,
               tileWidth: number, tileHeight: number): void {
@@ -129,11 +139,19 @@ export const TilemapAPI = {
         });
     },
 
-    /** Replace the layer's multi-tileset table. Empty array reverts to single-tileset. */
-    setTilesets(entity: number, slots: { firstId: number; textureHandle: number; columns: number; margin?: number; spacing?: number }[]): void {
+    /**
+     * Replace the layer's multi-tileset table. Empty array reverts to single-tileset.
+     *
+     * The packed field ORDER is the contract with `tilemap_setTilesets`, and it is
+     * written down here and read there — see TILESET_SLOT_STRIDE.
+     */
+    setTilesets(entity: number, slots: {
+        firstId: number; textureHandle: number; columns: number;
+        margin?: number; spacing?: number; extrude?: number;
+    }[]): void {
         const m = module_;
         if (!m) return;
-        const STRIDE = 5;
+        const STRIDE = TILESET_SLOT_STRIDE;
         const packed = new Uint32Array(slots.length * STRIDE);
         for (let i = 0; i < slots.length; i++) {
             packed[i * STRIDE] = slots[i].firstId;
@@ -141,6 +159,7 @@ export const TilemapAPI = {
             packed[i * STRIDE + 2] = slots[i].columns;
             packed[i * STRIDE + 3] = slots[i].margin ?? 0;
             packed[i * STRIDE + 4] = slots[i].spacing ?? 0;
+            packed[i * STRIDE + 5] = slots[i].extrude ?? 0;
         }
         withMalloc(m, packed.byteLength, ptr => {
             new Uint32Array(m.HEAPU8.buffer, ptr, packed.length).set(packed);
