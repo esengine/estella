@@ -38,6 +38,7 @@ import type { AnyComponentDef } from '../src/ecs/component';
 import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 import type { Entity } from '../src/types';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
 import { FakeEngine } from './fakeEngine';
 import { buildFadeModule, FADE_FIELDS, fadeManifest } from './helpers/aotFade';
 

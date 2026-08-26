@@ -19,7 +19,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
-import { buildFadeModule, fadeManifest } from './helpers/aotFade';
+import { buildFadeModule, fadeManifest, useBytesPlatform } from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { defineComponent } from '../src/ecs/component';
@@ -29,6 +29,8 @@ import type { AnyComponentDef } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 
 const EMCC = emccPath();
+
+useBytesPlatform();
 const N = 5000;
 const FRAMES = 300;
 const WARMUP = 60;

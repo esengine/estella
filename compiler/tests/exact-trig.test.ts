@@ -22,13 +22,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CFLAGS, RUNTIME_H } from '../src/codegen';
 import { exact } from '../../sdk/src/math/exact';
+import { findCC } from './hostCC';
 
-function findCC(): string | null {
-    for (const cc of ['clang', 'gcc', 'cc']) {
-        if (spawnSync(cc, ['--version'], { encoding: 'utf8' }).status === 0) return cc;
-    }
-    return null;
-}
 const CC = findCC();
 
 /** Where a range reduction, a quadrant choice or a polynomial could differ. */

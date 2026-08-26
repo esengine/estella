@@ -39,6 +39,7 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { AbiMemory, flushCommands, materialize, packLayout, planFor, runOnAbi } from '../src/abi';
 import { CFLAGS, cSymbol, emitC, type CModule } from '../src/codegen';
+import { findCC } from './hostCC';
 import { abiHashFor } from '../src/abi';
 import type { AbiLayout } from '../src/abi';
 import { F64, type EirSystem } from '../src/eir';
@@ -56,32 +57,6 @@ const N = 24;
 const FRAMES = 12;
 /** Small enough that a frame is one cheap pipe, big enough for the world above. */
 const IMAGE = 1 << 16;
-
-// =============================================================================
-// finding a C compiler
-// =============================================================================
-
-/**
- * clang first because it is what Stage 2 ships with — emcc is clang and the
- * aarch64 path is clang. gcc is accepted, and is arguably the better witness:
- * agreeing with a SECOND independent implementation of C says more than
- * agreeing with the one the lowering was written against.
- *
- * The candidate has to BUILD something, not merely answer `--version`. emsdk's
- * clang shadows the system one on PATH, reports `Target: unknown`, and answers
- * `--version` with 0 while refusing every host compile — so the wrong probe
- * reddens this differential on exactly the machines that can run AOT.
- */
-function findCC(): string | null {
-    const dir = mkdtempSync(join(tmpdir(), 'estella-cc-'));
-    const src = join(dir, 'probe.c');
-    writeFileSync(src, 'int main(void) { return 0; }\n');
-    for (const cc of ['clang', 'gcc', 'cc']) {
-        const out = spawnSync(cc, ['-std=c11', '-o', join(dir, `probe-${cc}`), src], { encoding: 'utf8' });
-        if (out.status === 0) return cc;
-    }
-    return null;
-}
 
 const CC = findCC();
 

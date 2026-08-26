@@ -8,7 +8,7 @@
 import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
-import { prepareAot, type AotHost } from '../ecs/aot/installAot';
+import { installAot, prepareAot, type AotHost } from '../ecs/aot/installAot';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
 import { EventRegistry, eventNamed, type EventDef } from '../ecs/event';
@@ -20,9 +20,6 @@ import { inputPlugin, Input } from '../input/input';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
 import { setWasmErrorHandler } from '../wasm/wasmError';
-import { installAot, type AotHost } from '../ecs/aot/installAot';
-import type { AotRuntime } from '../ecs/aot/AotRuntime';
-import type { AotManifest } from '../ecs/aot/AotSystems';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 import {
     ancestors,
@@ -626,6 +623,7 @@ export class App {
         readonly manifest: AotManifest;
         readonly wasm: BufferSource;
     }): Promise<void> {
+        this.ensureTime_();
         this.aot_ = await prepareAot({
             world: this.world_,
             host: opts.host,
@@ -662,9 +660,6 @@ export class App {
         });
         this.runner_?.useAot(this.aot_);
     }
-
-    /** Held until there is a runner to give them to: one is made on the first frame. */
-    private aot_: AotRuntime | null = null;
 
     /**
      * Which systems this App is running compiled, and how many twin calls have
@@ -940,6 +935,7 @@ export class App {
             _free: (ptr: number) => module._free(ptr),
             get HEAPU8(): Uint8Array { return module.HEAPU8; },
         };
+        this.ensureTime_();
         this.aot_ = await installAot({
             world: this.world_,
             runner: this.ensureRunner_(),
@@ -1108,15 +1104,23 @@ export class App {
         return this.runner_;
     }
 
+    /**
+     * The clock, before anything asks for it. Installing compiled systems is one
+     * such thing and it runs BEFORE the first frame: a twin declaring `Res(Time)`
+     * is refused outright if this App cannot yet say what Time's fields are.
+     */
+    private ensureTime_(): void {
+        if (this.resources_.has(Time)) return;
+        this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
+    }
+
     /** Once per app, on the way into the first frame: the clock every system
      *  reads, and the plugins' last chance to add one. */
     private boot_(): void {
         this.ensureRunner_();
         if (this.booted_) return;
         this.booted_ = true;
-        if (!this.resources_.has(Time)) {
-            this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
-        }
+        this.ensureTime_();
         this.finishPlugins_();
     }
 

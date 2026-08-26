@@ -73,6 +73,8 @@ interface QueryPlan {
 
 interface Plan {
     readonly queries: QueryPlan[];
+    /** Whether any slot is an event reader, so a call took payload blocks. */
+    readonly reads: boolean;
     readonly resources: readonly { name: string; mut: boolean }[];
     /** Rows for every query, back to back, in query order. */
     scratch: Uint32Array;
@@ -142,7 +144,7 @@ export class AotDispatch {
         }
         // The payload blocks are valid for exactly this call: `packRows_` takes
         // one per payload per frame, and nothing else hands them back.
-        this.runtime.addresses.releasePayloads();
+        if (plan.reads) this.runtime.addresses.releasePayloads();
 
         for (const cmd of this.runtime.ctx.commands()) {
             // Only despawn is in the v1 record set.
@@ -284,6 +286,7 @@ export class AotDispatch {
         });
         plan = {
             queries,
+            reads: queries.some((q) => q.reader !== null),
             resources: twin.decl.resources,
             scratch: new Uint32Array(0),
             counts: new Uint32Array(queries.length),

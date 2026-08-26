@@ -17,6 +17,8 @@ import { WASM_LINK_FLAGS } from '../../../compiler/src/codegen';
 import { engineAbiDigest, projectShapeDigest } from '../../src/ecs/aot/abiDigest';
 import { resourceMethodBit } from '../../src/ecs/resourceShapes';
 import type { AotManifest } from '../../src/ecs/aot/AotSystems';
+import { setPlatform } from '../../src/platform/base';
+import type { PlatformAdapter, WasmInstantiateResult } from '../../src/platform/types';
 
 /** `Fade`: alpha -= step, addressed the way the ABI lays a call out. */
 export const FADE_C = `#include <stdint.h>
@@ -274,4 +276,19 @@ export function fadeManifest(
             queries: [[{ comp: 'Fade', mut: true }]], resources: [],
         }],
     };
+}
+
+/**
+ * A platform that instantiates from BYTES, which every install goes through now.
+ * A test building its own module has no package to name, so the path form these
+ * helpers cannot produce is the one WeChat takes — `aot-install.test.ts` is where
+ * both shapes are held to their refusals.
+ */
+export function useBytesPlatform(): void {
+    setPlatform({
+        instantiateWasm: (src: string | ArrayBuffer, imports: WebAssembly.Imports) => {
+            if (typeof src === 'string') throw new Error('these helpers hand over bytes');
+            return WebAssembly.instantiate(src, imports) as Promise<WasmInstantiateResult>;
+        },
+    } as unknown as PlatformAdapter);
 }

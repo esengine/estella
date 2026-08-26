@@ -33,11 +33,11 @@ import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
 
 /**
-  * The engine module a compiled system shares memory with. `wasmMemory` is
-  * emscripten's own name for the Memory object, and the engine exports it for
-  * exactly this — a HEAP view's buffer is an ArrayBuffer and cannot be imported.
-  */
-export type AotHost = WasmHeap & { readonly wasmMemory: WebAssembly.Memory };
+ * The engine module a compiled system shares memory with. The Memory OBJECT,
+ * which the module imports as `env.memory`: a HEAP view's buffer is an
+ * ArrayBuffer and cannot be imported.
+ */
+export type AotHost = WasmHeap & { readonly memory: WebAssembly.Memory };
 
 export interface InstallAotOptions {
     readonly world: World;

@@ -15,7 +15,7 @@ import {
     buildAotModule, buildFadeModule, eventManifest, fadeManifest, fadeTaggedManifest,
     keyProbeC, keyProbeManifest, EVENT_C,
     timeScaleManifest, userResManifest, FADE_TAGGED_C, USER_RES_C,
-    FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C,
+    FADE_PROBE_ALPHA, FADE_PROBE_C, TIME_SCALE_C, useBytesPlatform,
 } from './helpers/aotFade';
 import { FakeEngine } from './fakeEngine';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
@@ -30,6 +30,8 @@ import type { Entity } from '../src/types';
 
 const EMCC = emccPath();
 const N = 8;
+
+useBytesPlatform();
 
 /** The same author's system either way; only whether a twin exists differs. */
 function fadeApp(): { app: ReturnType<typeof bootMockApp>['app']; Fade: AnyComponentDef } {

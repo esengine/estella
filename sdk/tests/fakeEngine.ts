@@ -27,8 +27,8 @@ const STATICS_BYTE = 0xab;
 
 export class FakeEngine implements WasmHeap {
     /** 256 pages because that is the minimum a built module declares it needs. */
-    readonly wasmMemory = new WebAssembly.Memory({ initial: 256, maximum: 32768 });
-    HEAPU8 = new Uint8Array(this.wasmMemory.buffer);
+    readonly memory = new WebAssembly.Memory({ initial: 256, maximum: 32768 });
+    HEAPU8 = new Uint8Array(this.memory.buffer);
     private next = STATICS_AT + STATICS_LEN;
 
     constructor() { this.statics().fill(STATICS_BYTE); }
@@ -37,8 +37,8 @@ export class FakeEngine implements WasmHeap {
         const at = this.next;
         this.next += (size + 15) & ~15;
         while (this.next > this.HEAPU8.byteLength) {
-            this.wasmMemory.grow(1);
-            this.HEAPU8 = new Uint8Array(this.wasmMemory.buffer);
+            this.memory.grow(1);
+            this.HEAPU8 = new Uint8Array(this.memory.buffer);
         }
         return at;
     }
@@ -47,7 +47,7 @@ export class FakeEngine implements WasmHeap {
 
     /** The bytes the engine owns. Read after loading and after running. */
     statics(): Uint8Array {
-        return new Uint8Array(this.wasmMemory.buffer, STATICS_AT, STATICS_LEN);
+        return new Uint8Array(this.memory.buffer, STATICS_AT, STATICS_LEN);
     }
 
     /** Whether anything wrote where the engine keeps its own data. */
