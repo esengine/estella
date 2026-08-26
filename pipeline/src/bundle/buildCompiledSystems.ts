@@ -89,6 +89,22 @@ function sources(root: string): string[] {
   return out;
 }
 
+/** A marker anywhere in a file. Text, not a parse: this only decides whether the
+ *  expensive answer is worth computing. */
+const anyPromise = (files: string[]): boolean =>
+  files.some((f) => readFileSync(f, 'utf8').includes('@compiled'));
+
+/**
+ * Whether this project promises any compilation at all.
+ *
+ * The cheap half of what {@link buildCompiledSystems} answers, exported because
+ * the editor's platform catalog must say a target needs emcc BEFORE an export
+ * spawns one. Both read this, so they cannot disagree about what was promised.
+ */
+export function promisesCompilation(root: string): boolean {
+  return anyPromise(sources(root));
+}
+
 /**
  * Compile the project's `@compiled` systems to `<root>/.esengine/cache/aot/`.
  *
@@ -120,7 +136,7 @@ export async function buildCompiledSystems(
   // A project with no `@compiled` anywhere promised nothing, so it must not pay
   // for a TypeScript Program over its sources. Nothing is decided here: the parse
   // below still decides, this only skips having nothing to decide.
-  if (!files.some((f) => readFileSync(f, 'utf8').includes('@compiled'))) {
+  if (!anyPromise(files)) {
     return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
   }
 

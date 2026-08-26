@@ -124,7 +124,7 @@ export type PlatformPrereq =
     | {
         kind: 'toolchain-missing';
         /** Which piece is absent — the dialog maps it to a localized sentence. */
-        tool: NativeToolchain;
+        tool: ToolchainPiece;
     }
     | {
         /**
@@ -143,5 +143,25 @@ export type PlatformPrereq =
         version: string;
     };
 
-/** The native toolchain pieces the editor probes for. */
-export type NativeToolchain = 'xcode' | 'macos';
+/**
+ * The toolchain pieces the editor probes for.
+ *
+ * `xcode` and `macos` gate ASSEMBLY, which can happen on another machine; a
+ * target missing them still exports its content. `emsdk` gates the export
+ * itself, because the compiled module ships inside the package.
+ */
+export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk';
+
+/**
+ * Whether this target's export compiles the project's `@compiled` systems.
+ *
+ * A page host and a mini-game host can load a module; a playable inlines
+ * everything, and a native app runs its scripts on QuickJS. Two surfaces read
+ * this — the export that runs the step, and the catalog that says a machine cannot.
+ */
+export function compilesSystems(platform: ExportPlatform): boolean {
+    if (platform === 'web' || platform === 'wechat') return true;
+    // A project platform is a mini-game platform: the playable ones are chosen
+    // inside the built-in target, not offered as a row of their own.
+    return !(BUILTIN_PLATFORMS as readonly string[]).includes(platform);
+}

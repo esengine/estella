@@ -29,6 +29,8 @@ import { verifyTemplateZip } from '../../build-tools/tasks/verifyTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
 
 const VERSION = '9.9.9';
+/** No project root here, so nothing can have promised compilation. */
+const EMCC = null;
 
 let store: string;
 let scratch: string;
@@ -287,7 +289,7 @@ describe('downloading a template from a release', () => {
 
 describe('the iOS row reports what is missing', () => {
   const dirs = () => ({ web: path.join(scratch, 'web'), wechat: path.join(scratch, 'wx') });
-  const iosRow = async () => (await listPlatforms(null, dirs(), VERSION)).find((r) => r.id === 'ios')!;
+  const iosRow = async () => (await listPlatforms(null, dirs(), VERSION, EMCC)).find((r) => r.id === 'ios')!;
 
   it('asks for the runtime template before anything about Xcode', async () => {
     const row = await iosRow();

@@ -30,7 +30,8 @@ import {
   BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
   type PlayableAdProfile,
 } from './playableAdProfile';
-import { BUILTIN_PLATFORMS, DESKTOP_OSES, desktopTemplateFor, type PlatformPrereq } from '../project/platforms';
+import { BUILTIN_PLATFORMS, DESKTOP_OSES, compilesSystems, desktopTemplateFor, type PlatformPrereq } from '../project/platforms';
+import { promisesCompilation } from '../bundle/buildCompiledSystems';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
@@ -612,6 +613,10 @@ export async function loadPlayableProfile(root: string | null, id: string | unde
  */
 export async function listPlatforms(
   root: string | null, dirs: PlatformRuntimeDirs, engineVersion: string,
+  /** Where this machine's emcc is, or null. Required rather than probed here so
+   *  the caller passes the SAME answer to the export — a readiness the dialog
+   *  computed one way and the export another is worse than none. */
+  emcc: string | null,
 ): Promise<PlatformStatus[]> {
   const out: PlatformStatus[] = BUILTIN_PLATFORMS.map((id) => ({
     id,
@@ -681,5 +686,24 @@ export async function listPlatforms(
     });
   }
 
-  return out;
+  return withAotPrereq(out, root, emcc);
+}
+
+/**
+ * Mark the targets whose export would compile systems this machine cannot build.
+ *
+ * Unlike Xcode this cannot be deferred: the module ships inside the package. A
+ * project that promised nothing is told nothing, and a row already blocked by a
+ * missing engine runtime keeps that harder answer.
+ */
+function withAotPrereq(
+  rows: PlatformStatus[], root: string, emcc: string | null,
+): PlatformStatus[] {
+  if (emcc || !promisesCompilation(root)) return rows;
+  for (const row of rows) {
+    if (!row.ready || !compilesSystems(row.id)) continue;
+    row.ready = false;
+    row.prereq = { kind: 'toolchain-missing', tool: 'emsdk' };
+  }
+  return rows;
 }

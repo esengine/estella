@@ -49,7 +49,7 @@ import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
-import { isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
+import { compilesSystems, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
 import type { DesktopPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
@@ -699,11 +699,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
-  // 3b. Compiled systems (docs/REARCH_AOT.md), for the page host. A mini-game
-  //     stages its own above and takes a path; a playable inlines everything and
-  //     has nowhere to put a module, and QuickJS cannot instantiate one at all.
+  // 3b. Compiled systems (docs/REARCH_AOT.md), for the page host. Which targets
+  //     get one is `compilesSystems`, because the build dialog has to answer the
+  //     same question before an export starts.
   let aot: PackagedGameConfig['aot'];
-  if (platform === 'web') {
+  if (compilesSystems(platform)) {
     // An export is not the editor's preview: here a `@compiled` marker is a
     // promise someone is collecting on, so a promise the subset cannot keep
     // fails the build rather than quietly falling back to the interpreter.
