@@ -116,6 +116,14 @@ async function boot(): Promise<void> {
         return { width: w, height: h, rgba };
       },
       /**
+       * How many of this build's systems run as compiled code. Zero in an
+       * interpreted package, which is what tells the two apart from outside —
+       * the frames they produce are meant to be identical.
+       */
+      compiledSystems(): number {
+        return app.compiledSystemCount;
+      },
+      /**
        * Where things are, for a driver that has to play rather than just look.
        * Capture answers "did it draw"; walking a route needs "am I there yet",
        * and guessing that from frame counts breaks on the first enemy in the
@@ -193,10 +201,17 @@ async function boot(): Promise<void> {
     decodePixels: (path) => fetchDecodePixels(path),
   });
   applyAssetRefResolvers(app, index.resolvePath);
+  // The compiled twins this build produced, if it produced any. Fetched here
+  // rather than inside initRuntime because fetching is what a transport does and
+  // initRuntime serves every one of them (docs/REARCH_AOT.md §9).
+  const aot = cfg.aot
+    ? { wasm: await (await fetch(`./${cfg.aot.wasm}`)).arrayBuffer(), manifest: cfg.aot.manifest }
+    : undefined;
   await initRuntime({
     app,
     module,
     source,
+    ...(aot ? { aot } : {}),
     manifest: index.manifest,
     catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,

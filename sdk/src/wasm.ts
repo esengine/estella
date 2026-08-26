@@ -157,6 +157,13 @@ export interface ESEngineModule {
     HEAPU8: Uint8Array;
     HEAPU32: Uint32Array;
     HEAPF32: Float32Array;
+    /**
+     * The module's own linear memory, which a compiled system module IMPORTS
+     * rather than owning a second (docs/REARCH_AOT.md §6.1) — and only a
+     * `Memory` can be imported, a heap view's `buffer` cannot become one again.
+     * Optional because an artifact built before the link flag carries none.
+     */
+    wasmMemory?: WebAssembly.Memory;
 
     FS: EmscriptenFS;
 

@@ -71,6 +71,17 @@ app.whenReady().then(async () => {
       return { w, h, left: at(0.3, 0.5), right: at(0.7, 0.5), corner: at(0.04, 0.04) };
     })()`);
 
+    // The AOT road in the shipped runtime: the module installed, and the entity
+    // only a compiled system touches is moving. Nothing draws it, so this claim
+    // and the pixel ones stay independent.
+    const compiledSystems = await exec('window.__estellaCooked.compiledSystems()');
+    const first = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
+    await sleep(500);
+    const second = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
+    // 100 units a second, so half a second is about 50. Twenty is clear of a
+    // stutter and nowhere near what a still entity would report.
+    const aotOk = compiledSystems >= 1 && !!first && !!second && second.x - first.x > 20;
+
     // Left quad = the KTX2 texture (green); right quad = the PATH-referenced
     // material chain (its shader paints u_tint red) — proving the cooked
     // logical→staged resolution end to end, not just uuid refs.
@@ -79,9 +90,13 @@ app.whenReady().then(async () => {
     const [rr, rg, rb] = cap.right;
     const redOk = rr >= 180 && rg <= 70 && rb <= 70;
     const cornerBlack = cap.corner[0] <= 40 && cap.corner[1] <= 40 && cap.corner[2] <= 40;
-    const ok = greenOk && redOk && cornerBlack;
+    const ok = greenOk && redOk && cornerBlack && aotOk;
     console.log(`\n[verify:render:cooked] ${ok ? 'PASS' : 'FAIL'}`);
-    console.log('DRIVE_RESULT ' + JSON.stringify({ ...cap, greenOk, redOk, cornerBlack, diag: diag.slice(0, 6) }));
+    console.log('DRIVE_RESULT ' + JSON.stringify({
+      ...cap, greenOk, redOk, cornerBlack,
+      aotOk, compiledSystems, drift: [first?.x ?? null, second?.x ?? null],
+      diag: diag.slice(0, 6),
+    }));
     failed = !ok;
   } catch (e) {
     console.log('\n[verify:render:cooked] FAIL — ' + (e?.message ?? e));

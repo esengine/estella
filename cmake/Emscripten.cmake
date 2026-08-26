@@ -45,7 +45,7 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     "-sEXPORT_NAME='ESEngineModule'" # Module name
     # Exported functions (EMSCRIPTEN_KEEPALIVE + stdlib)
     "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','wasmMemory']"
     # Embed assets (fonts, etc.)
     "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"
 )
@@ -72,7 +72,7 @@ set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
     # 'GL' is required for the WebGL2 context binding (module.GL.registerContext);
     # the monolithic web build exports it too — the main-module list had dropped it.
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','loadDynamicLibrary']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','loadDynamicLibrary','wasmMemory']"
     -O3
     -flto
     -Wl,--gc-sections
@@ -96,7 +96,7 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary','wasmMemory']"
     -O3
     -flto
     -Wl,--gc-sections
@@ -153,7 +153,7 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','wasmMemory']"
     -O3
     -flto
     -Wl,--gc-sections
@@ -239,7 +239,11 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     -sFORCE_FILESYSTEM=1
     "-sEXPORT_NAME='ESEngineModule'"
     "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction']"
+    # 'wasmMemory' is the AOT contract: a compiled system module IMPORTS this
+    # memory rather than owning one, so the game's own systems read the rows
+    # where they already are (docs/REARCH_AOT.md §6.1). The glue keeps it in a
+    # local otherwise, and an ArrayBuffer cannot be turned back into a Memory.
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','wasmMemory']"
     -O3
     -flto
     -Wl,--gc-sections

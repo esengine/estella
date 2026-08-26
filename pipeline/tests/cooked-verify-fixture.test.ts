@@ -41,6 +41,35 @@ void main() { fragColor = u_tint; }
 #pragma end
 `;
 
+/**
+ * The project's own code: one component, one system, and the promise that the
+ * system compiles. `Transform` is an ENGINE component, so the compiled code
+ * reads it at the offsets EHT generated, in the memory the engine already owns.
+ */
+const PROJECT_SCRIPTS = `import {
+    addSystem, defineComponent, defineSystem, Query, Mut, Res, Time, Transform,
+} from 'esengine';
+
+export const Drifter = defineComponent('Drifter', { speed: 0 });
+
+/**
+ * @compiled
+ * A promise, not a hint: what the subset cannot lower fails the export here
+ * rather than falling back to the interpreter with nothing to see.
+ */
+export const driftSystem = defineSystem(
+    [Query(Mut(Transform), Drifter), Res(Time)],
+    (query, time) => {
+        for (const [, transform, drifter] of query) {
+            transform.position.x += drifter.speed * time.delta;
+        }
+    },
+    { name: 'CookedDrift' },
+);
+
+addSystem(driftSystem);
+`;
+
 describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () => {
   it('cooks a content-addressed build: green KTX2 sprite + path-ref material chain', async () => {
     rmSync(SRC, { recursive: true, force: true });
@@ -73,12 +102,21 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
           { type: 'Transform', data: { position: { x: 150, y: 0, z: 0 } } },
           { type: 'Sprite', data: { size: { x: 250, y: 250 }, color: { r: 1, g: 1, b: 1, a: 1 }, material: 'assets/red.esmaterial' } },
         ] },
+        // Nothing draws this one. It exists so the compiled system has a real
+        // engine component to move, and the driver a number to read.
+        { id: 3, name: 'Drifter', parent: null, children: [], visible: true, components: [
+          { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 } } },
+          { type: 'Drifter', data: { speed: 100 } },
+        ] },
       ],
     }));
     writeFileSync(path.join(SRC, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
 
     mkdirSync(path.join(SRC, 'src'), { recursive: true });
-    writeFileSync(path.join(SRC, 'src', 'main.ts'), 'export {};\n');
+    // A `@compiled` system, so this build also proves the AOT road end to end
+    // (docs/REARCH_AOT.md §9). What it moves carries no Sprite, so the pixel
+    // claims below keep sampling the same two quads.
+    writeFileSync(path.join(SRC, 'src', 'main.ts'), PROJECT_SCRIPTS);
 
     const res = await exportGame({
       root: SRC,

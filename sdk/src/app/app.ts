@@ -17,6 +17,9 @@ import { inputPlugin, Input } from '../input/input';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
 import { setWasmErrorHandler } from '../wasm/wasmError';
+import { installAot, type AotHost } from '../ecs/aot/installAot';
+import type { AotRuntime } from '../ecs/aot/AotRuntime';
+import type { AotManifest } from '../ecs/aot/AotSystems';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 import {
     ancestors,
@@ -126,6 +129,12 @@ export class App {
     private readonly resources_: ResourceStorage;
     private readonly systems_ = new Map<Schedule, SystemEntry[]>();
     private runner_: SystemRunner | null = null;
+    /** Whether the once-per-app boot work has run. Not `runner_ !== null`: a
+     *  compiled-systems install needs the runner BEFORE the first tick, and
+     *  reading the boot from its existence would then skip that work forever. */
+    private booted_ = false;
+    /** The compiled twins a build installed, or null where it made none. */
+    private aot_: AotRuntime | null = null;
     private systemCounter_ = 0;
     private readonly templateToRuntime_ = new Map<symbol, symbol>();
     /** Set name -> runtime system names registered under that set, for dep expansion. */
@@ -820,20 +829,62 @@ export class App {
     }
 
     // =========================================================================
+    // Compiled systems (AOT)
+    // =========================================================================
+
+    /**
+     * How many compiled twins this App runs. Zero unless a build installed some,
+     * which is the whole of the mode policy — and the one number that tells a
+     * shipped AOT build apart from a shipped interpreted one from outside.
+     */
+    get compiledSystemCount(): number {
+        return this.aot_?.systems.size ?? 0;
+    }
+
+    /**
+     * Install the compiled twins a build produced, and answer how many
+     * (docs/REARCH_AOT.md §9). Call it BEFORE any component exists — a twin reads
+     * rows in the ENGINE's memory, and refuses rather than move rows already
+     * allocated elsewhere, or trust a module built for other offsets.
+     */
+    async installCompiledSystems(wasm: BufferSource, manifest: AotManifest): Promise<number> {
+        const module = this.module_;
+        if (!module) {
+            throw new Error('installCompiledSystems: this App has no engine module, and a compiled '
+                + 'system reads the memory of one');
+        }
+        const memory = module.wasmMemory;
+        if (!memory) {
+            throw new Error('installCompiledSystems: this engine artifact does not export '
+                + "'wasmMemory', so there is no memory for the module to import — rebuild the engine");
+        }
+        // Read through to the module rather than captured: emscripten REPLACES
+        // the heap view when the heap grows, and a snapshot taken here would be
+        // detached by the first allocation that grows it.
+        const host: AotHost = {
+            memory,
+            _malloc: (size: number) => module._malloc(size),
+            _free: (ptr: number) => module._free(ptr),
+            get HEAPU8(): Uint8Array { return module.HEAPU8; },
+        };
+        this.aot_ = await installAot({
+            world: this.world_,
+            runner: this.ensureRunner_(),
+            host,
+            manifest,
+            wasm,
+            resources: (name: string) => this.getResourceByName(name) as
+                Readonly<Record<string, unknown>> | undefined,
+        });
+        return this.aot_.systems.size;
+    }
+
+    // =========================================================================
     // Run
     // =========================================================================
 
     async tick(delta: number): Promise<void> {
-        if (!this.runner_) {
-            this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
-            if (this.statsEnabled_) {
-                this.runner_.setTimingEnabled(true);
-            }
-            if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
-            }
-            this.finishPlugins_();
-        }
+        this.boot_();
 
         await this.flushStartupSystems_();
         await this.runFrame_(delta);
@@ -884,16 +935,7 @@ export class App {
         }
 
         this.running_ = true;
-        if (!this.runner_) {
-            this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
-            if (this.statsEnabled_) {
-                this.runner_.setTimingEnabled(true);
-            }
-            if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
-            }
-            this.finishPlugins_();
-        }
+        this.boot_();
         await this.flushStartupSystems_();
 
         this.lastTime_ = platformNow();
@@ -951,6 +993,8 @@ export class App {
 
         this.pipeline_ = null;
         this.runner_ = null;
+        this.booted_ = false;
+        this.aot_ = null;
         // Tear down the C++ engine context too: previously quit() only cleared
         // JS state and dropped the module reference, so the EstellaContext was
         // never shut down — it leaked its GPU subsystems + WebGL context, and a
@@ -968,6 +1012,34 @@ export class App {
     // =========================================================================
     // Internal
     // =========================================================================
+
+    /**
+     * The runner, made on demand. Making one is free and decides nothing — what
+     * has to happen exactly once before a frame is in `boot_`, so a caller that
+     * needs the runner early (a compiled-systems install) does not consume the
+     * boot by asking.
+     */
+    private ensureRunner_(): SystemRunner {
+        if (!this.runner_) {
+            this.runner_ = new SystemRunner(this.world_, this.resources_, this.eventRegistry_);
+            if (this.statsEnabled_) {
+                this.runner_.setTimingEnabled(true);
+            }
+        }
+        return this.runner_;
+    }
+
+    /** Once per app, on the way into the first frame: the clock every system
+     *  reads, and the plugins' last chance to add one. */
+    private boot_(): void {
+        this.ensureRunner_();
+        if (this.booted_) return;
+        this.booted_ = true;
+        if (!this.resources_.has(Time)) {
+            this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
+        }
+        this.finishPlugins_();
+    }
 
     private async runFrame_(delta: number): Promise<void> {
         this.runner_?.clearTimings();

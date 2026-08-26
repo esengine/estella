@@ -437,6 +437,17 @@ export {
 } from './behavior';
 
 // =============================================================================
+// Compiled systems (AOT)
+// =============================================================================
+
+/**
+ * What a build wrote beside a compiled-systems module: which twins it holds, and
+ * the two digests that say what it was built against. A packaged runtime reads
+ * one and hands it to `App.installCompiledSystems` (docs/REARCH_AOT.md).
+ */
+export type { AotManifest, AotSystemDecl } from './ecs/aot/AotSystems';
+
+// =============================================================================
 // World
 // =============================================================================
 

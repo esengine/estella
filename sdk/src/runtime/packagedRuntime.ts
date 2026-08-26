@@ -27,6 +27,7 @@ import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { registerSideModule } from '../sideModules/registry';
+import type { AotManifest } from '../ecs/aot/AotSystems';
 
 /**
  * `game.config.json` — what an export bakes about the project, and the contract
@@ -87,6 +88,13 @@ export interface PackagedGameConfig {
      * says so, and every transport resolves these ids exactly like a built-in.
      */
     sideModules?: Array<{ id: string; file: string; globalName?: string }>;
+    /**
+     * The compiled twins this build produced (docs/REARCH_AOT.md). `wasm` is
+     * package-relative; the manifest rides here so there is not a second file to
+     * keep in step. Absent unless the project marked something `@compiled`, so a
+     * runtime reads presence and needs no mode flag.
+     */
+    aot?: { wasm: string; manifest: AotManifest };
 }
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */

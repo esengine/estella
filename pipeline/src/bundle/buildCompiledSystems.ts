@@ -117,6 +117,12 @@ export async function buildCompiledSystems(
   if (files.length === 0) {
     return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
   }
+  // A project with no `@compiled` anywhere promised nothing, so it must not pay
+  // for a TypeScript Program over its sources. Nothing is decided here: the parse
+  // below still decides, this only skips having nothing to decide.
+  if (!files.some((f) => readFileSync(f, 'utf8').includes('@compiled'))) {
+    return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
+  }
 
   let lowered;
   try {
@@ -160,7 +166,8 @@ export async function buildCompiledSystems(
     return {
       ok: false, wasmPath: null, manifest: null, notes,
       errors: [`${chosen.length} system(s) are marked @compiled but there is no emcc`
-        + ' — run `pnpm emsdk:setup`, or remove the marker'],
+        + ' — install the emscripten toolchain and point EMSDK at it (in this repo:'
+        + ' `pnpm emsdk:setup`), or remove the marker'],
     };
   }
 
@@ -182,6 +189,10 @@ export async function buildCompiledSystems(
     // No entry point and no JS glue, so the module's only import is the memory
     // it is given. §6.5 is a property of this command line as much as of the C.
     '--no-entry', '-sSTANDALONE_WASM', '-sIMPORTED_MEMORY', '-sERROR_ON_UNDEFINED_SYMBOLS=1',
+    // An import may not declare a smaller maximum than the memory handed to it,
+    // and the engine's grows (2GB). Without this the module takes a hand-made
+    // 256-page test memory and REFUSES the real engine's.
+    '-sALLOW_MEMORY_GROWTH=1',
     `-sEXPORTED_FUNCTIONS=${exported}`,
     '-o', wasmPath, path.join(dir, 'systems.c'),
   ], dir);

@@ -23,6 +23,7 @@ import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups, type CookManifest } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
@@ -56,6 +57,8 @@ import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
 import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
+import { buildCompiledSystems } from '../bundle/buildCompiledSystems';
+import { resolveEmcc } from '../bundle/emccPath';
 export type { ExportPlatform };
 
 /**
@@ -352,6 +355,12 @@ export interface ExportGameOptions {
   orientation?: ScreenOrientation;
   /** Per-phase progress (build log). */
   onProgress?: OnExportProgress;
+  /**
+   * Where emcc is, for the step that compiles the systems a project marked
+   * `@compiled` (docs/REARCH_AOT.md). Absent ⇒ found from the environment or
+   * the repo's own submodule; a project that promised nothing never needs one.
+   */
+  emcc?: string | null;
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
@@ -475,6 +484,22 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
   } catch {
     return result;  // measuring is reporting, never a reason to fail a build
   }
+}
+
+/**
+ * Run a build tool. The AOT step is the only part of an export that shells out,
+ * and emcc is a `.bat` on Windows — which is why this asks for a shell there and
+ * nowhere else. Never rejects: a missing binary is a code and a message, so the
+ * step that called it decides what that means.
+ */
+function runCommand(cmd: string, args: string[], cwd: string): Promise<{ code: number; stderr: string }> {
+  return new Promise((done) => {
+    const child = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
+    let stderr = '';
+    child.stderr.on('data', (d) => { stderr += String(d); });
+    child.on('error', (e) => done({ code: 1, stderr: `${stderr}${e.message}` }));
+    child.on('close', (code) => done({ code: code ?? 1, stderr }));
+  });
 }
 
 async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult> {
@@ -689,6 +714,29 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
+  // 3b. Compiled systems (docs/REARCH_AOT.md), only where a runtime installs one:
+  //     the web page host. A mini-game and a playable have their own transports
+  //     and do not ask yet; QuickJS cannot instantiate a module at all.
+  let aot: PackagedGameConfig['aot'];
+  if (platform === 'web') {
+    // An export is not the editor's preview: here a `@compiled` marker is a
+    // promise someone is collecting on, so a promise the subset cannot keep
+    // fails the build rather than quietly falling back to the interpreter.
+    const built = await buildCompiledSystems(opts.root, {
+      mode: 'release', emcc: resolveEmcc(opts.emcc), run: runCommand,
+    });
+    if (!built.ok) {
+      errors.push(...built.errors);
+      return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
+    }
+    if (built.wasmPath && built.manifest) {
+      progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
+      await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
+      await cp(built.wasmPath, path.join(payloadDir, 'aot', 'systems.wasm'));
+      aot = { wasm: 'aot/systems.wasm', manifest: built.manifest };
+    }
+  }
+
   // 4. SDK (import-map target) + wasm runtime. The import map and the game
   //    host reference both unconditionally — a missing tree is not a degraded
   //    export but a package that cannot boot, so it fails the export.
@@ -740,6 +788,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(hotUpdate ? { hotUpdate } : {}),
     ...(sideModuleDeclarations(projectModules, platform).length > 0
       ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),
+    ...(aot ? { aot } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 

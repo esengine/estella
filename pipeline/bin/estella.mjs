@@ -120,7 +120,10 @@ async function loadPipeline(entry, outName) {
     format: 'esm',
     platform: 'node',
     target: 'node20',
-    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf',
+    // 'typescript' (the AOT step parses a project with it) reads `__filename` at
+    // load, which an ESM bundle has none of: inlined, the bundle dies before it
+    // exports anything.
+    external: ['esbuild', 'electron', 'sharp', 'draco3dgltf', 'typescript',
       '../../../build-tools/basis/encoder.mjs', '../../../build-tools/ufbx/reader.mjs'],
     logLevel: 'error',
     banner: {
@@ -128,8 +131,16 @@ async function loadPipeline(entry, outName) {
         + `const require = __esCreateRequire('${fileUrl(path.join(PIPELINE, 'package.json'))}');\n`,
     },
   });
-  const mod = await import(fileUrl(outfile));
-  return { mod, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const cleanup = () => rmSync(dir, { recursive: true, force: true });
+  try {
+    // Cleaned up on the way out even when the bundle will not load: the temp dir
+    // lives inside `pipeline/src`, so one left behind is a copy of half the
+    // toolchain sitting where every source-scanning gate will read it.
+    return { mod: await import(fileUrl(outfile)), cleanup };
+  } catch (err) {
+    cleanup();
+    throw err;
+  }
 }
 
 const PROJECT_FILES = ['project.esproject', 'project.esproj', 'project.json'];

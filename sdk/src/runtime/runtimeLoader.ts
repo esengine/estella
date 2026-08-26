@@ -40,6 +40,7 @@ import { flushPendingRegistrations } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
+import type { AotManifest } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from '../spine/loadSpineScene';
 import { DragonBonesPlugin } from '../dragonbones/DragonBonesPlugin';
@@ -568,12 +569,27 @@ export interface RuntimeInitConfig {
      *  it answer for achievements. Absent or unavailable keeps the local one. */
     steamAppId?: number;
     aspectRatio?: number;
+    /**
+     * The compiled twins a build produced (docs/REARCH_AOT.md): bytes, because
+     * fetching them is the transport's job — http here, `wx` there. Installed
+     * before the first scene registers, the only moment where no component
+     * exists yet to be left behind in the wrong memory.
+     */
+    aot?: { wasm: BufferSource; manifest: AotManifest };
 }
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
 
     flushPendingRegistrations(app);
+
+    // After the project's components are registered (the manifest names them)
+    // and before any exists (its rows must be in the memory the module reads).
+    // A module that disagrees with this engine or project throws here.
+    if (config.aot) {
+        const installed = await app.installCompiledSystems(config.aot.wasm, config.aot.manifest);
+        log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
+    }
 
     // Install the per-App runtime Assets up front (scene loads reuse it) and
     // hand it the manifest so on-demand loadGroup works from the first frame.
