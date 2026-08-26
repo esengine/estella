@@ -30,7 +30,7 @@ import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
     BOOL, ENTITY, F64, HOST_ENC,
     type CompShape, type EirModule, type EirSystem, type EirType,
-    MATH_CONSTS, MATH_FNS,
+    EXACT_FNS, MATH_CONSTS, MATH_FNS,
     type FieldSpec, type EirFn, type Expr, type Local, type Place, type QueryArg, type Stmt, type BinOp, type LogicOp,
     type MathFn,
 } from './eir';
@@ -704,8 +704,9 @@ class SystemLowerer {
             });
             return { e: 'call', target: { k: 'fn', name: target.name }, args, type: target.ret };
         }
-        if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)
-            || callee.expression.text !== 'Math') {
+        const receiver = ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
+            ? callee.expression.text : null;
+        if (receiver !== 'Math' && receiver !== 'exact') {
             // A method on a RESOURCE is pending: a service is meant to be read
             // as memory, so `input.isKeyDown('KeyW')` is a bit at a known offset.
             // On anything else it needs an object model, which there is none of.
@@ -729,8 +730,21 @@ class SystemLowerer {
             }
             throw new NotInSubset(node, 'CallExpression is not an expression this subset lowers', 'permanent');
         }
-        const fn = callee.name.text as MathFn;
+        const fn = (callee as ts.PropertyAccessExpression).name.text as MathFn;
         const arity = (MATH_FNS as Record<string, number | undefined>)[fn];
+        const specified = EXACT_FNS.includes(fn);
+        // The two namespaces divide by who specifies the answer, and the message
+        // has to say so: refusing `Math.sin` without naming `exact.sin` reads as
+        // "trigonometry cannot be compiled", which is no longer true.
+        if (receiver === 'Math' && specified) {
+            throw new NotInSubset(node,
+                `Math.${fn} is implementation-defined, so a compiled build may disagree with the `
+                + `interpreter — call exact.${fn} instead, which the engine specifies`);
+        }
+        if (receiver === 'exact' && !specified) {
+            throw new NotInSubset(node, `exact.${fn} is not one the engine specifies`
+                + (arity === undefined ? '' : ` — Math.${fn} is exact already`));
+        }
         if (arity === undefined) {
             throw new NotInSubset(node,
                 `Math.${fn} is not exactly specified by ECMAScript, so a compiled build would be free to disagree with the interpreter`,

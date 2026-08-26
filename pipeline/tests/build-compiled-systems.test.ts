@@ -185,7 +185,7 @@ describe('the AOT build step', () => {
     expect(out.wasmPath).toBeNull();
     expect(out.errors).toHaveLength(1);
     expect(out.errors[0]).toContain('BrokenSystem');
-    expect(out.errors[0]).toMatch(/Math\.sin is not exactly specified/);
+    expect(out.errors[0]).toMatch(/Math\.sin is implementation-defined/);
     expect(out.errors[0]).toMatch(/systems\.ts:\d+/);
   });
 

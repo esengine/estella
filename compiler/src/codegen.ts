@@ -234,6 +234,65 @@ static inline double es_ceil(double x) { return ceil(x); }
 static inline double es_trunc(double x) { return trunc(x); }
 static inline double es_sqrt(double x) { return sqrt(x); }
 
+/* ---------------------------------------------------------------------------
+   Trigonometry, SPECIFIED. Math.sin is implementation-defined, so an
+   interpreted build and a compiled one may both be right and disagree — which
+   for a differential pixel gate is a red frame with no bug behind it.
+
+   These are the same range reduction, the same polynomial and the same ORDER as
+   sdk/src/math/exact.ts, line for line. Reordering either side is a change to
+   the result, and a differential compares them bit for bit.
+   --------------------------------------------------------------------------- */
+#define ES_PIO2_HI 1.5707963267341256
+#define ES_PIO2_LO 6.077100506506192e-11
+#define ES_TWO_OVER_PI 0.6366197723675814
+
+static inline double es_kernel_sin(double x) {
+    double z = x * x;
+    double r = -1.6666666666666632e-01 + z * (8.333333333324894e-03
+        + z * (-1.984126982985795e-04 + z * (2.755731370707007e-06
+        + z * (-2.505076025340686e-08 + z * 1.5896909952115501e-10))));
+    return x + x * z * r;
+}
+
+static inline double es_kernel_cos(double x) {
+    double z = x * x;
+    double r = 4.1666666666666602e-02 + z * (-1.3888888888874109e-03
+        + z * (2.4801587289476730e-05 + z * (-2.7557314351390663e-07
+        + z * (2.0875723212981748e-09 + z * -1.1359647557788195e-11))));
+    return 1.0 - 0.5 * z + z * z * r;
+}
+
+/* Math.round's rule, as floor(x + 0.5) rather than es_round: the TS side
+   reduces with that same expression, and the two must agree on a tie. */
+static inline double es_trig_quadrant(double x, double *r) {
+    double n = floor(x * ES_TWO_OVER_PI + 0.5);
+    *r = (x - n * ES_PIO2_HI) - n * ES_PIO2_LO;
+    double q = fmod(n, 4.0);
+    if (q < 0.0) q += 4.0;
+    return q;
+}
+
+static inline double es_exact_sin(double x) {
+    if (!isfinite(x)) return (double)NAN;
+    double r;
+    double q = es_trig_quadrant(x, &r);
+    if (q == 0.0) return es_kernel_sin(r);
+    if (q == 1.0) return es_kernel_cos(r);
+    if (q == 2.0) return -es_kernel_sin(r);
+    return -es_kernel_cos(r);
+}
+
+static inline double es_exact_cos(double x) {
+    if (!isfinite(x)) return (double)NAN;
+    double r;
+    double q = es_trig_quadrant(x, &r);
+    if (q == 0.0) return es_kernel_cos(r);
+    if (q == 1.0) return -es_kernel_sin(r);
+    if (q == 2.0) return -es_kernel_cos(r);
+    return es_kernel_sin(r);
+}
+
 /* Math.sign returns x itself for NaN and for both zeroes, so the sign of zero
    survives — and the sign of zero is a distinct bit pattern in the image. */
 static inline double es_sign(double x) {
@@ -360,6 +419,7 @@ const STORE: Partial<Record<LeafEnc, string>> = {
 const MATH_C: Record<MathFn, string> = {
     abs: 'es_abs', floor: 'es_floor', ceil: 'es_ceil', round: 'es_round',
     trunc: 'es_trunc', sqrt: 'es_sqrt', sign: 'es_sign', min: 'es_min', max: 'es_max',
+    sin: 'es_exact_sin', cos: 'es_exact_cos',
 };
 
 // =============================================================================
