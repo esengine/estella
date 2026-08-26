@@ -109,9 +109,10 @@ const COMMENT = /^\s*(\/\/|\*|\/\*)/;
  * Delimiters, section rules and structured tags carry no prose to measure.
  * `@details` is deliberately absent: it is where prose hides. The release tags
  * are here because api-surface requires one on every frozen symbol, and a
- * mandatory tag must not spend the budget meant for the contract.
+ * mandatory tag must not spend the budget meant for the contract — which is why
+ * `@compiled` is here too: the AOT build reads it, so it is a declaration.
  */
-const NOT_PROSE = /^\s*(\/\*+\s*$|\*\/|\/\/\s*[=-]+\s*$|\*\s*$|\/\/\s*$)|@(param|returns?|throws|example|see|code|endcode|file|brief|copyright|author|date|public|beta|experimental|internal|deprecated)\b/;
+const NOT_PROSE = /^\s*(\/\*+\s*$|\*\/|\/\/\s*[=-]+\s*$|\*\s*$|\/\/\s*$)|@(param|returns?|throws|example|see|code|endcode|file|brief|copyright|author|date|public|beta|experimental|internal|deprecated|compiled)\b/;
 /** A Doxygen file header states why the file exists; that is its job. */
 const FILE_HEADER = /@file\b/;
 
