@@ -10,7 +10,7 @@
  */
 import {
     defineComponent, defineEvent, defineSystem, EventReader, EventWriter,
-    Query, Mut, Res, Camera, Input, Time, Transform,
+    exact, Query, Mut, Res, Camera, Input, Time, Transform,
 } from 'esengine';
 
 export const Drift = defineComponent('FixtureDrift', { rate: 40, wrap: 100, enabled: true });
@@ -185,4 +185,22 @@ export const pongSystem = defineSystem(
         }
     },
     { name: 'FixturePong' },
+);
+
+/**
+ * Trigonometry the engine specifies. `Math.sin` is refused; this is what a
+ * system that wants to compile calls, and the differential is what says the
+ * two implementations of it are one implementation.
+ */
+export const trigSystem = defineSystem(
+    [Query(Mut(MathProbe))],
+    (query) => {
+        for (const [, p] of query) {
+            p.rounded = exact.sin(p.v);
+            p.truncated = exact.cos(p.v);
+            p.ceiled = exact.sin(p.v * 100);
+            p.floored = exact.cos(p.v * 100);
+        }
+    },
+    { name: 'FixtureTrig' },
 );

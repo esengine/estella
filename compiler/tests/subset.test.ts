@@ -35,7 +35,7 @@ describe('the subset refuses, and says why', () => {
     it.each([
         ['FixtureLooping', /WhileStatement is not a statement/],
         ['FixtureTypo', /has no field 'valeu'/],
-        ['FixtureTrig', /Math\.sin is not exactly specified by ECMAScript/],
+        ['FixtureTrig', /Math\.sin is implementation-defined.*call exact\.sin instead/],
         ['FixtureCalling', /'damp' cannot be lowered: parameter 'v' needs a type annotation/],
         ['FixtureWritesConst', /'LIMIT' is a constant and cannot be assigned/],
         ['FixtureIntegerField', /'Camera\.priority' is stored as i32, and this subset has no integer type/],
@@ -89,7 +89,7 @@ describe('a promise the author wrote down', () => {
         expect(promised.severity).toBe('error');
         expect(unmarked.severity).toBe('note');
         // The marker is not a second rule: both are refused for the same reason.
-        expect(promised.message).toMatch(/Math\.cos is not exactly specified/);
+        expect(promised.message).toMatch(/Math\.cos is implementation-defined.*call exact\.cos instead/);
         expect(promised.kind).toBe(unmarked.kind);
         expect(promised.line).toBeGreaterThan(0);
     });

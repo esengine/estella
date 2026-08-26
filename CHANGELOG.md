@@ -45,6 +45,17 @@ published separately; it ships inside the editor.
   `UICameraInfo.viewProjection` is deliberately not in it, since a member has to
   have a fixed width.
 
+  **`exact.sin` / `exact.cos`** (`@beta`) — trigonometry that answers the same
+  bits everywhere. `Math.sin` is implementation-defined, so an interpreted build
+  and a compiled one may both be right and disagree; a differential pixel gate
+  then goes red on trigonometry rather than on a bug. These are specified
+  instead — one range reduction, one polynomial, one order of operations,
+  written in `sdk/src/math/exact.ts` and again in the compiler's runtime header,
+  and held together bit for bit by a gate. The AOT subset admits them and still
+  refuses `Math.sin`, naming the replacement in the refusal. Determinism is the
+  promise, not accuracy: a very large argument loses digits, identically on both
+  sides.
+
   A resource the PROJECT declares compiles as well, with no engine change per
   resource: `defineResource({ value: 0 }, 'Score')` has literal defaults, so the
   build derives the layout from the declaration the same way it does for a

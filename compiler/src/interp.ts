@@ -13,6 +13,7 @@
  *          obviously correct, not fast; anything clever here would be a second
  *          place for a bug to hide from the backend it exists to check.
  */
+import { exact } from '../../sdk/src/math/exact';
 import type { EirFn, EirSystem, Expr, Place, QueryArg, Stmt } from './eir';
 
 /** The module's pure functions, threaded rather than held in a module global. */
@@ -121,8 +122,11 @@ function evalExpr(e: Expr, frame: Frame, fns: Fns, host: EirHost, owners: Owners
         case 'call': {
             const a = e.args.map((x) => evalExpr(x, frame, fns, host, owners));
             if (e.target.k === 'math') {
-                // The frontend admits only the exactly-specified operations, so
-                // deferring to the host's Math is the same answer everywhere.
+                // The engine's own for the ones ECMAScript leaves open, and the
+                // host's Math for the rest — which is the same split the C side
+                // makes, and the reason the two agree.
+                const own = (exact as unknown as Record<string, ((x: number) => number) | undefined>)[e.target.fn];
+                if (own) return own(a[0] as number);
                 const fn = (Math as unknown as Record<string, (...xs: number[]) => number>)[e.target.fn]!;
                 return fn(...(a as number[]));
             }

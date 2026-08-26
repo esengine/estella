@@ -107,7 +107,15 @@ export const MATH_CONSTS: readonly string[] = [
 export const MATH_FNS = {
     abs: 1, floor: 1, ceil: 1, round: 1, trunc: 1, sqrt: 1, sign: 1,
     min: 2, max: 2,
+    sin: 1, cos: 1,
 } as const;
+
+/**
+ * The ones ECMAScript leaves to the implementation, which the engine specifies
+ * instead: reachable as `exact.sin`, never as `Math.sin`. Two implementations
+ * of a trig function agreeing is luck; two of THESE agreeing is a gate.
+ */
+export const EXACT_FNS: readonly MathFn[] = ['sin', 'cos'];
 
 export type MathFn = keyof typeof MATH_FNS;
 

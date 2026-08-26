@@ -406,7 +406,7 @@ describe('the emitted C says what the interpreter says', () => {
     // ternaries, folded module constants with a shadowing local, an inlined
     // helper, and the Math arguments where libm and ECMAScript disagree.
     for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers',
-        'FixtureMathOps', 'FixtureCamera', 'FixtureGate', 'FixturePong']) {
+        'FixtureMathOps', 'FixtureCamera', 'FixtureGate', 'FixturePong', 'FixtureTrig']) {
         it(`${name}: the whole image agrees with the interpreter`, () => {
             const sys = systemOf(fixtures, name);
             const layout = packLayout(fixtures.module.comps);

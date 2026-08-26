@@ -6,6 +6,7 @@
  *          helpers, operating on the canonical types in `../types`.
  */
 
+export { exact } from './exact';
 export { scalar } from './scalar';
 export { v2 } from './vec2';
 export { v3 } from './vec3';

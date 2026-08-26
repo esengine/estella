@@ -16,7 +16,7 @@
 // Math (scalar / Vec2 / Vec3 helpers on the canonical types)
 // =============================================================================
 
-export { scalar, v2, v3, q, col } from './math';
+export { exact, scalar, v2, v3, q, col } from './math';
 
 // =============================================================================
 // Localization (i18n)
