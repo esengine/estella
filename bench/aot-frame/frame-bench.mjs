@@ -53,6 +53,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { CONFIGS, measure, pct } from './measure.mjs';
+
+const ms = (x) => x.toFixed(3);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
@@ -69,20 +72,6 @@ const FRAMES = intEnv('BENCH_FRAMES', 600);
 const WARMUP = intEnv('BENCH_WARMUP', 120);
 const REPS = intEnv('BENCH_REPS', 5);
 const DT = 1 / 60;
-
-const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
-    ? () => performance.now() : () => Date.now();
-
-/** The same scene for every run: a comparison of two engines needs one workload. */
-function mulberry32(seed) {
-    let a = seed >>> 0;
-    return () => {
-        a |= 0; a = (a + 0x6D2B79F5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
 
 function detectRuntime() {
     if (typeof Bun !== 'undefined') return `bun ${process.versions?.bun ?? '?'} (JSC)`;
@@ -106,88 +95,25 @@ function resolveSdk() {
     throw new Error(`no built SDK node entry. Tried:\n  ${candidates.join('\n  ')}`);
 }
 
-const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
-const ms = (x) => x.toFixed(3);
-
-/**
- * One world, N frames, one number per frame. A `body` of null schedules no
- * project system — the idle run. `compiled` installs the twins before anything
- * is spawned, the only moment it can: the rows a twin reads have to be
- * allocated in the memory it reads.
- */
-async function measure(sdk, fixture, wasmDir, body, compiled) {
-    const { loadEsengineModule, createHeadlessApp, Transform, Schedule } = sdk;
-    const module = await loadEsengineModule(wasmDir);
-    const app = createHeadlessApp(module);
-    if (compiled) {
-        const manifest = JSON.parse(readFileSync(join(BUILD, 'systems.json'), 'utf8'));
-        const installed = await app.installCompiledSystems(join(BUILD, 'systems.wasm'), manifest);
-        if (installed === 0) throw new Error('the module installed no twins');
-    }
-
-    const world = app.world;
-    const cppRegistry = world.getCppRegistry();
-    const rand = mulberry32(0x1234abcd);
-    const entities = [];
-    for (let i = 0; i < ENTITIES; i++) {
-        const e = world.spawn();
-        world.insert(e, Transform, { position: { x: (rand() - 0.5) * 2000, y: (rand() - 0.5) * 2000, z: 0 } });
-        world.insert(e, fixture.Mover, {
-            dx: rand() - 0.5, dy: rand() - 0.5, speed: 40 + rand() * 80, boost: rand() < 0.5 ? 1 : 0,
-        });
-        if (body === 'script') world.insert(e, fixture.Pos, { x: 0, y: 0, z: 0 });
-        entities.push(e);
-    }
-    const systems = {
-        thin: fixture.thinSystem, thick: fixture.thickSystem,
-        heavy: fixture.heavySystem, script: fixture.scriptSystem,
-    };
-    if (body) app.addSystemToSchedule(Schedule.Update, systems[body]);
-
-    const step = async () => {
-        await app.tick(DT);
-        if (cppRegistry) module.transform_update(cppRegistry);
-    };
-    for (let f = 0; f < WARMUP; f++) await step();
-
-    const samples = new Float64Array(FRAMES);
-    for (let f = 0; f < FRAMES; f++) {
-        const t0 = now();
-        await step();
-        samples[f] = now() - t0;
-    }
-
-    // What the frames actually computed. Two runs that disagree here are not two
-    // measurements of one thing, and the ratio between them means nothing.
-    let checksum = 0;
-    for (const e of entities) {
-        const p = body === 'script' ? world.get(e, fixture.Pos) : world.get(e, Transform).position;
-        checksum += p.x + p.y + p.z;
-    }
-
-    const sorted = Array.from(samples).sort((a, b) => a - b);
-    return { median: pct(sorted, 50), p95: pct(sorted, 95), checksum };
-}
-
-const CONFIGS = [
-    { key: 'thin interpreted', body: 'thin', compiled: false },
-    { key: 'thin compiled', body: 'thin', compiled: true },
-    { key: 'thick interpreted', body: 'thick', compiled: false },
-    { key: 'thick compiled', body: 'thick', compiled: true },
-    { key: 'heavy interpreted', body: 'heavy', compiled: false },
-    { key: 'heavy compiled', body: 'heavy', compiled: true },
-    { key: 'script interpreted', body: 'script', compiled: false },
-    { key: 'script compiled', body: 'script', compiled: true },
-    { key: 'idle scene', body: null, compiled: false },
-];
-
 /** One configuration, in this process, reported on stdout for the parent. */
 async function child(key) {
     const config = CONFIGS.find((c) => c.key === key);
     if (!config) throw new Error(`no such configuration: ${key}`);
     const sdk = await import(pathToFileURL(resolveSdk()).href);
     const fixture = await import(pathToFileURL(join(BUILD, 'systems.js')).href);
-    const r = await measure(sdk, fixture, resolveWasmDir(), config.body, config.compiled);
+    const wasmDir = resolveWasmDir();
+    const r = await measure({
+        sdk,
+        fixture,
+        newModule: () => sdk.loadEsengineModule(wasmDir),
+        aot: {
+            wasm: join(BUILD, 'systems.wasm'),
+            manifest: JSON.parse(readFileSync(join(BUILD, 'systems.json'), 'utf8')),
+        },
+        body: config.body,
+        compiled: config.compiled,
+        entities: ENTITIES, frames: FRAMES, warmup: WARMUP,
+    });
     console.log(`RESULT ${JSON.stringify(r)}`);
 }
 

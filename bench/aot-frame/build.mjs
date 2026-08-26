@@ -84,6 +84,10 @@ async function main() {
         if (!existsSync(sdk)) throw new Error(`the SDK node entry is not built: ${sdk}`);
         writeFileSync(join(OUT, 'systems.js'),
             js.replace(/from\s*["']esengine["']/, `from ${JSON.stringify(pathToFileURL(sdk).href)}`));
+        // The same twin for the browser runner, pointed at the SDK the server
+        // mounts rather than at a file on this disk.
+        writeFileSync(join(OUT, 'systems.web.js'),
+            js.replace(/from\s*["']esengine["']/, "from '/sdk/index.js'"));
         console.log(`wrote ${OUT}`);
     } finally {
         cleanup();

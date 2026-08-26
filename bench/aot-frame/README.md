@@ -16,10 +16,27 @@ BENCH_ENTITIES=20000 BENCH_FRAMES=300 node bench/aot-frame/frame-bench.mjs
 BENCH_REPS=9 node bench/aot-frame/frame-bench.mjs
 ```
 
-`build.mjs` emits three things from one source file (`project/src/systems.ts`): the
+`build.mjs` emits four things from one source file (`project/src/systems.ts`): the
 compiled twins (`systems.wasm` + `systems.json`, through the real AOT build step) and
-the same file as JavaScript for the interpreted run. One source, two worlds — a
-retyped copy would only ever agree with its own mistakes.
+the same file as JavaScript, twice — once for node, once for the browser. One source,
+two worlds — a retyped copy would only ever agree with its own mistakes.
+
+### On a phone
+
+```sh
+node bench/aot-frame/serve.mjs        # prints the URLs it is reachable at
+adb reverse tcp:8788 tcp:8788         # over USB: no Wi-Fi, no firewall hole
+adb shell "am start -a android.intent.action.VIEW -d 'http://127.0.0.1:8788/?entities=5000&reps=3'"
+```
+
+The page runs the same loop (`measure.mjs`) against the same three artifacts a shipped
+web build carries, prints the table on the device, and posts it back to the terminal
+that served it. Quote the URL for the DEVICE's shell — an unquoted `&` there truncates
+the query string and the run silently uses defaults.
+
+The screen must stay on: a browser whose page is not visible stops being scheduled, and
+the run simply never finishes. `adb shell svc power stayon usb` keeps it awake while
+plugged in (and `svc power stayon false` puts it back).
 
 Each configuration runs in its own process, several times, and the **fastest** rep is
 reported: noise on a desktop only ever adds time. The spread beside each row is what
@@ -74,14 +91,40 @@ frame's rows are this frame's. Same bench, after that:
 where under 83 ns of plumbing the two were indistinguishable. Ratios at 5,000 entities
 run 19x (heavy) to 110x (script).
 
+## On a real phone (2026-08-26)
+
+Xiaomi 24129PN74C — Snapdragon 8 Elite (SM8750), Android 16, Chromium 135 — 5,000
+entities, 400 frames, 200 warmup, 3 reps, over USB with `adb reverse`:
+
+| body | interpreted | compiled | frame |
+|---|---|---|---|
+| thin | 345 ns/entity (1.83 ms/frame) | 3.5 ns (0.124 ms) | 14.8× |
+| thick | 425 ns (2.23 ms) | 7.5 ns (0.144 ms) | 15.5× |
+| heavy | 385 ns (2.03 ms) | 11.1 ns (0.162 ms) | 12.5× |
+| script | 486 ns (2.54 ms) | 2.8 ns (0.121 ms) | 21.1× |
+
+Every checksum matched its interpreted twin.
+
+**Read the first row as a frame budget.** One trivial system over 5,000 entities costs
+**1.7 ms of a 16.7 ms frame** interpreted — 10% of 60fps for three multiply-adds — and
+**0.018 ms** compiled. That is the number this whole road was for.
+
+The phone is 1.6–1.9× slower than the desktop on the interpreted side and **about the
+same on the compiled side** (2.8–11 ns against 2.1–9.4): what is left of a compiled
+system is a memcpy and a wasm call, and those are memory-bound rather than
+core-bound. The shape is the desktop's shape, so nothing about these ratios was an
+artifact of one machine.
+
 ## What this is NOT
 
 **A no-JIT number, and that is the number AOT exists for.** V8 and JSC compile the
 interpreted body to machine code; iOS, WeChat on iOS and QuickJS do not. On those the
 interpreted body stops being free and starts costing what Stage 0 measured (154–385×
-for the loop alone), while the compiled body still costs nothing. This machine cannot
-run that half: `node --jitless` has no `WebAssembly` at all, so the engine will not
-boot under it. Run it where a JavaScriptCore is:
+for the loop alone), while the compiled body still costs nothing. **Android does not
+answer this**: its browsers and WebView have a JIT like any desktop's, which is why the
+phone numbers above look like the desktop's. Neither does `node --jitless` — it has no
+`WebAssembly` at all, so the engine will not boot under it. Run it where a
+JavaScriptCore is:
 
 ```sh
 bun bench/aot-frame/frame-bench.mjs                    # JSC, JIT
