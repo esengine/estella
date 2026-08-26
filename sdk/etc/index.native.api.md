@@ -1618,9 +1618,11 @@ clearFlags: number
 cullingMask: number | undefined
 elapsed: number
 registry: { _cpp: CppRegistry; }
+renderPolicy: RenderResolution | undefined
 renderTarget: number | undefined
 viewProjection: Float32Array<ArrayBufferLike>
 viewportPixels: Viewport
+worldHeight: number | undefined
 ```
 
 ## CameraTransformFields — interface @beta
@@ -7176,6 +7178,7 @@ ResourceDef<ScreenScalingData>
 designHeight: number
 designWidth: number
 matchWidthOrHeight: number
+renderPolicy: RenderResolution | undefined
 scaleMode: number
 ```
 
