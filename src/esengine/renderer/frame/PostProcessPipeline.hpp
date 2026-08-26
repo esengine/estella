@@ -188,15 +188,30 @@ public:
     /**
      * @brief Whether the scene goes through the graph or straight to the surface.
      *
-     * @details Three things engage it: effects to run, the linear pipeline (whose
+     * @details Four things engage it: effects to run, the linear pipeline (whose
      *          final pass carries an encode a WebGL2 canvas framebuffer cannot do
-     *          for itself), or an output transform. One predicate because everyone
-     *          asks at both ends of a frame, and two copies of it is one edit away
-     *          from a capture that is opened and never resolved.
+     *          for itself), an output transform, or a present that scales. One
+     *          predicate because everyone asks at both ends of a frame, and two
+     *          copies of it is one edit away from a capture that is opened and
+     *          never resolved.
      */
     bool isEngaged() const {
         return initialized_ && ((!bypass_ && !passes_.empty()) || linear_output_
-                                || output_transform_ != OutputTransform::None);
+                                || output_transform_ != OutputTransform::None
+                                || presentScales());
+    }
+
+    /**
+     * @brief Whether the chain's own size differs from the rect it lands in.
+     *
+     * @details Inferred rather than flagged: the chain size and the output rect
+     *          are already two separate calls, so "they disagree" needs no third
+     *          piece of state to go stale. A scene rendered at one resolution and
+     *          presented at another is a scale, and a scale needs the blit.
+     */
+    bool presentScales() const {
+        return output_vp_w_ > 0 && output_vp_h_ > 0
+            && (output_vp_w_ != width_ || output_vp_h_ != height_);
     }
 
     /**

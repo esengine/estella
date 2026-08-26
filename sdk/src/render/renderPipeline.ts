@@ -17,6 +17,7 @@ import {
     unregisterPreSceneDrawCallback,
 } from './customDraw';
 import { log } from '../util/logger';
+import { planPresent, RenderResolution } from '../camera/presentPlan';
 
 export interface Viewport {
     x: number;
@@ -48,6 +49,10 @@ export interface CameraRenderParams {
     cullingMask?: number;
     /** Offscreen target to draw into; 0 (default) is the screen. */
     renderTarget?: number;
+    /** World units the camera shows vertically (`2 * halfH`); drives the render size. */
+    worldHeight?: number;
+    /** How the render resolution is chosen; omitted = render straight to the surface. */
+    renderPolicy?: RenderResolution;
 }
 
 export class RenderPipeline {
@@ -147,28 +152,44 @@ export class RenderPipeline {
     renderCamera(params: CameraRenderParams): void {
         const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed, cameraEntity } = params;
 
+        // Where the scene is drawn and where it lands are two rects. A sprite that
+        // scales itself can only clamp at its own texture's edge, so every boundary
+        // breaks; scaling one whole image has no interior boundary to break.
+        const plan = planPresent(
+            params.renderPolicy ?? RenderResolution.Surface,
+            params.worldHeight ?? 0, vp.w, vp.h);
+        const scene: Viewport = plan.oneToOne
+            ? vp
+            : { x: 0, y: 0, w: plan.renderWidth, h: plan.renderHeight };
+        const present: Viewport = plan.oneToOne
+            ? vp
+            : { x: vp.x + plan.x, y: vp.y + plan.y, w: plan.width, h: plan.height };
+
         const pp = this.postProcess_;
-        const hasPostProcess = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null;
+        const hasStack = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null;
+        // A scaling present needs the chain even with no effects on it: the blit
+        // that ends the chain IS the present, and nothing else can draw one.
+        const hasPostProcess = pp !== null && (hasStack || !plan.oneToOne);
 
         if (hasPostProcess) {
-            pp!._applyForCamera(cameraEntity!);
-            pp!.resize(vp.w, vp.h);
-            pp!.setOutputViewport(vp.x, vp.y, vp.w, vp.h);
+            if (hasStack) pp!._applyForCamera(cameraEntity!);
+            pp!.resize(scene.w, scene.h);
+            pp!.setOutputViewport(present.x, present.y, present.w, present.h);
             pp!.begin();
         }
 
-        Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
+        Renderer.setViewport(scene.x, scene.y, scene.w, scene.h);
         // The camera's clear rides begin as a region-scoped load-op — no scissor
         // dance, no sticky clear state at the boundary.
-        Renderer.begin(viewProjection, params.renderTarget ?? 0, clearFlags, params.clearColor, vp);
+        Renderer.begin(viewProjection, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
         // Set after begin (which clears the draw list) and before the collect it gates.
         Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
-        this.submitScene(registry, viewProjection, vp, elapsed);
+        this.submitScene(registry, viewProjection, scene, elapsed);
         Renderer.end();
 
         if (hasPostProcess) {
             pp!.end();
-            pp!._resetAfterCamera();
+            if (hasStack) pp!._resetAfterCamera();
         }
     }
 

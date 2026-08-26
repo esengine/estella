@@ -22,6 +22,7 @@
  * the project config (design resolution + fit). Read by CameraPlugin.resolveCameras.
  */
 import { defineResource } from '../ecs/resource';
+import { RenderResolution } from './presentPlan';
 
 /** `scaleMode` sentinel: no camera fit — the camera uses its own orthoSize (default). */
 export const SCREEN_FIT_OFF = -1;
@@ -35,6 +36,13 @@ export interface ScreenScalingData {
   scaleMode: number;
   /** Match-mode blend 0..1 (0 = fit width, 1 = fit height); ignored for other modes. */
   matchWidthOrHeight: number;
+  /**
+   * Whether the scene renders at its own resolution and is then scaled to the
+   * surface, or straight to the surface. See {@link RenderResolution}. Optional
+   * because a project file written before it existed must still read; absent
+   * means `Surface`, which is the behaviour every project already had.
+   */
+  renderPolicy?: RenderResolution;
 }
 
 /** Off by default (scaleMode = -1) ⇒ zero behavior change for a project that never
@@ -44,6 +52,7 @@ export const DEFAULT_SCREEN_SCALING: ScreenScalingData = {
   designHeight: 1080,
   scaleMode: SCREEN_FIT_OFF,
   matchWidthOrHeight: 0.5,
+  renderPolicy: RenderResolution.Surface,
 };
 
 export const ScreenScaling = defineResource<ScreenScalingData>({ ...DEFAULT_SCREEN_SCALING }, 'ScreenScaling');

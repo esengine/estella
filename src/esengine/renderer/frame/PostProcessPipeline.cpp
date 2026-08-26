@@ -524,7 +524,12 @@ void PostProcessPipeline::blitPass() {
 void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::ResourceId scene) {
     if (!graph_ || scene == rg::kNoResource) return;
 
-    const rg::ResourceId out = graph_->importTarget(output_target_fbo_, width_, height_);
+    // The surface has to be declared big enough to hold the rect the blit writes,
+    // which is NOT the chain's size once the present scales. Only the extent
+    // matters: blitPass sets its own viewport, so the graph's default never runs.
+    const u32 outW = std::max(width_, output_vp_x_ + output_vp_w_);
+    const u32 outH = std::max(height_, output_vp_y_ + output_vp_h_);
+    const rg::ResourceId out = graph_->importTarget(output_target_fbo_, outW, outH);
     const rg::TargetDesc desc = chainTarget(/*withDepth=*/false);
 
     rg::ResourceId input = scene;

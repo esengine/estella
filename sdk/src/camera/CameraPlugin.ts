@@ -700,6 +700,12 @@ export function cameraPlugin(
                         } else {
                             pipeline.beginFrame(elapsed);
                             pipeline.beginScreenCapture();
+                            // One project-level choice, read once: a per-camera answer
+                            // would let two cameras present the same surface at two
+                            // resolutions, which is a picture nobody asked for.
+                            const renderPolicy = app.hasResource(ScreenScaling)
+                                ? app.getResource(ScreenScaling).renderPolicy
+                                : undefined;
                             for (const cam of cameras) {
                                 const vp = cam.viewportRect;
                                 // A camera drawing into a texture is measured against
@@ -725,6 +731,10 @@ export function cameraPlugin(
                                     // A released target leaves the handle behind; drawing
                                     // to it would draw nowhere, so it falls to the screen.
                                     renderTarget: target ? cam.renderTarget : 0,
+                                    // The world the camera shows vertically is what the
+                                    // render size matches, so worldPerPixel lands on 1.
+                                    worldHeight: 2 * cam.halfH,
+                                    renderPolicy,
                                 });
                             }
                             pipeline.endScreenCapture();
