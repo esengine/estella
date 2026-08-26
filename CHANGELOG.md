@@ -32,6 +32,12 @@ published separately; it ships inside the editor.
   either way, and a project that marks nothing is unaffected: no toolchain, no
   build step, no file.
 
+  **`estella.mjs export --no-aot`** packages the same project WITHOUT compiling
+  what it marked, so one tree yields the two builds a differential needs — the
+  compiled frame and the interpreted one, held against each other by
+  `verify-aot-parity`. It is the AOT step's own `dev` mode under a name an
+  export can ask for.
+
   Loading refuses rather than degrades. A module built against other engine
   offsets, or other `defineComponent` shapes, does not produce a wrong answer —
   it reads a different field — so the two digests it carries are checked before
