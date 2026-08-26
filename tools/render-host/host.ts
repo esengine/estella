@@ -42,6 +42,14 @@ const outputTransform = params.get('outputTransform') === 'aces' ? 'aces' : unde
 const seedParam = params.get('seed');
 const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 const depthLayers = Number(params.get('depthLayers')) || undefined;
+// The project's render-resolution policy (RenderResolution). Passed with the fit
+// OFF, so the camera keeps its authored orthoSize and the frame differs by the
+// policy alone — which is what a gate about the policy has to isolate.
+const renderPolicy = Number(params.get('renderResolution')) || undefined;
+const screenFit = renderPolicy === undefined ? undefined : {
+    designWidth: width, designHeight: height,
+    scaleMode: -1, matchWidthOrHeight: 0.5, renderPolicy,
+};
 
 let app: App | null = null;
 let profiler: ProfileRecorder | null = null;
@@ -129,6 +137,7 @@ async function boot(): Promise<void> {
         outputTransform,
         randomSeed,
         depthLayers,
+        screenFit,
         getViewportSize: () => ({ width: canvas!.width, height: canvas!.height }),
         wasmBaseUrl: '/wasm',
     });

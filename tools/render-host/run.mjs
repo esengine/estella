@@ -20,6 +20,8 @@
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  *   ESTELLA_VERIFY_GRID_EXPECT  what that diff must be: "frame" (default) or "nothing"
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
+ *   ESTELLA_VERIFY_RENDER_RESOLUTION  render at the scene's own resolution and
+ *                                scale the finished image (1 = design, 2 = integer)
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
@@ -85,6 +87,9 @@ const SEED = process.env.ESTELLA_VERIFY_SEED ?? '';
 const SCALE = process.env.ESTELLA_VERIFY_SCALE ?? '';
 // ESTELLA_VERIFY_DEPTH_LAYERS=<mask> turns layers into depth-resolved ones (2.5D).
 const DEPTH_LAYERS = process.env.ESTELLA_VERIFY_DEPTH_LAYERS ?? '';
+// ESTELLA_VERIFY_RENDER_RESOLUTION=<RenderResolution> renders the scene at its own
+// resolution and scales the finished image to the surface (1 = design, 2 = integer).
+const RENDER_RESOLUTION = process.env.ESTELLA_VERIFY_RENDER_RESOLUTION ?? '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -179,7 +184,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).
