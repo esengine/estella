@@ -38,6 +38,16 @@ export function ResMut(resource: unknown): unknown {
     return { kind: 'resmut', resource };
 }
 export const Input = { _name: 'Input' };
+export function defineEvent<T>(name: string): { _name: string } {
+    void (undefined as T | undefined);
+    return { _name: name };
+}
+export function EventWriter(event: unknown): unknown {
+    return { kind: 'event_writer', event };
+}
+export function EventReader(event: unknown): unknown {
+    return { kind: 'event_reader', event };
+}
 export const Sprite = { _name: 'Sprite' };
 export const Camera = { _name: 'Camera' };
 export function defineSystem(

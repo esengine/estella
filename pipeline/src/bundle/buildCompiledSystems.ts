@@ -47,6 +47,9 @@ export interface CompiledSystemInfo {
   /** One per declared Res/ResMut, in declaration order. `mut` is what makes the
    *  runtime write a mirrored resource back after the call. */
   resources: { name: string; mut: boolean }[];
+  /** Event readers and writers, with the payload layout each one uses. */
+  readers: { slot: number; event: string; fields: string[] }[];
+  writers: { slot: number; event: string; fields: string[] }[];
 }
 
 export interface CompiledSystemsManifest {
@@ -74,6 +77,12 @@ export interface BuildCompiledResult {
   errors: string[];
   /** Systems the subset refused that were NOT promised — information, not failure. */
   notes: string[];
+}
+
+/** A payload's fields in LAYOUT order, which is the order the code reads them. */
+function fieldsOf(module: { events: ReadonlyMap<string, { fields: ReadonlyMap<string, unknown> }> },
+    event: string): string[] {
+  return [...(module.events.get(event)?.fields.keys() ?? [])];
 }
 
 /** Every `.ts` under `src/`, which is the unit a project's program is. */
@@ -227,6 +236,14 @@ export async function buildCompiledSystems(
         symbol: cSymbol(sys.name),
         queries: plan.queries.map((q) => q.map((a) => ({ comp: a.comp, mut: a.mut }))),
         resources: plan.resources.map((r) => ({ name: r.name, mut: r.mut })),
+        // The payload layout travels with the manifest: the runtime flattens an
+        // object into it, and the compiled code reads at those offsets.
+        readers: plan.readers.map((r) => ({
+            slot: r.slot, event: r.event, fields: fieldsOf(lowered.module, r.event),
+        })),
+        writers: plan.writers.map((w) => ({
+            slot: w.slot, event: w.event, fields: fieldsOf(lowered.module, w.event),
+        })),
       };
     }),
   };

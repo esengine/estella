@@ -141,6 +141,73 @@ export function fadeTaggedManifest(): AotManifest {
     };
 }
 
+/**
+ * Two halves of one loop: `Absorb` reads a `Hit` payload and writes what it saw
+ * onto every Fade; `Emit` sends one `Hit` per Fade. Together they say whether a
+ * payload survives the round trip through memory in both directions.
+ */
+export const EVENT_C = `#include <stdint.h>
+#include <string.h>
+typedef uint32_t es_addr_t;
+#define ES_PTR(a) ((unsigned char *)(a))
+typedef struct { es_addr_t rows, count; } EsQueryRows;
+typedef struct { es_addr_t buf, cap, count; } EsEventOut;
+typedef struct { es_addr_t queries, resources, cmdBuf, cmdCap, cmdCount, events; } EsSysCtx;
+static double ld(const unsigned char *p) { double v; memcpy(&v, p, 8); return v; }
+static void st(unsigned char *p, double v) { memcpy(p, &v, 8); }
+
+/* [EventReader(Hit), Query(Mut(Fade))] */
+void es_sys_Absorb(es_addr_t ctx) {
+    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
+    const EsQueryRows *q = (const EsQueryRows *)ES_PTR(c->queries);
+    const es_addr_t *hits = (const es_addr_t *)ES_PTR(q[0].rows);
+    double total = 0.0;
+    for (es_addr_t i = 0; i < q[0].count; ++i) total += ld(ES_PTR(hits[i * 2u + 1u]));
+    const es_addr_t *fades = (const es_addr_t *)ES_PTR(q[1].rows);
+    for (es_addr_t j = 0; j < q[1].count; ++j) st(ES_PTR(fades[j * 2u + 1u]), total);
+}
+
+/* [Query(Fade), EventWriter(Hit)] — one payload per row, writer slot 0 */
+void es_sys_Emit(es_addr_t ctx) {
+    const EsSysCtx *c = (const EsSysCtx *)ES_PTR(ctx);
+    const EsQueryRows *q = (const EsQueryRows *)ES_PTR(c->queries);
+    const es_addr_t *fades = (const es_addr_t *)ES_PTR(q[0].rows);
+    const EsEventOut *ev = (const EsEventOut *)ES_PTR(c->events);
+    double *buf = (double *)ES_PTR(ev->buf);
+    uint32_t *at = (uint32_t *)ES_PTR(ev->count);
+    uint32_t n = *at;
+    for (es_addr_t j = 0; j < q[0].count; ++j) {
+        if (n + 2u > (uint32_t)ev->cap) break;
+        buf[n] = 0.0;                                   /* writer slot */
+        buf[n + 1u] = ld(ES_PTR(fades[j * 2u + 1u]));   /* amount = alpha */
+        n += 2u;
+    }
+    *at = n;
+}
+`;
+
+/** The manifest for whichever half is being run. */
+export function eventManifest(which: 'Absorb' | 'Emit'): AotManifest {
+    const shapes = projectShapeDigest([{ name: 'Fade', fields: FADE_FIELDS }]);
+    return which === 'Absorb'
+        ? {
+            engineAbi: engineAbiDigest(4), projectShapes: shapes,
+            systems: [{
+                name: 'Absorb', symbol: 'es_sys_Absorb', resources: [],
+                queries: [[{ comp: 'Hit', mut: false }], [{ comp: 'Fade', mut: true }]],
+                readers: [{ slot: 0, event: 'Hit', fields: ['amount'] }],
+            }],
+        }
+        : {
+            engineAbi: engineAbiDigest(4), projectShapes: shapes,
+            systems: [{
+                name: 'Emit', symbol: 'es_sys_Emit', resources: [],
+                queries: [[{ comp: 'Fade', mut: false }]],
+                writers: [{ slot: 0, event: 'Sent', fields: ['amount'] }],
+            }],
+        };
+}
+
 /** What a build writes for the probe above. */
 export function keyProbeManifest(): AotManifest {
     return {

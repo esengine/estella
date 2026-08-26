@@ -28,6 +28,16 @@ export interface AotAddresses {
     resourceAt(name: string): number | undefined;
     /** Copy the mirror back, for a resource the system declared `ResMut`. */
     resourceWriteBack(name: string): void;
+    /**
+     * This frame's payloads of `event`, as rows: one per payload, each carrying
+     * the address of a block laid out in `fields` order. Entity-less, because
+     * an event is not carried by one.
+     */
+    payloadRows(event: string, fields: readonly string[]): readonly (readonly number[])[];
+    /** Deliver one payload the compiled code appended, rebuilt from `fields`. */
+    sendEvent(event: string, fields: readonly string[], values: readonly number[]): void;
+    /** Hand back the blocks `payloadRows` took; they outlive no call. */
+    releasePayloads(): void;
     /** The definition a manifest's component NAME refers to in this world. */
     componentNamed(name: string): AnyComponentDef | undefined;
 }

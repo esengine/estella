@@ -22,7 +22,10 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { printSystem } from '../src/eir';
 
-import { driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem, gateSystem } from './fixtures/in-subset';
+import {
+    driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem, gateSystem,
+    pingSystem, pongSystem,
+} from './fixtures/in-subset';
 import { PROBE, probeRow } from './probe';
 import type { StubSystem } from './stubs/esengine';
 
@@ -91,6 +94,8 @@ const drift = module.systems.find((s) => s.name === 'FixtureDrift');
 const clamp = module.systems.find((s) => s.name === 'FixtureClampSys');
 const tuned = module.systems.find((s) => s.name === 'FixtureTuned');
 const gate = module.systems.find((s) => s.name === 'FixtureGate');
+const ping = module.systems.find((s) => s.name === 'FixturePing');
+const pong = module.systems.find((s) => s.name === 'FixturePong');
 
 describe('conformance — locals, branches, logic', () => {
     it('compiles', () => {
@@ -219,6 +224,71 @@ describe('conformance — a service question, and the ways out of a row loop', (
         const before = JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()]);
         for (let f = 0; f < 4; f++) runSystem(gate!, quiet);
         expect(JSON.stringify([...quiet.comps.get('FixtureDrift')!.values()])).toBe(before);
+    });
+});
+
+describe('conformance — an event out of memory and back into it', () => {
+    it('compiles both halves, and verifies them', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixturePing' || d.system === 'FixturePong')).toEqual([]);
+        expect(ping).toBeDefined();
+        expect(pong).toBeDefined();
+        expect(verifySystem(ping!, module.comps, module.fns)).toEqual([]);
+        expect(verifySystem(pong!, module.comps, module.fns)).toEqual([]);
+    });
+
+    it('reads back as a send and a walk, not as calls', () => {
+        expect(printSystem(ping!)).toMatchInlineSnapshot(`
+          "system FixturePing(query: query<mut FixtureDrift>, out: channel<FixturePinged>) {
+            rowLoop query -> (_, d) {
+              if d.enabled {
+                emit out.send(d.rate)
+              }
+            }
+          }"
+        `);
+        expect(printSystem(pong!)).toMatchInlineSnapshot(`
+          "system FixturePong(pings: events, query: query<mut FixtureDrift>) {
+            let total = 0
+            rowLoop pings -> (_, p) {
+              total = (total + p.by)
+            }
+            rowLoop query -> (_, d) {
+              d.wrap = total
+            }
+          }"
+        `);
+    });
+
+    it('what one sends is what the other walks, and node agrees', () => {
+        const byNode = makeWorld();
+        const byEir = makeWorld();
+        const run = (world: EirWorld, viaNode: boolean): void => {
+            // A frame: send, then deliver what was sent, then read.
+            if (viaNode) {
+                const sent: { by: number }[] = [];
+                const drifts = world.comps.get('FixtureDrift')!;
+                const rows = {
+                    *[Symbol.iterator]() { for (const e of world.entities) yield [e, drifts.get(e)!]; },
+                };
+                (pingSystem as unknown as StubSystem).fn(rows, { send: (p: { by: number }) => sent.push(p) });
+                (pongSystem as unknown as StubSystem).fn(sent, rows);
+                return;
+            }
+            runSystem(ping!, world);
+            const sent = (world.sent?.get('FixturePinged') ?? []) as (readonly number[])[];
+            (world as { events?: Map<string, Row[]> }).events =
+                new Map([['FixturePinged', sent.map((args) => ({ by: args[0]! }))]]);
+            world.sent?.clear();
+            runSystem(pong!, world);
+        };
+        for (let f = 0; f < 20; f++) { run(byNode, true); run(byEir, false); }
+        expect(byEir.comps.get('FixtureDrift')).toEqual(byNode.comps.get('FixtureDrift'));
+    });
+
+    it('and something was actually sent — an empty queue agrees with anything', () => {
+        const world = makeWorld();
+        runSystem(ping!, world);
+        expect((world.sent?.get('FixturePinged') ?? []).length).toBeGreaterThan(0);
     });
 });
 

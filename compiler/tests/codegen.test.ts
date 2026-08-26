@@ -208,6 +208,25 @@ function build(dir: string, cModule: CModule, symbol: string, how: Addressing = 
 }
 
 /** One call of the contract: materialise, run the compiled code, flush. */
+/** The event records one call appended, as [slot, ...fields] per record. */
+function recordsOf(mem: AbiMemory, sys: EirSystem, run: () => void): number[][] {
+    const plan = planFor(sys);
+    const before = materialize(mem, plan);
+    run();
+    const used = mem.u32[before.eventCount >> 2]!;
+    const out: number[][] = [];
+    for (let i = 0; i < used;) {
+        // One slot word then the payload's fields; a writer's record length is
+        // what the plan says its event declares.
+        const slot = mem.f64[(before.eventBuf >> 3) + i]!;
+        const event = plan.writers.find((w) => w.slot === slot)?.event ?? '';
+        const len = (fixtures.module.events.get(event)?.fields.size ?? 0) + 1;
+        out.push([...mem.f64.subarray((before.eventBuf >> 3) + i, (before.eventBuf >> 3) + i + len)]);
+        i += len;
+    }
+    return out;
+}
+
 function frameOfC(exe: string, mem: AbiMemory, sys: EirSystem): void {
     const plan = planFor(sys);
     const call = materialize(mem, plan);
@@ -300,6 +319,8 @@ function fixtureWorld(layout: AbiLayout): AbiMemory {
     mem.addResource('Input', {});
     mem.setResourceBit('Input', 'isKeyDown', 'KeyW', true);
     mem.setResourceBit('Input', 'isKeyPressed', 'Space', true);
+    // Payloads for a reader to walk, in the image so both sides see the same.
+    for (let i = 1; i <= 3; i++) mem.addPayload('FixturePinged', { by: i * 7 });
     for (let i = 1; i <= N; i++) {
         const s = seed(i);
         mem.addComponent('Transform', i, { 'position.x': s['tx']!, 'position.y': s['ty']! });
@@ -385,7 +406,7 @@ describe('the emitted C says what the interpreter says', () => {
     // ternaries, folded module constants with a shadowing local, an inlined
     // helper, and the Math arguments where libm and ECMAScript disagree.
     for (const name of ['FixtureDrift', 'FixtureClampSys', 'FixtureTuned', 'FixtureHelpers',
-        'FixtureMathOps', 'FixtureCamera', 'FixtureGate']) {
+        'FixtureMathOps', 'FixtureCamera', 'FixtureGate', 'FixturePong']) {
         it(`${name}: the whole image agrees with the interpreter`, () => {
             const sys = systemOf(fixtures, name);
             const layout = packLayout(fixtures.module.comps);
@@ -436,6 +457,27 @@ describe('the emitted C says what the interpreter says', () => {
         // With the key up neither side moves, which is the `return` arriving in
         // both — and it is a different assertion from "they agree".
         expect(entities.some((e) => (drifts.get(e)! as { rate: number }).rate !== seed(e)['rate']!)).toBe(true);
+    });
+
+    /**
+     * The WRITING half. Its effect is not in the image — a sent payload lives in
+     * the per-call queue — so the records themselves are what the two sides have
+     * to agree on, read back the way a host reads them.
+     */
+    it('FixturePing: the records the C appends are the records the interpreter does', () => {
+        const ping = systemOf(fixtures, 'FixturePing');
+        const layout = packLayout(fixtures.module.comps);
+        const exe = build(join(tmp, 'ping'), emitC(fixtures.module, layout, [ping]), cSymbol('FixturePing'));
+
+        const byC = fixtureWorld(layout);
+        const byInterp = fixtureWorld(layout);
+        const fromC = recordsOf(byC, ping, () => frameOfC(exe, byC, ping));
+        const fromInterp = recordsOf(byInterp, ping,
+            () => runOnAbi(ping, byInterp, layout, fixtures.module.fns));
+
+        expect(fromC).toEqual(fromInterp);
+        // An empty queue would agree with anything at all.
+        expect(fromC.length).toBeGreaterThan(0);
     });
 
     it('FixtureDrift also agrees with node, not only with the interpreter', () => {

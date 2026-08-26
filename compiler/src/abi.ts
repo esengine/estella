@@ -129,6 +129,28 @@ export class AbiMemory {
         return base;
     }
 
+    /**
+     * Payloads of `name` waiting for a reader this frame, as base addresses.
+     * Laid out like a component's row, because that is what the reader walks.
+     */
+    payloadsOf(name: string): readonly number[] {
+        return this.payloads.get(name) ?? [];
+    }
+
+    /** Place one payload in the image, for a reader to be given this frame. */
+    addPayload(name: string, fields: Record<string, number | boolean>): number {
+        const shape = this.layout.comps.get(name);
+        if (!shape) throw new Error(`ABI: no layout for event '${name}'`);
+        const base = this.alloc(shape.stride);
+        for (const [path, v] of Object.entries(fields)) this.writeLeaf(shape, base, path, v);
+        const list = this.payloads.get(name) ?? [];
+        list.push(base);
+        this.payloads.set(name, list);
+        return base;
+    }
+
+    private readonly payloads = new Map<string, number[]>();
+
     addResource(name: string, fields: Record<string, number | boolean>): number {
         const shape = this.layout.resources.get(name);
         if (!shape) throw new Error(`ABI: no layout for resource '${name}'`);
@@ -220,8 +242,16 @@ export interface SysPlan {
     /** One entry per declared `Res`/`ResMut`, in declaration order. `mut` is
      *  what tells a mirroring host to write the block back after the call. */
     readonly resources: readonly ResourceArg[];
-    /** One entry per declared channel (`Commands`, later an event reader). */
+    /** One entry per declared channel, in declaration order. */
     readonly channels: readonly string[];
+    /**
+     * Which query slots are EVENT readers, and of what. A reader's rows are one
+     * payload each, so it rides the query table rather than a second one — the
+     * host fills it differently, and this is what says so.
+     */
+    readonly readers: readonly { readonly slot: number; readonly event: string }[];
+    /** Which channel slots are event WRITERS, in the order the ctx carries. */
+    readonly writers: readonly { readonly slot: number; readonly event: string }[];
     /** A parameter's local id -> which of the three tables, and which slot. */
     readonly slots: ReadonlyMap<number, { readonly table: 'query' | 'res' | 'channel'; readonly slot: number }>;
 }
@@ -230,6 +260,8 @@ export function planFor(sys: EirSystem): SysPlan {
     const queries: (readonly QueryArg[])[] = [];
     const resources: ResourceArg[] = [];
     const channels: string[] = [];
+    const readers: { slot: number; event: string }[] = [];
+    const writers: { slot: number; event: string }[] = [];
     const slots = new Map<number, { table: 'query' | 'res' | 'channel'; slot: number }>();
     for (const p of sys.params) {
         switch (p.type.k) {
@@ -241,21 +273,33 @@ export function planFor(sys: EirSystem): SysPlan {
                 slots.set(p.id, { table: 'res', slot: resources.length });
                 resources.push({ name: p.type.name, mut: p.type.mut });
                 break;
+            case 'events':
+                // One row per payload, one "component" per row: the query table
+                // already carries exactly that shape.
+                slots.set(p.id, { table: 'query', slot: queries.length });
+                readers.push({ slot: queries.length, event: p.type.name });
+                queries.push([{ comp: p.type.name, mut: false }]);
+                break;
             case 'channel':
                 slots.set(p.id, { table: 'channel', slot: channels.length });
+                if (p.type.channel === 'event') writers.push({ slot: channels.length, event: p.type.name });
                 channels.push(p.type.name);
                 break;
             default:
                 throw new Error(`ABI: '${p.name}' is a ${p.type.k}, which SysCtx has no table for`);
         }
     }
-    return { system: sys.name, queries, resources, channels, slots };
+    return { system: sys.name, queries, resources, channels, readers, writers, slots };
 }
 
 /** A materialised call: where the ctx is, and where its count word lives. */
 export interface AbiCall {
     readonly ctx: number;
     readonly cmdCount: number;
+    /** The event queue this call may append to, and how much of it is used. */
+    readonly eventBuf: number;
+    readonly eventCap: number;
+    readonly eventCount: number;
 }
 
 /**
@@ -270,7 +314,13 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     plan.queries.forEach((args, k) => {
         const stride = 1 + args.length;
         const matched: number[] = [];
-        for (const e of mem.entities) {
+        const reader = plan.readers.find((r) => r.slot === k);
+        if (reader) {
+            // A reader's rows are the payloads this frame, entity-less: the
+            // host packs the same [entity, base] pairs so the walk is one walk.
+            for (const at of mem.payloadsOf(reader.event)) matched.push(0, at);
+        }
+        for (const e of reader ? [] : mem.entities) {
             const binds = args.map((a) => mem.baseOf(a.comp, e));
             if (binds.some((b) => b === undefined)) continue;
             matched.push(e, ...(binds as number[]));
@@ -287,6 +337,18 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     const cmdCount = mem.scratch(4);
     mem.u32[cmdCount >> 2] = 0;
 
+    // The event queue, sized for the writers this system declared. A system
+    // with none gets a valid empty one rather than a null: the generated code
+    // reads the struct before it knows whether it will append.
+    const eventCap = plan.writers.length === 0 ? 0 : EVENT_SLOTS;
+    const eventBuf = mem.scratch(Math.max(8, eventCap * 8));
+    const eventCount = mem.scratch(4);
+    mem.u32[eventCount >> 2] = 0;
+    const eventOut = mem.scratch(3 * 4);
+    mem.u32[eventOut >> 2] = eventBuf;
+    mem.u32[(eventOut >> 2) + 1] = eventCap;
+    mem.u32[(eventOut >> 2) + 2] = eventCount;
+
     const ctx = mem.scratch(SYSCTX_WORDS_ * 4);
     const w = ctx >> 2;
     mem.u32[w] = queryTable;
@@ -294,9 +356,12 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     mem.u32[w + 2] = mem.cmdBuf;
     mem.u32[w + 3] = mem.cmdCap;
     mem.u32[w + 4] = cmdCount;
-    mem.u32[w + 5] = 0;  // events: no channel in v1 carries one yet
-    return { ctx, cmdCount };
+    mem.u32[w + 5] = eventOut;
+    return { ctx, cmdCount, eventBuf, eventCap, eventCount };
 }
+
+/** Doubles a system may append per call. Bounded here, checked in the code. */
+const EVENT_SLOTS = 256;
 
 /**
  * The host a compiled system sees, reaching the world through NOTHING but the
@@ -318,7 +383,12 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
     const cmdCap = mem.u32[w + 3]!;
     return {
         *rows(args: readonly QueryArg[]) {
-            const k = plan.queries.indexOf(args);
+            // By identity for a query the plan owns; by NAME for an event
+            // reader, whose one-component args the caller builds fresh.
+            let k = plan.queries.indexOf(args);
+            if (k < 0 && args.length === 1) {
+                k = plan.readers.find((r) => r.event === args[0]!.comp)?.slot ?? -1;
+            }
             if (k < 0) throw new Error(`ABI: '${plan.system}' walks a query it did not declare`);
             const rows = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_]!;
             const count = mem.u32[(queryTable >> 2) + k * QUERYROWS_WORDS_ + 1]!;
@@ -352,7 +422,20 @@ export function abiHost(mem: AbiMemory, layout: AbiLayout, plan: SysPlan, call: 
             if (k < 0) throw new Error(`ABI: '${plan.system}' reads a resource it did not declare`);
             return mem.u32[(resTable >> 2) + k]!;
         },
-        emit(record, args) {
+        emit(channel, record, args) {
+            const writer = plan.writers.find((w) => w.event === channel);
+            if (writer) {
+                // The same record the compiled code appends: a slot then the
+                // fields, in the order the payload declares them.
+                const used = mem.u32[call.eventCount >> 2]!;
+                const stride = args.length + 1;
+                if (used + stride > call.eventCap) throw new Error('ABI: event buffer overflow');
+                const at = (call.eventBuf >> 3) + used;
+                mem.f64[at] = writer.slot;
+                args.forEach((v, i) => { mem.f64[at + 1 + i] = typeof v === 'boolean' ? (v ? 1 : 0) : v; });
+                mem.u32[call.eventCount >> 2] = used + stride;
+                return;
+            }
             const n = mem.u32[call.cmdCount >> 2]!;
             if (n >= cmdCap) throw new Error('ABI: command buffer overflow');
             const at = (cmdBuf >> 2) + n * CMD_WORDS_;

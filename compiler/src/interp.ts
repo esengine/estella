@@ -40,7 +40,9 @@ export interface EirHost {
      * mirrored the answer into. Agreeing is what the differential proves.
      */
     service(resource: string, method: string, key: string | number): boolean;
-    emit(record: string, args: readonly (number | boolean)[]): void;
+    /** `channel` is the parameter appended to: the command queue, or one
+     *  event's writer. Two queues, and a record means nothing without it. */
+    emit(channel: string, record: string, args: readonly (number | boolean)[]): void;
     /** Called once after the body, where the SDK's runner flushes. */
     flush(): void;
 }
@@ -51,10 +53,15 @@ export interface EirWorld {
     /** component name -> entity -> its row. An absent entity simply has none. */
     readonly comps: ReadonlyMap<string, Map<number, Row>>;
     readonly resources: ReadonlyMap<string, Row>;
+    /** event name -> this frame's payloads, which is what a reader walks. */
+    readonly events?: ReadonlyMap<string, readonly Row[]>;
+    /** event name -> what systems SENT, in field order. Written by a flush. */
+    sent?: Map<string, unknown[]>;
 }
 
 /** One appended record, waiting for the flush at system end. */
 interface Command {
+    readonly channel: string;
     readonly record: string;
     readonly args: readonly unknown[];
 }
@@ -186,9 +193,12 @@ function exec(
             case 'assign':
                 writePlace(s.target, frame, host, owners, evalExpr(s.value, frame, fns, host, owners));
                 break;
-            case 'emit':
-                host.emit(s.record, s.args.map((a) => evalExpr(a, frame, fns, host, owners)));
+            case 'emit': {
+                const channel = owners.get((s.channel as { id: number }).id);
+                if (!channel) throw new Error('EIR: emit to an unbound channel');
+                host.emit(channel, s.record, s.args.map((a) => evalExpr(a, frame, fns, host, owners)));
                 break;
+            }
             case 'if': {
                 const out = evalExpr(s.cond, frame, fns, host, owners)
                     ? exec(s.then, frame, fns, host, owners)
@@ -217,7 +227,10 @@ function exec(
 function ownersOf(sys: EirSystem): Map<number, string> {
     const out = new Map<number, string>();
     for (const l of [...sys.params, ...sys.locals]) {
-        if (l.type.k === 'comp' || l.type.k === 'res') out.set(l.id, l.type.name);
+        // Channels and readers are named too: an emit says WHICH queue, and a
+        // reader's rows come from the event it names.
+        if (l.type.k === 'comp' || l.type.k === 'res' || l.type.k === 'channel'
+            || l.type.k === 'events') out.set(l.id, l.type.name);
     }
     return out;
 }
@@ -234,6 +247,11 @@ export function runSystemOn(sys: EirSystem, host: EirHost, fns: Fns = new Map())
         if (p.type.k === 'query') frame.set(p.id, { args: p.type.args });
         else if (p.type.k === 'res') frame.set(p.id, host.resource(p.type.name));
         else if (p.type.k === 'channel') frame.set(p.id, null);
+        // A reader is walked exactly like a one-component query, and the host
+        // decides whether those rows come from entities or from a queue.
+        else if (p.type.k === 'events') {
+            frame.set(p.id, { args: [{ comp: p.type.name, mut: false }] });
+        }
         else throw new Error(`EIR: '${p.name}' has no parameter binding for ${p.type.k}`);
     }
     exec(sys.body, frame, fns, host, owners);
@@ -249,6 +267,14 @@ export function jsHost(world: EirWorld): EirHost {
     const queued: Command[] = [];
     return {
         *rows(args) {
+            // An event reader is one "component" that is an EVENT: its rows are
+            // this frame's payloads, and no entity carries them.
+            const only = args.length === 1 ? args[0]!.comp : null;
+            const payloads = only === null ? undefined : world.events?.get(only);
+            if (payloads) {
+                for (const p of payloads) yield { entity: 0, binds: [p] };
+                return;
+            }
             for (const e of world.entities) {
                 if (!args.every((a) => world.comps.get(a.comp)?.has(e))) continue;
                 yield { entity: e, binds: args.map((a) => world.comps.get(a.comp)!.get(e)!) };
@@ -274,11 +300,21 @@ export function jsHost(world: EirWorld): EirHost {
             if (typeof fn !== 'function') throw new Error(`EIR: resource '${name}' has no method '${method}'`);
             return (fn as (k: unknown) => unknown).call(row, key) === true;
         },
-        emit(record, args) {
-            queued.push({ record, args });
+        emit(channel, record, args) {
+            queued.push({ channel, record, args });
         },
         flush() {
             for (const c of queued) {
+                if (c.record === 'send') {
+                    // Delivered where a reader would find them NEXT frame, which
+                    // is what the SDK's double-buffered bus does.
+                    const out = world.sent ?? new Map<string, unknown[]>();
+                    if (!world.sent) (world as { sent?: Map<string, unknown[]> }).sent = out;
+                    const list = out.get(c.channel) ?? [];
+                    list.push(c.args);
+                    out.set(c.channel, list);
+                    continue;
+                }
                 if (c.record !== 'despawn') throw new Error(`EIR: no flush for '${c.record}'`);
                 const e = c.args[0] as number;
                 const at = world.entities.indexOf(e);

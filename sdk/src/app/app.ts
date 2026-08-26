@@ -11,7 +11,7 @@ import { builtinResource, ResourceStorage, Time, TimeData, type ResourceDef } fr
 import { prepareAot, type AotHost } from '../ecs/aot/installAot';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
-import { EventRegistry, type EventDef } from '../ecs/event';
+import { EventRegistry, eventNamed, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { OutputTransform } from '../postprocess';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
@@ -632,6 +632,17 @@ export class App {
             manifest: opts.manifest,
             wasm: opts.wasm,
             knowsResource: (name) => builtinResource(name) !== undefined,
+            // A manifest carries event NAMES; the registry answers for the ones
+            // some system has asked for a reader or a writer of.
+            events: (name) => {
+                // Through the DEFINITION, so the bus exists whether or not an
+                // interpreted system has asked for one yet: a twin sending into
+                // a bus nobody had made would drop its payloads and say nothing.
+                const def = eventNamed(name);
+                if (def === undefined) return undefined;
+                const bus = this.eventRegistry_.getBus(def);
+                return { read: () => bus.getReadBuffer(), send: (payload) => bus.send(payload) };
+            },
             resources: (name) => {
                 const def = builtinResource(name);
                 // `get`, not `has` then `get`: a slot holding a materialised

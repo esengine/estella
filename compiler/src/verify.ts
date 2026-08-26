@@ -198,7 +198,26 @@ class Verifier {
             }
             case 'emit': {
                 const ch = this.placeType(s.channel);
-                if (ch && ch.k !== 'channel') this.fail(`emit to a ${typeName(ch)}`);
+                if (ch && ch.k !== 'channel') { this.fail(`emit to a ${typeName(ch)}`); break; }
+                if (ch?.channel === 'event') {
+                    // One argument per declared field, in declaration order —
+                    // re-derived from the shape rather than trusted, because a
+                    // short record would leave the host reading the next one.
+                    const shape = this.comps.get(ch.name);
+                    if (s.record !== 'send') this.fail(`'${s.record}' is not a record an event writer emits`);
+                    else if (!shape) this.fail(`event '${ch.name}' has no declared payload`);
+                    else if (s.args.length !== shape.fields.size) {
+                        this.fail(`send to '${ch.name}' carries ${s.args.length} field(s), not ${shape.fields.size}`);
+                    } else {
+                        [...shape.fields.values()].forEach((f, i) => {
+                            const t = this.exprType(s.args[i]!);
+                            if (t && t.k !== f.type.k) {
+                                this.fail(`send to '${ch.name}' field ${i} is ${typeName(t)}, not ${typeName(f.type)}`);
+                            }
+                        });
+                    }
+                    break;
+                }
                 if (s.record === 'despawn') {
                     const t = s.args[0] ? this.exprType(s.args[0]) : null;
                     if (s.args.length !== 1) this.fail(`despawn takes 1 argument, not ${s.args.length}`);
@@ -217,6 +236,22 @@ class Verifier {
             case 'rowLoop': {
                 const q = this.placeType(s.query);
                 if (!q) break;
+                // An event reader yields one payload per step, bound like a
+                // component so the body reads its fields the same way.
+                if (q.k === 'events') {
+                    if (s.binds.length !== 1 || s.entity !== null) {
+                        this.fail('an event loop binds exactly one payload and no entity');
+                        break;
+                    }
+                    const l = this.local(s.binds[0]!);
+                    if (l && (l.type.k !== 'comp' || l.type.name !== q.name)) {
+                        this.fail(`event loop binds '${l.name}' as ${typeName(l.type)} for '${q.name}'`);
+                    }
+                    this.loopDepth++;
+                    for (const b of s.body) this.stmt(b);
+                    this.loopDepth--;
+                    break;
+                }
                 if (q.k !== 'query') { this.fail(`rowLoop over a ${typeName(q)}`); break; }
                 if (q.args.length !== s.binds.length) {
                     this.fail(`rowLoop binds ${s.binds.length} components for a query of ${q.args.length}`);

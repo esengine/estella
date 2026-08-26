@@ -32,10 +32,26 @@ export interface EventDef<T> {
  * @public
  */
 export function defineEvent<T>(name: string): EventDef<T> {
-    return {
+    const def: EventDef<T> = {
         _id: Symbol(`Event_${name}`),
         _name: name,
     };
+    // By name as well, because a compiled module's manifest carries names. The
+    // FIRST wins: a second event of the same name is a different event, and
+    // quietly rebinding the name would deliver one system's payloads to another.
+    if (!byName.has(name)) byName.set(name, def as EventDef<unknown>);
+    return def;
+}
+
+const byName = new Map<string, EventDef<unknown>>();
+
+/**
+ * The event a manifest's NAME refers to, or undefined when nothing declared it.
+ *
+ * @internal
+ */
+export function eventNamed(name: string): EventDef<unknown> | undefined {
+    return byName.get(name);
 }
 
 // =============================================================================
@@ -68,20 +84,32 @@ export class EventBus<T> {
 
 export class EventRegistry {
     private readonly buses_ = new Map<symbol, EventBus<unknown>>();
+    /**
+     * By NAME as well, because a compiled module's manifest carries names —
+     * it cannot know a runtime's symbols. Registered when a bus is first made,
+     * which is when a system asks for a reader or a writer.
+     */
+    private readonly byName_ = new Map<string, EventBus<unknown>>();
 
     register<T>(event: EventDef<T>): void {
-        if (!this.buses_.has(event._id)) {
-            this.buses_.set(event._id, new EventBus<unknown>());
-        }
+        if (!this.buses_.has(event._id)) this.make_(event);
     }
 
     getBus<T>(event: EventDef<T>): EventBus<T> {
-        let bus = this.buses_.get(event._id);
-        if (!bus) {
-            bus = new EventBus<unknown>();
-            this.buses_.set(event._id, bus);
-        }
+        const bus = this.buses_.get(event._id) ?? this.make_(event);
         return bus as EventBus<T>;
+    }
+
+    /** The bus a manifest's name refers to, or undefined if nothing made one. */
+    busNamed(name: string): EventBus<unknown> | undefined {
+        return this.byName_.get(name);
+    }
+
+    private make_<T>(event: EventDef<T>): EventBus<unknown> {
+        const bus = new EventBus<unknown>();
+        this.buses_.set(event._id, bus);
+        if (event._name) this.byName_.set(event._name, bus);
+        return bus;
     }
 
     swapAll(): void {

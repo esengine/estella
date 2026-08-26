@@ -516,8 +516,10 @@ systems: readonly AotSystemDecl[]
 ```
 name: string
 queries: readonly (readonly { comp: string; mut: boolean; }[])[]
+readers: readonly { slot: number; event: string; fields: readonly string[]; }[] | undefined
 resources: readonly { name: string; mut: boolean; }[]
 symbol: string
+writers: readonly { slot: number; event: string; fields: readonly string[]; }[] | undefined
 ```
 
 ## App — class @experimental
@@ -3066,6 +3068,7 @@ static prototype: EventReaderInstance<any>
 
 ## EventRegistry — class @experimental
 ```
+busNamed: (name: string) => EventBus<unknown> | undefined
 getBus: <T>(event: EventDef<T>) => EventBus<T>
 register: <T>(event: EventDef<T>) => void
 swapAll: () => void

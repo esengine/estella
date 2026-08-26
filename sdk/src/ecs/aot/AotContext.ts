@@ -38,13 +38,19 @@ export interface AotCommand {
  * The per-call scratch, in engine memory. One instance per system is enough —
  * a call is over before the next begins, and nothing may outlive it.
  */
+/** The header a system's event queue starts with: buf, cap, count. */
+const EVENT_OUT_WORDS = 3;
+
 export class AotContext {
     private block: PoolBlock | null = null;
     private words: Uint32Array = EMPTY;
     private cmdCap: number;
+    /** f64 slots a call may append across every writer it declared. */
+    private eventCap: number;
 
-    constructor(private readonly memory: PoolMemory, cmdCap = 256) {
+    constructor(private readonly memory: PoolMemory, cmdCap = 256, eventCap = 512) {
         this.cmdCap = cmdCap;
+        this.eventCap = eventCap;
     }
 
     /** Hand the block back; the arena is dead after this. */
@@ -75,7 +81,8 @@ export class AotContext {
             + rowWords
             + resources.length
             + 1                              // the count, which the code writes back
-            + this.cmdCap * CMD_WORDS;
+            + this.cmdCap * CMD_WORDS
+            + EVENT_OUT_WORDS + 1 + this.eventCap * 2;   // f64 slots are two words
         this.reserve_(need);
 
         const base = this.block!.byteOffset;
@@ -97,14 +104,29 @@ export class AotContext {
             w[slot] = base + (rowsAt + offsets[k]!) * 4;
             w[slot + 1] = counts[k]!;
         }
+        // The event queue: a header of three addresses, its own used-count, and
+        // the f64 records themselves. A system that writes none still gets a
+        // valid header, because the code reads it before it knows.
+        let evAt = cmdBuf + this.cmdCap * CMD_WORDS;
+        const evHeader = evAt;
+        evAt += EVENT_OUT_WORDS;
+        const evCountAt = evAt++;
+        w[evCountAt] = 0;
+        const evBuf = (evAt + 1) & ~1;       // an f64 record starts 8-aligned
+        w[evHeader] = base + evBuf * 4;
+        w[evHeader + 1] = this.eventCap * 2;
+        w[evHeader + 2] = base + evCountAt * 4;
+
         w[0] = base + queryTable * 4;
         w[1] = base + resTable * 4;
         w[2] = base + cmdBuf * 4;
         w[3] = this.cmdCap;
         w[4] = base + countAt * 4;
-        w[5] = 0;                            // events: no channel carries one yet
+        w[5] = base + evHeader * 4;
         this.countAt_ = countAt;
         this.cmdAt_ = cmdBuf;
+        this.evCountAt_ = evCountAt;
+        this.evBufAt_ = evBuf;
         this.address_ = base;
         return base;
     }
@@ -122,8 +144,42 @@ export class AotContext {
         return out;
     }
 
+    /**
+     * What the call SENT: each record is a writer slot then its fields, in the
+     * order the manifest declares. Valid until the next `build`.
+     */
+    events(): { slot: number; fields: readonly number[] }[] {
+        if (this.block === null) return [];
+        const w = this.view_();
+        const used = w[this.evCountAt_]!;
+        const f64 = new Float64Array(w.buffer, w.byteOffset + this.evBufAt_ * 4,
+            Math.max(0, Math.floor((w.byteLength - this.evBufAt_ * 4) / 8)));
+        const out: { slot: number; fields: readonly number[] }[] = [];
+        // Records are variable length, so the reader has to be told how long
+        // each one is; the caller knows, from what it declared.
+        for (let i = 0; i < used;) {
+            const slot = f64[i]!;
+            const len = this.lengthOf_(slot);
+            out.push({ slot, fields: [...f64.subarray(i + 1, i + len)] });
+            i += len;
+        }
+        return out;
+    }
+
+    /** How long one writer's record is, set by the caller before the call. */
+    setRecordLengths(lengths: readonly number[]): void {
+        this.lengths_ = lengths;
+    }
+
+    private lengthOf_(slot: number): number {
+        return (this.lengths_[slot] ?? 0) + 1;
+    }
+
+    private lengths_: readonly number[] = [];
     private countAt_ = 0;
     private cmdAt_ = 0;
+    private evCountAt_ = 0;
+    private evBufAt_ = 0;
     private address_ = 0;
 
     /** The ctx `build` last laid out. */

@@ -63,6 +63,18 @@ typedef struct EsSysCtx {
 /* What a host needs in order to CALL a system without glue written by hand.
    The compiler knows a system's queries and resources -- that is what _params
    is -- so it says so here rather than leaving each host to be told twice. */
+/* Where a system APPENDS events: f64 records, because a payload is fields and
+   not four words. A record is [writer slot, ...fields], and how long one is
+   comes from the manifest — the host declared it.
+
+   Its own queue rather than a wider EsCmd: fixed-width records and
+   variable-width ones cannot share a buffer without stride guesswork. */
+typedef struct EsEventOut {
+    es_addr_t buf;      /* double * */
+    es_addr_t cap;      /* capacity, in doubles */
+    es_addr_t count;    /* address of the used-doubles word */
+} EsEventOut;
+
 typedef struct EsQueryDecl {
     const char *const *comps;   /* component names, in the order the query names them */
     const unsigned char *mut;   /* 1 where the system may write that component */

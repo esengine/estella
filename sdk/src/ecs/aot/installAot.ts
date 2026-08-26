@@ -28,6 +28,7 @@ import type { Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotContext } from './AotContext';
 import { AotResources, type ResourceReader } from './AotResources';
+import { AotEvents, type EventBusAccess } from './AotEvents';
 import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
 
@@ -57,6 +58,8 @@ export interface InstallAotOptions {
      * its first frame has no value yet and is not missing.
      */
     readonly knowsResource?: (name: string) => boolean;
+    /** The bus a manifest's event NAME refers to, for reading and for sending. */
+    readonly events?: EventBusAccess;
 }
 
 /**
@@ -94,7 +97,8 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
 
     return {
         systems,
-        addresses: worldAddresses(new AotResources(memory, opts.resources)),
+        addresses: worldAddresses(new AotResources(memory, opts.resources),
+            new AotEvents(memory, opts.events ?? (() => undefined))),
         ctx: new AotContext(memory),
     };
 }
@@ -119,10 +123,13 @@ function componentNamed(name: string): AnyComponentDef | undefined {
  * COMPONENT's address is not among them: `AotDispatch` takes a resolver from the
  * world once per system rather than asking per row.
  */
-export function worldAddresses(resources: AotResources): AotAddresses {
+export function worldAddresses(resources: AotResources, payloads: AotEvents): AotAddresses {
     return {
         componentNamed,
         resourceAt: (name: string) => resources.addressOf(name),
         resourceWriteBack: (name: string) => resources.writeBack(name),
+        payloadRows: (event, fields) => payloads.rowsFor(event, fields),
+        sendEvent: (event, fields, values) => payloads.send(event, fields, values),
+        releasePayloads: () => payloads.release(),
     };
 }

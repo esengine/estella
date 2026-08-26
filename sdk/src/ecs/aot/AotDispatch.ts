@@ -46,6 +46,7 @@ import type { AotTwin } from './AotSystems';
 
 /** No `With`/`Without` on a compiled query; the subset has no syntax for one. */
 const NO_FILTERS: AnyComponentDef[] = [];
+const NO_RECORDS: readonly { slot: number; fields: readonly number[] }[] = [];
 /** What a query that named an unknown component matches. */
 const EMPTY_ENTITIES: readonly Entity[] = [];
 
@@ -65,6 +66,9 @@ interface QueryPlan {
     /** False when a name in the manifest is not a component of this world; such
      *  a query matches nothing rather than reading address zero. */
     readonly resolved: boolean;
+    /** Set when this slot is an event READER: its rows are this frame's
+     *  payloads, so they are rebuilt every call and never reused. */
+    readonly reader: { readonly event: string; readonly fields: readonly string[] } | null;
 }
 
 interface Plan {
@@ -117,6 +121,8 @@ export class AotDispatch {
         this.packRows_(plan, this.world.layoutEpoch());
 
         const resources = plan.resources.map((r) => this.runtime.addresses.resourceAt(r.name) ?? 0);
+        const writers = twin.decl.writers ?? [];
+        this.runtime.ctx.setRecordLengths(writers.map((wr) => wr.fields.length));
         this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
         twin.call(this.runtime.ctx.address);
         this.runtime.systems.noteCall();
@@ -127,6 +133,16 @@ export class AotDispatch {
         for (const r of plan.resources) {
             if (r.mut) this.runtime.addresses.resourceWriteBack(r.name);
         }
+
+        // What it sent. The compiled code appended numbers; the payload is rebuilt
+        // from the same field list that flattened it.
+        for (const rec of writers.length > 0 ? this.runtime.ctx.events() : NO_RECORDS) {
+            const decl = writers.find((wr) => wr.slot === rec.slot);
+            if (decl) this.runtime.addresses.sendEvent(decl.event, decl.fields, rec.fields);
+        }
+        // The payload blocks are valid for exactly this call: `packRows_` takes
+        // one per payload per frame, and nothing else hands them back.
+        this.runtime.addresses.releasePayloads();
 
         for (const cmd of this.runtime.ctx.commands()) {
             // Only despawn is in the v1 record set.
@@ -154,6 +170,9 @@ export class AotDispatch {
         const lists: (readonly Entity[])[] = [];
         for (let k = 0; k < plan.queries.length; k++) {
             const q = plan.queries[k];
+            // A reader's rows are THIS frame's payloads. Nothing about the world's
+            // layout says whether one was sent, so the epoch cannot vouch for them.
+            if (q.reader) { reuse = false; lists.push(EMPTY_ENTITIES); continue; }
             const entities = q.resolved
                 ? this.world.queryEntities(q.comps, NO_FILTERS, NO_FILTERS, q.key, undefined, q.depIds)
                 : EMPTY_ENTITIES;
@@ -167,6 +186,18 @@ export class AotDispatch {
             const q = plan.queries[k];
             plan.offsets[k] = at;
             plan.packedFrom[k] = lists[k]!;
+            if (q.reader) {
+                const payloads = this.runtime.addresses.payloadRows(q.reader.event, q.reader.fields);
+                plan.scratch = grow(plan.scratch, at + payloads.length * q.width);
+                for (let i = 0; i < payloads.length; i++) {
+                    const row = payloads[i]!;
+                    plan.scratch[at + i * q.width] = row[0]!;
+                    plan.scratch[at + i * q.width + 1] = row[1]!;
+                }
+                plan.counts[k] = payloads.length;
+                at += payloads.length * q.width;
+                continue;
+            }
             if (!q.resolved) {
                 plan.counts[k] = 0;
                 continue;
@@ -221,7 +252,19 @@ export class AotDispatch {
     private planFor_(twin: AotTwin): Plan {
         let plan = this.plans.get(twin);
         if (plan) return plan;
+        const readers = new Map((twin.decl.readers ?? []).map((r) => [r.slot, r]));
         const queries = twin.decl.queries.map((args, k): QueryPlan => {
+            const reader = readers.get(k);
+            // A reader's slot declares no components: its width is the entity
+            // word (always zero, nothing carries an event) and one payload
+            // address, which is the shape `payloadRows` hands back.
+            if (reader) {
+                return {
+                    comps: [], resolvers: [], mutated: [], key: '', depIds: [],
+                    width: 2, resolved: true,
+                    reader: { event: reader.event, fields: reader.fields },
+                };
+            }
             const comps: AnyComponentDef[] = [];
             for (const a of args) {
                 const def = this.runtime.addresses.componentNamed(a.comp);
@@ -236,6 +279,7 @@ export class AotDispatch {
                 depIds: comps.map((c) => c._id as symbol),
                 width: 1 + comps.length,
                 resolved,
+                reader: null,
             };
         });
         plan = {
