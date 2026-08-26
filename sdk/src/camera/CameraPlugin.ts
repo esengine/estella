@@ -20,6 +20,7 @@ import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
 import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
+import { planPresent, viewportPixels, RenderResolution } from './presentPlan';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../render/renderPipeline';
 import { renderTargetSize } from '../render/renderTexture';
@@ -563,12 +564,21 @@ function syncUICameraInfo(
     const uiCam = app.getResource(UICameraInfo);
     if (cameras.length > 0) {
         const cam = cameras[0];
-        const vr = cam.viewportRect;
         uiCam.viewProjection.set(cam.viewProjection);
-        uiCam.vpX = Math.round(vr.x * width);
-        uiCam.vpY = Math.round((1 - vr.y - vr.h) * height);
-        uiCam.vpW = Math.round(vr.w * width);
-        uiCam.vpH = Math.round(vr.h * height);
+        // Against the WINDOW, not the camera's render target: this rect is what a
+        // pointer's coordinates are normalised by, and a pointer is on the window.
+        const box = viewportPixels(cam.viewportRect, width, height);
+        // ...and then where the image actually lands inside it, which is the same
+        // rect only while the present does not letterbox. screenToWorld maps a
+        // point through THIS, so it has to be the picture's rect, not the camera's.
+        const policy = app.hasResource(ScreenScaling)
+            ? app.getResource(ScreenScaling).renderPolicy
+            : undefined;
+        const shown = planPresent(policy ?? RenderResolution.Surface, 2 * cam.halfH, box.w, box.h);
+        uiCam.vpX = box.x + shown.x;
+        uiCam.vpY = box.y + shown.y;
+        uiCam.vpW = shown.width;
+        uiCam.vpH = shown.height;
         uiCam.screenW = width;
         uiCam.screenH = height;
         // The box UI lays out within. Scene cameras carry design-scaled extents;
@@ -715,10 +725,7 @@ export function cameraPlugin(
                                     ? renderTargetSize(cam.renderTarget) : null;
                                 const w = target?.width ?? width;
                                 const h = target?.height ?? height;
-                                const px = Math.round(vp.x * w);
-                                const py = Math.round((1 - vp.y - vp.h) * h);
-                                const pw = Math.round(vp.w * w);
-                                const ph = Math.round(vp.h * h);
+                                const { x: px, y: py, w: pw, h: ph } = viewportPixels(vp, w, h);
                                 pipeline.renderCamera({
                                     registry: { _cpp: cppRegistry },
                                     viewProjection: cam.viewProjection,

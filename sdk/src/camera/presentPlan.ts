@@ -55,6 +55,34 @@ export interface PresentPlan {
     oneToOne: boolean;
 }
 
+/** A camera's viewport as a fraction of some surface, y-UP from the bottom. */
+export interface ViewportFraction {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+/**
+ * A viewport fraction in pixels of the surface it is measured against, y-DOWN.
+ *
+ * The flip and the rounding drift, so they live here. WHICH surface stays the
+ * caller's: input measures the window (a pointer is there), drawing measures the
+ * render target (pixels go there).
+ */
+export function viewportPixels(
+    rect: ViewportFraction,
+    surfaceWidth: number,
+    surfaceHeight: number,
+): { x: number; y: number; w: number; h: number } {
+    return {
+        x: Math.round(rect.x * surfaceWidth),
+        y: Math.round((1 - rect.y - rect.h) * surfaceHeight),
+        w: Math.round(rect.w * surfaceWidth),
+        h: Math.round(rect.h * surfaceHeight),
+    };
+}
+
 function clampDim(v: number): number {
     return Math.max(1, Math.round(v));
 }

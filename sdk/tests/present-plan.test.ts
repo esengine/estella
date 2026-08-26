@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    planPresent, worldPerRenderedPixel, RenderResolution,
+    planPresent, worldPerRenderedPixel, viewportPixels, RenderResolution,
 } from '../src/camera/presentPlan';
 
 /** The surfaces a 1080-tall design actually meets: a panel, a window, a big screen. */
@@ -131,5 +131,40 @@ describe('planPresent — IntegerMultiple', () => {
         const plan = planPresent(RenderResolution.IntegerMultiple, 2160, 1244, 700);
         expect(plan.linear).toBe(true);
         expect(worldPerRenderedPixel(plan, 2160)).toBe(1);
+    });
+});
+
+describe('viewportPixels', () => {
+    it('a full-screen camera covers the whole surface', () => {
+        expect(viewportPixels({ x: 0, y: 0, w: 1, h: 1 }, 1920, 1080))
+            .toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+    });
+
+    it('FLIPS y — the rect is y-up from the bottom, pixels are y-down from the top', () => {
+        // The trap, and the reason this lives in one place. A top-half camera is
+        // y = 0.5 in the fraction and y = 0 in pixels; backwards puts every
+        // pointer in the wrong half and nothing else complains.
+        expect(viewportPixels({ x: 0, y: 0.5, w: 1, h: 0.5 }, 800, 600))
+            .toEqual({ x: 0, y: 0, w: 800, h: 300 });
+        expect(viewportPixels({ x: 0, y: 0, w: 1, h: 0.5 }, 800, 600))
+            .toEqual({ x: 0, y: 300, w: 800, h: 300 });
+    });
+
+    it('split-screen quadrants tile the surface with no gap and no overlap', () => {
+        const quads = [
+            { x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+            { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+        ].map((r) => viewportPixels(r, 1024, 768));
+        const covered = quads.reduce((n, q) => n + q.w * q.h, 0);
+        expect(covered).toBe(1024 * 768);
+        expect(new Set(quads.map((q) => `${q.x},${q.y}`)).size).toBe(4);
+    });
+
+    it('measures against whatever surface it is given, which stays the caller choice', () => {
+        // Input measures against the window, drawing against the render target.
+        // Same rect, two answers, and both are right.
+        const rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+        expect(viewportPixels(rect, 1920, 1080)).toEqual({ x: 480, y: 270, w: 960, h: 540 });
+        expect(viewportPixels(rect, 256, 256)).toEqual({ x: 64, y: 64, w: 128, h: 128 });
     });
 });
