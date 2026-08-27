@@ -22,7 +22,7 @@ import { getComponent, type AnyComponentDef } from '../component';
 import { log } from '../../util/logger';
 import type { World } from '../world';
 import type { SystemRunner } from '../system';
-import type { Entity } from '../../types';
+import { ENTITY_INDEX_MASK, type Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotSystems, type AotManifest, type AotTwin } from './AotSystems';
 import { AotResources, type ResourceReader } from './AotResources';
@@ -37,7 +37,8 @@ export interface NativeAotBindings {
     index(name: string): number;
     bound(index: number): boolean;
     scriptRows(name: string, sparseOffset: number, sparseCount: number,
-        rowsOffset: number, stride: number, indexMask: number): boolean;
+        rowsOffset: number, stride: number, indexMask: number,
+        ownersOffset: number, ownerCount: number): boolean;
     resource(name: string, offset: number, bytes: number): boolean;
     run(index: number): number;
     reset(): void;
@@ -69,8 +70,12 @@ function declaredResourceLayouts(manifest: AotManifest): Map<string, readonly st
     return out;
 }
 
-/** The entity index mask a sparse table is addressed by, from the engine's own. */
-const ENTITY_INDEX_MASK = 0xfffff;
+/**
+ * The mask a sparse table is addressed by — the SDK's own, imported rather than
+ * spelled again. It was spelled again here, as a 20-bit mask against the real
+ * 22-bit one, which aliased every entity above index 2^20 onto another row.
+ */
+const SPARSE_INDEX_MASK = ENTITY_INDEX_MASK;
 
 /** Read the `es_aot_*` globals a native host bound, or null where it bound none. */
 export function nativeAotBindings(
@@ -236,7 +241,7 @@ class NativeAotDispatch implements AotDispatcher {
             const span = def === undefined ? undefined : this.world.scriptSpanOf(def);
             if (span === undefined) continue;
             this.bindings.scriptRows(name, span.sparse, span.sparseCount,
-                span.rows, span.stride, ENTITY_INDEX_MASK);
+                span.rows, span.stride, SPARSE_INDEX_MASK, span.owners, span.ownerCount);
         }
     }
 

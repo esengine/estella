@@ -116,6 +116,13 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'a-compiled-system-costs-what-it-matches',
+    says: 'a compiled system is paid over the entities it matches, not over the size of the world',
+    answeredBy: 'node bench/aot-native/frame-bench.mjs --gate',
+    needs: ['bench/aot-native/frame-bench.mjs', 'src/esengine/aot/AotHost.hpp',
+            'native/host/bindings/AotBindings.cpp'],
+  },
+  {
     id: 'compiled-systems-compute-what-the-interpreter-computes',
     says: 'a packaged compiled system moves the world exactly as the interpreted one does',
     // Over the same FIXED steps, not the same wall clock: two launches of one

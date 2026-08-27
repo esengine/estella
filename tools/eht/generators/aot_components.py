@@ -14,6 +14,11 @@ Registry.
 Resolved once per query and called per entity, not looked up per entity: a
 strcmp chain inside the row loop would be paid on exactly the path AOT exists
 to make cheap.
+
+The second table answers the other question a query asks — WHO has the
+component — because a host that cannot ask it has to offer every entity as a
+candidate, and then a system's cost is the size of the world rather than the
+size of what it matches.
 """
 
 from typing import List
@@ -79,6 +84,21 @@ class AotComponentsGenerator:
             ' */',
             'ComponentAt engineComponentAt(ecs::Registry& registry, const char* name);',
             '',
+            '/**',
+            ' * WHO has that component, for a caller narrowing a query to its shortest',
+            ' * column.',
+            ' *',
+            ' * The resolver above answers per entity and can only be asked about one',
+            ' * that is already a candidate; this is where candidates come FROM. A host',
+            ' * without it must offer every entity, and then what a compiled system',
+            ' * costs is the size of the world instead of the size of what it matches.',
+            ' *',
+            ' * An empty span means nobody has it — a query that matches nothing. The',
+            ' * empty FUNCTION means this table does not answer for the name, which is',
+            ' * a different answer and the caller must not narrow on it.',
+            ' */',
+            'CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name);',
+            '',
             '/** Whether this table answers for that name, without building a resolver. */',
             'bool isEngineComponent(const char* name);',
             '',
@@ -94,6 +114,7 @@ class AotComponentsGenerator:
             '',
             '#include <cstdint>',
             '#include <cstring>',
+            '#include <span>',
             '',
             '#include "esengine/ecs/Entity.hpp"',
             '#include "esengine/ecs/Registry.hpp"',
@@ -107,6 +128,24 @@ class AotComponentsGenerator:
         lines += [
             '',
             'namespace esengine::aot {',
+            'namespace {',
+            '',
+            '/**',
+            ' * The dense column of a pool, as raw ids.',
+            ' *',
+            ' * `Entity` is a four-byte struct whose only member is that id, and',
+            ' * Types.hpp static_asserts the size for exactly this — a dense array of',
+            ' * them IS an array of ids. Copying it per frame would put the cost back',
+            ' * where narrowing took it from.',
+            ' */',
+            'Candidates denseAsIds(std::span<const Entity> dense) {',
+            '    static_assert(sizeof(Entity) == sizeof(std::uint32_t),',
+            '                  "a dense entity array is only an id array while these agree");',
+            '    return std::span<const std::uint32_t>(',
+            '        reinterpret_cast<const std::uint32_t*>(dense.data()), dense.size());',
+            '}',
+            '',
+            '}  // namespace',
             '',
             'ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {',
         ]
@@ -115,6 +154,19 @@ class AotComponentsGenerator:
             lines.append(f'    if (std::strcmp(name, "{comp.name}") == 0) {{')
             lines.append('        return [&registry](std::uint32_t raw) -> void* {')
             lines.append(f'            return registry.tryGet<{full}>(Entity::fromRaw(raw));')
+            lines.append('        };')
+            lines.append('    }')
+        lines += [
+            '    return {};',
+            '}',
+            '',
+            'CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name) {',
+        ]
+        for comp in components:
+            full = self._full(comp)
+            lines.append(f'    if (std::strcmp(name, "{comp.name}") == 0) {{')
+            lines.append('        return [&registry]() -> Candidates {')
+            lines.append(f'            return denseAsIds(registry.entitiesWith<{full}>());')
             lines.append('        };')
             lines.append('    }')
         lines += [

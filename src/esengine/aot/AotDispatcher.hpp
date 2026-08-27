@@ -44,14 +44,15 @@ public:
      */
     bool install(const char* path, std::uint64_t expected,
                  const ComponentLookup& components, const ResourceLookup& resources,
-                 std::string* why = nullptr) {
+                 std::string* why = nullptr, const CandidateLookup& candidates = {}) {
         reset();
         if (!module_.open(path, expected, why)) return false;
         components_ = components;
         resources_ = resources;
+        candidates_ = candidates;
         for (const EsSystemDecl& decl : module_.systems()) {
             names_.push_back(decl.name != nullptr ? decl.name : "");
-            bound_.push_back(::esengine::aot::bind(decl, components, resources));
+            bound_.push_back(::esengine::aot::bind(decl, components, resources, candidates));
         }
         return true;
     }
@@ -65,6 +66,18 @@ public:
     /** Whether the system at that index resolved. An unbound one runs nothing. */
     bool boundAt(std::size_t i) const { return i < bound_.size() && bound_[i].fn != nullptr; }
 
+    /**
+     * Whether every query of that system names its own candidates, and so
+     * whether `run` may be given an EMPTY fallback.
+     *
+     * Asked per frame, not at install: a script pool exists only once an entity
+     * has that component. False when unbound — ignoring it is slow, never wrong.
+     */
+    bool narrowsAt(std::size_t i) const {
+        if (i >= bound_.size() || bound_[i].fn == nullptr) return false;
+        return ::esengine::aot::narrows(bound_[i].queries);
+    }
+
     /** The index of a declared name, or `npos`. Called at install, not per frame. */
     std::size_t indexOf(const char* name) const {
         for (std::size_t i = 0; i < names_.size(); ++i) {
@@ -74,11 +87,12 @@ public:
     }
 
     /**
-     * Run one system over these candidates, and hand back what it wrote.
+     * Run one system, and hand back what it wrote.
      *
-     * Resources are resolved per call because the contract only promises an
-     * address for the length of one; the components were resolved at install,
-     * which is the whole point of binding.
+     * `candidates` is the FALLBACK, walked only by a query that could not name
+     * its own column — ask {@link narrowsAt} first. Resources are resolved per
+     * call because the contract promises an address for the length of one; the
+     * components were resolved at install.
      */
     std::span<const EsCmd> run(std::size_t i, std::span<const std::uint32_t> candidates,
                                const ResourceLookup& resources) {
@@ -88,11 +102,14 @@ public:
         // component, so the answer is about the frame, not the module.
         if (bound_[i].fn == nullptr) {
             // Qualified: `std::bind` is visible through <functional> and takes anything.
-            bound_[i] = ::esengine::aot::bind(module_.systems()[i], components_, resources_);
+            bound_[i] = ::esengine::aot::bind(module_.systems()[i], components_, resources_, candidates_);
         }
         if (bound_[i].fn == nullptr) return {};
         return runBound(bound_[i], candidates, resources, arena_);
     }
+
+    /** Entities the last {@link run} was paid over. See CallArena. */
+    std::uint32_t candidatesWalked() const { return arena_.candidatesWalked(); }
 
     /** Close the module and forget the bindings — they point into it. */
     void reset() {
@@ -100,6 +117,7 @@ public:
         names_.clear();
         components_ = {};
         resources_ = {};
+        candidates_ = {};
         module_.close();
     }
 
@@ -113,6 +131,9 @@ private:
      *  again — the answer changes as the world comes up. */
     ComponentLookup components_;
     ResourceLookup resources_;
+    /** Optional, and absent on a host that cannot enumerate a column: then every
+     *  query falls back to the candidates the caller passes. */
+    CandidateLookup candidates_;
     CallArena arena_;
 };
 

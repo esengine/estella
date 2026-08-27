@@ -86,6 +86,15 @@ void benchBeforePresent();
  *  a cost that lands somewhere the report cannot see reads as the system's. */
 void benchNoteDraws(unsigned draws, unsigned sprites);
 
+/**
+ * Entities a compiled system was paid over, added to this frame's total.
+ *
+ * A count beside the clocks: a dispatcher back to offering every entity alive
+ * makes a frame dearer in proportion to the WORLD, which on a busy machine reads
+ * as noise. This is exact, so a gate can assert it with no tolerance.
+ */
+void benchNoteAotCandidates(unsigned candidates);
+
 /** Close the frame, and report once the last timed one is in.
  *  @return true when the host was asked to quit and the report is out. */
 bool benchFrameEnd();

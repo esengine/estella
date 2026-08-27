@@ -16,6 +16,61 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A compiled system is paid over what it matches, not over the world.** On the
+  native road every compiled system was handed EVERY LIVE ENTITY as a candidate
+  each frame and resolved every component of each one. The absence of a
+  component is the row filter, so the answer was always right — it was the bill
+  that was wrong, and it grew with the game rather than with the system. Two
+  numbers say it: the same 5,000 movers cost 2.9x more once 45,000 entities no
+  query could match were put around them, and at 20,000 entities a system
+  matching 200 of them spends 96% of its frame on entities it does not touch.
+
+  A query now walks the shortest column it names. `AotHost.hpp` had said the
+  caller "passes the smallest pool it has" since the day it was written; the
+  native caller never did, because it had names and `View`'s narrowing takes
+  types. `Registry::entitiesWith<T>()` opens that door, EHT emits a second table
+  (`engineComponentCandidates`) beside the resolver one, and `ScriptPool` grows
+  a slot-to-entity column so a project component can answer the same question —
+  which is the half that matters, since the component that narrows a gameplay
+  query is usually the project's own.
+
+  Narrowing cannot change which rows a system sees, so the two answers a column
+  can give are kept apart: an empty column means nobody has it and the query
+  matches nothing, while "this host cannot enumerate that one" means widen. A
+  host that answers neither binds and runs exactly as before.
+
+  Measured on the same machine, 20,000 movers in a 200,000-entity world: the
+  system's own cost is unchanged from a world with no scenery at all (0.43 ms
+  against 0.51 ms), where before the columns existed it was 1.29 ms.
+
+- **`aotCandidates` — what a compiled frame was charged for.** The regression
+  above is invisible to everything the engine had: it raises no error, refuses
+  no module and changes no pixel. It is also badly served by a clock, because
+  the extra work is proportional to the world and on a busy machine that reads
+  as a bad minute — measured, the fixed and broken frames above are 1.45 ms and
+  2.31 ms, a 1.6x the noise reaches into. So the host publishes the COUNT
+  instead, and the count moves 20,001 to 200,001.
+
+  `bench/aot-native/frame-bench.mjs --gate` asserts it as a second release
+  criterion, with scenery in the world — a run whose world IS its matched set
+  cannot tell the two apart. Verified in both directions: dropping the candidate
+  lookup takes `walked` from 2,000 to 20,001 and the gate goes red.
+
+- **`BENCH_BUILDS`** — export and run one side of the comparison instead of
+  both. The interpreted build is where the time goes (seconds per frame at
+  100,000 entities), and a question about the compiled side alone should not pay
+  for it.
+
+### Fixed
+
+- **A script component aliased to another entity's row above 2^20 entities.**
+  `installNativeAot` spelled its own entity index mask as 20 bits against the
+  SDK's real 22, so an entity whose index passed 1,048,575 masked down onto a
+  row belonging to a different entity — a wrong component, silently, in a world
+  large enough to reach it. It imports the constant now rather than respelling
+  it.
+
+
 - **The no-JIT frame, measured — the number AOT was built for.** Every frame
   number this engine had published came from a host with a JIT: V8 on the
   desktop, Chromium on a phone. The plan's way to get the other one was a Mac

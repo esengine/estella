@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -92,6 +93,10 @@ struct World {
     std::vector<std::uint32_t> entities;
     std::vector<MoverRow> movers;          // the pool's rows
     std::vector<std::uint32_t> moverSparse;  // entity index -> slot + 1
+    std::vector<std::uint32_t> moverOwners;  // slot -> entity, the pool's dense side
+    /** Entities carrying Transform and no Mover: the world around the matched
+     *  set, which is what a host that offers every entity pays for. */
+    std::vector<std::uint32_t> bystanders;
     TimeRow time{1.0 / 30.0};
 
     aot::RowSpan moverSpan() {
@@ -101,7 +106,17 @@ struct World {
             reinterpret_cast<unsigned char*>(movers.data()),
             static_cast<std::uint32_t>(sizeof(MoverRow)),
             Entity::Layout::INDEX_MASK,
+            moverOwners.data(),
+            static_cast<std::uint32_t>(moverOwners.size()),
         };
+    }
+
+    /** Movers first, then the rest: what a host with nothing to narrow by has
+     *  to hand over, and what narrowing exists to stop it handing over. */
+    std::vector<std::uint32_t> everyEntity() const {
+        std::vector<std::uint32_t> all = entities;
+        all.insert(all.end(), bystanders.begin(), bystanders.end());
+        return all;
     }
 };
 
@@ -124,8 +139,18 @@ World makeWorld() {
         const std::uint32_t at = e.index();
         if (at >= w.moverSparse.size()) w.moverSparse.resize(at + 1u, 0u);
         w.moverSparse[at] = static_cast<std::uint32_t>(w.movers.size());   // slot + 1
+        w.moverOwners.push_back(e.id());
     }
     return w;
+}
+
+/** Entities with a Transform and no Mover, so no query here can match them. */
+void addBystanders(World& w, int count) {
+    for (int i = 0; i < count; ++i) {
+        Entity e = w.registry.create();
+        w.registry.emplace<ecs::Transform>(e);
+        w.bystanders.push_back(e.id());
+    }
 }
 
 /** What move.ts says, written out in C++. The oracle: if the compiled system
@@ -157,6 +182,27 @@ aot::ComponentLookup componentsOf(World& w) {
         // that owns the rows.
         if (std::strcmp(name, "Mover") == 0) return aot::fromRows(w.moverSpan());
         return nullptr;
+    };
+}
+
+/**
+ * Who holds each column - the lookup that lets a query narrow itself.
+ *
+ * `Transform` goes through the GENERATED table, so this exercises the thing a
+ * real host uses rather than a second answer written here; `Mover` stands in for
+ * a script pool's dense side, which is the half a sparse table cannot give.
+ */
+aot::CandidateLookup candidatesOf(World& w) {
+    return [&w](const char* name) -> aot::CandidatesOf {
+        if (std::strcmp(name, "Transform") == 0) {
+            return aot::engineComponentCandidates(w.registry, name);
+        }
+        if (std::strcmp(name, "Mover") == 0) {
+            return [&w]() -> aot::Candidates {
+                return std::span<const std::uint32_t>(w.moverOwners.data(), w.moverOwners.size());
+            };
+        }
+        return {};
     };
 }
 
@@ -556,4 +602,179 @@ TEST_CASE("the records a call wrote are applied after it, and unknown ones are c
     CHECK(unknown == 1u);
     CHECK(w.registry.valid(Entity::fromRaw(victim)) == false);
     CHECK(w.registry.valid(Entity::fromRaw(bystander)));
+}
+
+// ---------------------------------------------------------------------------
+// Narrowing: which entities a query is paid over.
+//
+// The completeness check still FILTERS; narrowing only changes the bill. Each
+// test asks both halves: identical rows, and no wide list needed to get them.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("a narrowed query moves exactly the world the wide one moved") {
+    World wide = makeWorld();
+    World narrow = makeWorld();
+    addBystanders(wide, 200);
+    addBystanders(narrow, 200);
+
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    const aot::BoundSystem plain = aot::bind(*decl, componentsOf(wide), resourcesOf(wide));
+    const aot::BoundSystem narrowed = aot::bind(*decl, componentsOf(narrow), resourcesOf(narrow),
+                                                candidatesOf(narrow));
+    REQUIRE(plain.fn != nullptr);
+    REQUIRE(narrowed.fn != nullptr);
+    // The premise: only one of them can say where its rows come from.
+    CHECK(aot::narrows(plain.queries) == false);
+    CHECK(aot::narrows(narrowed.queries));
+
+    aot::CallArena arena;
+    for (int frame = 0; frame < 8; ++frame) {
+        const std::vector<std::uint32_t> all = wide.everyEntity();
+        aot::runBound(plain, all, resourcesOf(wide), arena);
+        // EMPTY, not the world: if narrowing were not doing the work, this frame
+        // would move nothing and the comparison below would fail loudly.
+        aot::runBound(narrowed, {}, resourcesOf(narrow), arena);
+    }
+
+    for (std::size_t i = 0; i < wide.entities.size(); ++i) {
+        const auto* a = wide.registry.tryGet<ecs::Transform>(Entity::fromRaw(wide.entities[i]));
+        const auto* b = narrow.registry.tryGet<ecs::Transform>(Entity::fromRaw(narrow.entities[i]));
+        REQUIRE(a != nullptr);
+        REQUIRE(b != nullptr);
+        CHECK(a->position.x == b->position.x);
+        CHECK(a->position.y == b->position.y);
+    }
+    // And the entities no query names are untouched by either, which is the
+    // claim narrowing makes about them.
+    for (std::size_t i = 0; i < narrow.bystanders.size(); ++i) {
+        const auto* b = narrow.registry.tryGet<ecs::Transform>(Entity::fromRaw(narrow.bystanders[i]));
+        REQUIRE(b != nullptr);
+        CHECK(b->position.x == 0.0f);
+        CHECK(b->position.y == 0.0f);
+    }
+}
+
+TEST_CASE("the shortest column is the one walked, and both give the same rows") {
+    World w = makeWorld();
+    addBystanders(w, 500);
+
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    const aot::BoundSystem bound = aot::bind(*decl, componentsOf(w), resourcesOf(w), candidatesOf(w));
+    REQUIRE(bound.fn != nullptr);
+    REQUIRE(bound.queries.size() == 1u);
+
+    // Transform is on every entity here; Mover is on 24 of them. The query names
+    // both, so an entity missing either cannot match and the shorter column
+    // bounds the answer.
+    const aot::Candidates chosen = aot::narrowest(bound.queries[0]);
+    REQUIRE(chosen.has_value());
+    CHECK(chosen->size() == w.entities.size());
+    CHECK(chosen->size() < w.everyEntity().size());
+}
+
+TEST_CASE("a column that cannot say does not narrow, and the caller widens") {
+    World w = makeWorld();
+    addBystanders(w, 50);
+
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+    // A lookup that answers for neither: the shape of a host built before the
+    // owner table existed, and of a script pool that has not reported one yet.
+    const aot::BoundSystem silent = aot::bind(*decl, componentsOf(w), resourcesOf(w),
+                                              [](const char*) { return aot::CandidatesOf{}; });
+    REQUIRE(silent.fn != nullptr);
+    CHECK(aot::narrows(silent.queries) == false);
+    CHECK(aot::narrowest(silent.queries[0]).has_value() == false);
+
+    // nullopt must not be read as "nobody": handed the world, it still runs.
+    // Summed, not sampled: the fixture spreads directions over signs AND zero,
+    // so the first entity's dx is 0 and a sample there proves nothing.
+    const auto sum = [&w] {
+        double total = 0.0;
+        for (std::uint32_t e : w.entities) {
+            const auto* t = w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
+            total += static_cast<double>(t->position.x) + static_cast<double>(t->position.y);
+        }
+        return total;
+    };
+    aot::CallArena arena;
+    const double before = sum();
+    const std::vector<std::uint32_t> all = w.everyEntity();
+    aot::runBound(silent, all, resourcesOf(w), arena);
+    CHECK(before != sum());
+}
+
+TEST_CASE("an empty column is a query that matches nothing, not a query that widens") {
+    World w = makeWorld();
+    const EsSystemDecl* decl = declOf("MoveSystem");
+    REQUIRE(decl != nullptr);
+
+    // The difference this whole distinction exists for. `Mover` says it holds
+    // nobody; if that were read as "cannot say", the system would fall back to
+    // the world and move entities whose component is gone.
+    const aot::BoundSystem bound = aot::bind(
+        *decl, componentsOf(w), resourcesOf(w),
+        [&w](const char* name) -> aot::CandidatesOf {
+            if (std::strcmp(name, "Transform") == 0) {
+                return aot::engineComponentCandidates(w.registry, name);
+            }
+            return []() -> aot::Candidates { return std::span<const std::uint32_t>{}; };
+        });
+    REQUIRE(bound.fn != nullptr);
+    const aot::Candidates chosen = aot::narrowest(bound.queries[0]);
+    REQUIRE(chosen.has_value());
+    CHECK(chosen->empty());
+}
+
+TEST_CASE("a freed slot in a column is a hole, and the hole resolves to no row") {
+    World w = makeWorld();
+    // What a pool that reuses slots rather than compacting leaves behind. The
+    // row stays where it is; only the owner is forgotten.
+    w.moverOwners[3] = aot::NO_OWNER;
+    w.moverOwners[7] = aot::NO_OWNER;
+
+    aot::RowSpan span = w.moverSpan();
+    const aot::CandidatesOf of = aot::fromMovingOwners(&span);
+    const aot::Candidates got = of();
+    REQUIRE(got.has_value());
+    // The count is the high-water mark, holes included - narrowing is about the
+    // order of magnitude, and skipping them here would cost a pass to save none.
+    CHECK(got->size() == w.entities.size());
+    CHECK((*got)[3] == aot::NO_OWNER);
+    // And a hole reaches no component, so the completeness check drops the row:
+    // NO_OWNER is Entity::INVALID_RAW, which the world never hands out.
+    CHECK(w.registry.tryGet<ecs::Transform>(Entity::fromRaw(aot::NO_OWNER)) == nullptr);
+    CHECK(aot::rowAt(span, aot::NO_OWNER) == nullptr);
+}
+
+TEST_CASE("a column with no owner table cannot say, which is not the same as empty") {
+    World w = makeWorld();
+    aot::RowSpan span = w.moverSpan();
+    span.owners = nullptr;
+    span.ownerCount = 0;
+    CHECK(aot::fromMovingOwners(&span)().has_value() == false);
+    // And a null slot is the same answer, for the pool that does not exist yet.
+    CHECK(aot::fromMovingOwners(nullptr)().has_value() == false);
+}
+
+TEST_CASE("the generated table answers who has a component, and says so by name") {
+    World w = makeWorld();
+    addBystanders(w, 10);
+
+    const aot::CandidatesOf of = aot::engineComponentCandidates(w.registry, "Transform");
+    REQUIRE(static_cast<bool>(of));
+    const aot::Candidates got = of();
+    REQUIRE(got.has_value());
+    CHECK(got->size() == w.entities.size() + w.bystanders.size());
+
+    // A name this table does not answer for leaves an EMPTY function - the
+    // caller must not read that as an empty column, or it narrows to nothing.
+    CHECK(static_cast<bool>(aot::engineComponentCandidates(w.registry, "Mover")) == false);
+
+    // Live, not a snapshot: the column is asked again per call because a pool
+    // grows between them.
+    addBystanders(w, 5);
+    CHECK(of()->size() == w.entities.size() + w.bystanders.size());
 }

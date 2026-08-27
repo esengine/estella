@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <span>
 
 #include "esengine/ecs/Entity.hpp"
 #include "esengine/ecs/Registry.hpp"
@@ -38,6 +39,24 @@
 #include "esengine/ecs/components/Velocity.hpp"
 
 namespace esengine::aot {
+namespace {
+
+/**
+ * The dense column of a pool, as raw ids.
+ *
+ * `Entity` is a four-byte struct whose only member is that id, and
+ * Types.hpp static_asserts the size for exactly this — a dense array of
+ * them IS an array of ids. Copying it per frame would put the cost back
+ * where narrowing took it from.
+ */
+Candidates denseAsIds(std::span<const Entity> dense) {
+    static_assert(sizeof(Entity) == sizeof(std::uint32_t),
+                  "a dense entity array is only an id array while these agree");
+    return std::span<const std::uint32_t>(
+        reinterpret_cast<const std::uint32_t*>(dense.data()), dense.size());
+}
+
+}  // namespace
 
 ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "BitmapText") == 0) {
@@ -233,6 +252,205 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "Velocity") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::Velocity>(Entity::fromRaw(raw));
+        };
+    }
+    return {};
+}
+
+CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name) {
+    if (std::strcmp(name, "BitmapText") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::BitmapText>());
+        };
+    }
+    if (std::strcmp(name, "BoxCollider2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::BoxCollider2D>());
+        };
+    }
+    if (std::strcmp(name, "BoxCollider3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::BoxCollider3D>());
+        };
+    }
+    if (std::strcmp(name, "Camera") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Camera>());
+        };
+    }
+    if (std::strcmp(name, "Canvas") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Canvas>());
+        };
+    }
+    if (std::strcmp(name, "CapsuleCollider2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::CapsuleCollider2D>());
+        };
+    }
+    if (std::strcmp(name, "CapsuleCollider3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::CapsuleCollider3D>());
+        };
+    }
+    if (std::strcmp(name, "CharacterController3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::CharacterController3D>());
+        };
+    }
+    if (std::strcmp(name, "Children") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Children>());
+        };
+    }
+    if (std::strcmp(name, "CircleCollider2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::CircleCollider2D>());
+        };
+    }
+    if (std::strcmp(name, "ConvexCollider3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ConvexCollider3D>());
+        };
+    }
+    if (std::strcmp(name, "Draggable") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Draggable>());
+        };
+    }
+    if (std::strcmp(name, "DragonBonesAnimation") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::DragonBonesAnimation>());
+        };
+    }
+    if (std::strcmp(name, "FlexContainer") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::FlexContainer>());
+        };
+    }
+    if (std::strcmp(name, "Interactable") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Interactable>());
+        };
+    }
+    if (std::strcmp(name, "Light") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Light>());
+        };
+    }
+    if (std::strcmp(name, "MeshCollider3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::MeshCollider3D>());
+        };
+    }
+    if (std::strcmp(name, "MeshRenderer") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::MeshRenderer>());
+        };
+    }
+    if (std::strcmp(name, "MeshSkin") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::MeshSkin>());
+        };
+    }
+    if (std::strcmp(name, "Parent") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Parent>());
+        };
+    }
+    if (std::strcmp(name, "ParticleEmitter") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ParticleEmitter>());
+        };
+    }
+    if (std::strcmp(name, "ParticleForceField") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ParticleForceField>());
+        };
+    }
+    if (std::strcmp(name, "RigidBody2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::RigidBody2D>());
+        };
+    }
+    if (std::strcmp(name, "RigidBody3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::RigidBody3D>());
+        };
+    }
+    if (std::strcmp(name, "SegmentCollider2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::SegmentCollider2D>());
+        };
+    }
+    if (std::strcmp(name, "ShadowCaster2D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ShadowCaster2D>());
+        };
+    }
+    if (std::strcmp(name, "ShapeRenderer") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ShapeRenderer>());
+        };
+    }
+    if (std::strcmp(name, "SphereCollider3D") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::SphereCollider3D>());
+        };
+    }
+    if (std::strcmp(name, "SpineAnimation") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::SpineAnimation>());
+        };
+    }
+    if (std::strcmp(name, "Sprite") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Sprite>());
+        };
+    }
+    if (std::strcmp(name, "TilemapLayer") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::TilemapLayer>());
+        };
+    }
+    if (std::strcmp(name, "TrailRenderer") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::TrailRenderer>());
+        };
+    }
+    if (std::strcmp(name, "Transform") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Transform>());
+        };
+    }
+    if (std::strcmp(name, "UIInteraction") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::UIInteraction>());
+        };
+    }
+    if (std::strcmp(name, "UIMask") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::UIMask>());
+        };
+    }
+    if (std::strcmp(name, "UINode") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::UINode>());
+        };
+    }
+    if (std::strcmp(name, "UIScroll") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::UIScroll>());
+        };
+    }
+    if (std::strcmp(name, "UIVisual") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::UIVisual>());
+        };
+    }
+    if (std::strcmp(name, "Velocity") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Velocity>());
         };
     }
     return {};

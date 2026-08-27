@@ -11,7 +11,10 @@
  *          component still reads and writes as an object.
  */
 import { describe, it, expect } from 'vitest';
-import { ScriptPool, poolShape, POOL_SLOT_BYTES, POOL_ABSENT, HEAP_MEMORY, type PoolMemory } from '../src/ecs/ScriptPool';
+import {
+    ScriptPool, poolShape, POOL_SLOT_BYTES, POOL_ABSENT, POOL_NO_OWNER, HEAP_MEMORY,
+    type PoolMemory,
+} from '../src/ecs/ScriptPool';
 import { entityIndex, makeEntity } from '../src/types';
 import type { Entity } from '../src/types';
 
@@ -135,27 +138,27 @@ describe('a row, and the view onto it', () => {
  * the module has no way to reach it. So the rows come out of one block the host
  * owns, and an address is an offset into THAT.
  */
-describe('rows carved out of a host-owned block', () => {
-    /** Stands in for the wasm heap: one buffer, a bump pointer, nothing freed. */
-    function heapOf(bytes: number): { memory: PoolMemory; all: Float64Array; used: () => number } {
-        const block = new ArrayBuffer(bytes);
-        const all = new Float64Array(block);
-        let at = 64;   // a nonzero start, so an address that forgot byteOffset is wrong
-        return {
-            all,
-            used: () => at,
-            memory: {
-                alloc(want) {
-                    const byteLength = (want + 7) & ~7;
-                    const out = { buffer: block, byteOffset: at, byteLength };
-                    at += byteLength;
-                    return out;
-                },
-                release: () => { /* a bump allocator frees nothing */ },
+/** Stands in for the wasm heap: one buffer, a bump pointer, nothing freed. */
+function heapOf(bytes: number): { memory: PoolMemory; all: Float64Array; used: () => number } {
+    const block = new ArrayBuffer(bytes);
+    const all = new Float64Array(block);
+    let at = 64;   // a nonzero start, so an address that forgot byteOffset is wrong
+    return {
+        all,
+        used: () => at,
+        memory: {
+            alloc(want) {
+                const byteLength = (want + 7) & ~7;
+                const out = { buffer: block, byteOffset: at, byteLength };
+                at += byteLength;
+                return out;
             },
-        };
-    }
+            release: () => { /* a bump allocator frees nothing */ },
+        },
+    };
+}
 
+describe('rows carved out of a host-owned block', () => {
     it('an address is an offset into the block, not into the pool', () => {
         const heap = heapOf(1 << 16);
         const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, heap.memory);
@@ -254,5 +257,82 @@ describe('a pool handed over as memory', () => {
         expect(pool.size).toBe(1);
         expect(pool.sparseTable.length).toBeGreaterThan(100000);
         expect(pool.sparseTable[entityIndex(e(100000))]).toBe(1);
+    });
+});
+
+/**
+ * The other direction. The sparse table says which slot an entity is in; a host
+ * running a compiled system needs who is in the column at all, and without it
+ * has to offer every entity alive — making a system cost the size of the world.
+ * Indexed by SLOT, so it is that table read backwards.
+ */
+describe('a pool that can say who is in it', () => {
+    /** The owner column as the host reads it: from the shared block, at the
+     *  offset and length `span()` reports. */
+    function owners(pool: ScriptPool, all: Float64Array): Uint32Array {
+        const { owners: at, ownerCount } = pool.span();
+        return new Uint32Array(all.buffer, at, ownerCount);
+    }
+
+    it('names the entity in each slot, and only as far as slots were claimed', () => {
+        const heap = heapOf(1 << 16);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, heap.memory);
+        pool.put(e(5), DEFAULTS);
+        pool.put(e(9), DEFAULTS);
+
+        // Two claimed of a capacity of eight: the count is the high-water mark,
+        // not the capacity, so a host walks two entries rather than eight.
+        expect(pool.span().ownerCount).toBe(2);
+        const table = owners(pool, heap.all);
+        expect(table[0]).toBe(e(5));
+        expect(table[1]).toBe(e(9));
+    });
+
+    it('a freed slot becomes a hole rather than shifting the ones above it', () => {
+        const heap = heapOf(1 << 16);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 8, heap.memory);
+        for (let i = 1; i <= 3; i++) pool.put(e(i), DEFAULTS);
+        pool.delete(e(2));
+
+        // Slots are reused, not compacted — a view holds a slot index and one
+        // that moved under it is a bug three frames later. So the column keeps
+        // its length and the freed entry says nobody.
+        const table = owners(pool, heap.all);
+        expect(pool.span().ownerCount).toBe(3);
+        expect(table[0]).toBe(e(1));
+        expect(table[1]).toBe(POOL_NO_OWNER);
+        expect(table[2]).toBe(e(3));
+
+        // And the next put fills the hole, because the free list is LIFO.
+        pool.put(e(4), DEFAULTS);
+        expect(owners(pool, heap.all)[1]).toBe(e(4));
+        expect(pool.span().ownerCount).toBe(3);
+    });
+
+    it('survives a growth with every owner intact and the new slots empty', () => {
+        const heap = heapOf(1 << 20);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 2, heap.memory);
+        for (let i = 1; i <= 5; i++) pool.put(e(i), DEFAULTS);
+
+        // The column is indexed by slot, so it grows with the rows — read from
+        // the block at the NEW offset, since a growth moves it.
+        const table = owners(pool, heap.all);
+        expect(pool.span().ownerCount).toBe(5);
+        for (let i = 1; i <= 5; i++) expect(table[i - 1], `slot ${i - 1}`).toBe(e(i));
+    });
+
+    it('the offset it reports is into the same block the rows are in', () => {
+        const heap = heapOf(1 << 16);
+        const pool = new ScriptPool(poolShape(DEFAULTS)!, 4, heap.memory);
+        pool.put(e(3), DEFAULTS, { speed: 12 });
+
+        // What makes the column usable at all: one address space, so the host
+        // resolves an owner and then its row with no call back.
+        const { owners: at, ownerCount, rows, stride } = pool.span();
+        const table = new Uint32Array(heap.all.buffer, at, ownerCount);
+        const entity = table[0]!;
+        expect(entity).toBe(e(3));
+        const slot = pool.sparseTable[entityIndex(entity)]! - 1;
+        expect(heap.all[(rows + slot * stride) / POOL_SLOT_BYTES]).toBe(12);
     });
 });

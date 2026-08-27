@@ -9317,7 +9317,7 @@ tabIndex: number | undefined
 @internal resolveHas: (component: AnyComponentDef) => ((entity: Entity) => boolean) | null
 @internal resolveSetter: (component: AnyComponentDef) => ((entity: Entity, data: unknown) => void) | null
 @internal resumeIteration: (depth: number) => void
-@internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; } | undefined
+@internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal suspendIteration: () => number
 @internal useScriptPoolMemory: (memory: PoolMemory) => void

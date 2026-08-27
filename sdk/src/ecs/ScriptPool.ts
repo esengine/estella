@@ -68,6 +68,14 @@ export const HEAP_MEMORY: PoolMemory = {
 export const POOL_ABSENT = 0;
 
 /**
+ * A slot no entity holds, in the owner table. `Entity::INVALID_RAW` on the C++
+ * side, which is the one raw handle the world never hands out — so a host
+ * walking the column reads a hole as an entity nothing resolves for, and its
+ * existing completeness check drops the row.
+ */
+export const POOL_NO_OWNER = 0xffffffff;
+
+/**
  * The fields a pool can back, or null when the defaults are not all scalars.
  * Anything else — a string, an asset ref, a nested object, an array — has no
  * fixed-width encoding, and a component holding one keeps the JS object path.
@@ -101,6 +109,11 @@ export class ScriptPool {
      *  in the same shape, and the reason a host needs no call to resolve a row. */
     private sparse_: Uint32Array;
     private sparseLen_: number;
+    private ownersBlock_: PoolBlock;
+    /** Slot -> the entity holding it, so a host can ask WHO is in this column.
+     *  The sparse table answers the other direction and cannot answer this one,
+     *  and without it a compiled system has to be offered every entity alive. */
+    private owners_: Uint32Array;
     private capacity_: number;
     private readonly slotOf_ = new Map<Entity, number>();
     private readonly views_ = new Map<Entity, Record<string, unknown>>();
@@ -121,9 +134,12 @@ export class ScriptPool {
         this.rows_ = memory_.alloc(this.capacity_ * this.stride);
         this.sparseBlock_ = memory_.alloc(this.capacity_ * 4);
         this.sparseLen_ = this.capacity_;
+        this.ownersBlock_ = memory_.alloc(this.capacity_ * 4);
         this.slots_ = EMPTY_F64;
         this.sparse_ = EMPTY_U32;
+        this.owners_ = EMPTY_U32;
         this.rebuild_();
+        this.owners_.fill(POOL_NO_OWNER);
     }
 
     /**
@@ -133,12 +149,20 @@ export class ScriptPool {
      *
      * Valid until the next growth, which is per call anyway.
      */
-    span(): { rows: number; stride: number; sparse: number; sparseCount: number } {
+    span(): {
+        rows: number; stride: number; sparse: number; sparseCount: number;
+        owners: number; ownerCount: number;
+    } {
         return {
             rows: this.rows_.byteOffset,
             stride: this.stride,
             sparse: this.sparseBlock_.byteOffset,
             sparseCount: this.sparse_.length,
+            owners: this.ownersBlock_.byteOffset,
+            // The high-water mark, not the size: slots are reused rather than
+            // compacted, so the used prefix has holes and stopping at `size`
+            // would stop short of live rows sitting above a freed one.
+            ownerCount: this.next_,
         };
     }
 
@@ -165,6 +189,8 @@ export class ScriptPool {
             this.capacity_ * this.fields.length);
         this.sparse_ = new Uint32Array(this.bufferOf_(this.sparseBlock_),
             this.sparseBlock_.byteOffset, this.sparseLen_);
+        this.owners_ = new Uint32Array(this.bufferOf_(this.ownersBlock_),
+            this.ownersBlock_.byteOffset, this.capacity_);
     }
 
     private bufferOf_(block: PoolBlock): ArrayBufferLike {
@@ -220,6 +246,8 @@ export class ScriptPool {
             slot = this.claim_(entity);
             this.slotOf_.set(entity, slot);
             this.mark_(entity, slot + 1);
+            // After `claim_`, which may have grown the pool and rebuilt this view.
+            this.owners_[slot] = entity;
             this.views_.set(entity, this.makeView_(slot));
             // A fresh row is seeded whole; an existing one keeps the fields the
             // caller did not name, which is what `world.set` has always done.
@@ -235,6 +263,7 @@ export class ScriptPool {
         this.slotOf_.delete(entity);
         this.views_.delete(entity);
         this.mark_(entity, POOL_ABSENT);
+        this.owners_[slot] = POOL_NO_OWNER;
         this.free_.push(slot);
         return true;
     }
@@ -262,17 +291,28 @@ export class ScriptPool {
     private growRows_(): void {
         const want = this.capacity_ * 2;
         const block = this.memory_.alloc(want * this.stride);
+        // The owner table is indexed by SLOT, so it grows with the rows and on
+        // the same schedule — allocated here so one growth is one pair of
+        // allocations, and the views below are built once over both.
+        const ownerBlock = this.memory_.alloc(want * 4);
         // Before reading the old rows, not after: allocating may have grown the
         // heap, and a grown heap detaches the view this is about to copy FROM.
         this.rebuild_();
         const wider = new Float64Array(this.bufferOf_(block), block.byteOffset,
             want * this.fields.length);
         wider.set(this.slots_);
+        const widerOwners = new Uint32Array(this.bufferOf_(ownerBlock), ownerBlock.byteOffset, want);
+        widerOwners.fill(POOL_NO_OWNER);
+        widerOwners.set(this.owners_);
         const old = this.rows_;
+        const oldOwners = this.ownersBlock_;
         this.capacity_ = want;
         this.rows_ = block;
         this.slots_ = wider;
+        this.ownersBlock_ = ownerBlock;
+        this.owners_ = widerOwners;
         this.memory_.release(old);
+        this.memory_.release(oldOwners);
         // Views hold a slot index, not a reference into the old array, so they
         // survive this. An ADDRESS taken before it does not, which is why
         // `address` says so.

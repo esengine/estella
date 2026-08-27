@@ -33,6 +33,7 @@
 #include <any>
 #include <functional>
 #include <queue>
+#include <span>
 #include <string>
 
 namespace esengine::ecs {
@@ -609,6 +610,22 @@ public:
             perm[j] = j;
         }
         pool->rebuildSparse();
+    }
+
+    /**
+     * @brief The entities that carry T, densely
+     * @return The pool's dense entity array, or an empty span where no pool exists
+     *
+     * @details What {@link View} narrows to internally, opened for a caller that
+     *          assembles its query at run time from NAMES, as the AOT host does.
+     *          Empty means nobody has it — never "ask everybody".
+     */
+    template<typename T>
+    std::span<const Entity> entitiesWith() const {
+        const auto* pool = getPool<T>();
+        if (pool == nullptr) return {};
+        const std::vector<Entity>& dense = pool->entities();
+        return std::span<const Entity>(dense.data(), dense.size());
     }
 
 private:

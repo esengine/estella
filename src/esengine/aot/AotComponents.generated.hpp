@@ -27,6 +27,21 @@ namespace esengine::aot {
  */
 ComponentAt engineComponentAt(ecs::Registry& registry, const char* name);
 
+/**
+ * WHO has that component, for a caller narrowing a query to its shortest
+ * column.
+ *
+ * The resolver above answers per entity and can only be asked about one
+ * that is already a candidate; this is where candidates come FROM. A host
+ * without it must offer every entity, and then what a compiled system
+ * costs is the size of the world instead of the size of what it matches.
+ *
+ * An empty span means nobody has it — a query that matches nothing. The
+ * empty FUNCTION means this table does not answer for the name, which is
+ * a different answer and the caller must not narrow on it.
+ */
+CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name);
+
 /** Whether this table answers for that name, without building a resolver. */
 bool isEngineComponent(const char* name);
 

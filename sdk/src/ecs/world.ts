@@ -1203,8 +1203,10 @@ export class World {
      * walks it in its own address space. Undefined for an engine component,
      * whose column belongs to the registry and is reached by its own door.
      */
-    scriptSpanOf(component: AnyComponentDef):
-        { rows: number; stride: number; sparse: number; sparseCount: number } | undefined {
+    scriptSpanOf(component: AnyComponentDef): {
+        rows: number; stride: number; sparse: number; sparseCount: number;
+        owners: number; ownerCount: number;
+    } | undefined {
         if (isBuiltinComponent(component)) return undefined;
         return this.scripts_.poolFor(component._id as symbol)?.span();
     }

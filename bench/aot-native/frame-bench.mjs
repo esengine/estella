@@ -23,8 +23,14 @@
  * `bench/aot-frame/project/src/systems.ts` — one source for both benchmarks, so a
  * ratio measured here and one measured there are about the same code.
  *
+ * and reads the host's own frame clock (native/host/Bench.hpp) off both. It also
+ * reads a COUNT off the host — how many entities each compiled system was paid
+ * over — because the second thing that can go wrong here is not a slower frame
+ * but a frame charged for the whole world (see `--gate`).
+ *
  *   node bench/aot-native/frame-bench.mjs
  *   BENCH_ENTITIES=20000 BENCH_BODIES=thin,heavy node bench/aot-native/frame-bench.mjs
+ *   BENCH_BUILDS=compiled BENCH_BYSTANDERS=95000 node bench/aot-native/frame-bench.mjs
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -38,10 +44,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const SYSTEMS = path.join(ROOT, 'bench', 'aot-frame', 'project', 'src', 'systems.ts');
 
 /**
- * `--gate` turns the benchmark into a release criterion, because this road's
- * failure is silent: a system that stops being dispatched to falls back to the
- * interpreter by design, raising no error and changing no pixel. A same-machine
- * ratio sees that where a millisecond ceiling cannot. See the README.
+ * `--gate` makes this two release criteria, for two silent failures. A system
+ * that stops being dispatched to falls back to the interpreter BY DESIGN — no
+ * error, no pixel, only time — caught by the ratio. One that IS dispatched to
+ * can still be paid over the whole world, caught by the count and its scenery.
  */
 const GATE = process.argv.includes('--gate');
 const ENTITIES = Number(process.env.BENCH_ENTITIES ?? (GATE ? 2000 : 5000));
@@ -49,6 +55,14 @@ const FRAMES = Number(process.env.BENCH_FRAMES ?? (GATE ? 60 : 300));
 const WARMUP = Number(process.env.BENCH_WARMUP ?? (GATE ? 60 : 120));
 const REPS = Number(process.env.BENCH_REPS ?? (GATE ? 1 : 3));
 const BODIES = (process.env.BENCH_BODIES ?? 'thin').split(',').map((s) => s.trim()).filter(Boolean);
+/**
+ * Which of the two builds to export and run. Both by default, because the ratio
+ * is the point — but the interpreted one is where the time goes (seconds per
+ * frame at 100,000 entities), so a question about the compiled side alone should
+ * not pay for it. The report drops the ratio lines when a build is missing.
+ */
+const BUILDS = (process.env.BENCH_BUILDS ?? 'interpreted,compiled')
+    .split(',').map((s) => s.trim()).filter(Boolean);
 /** Measured at 29x (5000 entities) and ~23x (2000). The bar is what a fallback
  *  cannot pass, not what today happens to reach. */
 const MIN_RATIO = Number(process.env.BENCH_MIN_RATIO ?? 5);
@@ -63,11 +77,12 @@ const KEEP = process.env.BENCH_KEEP === '1';
  */
 const SPRITES = process.env.BENCH_SPRITES !== '0';
 /**
- * Entities carrying only a `Transform`, so no body's query can ever match them.
- * They separate the size of the WORLD from the size of the matched set, which is
- * the only way to see a dispatcher that scans one to find the other.
+ * Entities carrying NO component: the size of the WORLD, separated from the size
+ * of the matched set. Bare is load-bearing — a bystander the engine transforms
+ * moves the idle floor too, leaving the answer as the difference of two large
+ * numbers whose run-to-run spread is bigger than it.
  */
-const BYSTANDERS = Number(process.env.BENCH_BYSTANDERS ?? 0);
+const BYSTANDERS = Number(process.env.BENCH_BYSTANDERS ?? (GATE ? 18000 : 0));
 
 /** Which component each body moves, and how to read a position off it. */
 const BODY = {
@@ -156,10 +171,11 @@ const setupSystem = defineSystem([Commands()], (cmds) => {
             .insert(Pos, { x: 0, y: 0, z: 0 })${SPRITES
         ? "\n            .insert(Sprite, { size: { x: 4, y: 4 }, color: { r: 1, g: 1, b: 1, a: 1 } })" : ''};
     }
-    // No Mover, so no body's query can match them: they grow the world without
-    // growing the matched set.
+    // NOTHING on them: they grow the world without growing the matched set, and
+    // cost the engine's frame nothing. The dispatcher still decides about each —
+    // the host's forEachEntity yields every live entity, component or not.
     for (let i = 0; i < BYSTANDERS; i++) {
-        cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } });
+        cmds.spawn();
     }
 }, { name: 'BenchSetup' });
 
@@ -275,12 +291,11 @@ try {
         const project = path.join(out, `${body}-project`);
         materialize(project, body);
         const built = {};
-        for (const compiled of [false, true]) {
-            const key = compiled ? 'compiled' : 'interpreted';
+        for (const key of BUILDS) {
             process.stdout.write(`  exporting ${body} ${key}...\n`);
-            built[key] = exportApp(project, path.join(out, `${body}-${key}`), compiled);
+            built[key] = exportApp(project, path.join(out, `${body}-${key}`), key === 'compiled');
         }
-        for (const key of ['interpreted', 'compiled']) {
+        for (const key of BUILDS) {
             // Every rep in its own process, and the FASTEST kept: noise on a desktop
             // only ever adds time, so the minimum is the closest thing to the cost.
             let best = null;
@@ -304,22 +319,69 @@ console.log(`\nno-JIT frame — QuickJS-ng in the native host, ${ENTITIES} entit
 // `tick` is the microtask drain, not the `update` call: that one only schedules an
 // async tick. `draws` is a column because a body can move the render's cost —
 // `heavy` writes `position.z`, which breaks sprite batching into one draw each.
-console.log('body      build           tick p50    cpu p50   frame p50   draws   compiled?');
+// `walked` is the entities a compiled system was PAID OVER in one frame, summed
+// across its queries. A count and not a clock on purpose — see the ceiling below.
+console.log('body      build           tick p50    cpu p50   frame p50   draws    walked   compiled?');
 for (const r of rows) {
     console.log(`${r.body.padEnd(9)} ${r.key.padEnd(13)} ${`${r.pump.p50.toFixed(3)} ms`.padStart(10)}`
         + ` ${`${r.cpu.p50.toFixed(3)} ms`.padStart(10)} ${`${r.frame.p50.toFixed(3)} ms`.padStart(11)}`
-        + ` ${String(r.draws ?? '?').padStart(7)}   ${r.running ?? '—'}`);
+        + ` ${String(r.draws ?? '?').padStart(7)} ${String(r.aotCandidates ?? '?').padStart(9)}`
+        + `   ${r.running ?? '—'}`);
 }
 
 let bad = 0;
 console.log('');
+
+// ------------------------------------------------------------------ the ceiling
+//
+// A compiled system is paid over what it MATCHES, not over the world: the host
+// walks the shortest column each query names, or is handed every entity alive.
+const WORLD = ENTITIES + BYSTANDERS;
+{
+    /**
+     * How far past the matched set a system may be paid before this is a bug.
+     *
+     * Slack, not equality: a query names several columns and the shortest is not
+     * always the matched set. Wide enough to be a bug and not a tuning knob —
+     * 20,000 movers in a 200,000-entity world walked 20,000, or 200,001 unfixed.
+     */
+    const slack = Number(process.env.BENCH_MAX_WALKED_SLACK ?? 1.5);
+    const ceiling = Math.ceil(ENTITIES * slack);
+    for (const r of rows) {
+        if (r.key !== 'compiled' || r.body === 'idle') continue;
+        if (typeof r.aotCandidates !== 'number') continue;
+        const line = `${r.body}: walked ${r.aotCandidates} of a ${WORLD}-entity world`
+            + ` for the ${ENTITIES} it matches`;
+        if (r.aotCandidates > ceiling) {
+            console.error(`✗ ${line} — over the ${ceiling} ceiling; a query is not narrowing`);
+            bad++;
+        } else if (BYSTANDERS > 0) {
+            console.log(`${line} — ${(WORLD / Math.max(r.aotCandidates, 1)).toFixed(1)}x fewer`
+                + ' entities than the world has');
+        }
+    }
+}
 // An idle run of the same scene, if one was asked for: the frame minus the system,
 // so the body's OWN cost can be read off a frame that also renders 5000 sprites.
 const idleOf = (key) => rows.find((r) => r.body === 'idle' && r.key === key)?.cpu.p50 ?? null;
 for (const body of [...new Set(rows.map((r) => r.body))]) {
     const i = rows.find((r) => r.body === body && r.key === 'interpreted');
     const c = rows.find((r) => r.body === body && r.key === 'compiled');
-    if (!i || !c) continue;
+    // One build alone still has to answer for itself: it must have run compiled
+    // if it was the compiled one, and must NOT have if it was the other.
+    if (!i || !c) {
+        const only = i ?? c;
+        // `idle` schedules no system at all, so it has nothing to dispatch to.
+        if (only && body !== 'idle' && only.key === 'compiled' && only.running === null) {
+            console.error(`✗ ${body}: the compiled build never dispatched to a compiled system`);
+            bad++;
+        }
+        if (only && only.key === 'interpreted' && only.running !== null) {
+            console.error(`✗ ${body}: the --no-aot build dispatched to ${only.running}`);
+            bad++;
+        }
+        continue;
+    }
     // Two worlds that computed different things have no ratio between them.
     if (i.checksum === null || c.checksum === null) {
         console.error(`✗ ${body}: a run printed no checksum`);

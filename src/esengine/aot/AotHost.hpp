@@ -17,12 +17,18 @@
  *          The arena is reused across calls and rebuilt in each one, because
  *          a row array has a one-call lifetime. Nothing here allocates per row
  *          after the first frame at a given size.
+ *
+ *          A row table is a function of two things: which entities match, and
+ *          where their components are. This answers the first — see
+ *          {@link narrowest}. The second is open: unlike the web road
+ *          (sdk/src/ecs/aot/AotDispatch.ts) this repacks every frame.
  */
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -41,10 +47,58 @@ using SystemFn = void (*)(es_addr_t);
  */
 using ComponentAt = std::function<void*(std::uint32_t)>;
 
+/**
+ * Which entities a component's storage says it holds, as raw ids.
+ *
+ * Empty means nobody has it and the query matches nothing; `nullopt` means this
+ * host cannot enumerate that column and the caller must WIDEN, not narrow.
+ * Reading the second as the first drops every row.
+ */
+using Candidates = std::optional<std::span<const std::uint32_t>>;
+
+/** A column's members, asked per call because a pool grows between them. */
+using CandidatesOf = std::function<Candidates()>;
+
 /** One declared `Query`: its components, in the order the query names them. */
 struct QuerySpec {
     std::vector<ComponentAt> comps;
+    /**
+     * Where each of those components says its members are, in the same order.
+     * Empty, or an entry that answers nullopt, simply does not narrow — a
+     * resolver is required to run a query and this is not.
+     */
+    std::vector<CandidatesOf> sources;
 };
+
+/**
+ * The shortest column this query names, or nullopt when none of them could say.
+ *
+ * An entity missing any one component cannot match, so any column bounds the
+ * answer and the shortest bounds it best — {@link ecs::View}'s strategy, reached
+ * through names. `run` still filters; this only decides what it is paid over.
+ */
+inline Candidates narrowest(const QuerySpec& spec) {
+    Candidates best;
+    for (const CandidatesOf& source : spec.sources) {
+        if (!source) continue;
+        const Candidates got = source();
+        if (!got) continue;
+        if (!best || got->size() < best->size()) best = got;
+    }
+    return best;
+}
+
+/**
+ * Whether every one of these queries can narrow itself — that is, whether the
+ * caller can skip enumerating the world. Asked before it does. No queries at all
+ * answers true: nothing would walk the list.
+ */
+inline bool narrows(std::span<const QuerySpec> queries) {
+    for (const QuerySpec& q : queries) {
+        if (!narrowest(q)) return false;
+    }
+    return true;
+}
 
 /**
  * The scratch a call needs. Held by the caller so the vectors keep their
@@ -57,6 +111,15 @@ public:
     /** How many command records the system may write before it must stop. */
     std::uint32_t commandCapacity() const { return static_cast<std::uint32_t>(cmds_.size()); }
 
+    /**
+     * Entities the last `run` was PAID OVER, summed across its queries.
+     *
+     * This is what a compiled system costs, not the body — measured at 20
+     * ns/entity for three multiply-adds and 21 for four substeps with a square
+     * root each. A count, because a clock reads a tenfold scan as a busy machine.
+     */
+    std::uint32_t candidatesWalked() const { return walked_; }
+
 private:
     friend std::span<const EsCmd> run(SystemFn, std::span<const std::uint32_t>,
                                       std::span<const QuerySpec>, std::span<void* const>, CallArena&);
@@ -65,21 +128,25 @@ private:
     std::vector<es_addr_t> resources_;
     std::vector<EsCmd> cmds_;
     std::uint32_t count_ = 0;
+    std::uint32_t walked_ = 0;
     EsSysCtx ctx_{};
 };
 
 /**
  * Materialise, call, and return the commands the system produced. A row is kept
- * only when every component resolves for it — `View.hpp`'s strategy exposed, so
- * the caller passes the smallest pool it has. Applying the commands is the
- * CALLER's job: a despawn here invalidates the rows just handed over.
+ * only when every component resolves — an absent one is the filter.
+ *
+ * `fallback` is walked only by a query that cannot narrow itself; ask
+ * {@link narrows} first, since building it is O(world). Applying the commands is
+ * the CALLER's job: a despawn here invalidates the rows just handed over.
  */
 inline std::span<const EsCmd> run(SystemFn fn,
-                                  std::span<const std::uint32_t> candidates,
+                                  std::span<const std::uint32_t> fallback,
                                   std::span<const QuerySpec> queries,
                                   std::span<void* const> resources,
                                   CallArena& arena) {
     arena.rows_.clear();
+    arena.walked_ = 0;
     arena.queries_.assign(queries.size(), EsQueryRows{});
     arena.resources_.assign(resources.size(), es_addr_t{});
 
@@ -91,7 +158,13 @@ inline std::span<const EsCmd> run(SystemFn fn,
     for (std::size_t q = 0; q < queries.size(); ++q) {
         starts[q] = arena.rows_.size();
         const auto& comps = queries[q].comps;
-        for (std::uint32_t e : candidates) {
+        // Its own column where it has one, everybody where it does not. A
+        // freed slot in a script column reads as an entity nothing resolves
+        // for, so the completeness check below drops it like any other miss.
+        const Candidates narrowed = narrowest(queries[q]);
+        const std::span<const std::uint32_t> over = narrowed ? *narrowed : fallback;
+        arena.walked_ += static_cast<std::uint32_t>(over.size());
+        for (std::uint32_t e : over) {
             const std::size_t mark = arena.rows_.size();
             arena.rows_.push_back(static_cast<es_addr_t>(e));
             bool complete = true;
@@ -139,7 +212,22 @@ struct RowSpan {
     /** Entity::Layout::INDEX_MASK, passed rather than included so this header
      *  stays free of the engine and the harness needs no link. */
     std::uint32_t indexMask = 0;
+    /**
+     * Slot -> the raw entity holding it, so this column can be asked WHO is in
+     * it. The sparse table above answers the other direction only.
+     *
+     * Null where the owner reported none — the one reason a script component
+     * fails to narrow.
+     */
+    const std::uint32_t* owners = nullptr;
+    /** Slots ever claimed. A pool reuses slots rather than compacting, so this
+     *  is a high-water mark and the array has holes — see {@link NO_OWNER}. */
+    std::uint32_t ownerCount = 0;
 };
+
+/** A slot nobody holds. `Entity::INVALID_RAW`: the one raw value the engine
+ *  never hands out, so a hole resolves to no row and the filter drops it. */
+inline constexpr std::uint32_t NO_OWNER = 0xFFFFFFFFu;
 
 /** One row out of a span. Absent is zero in the table, as it is in a sparse set. */
 inline void* rowAt(const RowSpan& span, std::uint32_t entity) {
@@ -169,12 +257,32 @@ inline ComponentAt fromMovingRows(const RowSpan* slot) {
 }
 
 /**
+ * Who is in that column, read through the same slot for the same reason.
+ * nullopt rather than empty when no owner array was reported: "did not say" is
+ * not "is empty", and confusing them runs every system over nothing.
+ */
+inline CandidatesOf fromMovingOwners(const RowSpan* slot) {
+    return [slot]() -> Candidates {
+        if (slot == nullptr || slot->owners == nullptr) return std::nullopt;
+        return std::span<const std::uint32_t>(slot->owners, slot->ownerCount);
+    };
+}
+
+/**
  * How a host answers the two questions a declaration asks: where one component
  * is for an entity, and where one resource is. Both by NAME, because names are
  * what the artifact carries — it cannot know this host's type ids.
  */
 using ComponentLookup = std::function<ComponentAt(const char*)>;
 using ResourceLookup = std::function<void*(const char*)>;
+
+/**
+ * The third question, and the only optional one: who holds that component.
+ * Separate from `ComponentLookup` because a host with no answer must still bind
+ * and run — narrowing is an optimisation and cannot be allowed to change which
+ * rows a system sees.
+ */
+using CandidateLookup = std::function<CandidatesOf(const char*)>;
 
 /**
  * A declared system with its resolvers found once. Resources are looked up per
@@ -194,7 +302,8 @@ struct BoundSystem {
  */
 inline BoundSystem bind(const EsSystemDecl& decl,
                         const ComponentLookup& components,
-                        const ResourceLookup& resources) {
+                        const ResourceLookup& resources,
+                        const CandidateLookup& candidates = {}) {
     BoundSystem out;
     out.queries.resize(decl.queryCount);
     for (std::uint32_t q = 0; q < decl.queryCount; ++q) {
@@ -203,6 +312,10 @@ inline BoundSystem bind(const EsSystemDecl& decl,
             ComponentAt at = components(qd.comps[c]);
             if (!at) return {};
             out.queries[q].comps.push_back(std::move(at));
+            // A column that cannot say leaves a falsy entry rather than none, so
+            // `sources` stays index-for-index with `comps` and a reader of one
+            // is a reader of the other.
+            out.queries[q].sources.push_back(candidates ? candidates(qd.comps[c]) : CandidatesOf{});
         }
     }
     for (std::uint32_t r = 0; r < decl.resourceCount; ++r) {
@@ -213,16 +326,17 @@ inline BoundSystem bind(const EsSystemDecl& decl,
     return out;
 }
 
-/** Run a bound system, resolving its resources for this call. */
+/** Run a bound system, resolving its resources for this call. `fallback` is for
+ *  the queries that cannot narrow themselves; see {@link run}. */
 inline std::span<const EsCmd> runBound(const BoundSystem& bound,
-                                       std::span<const std::uint32_t> candidates,
+                                       std::span<const std::uint32_t> fallback,
                                        const ResourceLookup& resources,
                                        CallArena& arena) {
     if (bound.fn == nullptr) return {};
     std::vector<void*> addresses;
     addresses.reserve(bound.resourceNames.size());
     for (const char* name : bound.resourceNames) addresses.push_back(resources(name));
-    return run(bound.fn, candidates, bound.queries, addresses, arena);
+    return run(bound.fn, fallback, bound.queries, addresses, arena);
 }
 
 /**
