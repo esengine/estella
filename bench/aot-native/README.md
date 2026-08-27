@@ -96,6 +96,66 @@ was written for a headless harness where nothing renders and the z-write was fre
 a real renderer it is the dominant cost. `draws` is a column for exactly this reason — a
 cost that lands somewhere the report cannot see reads as the system's.
 
+## What a compiled system costs, and where that cost goes
+
+The table above cannot resolve the compiled column: at 5,000 entities the whole
+compiled frame is 1.7 ms and the idle floor is 1.5 ms, so the system is 0.09 ms
+against an idle-to-idle spread of about 0.11 ms. **Raising the entity count does not
+help** — the floor is mostly the sprite render, and that scales with the count too.
+`BENCH_SPRITES=0` is what resolves it: it removes the render from the floor without
+touching the system.
+
+With the floor gone, at 20,000 entities:
+
+| body | interpreted | **compiled** | what the body is |
+|---|---|---|---|
+| thin | 9819 ns/entity | **20 ns** | three multiply-adds |
+| heavy | 10497 ns/entity | **21 ns** | four substeps, four `sqrt`, branches |
+| script | 2422 ns/entity | **20 ns** | three multiply-adds, script component |
+
+**Three bodies and two component kinds all land on 20–21 ns.** A body of four square
+roots is indistinguishable from three multiply-adds, which means what a compiled
+system costs is not its code. That is the same shape the wasm road had at 27.5
+ns/entity before its row table stopped being rebuilt every frame, after which thin
+went to 2.1 ns and heavy became visibly dearer at 9.4.
+
+### The cost is proportional to the WORLD, not to what the system matches
+
+`BENCH_BYSTANDERS` spawns entities carrying only a `Transform`, so no body's query
+can ever match them. That separates world size from matched-set size:
+
+| world | matching | compiled system | interpreted (control) |
+|---|---|---|---|
+| 5,000 | 5,000 | **0.114 ms** | 49.34 ms |
+| 50,000 | **the same 5,000** | **0.333 ms** | 51.17 ms |
+
+The same 5,000 entities are moved either way, and it costs **2.9x more** in the
+larger world — about **4.9 ns per frame for every entity the system will never
+touch**. The interpreted column is the control: it barely moves, because the SDK's
+query narrows to the matched set. Only the compiled path grows.
+
+**Size the contrast against the noise, not against intuition.** The first run of
+this used 15,000 bystanders — a 4x world — which puts the expected effect at about
+0.2 ms against an idle-to-idle spread of 0.11 ms. It came out *backwards*, the
+larger world reading cheaper, which is the shape a measurement has when it is
+reading its own noise. Nothing about it looked wrong; the table simply said
+something impossible, and that is the only reason it was caught.
+
+`native/host/bindings/AotBindings.cpp` builds the candidate list from
+`forEachEntity` — every live entity, per compiled system, per frame — and
+`AotHost::packCall` then resolves every component of every candidate and rolls back
+the ones that do not match. Absence is the row filter, which is sound and is what
+lets a host bind a system it has no types for; what it costs had not been measured.
+Read as a budget: a 20,000-entity game whose compiled system matches 200 entities
+spends about 96% of that system's time on entities it does not touch, and a second
+compiled system scans the whole world again.
+
+Both terms have a known fix and neither is a compiler change. Narrowing the
+candidates needs the pools' sizes, which the same generator that emits
+`AotComponents.generated.*` could emit. Reusing the row table across frames needs
+an authority for "nothing moved", and `Registry::layoutEpoch()` already is one —
+this host is in the same process as it, where the web road needed a binding.
+
 ## What this is and is not
 
 It **is** the shipped iOS/Android interpreter, on a desktop CPU. QuickJS-ng is what
@@ -143,5 +203,7 @@ different deltas, move different distances, and have no differential between the
 | `BENCH_REPS` | 3 | processes per configuration; the fastest is kept |
 | `BENCH_BODIES` | `thin` | any of `thin`, `thick`, `heavy`, `script` |
 | `BENCH_IDLE` | off | also run the scene with no body, so a system's own cost can be read off it |
+| `BENCH_SPRITES` | on | `0` drops the `Sprite`, which is most of the idle floor — needed to resolve a compiled system at all |
+| `BENCH_BYSTANDERS` | 0 | extra entities with only a `Transform`, which no query matches: they grow the world without growing the matched set |
 | `BENCH_MIN_RATIO` | 5 | `--gate` only: the ratio a fallback cannot pass |
 | `BENCH_KEEP` | off | keep the exported apps for poking at |
