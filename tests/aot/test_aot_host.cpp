@@ -35,6 +35,7 @@
 #include "esengine/aot/AotComponents.generated.hpp"
 #include "esengine/aot/AotModule.hpp"
 #include "esengine/aot/AotDispatcher.hpp"
+#include "esengine/aot/AotCommands.hpp"
 #include "esengine/aot/EngineDigest.generated.h"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
@@ -537,3 +538,22 @@ TEST_CASE("a pool that moved its rows takes the twin with it") {
     }
 }
 #endif
+
+TEST_CASE("the records a call wrote are applied after it, and unknown ones are counted") {
+    World w = makeWorld();
+    const std::uint32_t victim = w.entities[2];
+    const std::uint32_t bystander = w.entities[3];
+    REQUIRE(w.registry.valid(Entity::fromRaw(victim)));
+
+    const EsCmd cmds[] = {
+        { ES_CMD_DESPAWN, victim, 0u, 0u },
+        // A kind this host has not learned. Counted, because a host quietly
+        // dropping one looks exactly like a system that did nothing.
+        { 0xFFFFFFFFu, bystander, 0u, 0u },
+    };
+    const std::uint32_t unknown = aot::applyCommands(w.registry, cmds);
+
+    CHECK(unknown == 1u);
+    CHECK(w.registry.valid(Entity::fromRaw(victim)) == false);
+    CHECK(w.registry.valid(Entity::fromRaw(bystander)));
+}
