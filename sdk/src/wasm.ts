@@ -31,6 +31,10 @@ export interface CppEngineContext {
 export interface CppRegistry extends GeneratedRegistry {
     delete(): void;
     removeParent(entity: Entity): void;
+    /** Every pool's version in one number, where the core binds it on the
+     *  registry itself. The web module answers the same question as a free
+     *  function; absent on a core built before either existed. */
+    layoutEpoch?(): number;
 
     [key: string]: Function | undefined;
 }

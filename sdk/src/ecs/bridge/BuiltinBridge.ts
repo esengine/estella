@@ -555,6 +555,10 @@ export class BuiltinBridge {
     layoutEpoch(): number | null {
         const registry = this.cppRegistry_;
         if (!registry) return null;
+        // The registry's own where the core binds it there (native), else the
+        // module's free function (web). One question, two spellings, because the
+        // two cores expose a Registry differently.
+        if (typeof registry.layoutEpoch === 'function') return registry.layoutEpoch();
         const fn = (this.module_ as unknown as Record<string, unknown> | null)?.['registryLayoutEpoch'];
         if (typeof fn !== 'function') return null;
         return (fn as (r: CppRegistry) => number)(registry);

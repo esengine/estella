@@ -34,6 +34,15 @@ namespace {
 JSValue js_createEntity(JSContext* ctx, JSValueConst, int, JSValueConst*) {
     return JS_NewUint32(ctx, host().registry->create().id());
 }
+/**
+ * Every pool's version in one number — `Registry::layoutEpoch`, which the web
+ * build reaches as an embind free function. A holder of raw addresses asks this
+ * before trusting them for another frame, and a host that cannot answer makes
+ * that holder re-resolve everything every frame.
+ */
+JSValue js_layoutEpoch(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    return JS_NewFloat64(ctx, host().registry->layoutEpoch());
+}
 JSValue js_destroyEntity(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     host().registry->destroy(esn_entity(ctx, argv[0]));
     return JS_UNDEFINED;
@@ -111,6 +120,7 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_getChildren", js_getChildren, 1);
     bindGlobal(h, global, "es_getMeshSkinJoints", js_getMeshSkinJoints, 1);
     bindGlobal(h, global, "es_setMeshSkinJoints", js_setMeshSkinJoints, 2);
+    bindGlobal(h, global, "es_registryLayoutEpoch", js_layoutEpoch, 0);
 }
 
 }  // namespace eshost

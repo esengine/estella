@@ -134,6 +134,7 @@ hasUINode: (entity: Entity) => boolean
 hasUIScroll: (entity: Entity) => boolean
 hasUIVisual: (entity: Entity) => boolean
 hasVelocity: (entity: Entity) => boolean
+layoutEpoch: (() => number) | undefined
 removeBitmapText: (entity: Entity) => void
 removeBoxCollider2D: (entity: Entity) => void
 removeBoxCollider3D: (entity: Entity) => void

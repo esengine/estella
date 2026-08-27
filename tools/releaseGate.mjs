@@ -14,8 +14,20 @@
  *
  * This says the criteria are OWNED. Whether they PASS is what running them says.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-export const RELEASE = '0.57';
+/**
+ * Which release these are the exit criteria for — derived, not typed.
+ *
+ * It was a literal and it drifted: 0.58 shipped under a list headed "0.57 exit
+ * criteria". A file whose purpose is refusing to let a list and its checks drift
+ * apart cannot be a second place the version is written.
+ */
+export const RELEASE = JSON.parse(readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8',
+)).version.split('.').slice(0, 2).join('.');
 
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files

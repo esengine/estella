@@ -16,6 +16,44 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **`view.frameCanvas` — "Frame Design Screen" is a command now.** The viewport
+  has had the button since design mode shipped and nothing behind it, so the
+  command palette, a keybinding and a driver could all reach every other view
+  action and not that one.
+
+### Fixed
+
+- **Framing the design screen under-framed it from any turned eye.** `frameCanvas`
+  fitted the authored rect by its own half-extents, while `frameSelection` right
+  beside it fits "the box as the EYE sees it" — so pressing the frame button in a
+  turned or perspective view left most of the screen off the viewport. It fits by
+  what the rect COVERS now, which is the rule the neighbouring code already
+  states: from a turned eye the extent is what the view covers, not the footprint
+  that coverage has on the plane. Head-on is unchanged, which is why this went
+  unnoticed.
+
+- **`design-frame` had never passed, and it was not measuring the frame.** The
+  check asserts that the authored screen is drawn as a trapezoid from a turned
+  eye. Turning the eye pushed the screen off the viewport, so on most rows only
+  ONE of its two side strokes was visible and the span it measured ran from that
+  stroke to whatever sat at the viewport's edge — a number pinned by the window,
+  not by the frame. That is why it failed at one window size and "passed" at
+  another: the passing size was a false positive. It frames the screen after
+  turning now, and passes on the shape it is actually about — 42/42 editor checks.
+
+- **`RELEASE` in the release gate is derived from the shipped version.** It was a
+  literal, and 0.58 shipped under a list headed "0.57 exit criteria" because
+  cutting the notes bumped every other version and not this one. The file exists
+  to stop a list and its checks drifting apart; it cannot be a second place the
+  version is written.
+
+- **`World.layoutEpoch()` answers on a native host.** It returned null there —
+  "assume everything moved" — because the epoch was reachable only as a function
+  on the wasm module, and a native host has no module. It is a registry binding
+  now (`es_registryLayoutEpoch`), so one door answers the same question on both
+  cores and the AOT runtime stops re-reporting every script pool every frame.
+
+
 - **The native row table is kept across frames, so both AOT roads now answer the
   same two questions.** `AotDispatch.ts` states the model the web road has always
   worked to: a row table is a function of two things — which entities match, and

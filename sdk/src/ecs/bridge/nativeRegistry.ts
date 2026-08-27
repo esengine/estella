@@ -88,6 +88,10 @@ export function createNativeRegistry(
     // hand (the native siblings of the embind Registry's entity ops).
     reg.create = (): Entity => hostCall(scope, REGISTRY_BINDINGS.createEntity, []) as Entity;
     reg.destroy = (e: Entity): void => { hostCall(scope, REGISTRY_BINDINGS.destroyEntity, [e]); };
+    // Required like the rest of the set, and `assertNativeBindings` says so at
+    // boot: a host that cannot date its world makes every holder of an address
+    // re-resolve it every frame, silently.
+    reg.layoutEpoch = (): number => hostCall(scope, REGISTRY_BINDINGS.layoutEpoch, []) as number;
     reg.hasParent = (e: Entity): boolean => !!hostCall(scope, REGISTRY_BINDINGS.hasParent, [e]);
     reg.setParent = (child: Entity, parent: Entity): void => {
         hostCall(scope, REGISTRY_BINDINGS.setParent, [child, parent]);

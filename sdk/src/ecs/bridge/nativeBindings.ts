@@ -37,6 +37,9 @@ export const REGISTRY_BINDINGS = {
     // POD layout and no generated accessor — the same reason Children is here.
     getMeshSkinJoints: 'es_getMeshSkinJoints',
     setMeshSkinJoints: 'es_setMeshSkinJoints',
+    // The web build reaches this as an embind free function on the module; a
+    // native host has no module, so it is a binding like the rest.
+    layoutEpoch: 'es_registryLayoutEpoch',
 } as const;
 
 /**
