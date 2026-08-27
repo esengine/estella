@@ -15,7 +15,7 @@
  */
 
 import path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { pngToIcns } from './icns.js';
 import { setExeIcon } from './peResource.js';
@@ -34,12 +34,14 @@ const PLIST_DEFAULT_MIN = '11.0';
 const LAYOUT = {
     macos: {
         root: (name) => `${name}.app`,
+        appName: (dir) => (dir.endsWith('.app') ? dir.slice(0, -'.app'.length) : null),
         executable: (name) => path.join('Contents', 'MacOS', name),
         content: path.join('Contents', 'Resources', 'Content'),
         beside: path.join('Contents', 'Resources'),
     },
     windows: {
         root: (name) => name,
+        appName: (dir) => dir,
         executable: (name) => `${name}.exe`,
         content: 'Content',
         beside: '.',
@@ -48,6 +50,7 @@ const LAYOUT = {
     // whole, with the runtime at its root.
     linux: {
         root: (name) => name,
+        appName: (dir) => dir,
         executable: (name) => name,
         content: 'Content',
         beside: '.',
@@ -184,4 +187,38 @@ async function signBundle(bundle, options, nested = []) {
     const sign = (target) => promisify(execFile)('codesign', ['--force', '--sign', identity, target]);
     for (const item of nested) await sign(item);
     await sign(bundle);
+}
+
+
+/**
+ * The executable inside an assembled app, located through the same table that
+ * put it there.
+ *
+ * Two runners searched for it instead, by the shape "a file with no extension".
+ * Every signed macOS bundle carries `Contents/_CodeSignature/CodeResources`,
+ * which has that shape, and which of the two a directory walk reaches first is
+ * decided by directory order — so they launched the signature manifest and then
+ * reported that the engine had installed no module and drawn no frame.
+ *
+ * @param {string} dir  A directory an export wrote an app into, at any depth.
+ * @param {'macos'|'windows'|'linux'} platform  Whose layout to read.
+ * @returns {string|null} The executable, or null when no app is under @p dir.
+ */
+export function desktopExecutableIn(dir, platform) {
+    const layout = LAYOUT[platform];
+    if (layout === undefined) throw new Error(`no desktop layout for "${platform}"`);
+    // Breadth first over sorted names, so a nested app is still found and the
+    // answer does not depend on the order a filesystem hands entries back.
+    for (const queue = [dir]; queue.length > 0;) {
+        const at = queue.shift();
+        const name = layout.appName(path.basename(at));
+        if (name) {
+            const exe = path.join(at, layout.executable(name));
+            if (existsSync(exe) && statSync(exe).isFile()) return exe;
+        }
+        for (const entry of readdirSync(at, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+            if (entry.isDirectory()) queue.push(path.join(at, entry.name));
+        }
+    }
+    return null;
 }

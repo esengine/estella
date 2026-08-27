@@ -38,3 +38,9 @@ export function assembleDesktopApp(options: {
      *  and every achievement silently reaches nobody. */
     steamLibrary: string | null;
 }>;
+
+/** The executable inside an app assembled under `dir`, or null when there is none. */
+export function desktopExecutableIn(
+    dir: string,
+    platform: 'macos' | 'windows' | 'linux',
+): string | null;

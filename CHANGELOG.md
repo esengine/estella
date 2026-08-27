@@ -105,6 +105,22 @@ published separately; it ships inside the editor.
   to stop a list and its checks drifting apart; it cannot be a second place the
   version is written.
 
+- **Three release criteria could not pass on a Mac, and one of them blamed the
+  engine for it.** `verify-aot-native` and the native frame bench both located
+  the app they had just exported by searching it for "a file with no extension".
+  Every signed macOS bundle carries `Contents/_CodeSignature/CodeResources`,
+  which has that shape, and which of the two a directory walk reached first was
+  decided by directory order — so both runners launched the signature manifest.
+  The bench said the host printed no bench line; `verify-aot-native` said the
+  game had installed no module, dispatched to no compiled system and never drawn
+  a frame. All three were true of a text file.
+
+  The executable is found through `desktopExecutableIn` now — the same LAYOUT
+  table the assembler used to put it there, so there is one answer to where it
+  is rather than a search and a guess. Signing has been unconditional on darwin
+  since the desktop assembler landed, which means these criteria had never been
+  answerable on the platform they were written on.
+
 - **`World.layoutEpoch()` answers on a native host.** It returned null there —
   "assume everything moved" — because the epoch was reachable only as a function
   on the wasm module, and a native host has no module. It is a registry binding

@@ -33,11 +33,12 @@
  *   BENCH_BUILDS=compiled BENCH_BYSTANDERS=95000 node bench/aot-native/frame-bench.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../../build-tools/utils/nativeTemplate.js';
+import { desktopExecutableIn } from '../../build-tools/utils/desktopApp.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** The one source both AOT benchmarks measure. */
@@ -229,28 +230,12 @@ function exportApp(project, out, compiled) {
         console.error((r.stderr || r.stdout || '').trim().slice(-1500));
         process.exit(1);
     }
-    const exe = findExecutable(out);
+    const exe = desktopExecutableIn(out, os);
     if (exe === null) {
         console.error(`✗ the export assembled no app under ${out}`);
         process.exit(1);
     }
     return exe;
-}
-
-/** The assembled app's executable, wherever the assembler put it. */
-function findExecutable(dir) {
-    const stack = [dir];
-    while (stack.length > 0) {
-        const at = stack.pop();
-        for (const entry of readdirSync(at, { withFileTypes: true })) {
-            const full = path.join(at, entry.name);
-            if (entry.isDirectory()) { stack.push(full); continue; }
-            if (process.platform === 'win32' ? entry.name.endsWith('.exe') : !path.extname(entry.name)) {
-                if (!full.includes(`${path.sep}Content${path.sep}`)) return full;
-            }
-        }
-    }
-    return null;
 }
 
 function run(exe, label) {

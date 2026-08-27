@@ -18,11 +18,12 @@
  *   node tools/verify-aot-native.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
+import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The example whose system carries the marker. */
@@ -60,7 +61,7 @@ try {
     process.exit(1);
   }
 
-  const exe = findExecutable(out);
+  const exe = desktopExecutableIn(out, os);
   if (exe === null) {
     console.error(`✗ the export assembled no app under ${out}`);
     process.exit(1);
@@ -99,21 +100,4 @@ try {
   console.log(`✓ aot native: ${installed[1]} installed, ${running[1]} running compiled, and it drew`);
 } finally {
   rmSync(out, { recursive: true, force: true });
-}
-
-/** The assembled app's executable, wherever the assembler put it. */
-function findExecutable(dir) {
-  const stack = [dir];
-  while (stack.length > 0) {
-    const at = stack.pop();
-    for (const entry of readdirSync(at, { withFileTypes: true })) {
-      const full = path.join(at, entry.name);
-      if (entry.isDirectory()) { stack.push(full); continue; }
-      if (process.platform === 'win32' ? entry.name.endsWith('.exe') : !path.extname(entry.name)) {
-        // The content dir holds no executable, so anything found is the app's.
-        if (!full.includes(`${path.sep}Content${path.sep}`)) return full;
-      }
-    }
-  }
-  return null;
 }
