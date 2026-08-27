@@ -575,7 +575,7 @@ export interface RuntimeInitConfig {
      * before the first scene registers, the only moment where no component
      * exists yet to be left behind in the wrong memory.
      */
-    aot?: { wasm: string | BufferSource; manifest: AotManifest };
+    aot?: { module: string | BufferSource; manifest: AotManifest };
 }
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
@@ -587,7 +587,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // and before any exists (its rows must be in the memory the module reads).
     // A module that disagrees with this engine or project throws here.
     if (config.aot) {
-        const installed = await app.installCompiledSystems(config.aot.wasm, config.aot.manifest);
+        const installed = await app.installCompiledSystems(config.aot.module, config.aot.manifest);
         log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
     }
 

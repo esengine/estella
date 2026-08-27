@@ -729,7 +729,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
       await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
       await cp(built.modulePath, path.join(payloadDir, 'aot', 'systems.wasm'));
-      aot = { wasm: 'aot/systems.wasm', manifest: built.manifest };
+      aot = { module: `aot/${path.basename(built.modulePath)}`, manifest: built.manifest };
     }
   }
 

@@ -124,7 +124,7 @@ export interface MiniGameRuntimeConfig {
      * the export staged them at. A path and never bytes: WXWebAssembly compiles
      * a package file and nothing else, which is also why the seam instantiates.
      */
-    aot?: { wasm: string; manifest: AotManifest };
+    aot?: { module: string; manifest: AotManifest };
 }
 
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {

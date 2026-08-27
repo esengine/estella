@@ -338,7 +338,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
     await mkdir(path.join(absOut, 'aot'), { recursive: true });
     await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
-    aotArg = `, aot: ${JSON.stringify({ wasm: 'aot/systems.wasm', manifest: built.manifest })}`;
+    aotArg = `, aot: ${JSON.stringify({ module: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
   const entrySrc =
     `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +

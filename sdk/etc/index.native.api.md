@@ -564,7 +564,7 @@ getTargetFrameRate: () => number
 hasResource: <T>(resource: ResourceDef<T>) => boolean
 hotSwapSystems: (incoming: ReadonlyArray<{ schedule: number; system: SystemDef; }>) => boolean
 insertResource: <T>(resource: ResourceDef<T>, value: T) => App
-installCompiledSystems: (wasm: string | BufferSource, manifest: AotManifest) => Promise<number>
+installCompiledSystems: (source: string | BufferSource, manifest: AotManifest) => Promise<number>
 isPaused: () => boolean
 isPhysicsReady: boolean
 measureFrameScope: <T>(name: string, fn: () => T, options?: { remainder?: ScopeRemainder; }) => T
@@ -5283,7 +5283,7 @@ decodePixels: ((path: string, flip: boolean) => Promise<{ width: number; height:
 ## PackagedGameConfig — interface @experimental
 ```
 achievements: string[] | undefined
-aot: { wasm: string; manifest: AotManifest; } | undefined
+aot: { module: string; manifest: AotManifest; } | undefined
 audioConfig: AudioProjectConfig | undefined
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
@@ -6802,7 +6802,7 @@ textureCacheBudget: number | undefined
 ## RuntimeInitConfig — interface @experimental
 ```
 achievements: string[] | undefined
-aot: { wasm: string | BufferSource; manifest: AotManifest; } | undefined
+aot: { module: string | BufferSource; manifest: AotManifest; } | undefined
 app: App
 aspectRatio: number | undefined
 audioConfig: AudioProjectConfig | undefined

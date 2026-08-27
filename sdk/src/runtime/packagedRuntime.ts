@@ -94,7 +94,7 @@ export interface PackagedGameConfig {
      * keep in step. Absent unless the project marked something `@compiled`, so a
      * runtime reads presence and needs no mode flag.
      */
-    aot?: { wasm: string; manifest: AotManifest };
+    aot?: { module: string; manifest: AotManifest };
 }
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */

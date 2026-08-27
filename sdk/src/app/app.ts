@@ -9,6 +9,8 @@ import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { installAot, prepareAot, type AotHost } from '../ecs/aot/installAot';
+import { installNativeAot, nativeAotBindings } from '../ecs/aot/installNativeAot';
+import { createNativeHeap } from '../ecs/bridge/nativeHeap';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
 import { EventRegistry, eventNamed, type EventDef } from '../ecs/event';
@@ -914,8 +916,14 @@ export class App {
      * allocated elsewhere, or trust a module built for other offsets.
      */
     async installCompiledSystems(
-        wasm: string | BufferSource, manifest: AotManifest,
+        source: string | BufferSource, manifest: AotManifest,
     ): Promise<number> {
+        // Which road is a fact about the HOST, not about the caller: a host
+        // that loads a library packs the rows itself, and an address there is a
+        // pointer nothing here can hold.
+        const native = this.installNative_(source, manifest);
+        if (native !== null) return native;
+        const wasm = source;
         const module = this.module_;
         if (!module) {
             throw new Error('installCompiledSystems: this App has no engine module, and a compiled '
@@ -946,6 +954,28 @@ export class App {
                 Readonly<Record<string, unknown>> | undefined,
         });
         return this.aot_.systems.size;
+    }
+
+    /**
+     * The same, where the host loads a library. Null when this is not such a
+     * host, which is every host but a native one — and then the caller falls
+     * through to the module road above.
+     */
+    private installNative_(module: string | BufferSource, manifest: AotManifest): number | null {
+        if (typeof module !== 'string') return null;
+        const bindings = nativeAotBindings();
+        const heap = createNativeHeap();
+        if (bindings === null || heap === null) return null;
+        this.ensureTime_();
+        this.aot_ = installNativeAot({
+            world: this.world_,
+            runner: this.ensureRunner_(),
+            modulePath: module,
+            manifest,
+            heap,
+            bindings,
+        });
+        return this.aot_?.systems.size ?? 0;
     }
 
     // =========================================================================

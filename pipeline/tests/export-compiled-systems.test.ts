@@ -114,10 +114,10 @@ describe('what a package carries for a compiled system', () => {
       const res = await run(f);
       expect(res.errors).toEqual([]);
       const cfg = config(f.out);
-      expect(cfg.aot?.wasm).toBe('aot/systems.wasm');
+      expect(cfg.aot?.module).toBe('aot/systems.wasm');
       // The path in the config is the path in the package, or the runtime 404s
       // at boot and falls back to interpreting with nothing to see.
-      expect(existsSync(path.join(f.out, cfg.aot!.wasm))).toBe(true);
+      expect(existsSync(path.join(f.out, cfg.aot!.module))).toBe(true);
       expect(cfg.aot?.manifest.systems.map((s) => s.name)).toEqual(['ExportDriftSystem']);
       expect(cfg.aot?.manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
     } finally { rmSync(f.root, { recursive: true, force: true }); }
