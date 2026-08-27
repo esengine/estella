@@ -74,6 +74,12 @@ published separately; it ships inside the editor.
   and the software rasterizer agree on all four to the byte.
 
 
+- **`distanceFog` was the sixteenth post-process effect and the count still said
+  fifteen.** `shader-twins` asserts how many embedded `.esshader` sources each
+  file contributes, which is how it notices one going missing — and the effect
+  that landed this release left the number behind, so the SDK suite has been red
+  on master since. Counted right, 5107 tests pass.
+
 - **The cooked-build check was failing about two runs in three, and the reason
   looked like arithmetic.** `verify:cooked` — an exit criterion, and a gate on
   every PR — steps a fixture 60 fixed frames in a compiled build and in an
