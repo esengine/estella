@@ -31,6 +31,7 @@ import { AotResources, type ResourceReader } from './AotResources';
 import { AotEvents, type EventBusAccess } from './AotEvents';
 import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
+import { AotDispatch } from './AotDispatch';
 
 /**
  * The engine module a compiled system shares memory with. The Memory OBJECT,
@@ -99,13 +100,17 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
             return value === undefined ? undefined : Object.keys(value);
         }));
 
-    return {
+    const runtime: AotRuntime = {
         systems,
         addresses: worldAddresses(
             new AotResources(memory, opts.resources, declaredLayouts(opts.manifest)),
             new AotEvents(memory, opts.events ?? (() => undefined))),
         ctx: new AotContext(memory),
+        // This module shares the engine's memory, so the rows go there and the
+        // call takes their address.
+        dispatcherFor: (world) => new AotDispatch(world, runtime),
     };
+    return runtime;
 }
 
 /**

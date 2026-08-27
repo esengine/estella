@@ -17,8 +17,7 @@ import {
 } from './event';
 import type { Entity } from '../types';
 import type { World } from './world';
-import { AotDispatch } from './aot/AotDispatch';
-import type { AotRuntime } from './aot/AotRuntime';
+import type { AotDispatcher, AotRuntime } from './aot/AotRuntime';
 import type { AotTwin } from './aot/AotSystems';
 
 // =============================================================================
@@ -417,9 +416,9 @@ export class SystemRunner {
      * there is nothing to dispatch to.
      */
     private aot_: AotRuntime | null = null;
-    /** The compiled half of this runner: everything a twin needs around its call
-     *  (docs/REARCH_AOT_ABI.md §2.1), and the plans that keep it off the frame. */
-    private aotDispatch_: AotDispatch | null = null;
+    /** The compiled half of this runner: everything a twin needs around its
+     *  call, from whichever side of the contract can lay the rows out. */
+    private aotDispatch_: AotDispatcher | null = null;
 
     constructor(world: World, resources: ResourceStorage, eventRegistry?: EventRegistry) {
         this.world_ = world;
@@ -430,7 +429,7 @@ export class SystemRunner {
     /** @internal Install the twins a build produced. */
     useAot(runtime: AotRuntime | null): void {
         this.aot_ = runtime;
-        this.aotDispatch_ = runtime ? new AotDispatch(this.world_, runtime) : null;
+        this.aotDispatch_ = runtime ? runtime.dispatcherFor(this.world_) : null;
     }
 
     setTimingEnabled(enabled: boolean): void {

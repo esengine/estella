@@ -105,10 +105,17 @@ export class AotSystems {
           * from the manifest: a manifest compared against itself always agrees.
           */
         resourceFields: (name: string) => readonly string[] | undefined = () => [],
+        /**
+          * `sizeof(es_addr_t)` where this module will run: 4 in a wasm module
+          * addressing the engine's memory by offset, 8 in a library the host
+          * loaded into its own process. The digest carries it, so asking for
+          * the wrong one is the refusal it is supposed to be.
+          */
+        addressBytes: 4 | 8 = 4,
     ): void {
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
-        const engine = engineAbiDigest(4);
+        const engine = engineAbiDigest(addressBytes);
         if (manifest.engineAbi !== engine) {
             throw new Error(
                 `AOT module refused: built for engine ${manifest.engineAbi}, this is ${engine}. `

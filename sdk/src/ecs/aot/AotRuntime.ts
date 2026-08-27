@@ -15,8 +15,9 @@
  */
 
 import type { AnyComponentDef } from '../component';
+import type { World } from '../world';
 import type { AotContext } from './AotContext';
-import type { AotSystems } from './AotSystems';
+import type { AotSystems, AotTwin } from './AotSystems';
 
 /** Where the bytes are, in the memory the compiled code reads. */
 export interface AotAddresses {
@@ -43,6 +44,17 @@ export interface AotAddresses {
 }
 
 /**
+ * One twin's frame, whoever lays the rows out.
+ *
+ * A wasm module shares the engine's memory, so they go HERE and the call takes
+ * their address. A host loading a library has 64-bit addresses nothing here can
+ * hold, so it packs them itself and takes only which system to run.
+ */
+export interface AotDispatcher {
+    run(twin: AotTwin): void;
+}
+
+/**
  * Installed by a shipping build, absent everywhere else. That absence is the
  * whole of the mode policy: with no twins there is nothing to dispatch to, so
  * the editor and dev builds need no flag and take no branch worth measuring.
@@ -51,4 +63,10 @@ export interface AotRuntime {
     readonly systems: AotSystems;
     readonly addresses: AotAddresses;
     readonly ctx: AotContext;
+    /**
+     * How this runtime's twins are called, for the world that will call them.
+     * The runtime decides, because it is what knows where the rows can live —
+     * the runner asking would be the runner knowing which host it is on.
+     */
+    dispatcherFor(world: World): AotDispatcher;
 }

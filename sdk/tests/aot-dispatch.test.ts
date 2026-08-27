@@ -28,6 +28,7 @@ import { WasmPoolMemory, type WasmHeap } from '../src/ecs/WasmPoolMemory';
 import { AotContext } from '../src/ecs/aot/AotContext';
 import { AotSystems, type AotManifest } from '../src/ecs/aot/AotSystems';
 import type { AotAddresses, AotRuntime } from '../src/ecs/aot/AotRuntime';
+import { AotDispatch } from '../src/ecs/aot/AotDispatch';
 import type { AnyComponentDef } from '../src/ecs/component';
 import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
 import type { Entity } from '../src/types';
@@ -182,7 +183,10 @@ describe('the scheduler and its compiled twin', () => {
             componentNamed: (name) => (name === 'Decay' ? b.Decay : undefined),
             resourceAt: () => undefined,
         };
-        const runtime: AotRuntime = { systems, addresses, ctx: new AotContext(memory) };
+        const runtime: AotRuntime = {
+            systems, addresses, ctx: new AotContext(memory),
+            dispatcherFor: (w) => new AotDispatch(w, runtime),
+        };
         b.runner.useAot(runtime);
 
         for (let f = 0; f < FRAMES; f++) b.runner.run(b.system);
@@ -231,14 +235,16 @@ describe('the scheduler and its compiled twin', () => {
                         queries: [[{ comp: 'Decay', mut: true }]], resources: [],
                     }],
                 }, exports, (name) => (name === 'Decay' ? w.Decay : undefined));
-                w.runner.useAot({
+                const runtime: AotRuntime = {
                     systems,
                     addresses: {
                         componentNamed: (name) => (name === 'Decay' ? w.Decay : undefined),
                         resourceAt: () => undefined,
                     },
                     ctx: new AotContext(memory),
-                });
+                    dispatcherFor: (world) => new AotDispatch(world, runtime),
+                };
+                w.runner.useAot(runtime);
             }
             for (let f = 0; f < 4; f++) {
                 w.world.advanceTick();

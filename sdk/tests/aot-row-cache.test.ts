@@ -124,9 +124,11 @@ function harness(options: { epochBinding?: boolean } = {}) {
         systems,
         addresses: { componentNamed: () => Transform as unknown as AnyComponentDef, resourceAt: () => undefined },
         ctx,
+        // The wasm side of the contract: the rows go in the memory the module
+        // shares, which is what this file is about.
+        dispatcherFor: (w) => new AotDispatch(w, runtime),
     };
     runner.useAot(runtime);
-    void new AotDispatch(world, runtime);
 
     const spawn = (): Entity => {
         const entity = world.spawn();
