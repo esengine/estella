@@ -105,6 +105,27 @@ published separately; it ships inside the editor.
   to stop a list and its checks drifting apart; it cannot be a second place the
   version is written.
 
+- **A benched frame on Metal was the panel's, not the engine's.** The native
+  host asks the swapchain to stop waiting for the display before it times
+  anything, and the mode it picked was Mailbox — which every macOS surface
+  advertises, and which Dawn's Metal backend leaves display-synced:
+  `SwapChainMTL.mm` clears `displaySyncEnabled` for Immediate ALONE. So the
+  request succeeded and changed nothing.
+
+  Nothing said so, because a throttled frame reads as a frame that cost the
+  refresh interval. Every span came back at 16.6 ms whatever was in the scene —
+  200 entities or 2,000, one draw or none — and the interpreted and compiled
+  builds of the AOT benchmark read 1.00x apart, which the gate reported as a
+  compiled system falling back to the interpreter. What settled it was the
+  process's own clocks: 6.25 s of wall for 0.69 s of CPU, so the frame was
+  WAITING for 89% of itself.
+
+  Immediate is preferred over Mailbox now, and the order is load-bearing rather
+  than a taste: tearing is exactly what a measurement is buying. The same frame
+  reads 3.03 ms, and the AOT ratio 9.3x. The configure step also says which mode
+  it was actually granted, because a fallback here makes a number wrong rather
+  than absent.
+
 - **Three release criteria could not pass on a Mac, and one of them blamed the
   engine for it.** `verify-aot-native` and the native frame bench both located
   the app they had just exported by searching it for "a file with no extension".

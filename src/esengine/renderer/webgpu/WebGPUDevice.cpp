@@ -393,9 +393,14 @@ bool WebGPUDevice::surfaceBytesAreBGRA() const {
 /**
  * The fastest present mode this surface actually advertises.
  *
- * Mailbox first: it drops finished frames rather than blocking the CPU, and does
- * not tear. Immediate tears, which a measurement does not care about. Fifo is the
- * fallback, and then the caller's frame is throttled.
+ * Immediate FIRST, and the order is load-bearing rather than a preference: this
+ * mode exists so a frame can be timed, and Dawn's Metal backend clears
+ * `displaySyncEnabled` for Immediate ALONE (`SwapChainMTL.mm`). A surface that
+ * offers both hands back a Mailbox that is still vsynced, so the bench reads the
+ * panel — measured here as every span pinned to 16.6 ms while the process sat
+ * blocked for 89% of its wall clock. Tearing is what the caller is buying.
+ *
+ * Fifo is the fallback, and then the caller's frame is throttled.
  */
 WGPUPresentMode WebGPUDevice::pickUncappedPresentMode() const {
 #if !defined(__EMSCRIPTEN__)
@@ -404,11 +409,11 @@ WGPUPresentMode WebGPUDevice::pickUncappedPresentMode() const {
         if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) == WGPUStatus_Success) {
             WGPUPresentMode chosen = WGPUPresentMode_Fifo;
             for (size_t i = 0; i < caps.presentModeCount; ++i) {
-                if (caps.presentModes[i] == WGPUPresentMode_Mailbox) {
-                    chosen = WGPUPresentMode_Mailbox;
+                if (caps.presentModes[i] == WGPUPresentMode_Immediate) {
+                    chosen = WGPUPresentMode_Immediate;
                     break;
                 }
-                if (caps.presentModes[i] == WGPUPresentMode_Immediate) chosen = WGPUPresentMode_Immediate;
+                if (caps.presentModes[i] == WGPUPresentMode_Mailbox) chosen = WGPUPresentMode_Mailbox;
             }
             wgpuSurfaceCapabilitiesFreeMembers(caps);
             return chosen;
@@ -465,6 +470,15 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // game should want. setPresentUncapped asks for a measurable frame instead —
     // see its comment for why a vsynced one cannot be measured.
     cfg.presentMode = present_uncapped_ ? pickUncappedPresentMode() : WGPUPresentMode_Fifo;
+    // Said out loud, because a fallback here makes a measurement WRONG rather than
+    // absent: a frame that was throttled reads as the refresh interval, and the
+    // bench consuming it cannot tell that from a frame that cost that much.
+    if (present_uncapped_) {
+        ES_LOG_WARN("WebGPUDevice: uncapped present asked for, surface gave {}",
+                    cfg.presentMode == WGPUPresentMode_Immediate ? "Immediate"
+                    : cfg.presentMode == WGPUPresentMode_Mailbox ? "Mailbox — still vsynced on Metal"
+                                                                 : "Fifo — the frame IS the refresh interval");
+    }
     wgpuSurfaceConfigure(surface_, &cfg);
     surface_width_ = width;
     surface_height_ = height;
