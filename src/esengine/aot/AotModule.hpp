@@ -27,21 +27,10 @@
 #include <string>
 #include <utility>
 
-#include "esengine/aot/estella_abi.h"
+#include "esengine/aot/AotHost.hpp"   // abiHash — the width half of the handshake
 #include "esengine/core/DynamicLibrary.hpp"
 
 namespace esengine::aot {
-
-/**
- * What a host expects a module to say, from the contract IT was built against.
- *
- * The width is this side's `sizeof(es_addr_t)`, mixed in exactly as the module
- * mixes its own — which is what stops a 32-bit artifact from loading here and
- * reading every row at half a pointer.
- */
-constexpr std::uint64_t expectedAbiHash(std::uint64_t contractDigest) {
-    return contractDigest ^ (0x9e3779b97f4a7c15ULL * static_cast<std::uint64_t>(sizeof(es_addr_t)));
-}
 
 class Module {
 public:
@@ -60,7 +49,7 @@ public:
     }
 
     /**
-     * Open a module and check it agrees with `expected` (see expectedAbiHash).
+     * Open a module and check it says what `expected` says (see `abiHash`).
      *
      * `why` is filled on every false: the ways this fails want different fixes —
      * the file is absent, it carries no declaration table, or it was built for

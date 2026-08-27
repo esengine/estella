@@ -34,6 +34,7 @@
 #include "esengine/aot/AotHost.hpp"
 #include "esengine/aot/AotComponents.generated.hpp"
 #include "esengine/aot/AotModule.hpp"
+#include "esengine/aot/AotDispatcher.hpp"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
 
@@ -349,7 +350,7 @@ TEST_CASE("a compiled system runs on the generated resolvers, exactly as on hand
 TEST_CASE("the same system, loaded out of a module rather than linked in") {
     aot::Module mod;
     std::string why;
-    const std::uint64_t expected = aot::expectedAbiHash(ES_EXPECTED_CONTRACT_HASH);
+    const std::uint64_t expected = aot::abiHash(ES_EXPECTED_CONTRACT_HASH);
     REQUIRE_MESSAGE(mod.open(ES_AOT_MODULE_PATH, expected, &why), why);
 
     // The declaration table is IN the artifact, so a loading host needs no
@@ -386,11 +387,82 @@ TEST_CASE("a module built for another engine is refused, and says which half mov
     std::string why;
     // One bit of the contract, which is what a rebuilt engine looks like from
     // here. It must not open at all: a wrong offset is a read of another field.
-    CHECK(mod.open(ES_AOT_MODULE_PATH, aot::expectedAbiHash(ES_EXPECTED_CONTRACT_HASH ^ 1ULL), &why) == false);
+    CHECK(mod.open(ES_AOT_MODULE_PATH, aot::abiHash(ES_EXPECTED_CONTRACT_HASH ^ 1ULL), &why) == false);
     CHECK(mod.isOpen() == false);
     CHECK(why.find("engine") != std::string::npos);
 
     CHECK(mod.open("no-such-module-anywhere", 0, &why) == false);
     CHECK(why.find("load") != std::string::npos);
+}
+#endif
+
+#ifdef ES_AOT_MODULE_PATH
+TEST_CASE("the dispatcher binds once and runs by index") {
+    World w = makeWorld();
+    World linked = makeWorld();
+    aot::Dispatcher dispatcher;
+    std::string why;
+
+    REQUIRE_MESSAGE(dispatcher.install(ES_AOT_MODULE_PATH, aot::abiHash(ES_EXPECTED_CONTRACT_HASH),
+                                       componentsOf(w), resourcesOf(w), &why), why);
+    REQUIRE(dispatcher.count() == 1u);
+
+    // The index is resolved once, here, because the scheduler asks for the same
+    // system every frame and a strcmp there is per system per frame.
+    const std::size_t at = dispatcher.indexOf("MoveSystem");
+    REQUIRE(at != aot::Dispatcher::npos);
+    CHECK(dispatcher.boundAt(at));
+    CHECK(std::strcmp(dispatcher.nameAt(at), "MoveSystem") == 0);
+    CHECK(dispatcher.indexOf("NotASystem") == aot::Dispatcher::npos);
+
+    // Three frames, so a binding that only survives the first one shows up.
+    aot::CallArena arena;
+    for (int frame = 0; frame < 3; ++frame) {
+        dispatcher.run(at, w.entities, resourcesOf(w));
+        aot::runBound(aot::bind(*declOf("MoveSystem"), componentsOf(linked), resourcesOf(linked)),
+                      linked.entities, resourcesOf(linked), arena);
+    }
+    for (std::size_t i = 0; i < w.entities.size(); ++i) {
+        const auto* want = linked.registry.tryGet<ecs::Transform>(Entity::fromRaw(linked.entities[i]));
+        const auto* got = w.registry.tryGet<ecs::Transform>(Entity::fromRaw(w.entities[i]));
+        REQUIRE((want != nullptr) == (got != nullptr));
+        if (want == nullptr) continue;
+        CHECK(want->position.x == got->position.x);
+        CHECK(want->position.y == got->position.y);
+    }
+}
+
+TEST_CASE("a system this host cannot name is left unbound, not refused") {
+    World w = makeWorld();
+    aot::Dispatcher dispatcher;
+    std::string why;
+
+    // A host with no `Mover` — the shape of a project whose script pool has not
+    // been handed over yet. The module still installs: the fallback is PER
+    // SYSTEM, so one it cannot run must not cost the others their module.
+    const aot::ComponentLookup partial = [&w](const char* name) -> aot::ComponentAt {
+        if (std::strcmp(name, "Transform") == 0) {
+            return [&w](std::uint32_t e) -> void* {
+                return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
+            };
+        }
+        return nullptr;
+    };
+
+    REQUIRE(dispatcher.install(ES_AOT_MODULE_PATH, aot::abiHash(ES_EXPECTED_CONTRACT_HASH),
+                               partial, resourcesOf(w), &why));
+    const std::size_t at = dispatcher.indexOf("MoveSystem");
+    REQUIRE(at != aot::Dispatcher::npos);
+    CHECK(dispatcher.boundAt(at) == false);
+
+    // And running it moves nothing, rather than reading a row it never packed.
+    const World fresh = makeWorld();
+    CHECK(dispatcher.run(at, w.entities, resourcesOf(w)).empty());
+    for (std::size_t i = 0; i < w.entities.size(); ++i) {
+        const auto* got = w.registry.tryGet<ecs::Transform>(Entity::fromRaw(w.entities[i]));
+        const auto* start = fresh.registry.tryGet<ecs::Transform>(Entity::fromRaw(fresh.entities[i]));
+        if (got == nullptr || start == nullptr) continue;
+        CHECK(got->position.x == start->position.x);
+    }
 }
 #endif
