@@ -35,6 +35,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { resolveWasmDir } from '../tools/lib/wasmDir.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -80,20 +81,6 @@ function detectRuntime() {
     return 'unknown-runtime';
 }
 
-function resolveWasmDir() {
-    const override = env('ESENGINE_WASM_DIR');
-    const candidates = [
-        override && resolve(override),
-        join(REPO, 'build', 'wasm', 'web'),
-        join(REPO, 'desktop', 'public', 'wasm'),
-    ].filter(Boolean);
-    for (const dir of candidates) {
-        if (existsSync(join(dir, 'esengine.wasm')) && existsSync(join(dir, 'esengine.js'))) return dir;
-    }
-    throw new Error(
-        'could not find esengine.wasm + esengine.js. Set ESENGINE_WASM_DIR to the dir holding them.\n' +
-        'Tried:\n  ' + candidates.join('\n  '));
-}
 
 function resolveSdk() {
     const override = env('ESENGINE_SDK');
@@ -117,6 +104,9 @@ const ms = (x) => x.toFixed(3);
 async function main() {
     const label = env('BENCH_LABEL') || detectRuntime();
     const wasmDir = resolveWasmDir();
+    if (!existsSync(join(wasmDir, 'esengine.wasm'))) {
+        throw new Error(`no esengine.wasm in ${wasmDir} — run \`node build-tools/cli.js build -t web\`, or set ESENGINE_WASM_DIR.`);
+    }
     const sdkPath = resolveSdk();
 
     console.log('='.repeat(64));

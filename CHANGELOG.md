@@ -110,6 +110,12 @@ published separately; it ships inside the editor.
   multi-tileset layer, whose singular field is still carried for older scenes,
   and the particle curves that only one game has authored.
 
+- **Where the built wasm lives is answered by `tools/lib/wasmDir.mjs` and by
+  nobody else.** Three benches carried their own copy of the search order, each
+  slightly different in what it probed for and what it did when it found
+  nothing. The order is the library's now; what to say when the engine is not
+  built stays with each caller, which is the half that is actually theirs.
+
 - **The output curve's number is worked out in one place.** `OutputTransform` is
   a string union at the API and a number at the wasm boundary, and the
   translation — `'aces' ? 1 : 0` — was written at both call sites. A third curve

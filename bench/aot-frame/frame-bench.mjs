@@ -54,6 +54,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIGS, measure, pct } from './measure.mjs';
+import { resolveWasmDir } from '../../tools/lib/wasmDir.mjs';
 
 const ms = (x) => x.toFixed(3);
 
@@ -79,14 +80,6 @@ function detectRuntime() {
     return 'unknown-runtime';
 }
 
-function resolveWasmDir() {
-    const candidates = [env('ESENGINE_WASM_DIR') && resolve(env('ESENGINE_WASM_DIR')),
-        join(REPO, 'build', 'wasm', 'web'), join(REPO, 'desktop', 'public', 'wasm')].filter(Boolean);
-    for (const dir of candidates) {
-        if (existsSync(join(dir, 'esengine.wasm')) && existsSync(join(dir, 'esengine.js'))) return dir;
-    }
-    throw new Error(`no esengine.wasm + esengine.js. Tried:\n  ${candidates.join('\n  ')}`);
-}
 
 function resolveSdk() {
     const candidates = [env('ESENGINE_SDK') && resolve(env('ESENGINE_SDK')),
@@ -102,6 +95,9 @@ async function child(key) {
     const sdk = await import(pathToFileURL(resolveSdk()).href);
     const fixture = await import(pathToFileURL(join(BUILD, 'systems.js')).href);
     const wasmDir = resolveWasmDir();
+    if (!existsSync(join(wasmDir, 'esengine.wasm'))) {
+        throw new Error(`no esengine.wasm in ${wasmDir} — run \`node build-tools/cli.js build -t web\`, or set ESENGINE_WASM_DIR.`);
+    }
     const r = await measure({
         sdk,
         fixture,
@@ -132,6 +128,9 @@ async function main() {
         throw new Error('nothing built yet — run `node bench/aot-frame/build.mjs` first');
     }
     const wasmDir = resolveWasmDir();
+    if (!existsSync(join(wasmDir, 'esengine.wasm'))) {
+        throw new Error(`no esengine.wasm in ${wasmDir} — run \`node build-tools/cli.js build -t web\`, or set ESENGINE_WASM_DIR.`);
+    }
 
     console.log('='.repeat(72));
     console.log('ESEngine AOT frame benchmark');

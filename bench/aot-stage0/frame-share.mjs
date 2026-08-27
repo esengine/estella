@@ -23,6 +23,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { resolveWasmDir } from '../../tools/lib/wasmDir.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
@@ -53,17 +54,6 @@ function mulberry32(seed) {
     };
 }
 
-function resolveWasmDir() {
-    const candidates = [
-        process.env.ESENGINE_WASM_DIR && resolve(process.env.ESENGINE_WASM_DIR),
-        join(REPO, 'build', 'wasm', 'web'),
-        join(REPO, 'desktop', 'public', 'wasm'),
-    ].filter(Boolean);
-    for (const dir of candidates) {
-        if (existsSync(join(dir, 'esengine.wasm'))) return dir;
-    }
-    throw new Error('no esengine.wasm — set ESENGINE_WASM_DIR. Tried:\n  ' + candidates.join('\n  '));
-}
 
 function resolveSdk() {
     const p = process.env.ESENGINE_SDK
@@ -84,6 +74,9 @@ const pctOf = (x, total) => total > 0 ? (100 * x / total).toFixed(1) + '%' : '�
 
 async function main() {
     const wasmDir = resolveWasmDir();
+    if (!existsSync(join(wasmDir, 'esengine.wasm'))) {
+        throw new Error(`no esengine.wasm in ${wasmDir} — run \`node build-tools/cli.js build -t web\`, or set ESENGINE_WASM_DIR.`);
+    }
     const sdkPath = resolveSdk();
 
     const sdk = await import(pathToFileURL(sdkPath).href);
