@@ -90,6 +90,18 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'compiled-systems-compute-what-the-interpreter-computes',
+    says: 'a packaged compiled system moves the world exactly as the interpreted one does',
+    // Over the same FIXED steps, not the same wall clock: two launches of one
+    // package disagree by more than a wrong field offset does, so a comparison
+    // built on elapsed time measures the runner and not the arithmetic.
+    answeredBy: 'pnpm run verify:cooked',
+    needs: [
+      'tools/launchers/headless-cooked-verify.mjs',
+      'pipeline/tests/cooked-verify-fixture.test.ts',
+    ],
+  },
+  {
     id: 'compiled-game-packages-and-draws',
     says: 'a game whose systems were compiled packages, boots and draws the game it drew interpreted',
     // Not "the same pixels": the loop is wall-clock, so two launches of ONE

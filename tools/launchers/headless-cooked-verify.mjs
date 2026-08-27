@@ -16,7 +16,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 
-const COOKED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'pipeline', '.cooked-verify');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const COOKED = path.join(ROOT, 'pipeline', '.cooked-verify');
+/** The same fixture packaged without its compiled systems. */
+const INTERP = path.join(ROOT, 'pipeline', '.cooked-verify-interp');
 const W = 256, H = 256;
 
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -44,10 +47,60 @@ function serve(dir) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+/** Wait for the boot hook, or give up. Boot is async: wasm, then the scene. */
+async function waitForHook(exec) {
+  for (let i = 0; i < 150; i++) {
+    if (await exec('!!window.__estellaCooked').catch(() => false)) return true;
+    await sleep(100);
+  }
+  return false;
+}
+
+/**
+ * How far the compiled entity travels over a FIXED number of FIXED steps.
+ *
+ * Not over half a second of wall clock: the loop is browser-scheduled, so two
+ * runs of one package disagree by more than a wrong field offset does, and a
+ * comparison built on it measures the runner.
+ */
+async function drift(exec, diag) {
+  const before = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
+  await exec('window.__estellaCooked.step(60, 1/60)');
+  const after = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
+  if (!before || !after) { diag.push(`no Drifter in the world (before=${!!before} after=${!!after})`); return null; }
+  return { x: after.x - before.x, y: after.y - before.y };
+}
+
+/** The same measurement, on a package this run has not otherwise opened. */
+async function driftOf(dir, diag) {
+  let server;
+  let win;
+  try {
+    server = await serve(dir);
+    win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
+    await win.loadURL(`http://127.0.0.1:${server.address().port}/index.html?headless=1`);
+    const exec = (code) => win.webContents.executeJavaScript(code, true);
+    if (!await waitForHook(exec)) { diag.push(`${path.basename(dir)}: hook never appeared`); return null; }
+    // The hook exists before the scene does; the entity this measures arrives
+    // with the scene, so probing on the hook alone finds an empty world.
+    await sleep(1000);
+    return await drift(exec, diag);
+  } catch (e) {
+    diag.push(`${path.basename(dir)}: ${e?.message ?? e}`);
+    return null;
+  } finally {
+    try { win?.destroy(); } catch { /* already gone */ }
+    try { server?.close(); } catch { /* ignore */ }
+  }
+}
+
 app.whenReady().then(async () => {
   let server;
   let failed = true;
   const diag = [];
+  // The twin's own channel: the main window's console filter fills six slots
+  // with WebGL noise, and the report then says nothing about why it returned null.
+  const twinDiag = [];
   try {
     server = await serve(COOKED);
     const url = `http://127.0.0.1:${server.address().port}/index.html?headless=1`;
@@ -59,9 +112,7 @@ app.whenReady().then(async () => {
 
     const exec = (code) => win.webContents.executeJavaScript(code, true);
     // Boot is async (wasm + scene load); poll for the capture hook, then let it render.
-    let ready = false;
-    for (let i = 0; i < 150 && !ready; i++) { ready = await exec('!!window.__estellaCooked').catch(() => false); if (!ready) await sleep(100); }
-    if (!ready) throw new Error('gameHost capture hook never appeared (boot failed?)');
+    if (!await waitForHook(exec)) throw new Error('gameHost capture hook never appeared (boot failed?)');
     await sleep(1000);
 
     const cap = await exec(`(() => {
@@ -75,12 +126,18 @@ app.whenReady().then(async () => {
     // only a compiled system touches is moving. Nothing draws it, so this claim
     // and the pixel ones stay independent.
     const compiledSystems = await exec('window.__estellaCooked.compiledSystems()');
-    const first = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
-    await sleep(500);
-    const second = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
-    // 100 units a second, so half a second is about 50. Twenty is clear of a
-    // stutter and nowhere near what a still entity would report.
-    const aotOk = compiledSystems >= 1 && !!first && !!second && second.x - first.x > 20;
+    const moved = await drift(exec, diag);
+    // What the interpreted twin computes over the SAME steps. Wall clock is out
+    // of it, so this compares arithmetic and not the runner's scheduler: a twin
+    // reading one field from the wrong offset lands somewhere else here.
+    const twin = await driftOf(INTERP, twinDiag);
+    // Relative, at the width the value is STORED in: position is f32, so the
+    // same arithmetic rounds differently from the two runs' different starting
+    // magnitudes. A wrong field is off by the whole displacement, not by an ulp.
+    const same = (a, b) => Math.abs(a - b) <= 1e-5 * Math.max(1, Math.abs(a));
+    const aotOk = compiledSystems >= 1 && moved !== null && twin !== null
+      && same(moved.x, twin.x) && same(moved.y, twin.y)
+      && Math.abs(moved.x) > 1;
 
     // Left quad = the KTX2 texture (green); right quad = the PATH-referenced
     // material chain (its shader paints u_tint red) — proving the cooked
@@ -94,8 +151,8 @@ app.whenReady().then(async () => {
     console.log(`\n[verify:render:cooked] ${ok ? 'PASS' : 'FAIL'}`);
     console.log('DRIVE_RESULT ' + JSON.stringify({
       ...cap, greenOk, redOk, cornerBlack,
-      aotOk, compiledSystems, drift: [first?.x ?? null, second?.x ?? null],
-      diag: diag.slice(0, 6),
+      aotOk, compiledSystems, drift: { compiled: moved, interpreted: twin },
+      diag: diag.slice(0, 6), twinDiag: twinDiag.slice(0, 4),
     }));
     failed = !ok;
   } catch (e) {

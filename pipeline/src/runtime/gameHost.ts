@@ -170,6 +170,16 @@ async function boot(): Promise<void> {
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
       },
       /**
+       * Advance the world by `frames` steps of exactly `dt`, wall clock ignored.
+       *
+       * What a driver measures between two probes is otherwise a function of
+       * when the runner got scheduled — and two launches of ONE package disagree
+       * by more than a compiled system reading the wrong field does.
+       */
+      async step(frames = 1, dt = 1 / 60): Promise<void> {
+        await app.stepFrames(frames, dt);
+      },
+      /**
        * A way from one named entity to another, over the same navigation grid
        * the game's own enemies walk. A driver that steers straight at its goal
        * is a driver that walks into the first wall between them; asking the

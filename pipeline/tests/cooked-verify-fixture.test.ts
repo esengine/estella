@@ -14,6 +14,9 @@ import { exportGame } from '../src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '.cooked-verify');
+/** The same build with the compiled systems left out, so the launcher can ask
+ *  whether compiling changed what the game computes. */
+const OUT_INTERP = path.resolve(HERE, '..', '.cooked-verify-interp');
 const SRC = path.resolve(HERE, '..', '.cooked-src');
 const TEX = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SCN = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -130,5 +133,21 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
       contentAddressed: true,
     });
     expect(res.ok, res.errors.join('; ')).toBe(true);
-  }, 120_000);
+
+    // The interpreted twin: one source tree, two packages, and the only
+    // difference is whether CookedDrift runs as machine code.
+    const interp = await exportGame({
+      root: SRC,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
+      wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),
+      outDir: OUT_INTERP,
+      title: 'Cooked Verify (interpreted)',
+      contentAddressed: true,
+      aotMode: 'dev',
+    });
+    expect(interp.ok, interp.errors.join('; ')).toBe(true);
+  }, 180_000);
 });

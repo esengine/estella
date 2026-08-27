@@ -479,6 +479,14 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-aot-parity.mjs
 
+    # And the exact half: one fixture packaged both ways, stepped by a fixed dt
+    # rather than by elapsed time, and the two displacements compared. This is
+    # the check a twin reading the wrong offset cannot survive.
+    - name: Check a cooked build's compiled systems against the interpreter
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a pnpm run verify:cooked
+
     # Projects as they were RELEASED, opened by the editor of today. The golden
     # corpus is re-saved by whoever last touched it, so it can only say that this
     # version opens its own files; a person's project is not re-saved by anybody.
