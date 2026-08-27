@@ -14,6 +14,26 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sprite-seam pair proved nothing on WebGPU, and one half of it said so.**
+  `sprite-seam` asserts the pixel-exact render policy removes a seam;
+  `sprite-seam-off` is its negative control, and it was red on WebGPU — the same
+  ratio every run, and the same one with the release's engine changes stashed.
+
+  The two backends' frames are identical except at ONE pixel. On the third
+  boundary, WebGL2 draws `[81,65,206]` between neighbours of `[59,47,219]` and
+  `[41,32,230]` — a line stepping back up, which is the seam — where WebGPU
+  draws `[44,35,228]`, on the ramp. Interior step is ~31 on both; the worst
+  boundary is 94.1 against 51.5.
+
+  So there is no seam on WebGPU to control for — and the POSITIVE gate is
+  vacuous there too: 1.357 with the policy and 1.683 without, both under its
+  limit of 2, so it passes whether or not the thing it tests is applied. The
+  pair runs on WebGL2 only now, carrying those numbers, and what makes the
+  backends differ is written down rather than guessed at (it is not the address
+  mode: both default to ClampToEdge and GL applies it).
+
 ### Added
 
 - **A sampled depth can be put back in the world.** `FrameConstants` carries the

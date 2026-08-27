@@ -162,18 +162,31 @@ experimental 对创作者读起来是「大半个引擎没做完」，哪怕其�
   「0.57 exit criteria」的清单下发的。一个存在理由就是「不让清单和检查漂移」的文件，
   不能自己成为版本号的第二处来源。
 
-## 6. 一个既有的红:`sprite-seam-off` 在 webgpu 上
+## 6. `sprite-seam` 这一对在 webgpu 上是空转的〔已查清 2026-08-27〕
 
-2026-08-27 发现。`node tools/verify-render.mjs --backend webgpu` 是 108/109,唯一的红是
-`sprite-seam-off`:seam ratio **1.6832844574779984**,要求 ≥ 2.5,而且**每次都是同一个数**
-（不是抖动）。把引擎改动 stash 掉重建后是**同一个数**,所以它不是这次改出来的。
+**起因**:`--backend webgpu` 是 108/109,唯一的红是 `sprite-seam-off`(ratio 1.683,要求
+≥2.5),每次同一个数。把引擎改动 stash 掉重建后**同一个数**,所以不是新引入的。
 
-**为什么它一直没人管**:本地 `pnpm verify` 不跑像素门禁,而像素门禁的 webgpu 那一半只有
-本机有真适配器时才跑得动（CI runner 没有）。所以这是一个「没有任何东西在采样它」的洞 ——
-和 [[gates-cannot-see-what-they-do-not-sample]] 同一类。webgl2 那边 111/111 全绿。
+**这一对是干什么的**:`sprite-seam` 断言「上了 pixel-exact 的 render policy 之后没有缝」,
+`sprite-seam-off` 是它的**反向对照** —— 不上 policy 时缝**必须还在**,否则正向那条证明不了
+任何东西。度量是 `max(边界列台阶) / median(内部列台阶)`。
 
-查它的起点是 `2d-seams-three-mechanisms` 那条记录:内部误差 vs 边界误差能区分三种机制,
-而 `pixelPerfect` 只贴位置、不贴缩放。
+**量到的**。两个后端的帧**只差一个像素**:第三道缝上,x=201,GL 给 `[81,65,206]`,而它两边
+是 `[59,47,219]` 和 `[41,32,230]` —— 一根往回跳的亮线,就是缝;WebGPU 给 `[44,35,228]`,
+顺着斜坡,没有缝。内部台阶两边都是 ~31,最差边界列 GL 是 94.1、WebGPU 是 51.5。
+
+**结论:这一对在 WebGPU 上不成立,而且正向那条是空转的。** WebGPU 上带 policy 是 1.357、
+不带是 1.683,**都在 limit 2 以下** —— 也就是说把被测的修复拿掉,正向门禁照样绿。一个不可能
+红的准则不是准则。所以两条都改成只跑 WebGL2,注释里带着这些数。
+
+**还没答的**:WebGPU 为什么不出这个 artifact?**不是寻址模式** —— 两边默认都是
+`TextureWrap::ClampToEdge`(`GfxEnums.hpp`),GL 也确实设了(`GLDevice.cpp:1079`)。最像的
+解释是两块相邻 quad 共享边上「哪一块盖住那个像素」的光栅化裁定不同。要往下查就从
+`2d-seams-three-mechanisms` 那条记录的机制 C 开始:纹素→像素比不是整数。
+
+**顺带记一条**:本地 `pnpm verify` 不跑像素门禁,而像素门禁的 webgpu 那一半只有本机有真
+适配器才跑得动(CI runner 没有)。所以这类红能躺很久 ——
+和 [[gates-cannot-see-what-they-do-not-sample]] 同一类。
 
 ## 明确不做的（省得重新评估）
 
