@@ -22,9 +22,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CFLAGS, RUNTIME_H } from '../src/codegen';
 import { exact } from '../../sdk/src/math/exact';
-import { findCC } from './hostCC';
+import { findHostCC } from '../src/hostCC';
 
-const CC = findCC();
+const CC = findHostCC();
 
 /** Where a range reduction, a quadrant choice or a polynomial could differ. */
 function arguments_(): number[] {

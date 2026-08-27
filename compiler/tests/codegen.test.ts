@@ -39,7 +39,7 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { AbiMemory, flushCommands, materialize, packLayout, planFor, runOnAbi } from '../src/abi';
 import { CFLAGS, cSymbol, emitC, type CModule } from '../src/codegen';
-import { findCC } from './hostCC';
+import { findHostCC } from '../src/hostCC';
 import { abiHashFor } from '../src/abi';
 import type { AbiLayout } from '../src/abi';
 import { F64, type EirSystem } from '../src/eir';
@@ -58,7 +58,7 @@ const FRAMES = 12;
 /** Small enough that a frame is one cheap pipe, big enough for the world above. */
 const IMAGE = 1 << 16;
 
-const CC = findCC();
+const CC = findHostCC();
 
 /** The harness: linear memory in on stdin, linear memory out on stdout. */
 const MAIN_C = `/* Test scaffolding, not compiler output. */
