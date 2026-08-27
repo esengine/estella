@@ -15,7 +15,7 @@ import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
 import { EventRegistry, eventNamed, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import type { OutputTransform } from '../postprocess';
+import { outputTransformCode, type OutputTransform } from '../postprocess';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { inputPlugin, Input } from '../input/input';
@@ -1685,7 +1685,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // After the renderer, not with the colour space above it: the post-process
     // pipeline is created by the renderer, and a curve declared before it exists
     // reaches nothing.
-    module.postprocess_setOutputTransform?.(options?.outputTransform === 'aces' ? 1 : 0);
+    module.postprocess_setOutputTransform?.(outputTransformCode(options?.outputTransform));
 
     app.addPlugin(corePlugin);
     app.setPipeline(new RenderPipeline());

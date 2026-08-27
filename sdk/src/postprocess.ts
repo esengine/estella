@@ -4,6 +4,7 @@ export {
     PostProcess,
     PostProcessAPI,
     PostProcessStack,
+    outputTransformCode,
     type OutputTransform,
     postProcessEffects,
     initPostProcessAPI,

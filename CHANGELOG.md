@@ -110,6 +110,14 @@ published separately; it ships inside the editor.
   multi-tileset layer, whose singular field is still carried for older scenes,
   and the particle curves that only one game has authored.
 
+- **The output curve's number is worked out in one place.** `OutputTransform` is
+  a string union at the API and a number at the wasm boundary, and the
+  translation — `'aces' ? 1 : 0` — was written at both call sites. A third curve
+  would have reached one of them and been read as `none` by the other. Found by
+  sweeping for fields whose meaning is spelled in a comment over a bare `number`;
+  the only other two hits document the DOM's own button numbering, which is a
+  foreign convention and belongs in prose.
+
 - **"Tested" now means named in a test's CODE, and three mirrors of one enum are
   gone.** The evidence behind every stability promise counted any identifier
   appearing anywhere in a test file — a comment, a `describe()` title. Measured,

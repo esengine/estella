@@ -139,6 +139,15 @@ export function syncStackToWasm(stack: PostProcessStack, force = false): void {
  */
 export type OutputTransform = 'none' | 'aces';
 
+/**
+ * The curve's number at the wasm boundary. Here and not at each call: the
+ * translation was written twice, and a third curve would have reached one of
+ * them and been silently read as `none` by the other.
+ */
+export function outputTransformCode(transform: OutputTransform | undefined): number {
+    return transform === 'aces' ? 1 : 0;
+}
+
 export class PostProcessAPI {
     readonly state = new PostProcessState();
 
@@ -237,7 +246,7 @@ export class PostProcessAPI {
      */
     setOutputTransform(transform: OutputTransform): void {
         try {
-            getModule().postprocess_setOutputTransform(transform === 'aces' ? 1 : 0);
+            getModule().postprocess_setOutputTransform(outputTransformCode(transform));
         } catch (e) {
             handleWasmError(e, 'PostProcess.setOutputTransform');
         }
