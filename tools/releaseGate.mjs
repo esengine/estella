@@ -115,6 +115,19 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'a-web-game-runs-its-systems-as-machine-code',
+    says: 'an exported web game loads its compiled systems and dispatches to them',
+    // The claim the desktop road already makes, on the road most games ship on.
+    // A twin that loads and is never called raises no error and changes no pixel,
+    // so neither parity nor the cooked check can see it.
+    answeredBy: 'pnpm run verify:aot',
+    needs: [
+      'tools/launchers/headless-aot-verify.mjs',
+      'sdk/src/runtime/runtimeLoader.ts',
+      'pipeline/src/bundle/buildCompiledSystems.ts',
+    ],
+  },
+  {
     id: 'a-compiled-system-is-cheaper-where-there-is-no-jit',
     says: 'on a host with no JIT, a compiled system costs a fraction of the interpreted one',
     // The fallback is SILENT: a system the dispatcher stops taking goes back to

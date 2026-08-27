@@ -56,10 +56,14 @@ app.whenReady().then(async () => {
   const diag = [];
   try {
     if (!existsSync(path.join(PACKAGE, 'index.html'))) throw new Error(`no package at ${PACKAGE}`);
-    // The two files the export writes for this. Absent means the export did not
-    // compile anything, which makes everything below vacuous.
-    for (const f of ['systems.wasm', 'systems.json']) {
-      if (!existsSync(path.join(PACKAGE, f))) throw new Error(`the package carries no ${f}`);
+    // Asked of the CONFIG the host reads, which is where the module's path and
+    // the inlined manifest actually live. This looked for `systems.json` at the
+    // package root until now — a shape the export dropped, unnoticed, unrun.
+    const config = JSON.parse(await readFile(path.join(PACKAGE, 'game.config.json'), 'utf8'));
+    if (!config.aot) throw new Error('game.config.json carries no `aot` — the export compiled nothing');
+    if (!config.aot.manifest?.systems?.length) throw new Error('the aot manifest declares no systems');
+    if (!existsSync(path.join(PACKAGE, config.aot.module))) {
+      throw new Error(`the config names ${config.aot.module}, which the package does not carry`);
     }
 
     server = await serve(PACKAGE);

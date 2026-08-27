@@ -479,6 +479,15 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: xvfb-run -a node tools/verify-aot-parity.mjs
 
+    # Does a real exported WEB package DISPATCH to its compiled systems — the
+    # claim verify-aot-native makes for the desktop road, which the web road had
+    # nobody making. A twin that loads and is never called changes no pixel and
+    # raises no error, so parity below cannot see it either.
+    - name: Check an exported web game runs its systems compiled
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a pnpm run verify:aot
+
     # And the exact half: one fixture packaged both ways, stepped by a fixed dt
     # rather than by elapsed time, and the two displacements compared. This is
     # the check a twin reading the wrong offset cannot survive.

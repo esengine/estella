@@ -59,6 +59,12 @@ const ENTITIES = Number(process.env.BENCH_ENTITIES ?? (GATE ? 2000 : 5000));
 const FRAMES = Number(process.env.BENCH_FRAMES ?? (GATE ? 60 : 300));
 const WARMUP = Number(process.env.BENCH_WARMUP ?? (GATE ? 60 : 120));
 const REPS = Number(process.env.BENCH_REPS ?? (GATE ? 1 : 3));
+/**
+ * Reps for a PAIR, whose answer is a ratio: the smaller half decides it, and one
+ * bad sample of that half decides the gate. Measured, the same tree read 0.735,
+ * 1.195 and 2.864 ms on the compiled side at one rep.
+ */
+const PAIR_REPS = Math.max(REPS, 3);
 const BODIES = (process.env.BENCH_BODIES ?? 'thin').split(',').map((s) => s.trim()).filter(Boolean);
 /**
  * Which of the two builds to export and run. Both by default, because the ratio
@@ -312,17 +318,18 @@ try {
             process.stdout.write(`  exporting ${body} ${key}...\n`);
             built[key] = exportApp(project, path.join(out, `${body}-${key}`), key === 'compiled');
         }
-        for (const key of BUILDS) {
-            // Every rep in its own process, and the FASTEST kept: noise on a desktop
-            // only ever adds time, so the minimum is the closest thing to the cost.
-            let best = null;
-            for (let rep = 0; rep < REPS; rep++) {
+        // Every rep in its own process and the FASTEST kept: noise only ever adds
+        // time. Interleaved across the builds — run one's reps then the other's
+        // and any drift between the two stretches lands whole in the ratio.
+        const best = {};
+        for (let rep = 0; rep < PAIR_REPS; rep++) {
+            for (const key of BUILDS) {
                 const r = run(built[key], `${body} ${key}`);
-                process.stdout.write(`  ${body} ${key} rep ${rep + 1}/${REPS}: cpu p50 ${r.cpu.p50.toFixed(3)} ms\n`);
-                if (best === null || r.cpu.p50 < best.cpu.p50) best = r;
+                process.stdout.write(`  ${body} ${key} rep ${rep + 1}/${PAIR_REPS}: cpu p50 ${r.cpu.p50.toFixed(3)} ms\n`);
+                if (best[key] === undefined || r.cpu.p50 < best[key].cpu.p50) best[key] = r;
             }
-            rows.push({ body, key, ...best });
         }
+        for (const key of BUILDS) rows.push({ body, key, ...best[key] });
     }
     // The render pair. Compiled only: `idle` schedules no system, so the two
     // builds of it are the same program, and the interpreted export would cost a
@@ -337,13 +344,11 @@ try {
             process.stdout.write(`  exporting ${half} (${RENDER_ENTITIES} entities)...\n`);
             exe[half] = exportApp(project, path.join(out, `${half}-build`), true);
         }
-        // Interleaved: run one half's reps and then the other's, and any drift
-        // between the two stretches lands whole in the ratio. Three reps, because
-        // the denominator threw an outlier 12% high in one run of eight.
-        for (let rep = 0, reps = Math.max(REPS, 3); rep < reps; rep++) {
+        // Interleaved and repped like the bodies above: same shape, same reason.
+        for (let rep = 0; rep < PAIR_REPS; rep++) {
             for (const half of halves) {
                 const r = run(exe[half], half);
-                process.stdout.write(`  ${half} rep ${rep + 1}/${reps}: cpu p50 ${r.cpu.p50.toFixed(3)} ms\n`);
+                process.stdout.write(`  ${half} rep ${rep + 1}/${PAIR_REPS}: cpu p50 ${r.cpu.p50.toFixed(3)} ms\n`);
                 if (render[half] === undefined || r.cpu.p50 < render[half].cpu.p50) render[half] = r;
             }
         }
@@ -380,9 +385,13 @@ console.log('');
 // A frame the compositor throttled spends its span waiting and reads exactly like
 // a frame that cost that much — measured, 16.6 ms whatever the scene held, at 8%
 // busy, and the render pair reading 0.99x and passing. Refuse, do not report.
+/** A run that measured nothing. Nothing downstream may pass a verdict on it. */
+const unmeasured = (r) => r?.waited === true;
+
 for (const r of rows.concat(Object.values(render))) {
     if (typeof r.busy !== 'number' || r.busy < 0) continue;
     if (r.busy >= MIN_BUSY) continue;
+    r.waited = true;
     console.error(`✗ ${r.label || 'a run'}: only ${(r.busy * 100).toFixed(0)}% of its frame was CPU`
         + ` (needs ${(MIN_BUSY * 100).toFixed(0)}%) — it WAITED, so ${r.cpu.p50.toFixed(2)} ms is the`
         + ' compositor and not the engine. Measured causes: a covered window, and a virtual display'
@@ -465,6 +474,10 @@ for (const body of [...new Set(rows.map((r) => r.body))]) {
         bad++;
     }
     if (body === 'idle') continue;
+    // "A system is reaching the interpreter" is a verdict about the ENGINE, and a
+    // half that spent its frame waiting cannot support one — it is already red
+    // above, with the reason it is actually red for.
+    if (unmeasured(i) || unmeasured(c)) continue;
     const ratio = i.cpu.p50 / c.cpu.p50;
     if (GATE && !(ratio >= MIN_RATIO)) {
         console.error(`✗ ${body}: the compiled frame is only ${ratio.toFixed(2)}x the interpreted one `
@@ -495,6 +508,16 @@ for (const body of [...new Set(rows.map((r) => r.body))]) {
 // The frame's TIME, which nothing else bounds: the count ceilings hold draws,
 // meshes and triangles, every one of which a frame can honour for twice the CPU.
 if (render.drawing && render.holding) {
+    // Counts first, and they hold whether or not the frame was measurable: two
+    // halves that both drew nothing would read 1.0x, having measured one scene
+    // twice, and no timing rule can catch that.
+    if (!(render.drawing.draws > 0) || render.holding.draws !== 0) {
+        console.error(`✗ drawing: the pair is not a pair — ${render.drawing.draws} draw(s) with sprites, `
+            + `${render.holding.draws} without`);
+        bad++;
+    }
+}
+if (render.drawing && render.holding && !unmeasured(render.drawing) && !unmeasured(render.holding)) {
     const drawing = render.drawing.cpu.p50;
     const holding = render.holding.cpu.p50;
     const ratio = drawing / holding;
@@ -505,13 +528,6 @@ if (render.drawing && render.holding) {
     if (GATE && !(ratio <= RENDER_MAX_RATIO)) {
         console.error(`✗ drawing: the frame is ${ratio.toFixed(2)}x the one that only holds the same `
             + `entities, over the ${RENDER_MAX_RATIO}x ceiling — submitting a sprite got dearer`);
-        bad++;
-    }
-    // A half that drew nothing is not a control, it is a broken export: the pair
-    // would read 1.0x and pass, having measured one scene twice.
-    if (!(render.drawing.draws > 0) || render.holding.draws !== 0) {
-        console.error(`✗ drawing: the pair is not a pair — ${render.drawing.draws} draw(s) with sprites, `
-            + `${render.holding.draws} without`);
         bad++;
     }
 }

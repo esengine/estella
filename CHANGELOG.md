@@ -74,6 +74,28 @@ published separately; it ships inside the editor.
   and the software rasterizer agree on all four to the byte.
 
 
+- **An exported WEB game is checked for running its systems compiled, and the
+  checker that was supposed to do it had rotted.** `verify:aot` exports
+  `examples/ecs-basics` through the CLI, boots the package and asks the host how
+  many times a twin was CALLED — the claim `verify-aot-native` makes for the
+  desktop road, and the one the web road had nobody making. Parity cannot see
+  it: a twin that loads and is never called moves the entity to the same place.
+
+  It had been failing with "the package carries no systems.json" since the
+  manifest moved inline into `game.config.json`, and nothing noticed because
+  **nothing ran it** — no workflow, no gate, no criterion. It reads the config
+  the host reads now, the script clears its output directory (a `systems.wasm`
+  two days stale was sitting beside the new one), and it runs in CI and is an
+  exit criterion, so it cannot go quiet again. The web road was fine all along:
+  `MoveSystem` installed, 91 twin calls.
+
+- **`aotArtifacts.ts` described a wire that no longer exists.** Its file comment
+  said the two names are "for both ends", warning that a name written twice
+  makes the host's fetch 404. The host has not fetched either by name since the
+  manifest was inlined — it reads the module path out of the config. They are
+  build-step names, and the one checker that believed otherwise is the entry
+  above.
+
 - **A frame that WAITED is refused, not reported.** Every number the native bench
   publishes comes from the host's own frame span, and that span can be spent
   waiting: a frame the compositor throttles reads 16.6 ms whatever the scene
@@ -91,6 +113,14 @@ published separately; it ships inside the editor.
 
   The cheapest frame in each comparison trips first, which is the right way
   round: it is the one a throttle can pin while the other still has work in it.
+
+  **And a refused run gets no verdict passed on it.** A throttled compiled half
+  used to read 2.87 ms and draw a second failure — "a system is reaching the
+  interpreter" — which is an accusation about the engine that a frame spent
+  waiting cannot support. Both pairs now measure the same way (interleaved, three
+  reps, `PAIR_REPS` in one place) and skip their timing verdict when either half
+  was refused. Counts still judge: the checksums, whether a compiled system was
+  dispatched to at all, `walked`, and whether the render pair is a pair.
 
 - **A frame's TIME has a ceiling, and what it bounds is the drawing.** Counts
   were the only thing holding a frame: `sprite-scale-cost` and its siblings bound

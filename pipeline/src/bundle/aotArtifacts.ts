@@ -2,12 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    aotArtifacts.ts
- * @brief   What the AOT step's two files are called, for both ends of the wire.
+ * @brief   What the AOT step's two files are called where it writes them.
  *
- * @details The export writes them and the game host fetches them, and a name
- *          written twice fails in the worst way available: the fetch 404s, no
- *          twin is installed, and the game runs the interpreter at full speed
- *          with nothing to say. NO IMPORTS — the host bundles this.
+ * @details These are BUILD names, not a wire: a package carries the module at
+ *          the path `game.config.json` records and the manifest inlined beside
+ *          it, so the host never fetches either by name. It said otherwise for
+ *          two releases, and the one checker that believed it looked for
+ *          `systems.json` in a package that has not carried one since.
  */
 
 /** The compiled systems, as a module importing the engine's memory. */
