@@ -14,6 +14,17 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **`rendering`'s stability verdict says something that is still true.** Its
+  reason had been "as AI — and the render graph behind it is still moving", and
+  the second half stopped being true a release ago: the scene is a declared pass,
+  the target pool has lifetimes, depth is sampleable, and this release grows the
+  first real effect on top of it. What decides the tier now is only the ordering
+  — a game is built OUT of the layers under this one and they freeze first — so
+  that is what it says. The TIER is unchanged: moving it out of `experimental`
+  is a promise to creators and a decision of its own.
+
 ### Fixed
 
 - **The sprite-seam pair proved nothing on WebGPU, and one half of it said so.**

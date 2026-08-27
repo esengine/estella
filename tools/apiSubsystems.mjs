@@ -242,8 +242,9 @@ export const SUBSYSTEMS = [
         titleZh: '材质、光照、后处理',
         source: ['render', 'postprocess'],
         tier: 'experimental',
-        why: 'as AI — and the render graph behind it is still moving',
-        whyZh: '同 AI —— 而且它背后的 render graph 还在动',
+        why: 'as AI — a game is built OUT of the layers under this one and they freeze first; '
+            + 'the render graph it was waiting on has settled',
+        whyZh: '同 AI —— 一个游戏是由它下面那几层构成的,那些先冻;它当初等的那个 render graph 已经定下来了',
         entry: ['Material', 'Light', 'PostProcessStack'],
     },
     {

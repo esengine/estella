@@ -112,23 +112,46 @@ idle 相减的 run-to-run 抖动是 ±0.3 ms，而答案本身只有 0.4 ms —�
 时间的没有：`tools/perf-guard.mjs` 断言的是微基准之间的**比值**（CPU 抵消掉），
 `tools/perf-budget.mjs` 断言的是 50k 资产工程上**操作**的上限。两个都不看渲染的一帧。
 
-**为什么是现在。** `WebGPUDevice::setPresentUncapped` 刚好为这件事造出来。在它之前，
-Fifo 把每一帧量成刷新间隔的整数倍 —— 51 ms 和 1.7 ms 读作「52 ms」和「16.5 ms」，
-30x 被量化成 3x。任何时间门禁在那之前都没有意义。
-
 **形状：同机比值，不是毫秒。** 跟 AOT 那个门禁同一个理由 —— 毫秒天花板在别人的机器上
 要么松到抓不住东西，要么随机红。
+
+### 开工前必须知道的：像素门禁那个宿主没有一把够用的尺子（2026-08-27 实测）
+
+原本的打算是「像素门禁 runner 已经是个 harness，只缺一个时间的门」。**不成立** ——
+缺的是时钟，不是门。
+
+- **web 侧 `FrameProfiler` 读的是 `emscripten_get_now()` → `performance.now()`**
+  （`src/esengine/core/FrameProfiler.hpp:29`），Chromium 在**没有跨源隔离**时把它钳到
+  100 µs。后果不是「不够准」，是**两个 scope 一直读作 0**：无头跑一帧，`render.submit`
+  和 `render.graph` 都是 `0.000`，而 `render.collect` 是 `0.400`、`render.finalize`
+  是 `0.200` —— 全是 0.1 的整数倍。
+- **给 render host 的服务器加 COOP/COEP 能解钳**，实测同一场景变成 `render.submit=0.0100`、
+  `render.graph=0.0150`（约 5 µs，细 20 倍）。**但它同时把 GPU 计时器关掉**：`gpuMs` 从
+  `0.055296` 变成 `-1`。两个方向都量过，是确定性的。
+- **`gpuMs` 本来就不可靠**：小阴影场景答 0.055，4225 个网格的 `scale-meshes` 上
+  **不加隔离也是 -1**。
+- 今天没有任何门禁消费 `ESTELLA_VERIFY_PROFILE`，所以这个取舍没有现成的消费者来决定 ——
+  那次 COOP/COEP 改动因此被撤回了：拿一个能用的 GPU 计时器去换一个没人读的 CPU 分辨率，
+  不划算。
+
+**所以结论变了：时间预算不该建在 web 那个宿主上。** 引擎已经有一个**能用的**帧时钟 ——
+在 native 宿主上（`native/host/Bench.hpp` + `WebGPUDevice::setPresentUncapped`），而且
+已经被 AOT 那条发布准则用着（`bench/aot-native/frame-bench.mjs --gate`）。要给一帧上时间
+预算，从那里开始，而不是再造一把尺子。
 
 **顺带还欠一个分母**：阴影图集的图块数对光源数。`shadow-scale-cost` 曾经带过
 `render.shadow.tiles` 的上限，被拿掉了，因为那个场景里没有任何东西能把它推过 8 ——
 它由 cascade 数界定，不由 caster 数界定。要预算它得换一个分母。
 
+
 ## 4. 重读 `rendering` 的判决，顺手解锁 fog / DOF / SSAO
 
-**`rendering` 的 `why` 已经过期一半。** 它写的是「同 AI —— 而且它背后的 render graph
-还在动」。后半句不成立了：scene 是声明出来的 pass、target pool 有生命周期、depth 可采样。
-唯一没做的（shadow pass 不声明）已经判过「低价值、真风险、别开」。**要么让它毕业，要么把
-`why` 改成还成立的那句** —— 一条过期的理由比没有理由更糟，因为它看起来像是被想过的。
+**`rendering` 的 `why` 改了〔2026-08-27〕，定级本身还等你拍板。** 它原来写的是
+「同 AI —— 而且它背后的 render graph 还在动」。后半句不成立了：scene 是声明出来的 pass、
+target pool 有生命周期、depth 可采样，而且今天它上面已经长出了第一个真效果
+（`distanceFog`，带双后端像素门禁）。所以 `why` 已经换成还成立的那句：**一个游戏是由它
+下面那几层构成的，那些先冻**。**没有动的是 tier 本身** —— 从 `experimental` 升到 `beta`
+是改对创作者的承诺，这一步留给你；改 `why` 只是把一条过期的理由换掉，不是承诺变更。
 
 **同一批里最便宜的四个。** `tilemap`、`particles`、`mesh`、`i18n` 的 `why` 都是
 「有游戏端到端认证了，但还没被拿来定级」。那是一次**读**，不是一次**建**。12 个
@@ -200,7 +223,7 @@ experimental 对创作者读起来是「大半个引擎没做完」，哪怕其�
 
 ## 建议的顺序
 
-**1 → 5 → 4 → 3 → 2。**
+**1 → 5 → 4 → 3 → 2。** 〔1、5、6 已关闭；4 的工程那半已落地，定级待拍板；3 的前提被实测推翻，见上；剩 2。〕
 
 先把量到的浪费修掉（1），顺手清掉两处假的清单项（5），再做一次定级重读 + FrameConstants
 （4，这两个是「读」和「一个成员」，不是工程），然后是时间门禁（3），最后开 Android（2，
