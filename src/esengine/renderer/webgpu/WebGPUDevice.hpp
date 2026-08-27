@@ -277,18 +277,12 @@ public:
     void setSurfaceReadback(bool enabled) { surface_readback_ = enabled; }
 
     /**
-     * @brief Let the swapchain present as fast as it can, instead of waiting for
-     *        the display. Must be set BEFORE the surface is configured.
+     * @brief Present as fast as the surface allows instead of waiting for the
+     *        display. Set BEFORE the surface is configured; off by default.
      *
-     * Off by default, and a shipped game should leave it off: an uncapped
-     * swapchain burns a core to draw frames nobody sees. It exists for
-     * MEASUREMENT — under Fifo, `getCurrentTexture` blocks until an image frees,
-     * so every frame cheaper than the refresh interval reads as exactly the
-     * refresh interval and every frame dearer than it reads as a multiple. A cost
-     * quantised to the panel is not a cost.
-     *
-     * Best effort: the mode is taken from what the surface advertises (Mailbox,
-     * then Immediate), and a surface offering neither keeps Fifo.
+     * For MEASUREMENT only: under Fifo every frame reads as the refresh interval
+     * or a multiple of one, and a cost quantised to the panel is not a cost.
+     * Best effort — Mailbox, then Immediate, then Fifo.
      */
     void setPresentUncapped(bool enabled) { present_uncapped_ = enabled; }
 

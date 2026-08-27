@@ -5,10 +5,10 @@
  * @brief   What a frame COSTS on this host — the number AOT exists for, measured
  *          where the constraint AOT exists for actually holds.
  * @details Every frame number this engine has ever published came from a host with
- *          a JIT: V8 on the desktop, Chromium on the phone (docs/REARCH_AOT.md
- *          §18). But `bench/aot-frame`'s own README says the number the road was
- *          built for is the no-JIT one, and the plan's proxy for it was a Mac
- *          running Bun/JavaScriptCore.
+ *          a JIT: V8 on the desktop, Chromium on the phone. As `bench/aot-frame`'s
+ *          own README puts it, the number the road was built for is the no-JIT
+ *          one — and the plan's way to get it was a Mac running
+ *          Bun/JavaScriptCore.
  *
  *          The proxy stopped being necessary the day this host learned to dispatch
  *          to compiled systems. It embeds QuickJS-ng, which has no JIT — the same

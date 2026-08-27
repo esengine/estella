@@ -38,15 +38,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const SYSTEMS = path.join(ROOT, 'bench', 'aot-frame', 'project', 'src', 'systems.ts');
 
 /**
- * `--gate` turns the benchmark into a release criterion.
- *
- * The failure this road can have is SILENT: `AotDispatcher.run` returns whether it
- * took the system, and false sends it back to the interpreter for that frame. That
- * is deliberate — the no-cliff rule — so a regression that unbinds every system
- * raises no error and changes no pixel. It only costs time, and nothing was
- * measuring time. A same-machine ratio is what sees it: an engine that stopped
- * dispatching reads ~1x, and no absolute millisecond ceiling has to be calibrated
- * to a machine for that to be true.
+ * `--gate` turns the benchmark into a release criterion, because this road's
+ * failure is silent: a system that stops being dispatched to falls back to the
+ * interpreter by design, raising no error and changing no pixel. A same-machine
+ * ratio sees that where a millisecond ceiling cannot. See the README.
  */
 const GATE = process.argv.includes('--gate');
 const ENTITIES = Number(process.env.BENCH_ENTITIES ?? (GATE ? 2000 : 5000));
@@ -287,13 +282,9 @@ try {
 
 console.log(`\nno-JIT frame — QuickJS-ng in the native host, ${ENTITIES} entities, `
     + `${FRAMES} frames after ${WARMUP}, best of ${REPS}\n`);
-// `update` is not a column. On this host it only SCHEDULES the App tick — an async
-// function returns at its first await — so the systems, and the render they drive,
-// run in the microtask drain that follows. `tick` below is that drain.
-// `draws` is a column because a BODY can move the render's cost. `heavy` writes
-// `position.z` per entity, which breaks sprite batching into one draw each: its
-// frame then carries ~5000 draw calls that have nothing to do with the system, and
-// the ratio reads low for a reason no timing column can show.
+// `tick` is the microtask drain, not the `update` call: that one only schedules an
+// async tick. `draws` is a column because a body can move the render's cost —
+// `heavy` writes `position.z`, which breaks sprite batching into one draw each.
 console.log('body      build           tick p50    cpu p50   frame p50   draws   compiled?');
 for (const r of rows) {
     console.log(`${r.body.padEnd(9)} ${r.key.padEnd(13)} ${`${r.pump.p50.toFixed(3)} ms`.padStart(10)}`

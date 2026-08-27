@@ -393,10 +393,9 @@ bool WebGPUDevice::surfaceBytesAreBGRA() const {
 /**
  * The fastest present mode this surface actually advertises.
  *
- * Mailbox first: it drops finished frames instead of blocking, so the CPU is
- * never made to wait and nothing tears. Immediate next — it tears, which is
- * irrelevant to a measurement. Fifo if the surface offers neither, in which case
- * the caller gets a throttled frame and the numbers say so.
+ * Mailbox first: it drops finished frames rather than blocking the CPU, and does
+ * not tear. Immediate tears, which a measurement does not care about. Fifo is the
+ * fallback, and then the caller's frame is throttled.
  */
 WGPUPresentMode WebGPUDevice::pickUncappedPresentMode() const {
 #if !defined(__EMSCRIPTEN__)
