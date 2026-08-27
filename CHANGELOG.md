@@ -74,6 +74,31 @@ published separately; it ships inside the editor.
   and the software rasterizer agree on all four to the byte.
 
 
+- **`check-verifier-owners` — a checker nobody runs is a checker that rots.**
+  `check-release-gate` holds one direction: every exit criterion has something
+  answering it. Nothing held the other, and `verify:aot` fell through it — a
+  verifier with no workflow, no gate, no criterion and no script calling it,
+  failing against a package shape that had changed under it.
+
+  So every `tools/check-*.mjs` and `tools/verify-*.mjs` owes a caller: a
+  workflow, the gate list, a package script, another tool that spawns it, or an
+  exit criterion saying who runs it and why a machine cannot. Prose does not
+  count — a tool named only in a comment is exactly the case. 60 checkers, one
+  orphan, now owned. Sabotage-verified both ways: a new unowned checker turns it
+  red, and so does taking an existing one out of the gate list.
+
+  It refuses to shrink its own corpus in silence, too: `git ls-files` names files
+  a checkout may not have — a submodule, a deletion not yet committed — and those
+  are reported rather than skipped past.
+
+- **A crash on a device is an exit criterion, and asking for it can no longer
+  answer "skipped".** `verify-bootlog-crash` builds the real handler for arm64,
+  pushes it, faults on purpose and reads the record back — the claim that a game
+  dying on someone else's phone leaves something they can send. It was the one
+  orphan above. It still skips on a laptop with no phone, which is right, and
+  `--require-device` turns that into a failure, which is what a release asking
+  the question came for.
+
 - **An exported WEB game is checked for running its systems compiled, and the
   checker that was supposed to do it had rotted.** `verify:aot` exports
   `examples/ecs-basics` through the CLI, boots the package and asks the host how

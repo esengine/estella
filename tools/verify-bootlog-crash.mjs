@@ -58,16 +58,24 @@ function device(adb) {
     }
 }
 
+// Skipping is right on a laptop with no phone and wrong when a release is being
+// cut against this, so the caller says which it is. Exit 0 either way would make
+// "there was no device" indistinguishable from "the record survived the crash".
+const REQUIRE_DEVICE = process.argv.includes('--require-device');
+function unavailable(why) {
+    if (REQUIRE_DEVICE) {
+        console.error(`verify-bootlog-crash: CANNOT RUN — ${why}. This was asked for with`
+            + ' --require-device, so it is a failure and not a pass.');
+        process.exit(1);
+    }
+    console.log(`verify-bootlog-crash: SKIP — ${why}`);
+    process.exit(0);
+}
+
 const adb = adbPath();
 const clang = ndkClang();
-if (!clang) {
-    console.log('verify-bootlog-crash: SKIP — no Android NDK found');
-    process.exit(0);
-}
-if (!device(adb)) {
-    console.log('verify-bootlog-crash: SKIP — no adb device attached');
-    process.exit(0);
-}
+if (!clang) unavailable('no Android NDK found');
+if (!device(adb)) unavailable('no adb device attached');
 
 mkdirSync(OUT, { recursive: true });
 const bin = path.join(OUT, 'bootlog_crash_test');

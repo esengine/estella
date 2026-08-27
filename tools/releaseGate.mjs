@@ -179,6 +179,14 @@ export const CRITERIA = [
     needs: ['tools/verify-aot-parity.mjs', 'examples/space-shooter/src/systems/effects.ts'],
   },
   {
+    id: 'a-crash-leaves-something-the-player-can-send',
+    says: 'the boot record survives a crash on a real device, with the phase and a backtrace',
+    // `--require-device` on purpose: without it the tool skips where there is no
+    // phone, which is right on a laptop and is a false pass under a release.
+    answeredBy: 'node tools/verify-bootlog-crash.mjs --require-device',
+    needs: ['tools/verify-bootlog-crash.mjs', 'native/host/BootLog.cpp'],
+  },
+  {
     id: 'old-projects-open',
     says: 'projects released by older versions still open, with nothing dropped',
     answeredBy: 'node tools/verify-legacy.mjs --tier release',

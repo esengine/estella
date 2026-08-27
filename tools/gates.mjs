@@ -163,6 +163,10 @@ export const GATES = [
   { id: 'engine-gaps', run: 'node tools/check-engine-gaps.mjs' },
   { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },
+  // release-gate says every criterion has something answering it; this says the
+  // other direction — every checker has something RUNNING it. `verify:aot` spent
+  // two releases broken because nothing did.
+  { id: 'verifier-owners', run: 'node tools/check-verifier-owners.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
   { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },
   // The per-symbol tiers say what is frozen; this says what a creator can build
