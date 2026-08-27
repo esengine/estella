@@ -478,3 +478,62 @@ TEST_CASE("the digest a host carries is the one a native module bakes") {
                                        ? ES_ENGINE_ABI_DIGEST_64
                                        : ES_ENGINE_ABI_DIGEST_32));
 }
+
+#ifdef ES_AOT_MODULE_PATH
+TEST_CASE("a pool that moved its rows takes the twin with it") {
+    World w = makeWorld();
+    World linked = makeWorld();
+    aot::Dispatcher dispatcher;
+    std::string why;
+
+    // The slot the OWNER overwrites. A resolver holding the span by value reads
+    // the rows' first home for as long as it lives.
+    aot::RowSpan slot = w.moverSpan();
+    const aot::ComponentLookup moving = [&w, &slot](const char* name) -> aot::ComponentAt {
+        if (std::strcmp(name, "Transform") == 0) {
+            return [&w](std::uint32_t e) -> void* {
+                return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
+            };
+        }
+        if (std::strcmp(name, "Mover") == 0) return aot::fromMovingRows(&slot);
+        return nullptr;
+    };
+
+    REQUIRE_MESSAGE(dispatcher.install(ES_AOT_MODULE_PATH, aot::abiHash(ES_EXPECTED_CONTRACT_HASH),
+                                       moving, resourcesOf(w), &why), why);
+    const std::size_t at = dispatcher.indexOf("MoveSystem");
+    REQUIRE(at != aot::Dispatcher::npos);
+
+    aot::CallArena arena;
+    const auto runLinked = [&] {
+        aot::runBound(aot::bind(*declOf("MoveSystem"), componentsOf(linked), resourcesOf(linked)),
+                      linked.entities, resourcesOf(linked), arena);
+    };
+    dispatcher.run(at, w.entities, resourcesOf(w));
+    runLinked();
+
+    // The new home's CONTENT differs, or a stale resolver reads the same bytes
+    // and passes. A live second vector, not a freed buffer: what a stale read
+    // returns has to be defined or this proves nothing.
+    std::vector<MoverRow> relocated = w.movers;
+    for (MoverRow& row : relocated) row.speed *= 3.0;
+    for (MoverRow& row : linked.movers) row.speed *= 3.0;
+    slot = aot::RowSpan{
+        w.moverSparse.data(), static_cast<std::uint32_t>(w.moverSparse.size()),
+        reinterpret_cast<unsigned char*>(relocated.data()),
+        static_cast<std::uint32_t>(sizeof(MoverRow)), Entity::Layout::INDEX_MASK,
+    };
+
+    dispatcher.run(at, w.entities, resourcesOf(w));
+    runLinked();
+
+    for (std::size_t i = 0; i < w.entities.size(); ++i) {
+        const auto* want = linked.registry.tryGet<ecs::Transform>(Entity::fromRaw(linked.entities[i]));
+        const auto* got = w.registry.tryGet<ecs::Transform>(Entity::fromRaw(w.entities[i]));
+        REQUIRE((want != nullptr) == (got != nullptr));
+        if (want == nullptr) continue;
+        CHECK(want->position.x == got->position.x);
+        CHECK(want->position.y == got->position.y);
+    }
+}
+#endif

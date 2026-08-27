@@ -141,14 +141,30 @@ struct RowSpan {
     std::uint32_t indexMask = 0;
 };
 
-/** `span` as a resolver. Absent is zero in the table, as it is in a sparse set. */
+/** One row out of a span. Absent is zero in the table, as it is in a sparse set. */
+inline void* rowAt(const RowSpan& span, std::uint32_t entity) {
+    const std::uint32_t at = entity & span.indexMask;
+    if (at >= span.sparseCount) return nullptr;
+    const std::uint32_t slot = span.sparse[at];
+    if (slot == 0u) return nullptr;
+    return span.rows + static_cast<std::size_t>(slot - 1u) * span.stride;
+}
+
+/** `span` as a resolver, for rows that will not move while it is held. */
 inline ComponentAt fromRows(const RowSpan& span) {
-    return [span](std::uint32_t entity) -> void* {
-        const std::uint32_t at = entity & span.indexMask;
-        if (at >= span.sparseCount) return nullptr;
-        const std::uint32_t slot = span.sparse[at];
-        if (slot == 0u) return nullptr;
-        return span.rows + static_cast<std::size_t>(slot - 1u) * span.stride;
+    return [span](std::uint32_t entity) -> void* { return rowAt(span, entity); };
+}
+
+/**
+ * The same, for rows that MOVE.
+ *
+ * A pool reallocates as it grows, and a resolver holding the span by value then
+ * reads memory nobody owns; this reads it through a slot the owner overwrites.
+ * The slot must outlive the resolver; a null one is simply absent.
+ */
+inline ComponentAt fromMovingRows(const RowSpan* slot) {
+    return [slot](std::uint32_t entity) -> void* {
+        return slot == nullptr ? nullptr : rowAt(*slot, entity);
     };
 }
 
