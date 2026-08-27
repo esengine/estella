@@ -45,7 +45,7 @@ enum class TilemapStaggerIndex : u8 {
  * TilemapSystem's LayerData keyed by this entity. Chunks flow through
  * tilemap_exportChunks / tilemap_importChunks during scene I/O.
  */
-ES_COMPONENT(renderable=visible)
+ES_COMPONENT(renderable=visible, stability=beta)
 struct TilemapLayer {
     ES_PROPERTY()
     glm::vec2 cellSize{32.0f, 32.0f};

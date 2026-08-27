@@ -95,6 +95,21 @@ published separately; it ships inside the editor.
   puts the continuation on the microtask queue, where no frame can run: five runs
   now agree to 4e-5, where before they scattered.
 
+- **`tilemap` and `particles` are `@beta`.** They were the two rows whose reason
+  for being experimental was "the runtime surface has not been read for a tier
+  yet". Read against the new bar, each was short of exactly one thing: its own
+  component carried no written contract. Both have one now, and their `Data`
+  interfaces — the fields you actually write — are promised with them, which is
+  what `check-data-tiers` insists on.
+
+  The breadth judgement is the part no machine makes, so it is argued rather than
+  asserted: **tilemap is certified by two games and one of them runs on every
+  change**, which is more evidence than four rows already at this tier; and
+  **particles is certified by one, the same evidence `spine` and `scene` were
+  published on.** What each `why` records now is the young half — tilemap's
+  multi-tileset layer, whose singular field is still carried for older scenes,
+  and the particle curves that only one game has authored.
+
 - **`check-tier-bar` — a tier above `experimental` has to be earned, and now
   something asks.** `check-subsystem-tiers` holds the table against the tags: a
   verdict and the code carrying it are one answer. Nothing could say whether the

@@ -191,9 +191,12 @@ export const SUBSYSTEMS = [
         title: 'Tilemap',
         titleZh: '瓦片地图',
         source: ['tilemap'],
-        tier: 'experimental',
-        why: 'certified end to end by two games, but the runtime surface has not been read for a tier yet',
-        whyZh: '有两个游戏端到端认证了它，但它的运行时面还没有被拿来定级',
+        tier: 'beta',
+        why: 'two games certify it and one of them runs on every change, which is broader evidence than '
+            + 'several rows already at this tier; what is not settled is the multi-tileset layer, '
+            + 'whose singular field is still carried for older scenes',
+        whyZh: '两个游戏认证了它，其中一个每次改动都跑 —— 这比几个已经在这一级的子系统证据还多；'
+            + '还没定下来的是多 tileset 的图层，单数字段仍为旧场景保留着',
         entry: ['TilemapLayer'],
     },
     {
@@ -201,9 +204,12 @@ export const SUBSYSTEMS = [
         title: 'Particles',
         titleZh: '粒子',
         source: ['particle', 'trail'],
-        tier: 'experimental',
-        why: 'as tilemap — exercised by a certified game, not yet read for a tier',
-        whyZh: '同瓦片地图 —— 有被认证的游戏在用，但还没被拿来定级',
+        tier: 'beta',
+        why: 'one certified game drives it, the same evidence spine and scene were published on; '
+            + 'the authored curves are the young half — they override the start/end pairs, and only '
+            + 'one game has authored any',
+        whyZh: '有一个被认证的游戏在驱动它，与 spine、scene 当初发布时的证据同级；'
+            + '年轻的那一半是可编辑曲线 —— 它们会覆盖 start/end，而只有一个游戏真的编过',
         entry: ['ParticleEmitter'],
     },
     {

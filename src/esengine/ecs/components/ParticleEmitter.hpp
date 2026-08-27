@@ -43,7 +43,7 @@ enum class SubEmitterTrigger : i32 {
     Birth = 1,
 };
 
-ES_COMPONENT(renderable=enabled)
+ES_COMPONENT(renderable=enabled, stability=beta)
 struct ParticleEmitter {
     // Emission
     ES_PROPERTY(min=0, category=Emission)

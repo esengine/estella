@@ -1018,6 +1018,14 @@ export const ParticleForceField = defineBuiltin<ParticleForceFieldData>('Particl
     metaDefaults<ParticleForceFieldData>('ParticleForceField')
 );
 
+/**
+ * One layer of a tile lattice: `cellSize` is its step in world units, and
+ * `orientation` with the stagger fields cover isometric and hex, so it is not
+ * only a square grid. The tiles are in a referenced `.estileset` rather than
+ * here — render, collision and tile animation all derive from that.
+ *
+ * @beta
+ */
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
     metaDefaults<TilemapLayerData>('TilemapLayer'),
     {
@@ -1062,9 +1070,14 @@ export { ParticleEasing };
 // ParticleEmitter Component
 // =============================================================================
 
-// ParticleEmitter = the generated C++ field shape + two out-of-band TS-only fields
-// (gradient / curve) that have no C++ member — they are baked to a LUT the sim reads
-// (see particlePlugin's scene codec). They live here, not in the generated interface.
+/**
+ * The generated C++ field shape plus two the simulation has no member for:
+ * `colorGradient` and `sizeCurve` are authored in TypeScript and baked to a LUT
+ * the sim reads (see particlePlugin's scene codec), which is why they live here
+ * and not in the generated interface.
+ *
+ * @beta
+ */
 export interface ParticleEmitterData extends ParticleEmitterDataCpp {
     /**
      * Color-over-life gradient (authored stops). When it has stops it overrides
@@ -1078,6 +1091,14 @@ export interface ParticleEmitterData extends ParticleEmitterDataCpp {
     sizeCurve: { keys: { t: number; v: number }[] };
 }
 
+/**
+ * A particle system on an entity. `colorGradient` and `sizeCurve` OVERRIDE the
+ * start/end pairs when they carry stops or keys and fall back to them when
+ * empty; `simulationSpace` decides whether particles follow the entity or are
+ * left behind by it. Integration is C++, over the whole system at once.
+ *
+ * @beta
+ */
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
     metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
     {

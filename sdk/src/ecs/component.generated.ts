@@ -1292,6 +1292,12 @@ export interface ParentData {
     entity: Entity;
 }
 
+/**
+ * The fields of the engine's `ParticleEmitter` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
 export interface ParticleEmitterData {
     rate: number;
     burstCount: number;
@@ -1465,6 +1471,12 @@ export interface SpriteData {
     enabled: boolean;
 }
 
+/**
+ * The fields of the engine's `TilemapLayer` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
 export interface TilemapLayerData {
     cellSize: Vec2;
     orientation: number;
