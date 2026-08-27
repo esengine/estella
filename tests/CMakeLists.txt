@@ -44,6 +44,7 @@ add_executable(test_aot_host
     aot/test_aot_host.cpp
     aot/generated/move_system.c
     aot/generated/move_system_decl.c
+    ${CMAKE_SOURCE_DIR}/src/esengine/aot/AotComponents.generated.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_aot_host PRIVATE

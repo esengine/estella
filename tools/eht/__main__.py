@@ -8,7 +8,7 @@ from .parser import CppParser
 from .abi import compute_abi_hash
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
-    PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator,
+    PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator, AotComponentsGenerator,
     NativeFunctionsGenerator,
 )
 
@@ -184,6 +184,17 @@ def main() -> int:
         abi_hash=abi_hash,
     )
     embind_path.write_text(embind_gen.generate(), encoding='utf-8')
+
+    # ── Component resolvers for compiled systems ──
+    # Committed like the two above: a host that dispatches a compiled system
+    # needs the type half of the contract, and it must not be a second table.
+    aot_dir = Path('src/esengine/aot')
+    aot_dir.mkdir(parents=True, exist_ok=True)
+    aot_gen = AotComponentsGenerator(cpp_parser.components, cpp_parser.enums)
+    for name, text in (('AotComponents.generated.hpp', aot_gen.generate_header()),
+                       ('AotComponents.generated.cpp', aot_gen.generate_source())):
+        print(f"Generating: {aot_dir / name}")
+        (aot_dir / name).write_text(text, encoding='utf-8')
 
     # ── Native QuickJS Bindings (opt-in) ──
     if args.native_output is not None:

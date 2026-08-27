@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "esengine/aot/AotHost.hpp"
+#include "esengine/aot/AotComponents.generated.hpp"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
 
@@ -289,4 +290,55 @@ TEST_CASE("a row the query cannot complete is not a row") {
         if (got != nullptr && got->position.x != start->position.x) ++moved;
     }
     CHECK(moved > 0);
+}
+
+TEST_CASE("the generated table answers for an engine component, and only for one") {
+    World w = makeWorld();
+
+    // The same question this file answers by hand above, asked of the table a
+    // native host will use. Two answers to "where is Transform" is the drift
+    // the generator exists to prevent.
+    const aot::ComponentAt fromTable = aot::engineComponentAt(w.registry, "Transform");
+    REQUIRE(static_cast<bool>(fromTable));
+    for (std::uint32_t e : w.entities) {
+        CHECK(fromTable(e) == w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e)));
+    }
+
+    // Absence is the row filter, so it has to be nullptr and not a fresh
+    // component: resolving with getOrEmplace would give every entity walked one.
+    w.registry.remove<ecs::Transform>(Entity::fromRaw(w.entities[0]));
+    CHECK(fromTable(w.entities[0]) == nullptr);
+    CHECK(w.registry.has<ecs::Transform>(Entity::fromRaw(w.entities[0])) == false);
+
+    // A project component lives in the script pool; this table must say so
+    // rather than hand back something that reads as an engine miss.
+    CHECK(aot::isEngineComponent("Transform"));
+    CHECK(aot::isEngineComponent("Mover") == false);
+    CHECK(static_cast<bool>(aot::engineComponentAt(w.registry, "Mover")) == false);
+}
+
+TEST_CASE("a compiled system runs on the generated resolvers, exactly as on hand-written ones") {
+    World byHand = makeWorld();
+    World byTable = makeWorld();
+    aot::CallArena arena;
+
+    const auto tableLookup = [&byTable](const char* name) -> aot::ComponentAt {
+        if (aot::isEngineComponent(name)) return aot::engineComponentAt(byTable.registry, name);
+        if (std::strcmp(name, "Mover") == 0) return aot::fromRows(byTable.moverSpan());
+        return nullptr;
+    };
+
+    aot::runBound(aot::bind(*declOf("MoveSystem"), componentsOf(byHand), resourcesOf(byHand)),
+                  byHand.entities, resourcesOf(byHand), arena);
+    aot::runBound(aot::bind(*declOf("MoveSystem"), tableLookup, resourcesOf(byTable)),
+                  byTable.entities, resourcesOf(byTable), arena);
+
+    for (std::size_t i = 0; i < byHand.entities.size(); ++i) {
+        const auto* want = byHand.registry.tryGet<ecs::Transform>(Entity::fromRaw(byHand.entities[i]));
+        const auto* got = byTable.registry.tryGet<ecs::Transform>(Entity::fromRaw(byTable.entities[i]));
+        REQUIRE((want != nullptr) == (got != nullptr));
+        if (want == nullptr) continue;
+        CHECK(want->position.x == got->position.x);
+        CHECK(want->position.y == got->position.y);
+    }
 }
