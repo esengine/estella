@@ -719,16 +719,16 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     // promise someone is collecting on, so a promise the subset cannot keep
     // fails the build rather than quietly falling back to the interpreter.
     const built = await buildCompiledSystems(opts.root, {
-      mode: opts.aotMode ?? 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
+      mode: opts.aotMode ?? 'release', cc: resolveEmcc(opts.emcc), run: runEmcc,
     });
     if (!built.ok) {
       errors.push(...built.errors);
       return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
     }
-    if (built.wasmPath && built.manifest) {
+    if (built.modulePath && built.manifest) {
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
       await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
-      await cp(built.wasmPath, path.join(payloadDir, 'aot', 'systems.wasm'));
+      await cp(built.modulePath, path.join(payloadDir, 'aot', 'systems.wasm'));
       aot = { wasm: 'aot/systems.wasm', manifest: built.manifest };
     }
   }

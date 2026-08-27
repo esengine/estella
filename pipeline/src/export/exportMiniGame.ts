@@ -327,17 +327,17 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // the target AOT exists for (docs/REARCH_AOT.md §1.1: iOS mini-games have no
   // JIT). A PATH, because WXWebAssembly cannot compile bytes.
   const built = await buildCompiledSystems(opts.root, {
-    mode: opts.aotMode ?? 'release', emcc: resolveEmcc(opts.emcc), run: runEmcc,
+    mode: opts.aotMode ?? 'release', cc: resolveEmcc(opts.emcc), run: runEmcc,
   });
   if (!built.ok) {
     errors.push(...built.errors);
     return { ok: false, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
   }
   let aotArg = '';
-  if (built.wasmPath && built.manifest) {
+  if (built.modulePath && built.manifest) {
     progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
     await mkdir(path.join(absOut, 'aot'), { recursive: true });
-    await cp(built.wasmPath, path.join(absOut, 'aot', 'systems.wasm'));
+    await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
     aotArg = `, aot: ${JSON.stringify({ wasm: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
   const entrySrc =

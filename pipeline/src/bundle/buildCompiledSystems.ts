@@ -29,6 +29,7 @@ import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout, planFor } from '../../../compiler/src/abi';
 import { CFLAGS, WASM_LINK_FLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
+import { NATIVE_LINK_FLAGS, nativeModuleExt } from '../../../compiler/src/hostCC';
 import { AOT_MANIFEST, AOT_WASM } from './aotArtifacts';
 
 /** Where the C and the wasm land, beside the script bundle. */
@@ -73,10 +74,61 @@ export interface CompiledSystemsManifest {
  */
 export type BuildMode = 'dev' | 'release' | 'ship';
 
+/**
+ * Which machine the systems are compiled FOR.
+ *
+ * `wasm` imports the engine's memory; `native` is a library a host loads into
+ * its own process, where an address is a pointer and not an offset into one
+ * block. The same C either way — the header picks the typedef.
+ */
+export type CompileTarget = 'wasm' | 'native';
+
+/** Everything that differs between the two, in one place rather than in ifs. */
+interface TargetPlan {
+  /** `sizeof(es_addr_t)` there. It rides the handshake, so an artifact built
+   *  for one host is refused by the other rather than reading half a pointer. */
+  readonly addressBytes: 4 | 8;
+  /** What the module is called in the cache. */
+  readonly module: string;
+  /** Link flags, plus whatever names the exports on this target. */
+  linkFlags(symbols: readonly string[]): string[];
+  /** Whether the declaration table is compiled in. It is the DATA half: a wasm
+   *  module must not carry it, since its data section would land at an address
+   *  the engine already owns, and a library in the host's process is who does. */
+  readonly compilesDecls: boolean;
+  /** What to say when this machine has no compiler for it. */
+  readonly missing: string;
+}
+
+const TARGETS: Record<CompileTarget, TargetPlan> = {
+  wasm: {
+    addressBytes: 4,
+    module: WASM,
+    linkFlags: (symbols) => [
+      // No entry point and no JS glue, so the module's only import is the memory
+      // it is given. An empty import section is a property of this command line
+      // as much as of the C.
+      ...WASM_LINK_FLAGS,
+      `-sEXPORTED_FUNCTIONS=${symbols.map((s) => `_${s}`).join(',')}`,
+    ],
+    compilesDecls: false,
+    missing: 'there is no emcc — install the emscripten toolchain and point EMSDK'
+      + ' at it (in this repo: `pnpm emsdk:setup`)',
+  },
+  native: {
+    addressBytes: 8,
+    module: `systems${nativeModuleExt()}`,
+    linkFlags: () => [...NATIVE_LINK_FLAGS],
+    compilesDecls: true,
+    missing: 'this machine has no C compiler — install clang or gcc and put it on PATH',
+  },
+};
+
 export interface BuildCompiledResult {
   ok: boolean;
-  /** Absolute path to the wasm, or null when there was nothing to build. */
-  wasmPath: string | null;
+  /** Absolute path to the built module, or null when there was nothing to
+   *  build. Which KIND of module is the target the caller asked for. */
+  modulePath: string | null;
   manifest: CompiledSystemsManifest | null;
   errors: string[];
   /** Systems the subset refused that were NOT promised — information, not failure. */
@@ -129,8 +181,8 @@ export function promisesCompilation(root: string): boolean {
 /**
  * Compile the project's `@compiled` systems to `<root>/.esengine/cache/aot/`.
  *
- * `emcc` is the caller's to supply, because finding it is the toolchain's job
- * and not this module's; without one a project that promised nothing still
+ * The compiler is the caller's to supply, because finding it is the toolchain's
+ * job and not this module's; without one a project that promised nothing still
  * builds, and one that promised something says so.
  */
 export async function buildCompiledSystems(
@@ -138,34 +190,39 @@ export async function buildCompiledSystems(
   opts: {
     /** dev never compiles; release and ship require what the markers promised. */
     mode: BuildMode;
-    /** Absolute path to emcc, or null when the toolchain has none. */
-    emcc: string | null;
+    /** Which machine this build is for. Absent ⇒ wasm, the road every
+     *  browser and mini-game host takes. */
+    target?: CompileTarget;
+    /** Absolute path to the compiler FOR that target — emcc for wasm, the
+     *  host's own cc for native — or null when this machine has none. */
+    cc: string | null;
     /** Runs a command; the toolchain's own runner, so env and logging match. */
     run: (cmd: string, args: string[], cwd: string) => Promise<{ code: number; stderr: string }>;
   },
 ): Promise<BuildCompiledResult> {
+  const plan = TARGETS[opts.target ?? 'wasm'];
   if (opts.mode === 'dev') {
     // Nothing is compiled and nothing is checked, so a marker costs a dev build
     // nothing at all — not a toolchain, not a second of build time, not a
     // failure on a machine that has neither.
-    return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
+    return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
   const files = sources(root);
   if (files.length === 0) {
-    return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
+    return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
   // A project with no `@compiled` anywhere promised nothing, so it must not pay
   // for a TypeScript Program over its sources. Nothing is decided here: the parse
   // below still decides, this only skips having nothing to decide.
   if (!anyPromise(files)) {
-    return { ok: true, wasmPath: null, manifest: null, errors: [], notes: [] };
+    return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
 
   let lowered;
   try {
     lowered = lowerProgram(files, builtinShapes());
   } catch (err) {
-    return { ok: false, wasmPath: null, manifest: null, notes: [], errors: [String(err)] };
+    return { ok: false, modulePath: null, manifest: null, notes: [], errors: [String(err)] };
   }
 
   const broken = brokenPromises(lowered);
@@ -174,7 +231,7 @@ export async function buildCompiledSystems(
     // with a line, not a silent fall back to the interpreter.
     return {
       ok: false,
-      wasmPath: null,
+      modulePath: null,
       manifest: null,
       notes: [],
       errors: broken.map((d) => `${d.file}:${d.line}: ${d.system ?? ''} is @compiled but ${d.message}`),
@@ -188,29 +245,28 @@ export async function buildCompiledSystems(
     .map((d) => `${d.system}: ${d.message}`);
   if (chosen.length === 0) {
     // Nothing was promised, so there is nothing to build and nothing to say.
-    return { ok: true, wasmPath: null, manifest: null, errors: [], notes };
+    return { ok: true, modulePath: null, manifest: null, errors: [], notes };
   }
 
   const bad = chosen.flatMap((s) => verifySystem(s, lowered.module.comps, lowered.module.fns));
   if (bad.length > 0) {
     return {
-      ok: false, wasmPath: null, manifest: null, notes,
+      ok: false, modulePath: null, manifest: null, notes,
       errors: bad.map((e) => `${e.system}: ${e.message}`),
     };
   }
 
-  if (!opts.emcc) {
+  if (!opts.cc) {
     return {
-      ok: false, wasmPath: null, manifest: null, notes,
-      errors: [`${chosen.length} system(s) are marked @compiled but there is no emcc`
-        + ' — install the emscripten toolchain and point EMSDK at it (in this repo:'
-        + ' `pnpm emsdk:setup`), or remove the marker'],
+      ok: false, modulePath: null, manifest: null, notes,
+      errors: [`${chosen.length} system(s) are marked @compiled but ${plan.missing}`
+        + ', or remove the marker'],
     };
   }
 
   const layout = packLayout(lowered.module.comps);
   const inlined = chosen.map((s) => inlineSystem(s, lowered.module.fns));
-  const c = emitC(lowered.module, layout, inlined);
+  const c = emitC(lowered.module, layout, inlined, plan.addressBytes);
 
   const dir = path.join(root, CACHE_DIR);
   rmSync(dir, { recursive: true, force: true });
@@ -218,22 +274,20 @@ export async function buildCompiledSystems(
   writeFileSync(path.join(dir, 'estella_abi.h'), c.header);
   writeFileSync(path.join(dir, 'estella_offsets.h'), c.offsets);
   writeFileSync(path.join(dir, 'systems.c'), c.source);
+  const units = [path.join(dir, 'systems.c')];
+  if (plan.compilesDecls) {
+    writeFileSync(path.join(dir, 'systems_decl.c'), c.decls);
+    units.push(path.join(dir, 'systems_decl.c'));
+  }
 
-  const wasmPath = path.join(dir, WASM);
-  const exported = c.symbols.map((s) => `_${s}`).join(',');
-  const built = await opts.run(opts.emcc, [
+  const modulePath = path.join(dir, plan.module);
+  const built = await opts.run(opts.cc, [
     ...CFLAGS, '-Wall', '-Wextra',
-    // No entry point and no JS glue, so the module's only import is the memory
-    // it is given. An empty import section is a property of this command line
-    // as much as of the C.
-    ...WASM_LINK_FLAGS,
-    `-sEXPORTED_FUNCTIONS=${exported}`,
-    // `c.decls` is deliberately NOT compiled here. It is the data half, and a
-    // data section is written at a link-time address the engine already owns.
-    '-o', wasmPath, path.join(dir, 'systems.c'),
+    ...plan.linkFlags(c.symbols),
+    '-o', modulePath, ...units,
   ], dir);
-  if (built.code !== 0 || !existsSync(wasmPath)) {
-    return { ok: false, wasmPath: null, manifest: null, notes, errors: [built.stderr.trim()] };
+  if (built.code !== 0 || !existsSync(modulePath)) {
+    return { ok: false, modulePath: null, manifest: null, notes, errors: [built.stderr.trim()] };
   }
 
   const manifest: CompiledSystemsManifest = {
@@ -260,7 +314,7 @@ export async function buildCompiledSystems(
     }),
   };
   writeFileSync(path.join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-  return { ok: true, wasmPath, manifest, errors: [], notes };
+  return { ok: true, modulePath, manifest, errors: [], notes };
 }
 
 /** Read back what a previous build wrote, or null. */

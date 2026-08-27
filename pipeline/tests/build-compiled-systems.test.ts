@@ -17,10 +17,12 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildCompiledSystems, readCompiledManifest } from '../src/bundle/buildCompiledSystems';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { findHostCC, nativeModuleExt } from '../../compiler/src/hostCC';
 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EMCC = emccPath();
+const HOST_CC = findHostCC();
 
 /**
  * A memory shaped like the engine's: growable to 2GB, and already 16MB, which
@@ -134,7 +136,7 @@ describe.skipIf(!EMCC || !ENGINE_GLUE)('loaded into the engine the build produce
 
   it('instantiates against the real memory and leaves the engine intact', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     expect(out.errors).toEqual([]);
 
     const { default: createEngine } = await import(pathToFileURL(ENGINE_GLUE!).href) as
@@ -147,7 +149,7 @@ describe.skipIf(!EMCC || !ENGINE_GLUE)('loaded into the engine the build produce
     expect(engine.HEAPU8.buffer).toBe(engine.wasmMemory.buffer);
 
     const canary = engine.HEAPU8.slice(1024, 1024 + 4096);
-    const bytes = readFileSync(out.wasmPath!);
+    const bytes = readFileSync(out.modulePath!);
     new WebAssembly.Instance(new WebAssembly.Module(bytes as unknown as BufferSource),
       { env: { memory: engine.wasmMemory } });
 
@@ -165,24 +167,24 @@ describe('the AOT build step', () => {
 
   it('a project that promised nothing is not a build step', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': UNMARKED });
-    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     expect(out.ok).toBe(true);
-    expect(out.wasmPath).toBeNull();
+    expect(out.modulePath).toBeNull();
     // The refusal is still reported, as information: §3.2's fallback is the
     // design, and a build that shouted about it would be crying wolf.
     expect(out.errors).toEqual([]);
   });
 
   it('a project with no sources at all is fine', async () => {
-    const out = await buildCompiledSystems(project({}), { mode: 'release', emcc: EMCC, run });
-    expect(out).toMatchObject({ ok: true, wasmPath: null, errors: [] });
+    const out = await buildCompiledSystems(project({}), { mode: 'release', cc: EMCC, run });
+    expect(out).toMatchObject({ ok: true, modulePath: null, errors: [] });
   });
 
   it('a broken promise fails the build, naming the file and the line', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': BROKEN });
-    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     expect(out.ok).toBe(false);
-    expect(out.wasmPath).toBeNull();
+    expect(out.modulePath).toBeNull();
     expect(out.errors).toHaveLength(1);
     expect(out.errors[0]).toContain('BrokenSystem');
     expect(out.errors[0]).toMatch(/Math\.sin is implementation-defined/);
@@ -191,19 +193,19 @@ describe('the AOT build step', () => {
 
   it('says what is missing when a promise needs a toolchain that is absent', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const out = await buildCompiledSystems(root, { mode: 'release', emcc: null, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: null, run });
     expect(out.ok).toBe(false);
     expect(out.errors[0]).toMatch(/marked @compiled but there is no emcc/);
   });
 
   it.skipIf(!EMCC)('builds a module the engine can load, and a manifest for it', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     expect(out.errors).toEqual([]);
     expect(out.ok).toBe(true);
-    expect(out.wasmPath).not.toBeNull();
+    expect(out.modulePath).not.toBeNull();
 
-    const bytes = await import('node:fs').then((fs) => fs.readFileSync(out.wasmPath!));
+    const bytes = await import('node:fs').then((fs) => fs.readFileSync(out.modulePath!));
     const module = new WebAssembly.Module(bytes as unknown as BufferSource);
     // The property the whole shape rests on: the engine's memory, and nothing
     // else — no function import, so no second channel back into the engine.
@@ -237,9 +239,9 @@ describe('the AOT build step', () => {
     let bytes: Buffer;
     beforeAll(async () => {
       const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-      const out = await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+      const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
       expect(out.errors).toEqual([]);
-      bytes = readFileSync(out.wasmPath!);
+      bytes = readFileSync(out.modulePath!);
     });
 
     it('carries no data section, because those bytes are the engine\'s', () => {
@@ -303,10 +305,10 @@ describe('the AOT build step', () => {
 
   it.skipIf(!EMCC)('rebuilding is not additive: the cache is what this build made', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     writeFileSync(path.join(root, '.esengine/cache/aot/stale.c'), 'int leftover;\n');
 
-    await buildCompiledSystems(root, { mode: 'release', emcc: EMCC, run });
+    await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
     // A file from a previous shape of the project must not survive into the one
     // the engine loads next.
     expect(existsSync(path.join(root, '.esengine/cache/aot/stale.c'))).toBe(false);
@@ -317,21 +319,77 @@ describe('the AOT build step', () => {
     // No emcc, and a project that promised something: in release this is an
     // error, and in dev it is not a build step at all. §9 — the preview
     // interprets, so a machine with no emsdk still builds and runs everything.
-    const out = await buildCompiledSystems(root, { mode: 'dev', emcc: null, run });
-    expect(out).toMatchObject({ ok: true, wasmPath: null, errors: [] });
+    const out = await buildCompiledSystems(root, { mode: 'dev', cc: null, run });
+    expect(out).toMatchObject({ ok: true, modulePath: null, errors: [] });
   });
 
   it('and a dev build does not fail on a promise it is not collecting', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': BROKEN });
-    const out = await buildCompiledSystems(root, { mode: 'dev', emcc: EMCC, run });
+    const out = await buildCompiledSystems(root, { mode: 'dev', cc: EMCC, run });
     expect(out.ok).toBe(true);
     expect(out.errors).toEqual([]);
   });
 
   it.skipIf(!EMCC)('ship compiles exactly as release does', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    const ship = await buildCompiledSystems(root, { mode: 'ship', emcc: EMCC, run });
+    const ship = await buildCompiledSystems(root, { mode: 'ship', cc: EMCC, run });
     expect(ship.ok).toBe(true);
     expect(ship.manifest?.systems.map((s) => s.name)).toEqual(['MoveSystem']);
+  });
+});
+
+/**
+ * The other machine. Desktop hosts the engine in their own process, so an
+ * address there is a pointer and the module is a library they load — the same
+ * C at the other width, since the header picks the typedef.
+ */
+describe('the AOT build step, for a host that loads a library', () => {
+  it('reports whether this gate could run at all', () => {
+    if (!HOST_CC) console.warn('[aot-native] NO HOST C COMPILER — the native build did NOT run.');
+  });
+
+  it.skipIf(!HOST_CC)('builds a library named for this platform, and a manifest for it', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const out = await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });
+
+    expect(out.ok, out.errors.join('; ')).toBe(true);
+    expect(out.modulePath).toBe(path.join(root, '.esengine/cache/aot', `systems${nativeModuleExt()}`));
+    expect(existsSync(out.modulePath!)).toBe(true);
+    expect(out.manifest?.systems.map((s) => s.name)).toEqual(['MoveSystem']);
+  });
+
+  it.skipIf(!HOST_CC)('compiles the declaration table, which the wasm module must not carry', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });
+    expect(existsSync(path.join(root, '.esengine/cache/aot/systems_decl.c'))).toBe(true);
+
+    // And the wasm build of the SAME project does not write one: its data
+    // section would land at an address the engine already owns.
+    if (EMCC) {
+      const wasmRoot = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+      await buildCompiledSystems(wasmRoot, { mode: 'release', cc: EMCC, run });
+      expect(existsSync(path.join(wasmRoot, '.esengine/cache/aot/systems_decl.c'))).toBe(false);
+    }
+  });
+
+  it.skipIf(!(HOST_CC && EMCC))('bakes a different handshake, so neither host takes the other artifact', async () => {
+    const src = { 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED };
+    const native = await buildCompiledSystems(project(src), { mode: 'release', target: 'native', cc: HOST_CC, run });
+    const web = await buildCompiledSystems(project(src), { mode: 'release', cc: EMCC, run });
+
+    expect(native.manifest!.engineAbi).not.toBe(web.manifest!.engineAbi);
+    // The project's own shapes are the contract and do NOT move with the width.
+    expect(native.manifest!.projectShapes).toBe(web.manifest!.projectShapes);
+  });
+
+  it.skipIf(!HOST_CC)('says what is missing when this machine has no C compiler', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const out = await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: null, run });
+
+    expect(out.ok).toBe(false);
+    // Not emcc: a machine can have one and lack the other, and being sent to
+    // install the wrong toolchain is worse than being told nothing.
+    expect(out.errors[0]).toMatch(/no C compiler/);
+    expect(out.errors[0]).not.toMatch(/emsdk/);
   });
 });

@@ -164,8 +164,8 @@ describe('a project that promised compilation gets it', () => {
     rmSync(PROJECT, { recursive: true, force: true });
     mkdirSync(path.join(PROJECT, 'src'), { recursive: true });
     writeFileSync(path.join(PROJECT, 'src', 'move.ts'), SOURCE);
-    built = await buildCompiledSystems(PROJECT, { mode: 'release', emcc: EMCC, run });
-    if (built.wasmPath) wasm = Uint8Array.from(readFileSync(built.wasmPath));
+    built = await buildCompiledSystems(PROJECT, { mode: 'release', cc: EMCC, run });
+    if (built.modulePath) wasm = Uint8Array.from(readFileSync(built.modulePath));
     // The same file the compiler read, as the runtime's own definitions — not a
     // second copy that would only ever agree with its own mistakes.
     fixture = await import(/* @vite-ignore */
@@ -174,8 +174,8 @@ describe('a project that promised compilation gets it', () => {
     rmSync(PROBE, { recursive: true, force: true });
     mkdirSync(path.join(PROBE, 'src'), { recursive: true });
     writeFileSync(path.join(PROBE, 'src', 'move.ts'), PROBE_SOURCE);
-    probe = await buildCompiledSystems(PROBE, { mode: 'release', emcc: EMCC, run });
-    if (probe.wasmPath) probeWasm = Uint8Array.from(readFileSync(probe.wasmPath));
+    probe = await buildCompiledSystems(PROBE, { mode: 'release', cc: EMCC, run });
+    if (probe.modulePath) probeWasm = Uint8Array.from(readFileSync(probe.modulePath));
   }, 180_000);
 
   it('reports whether this gate could run at all', () => {
