@@ -112,6 +112,12 @@ export class AotSystems {
           * the wrong one is the refusal it is supposed to be.
           */
         addressBytes: 4 | 8 = 4,
+        /**
+          * Which declarations become twins. The handshake is still checked over
+          * the WHOLE manifest, because that is what the module is; a host that
+          * could bind only some of it still loaded all of it. Default: all.
+          */
+        runs: (name: string) => boolean = () => true,
     ): void {
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
@@ -142,6 +148,7 @@ export class AotSystems {
                 throw new Error(`AOT module refused: it declares '${decl.name}' but exports no `
                     + `'${decl.symbol}'`);
             }
+            if (!runs(decl.name)) continue;
             const mutated = decl.queries.map((q) => q
                 .filter((a) => a.mut)
                 .map((a) => resolve(a.comp))

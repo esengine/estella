@@ -326,6 +326,10 @@ if(ESTELLA_QUICKJS_DIR)
         $<$<BOOL:${ESTELLA_DESKTOP}>:host/media/text_edit.cpp>
         host/bindings/NetBindings.cpp
         host/bindings/TextEditorBindings.cpp
+        host/bindings/AotBindings.cpp
+        # The name table a compiled system is dispatched through — generated
+        # from the same reflection the component bindings above come from.
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/esengine/aot/AotComponents.generated.cpp
         host/media/native_audio.cpp
         host/media/audio_spectrum.cpp
         host/media/ktx2_decode.cpp

@@ -422,6 +422,7 @@ void initRuntime(HostState& h) {
     registerInputBindings(h, global);
 #if defined(ESTELLA_DESKTOP)
     registerSteamBindings(h, global);
+    registerAotBindings(h, global);
 #endif
     registerNetBindings(h, global);
     registerTextEditorBindings(h, global);

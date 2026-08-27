@@ -1199,6 +1199,17 @@ export class World {
     }
 
     /**
+     * @internal Where a SCRIPT component's whole column is, for a host that
+     * walks it in its own address space. Undefined for an engine component,
+     * whose column belongs to the registry and is reached by its own door.
+     */
+    scriptSpanOf(component: AnyComponentDef):
+        { rows: number; stride: number; sparse: number; sparseCount: number } | undefined {
+        if (isBuiltinComponent(component)) return undefined;
+        return this.scripts_.poolFor(component._id as symbol)?.span();
+    }
+
+    /**
      * @internal The same answer as a function, for a caller with a whole column
      * to walk: the lookup above is per entity, and a loop that pays it per row is
      * paying to be told the same thing every time.
