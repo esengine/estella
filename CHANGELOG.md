@@ -74,6 +74,21 @@ published separately; it ships inside the editor.
   and the software rasterizer agree on all four to the byte.
 
 
+- **The cooked-build check was failing about two runs in three, and the reason
+  looked like arithmetic.** `verify:cooked` — an exit criterion, and a gate on
+  every PR — steps a fixture 60 fixed frames in a compiled build and in an
+  interpreted one and compares the displacements to a part in 100,000. It reads
+  the two probes from separate `executeJavaScript` calls, and `stepFrames` puts
+  the game's loop back on rAF before it resolves (deliberately: a frame begun
+  inside its own microtask drain swallows an injected input edge). So real frames
+  landed between the two readings.
+
+  Measured across runs, either side came back 0.00, 0.02 or 0.03 units long at
+  random, against a 0.001 tolerance — neither build systematically ahead, which
+  is what says it is the clock and not the code. Reading it inside ONE expression
+  puts the continuation on the microtask queue, where no frame can run: five runs
+  now agree to 4e-5, where before they scattered.
+
 - **`check-verifier-owners` — a checker nobody runs is a checker that rots.**
   `check-release-gate` holds one direction: every exit criterion has something
   answering it. Nothing held the other, and `verify:aot` fell through it — a

@@ -64,9 +64,17 @@ async function waitForHook(exec) {
  * comparison built on it measures the runner.
  */
 async function drift(exec, diag) {
-  const before = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
-  await exec('window.__estellaCooked.step(60, 1/60)');
-  const after = await exec("window.__estellaCooked.probe(['Drifter']).at.Drifter");
+  // ONE round trip. `stepFrames` puts the loop back on rAF before it resolves, so
+  // a second `executeJavaScript` reads after some of those frames — measured,
+  // either side came back 0.00, 0.02 or 0.03 long at random against 0.001.
+  const both = await exec(`(async () => {
+    const c = window.__estellaCooked;
+    const before = c.probe(['Drifter']).at.Drifter;
+    await c.step(60, 1 / 60);
+    return { before, after: c.probe(['Drifter']).at.Drifter };
+  })()`);
+  const before = both?.before;
+  const after = both?.after;
   if (!before || !after) { diag.push(`no Drifter in the world (before=${!!before} after=${!!after})`); return null; }
   return { x: after.x - before.x, y: after.y - before.y };
 }
