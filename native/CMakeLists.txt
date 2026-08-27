@@ -312,6 +312,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/Runtime.cpp
         host/BootLog.cpp
         host/Shot.cpp
+        host/Bench.cpp
         host/EsnShim.cpp
         host/bindings/HeapBindings.cpp
         host/bindings/EcsBindings.cpp

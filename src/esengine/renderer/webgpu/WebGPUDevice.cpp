@@ -390,6 +390,35 @@ bool WebGPUDevice::surfaceBytesAreBGRA() const {
         || surface_format_ == WGPUTextureFormat_BGRA8UnormSrgb;
 }
 
+/**
+ * The fastest present mode this surface actually advertises.
+ *
+ * Mailbox first: it drops finished frames instead of blocking, so the CPU is
+ * never made to wait and nothing tears. Immediate next — it tears, which is
+ * irrelevant to a measurement. Fifo if the surface offers neither, in which case
+ * the caller gets a throttled frame and the numbers say so.
+ */
+WGPUPresentMode WebGPUDevice::pickUncappedPresentMode() const {
+#if !defined(__EMSCRIPTEN__)
+    if (surface_ && adapter_) {
+        WGPUSurfaceCapabilities caps{};
+        if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) == WGPUStatus_Success) {
+            WGPUPresentMode chosen = WGPUPresentMode_Fifo;
+            for (size_t i = 0; i < caps.presentModeCount; ++i) {
+                if (caps.presentModes[i] == WGPUPresentMode_Mailbox) {
+                    chosen = WGPUPresentMode_Mailbox;
+                    break;
+                }
+                if (caps.presentModes[i] == WGPUPresentMode_Immediate) chosen = WGPUPresentMode_Immediate;
+            }
+            wgpuSurfaceCapabilitiesFreeMembers(caps);
+            return chosen;
+        }
+    }
+#endif
+    return WGPUPresentMode_Fifo;
+}
+
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // Anything but the canvas' preferred format costs a full-frame copy per
     // present, and only the page can name it (setPreferredSurfaceBGRA). Readback
@@ -433,7 +462,10 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // Adreno on Android only offers Inherit/PreMultiplied) — Configure() rejects
     // an unsupported mode outright.
     cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
-    cfg.presentMode = WGPUPresentMode_Fifo;
+    // Fifo is the only mode every surface must support, and the only one a shipped
+    // game should want. setPresentUncapped asks for a measurable frame instead —
+    // see its comment for why a vsynced one cannot be measured.
+    cfg.presentMode = present_uncapped_ ? pickUncappedPresentMode() : WGPUPresentMode_Fifo;
     wgpuSurfaceConfigure(surface_, &cfg);
     surface_width_ = width;
     surface_height_ = height;

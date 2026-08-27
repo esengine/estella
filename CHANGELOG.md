@@ -14,6 +14,60 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The no-JIT frame, measured — the number AOT was built for.** Every frame
+  number this engine had published came from a host with a JIT: V8 on the
+  desktop, Chromium on a phone. The plan's way to get the other one was a Mac
+  running JavaScriptCore with the JIT off, and after that an iPhone.
+
+  Neither is needed. The native host embeds QuickJS-ng, which has no JIT, and it
+  is the same host on iOS, Android and the desktop — one platform seam apart. So
+  the interpreter an iOS build ships is the interpreter a Windows build ships;
+  only the CPU differs. And since the AOT native road landed, that host
+  dispatches to compiled systems, so both halves of the comparison ship.
+
+  `bench/aot-native/frame-bench.mjs` exports one project twice from one tree
+  (`export` and `export --no-aot`, which compiles nothing at all), runs both
+  under the real host, and reads the host's own frame clock off each. At 5,000
+  entities, one system doing three multiply-adds costs **51 ms** interpreted —
+  19 fps, missing 60 fps by 3.1x — and **1.7 ms** compiled, of which 1.5 ms is
+  everything else in the frame.
+
+  Three things the JIT numbers could not say. The no-JIT penalty on a real frame
+  is **61x** (9,907 ns/entity here against 162 on V8) where a bare loop in
+  Stage 0 said 154–385x. A **script component is 3.6x CHEAPER than an engine
+  one** on this host — the opposite sign from the web, because the SDK is given
+  the engine's heap as one ArrayBuffer while an engine component's address is a
+  QuickJS→C++ call per entity per frame. And a body that writes `position.z`
+  turns one draw call into 4,998, so most of its "compiled frame" is render: the
+  report carries a `draws` column because a cost that lands where the report
+  cannot see it reads as the system's.
+
+  **`--gate` makes it a release criterion**, because the failure this road can
+  have is silent. `AotDispatcher.run` returns whether it took the system, and
+  false sends it back to the interpreter — deliberately, the no-cliff rule — so a
+  regression that unbinds every system raises no error, refuses no module and
+  changes no pixel. It only costs time, and nothing was measuring time. Verified
+  in both directions: taking the `@compiled` marker off the body drops the ratio
+  from 15.2x to **1.01x** and the gate goes red.
+
+- **`WebGPUDevice::setPresentUncapped`** — a swapchain that does not wait for the
+  display. Off by default and a shipped game should leave it off; it exists so a
+  frame can be measured at all. Under Fifo every frame cheaper than the refresh
+  interval reads as exactly the refresh interval and every frame dearer than it
+  reads as a multiple of one: before this existed, the 51 ms frame above and the
+  1.7 ms one read as "52 ms" and "16.5 ms" — a 30x difference quantised into a
+  3x one. Best effort, from what the surface advertises: Mailbox, then Immediate,
+  then Fifo.
+
+- **`native/host/Bench.{hpp,cpp}`** — the host's own frame clock, driven by the
+  environment so nothing about a shipped game changes. It reports four spans, and
+  `update` is one of them only so that nobody mistakes it for the tick again:
+  `App.tick` is async, so the `update` call returns at its first await and is ~8 µs
+  of a 51 ms frame. The systems, and the render they drive, run in the microtask
+  drain after it.
+
 ## [0.58.0] - 2026-08-26
 
 ### Added

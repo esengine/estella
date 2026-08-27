@@ -21,6 +21,7 @@
 #include "BootLog.hpp"
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
+#include "Bench.hpp"
 #include "Shot.hpp"
 #if defined(ESTELLA_DESKTOP)
 #include "steam/SteamApi.hpp"
@@ -181,6 +182,8 @@ bool bindSurface() {
     // Before configureSurface, always: the copy usage is part of the swapchain's
     // configuration, so asking afterwards would silently do nothing.
     h.gfx->setSurfaceReadback(shotWanted());
+    // A benched frame must not be quantised to the panel's refresh — see Bench.hpp.
+    h.gfx->setPresentUncapped(benchWanted());
     if (!h.gfx->configureSurface(h.platform->surface(), w, hh)) {
         ESHOST_LOGE("configureSurface failed");
         return false;
@@ -288,6 +291,9 @@ void frame() {
         h.surfaceSkipReported = false;
         ESHOST_LOGI("surface bound again — drawing resumes");
     }
+    // Past the point where a frame can be skipped, so what is timed below is a
+    // frame that actually happened (see Bench.hpp).
+    benchFrameBegin();
 
     // A window can change size without being recreated: a rotation, an insets
     // change (the system bars leaving on the frame after launch), a layout on
@@ -322,15 +328,22 @@ void frame() {
     }
     h.lastFrameAt = nowAt;
     h.haveLastFrame = true;
+    // A bench steps at a fixed rate, so two builds of the same project move the
+    // same distance and can be held against each other.
+    deltaSeconds = benchDelta(deltaSeconds);
 
     // Booked before the game renders, because the copy is served from inside the
     // renderer's own endFrame (see Shot.hpp).
     shotBeforeFrame(*h.gfx, h.frame, (u32)h.w, (u32)h.h);
 
     JSValue dt = JS_NewFloat64(h.js, deltaSeconds);
+    benchUpdateBegin();
     callJs(h, "update", 1, &dt);
+    benchUpdateEnd();
     JS_FreeValue(h.js, dt);
+    benchPumpBegin();
     pumpJs(h);   // run the App tick's async systems and any timers they set
+    benchPumpEnd();
 
     // Notify JS of voices that ended on their own (the audio thread never touches
     // QuickJS; we poll on this thread and push, like touch). onEnd handlers may
@@ -356,8 +369,18 @@ void frame() {
     // game is alive and the overlay never opens.
     steam().pump();
 #endif
+    // Guarded, not just no-op'd: a shipped frame should not pay a lookup for a
+    // measurement it never asked for.
+    if (benchWanted()) {
+        if (auto* benched = h.ctx->tryGet<RenderFrame>()) {
+            const auto& st = benched->stats();
+            benchNoteDraws(st.draw_calls, st.sprites);
+        }
+    }
+    benchBeforePresent();
     h.gfx->present();
     if (shotAfterPresent(*h.gfx)) h.quitRequested = true;
+    if (benchFrameEnd()) h.quitRequested = true;
     // What the frame DREW, not only that one happened: a capture is one flat colour
     // whether nothing was submitted or it was submitted into a view nothing is in.
     // Reported on a ramp, not only every 120th: the runs worth explaining are the

@@ -103,6 +103,25 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'a-compiled-system-is-cheaper-where-there-is-no-jit',
+    says: 'on a host with no JIT, a compiled system costs a fraction of the interpreted one',
+    // The reason this is a criterion and not a benchmark: the fallback is SILENT.
+    // `AotDispatcher.run` returns whether it took the system, and false sends it
+    // back to the interpreter for that frame — deliberately, so a project never
+    // hits a cliff. An engine that stopped dispatching therefore raises no error
+    // and changes no pixel; it only costs time. The desktop native host embeds
+    // QuickJS-ng, which has no JIT, so this measures the constraint iOS imposes on
+    // the machine that builds. A RATIO, not a millisecond ceiling: one number that
+    // has to be recalibrated per machine is a criterion that fails on the wrong
+    // machines and passes on the wrong code.
+    answeredBy: 'node bench/aot-native/frame-bench.mjs --gate',
+    needs: [
+      'bench/aot-native/frame-bench.mjs',
+      'native/host/Bench.cpp',
+      'bench/aot-frame/project/src/systems.ts',
+    ],
+  },
+  {
     id: 'compiled-systems-compute-what-the-interpreter-computes',
     says: 'a packaged compiled system moves the world exactly as the interpreted one does',
     // Over the same FIXED steps, not the same wall clock: two launches of one

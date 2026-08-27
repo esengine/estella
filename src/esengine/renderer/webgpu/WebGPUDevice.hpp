@@ -277,6 +277,22 @@ public:
     void setSurfaceReadback(bool enabled) { surface_readback_ = enabled; }
 
     /**
+     * @brief Let the swapchain present as fast as it can, instead of waiting for
+     *        the display. Must be set BEFORE the surface is configured.
+     *
+     * Off by default, and a shipped game should leave it off: an uncapped
+     * swapchain burns a core to draw frames nobody sees. It exists for
+     * MEASUREMENT — under Fifo, `getCurrentTexture` blocks until an image frees,
+     * so every frame cheaper than the refresh interval reads as exactly the
+     * refresh interval and every frame dearer than it reads as a multiple. A cost
+     * quantised to the panel is not a cost.
+     *
+     * Best effort: the mode is taken from what the surface advertises (Mailbox,
+     * then Immediate), and a surface offering neither keeps Fifo.
+     */
+    void setPresentUncapped(bool enabled) { present_uncapped_ = enabled; }
+
+    /**
      * @brief Copy the next completed frame's swapchain image into a readback.
      *
      * Books the copy; endFrame performs it, because the renderer gives the
@@ -434,6 +450,10 @@ private:
     bool prefer_surface_bgra_ = false;
     /** Whether the surface was configured with CopySrc — see setSurfaceReadback. */
     bool surface_readback_ = false;
+    /** Whether the surface should present unthrottled — see setPresentUncapped. */
+    bool present_uncapped_ = false;
+    /** The fastest mode this surface advertises, for setPresentUncapped. */
+    WGPUPresentMode pickUncappedPresentMode() const;
     /** The pass being recorded draws to the surface, so a capture rides its encoder. */
     bool pass_is_surface_ = false;
     /** A booked capture was already copied by a pass; endFrame only maps it. */
