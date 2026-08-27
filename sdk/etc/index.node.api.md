@@ -237,14 +237,22 @@ static new <Ctx = unknown>(): AiRegistry<Ctx>
 static prototype: AiRegistry<any>
 ```
 
-## AlignContent — type @experimental
+## AlignContent — enum @experimental
 ```
-(typeof AlignContent)[keyof typeof AlignContent]
+Center = 1
+End = 2
+SpaceAround = 5
+SpaceBetween = 4
+Start = 0
+Stretch = 3
 ```
 
-## AlignItems — type @experimental
+## AlignItems — enum @experimental
 ```
-(typeof AlignItems)[keyof typeof AlignItems]
+Center = 1
+End = 2
+Start = 0
+Stretch = 3
 ```
 
 ## AlignSelf — enum @experimental
@@ -3231,14 +3239,18 @@ padding: Padding
 wrap: FlexWrap
 ```
 
-## FlexDirection — type @experimental
+## FlexDirection — enum @experimental
 ```
-(typeof FlexDirection)[keyof typeof FlexDirection]
+Column = 1
+ColumnReverse = 3
+Row = 0
+RowReverse = 2
 ```
 
-## FlexWrap — type @experimental
+## FlexWrap — enum @experimental
 ```
-(typeof FlexWrap)[keyof typeof FlexWrap]
+NoWrap = 0
+Wrap = 1
 ```
 
 ## FocusManager — const @experimental
@@ -3952,9 +3964,14 @@ type: string
 data: T
 ```
 
-## JustifyContent — type @experimental
+## JustifyContent — enum @experimental
 ```
-(typeof JustifyContent)[keyof typeof JustifyContent]
+Center = 1
+End = 2
+SpaceAround = 4
+SpaceBetween = 3
+SpaceEvenly = 5
+Start = 0
 ```
 
 ## Key — const @public
@@ -4398,9 +4415,10 @@ properties: Record<string, string>
 type: string
 ```
 
-## MaskMode — type @experimental
+## MaskMode — enum @experimental
 ```
-(typeof MaskMode)[keyof typeof MaskMode]
+Scissor = 0
+Stencil = 1
 ```
 
 ## Material — const @experimental

@@ -2,13 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineBuiltin } from '../../ecs/component';
 
-export const ScrollMovement = {
-    /** Stop dead at the ends. */
-    Clamped: 0,
-    /** Overshoot and spring back — the touch-UI feel. */
-    Elastic: 1,
-} as const;
-export type ScrollMovement = (typeof ScrollMovement)[keyof typeof ScrollMovement];
+// Clamped stops dead at the ends; Elastic overshoots and springs back, which is
+// the touch-UI feel. Single-sourced from the C++ ES_ENUM via the generated
+// module, so the number this writes is the number the scroller reads.
+export { ScrollMovement } from '../../wasm/wasm.generated';
+import { ScrollMovement } from '../../wasm/wasm.generated';
 
 /**
  * A scrollable viewport, authored in the scene rather than constructed in code.

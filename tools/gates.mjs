@@ -176,6 +176,10 @@ export const GATES = [
   // the tags; this holds a tier above experimental against the same evidence
   // check-freeze-bar asks of a @public symbol.
   { id: 'tier-bar', run: 'node tools/check-tier-bar.mjs' },
+  // A TS enum that restates a C++ one crosses as a bare number: drift is not an
+  // error, it is a picture that is merely wrong. cpp-contract pins the ones
+  // somebody remembered; this says which ones nobody did.
+  { id: 'enum-twins', run: 'node tools/check-enum-twins.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];

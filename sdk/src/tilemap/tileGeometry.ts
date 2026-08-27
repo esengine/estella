@@ -17,13 +17,10 @@
  * and shaped ghost draw the true cell boundary. One geometry seam drives both.
  */
 
-/** Grid orientation, values matching the C++ TilemapOrientation / tilemap::GridType. */
-export enum TileOrientation {
-    Orthogonal = 0,
-    Isometric = 1,
-    Staggered = 2,
-    Hexagonal = 3,
-}
+// Grid orientation, single-sourced from the C++ ES_ENUM via the generated module:
+// the number a cell placement switches on is the number the engine's grid uses.
+export { TilemapOrientation as TileOrientation } from '../wasm/wasm.generated';
+import { TilemapOrientation as TileOrientation } from '../wasm/wasm.generated';
 
 /** The layout inputs a cell placement needs — a subset of the TilemapLayer component. */
 export interface TileGridParams {

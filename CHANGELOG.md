@@ -116,6 +116,26 @@ published separately; it ships inside the editor.
   nothing. The order is the library's now; what to say when the engine is not
   built stays with each caller, which is the half that is actually theirs.
 
+- **`check-enum-twins` — nine TS enums that restate a C++ one are held to it, and
+  a machine says which ones nobody was holding.** These cross the boundary as
+  bare numbers, so a drift raises nothing: the SDK writes 1 where the renderer
+  reads 2 and the picture is merely wrong. `cpp-contract` pinned the seven
+  somebody remembered, which is the problem with a list somebody remembers.
+
+  Nine more were not on it. `MaskMode`, `ScrollMovement` and the five flex enums
+  (`FlexDirection`, `FlexWrap`, `JustifyContent`, `AlignItems`, `AlignContent`)
+  are re-exports of the generated enum now, so there is one declaration and the
+  test pins its IDENTITY — a copy cannot come back looking equal. `TileOrientation`
+  is the generated `TilemapOrientation` under its own name; its comment used to
+  promise the values matched, which is a contract with nothing keeping it.
+
+  `TextAlign` stays its own declaration and pays for it with a value pin: it is
+  `@public`, the generated enums carry no tier, and re-exporting it would quietly
+  demote a frozen promise. All nine agreed today — this is about the day they
+  stop. The gate catches both shapes that hid them: a declaration with a
+  generated enum's name, and a doc that promises to match one. Sabotage-verified
+  on both, and on the identity pin the re-exports rest on.
+
 - **The output curve's number is worked out in one place.** `OutputTransform` is
   a string union at the API and a number at the wasm boundary, and the
   translation — `'aces' ? 1 : 0` — was written at both call sites. A third curve

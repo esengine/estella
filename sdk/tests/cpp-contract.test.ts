@@ -35,6 +35,13 @@ import * as gen from '../src/wasm/wasm.generated';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
 import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
+import { MaskMode } from '../src/ui/core/ui-mask';
+import { ScrollMovement } from '../src/ui/core/ui-scroll';
+import { TileOrientation } from '../src/tilemap/tileGeometry';
+import { TextAlign } from '../src/ui/core/text';
+import {
+    FlexDirection, FlexWrap, JustifyContent, AlignItems, AlignContent,
+} from '../src/ui/layout/flex';
 import { ParticleEasing } from '../src/ecs/component';
 
 // Repo root is two levels up from sdk/tests/ (mirrors the spine integration tests).
@@ -197,10 +204,29 @@ describe('C++ contract: module-published enums ARE their EHT-generated twin', ()
         ['FillMethod', FillMethod, gen.UIFillMethod],
         ['FillOrigin', FillOrigin, gen.UIFillOrigin],
         ['ParticleEasing', ParticleEasing, gen.ParticleEasing],
+        ['MaskMode', MaskMode, gen.MaskMode],
+        ['ScrollMovement', ScrollMovement, gen.ScrollMovement],
+        ['TileOrientation', TileOrientation, gen.TilemapOrientation],
+        ['FlexDirection', FlexDirection, gen.FlexDirection],
+        ['FlexWrap', FlexWrap, gen.FlexWrap],
+        ['JustifyContent', JustifyContent, gen.JustifyContent],
+        ['AlignItems', AlignItems, gen.AlignItems],
+        ['AlignContent', AlignContent, gen.AlignContent],
     ];
     for (const [label, published, generated] of cases) {
         it(`${label} is a re-export of the generated enum`, () => {
             expect(published).toBe(generated);
         });
     }
+});
+
+describe('C++ contract: enums that must stay their own declaration', () => {
+    // TextAlign cannot be a re-export: it is @public, and the generated enums
+    // carry no tier, so re-exporting would quietly demote a frozen promise. It
+    // keeps its own doc and tag, and pays for that with a VALUE pin.
+    it('TextAlign has the values the generated enum does', () => {
+        expect({ ...TextAlign }).toEqual({
+            Left: gen.TextAlign.Left, Center: gen.TextAlign.Center, Right: gen.TextAlign.Right,
+        });
+    });
 });

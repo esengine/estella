@@ -6,20 +6,15 @@ import type { Padding } from '../../wasm/wasm.generated';
 
 // -- FlexContainer ------------------------------------------------------------
 
-export const FlexDirection = { Row: 0, Column: 1, RowReverse: 2, ColumnReverse: 3 } as const;
-export type FlexDirection = (typeof FlexDirection)[keyof typeof FlexDirection];
-
-export const FlexWrap = { NoWrap: 0, Wrap: 1 } as const;
-export type FlexWrap = (typeof FlexWrap)[keyof typeof FlexWrap];
-
-export const JustifyContent = { Start: 0, Center: 1, End: 2, SpaceBetween: 3, SpaceAround: 4, SpaceEvenly: 5 } as const;
-export type JustifyContent = (typeof JustifyContent)[keyof typeof JustifyContent];
-
-export const AlignItems = { Start: 0, Center: 1, End: 2, Stretch: 3 } as const;
-export type AlignItems = (typeof AlignItems)[keyof typeof AlignItems];
-
-export const AlignContent = { Start: 0, Center: 1, End: 2, Stretch: 3, SpaceBetween: 4, SpaceAround: 5 } as const;
-export type AlignContent = (typeof AlignContent)[keyof typeof AlignContent];
+// The five flex enums, single-sourced from the C++ ES_ENUMs via the generated
+// module. Yoga reads the C++ side, so a second spelling of these numbers is a
+// layout that is merely wrong rather than an error anything raises.
+export {
+    FlexDirection, FlexWrap, JustifyContent, AlignItems, AlignContent,
+} from '../../wasm/wasm.generated';
+import {
+    FlexDirection, FlexWrap, JustifyContent, AlignItems, AlignContent,
+} from '../../wasm/wasm.generated';
 
 export interface FlexContainerData {
     direction: FlexDirection;
