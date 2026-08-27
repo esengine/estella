@@ -83,7 +83,10 @@ describe('the engine\'s trigonometry, on both sides of the compiler', () => {
         expect(built.status, built.stderr).toBe(0);
         expect(built.stderr.trim()).toBe('');
 
-        const lines = execFileSync(exe, { encoding: 'utf8' }).trim().split('\n');
+        // The C program's stdout is text mode, so on Windows every line but the
+        // last keeps a trailing CR — 186 of 187 arguments then read as divergent
+        // while every digit matches.
+        const lines = execFileSync(exe, { encoding: 'utf8' }).trim().split(/\r?\n/);
         expect(lines).toHaveLength(ARGS.length);
         const fromC = lines.map((l) => l.split(' '));
         const fromTs = ARGS.map((x) => [bitsOf(exact.sin(x)), bitsOf(exact.cos(x))]);
