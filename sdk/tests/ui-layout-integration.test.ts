@@ -20,10 +20,10 @@ import { Transform, Sprite } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
-// ── Dimension literals (unit 0 = Px, 1 = Percent, 2 = Auto) ─────────────────
-const px = (v: number) => ({ value: v, unit: 0 });
-const pct = (v: number) => ({ value: v, unit: 1 });
-const auto = () => ({ value: 0, unit: 2 });
+// The SDK's own dimension factories, not hand-written {value, unit} pairs: the
+// unit numbers written a second time here are a second answer, and the engine
+// this drives reads the first one.
+import { px, percent as pct, auto, type Dimension } from '../src/ui/core/dimension';
 
 /** A complete UINode value-object (embind requires every member present). */
 function node(over: Partial<UINodeData> = {}): UINodeData {
@@ -45,9 +45,12 @@ function fillNode(): UINodeData {
     return node({ position: 1, insetLeft: px(0), insetTop: px(0), insetRight: px(0), insetBottom: px(0) });
 }
 
-/** Fixed-size in-flow box. */
+/** Fixed-size in-flow box. Annotated, so a `Dimension` that grew a field or
+ *  renamed one fails here rather than at whatever reads it next. */
 function sizedNode(w: number, h: number): UINodeData {
-    return node({ width: px(w), height: px(h) });
+    const width: Dimension = px(w);
+    const height: Dimension = px(h);
+    return node({ width, height });
 }
 
 /** Fill the parent inset by `n` px on every edge (Absolute). */

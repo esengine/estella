@@ -11,10 +11,8 @@ import { describe, it, expect } from 'vitest';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import {
-    layoutText, measureWidth,
-    TEXT_OVERFLOW_VISIBLE, TEXT_OVERFLOW_CLIP, TEXT_OVERFLOW_ELLIPSIS,
-} from '../src/ui/text/layout';
+import { layoutText, measureWidth } from '../src/ui/text/layout';
+import { TextOverflow } from '../src/ui/core/text';
 
 function makeAtlas(): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
@@ -50,7 +48,7 @@ const lay = (text: string, opts: Record<string, unknown>) =>
 
 describe('TextOverflow', () => {
     it('Visible keeps every line, however short the box', () => {
-        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TEXT_OVERFLOW_VISIBLE });
+        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TextOverflow.Visible });
         expect(linesOf(l)).toBe(3);
     });
 
@@ -60,36 +58,36 @@ describe('TextOverflow', () => {
     });
 
     it('Clip keeps only the lines the box has room for', () => {
-        expect(linesOf(lay('one\ntwo\nthree', { boxHeight: LINE * 2, overflow: TEXT_OVERFLOW_CLIP }))).toBe(2);
-        expect(linesOf(lay('one\ntwo\nthree', { boxHeight: LINE * 3, overflow: TEXT_OVERFLOW_CLIP }))).toBe(3);
+        expect(linesOf(lay('one\ntwo\nthree', { boxHeight: LINE * 2, overflow: TextOverflow.Clip }))).toBe(2);
+        expect(linesOf(lay('one\ntwo\nthree', { boxHeight: LINE * 3, overflow: TextOverflow.Clip }))).toBe(3);
     });
 
     it('a box too short for one line still shows one', () => {
         // Nothing is not an answer a reader can act on, and it is what a rounding
         // error in the box height would otherwise produce.
-        expect(linesOf(lay('one\ntwo', { boxHeight: 1, overflow: TEXT_OVERFLOW_CLIP }))).toBe(1);
+        expect(linesOf(lay('one\ntwo', { boxHeight: 1, overflow: TextOverflow.Clip }))).toBe(1);
     });
 
     it('no box height means nothing can overflow one', () => {
-        expect(linesOf(lay('one\ntwo\nthree', { overflow: TEXT_OVERFLOW_CLIP }))).toBe(3);
+        expect(linesOf(lay('one\ntwo\nthree', { overflow: TextOverflow.Clip }))).toBe(3);
     });
 
     it('Ellipsis says there is more below, even when the last line fits', () => {
         // The mark is about the DROPPED lines, not about this line being long —
         // which is the distinction a reader needs and a width check cannot make.
-        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TEXT_OVERFLOW_ELLIPSIS, boxWidth: 400 });
+        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TextOverflow.Ellipsis, boxWidth: 400 });
         expect(linesOf(l)).toBe(1);
         expect(l.width).toBeCloseTo(width('one…'), 5);
     });
 
     it('Clip drops the lines and adds no mark', () => {
-        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TEXT_OVERFLOW_CLIP, boxWidth: 400 });
+        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TextOverflow.Clip, boxWidth: 400 });
         expect(l.width).toBeCloseTo(width('one'), 5);
     });
 
     it('a single line too wide for the box is trimmed to fit, ellipsis included', () => {
         const limit = width('abcde');
-        const l = lay('abcdefghij', { boxWidth: limit, overflow: TEXT_OVERFLOW_ELLIPSIS });
+        const l = lay('abcdefghij', { boxWidth: limit, overflow: TextOverflow.Ellipsis });
         expect(l.width).toBeLessThanOrEqual(limit + 1e-6);
         // Trimmed one glyph at a time, so the result is the widest that FITS —
         // a proportional guess would leave visible slack or overshoot.
@@ -98,28 +96,28 @@ describe('TextOverflow', () => {
 
     it('Clip trims the same line without a mark, and keeps more of it', () => {
         const limit = width('abcde');
-        const clipped = lay('abcdefghij', { boxWidth: limit, overflow: TEXT_OVERFLOW_CLIP });
-        const ellipsed = lay('abcdefghij', { boxWidth: limit, overflow: TEXT_OVERFLOW_ELLIPSIS });
+        const clipped = lay('abcdefghij', { boxWidth: limit, overflow: TextOverflow.Clip });
+        const ellipsed = lay('abcdefghij', { boxWidth: limit, overflow: TextOverflow.Ellipsis });
         expect(clipped.width).toBeLessThanOrEqual(limit + 1e-6);
         expect(clipped.width).toBeGreaterThan(ellipsed.width);
     });
 
     it('a line that fits is left exactly alone', () => {
-        const l = lay('abc', { boxWidth: width('abcdefgh'), overflow: TEXT_OVERFLOW_ELLIPSIS });
+        const l = lay('abc', { boxWidth: width('abcdefgh'), overflow: TextOverflow.Ellipsis });
         expect(l.width).toBeCloseTo(width('abc'), 5);
     });
 
     it('wrapping still happens first, and the box then decides how many survive', () => {
         // maxWidth wraps 'aa aa aa' into three lines; a two-line box keeps two.
         const l = lay('aa aa aa', {
-            maxWidth: width('aa') + 1, boxHeight: LINE * 2, overflow: TEXT_OVERFLOW_CLIP,
+            maxWidth: width('aa') + 1, boxHeight: LINE * 2, overflow: TextOverflow.Clip,
         });
         expect(linesOf(l)).toBe(2);
     });
 
     it('rich text truncates by line, since a run carries its own size', () => {
         const l = lay('one\n<b>two</b>\nthree', {
-            rich: true, boxHeight: LINE * 2, overflow: TEXT_OVERFLOW_CLIP,
+            rich: true, boxHeight: LINE * 2, overflow: TextOverflow.Clip,
         });
         expect(linesOf(l)).toBe(2);
     });

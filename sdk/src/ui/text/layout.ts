@@ -17,6 +17,7 @@ import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
 import { parseRichText, type TextSegment, type ImageSegment, type RichTextRun } from './rich-text-parser';
 import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
+import { TextAlign, TextOverflow } from '../core/text';
 
 export interface TextLayoutOptions {
     /** Display font size in px. */
@@ -162,8 +163,8 @@ export const TEXT_ALIGN_RIGHT = 2;
 export interface MultilineTextOptions extends TextLayoutOptions {
     /** Baseline-to-baseline distance in px. Default fontSizePx * 1.2. */
     lineHeight?: number;
-    /** 0 left | 1 center | 2 right. Default left. */
-    align?: number;
+    /** Horizontal alignment, defaulting to left. */
+    align?: TextAlign;
     /** Parse rich markup (`<b>` etc.) per line. */
     rich?: boolean;
     /** Base color (used by rich runs without their own color). */
@@ -180,16 +181,12 @@ export interface MultilineTextOptions extends TextLayoutOptions {
      *  no box, so nothing can overflow one. */
     boxHeight?: number;
     /**
-     * What a run too big for the box does: 0 visible (default), 1 clip, 2
-     * ellipsis. Needs `boxHeight` to drop lines and a width to trim one.
+     * What a run too big for the box does. Needs `boxHeight` to drop lines and a
+     * width to trim one. The component's own spelling, not a mirror of it: three
+     * numbers written twice are two answers the day somebody reorders them.
      */
-    overflow?: number;
+    overflow?: TextOverflow;
 }
-
-/** {@link MultilineTextOptions.overflow} — mirrors the TextOverflow const. */
-export const TEXT_OVERFLOW_VISIBLE = 0;
-export const TEXT_OVERFLOW_CLIP = 1;
-export const TEXT_OVERFLOW_ELLIPSIS = 2;
 
 /** The character appended to a line the ellipsis mode cut. */
 const ELLIPSIS = '\u2026';
@@ -305,16 +302,16 @@ export function layoutText(
     // How many lines the box has room for. Below Visible only, and never zero: a
     // box too short for one line shows one clipped line rather than nothing, which
     // is what every layout engine does and what a reader can act on.
-    const overflow = opts.overflow ?? TEXT_OVERFLOW_VISIBLE;
+    const overflow = opts.overflow ?? TextOverflow.Visible;
     const boxHeight = opts.boxHeight ?? 0;
-    const maxLines = overflow !== TEXT_OVERFLOW_VISIBLE && boxHeight > 0
+    const maxLines = overflow !== TextOverflow.Visible && boxHeight > 0
         ? Math.max(1, Math.floor(boxHeight / lineHeight))
         : Infinity;
-    const ellipsis = overflow === TEXT_OVERFLOW_ELLIPSIS;
+    const ellipsis = overflow === TextOverflow.Ellipsis;
     // The width a line may not exceed. maxWidth already wrapped to it, so this is
     // for the unwrapped case — a single line in a fixed box, which is the one
     // ellipsis is usually asked for.
-    const widthLimit = overflow === TEXT_OVERFLOW_VISIBLE ? 0
+    const widthLimit = overflow === TextOverflow.Visible ? 0
         : (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth
         : (opts.boxWidth ?? 0);
 

@@ -110,6 +110,26 @@ published separately; it ships inside the editor.
   multi-tileset layer, whose singular field is still carried for older scenes,
   and the particle curves that only one game has authored.
 
+- **"Tested" now means named in a test's CODE, and three mirrors of one enum are
+  gone.** The evidence behind every stability promise counted any identifier
+  appearing anywhere in a test file — a comment, a `describe()` title. Measured,
+  nothing was passing on a comment alone, but `TextOverflow` was **@public** and
+  its only appearance was `describe('TextOverflow', …)`: a title is prose, and
+  nothing was pinning the enum's shape.
+
+  What it was hiding is why: the tests exercised `TEXT_OVERFLOW_VISIBLE/CLIP/
+  ELLIPSIS`, three constants in `layout.ts` whose own comment called them a
+  mirror of `TextOverflow`. Three numbers written twice are two answers the day
+  somebody reorders them. They are gone; `layout.ts` reads the component's
+  spelling, and so do `DrawTextParams.align`, `.verticalAlign` and `.overflow`,
+  which had the mapping written out a third time in prose over a bare `number`.
+
+  Tightening those types found nothing wrong — the values were already right,
+  the types were just too loose to say so. `Dimension` and `SceneContext` came
+  out of the same sweep: one test shadowed the SDK's own `px`/`percent`/`auto`
+  with hand-written `{value, unit}` pairs, and one annotated nothing with the
+  shape its subject returns.
+
 - **`check-tier-bar` — a tier above `experimental` has to be earned, and now
   something asks.** `check-subsystem-tiers` holds the table against the tags: a
   verdict and the code carrying it are one answer. Nothing could say whether the

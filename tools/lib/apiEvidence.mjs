@@ -36,7 +36,17 @@ export function hasDocProse(decl) {
     return docProseLines(leadingDoc(decl)).length > 0;
 }
 
-/** Every identifier named anywhere in the SDK's tests. */
+/** A `describe('X', …)` title is prose that happens to sit inside a string. */
+const TITLE = /\b(?:describe|it|test|bench)(?:\.\w+)*\s*\(\s*(['"`])(?:[^\\]|\\.)*?\1/g;
+
+/**
+ * Every identifier a test names IN CODE. Comments and test titles are stripped
+ * first: a symbol whose only appearance is `describe('TextOverflow', …)` has
+ * nothing pinning its shape, and that one was @public.
+ *
+ * A string that is not a title still counts — naming a component by its string
+ * is how several APIs are called, and a rename breaks that as loudly.
+ */
 export function testedIdentifiers() {
     const seen = new Set();
     const skip = (p, name) => name === 'node_modules' || name === 'dist';
@@ -44,7 +54,11 @@ export function testedIdentifiers() {
     walk(join(SDK, 'tests'), collect, skip);
     function collect(p) {
         if (!/\.test\.ts$/.test(p)) return;
-        for (const id of readFileSync(p, 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []) seen.add(id);
+        const code = readFileSync(p, 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .split('\n').map((l) => l.replace(/(^|[^:'"`\\\w])\/\/.*$/, '$1')).join('\n')
+            .replace(TITLE, (m, q) => m.slice(0, m.indexOf(q)) + q + q);
+        for (const id of code.match(/[A-Za-z_$][\w$]*/g) ?? []) seen.add(id);
     }
     return seen;
 }

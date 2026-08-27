@@ -16,6 +16,7 @@ import { GlyphAtlas } from './glyph-atlas';
 import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyph-rasterizer';
 import { NativeGlyphRasterizer } from './native-glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
+import { TextAlign, TextVerticalAlign, TextOverflow } from '../core/text';
 import { layoutText, buildGlyphVertices, type LaidGlyph, type RGBA } from './layout';
 import { submitTextBatch } from './submit';
 
@@ -32,8 +33,9 @@ export interface DrawTextParams {
     style?: number;
     /** Parse `<b>/<i>/<color>/<font size>` markup. */
     richText?: boolean;
-    /** Horizontal alignment: 0 left | 1 center | 2 right. */
-    align?: number;
+    /** Horizontal alignment. The component's own spelling, so the mapping from
+     *  number to meaning is written once. */
+    align?: TextAlign;
     /** Baseline-to-baseline distance (px) for multi-line text. */
     lineHeight?: number;
     /** Extra advance between glyphs (px). */
@@ -42,12 +44,12 @@ export interface DrawTextParams {
     maxWidth?: number;
     /** Box width (px) horizontal align positions the block within; 0/undefined = boxless (anchor to origin). */
     boxWidth?: number;
-    /** Vertical alignment within boxHeight: 0 top | 1 middle | 2 bottom. */
-    verticalAlign?: number;
+    /** Vertical alignment within boxHeight. */
+    verticalAlign?: TextVerticalAlign;
     /** Box height (px) for vertical alignment; 0/undefined = boxless (anchor to origin). */
     boxHeight?: number;
-    /** What a run too big for the box does: 0 visible | 1 clip | 2 ellipsis. */
-    overflow?: number;
+    /** What a run too big for the box does. */
+    overflow?: TextOverflow;
     /**
      * Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill.
      * `blur` (px, 0 = hard) spreads that copy into a ring so the shadow reads as

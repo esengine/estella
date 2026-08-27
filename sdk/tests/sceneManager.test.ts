@@ -75,7 +75,7 @@ vi.mock('../src/defaults', () => ({
     },
 }));
 
-import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/scene/sceneManager';
+import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem, type SceneContext } from '../src/scene/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText, TilemapLayer } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene/scene';
 import { registerDrawCallback, unregisterDrawCallback } from '../src/render/customDraw';
@@ -969,7 +969,9 @@ describe('SceneManager', () => {
     describe('SceneContext', () => {
         it('spawn() creates entity with SceneOwner', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
-            const ctx = await manager.load('level1');
+            // Annotated: this is the shape `load` promises, so a member that
+            // moves fails here and not at whatever calls it next.
+            const ctx: SceneContext = await manager.load('level1');
 
             const entity = ctx.spawn();
             expect(app.world.spawn).toHaveBeenCalled();
