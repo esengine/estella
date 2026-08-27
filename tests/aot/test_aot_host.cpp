@@ -28,10 +28,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "esengine/aot/AotHost.hpp"
 #include "esengine/aot/AotComponents.generated.hpp"
+#include "esengine/aot/AotModule.hpp"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
 
@@ -342,3 +344,53 @@ TEST_CASE("a compiled system runs on the generated resolvers, exactly as on hand
         CHECK(want->position.y == got->position.y);
     }
 }
+
+#ifdef ES_AOT_MODULE_PATH
+TEST_CASE("the same system, loaded out of a module rather than linked in") {
+    aot::Module mod;
+    std::string why;
+    const std::uint64_t expected = aot::expectedAbiHash(ES_EXPECTED_CONTRACT_HASH);
+    REQUIRE_MESSAGE(mod.open(ES_AOT_MODULE_PATH, expected, &why), why);
+
+    // The declaration table is IN the artifact, so a loading host needs no
+    // manifest beside it: the name, the queries and the resources all came out
+    // of the thing that is about to run.
+    const EsSystemDecl* decl = mod.find("MoveSystem");
+    REQUIRE(decl != nullptr);
+    CHECK(decl->queryCount == 1u);
+    CHECK(decl->resourceCount == 1u);
+    CHECK(std::strcmp(decl->resources[0], "Time") == 0);
+    CHECK(decl->fn != nullptr);
+
+    // And it moves the world the linked-in copy moves.
+    World linked = makeWorld();
+    World loaded = makeWorld();
+    aot::CallArena arena;
+    aot::runBound(aot::bind(*declOf("MoveSystem"), componentsOf(linked), resourcesOf(linked)),
+                  linked.entities, resourcesOf(linked), arena);
+    aot::runBound(aot::bind(*decl, componentsOf(loaded), resourcesOf(loaded)),
+                  loaded.entities, resourcesOf(loaded), arena);
+
+    for (std::size_t i = 0; i < linked.entities.size(); ++i) {
+        const auto* want = linked.registry.tryGet<ecs::Transform>(Entity::fromRaw(linked.entities[i]));
+        const auto* got = loaded.registry.tryGet<ecs::Transform>(Entity::fromRaw(loaded.entities[i]));
+        REQUIRE((want != nullptr) == (got != nullptr));
+        if (want == nullptr) continue;
+        CHECK(want->position.x == got->position.x);
+        CHECK(want->position.y == got->position.y);
+    }
+}
+
+TEST_CASE("a module built for another engine is refused, and says which half moved") {
+    aot::Module mod;
+    std::string why;
+    // One bit of the contract, which is what a rebuilt engine looks like from
+    // here. It must not open at all: a wrong offset is a read of another field.
+    CHECK(mod.open(ES_AOT_MODULE_PATH, aot::expectedAbiHash(ES_EXPECTED_CONTRACT_HASH ^ 1ULL), &why) == false);
+    CHECK(mod.isOpen() == false);
+    CHECK(why.find("engine") != std::string::npos);
+
+    CHECK(mod.open("no-such-module-anywhere", 0, &why) == false);
+    CHECK(why.find("load") != std::string::npos);
+}
+#endif

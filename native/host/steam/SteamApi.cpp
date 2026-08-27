@@ -18,12 +18,7 @@
 #include <cstring>
 
 #include "Runtime.hpp"   // ESHOST_LOGI / ESHOST_LOGE
-
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
+#include "esengine/core/DynamicLibrary.hpp"
 
 namespace eshost {
 namespace {
@@ -58,31 +53,10 @@ constexpr const char* kUtilsAccessors[] = {
     "SteamAPI_SteamUtils_v011", "SteamAPI_SteamUtils_v010", "SteamAPI_SteamUtils_v009",
 };
 
-void* openLibrary(const char* name) {
-#if defined(_WIN32)
-    return reinterpret_cast<void*>(LoadLibraryA(name));
-#else
-    return dlopen(name, RTLD_LAZY | RTLD_LOCAL);
-#endif
-}
-
-void closeLibrary(void* handle) {
-    if (!handle) return;
-#if defined(_WIN32)
-    FreeLibrary(reinterpret_cast<HMODULE>(handle));
-#else
-    dlclose(handle);
-#endif
-}
-
-void* symbol(void* handle, const char* name) {
-    if (!handle) return nullptr;
-#if defined(_WIN32)
-    return reinterpret_cast<void*>(GetProcAddress(reinterpret_cast<HMODULE>(handle), name));
-#else
-    return dlsym(handle, name);
-#endif
-}
+using esengine::core::closeLibrary;
+using esengine::core::openLibrary;
+/** Named `symbol` here because that is what this file's call sites read as. */
+constexpr auto symbol = esengine::core::librarySymbol;
 
 /** The subset of the flat API this host calls, declared here because the point is
  *  to carry no Valve header. Signatures transcribed from steam_api_flat.h. */

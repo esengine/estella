@@ -138,6 +138,18 @@ typedef uintptr_t es_addr_t;
 #define ES_PTR(a) ((unsigned char *)(a))
 #endif
 
+/* A host that LOADS this asks the platform for a symbol by name, and on
+   Windows nothing is exported from a DLL unless it says so — the module
+   builds, loads, and answers null to every lookup. A wasm link names its
+   exports on the command line instead, so this is inert there. */
+#if defined(_WIN32)
+#define ES_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__)
+#define ES_EXPORT __attribute__((visibility("default")))
+#else
+#define ES_EXPORT
+#endif
+
 /* The packed rows the host materialised: for each row, the entity and
    then one base address per component the query named, in that order. */
 typedef struct EsQueryRows {
@@ -741,7 +753,7 @@ class Emitter {
         const bound = new Set<number>();
         loopBound(sys.body, bound);
 
-        this.line(0, `void ${cSymbol(sys.name)}(es_addr_t es_ctx) {`);
+        this.line(0, `ES_EXPORT void ${cSymbol(sys.name)}(es_addr_t es_ctx) {`);
         this.line(1, 'const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);');
         if (plan.queries.length > 0) {
             this.line(1, 'const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);');
@@ -870,10 +882,10 @@ export function emitC(
         '   to the MACHINE, so it mixes in here rather than in the compiler and a',
         '   32-bit artifact cannot load into a 64-bit host. */',
         `#define ES_ABI_ENGINE_DIGEST 0x${handshake.engineAbi}ULL`,
-        'const uint64_t es_abi_hash =',
+        'ES_EXPORT const uint64_t es_abi_hash =',
         `    ES_ABI_ENGINE_DIGEST ^ (${ADDR_MIX}ULL * (uint64_t)sizeof(es_addr_t));`,
         '',
-        ...systems.map((s) => `void ${cSymbol(s.name)}(es_addr_t es_ctx);`),
+        ...systems.map((s) => `ES_EXPORT void ${cSymbol(s.name)}(es_addr_t es_ctx);`),
         '',
         ...manifest,
     ].join('\n');
@@ -926,10 +938,10 @@ function emitManifest(systems: readonly EirSystem[], plans: readonly SysPlan[]):
             + `${plan.queries.length}u, ${plan.resources.length}u },`);
     });
     out.push('');
-    out.push('const EsSystemDecl es_systems[] = {');
+    out.push('ES_EXPORT const EsSystemDecl es_systems[] = {');
     out.push(...rows);
     out.push('};');
-    out.push(`const uint32_t es_system_count = ${systems.length}u;`);
+    out.push(`ES_EXPORT const uint32_t es_system_count = ${systems.length}u;`);
     out.push('');
     return out;
 }

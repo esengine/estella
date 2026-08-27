@@ -63,6 +63,26 @@ target_compile_options(test_aot_host PRIVATE
 )
 add_test(NAME test_aot_host COMMAND test_aot_host)
 
+# The same compiled system as a LOADABLE module, which is the shape a native
+# host takes. Built from the same two sources the harness links directly, so a
+# difference between the two roads is the loading and nothing else.
+add_library(aot_move_system MODULE
+    aot/generated/move_system.c
+    aot/generated/move_system_decl.c
+)
+target_include_directories(aot_move_system PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/esengine/aot
+    ${CMAKE_SOURCE_DIR}/tests/aot/generated
+)
+set_target_properties(aot_move_system PROPERTIES PREFIX "")
+add_dependencies(test_aot_host aot_move_system)
+# The path rather than a convention: where a MODULE lands differs by generator
+# and by platform, and a harness guessing it reports "cannot load" for a file
+# that was built perfectly.
+target_compile_definitions(test_aot_host PRIVATE
+    ES_AOT_MODULE_PATH="$<TARGET_FILE:aot_move_system>"
+)
+
 # SparseSet tests
 add_executable(test_sparse_set
     ecs/test_sparse_set.cpp

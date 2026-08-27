@@ -32,6 +32,18 @@ typedef uintptr_t es_addr_t;
 #define ES_PTR(a) ((unsigned char *)(a))
 #endif
 
+/* A host that LOADS this asks the platform for a symbol by name, and on
+   Windows nothing is exported from a DLL unless it says so — the module
+   builds, loads, and answers null to every lookup. A wasm link names its
+   exports on the command line instead, so this is inert there. */
+#if defined(_WIN32)
+#define ES_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__)
+#define ES_EXPORT __attribute__((visibility("default")))
+#else
+#define ES_EXPORT
+#endif
+
 /* The packed rows the host materialised: for each row, the entity and
    then one base address per component the query named, in that order. */
 typedef struct EsQueryRows {

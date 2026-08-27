@@ -3,7 +3,7 @@
 #include "estella_abi.h"
 #include "estella_offsets.h"
 
-void es_sys_MoveSystem(es_addr_t es_ctx) {
+ES_EXPORT void es_sys_MoveSystem(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
     const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
     const es_addr_t *es_resources = (const es_addr_t *)ES_PTR(es_c->resources);

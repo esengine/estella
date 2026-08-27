@@ -11,10 +11,10 @@
    to the MACHINE, so it mixes in here rather than in the compiler and a
    32-bit artifact cannot load into a 64-bit host. */
 #define ES_ABI_ENGINE_DIGEST 0xe83b13ad2f96720cULL
-const uint64_t es_abi_hash =
+ES_EXPORT const uint64_t es_abi_hash =
     ES_ABI_ENGINE_DIGEST ^ (0x9e3779b97f4a7c15ULL * (uint64_t)sizeof(es_addr_t));
 
-void es_sys_MoveSystem(es_addr_t es_ctx);
+ES_EXPORT void es_sys_MoveSystem(es_addr_t es_ctx);
 
 /* The systems in this file, and what each one needs filled in. */
 static const char *const es_sys_MoveSystem_q0_comps[] = { "Transform", "Mover" };
@@ -23,7 +23,7 @@ static const EsQueryDecl es_sys_MoveSystem_queries[] = { { es_sys_MoveSystem_q0_
 static const char *const es_sys_MoveSystem_resources[] = { "Time" };
 static const unsigned char es_sys_MoveSystem_resources_mut[] = { 0u };
 
-const EsSystemDecl es_systems[] = {
+ES_EXPORT const EsSystemDecl es_systems[] = {
     { "MoveSystem", es_sys_MoveSystem, es_sys_MoveSystem_queries, es_sys_MoveSystem_resources, es_sys_MoveSystem_resources_mut, 1u, 1u },
 };
-const uint32_t es_system_count = 1u;
+ES_EXPORT const uint32_t es_system_count = 1u;
