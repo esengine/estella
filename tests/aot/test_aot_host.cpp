@@ -35,6 +35,7 @@
 #include "esengine/aot/AotComponents.generated.hpp"
 #include "esengine/aot/AotModule.hpp"
 #include "esengine/aot/AotDispatcher.hpp"
+#include "esengine/aot/EngineDigest.generated.h"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
 
@@ -466,3 +467,14 @@ TEST_CASE("a system this host cannot name is left unbound, not refused") {
     }
 }
 #endif
+
+TEST_CASE("the digest a host carries is the one a native module bakes") {
+    // One number, or a host refuses every module built for it — which reads as
+    // "AOT does not work here" rather than as a constant that drifted.
+    CHECK(ES_ENGINE_ABI_DIGEST_64 == ES_EXPECTED_CONTRACT_HASH);
+    CHECK(ES_ENGINE_ABI_DIGEST_32 != ES_ENGINE_ABI_DIGEST_64);
+    // And the one the preprocessor picks is this machine's.
+    CHECK(ES_ENGINE_ABI_DIGEST == (sizeof(es_addr_t) == 8
+                                       ? ES_ENGINE_ABI_DIGEST_64
+                                       : ES_ENGINE_ABI_DIGEST_32));
+}
