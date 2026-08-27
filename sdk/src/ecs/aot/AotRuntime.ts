@@ -51,7 +51,12 @@ export interface AotAddresses {
  * hold, so it packs them itself and takes only which system to run.
  */
 export interface AotDispatcher {
-    run(twin: AotTwin): void;
+    /**
+     * True when the twin RAN. False is the no-cliff rule arriving where it can
+     * still be honoured: a host that cannot yet name every component of a system
+     * has not failed, it has not taken this one, and the interpreter keeps it.
+     */
+    run(twin: AotTwin): boolean;
 }
 
 /**

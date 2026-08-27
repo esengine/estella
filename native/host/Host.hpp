@@ -105,6 +105,14 @@ struct Platform {
     virtual std::vector<esengine::u8> readAsset(const char* path) = 0;
 
     /**
+     * The same file as a filesystem PATH, or empty where the assets are not
+     * files (an APK's are not). For the one thing bytes cannot serve: a library
+     * the OS loader opens by name, which is how a desktop build reaches its
+     * compiled systems.
+     */
+    virtual std::string assetPath(const char*) { return {}; }
+
+    /**
      * Writable private directory for things the host can REGENERATE — the SDK
      * bytecode cache, downloaded hot-update content. Empty disables it.
      *

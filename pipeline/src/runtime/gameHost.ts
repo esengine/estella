@@ -229,7 +229,6 @@ async function boot(): Promise<void> {
     // The compiled twins this build produced, if any. The path, not the bytes:
     // reading it is the platform seam's job, and on a mini-game only the seam
     // knows how (docs/REARCH_AOT.md §9).
-    ...(cfg.aot ? { aot: cfg.aot } : {}),
     manifest: index.manifest,
     catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,

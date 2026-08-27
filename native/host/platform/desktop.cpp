@@ -123,6 +123,12 @@ struct DesktopPlatform final : eshost::Platform {
         return readFileBytes(contentRoot + path);
     }
 
+    /** Loose files, so a content path IS a filesystem path. */
+    std::string assetPath(const char* path) override {
+        if (contentRoot.empty() || !path) return {};
+        return contentRoot + path;
+    }
+
     /** Regenerable state, under the same per-user root as the saves — a store
      *  syncs that root, and a cache that syncs is merely slow where a save that
      *  does not is a lost game. */

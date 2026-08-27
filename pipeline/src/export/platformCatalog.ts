@@ -30,7 +30,7 @@ import {
   BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
   type PlayableAdProfile,
 } from './playableAdProfile';
-import { BUILTIN_PLATFORMS, DESKTOP_OSES, compilesSystems, desktopTemplateFor, type PlatformPrereq } from '../project/platforms';
+import { BUILTIN_PLATFORMS, DESKTOP_OSES, compileTargetFor, desktopTemplateFor, type PlatformPrereq } from '../project/platforms';
 import { promisesCompilation } from '../bundle/buildCompiledSystems';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../../build-tools/utils/nativeTemplate.js';
@@ -613,10 +613,11 @@ export async function loadPlayableProfile(root: string | null, id: string | unde
  */
 export async function listPlatforms(
   root: string | null, dirs: PlatformRuntimeDirs, engineVersion: string,
-  /** Where this machine's emcc is, or null. Required rather than probed here so
-   *  the caller passes the SAME answer to the export — a readiness the dialog
-   *  computed one way and the export another is worse than none. */
-  emcc: string | null,
+  /** The compilers this machine has, one per target a package can be built
+   *  for. Required rather than probed here so the caller passes the SAME
+   *  answers to the export — a readiness the dialog computed one way and the
+   *  export another is worse than none. */
+  toolchains: AotToolchains,
 ): Promise<PlatformStatus[]> {
   const out: PlatformStatus[] = BUILTIN_PLATFORMS.map((id) => ({
     id,
@@ -686,7 +687,15 @@ export async function listPlatforms(
     });
   }
 
-  return withAotPrereq(out, root, emcc);
+  return withAotPrereq(out, root, toolchains);
+}
+
+/** What a machine has for each road a compiled module can be built along. */
+export interface AotToolchains {
+  /** emcc, for a module that shares the engine's memory. */
+  emcc: string | null;
+  /** The host's own C compiler, for a library a native host loads. */
+  cc: string | null;
 }
 
 /**
@@ -697,13 +706,19 @@ export async function listPlatforms(
  * missing engine runtime keeps that harder answer.
  */
 function withAotPrereq(
-  rows: PlatformStatus[], root: string, emcc: string | null,
+  rows: PlatformStatus[], root: string, toolchains: AotToolchains,
 ): PlatformStatus[] {
-  if (emcc || !promisesCompilation(root)) return rows;
+  if (!promisesCompilation(root)) return rows;
   for (const row of rows) {
-    if (!row.ready || !compilesSystems(row.id)) continue;
+    if (!row.ready) continue;
+    const target = compileTargetFor(row.id);
+    if (target === null) continue;
+    // One probe per road: a machine with emcc and no cc packages for the web
+    // and not for the desktop, and being sent to install the other toolchain
+    // is worse than being told nothing.
+    if (target === 'wasm' ? toolchains.emcc : toolchains.cc) continue;
     row.ready = false;
-    row.prereq = { kind: 'toolchain-missing', tool: 'emsdk' };
+    row.prereq = { kind: 'toolchain-missing', tool: target === 'wasm' ? 'emsdk' : 'hostcc' };
   }
   return rows;
 }

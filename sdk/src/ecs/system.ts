@@ -475,10 +475,9 @@ export class SystemRunner {
 
     run(system: SystemDef): void | Promise<void> {
         const twin = this.aot_?.systems.get(system._name);
-        if (twin) {
-            this.runCompiled_(system, twin);
-            return;
-        }
+        // Falls through when the dispatcher could not take it, which is the
+        // interpreter keeping the system rather than the system not running.
+        if (twin && this.runCompiled_(system, twin)) return;
         let args = this.argsCache_.get(system._id);
         if (!args) {
             args = new Array(system._params.length);
@@ -567,14 +566,18 @@ export class SystemRunner {
      * A compiled system's frame: the dispatcher does the contract, this keeps the
      * scheduler's own books — what it cost, and when it last ran.
      */
-    private runCompiled_(system: SystemDef, twin: AotTwin): void {
+    private runCompiled_(system: SystemDef, twin: AotTwin): boolean {
         const t0 = this.timings_ ? performance.now() : 0;
-        this.aotDispatch_!.run(twin);
+        // A dispatcher that could not take this one has not failed: the system
+        // is interpreted this frame, which is the fallback the whole design
+        // rests on, arriving at the only layer that still has the closure.
+        if (!this.aotDispatch_!.run(twin)) return false;
         if (this.timings_) {
             const name = system._name;
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
         this.systemTicks_.set(system._id, this.world_.getWorldTick());
+        return true;
     }
 
     private flushSystem_(system: SystemDef, args: unknown[], t0: number): void {

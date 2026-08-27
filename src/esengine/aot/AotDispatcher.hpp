@@ -47,9 +47,11 @@ public:
                  std::string* why = nullptr) {
         reset();
         if (!module_.open(path, expected, why)) return false;
+        components_ = components;
+        resources_ = resources;
         for (const EsSystemDecl& decl : module_.systems()) {
             names_.push_back(decl.name != nullptr ? decl.name : "");
-            bound_.push_back(bind(decl, components, resources));
+            bound_.push_back(::esengine::aot::bind(decl, components, resources));
         }
         return true;
     }
@@ -81,6 +83,14 @@ public:
     std::span<const EsCmd> run(std::size_t i, std::span<const std::uint32_t> candidates,
                                const ResourceLookup& resources) {
         if (i >= bound_.size()) return {};
+        // Asked again where install could not name everything: a pool the
+        // scripting language owns does not exist until an entity has that
+        // component, so the answer is about the frame, not the module.
+        if (bound_[i].fn == nullptr) {
+            // Qualified: `std::bind` is visible through <functional> and takes anything.
+            bound_[i] = ::esengine::aot::bind(module_.systems()[i], components_, resources_);
+        }
+        if (bound_[i].fn == nullptr) return {};
         return runBound(bound_[i], candidates, resources, arena_);
     }
 
@@ -88,6 +98,8 @@ public:
     void reset() {
         bound_.clear();
         names_.clear();
+        components_ = {};
+        resources_ = {};
         module_.close();
     }
 
@@ -97,6 +109,10 @@ private:
     Module module_;
     std::vector<const char*> names_;
     std::vector<BoundSystem> bound_;
+    /** Kept so a system that could not be named at install can be asked
+     *  again — the answer changes as the world comes up. */
+    ComponentLookup components_;
+    ResourceLookup resources_;
     CallArena arena_;
 };
 

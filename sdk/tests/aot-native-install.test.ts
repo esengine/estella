@@ -49,21 +49,27 @@ const MANIFEST: AotManifest = {
     ],
 };
 
-/** A host that bound only the systems it was told to. */
-function fakeHost(boundNames: readonly string[]) {
+/** A host that can run only the systems it was told it could name. */
+function fakeHost(runnable: readonly string[]) {
     const order = MANIFEST.systems.map((s) => s.name);
     const calls: number[] = [];
     const reported: { name: string; rows: number; sparseCount: number }[] = [];
     const bindings: NativeAotBindings = {
         install: () => order.length,
         index: (name) => order.indexOf(name),
-        bound: (i) => boundNames.includes(order[i] ?? ''),
+        bound: (i) => runnable.includes(order[i] ?? ''),
         scriptRows: (name, _sparse, sparseCount, rows) => {
             reported.push({ name, rows, sparseCount });
             return true;
         },
         resource: () => true,
-        run: (i) => { calls.push(i); return 0; },
+        // Negative is "I still cannot name everything this reads" — the answer
+        // that sends the system back to the interpreter for this frame.
+        run: (i) => {
+            if (!runnable.includes(order[i] ?? '')) return -1;
+            calls.push(i);
+            return 0;
+        },
         reset: () => {},
     };
     return { bindings, calls, reported };
@@ -82,18 +88,19 @@ function fixture(boundNames: readonly string[]) {
 }
 
 describe('installing compiled systems on a host that loads a library', () => {
-    it('makes a twin only of what the host bound, so the rest still interpret', () => {
+    it('a system the host cannot run is interpreted that frame, not skipped', () => {
         const f = fixture(['DriftSystem']);
         const Drift = f.Drift;
         expect(f.runtime).not.toBeNull();
-        expect(f.runtime!.systems.size).toBe(1);
-        expect(f.runtime!.systems.get('DriftSystem')).toBeDefined();
-        expect(f.runtime!.systems.get('OtherSystem')).toBeUndefined();
+        // Every declared system has a twin: whether the host can run one is a
+        // fact about the frame — a pool has no rows until an entity has that
+        // component — so it is settled at the call and asked again next time.
+        expect(f.runtime!.systems.size).toBe(2);
 
         let interpreted = 0;
         const other = defineSystem([Query(Mut(Drift))], () => { interpreted++; }, { name: 'OtherSystem' });
         const compiled = defineSystem([Query(Mut(Drift))], () => {
-            throw new Error('the closure must not run when the host bound this one');
+            throw new Error('the closure must not run when the host took this one');
         }, { name: 'DriftSystem' });
 
         const entity = f.world.spawn();
@@ -105,17 +112,18 @@ describe('installing compiled systems on a host that loads a library', () => {
         expect(interpreted).toBe(1);
     });
 
-    it('says nothing at all where the host bound nothing', () => {
+    it('every system interprets where the host can run none of them', () => {
         const f = fixture([]);
         const Drift = f.Drift;
-        expect(f.runtime!.systems.size).toBe(0);
 
         let interpreted = 0;
         const system = defineSystem([Query(Mut(Drift))], () => { interpreted++; }, { name: 'DriftSystem' });
         f.runner.run(system);
+        f.runner.run(system);
 
         expect(f.calls).toEqual([]);
-        expect(interpreted).toBe(1);
+        // Twice, because a refusal is per frame: the host may be able to next one.
+        expect(interpreted).toBe(2);
     });
 
     it('tells the host where the rows are, once per move rather than per frame', () => {

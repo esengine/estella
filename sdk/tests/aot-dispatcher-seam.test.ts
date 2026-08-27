@@ -49,11 +49,12 @@ const MANIFEST: AotManifest = {
 class HostPackedDispatcher {
     readonly ran: string[] = [];
     constructor(private readonly world: World) {}
-    run(twin: AotTwin): void {
+    run(twin: AotTwin): boolean {
         this.ran.push(twin.decl.name);
         for (const e of this.world.queryEntities([Drift])) {
             this.world.set(e, Drift, { x: this.world.get(e, Drift).x + 1 });
         }
+        return true;
     }
 }
 

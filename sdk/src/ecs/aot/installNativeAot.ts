@@ -19,11 +19,13 @@
  */
 
 import { getComponent, type AnyComponentDef } from '../component';
+import { log } from '../../util/logger';
 import type { World } from '../world';
 import type { SystemRunner } from '../system';
 import type { Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotSystems, type AotManifest, type AotTwin } from './AotSystems';
+import { AotResources, type ResourceReader } from './AotResources';
 import type { AotDispatcher, AotRuntime } from './AotRuntime';
 
 /** `sizeof(es_addr_t)` where a loaded library runs. */
@@ -51,8 +53,20 @@ export interface InstallNativeAotOptions {
     /** The host's linear heap: what a pool allocates from, so an offset means
      *  the same thing on both sides of the boundary. */
     readonly heap: WasmHeap;
+    /** This world's resource values, for the mirror a call reads them from. */
+    readonly resources?: ResourceReader;
     /** The host calls, for a test to stand in for. Absent ⇒ read off globalThis. */
     readonly bindings?: NativeAotBindings;
+}
+
+/** A project resource's field order, as the build compiled it. The engine's own
+ *  come from `resourceShapes`; a project's cannot, and only the build knows. */
+function declaredResourceLayouts(manifest: AotManifest): Map<string, readonly string[]> {
+    const out = new Map<string, readonly string[]>();
+    for (const decl of manifest.systems) {
+        for (const res of decl.resources) if (res.fields) out.set(res.name, res.fields);
+    }
+    return out;
 }
 
 /** The entity index mask a sparse table is addressed by, from the engine's own. */
@@ -92,20 +106,20 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
 
     // Before the first pooled component exists: a pool cannot move to other
     // memory once it has rows, and the host addresses only this heap.
-    opts.world.useScriptPoolMemory(new WasmPoolMemory(opts.heap));
+    const memory = new WasmPoolMemory(opts.heap);
+    opts.world.useScriptPoolMemory(memory);
 
     const count = bindings.install(opts.modulePath);
     if (count < 0) return null;
 
-    // Only the ones the host BOUND become twins: the runner calls a twin
-    // wherever it finds one, so a twin that dispatches to nothing is a system
-    // that never runs at all.
-    const byTwin = new Map<string, number>();
+    // The index the scheduler keeps. Whether the host can BIND one is settled at
+    // the first run instead: a script pool does not exist until an entity has
+    // that component, and until then the interpreter keeps the system.
+    const byName = new Map<string, number>();
     for (const decl of opts.manifest.systems) {
         const at = bindings.index(decl.name);
-        if (at >= 0 && bindings.bound(at)) byTwin.set(decl.name, at);
+        if (at >= 0) byName.set(decl.name, at);
     }
-    const running = opts.manifest.systems.filter((decl) => byTwin.has(decl.name));
 
     // The handshake at the loading width, over the WHOLE manifest — that is
     // what the module is. The exports throw because the host holds the function
@@ -118,14 +132,19 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
         };
     }
     systems.install(opts.manifest, exports, (name) => getComponent(name),
-        () => [], NATIVE_ADDRESS_BYTES, (name) => byTwin.has(name));
+        () => [], NATIVE_ADDRESS_BYTES, (name) => byName.has(name));
 
-    // Every script component any running twin names, so one epoch change
-    // re-reports all of them rather than whichever twin happened to run first.
+    // Every script component any twin names, so one epoch change re-reports all
+    // of them rather than whichever twin happened to run first.
     const pooled = new Set<string>();
-    for (const decl of running) {
+    for (const decl of opts.manifest.systems) {
         for (const query of decl.queries) for (const arg of query) pooled.add(arg.comp);
     }
+    // The resources, mirrored into the same heap the pools use. A resource has no
+    // address of its own until something writes one down, and doing that per call
+    // is what the contract promises — the address is good for one call.
+    const resources = new AotResources(memory, opts.resources ?? (() => undefined),
+        declaredResourceLayouts(opts.manifest));
 
     const runtime: AotRuntime = {
         systems,
@@ -136,7 +155,8 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
             resourceAt: () => undefined,
         } as unknown as AotRuntime['addresses'],
         ctx: null as unknown as AotRuntime['ctx'],
-        dispatcherFor: (world) => new NativeAotDispatch(world, bindings, byTwin, pooled),
+        dispatcherFor: (world) =>
+            new NativeAotDispatch(world, bindings, byName, pooled, resources),
     };
     opts.runner.useAot(runtime);
     return runtime;
@@ -152,20 +172,52 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
 class NativeAotDispatch implements AotDispatcher {
     /** The epoch the pools were last reported at. Null means never. */
     private reportedAt_: number | null | undefined = undefined;
+    /** Systems the host has taken at least once, so it is said once. */
+    private readonly running_ = new Set<string>();
 
     constructor(
         private readonly world: World,
         private readonly bindings: NativeAotBindings,
         private readonly indexByName: ReadonlyMap<string, number>,
         private readonly pooled: ReadonlySet<string>,
+        private readonly resources: AotResources,
     ) {}
 
-    run(twin: AotTwin): void {
-        // Every twin that exists is one the host bound; install made sure of it.
-        const at = this.indexByName.get(twin.decl.name)!;
+    run(twin: AotTwin): boolean {
+        const at = this.indexByName.get(twin.decl.name);
+        if (at === undefined) return false;
         this.reportPools_();
-        this.bindings.run(at);
+        this.reportResources_(twin);
+        // Negative means the host still cannot name everything this system
+        // reads — a pool with no rows yet, a resource nothing has written.
+        // The interpreter keeps it this frame and it is asked again next.
+        if (this.bindings.run(at) < 0) return false;
+        // Once, the first time the host takes it. "Installed" says a module
+        // loaded; this says a system is actually running as machine code, and
+        // the two are different frames when a pool has to exist first.
+        if (!this.running_.has(twin.decl.name)) {
+            this.running_.add(twin.decl.name);
+            log.info('runtime', `AOT: ${twin.decl.name} is running compiled`);
+        }
+        this.writeBackResources_(twin);
         this.markChanged_(twin);
+        return true;
+    }
+
+    /** Mirror each declared resource into the heap and say where it landed. */
+    private reportResources_(twin: AotTwin): void {
+        for (const res of twin.decl.resources) {
+            const at = this.resources.addressOf(res.name);
+            if (at === undefined) continue;
+            this.bindings.resource(res.name, at, this.resources.bytesOf(res.name));
+        }
+    }
+
+    /** A `ResMut` the compiled code wrote is in the mirror, not in the world. */
+    private writeBackResources_(twin: AotTwin): void {
+        for (const res of twin.decl.resources) {
+            if (res.mut) this.resources.writeBack(res.name);
+        }
     }
 
     /**

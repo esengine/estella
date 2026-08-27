@@ -179,7 +179,7 @@ export function packagedAppOptions(
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
         'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements' | 'steamAppId' | 'screenFit'>,
+        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: Physics2DPluginConfig;
@@ -189,6 +189,7 @@ export function packagedRuntimeInit(
     achievements?: string[];
     steamAppId?: number;
     screenFit?: PackagedGameConfig['screenFit'];
+    aot?: PackagedGameConfig['aot'];
 } {
     return {
         physicsEnabled: config.physicsEnabled,
@@ -201,6 +202,10 @@ export function packagedRuntimeInit(
         // Also here, not only in packagedAppOptions: the camera fit is baked into
         // the app's construction, but the WINDOW is sized on a live one.
         screenFit: config.screenFit,
+        // Here rather than per host: a host that names the fields it knows about
+        // is a host the next one never reaches, and this one reached none of the
+        // native road until it was asked for by hand.
+        aot: config.aot,
     };
 }
 

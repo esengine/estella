@@ -11467,7 +11467,7 @@ NavPlugin
 
 ## packagedRuntimeInit — function @experimental
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit">): { physicsEnabled?: boolean; physicsConfig?: Physics2DPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; }
+(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit" | "aot">): { physicsEnabled?: boolean; physicsConfig?: Physics2DPluginConfig; audioConfig?: AudioProjectConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; aot?: PackagedGameConfig["aot"]; }
 ```
 
 ## paramDefaultValue — function @experimental

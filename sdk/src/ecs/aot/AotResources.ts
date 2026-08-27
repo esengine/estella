@@ -58,7 +58,8 @@ export class AotResources {
     }
 
     /** Bytes `name`'s block needs, by whichever layout answers for it. */
-    private bytesOf(name: string): number {
+    /** How many bytes `name`'s mirror is, for a host that must be given a range. */
+    bytesOf(name: string): number {
         const declared = this.declared.get(name);
         return declared ? declared.length * POOL_SLOT_BYTES : resourceBlockBytes(name);
     }

@@ -974,6 +974,8 @@ export class App {
             manifest,
             heap,
             bindings,
+            resources: (name: string) => this.getResourceByName(name) as
+                Readonly<Record<string, unknown>> | undefined,
         });
         return this.aot_?.systems.size ?? 0;
     }

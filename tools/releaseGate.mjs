@@ -90,6 +90,19 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'a-desktop-app-runs-its-systems-as-machine-code',
+    says: 'a packaged desktop game loads its compiled systems and dispatches to them',
+    // Installed is not enough. A module can load and never be reached: on this
+    // road binding is settled at the first call, because a script pool does not
+    // exist until an entity has that component.
+    answeredBy: 'node tools/verify-aot-native.mjs',
+    needs: [
+      'tools/verify-aot-native.mjs',
+      'native/host/bindings/AotBindings.cpp',
+      'sdk/src/ecs/aot/installNativeAot.ts',
+    ],
+  },
+  {
     id: 'compiled-systems-compute-what-the-interpreter-computes',
     says: 'a packaged compiled system moves the world exactly as the interpreted one does',
     // Over the same FIXED steps, not the same wall clock: two launches of one

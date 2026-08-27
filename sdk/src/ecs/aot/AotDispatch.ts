@@ -118,7 +118,7 @@ export class AotDispatch {
 
     constructor(private readonly world: World, private readonly runtime: AotRuntime) {}
 
-    run(twin: AotTwin): void {
+    run(twin: AotTwin): boolean {
         const plan = this.planFor_(twin);
         this.packRows_(plan, this.world.layoutEpoch());
 
@@ -151,6 +151,9 @@ export class AotDispatch {
             if (cmd.kind === CMD_DESPAWN) this.world.despawn(cmd.a as unknown as Entity);
         }
         this.markChanged_(plan);
+        // Always: this module shares the engine's memory, so whatever it names
+        // is reachable the moment it is installed.
+        return true;
     }
 
     /** Drop the plans; the next call rebuilds them. */

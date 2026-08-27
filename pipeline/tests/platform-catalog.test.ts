@@ -17,7 +17,7 @@ import {
   listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR,
   listPlayableNetworks, loadPlayableProfile,
 } from '../src/export/platformCatalog';
-import { BUILTIN_PLATFORMS } from '../src/project/platforms';
+import { BUILTIN_PLATFORMS, compileTargetFor } from '../src/project/platforms';
 
 let root: string;
 let webDir: string;
@@ -29,10 +29,12 @@ const VERSION = '9.9.9';
 
 const dirs = () => ({ web: webDir, wechat: wxDir });
 
-/** The catalog with the machine facts this file owns. `null` emcc is deliberate:
- *  a project that marks nothing `@compiled` must be told it needs no toolchain,
- *  which is the half of that rule a passing machine cannot check. */
-const platforms = (r: string | null) => listPlatforms(r, dirs(), VERSION, null);
+/** The catalog with the machine facts this file owns. A machine with NEITHER
+ *  compiler is deliberate: a project that marks nothing `@compiled` must be
+ *  told it needs no toolchain, which is the half of that rule a machine that
+ *  happens to have one cannot check. */
+const NONE = { emcc: null, cc: null };
+const platforms = (r: string | null) => listPlatforms(r, dirs(), VERSION, NONE);
 
 function writePlatform(name: string, source: string): void {
   const dir = path.join(root, PROJECT_PLATFORM_DIR);
@@ -429,13 +431,14 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
     writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
   };
-  const rows = (emcc: string | null) => listPlatforms(root, dirs(), VERSION, emcc);
+  const rows = (t: { emcc: string | null; cc: string | null }) =>
+    listPlatforms(root, dirs(), VERSION, t);
 
   it('says nothing to a project that promised nothing, on a machine with no emcc', async () => {
     mkdirSync(path.join(root, 'src'), { recursive: true });
     writeFileSync(path.join(root, 'src', 'move.ts'), 'export const x = 1;');
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
-    const byId = Object.fromEntries((await rows(null)).map((r) => [r.id, r]));
+    const byId = Object.fromEntries((await rows(NONE)).map((r) => [r.id, r]));
 
     expect(byId.web.ready).toBe(true);
     expect(byId.web.prereq).toBeUndefined();
@@ -443,7 +446,7 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
 
   it('blocks the targets that would compile, and names emsdk', async () => {
     promising();
-    const byId = Object.fromEntries((await rows(null)).map((r) => [r.id, r]));
+    const byId = Object.fromEntries((await rows(NONE)).map((r) => [r.id, r]));
 
     expect(byId.web.ready).toBe(false);
     expect(byId.web.prereq).toEqual({ kind: 'toolchain-missing', tool: 'emsdk' });
@@ -453,14 +456,33 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
 
   it('leaves alone the targets whose export never compiles', async () => {
     promising();
-    const byId = Object.fromEntries((await rows(null)).map((r) => [r.id, r]));
+    const byId = Object.fromEntries((await rows(NONE)).map((r) => [r.id, r]));
 
-    // A playable inlines everything and has nowhere to put a module; a native
-    // app runs its scripts on QuickJS. Neither runs the step, so neither is
+    // A playable inlines everything and has nowhere to put a module; iOS and
+    // Android would need a cross-compiler. None runs the step, so none is
     // blocked by a toolchain it will not spawn.
     expect(byId.playable.ready).toBe(true);
     expect(byId.playable.prereq).toBeUndefined();
-    expect(byId.desktop.prereq).not.toEqual({ kind: 'toolchain-missing', tool: 'emsdk' });
+  });
+
+  it('asks each road for its OWN compiler', async () => {
+    promising();
+    const webRow = async (t: { emcc: string | null; cc: string | null }) =>
+      (await rows(t)).find((r) => r.id === 'web')!;
+
+    // Web is the row that reaches the AOT question here rather than a harder
+    // blocker. Pinned: the question is emcc's, and the OTHER compiler does not
+    // answer it — a machine with only a host cc cannot package for the web.
+    expect((await webRow(NONE)).prereq).toEqual({ kind: 'toolchain-missing', tool: 'emsdk' });
+    expect((await webRow({ emcc: null, cc: 'cc' })).prereq)
+      .toEqual({ kind: 'toolchain-missing', tool: 'emsdk' });
+    expect((await webRow({ emcc: '/emcc', cc: null })).prereq).toBeUndefined();
+
+    // And the desktop asks the other one. Its row is blocked by a missing runtime
+    // template here, which is the harder answer and the one it must keep.
+    expect(compileTargetFor('desktop')).toBe('native');
+    expect(compileTargetFor('web')).toBe('wasm');
+    expect(compileTargetFor('playable')).toBeNull();
   });
 
   it('a project platform rides the same rule — it packages through the mini-game path', async () => {
@@ -468,7 +490,7 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
     writePlatform('acme.mjs', `export default {
       id: 'acme', label: 'ACME', emitConfigFiles: () => [],
     };`);
-    const acme = (await rows(null)).find((r) => r.id === 'acme');
+    const acme = (await rows(NONE)).find((r) => r.id === 'acme');
 
     expect(acme!.ready).toBe(false);
     expect(acme!.prereq).toEqual({ kind: 'toolchain-missing', tool: 'emsdk' });
@@ -476,7 +498,7 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
 
   it('clears once the machine has one', async () => {
     promising();
-    const byId = Object.fromEntries((await rows('/opt/emsdk/emcc')).map((r) => [r.id, r]));
+    const byId = Object.fromEntries((await rows({ emcc: '/opt/emsdk/emcc', cc: 'cc' })).map((r) => [r.id, r]));
 
     expect(byId.web.ready).toBe(true);
     expect(byId.wechat.ready).toBe(true);
@@ -485,7 +507,7 @@ describe('listPlatforms — the AOT toolchain, only where it is owed', () => {
   it('does not speak over a harder blocker — no runtime means no package at all', async () => {
     mkdirSync(path.join(root, 'src'), { recursive: true });
     writeFileSync(path.join(root, 'src', 'move.ts'), '/** @compiled */ export const x = 1;');
-    const web = (await rows(null)).find((r) => r.id === 'web');
+    const web = (await rows(NONE)).find((r) => r.id === 'web');
 
     expect(web!.ready).toBe(false);
     expect(web!.prereq?.kind).toBe('runtime-missing');

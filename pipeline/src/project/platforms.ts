@@ -150,18 +150,22 @@ export type PlatformPrereq =
  * target missing them still exports its content. `emsdk` gates the export
  * itself, because the compiled module ships inside the package.
  */
-export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk';
+export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk' | 'hostcc';
 
 /**
- * Whether this target's export compiles the project's `@compiled` systems.
+ * WHICH machine this target's compiled systems are built for, or null where it
+ * runs no such step.
  *
- * A page host and a mini-game host can load a module; a playable inlines
- * everything, and a native app runs its scripts on QuickJS. Two surfaces read
- * this — the export that runs the step, and the catalog that says a machine cannot.
+ * Not a boolean: the two answers want different compilers — emcc for a module
+ * sharing the engine's memory, the host's own cc for a library it loads — and a
+ * surface asking only "does it compile" would guess which to look for. A
+ * playable has nowhere to put a module; iOS and Android need a cross-compiler.
  */
-export function compilesSystems(platform: ExportPlatform): boolean {
-    if (platform === 'web' || platform === 'wechat') return true;
+export function compileTargetFor(platform: ExportPlatform): 'wasm' | 'native' | null {
+    if (platform === 'web' || platform === 'wechat') return 'wasm';
+    if (platform === 'desktop') return 'native';
+    if (platform === 'playable' || platform === 'android' || platform === 'ios') return null;
     // A project platform is a mini-game platform: the playable ones are chosen
     // inside the built-in target, not offered as a row of their own.
-    return !(BUILTIN_PLATFORMS as readonly string[]).includes(platform);
+    return 'wasm';
 }

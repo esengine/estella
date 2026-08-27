@@ -102,9 +102,15 @@ JSValue js_install(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     const char* path = JS_ToCString(ctx, argv[0]);
     if (path == nullptr) return JS_NewInt32(ctx, -1);
 
+    // A content-relative name, resolved the way every other packaged file is:
+    // the OS loader searches its own path for a bare name and would find
+    // anything but this one.
+    const std::string resolved = host().platform ? host().platform->assetPath(path) : std::string{};
+    const char* open = resolved.empty() ? path : resolved.c_str();
+
     AotState& s = state();
     std::string why;
-    const bool ok = s.dispatcher.install(path, aot::abiHash(ES_ENGINE_ABI_DIGEST),
+    const bool ok = s.dispatcher.install(open, aot::abiHash(ES_ENGINE_ABI_DIGEST),
                                          componentAt, resourceAt, &why);
     if (!ok) ESHOST_LOGE("[aot] %s: %s", path, why.c_str());
     JS_FreeCString(ctx, path);
@@ -188,11 +194,13 @@ JSValue js_run(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     std::uint32_t i = 0;
     JS_ToUint32(ctx, &i, argv[0]);
     AotState& s = state();
-    if (!s.installed || !s.dispatcher.boundAt(i)) return JS_NewInt32(ctx, -1);
+    if (!s.installed) return JS_NewInt32(ctx, -1);
 
     s.candidates.clear();
     host().registry->forEachEntity([&s](esengine::Entity e) { s.candidates.push_back(e.id()); });
     const auto cmds = s.dispatcher.run(i, s.candidates, resourceAt);
+    // Asked AFTER the run, because that is where a late binding is settled.
+    if (!s.dispatcher.boundAt(i)) return JS_NewInt32(ctx, -1);
     // After the call, never during it: a despawn invalidates the rows it read.
     return JS_NewInt32(ctx, static_cast<int>(aot::applyCommands(*host().registry, cmds)));
 }

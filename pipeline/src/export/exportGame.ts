@@ -41,6 +41,7 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from '../bundle/esengineResolve';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
+import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
@@ -51,7 +52,7 @@ import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
-import { compilesSystems, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
+import { compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
 import type { DesktopPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
@@ -710,16 +711,35 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
-  // 3b. Compiled systems (docs/REARCH_AOT.md), for the page host. Which targets
-  //     get one is `compilesSystems`, because the build dialog has to answer the
-  //     same question before an export starts.
+  /** The desktop apps this export will assemble that this machine cannot make a
+   *  compiled module for. Empty means every one of them is this machine. */
+  function foreignDesktopOses(templates: { os: DesktopOs }[] | undefined): DesktopOs[] {
+    const here = desktopTemplateFor(process.platform);
+    return (templates ?? []).map((t) => t.os).filter((os) => os !== here);
+  }
+
+  // 3b. Compiled systems. Which machine they are built for is `compileTargetFor`,
+  //     because the build dialog looks for the same compiler this does, before
+  //     an export starts.
   let aot: PackagedGameConfig['aot'];
-  if (compilesSystems(platform)) {
+  const aotTarget = compileTargetFor(platform);
+  const foreignOs = aotTarget === 'native' ? foreignDesktopOses(opts.desktopTemplates) : [];
+  if (aotTarget !== null && foreignOs.length > 0) {
+    // A compiled system is machine code for ONE machine, and this assembles an
+    // app per installed template. Half a package with AOT is worse than a
+    // uniform one, so nothing is compiled and the build says why.
+    warnings.push('Compiled systems were left out: this build also assembles '
+      + `${foreignOs.join(' and ')}, and a compiled system is machine code for one machine. `
+      + `Export on the machine you are targeting, or install only its runtime template.`);
+  } else if (aotTarget !== null) {
     // An export is not the editor's preview: here a `@compiled` marker is a
     // promise someone is collecting on, so a promise the subset cannot keep
     // fails the build rather than quietly falling back to the interpreter.
     const built = await buildCompiledSystems(opts.root, {
-      mode: opts.aotMode ?? 'release', cc: resolveEmcc(opts.emcc), run: runEmcc,
+      mode: opts.aotMode ?? 'release',
+      target: aotTarget,
+      cc: aotTarget === 'native' ? findHostCC() : resolveEmcc(opts.emcc),
+      run: runEmcc,
     });
     if (!built.ok) {
       errors.push(...built.errors);
@@ -727,9 +747,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     }
     if (built.modulePath && built.manifest) {
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
+      const name = path.basename(built.modulePath);
       await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
-      await cp(built.modulePath, path.join(payloadDir, 'aot', 'systems.wasm'));
-      aot = { module: `aot/${path.basename(built.modulePath)}`, manifest: built.manifest };
+      await cp(built.modulePath, path.join(payloadDir, 'aot', name));
+      aot = { module: `aot/${name}`, manifest: built.manifest };
     }
   }
 
