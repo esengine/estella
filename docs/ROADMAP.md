@@ -14,7 +14,8 @@
 - **3D 地基收口**：render graph 拥有 scene pass、depth 可采样、`render.meshes/triangles/culled`
   有计数、三条 `*-scale-cost` 有天花板。
 - **`examples/celestial-heights/engine-gaps.mjs` 是空的** —— 旗舰游戏没有一处在绕开引擎。
-- **子系统定级**：28 个里 6 个 `public`、10 个 `beta`、12 个 `experimental`。
+- **子系统定级**：28 个里 6 个 `public`、12 个 `beta`、10 个 `experimental`，
+  而且「凭什么可以升」现在有机器判了（`check-tier-bar`）。
 
 ## 1. 编译系统的代价正比于「世界」，不是「它匹配的集合」（前半已落地）
 
@@ -205,16 +206,27 @@ interpreter」，那是对引擎的诬告。校验和、「有没有真派发」
 
 ## 4. 重读 `rendering` 的判决，顺手解锁 fog / DOF / SSAO
 
-**`rendering` 的 `why` 改了〔2026-08-27〕，定级本身还等你拍板。** 它原来写的是
-「同 AI —— 而且它背后的 render graph 还在动」。后半句不成立了：scene 是声明出来的 pass、
-target pool 有生命周期、depth 可采样，而且今天它上面已经长出了第一个真效果
-（`distanceFog`，带双后端像素门禁）。所以 `why` 已经换成还成立的那句：**一个游戏是由它
-下面那几层构成的，那些先冻**。**没有动的是 tier 本身** —— 从 `experimental` 升到 `beta`
-是改对创作者的承诺，这一步留给你；改 `why` 只是把一条过期的理由换掉，不是承诺变更。
+**〔2026-08-27 第二轮：先立标准，再用它。〕** 「什么阶段才可以改」此前没有答案，于是
+升级是一次做完、用散文论证、再也不复问的判断。两行的 `why` 只写着「还没被拿来定级」——
+那是给自己的备忘，不是判据。
 
-**同一批里最便宜的四个。** `tilemap`、`particles`、`mesh`、`i18n` 的 `why` 都是
-「有游戏端到端认证了，但还没被拿来定级」。那是一次**读**，不是一次**建**。12 个
-experimental 对创作者读起来是「大半个引擎没做完」，哪怕其中几个下面压着两个出货游戏。
+**新门禁 `check-tier-bar`：门槛就是 `check-freeze-bar` 对 `@public` 符号那三条，
+问到子系统 `entry` 头上** —— documented / tested / (值类型还要) 被某个 golden 项目调用。
+**它是地板，不是升级触发器**：过了只是「允许」，证据够不够**广**到值得承诺，仍然是判断，
+留在 `why` 里。它消掉的是另一种情况：一个**本来就不可能挣到**的声明，只因为没人有办法问。
+
+**它是标定出来的，不是发明的：六个 `public` 全部达标。** 上一级 16 行里 10 行达标；
+不达标的 6 行是门槛之前发布的，各自带着还欠什么（`OWED`，逐条复核，欠账还上那天门禁会说）。
+
+**用它之后：`tilemap` 和 `particles` 已升 `beta`。** 各只差一件——它自己的组件没有写下来的
+契约；补上，连 `Data` 接口一起承诺（`check-data-tiers` 要求「你写进去的字段」同级）。
+广度那半靠论证：**tilemap 两个认证游戏、其中一个每次改动都跑**，比四个已在这一级的行证据
+还多；**particles 一个，与 `spine`、`scene` 当初发布时同级**。
+
+**`rendering` 仍留 experimental，而现在有证据说为什么**：门槛报出 `Light` 和
+`PostProcessStack` **没有任何 golden 项目调用**——这是真的广度缺口，不是感觉。它的 `why`
+（一个游戏由它下面那几层构成，那些先冻）照旧成立。`mesh`、`physics-3d` 同理，门槛缺口很大。
+`math` 三个函数一个 golden 项目都没调；`services` 的三个基本没有证据。
 
 **~~一个便宜且已标好的改动~~ 已落地 2026-08-27。** `FrameConstants` 现在带上它自己那个
 矩阵的**逆**（不是 near/far —— 逆更通用：一个成员同时喂 fog、DOF、SSAO，而 near/far 只对
