@@ -300,6 +300,15 @@ export const CRITERIA = [
     needs: ['tools/check-plugin-api-contract.mjs', 'editor-api/index.ts'],
   },
   {
+    id: 'a-tier-above-experimental-is-earned',
+    says: 'no subsystem is published as beta or public without the evidence a @public symbol needs',
+    // The other half of `frozen-api-earned`, one level up. A tier is a promise to
+    // a creator, and before this the only thing holding one was the prose beside
+    // it — two rows said "not read for a tier yet", which is a note, not a bar.
+    answeredBy: 'node tools/check-tier-bar.mjs',
+    needs: ['tools/check-tier-bar.mjs', 'tools/lib/apiEvidence.mjs', 'tools/apiSubsystems.mjs'],
+  },
+  {
     id: 'every-subsystem-has-a-verdict',
     says: 'every part of the engine publishes a tier at the size a creator builds in, and the tags carry it',
     // The per-symbol tiers are enforced above. This is the same answer at the

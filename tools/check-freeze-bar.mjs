@@ -18,7 +18,7 @@
  *                already checks its shape everywhere it is used)
  *
  * A symbol that cannot meet the bar and should still be frozen goes in
- * {@link EXEMPT} with a reason, the same bargain goldenProjects strikes: the
+ * {@link BLIND} with a reason, the same bargain goldenProjects strikes: the
  * hole stays visible instead of passing for coverage.
  *
  * A symbol that SHOULD be frozen and cannot be yet goes in {@link BLOCKED}. That
@@ -33,7 +33,9 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram, leadingDoc, docProseLines } from './lib/sdkProgram.mjs';
+import { ROOT, SDK, ETC, ts, ENTRIES, createSdkProgram } from './lib/sdkProgram.mjs';
+import { VALUE_KINDS, BLIND, hasDocProse, testedIdentifiers, exercisedByGolden, declarationsOf }
+    from './lib/apiEvidence.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
 import { GOLDEN, projectDir } from './goldenProjects.mjs';
 
@@ -43,29 +45,9 @@ import { GOLDEN, projectDir } from './goldenProjects.mjs';
  * its name and no import list can show it — while every golden project runs one
  * every frame. The criterion is blind to them, not unmet by them.
  */
-const RECEIVED = 'received from a declared parameter, never imported — golden projects run it, no import list names it';
-const HANDED_BACK = 'answered by a frozen factory, never imported — a game names the factory, not this';
-export const EXEMPT = {
-    InputMap: HANDED_BACK,
-    // Same blindness, from the other direction: the map's rebind scan builds one
-    // when a player binds a mouse button, so a certified game runs it without any
-    // import list ever naming it.
-    MouseButton: 'built by InputMap\'s rebind scan on the game\'s behalf — run by a golden project, named by none',
-    // Same shape of blindness: the engine maintains this one from Parent, so a
-    // game reads it and every golden project's layout walks it every frame, but
-    // nothing imports the name.
-    Children: 'engine-maintained from Parent — walked every frame, named in no import list',
-    CommandsInstance: RECEIVED,
-    EntityCommands: RECEIVED,
-    EventReaderInstance: RECEIVED,
-    EventWriterInstance: RECEIVED,
-    QueryInstance: RECEIVED,
-    RemovedQueryInstance: RECEIVED,
-    ResMutInstance: RECEIVED,
-};
 
 /**
- * Freezes that were decided on and refused. Unlike {@link EXEMPT} these are NOT
+ * Freezes that were decided on and refused. Unlike {@link BLIND} these are NOT
  * frozen: the entry records that the gap is in the corpus rather than the API.
  * `needs` is the bar's own wording, so the check can confirm the symbol still
  * falls short for that reason and not some other.
@@ -87,9 +69,6 @@ export const BLOCKED = {
 // BREADTH of the promise is not a missing criterion. The @beta tag records that,
 // at the declaration, with its reason.
 
-/** Snapshot kinds that a game calls at runtime; the rest are shapes. */
-const VALUE_KINDS = new Set(['class', 'enum', 'function', 'const', 'value', 'namespace']);
-
 // ---------------------------------------------------------------------------
 // What the snapshots froze
 // ---------------------------------------------------------------------------
@@ -103,69 +82,6 @@ function frozenSymbols() {
         for (const [name, s] of parseSnapshot(readFileSync(file, 'utf8'))) {
             if (s.tier === 'public') out.set(name, s.kind);
         }
-    }
-    return out;
-}
-
-// ---------------------------------------------------------------------------
-// Documented
-// ---------------------------------------------------------------------------
-
-/** A leading doc block carrying at least one line that is not a tag. */
-function hasDocProse(decl) {
-    return docProseLines(leadingDoc(decl)).length > 0;
-}
-
-// ---------------------------------------------------------------------------
-// Tested / exercised
-// ---------------------------------------------------------------------------
-
-function walk(dir, onFile, skip) {
-    let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-        const p = join(dir, e.name);
-        if (skip(p, e.name)) continue;
-        if (e.isDirectory()) walk(p, onFile, skip);
-        else onFile(p);
-    }
-}
-
-/** Every identifier named anywhere in the SDK's tests. */
-function testedIdentifiers() {
-    const seen = new Set();
-    const skip = (p, name) => name === 'node_modules' || name === 'dist';
-    walk(join(SDK, 'src'), collect, skip);
-    walk(join(SDK, 'tests'), collect, skip);
-    function collect(p) {
-        if (!/\.test\.ts$/.test(p)) return;
-        for (const id of readFileSync(p, 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []) seen.add(id);
-    }
-    return seen;
-}
-
-// Every entry, not just the root one: the SDK ships nine, and a symbol reached
-// through `esengine/spine` is as exercised as one reached through `esengine`.
-const ESENGINE_IMPORT = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]esengine(?:\/[^'"]+)?['"]/g;
-
-/** Symbols each golden project imports from an `esengine` entry, as `name -> [projectId]`. */
-function exercisedByGolden() {
-    const out = new Map();
-    for (const g of GOLDEN) {
-        const dir = projectDir(g.id);
-        if (!existsSync(dir)) continue;
-        walk(dir, (p) => {
-            if (!/\.ts$/.test(p) || /\.d\.ts$/.test(p)) return;
-            const src = readFileSync(p, 'utf8');
-            for (const m of src.matchAll(ESENGINE_IMPORT)) {
-                for (const raw of m[1].split(',')) {
-                    const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim();
-                    if (!name) continue;
-                    if (!out.has(name)) out.set(name, new Set());
-                    out.get(name).add(g.id);
-                }
-            }
-        }, (p, name) => name === '.esengine' || name === 'node_modules' || name === 'dist');
     }
     return out;
 }
@@ -214,18 +130,7 @@ const kinds = allSymbols();
 const wanted = new Set([...frozen.keys(), ...(asked.length ? [] : Object.keys(BLOCKED))]);
 
 const { program, checker } = createSdkProgram();
-const declarations = new Map();
-for (const entryPath of Object.values(ENTRIES)) {
-    const sourceFile = program.getSourceFile(join(SDK, entryPath));
-    const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
-    if (!moduleSymbol) continue;
-    for (const symbol of checker.getExportsOfModule(moduleSymbol)) {
-        if (declarations.has(symbol.name) || !wanted.has(symbol.name)) continue;
-        const resolved = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-        const decl = resolved.declarations?.[0];
-        if (decl) declarations.set(symbol.name, decl);
-    }
-}
+const declarations = declarationsOf(wanted, program, checker);
 
 const tested = testedIdentifiers();
 const exercised = exercisedByGolden();
@@ -243,14 +148,14 @@ function shortfall(name, kind) {
 
 const failures = [];
 for (const [name, kind] of [...frozen].sort()) {
-    const excuse = EXEMPT[name];
+    const excuse = BLIND[name];
     const missing = shortfall(name, kind);
     if (missing === null) {
         failures.push({ name, say: 'is @public in a snapshot but resolves to no declaration' });
         continue;
     }
     if (!missing.length) {
-        if (excuse) failures.push({ name, say: `meets the bar but is still listed in EXEMPT — drop the excuse` });
+        if (excuse) failures.push({ name, say: `meets the bar but is still listed in BLIND — drop the excuse` });
         continue;
     }
     if (excuse) continue;
@@ -261,7 +166,7 @@ for (const [name, kind] of [...frozen].sort()) {
 // Not in --why: that mode is asked about a chosen few, so every other exemption
 // would read as an inconsistency it did not ask about.
 if (!asked.length) {
-    for (const [name, why] of Object.entries(EXEMPT)) {
+    for (const [name, why] of Object.entries(BLIND)) {
         if (!frozen.has(name)) failures.push({ name, say: `is exempt from the freeze bar but is not @public — ${why}` });
     }
 }
@@ -310,9 +215,9 @@ if (asked.length) {
 
 const values = [...frozen].filter(([, k]) => VALUE_KINDS.has(k)).length;
 if (failures.length === 0) {
-    const exempt = Object.keys(EXEMPT).length;
+    const exempt = Object.keys(BLIND).length;
     console.log(`check-freeze-bar: ${frozen.size} @public symbol(s) (${values} called at runtime) — documented, tested, exercised.`);
-    for (const [name, why] of Object.entries(EXEMPT)) console.log(`  exempt: ${name} — ${why}`);
+    for (const [name, why] of Object.entries(BLIND)) console.log(`  exempt: ${name} — ${why}`);
     if (exempt) console.log(`  ${exempt} exemption(s) — each is a symbol the corpus does not hold up.`);
     if (blocked.length) {
         console.log(`  ${blocked.length} freeze(s) decided and still refused — node tools/check-freeze-bar.mjs --blocked`);

@@ -172,6 +172,10 @@ export const GATES = [
   // The per-symbol tiers say what is frozen; this says what a creator can build
   // on, and refuses a published verdict the tags do not carry.
   { id: 'subsystem-tiers', run: 'node tools/check-subsystem-tiers.mjs' },
+  // And whether the verdict was earned. subsystem-tiers holds the table against
+  // the tags; this holds a tier above experimental against the same evidence
+  // check-freeze-bar asks of a @public symbol.
+  { id: 'tier-bar', run: 'node tools/check-tier-bar.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];

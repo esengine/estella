@@ -89,6 +89,32 @@ published separately; it ships inside the editor.
   puts the continuation on the microtask queue, where no frame can run: five runs
   now agree to 4e-5, where before they scattered.
 
+- **`check-tier-bar` — a tier above `experimental` has to be earned, and now
+  something asks.** `check-subsystem-tiers` holds the table against the tags: a
+  verdict and the code carrying it are one answer. Nothing could say whether the
+  verdict was EARNED, so a promotion was a judgement made once, argued in prose
+  and never re-asked — two rows said only "the runtime surface has not been read
+  for a tier yet", which is a note to self.
+
+  The bar is the one `check-freeze-bar` already applies to a `@public` symbol,
+  asked of the entry a subsystem publishes its verdict on: documented, tested,
+  and — for values — called by a golden project. **It is a floor, not a
+  promotion.** Clearing it makes a tier permissible; whether the evidence is
+  BROAD enough to promise on stays a judgement, in `why`. What it removes is the
+  other case: a claim that could not have been earned, made because nobody had a
+  way to ask.
+
+  It is calibrated rather than invented: **all six `public` subsystems clear it**.
+  Ten of the sixteen above experimental do; the six that do not were published
+  before the bar and carry what they still owe, each line checked to still be
+  true, so the day a gap closes the gate says so instead of the entry becoming a
+  lie. Sabotage-verified three ways — promoting an unearned row, dropping a debt
+  that is still owed, and claiming one that is not.
+
+  The three evidences moved to `tools/lib/apiEvidence.mjs`, since two bars now
+  ask for them and two copies would be two bars under one name; `check-freeze-bar`
+  prints byte-identically across the move.
+
 - **`check-verifier-owners` — a checker nobody runs is a checker that rots.**
   `check-release-gate` holds one direction: every exit criterion has something
   answering it. Nothing held the other, and `verify:aot` fell through it — a
