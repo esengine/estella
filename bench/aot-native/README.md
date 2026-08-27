@@ -206,4 +206,61 @@ different deltas, move different distances, and have no differential between the
 | `BENCH_SPRITES` | on | `0` drops the `Sprite`, which is most of the idle floor — needed to resolve a compiled system at all |
 | `BENCH_BYSTANDERS` | 0 | extra entities with only a `Transform`, which no query matches: they grow the world without growing the matched set |
 | `BENCH_MIN_RATIO` | 5 | `--gate` only: the ratio a fallback cannot pass |
+| `BENCH_RENDER` | off, on under `--gate` | also run the render pair below |
+| `BENCH_RENDER_ENTITIES` | 128000 | the pair's entity count |
+| `BENCH_RENDER_MAX_RATIO` | 5 | `--gate` only: how much of the frame the drawing may be |
+| `BENCH_MIN_BUSY` | 0.5 | the share of a frame's span that must be CPU for the span to be about the engine |
 | `BENCH_KEEP` | off | keep the exported apps for poking at |
+
+## What drawing costs, in time
+
+Counts were the only ceiling a frame had. `sprite-scale-cost` and its siblings hold
+draws, meshes and triangles — and a frame can honour every one of them while costing
+twice the CPU it used to, because a count says how many sprites were submitted and
+nothing says what submitting one cost.
+
+So `--gate` also runs a **pair**: the same scene twice, differing only in whether its
+entities carry a `Sprite`. Both halves hold the same entities and run the same schedule,
+so the machine and the engine's own per-frame cost sit in the denominator, and only the
+numerator carries the drawing. The assertion is the ratio, and the reason is the same one
+the AOT ratio has: a millisecond is a fact about the machine that measured it.
+
+```
+drawing: 128000 sprites make the frame 3.83x the one that only holds them
+         (2.72 ms -> 10.41 ms, 60 ns/sprite, 1 draw(s))
+```
+
+**128,000 because the denominator is the small number**, and its noise is the ratio's.
+The numerator repeats to 1% across runs; the denominator to 16%, and it does not get
+better with more entities — it gets *less of the ratio*. At 32,000 the healthy ratio
+spanned 2.85–3.01 and a sabotage read 3.90, close enough to overlap. At 128,000 healthy
+reads 3.65–4.21 and the same sabotage 6.97.
+
+That sabotage is where the ceiling of 5 comes from: submitting every sprite twice, which
+is the shape of a per-sprite cost that grew. It takes 59 ns/sprite to 115 and the pair
+past the ceiling on both runs, while three healthy runs pass. Both directions, on the
+same machine, on the same tree.
+
+The pair also has to *be* a pair — the half with sprites must draw and the half without
+must not. Two halves that both drew nothing would read 1.0x and pass, having measured
+one scene twice.
+
+## When the clock is not the engine's
+
+Every number here comes from the host's own frame span, and that span can be spent
+**waiting**. A frame the compositor throttles reads 16.6 ms whatever the scene holds —
+200 entities or 2,000, one draw or none — and the pair then reads 1.00x and passes,
+having compared two frames that were both the display's.
+
+So the host reports `busy`: CPU actually burned inside the span, over its wall. A run
+below `BENCH_MIN_BUSY` (default 0.5) is refused rather than reported. Measured, a
+throttled run reads 8-11% busy.
+
+Two causes seen on macOS: a window another app covers, and a **virtual display** — a
+remote-desktop session hands out drawables at its own rate however fast the frame is,
+and `SDL_WINDOW_ALWAYS_ON_TOP` (which a benched window asks for) does not help. Run the
+bench on a machine with its own attached display and nothing over the window.
+
+The DENOMINATOR trips first, and that is by construction: it is the cheapest frame in
+each comparison, so it is the first one a throttle can pin. A pair whose numerator still
+has real work in it will fail on its holding half before its ratio can lie.

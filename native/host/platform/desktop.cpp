@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "Bench.hpp"
 #include "Host.hpp"
 
 #include "media/text_edit.hpp"
@@ -489,6 +490,10 @@ int main(int argc, char** argv) {
     // before any JS, and showing it then is half a second of an empty white rect
     // with the game's name on it.
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+    // A benched window asks not to be covered, because a covered one is not slow,
+    // it is STOPPED: macOS hands an occluded layer drawables at the refresh rate
+    // and no faster, and the frame then reads as the display (see Bench.hpp).
+    if (eshost::benchWanted()) flags |= SDL_WINDOW_ALWAYS_ON_TOP;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
 #elif defined(__linux__)

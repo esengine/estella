@@ -393,14 +393,10 @@ bool WebGPUDevice::surfaceBytesAreBGRA() const {
 /**
  * The fastest present mode this surface actually advertises.
  *
- * Immediate FIRST, and the order is load-bearing rather than a preference: this
- * mode exists so a frame can be timed, and Dawn's Metal backend clears
- * `displaySyncEnabled` for Immediate ALONE (`SwapChainMTL.mm`). A surface that
- * offers both hands back a Mailbox that is still vsynced, so the bench reads the
- * panel — measured here as every span pinned to 16.6 ms while the process sat
- * blocked for 89% of its wall clock. Tearing is what the caller is buying.
- *
- * Fifo is the fallback, and then the caller's frame is throttled.
+ * Immediate FIRST, and the order is load-bearing: Dawn's Metal backend clears
+ * `displaySyncEnabled` for Immediate ALONE (`SwapChainMTL.mm`), so a surface
+ * offering both hands back a Mailbox that is still vsynced — measured, every
+ * span pinned to 16.6 ms. Fifo is the fallback, and then the frame is throttled.
  */
 WGPUPresentMode WebGPUDevice::pickUncappedPresentMode() const {
 #if !defined(__EMSCRIPTEN__)

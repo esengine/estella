@@ -27,6 +27,11 @@
  *            denominator: `pump / cpu` is the fraction a compiler can reach.
  *          - `frame` — including `present()`, for reference.
  *
+ *          And `busy`: CPU actually burned inside `cpu`, over its wall. A frame
+ *          the compositor throttled spends its span WAITING and reads exactly
+ *          like a frame that cost that much — measured, 16.6 ms a scene at 11%
+ *          busy. Anything consuming these numbers has to be able to refuse that.
+ *
  *          A bench also asks the swapchain to stop waiting for the display
  *          (`setPresentUncapped`). Under Fifo every frame cheaper than the refresh
  *          interval reads as exactly the refresh interval and every frame dearer

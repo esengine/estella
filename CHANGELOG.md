@@ -74,6 +74,46 @@ published separately; it ships inside the editor.
   and the software rasterizer agree on all four to the byte.
 
 
+- **A frame that WAITED is refused, not reported.** Every number the native bench
+  publishes comes from the host's own frame span, and that span can be spent
+  waiting: a frame the compositor throttles reads 16.6 ms whatever the scene
+  holds — 200 entities or 2,000, one draw or none. There was nothing in the
+  report that could tell that from a frame which cost 16.6 ms, and the render
+  pair above then read **1.00x and passed**, having compared two frames that were
+  both the display's.
+
+  The host reports `busy` now: CPU actually burned inside the span, over its
+  wall, from the thread's own clock. Below half, the run is refused with what it
+  measured instead. A throttled run reads 8-11%. Two causes seen here — a covered
+  window, which a benched window now asks not to be (`SDL_WINDOW_ALWAYS_ON_TOP`),
+  and a **virtual display**, where a remote session hands out drawables at its own
+  rate however fast the frame is and the flag does not help.
+
+  The cheapest frame in each comparison trips first, which is the right way
+  round: it is the one a throttle can pin while the other still has work in it.
+
+- **A frame's TIME has a ceiling, and what it bounds is the drawing.** Counts
+  were the only thing holding a frame: `sprite-scale-cost` and its siblings bound
+  draws, meshes and triangles, every one of which a frame can honour while
+  costing twice the CPU it used to. A count says how many sprites were submitted
+  and nothing about what submitting one cost.
+
+  `frame-bench --gate` runs a pair now — one scene twice, differing only in
+  whether its entities carry a `Sprite`. Both halves hold the same entities and
+  run the same schedule, so the machine and the engine's own per-frame cost sit
+  in the denominator and only the numerator carries the drawing; the assertion is
+  the ratio, for the reason the AOT one is a ratio. Measured here, 128,000
+  sprites make the frame 3.7-4.2x the one that only holds them, at 59-61
+  ns/sprite.
+
+  **The entity count is what makes the ratio steady, not what makes it large.**
+  The denominator is the small number and its noise is the ratio's: at 32,000 it
+  read 1.03 and 1.19 ms across runs, the healthy ratio spanned 2.85-3.01, and a
+  sabotage read 3.90 — overlapping. At 128,000 the numerator repeats to 1% and
+  the same sabotage, submitting every sprite twice, takes 59 ns/sprite to 115 and
+  the pair to 6.97x. Red on both sabotaged runs against the ceiling of 5, green
+  on three healthy ones.
+
 - **`view.frameCanvas` — "Frame Design Screen" is a command now.** The viewport
   has had the button since design mode shipped and nothing behind it, so the
   command palette, a keybinding and a driver could all reach every other view

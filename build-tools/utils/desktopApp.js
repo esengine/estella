@@ -191,14 +191,11 @@ async function signBundle(bundle, options, nested = []) {
 
 
 /**
- * The executable inside an assembled app, located through the same table that
- * put it there.
+ * The executable inside an assembled app, from the same table that put it there.
  *
- * Two runners searched for it instead, by the shape "a file with no extension".
- * Every signed macOS bundle carries `Contents/_CodeSignature/CodeResources`,
- * which has that shape, and which of the two a directory walk reaches first is
- * decided by directory order — so they launched the signature manifest and then
- * reported that the engine had installed no module and drawn no frame.
+ * Not a search for "a file with no extension": every signed macOS bundle carries
+ * `Contents/_CodeSignature/CodeResources`, which fits that shape, and directory
+ * order decided which one a walk reached first.
  *
  * @param {string} dir  A directory an export wrote an app into, at any depth.
  * @param {'macos'|'windows'|'linux'} platform  Whose layout to read.
