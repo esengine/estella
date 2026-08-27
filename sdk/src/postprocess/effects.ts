@@ -190,6 +190,19 @@ registerEffect({
 });
 
 registerEffect({
+    type: 'distanceFog',
+    label: 'Distance Fog',
+    factory: () => postProcessEffects.createDistanceFog(),
+    uniforms: [
+        { name: 'u_fogNear', label: 'Near', min: 0, max: 500, step: 0.5, defaultValue: 10 },
+        { name: 'u_fogFar', label: 'Far', min: 0, max: 500, step: 0.5, defaultValue: 60 },
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 1 },
+    ],
+    // u_fogColor keeps its shader default: EffectDef surfaces floats and textures,
+    // and a colour row is an editor surface of its own rather than part of this.
+});
+
+registerEffect({
     type: 'lutGrade',
     label: 'LUT Grade',
     factory: () => postProcessEffects.createLutGrade(),

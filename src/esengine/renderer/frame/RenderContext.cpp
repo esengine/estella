@@ -169,7 +169,10 @@ void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
 // to "where is the eye" that the rest of the engine also holds.
 void RenderContext::uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine) {
     viewProjection_ = engine;
-    const FrameConstants frame{upload, cameraFromViewProjection(engine)};
+    // The viewpoint from `engine` and the un-projection from `upload`: the two
+    // agree about where the eye is, but only the uploaded one describes the clip
+    // space a shader will hand back.
+    const FrameConstants frame{upload, cameraFromViewProjection(engine), glm::inverse(upload)};
     device_.updateBuffer(frameUbo_, 0, &frame, sizeof(FrameConstants));
     // Re-arm the params fallback for this pass: a post-process or custom-draw
     // commit from the previous pass left its own (differently sized) buffer on

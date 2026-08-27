@@ -16,6 +16,33 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sampled depth can be put back in the world.** `FrameConstants` carries the
+  inverse of the matrix it already carries, and the injected shader header gains
+  `worldFromDepth(uv, depth)` in both languages. Depth-reading effects — fog,
+  depth of field, ambient occlusion — become ordinary shader work; before this a
+  sampled depth was a number with no length in it, which is why the one effect
+  that read depth compared raw samples as a RATIO instead of a distance.
+
+  The inverse uploaded is of the matrix the SHADER sees, not the engine's: what a
+  shader un-projects is the clip space its own device rasterised into. The GLSL
+  and WGSL helpers differ in exactly one line — GL clips z to [-1, 1] and WebGPU
+  to [0, 1] — because both draw the same screen triangle, where uv is the clip
+  position remapped and nothing else.
+
+- **`distanceFog`** — the first effect built on it, and the gate that holds it.
+  Fog is a DISTANCE, and the same depth sample is a metre away up close and a
+  hundred out; this un-projects twice, at the sample and at the near plane along
+  the same ray, so it needs no eye point and works under both projections.
+
+  Its pixel gate is the interesting part. Two of its four points are on the SAME
+  flat wall at ONE constant depth, where a 90-degree eye stands 1.41x further
+  from the frame's edge than from its centre — so an effect reading depth rather
+  than distance paints them alike, and the tolerance does not reach between them.
+  Verified by sabotage in both directions: measuring along z instead of along the
+  ray leaves the two quads passing and turns that one point red. webgl2, WebGPU
+  and the software rasterizer agree on all four to the byte.
+
+
 - **`view.frameCanvas` — "Frame Design Screen" is a command now.** The viewport
   has had the button since design mode shipped and nothing behind it, so the
   command palette, a keybinding and a driver could all reach every other view

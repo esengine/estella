@@ -29,14 +29,21 @@ namespace esengine {
 
 /**
  * @brief CPU mirror of the GLSL FrameConstants block (std140).
- * @details A mat4 at offset 0 and a vec4 at 64 need no std140 padding. Append future
- *          fields here and in ShaderParser's injected block in the same order.
- *          camera: w = 1 means xyz is the eye's world position (perspective), w = 0
- *          that xyz points at the viewer (orthographic has no eye point).
+ * @details A mat4 at 0, a vec4 at 64 and a mat4 at 80 need no std140 padding.
+ *          Append future fields here and in ShaderParser's injected block in the
+ *          same order. camera: w = 1 means xyz is the eye's world position
+ *          (perspective), w = 0 that xyz points at the viewer.
  */
 struct FrameConstants {
     glm::mat4 viewProjection{1.0f};
     glm::vec4 camera{0.0f, 0.0f, 1.0f, 0.0f};
+    /**
+     * The inverse of the matrix ABOVE, so a shader holding a depth sample can put
+     * it back in the world — of the UPLOADED one, since what a shader un-projects
+     * is the clip space its own device rasterised into. Without it a sampled
+     * depth is a number with no length in it.
+     */
+    glm::mat4 inverseViewProjection{1.0f};
 };
 
 /**

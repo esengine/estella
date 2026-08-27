@@ -752,11 +752,21 @@ const char* wgslTypeName(ShaderPropertyType t) {
 // kTimeHeader's twin. Injected into every WGSL stage; the device's explicit
 // layouts make a declared-but-unused block legal, same as GL.
 const char* kFrameHeaderWGSL =
-    "struct FrameConstants { projection : mat4x4f, camera : vec4f };\n"
+    "struct FrameConstants {\n"
+    "    projection : mat4x4f,\n"
+    "    camera : vec4f,\n"
+    "    inverseViewProjection : mat4x4f,\n"
+    "};\n"
     "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n"
     "fn viewDirection(worldPos : vec3f) -> vec3f {\n"
     "    if (frame.camera.w > 0.5) { return normalize(frame.camera.xyz - worldPos); }\n"
     "    return frame.camera.xyz;\n"
+    "}\n"
+    // The z line is the twin's whole difference: this device clips z to [0, 1].
+    "fn worldFromDepth(uv : vec2f, depth : f32) -> vec3f {\n"
+    "    let clip = vec4f(uv * 2.0 - 1.0, depth, 1.0);\n"
+    "    let world = frame.inverseViewProjection * clip;\n"
+    "    return world.xyz / world.w;\n"
     "}\n";
 
 const char* kTimeHeaderWGSL =
@@ -1446,13 +1456,22 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // The per-frame view-projection, injected identically into every stage (a block
     // declared two ways does not link) and engine-owned, so it cannot drift from the
     // std140 mirror in FrameConstants.hpp. highp: fragment has no default this early.
+    // worldFromDepth takes the fullscreen pass's v_texCoord and a raw sample.
+    // `depth * 2 - 1` is the ONE thing its WGSL twin spells differently: GL clips
+    // z to [-1, 1], WebGPU to [0, 1]. The xy is shared — one screen triangle.
     static const char* kFrameHeader =
         "layout(std140) uniform FrameConstants {\n"
         "    highp mat4 u_projection;\n"
         "    highp vec4 u_camera;\n"  // xyz = eye (w=1) or direction toward it (w=0)
+        "    highp mat4 u_inverseViewProjection;\n"
         "};\n"
         "highp vec3 viewDirection(in highp vec3 worldPos) {\n"
         "    return u_camera.w > 0.5 ? normalize(u_camera.xyz - worldPos) : u_camera.xyz;\n"
+        "}\n"
+        "highp vec3 worldFromDepth(in highp vec2 uv, in highp float depth) {\n"
+        "    highp vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);\n"
+        "    highp vec4 world = u_inverseViewProjection * clip;\n"
+        "    return world.xyz / world.w;\n"
         "}\n";
     assembled << kFrameHeader;
     headerLines += countNewlines(kFrameHeader);

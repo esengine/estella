@@ -745,6 +745,62 @@ fn depthAt(texel : vec2i, size : vec2i) -> f32 {
         return Material.compileShader(source);
     },
 
+    createDistanceFog(): ShaderHandle {
+        // Fog is a DISTANCE and a depth sample is not one: the same 0.9 is a
+        // metre away up close and a hundred out. `worldFromDepth` (injected with
+        // FrameConstants) puts the sample back in the world, so one setting holds.
+
+        // The cleared far plane is not a surface — it is the absence of one, and
+        // fogging it to full would paint the sky the fog colour at any range.
+        const source = `#pragma shader "PP Distance Fog"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_fogColor color default(0.6,0.68,0.78,1)
+#pragma param u_fogNear float default(10) range(0,500)
+#pragma param u_fogFar float default(60) range(0,500)
+#pragma param u_intensity float default(1) range(0,1)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    float depth = texelFetch(u_sceneDepth, ivec2(gl_FragCoord.xy), 0).r;
+    if (depth >= 1.0) { fragColor = src; return; }
+
+    // Un-projected twice, at the sample and at the near plane along the SAME ray.
+    // An orthographic eye has no point to measure from, and this needs none: the
+    // near plane is one, per pixel, and it is where fog should start anyway.
+    vec3 world = worldFromDepth(v_texCoord, depth);
+    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    float dist = length(world - entry);
+    float t = clamp((dist - u_fogNear) / max(u_fogFar - u_fogNear, 1e-4), 0.0, 1.0);
+    fragColor = vec4(mix(src.rgb, u_fogColor.rgb, t * u_intensity), src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let depth = textureLoad(t7, vec2i(v.pos.xy), 0);
+    if (depth >= 1.0) { return src; }
+
+    let world = worldFromDepth(v.v_texCoord, depth);
+    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let dist = length(world - entry);
+    let t = clamp((dist - mc.u_fogNear) / max(mc.u_fogFar - mc.u_fogNear, 1e-4), 0.0, 1.0);
+    return vec4f(mix(src.rgb, mc.u_fogColor.rgb, vec3f(t * mc.u_intensity)), src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
     createPixelate(): ShaderHandle {
         // Snaps sampling to a grid of u_pixelSize-device-pixel blocks — the
         // canonical retro/mosaic 2D look. u_pixelSize <= 1 samples per-texel
