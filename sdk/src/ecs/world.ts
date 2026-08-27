@@ -1199,6 +1199,17 @@ export class World {
     }
 
     /**
+     * @internal The script pools' half of {@link layoutEpoch}, on its own.
+     *
+     * A host that reads the engine's half itself needs only this one, and must
+     * have it: a row added to or deleted from a script pool moves nothing the
+     * registry's version numbers can see.
+     */
+    scriptLayoutEpoch(): number {
+        return this.scripts_.layoutEpoch;
+    }
+
+    /**
      * @internal Where a SCRIPT component's whole column is, for a host that
      * walks it in its own address space. Undefined for an engine component,
      * whose column belongs to the registry and is reached by its own door.

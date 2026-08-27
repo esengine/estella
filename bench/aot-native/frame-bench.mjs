@@ -319,14 +319,15 @@ console.log(`\nno-JIT frame — QuickJS-ng in the native host, ${ENTITIES} entit
 // `tick` is the microtask drain, not the `update` call: that one only schedules an
 // async tick. `draws` is a column because a body can move the render's cost —
 // `heavy` writes `position.z`, which breaks sprite batching into one draw each.
-// `walked` is the entities a compiled system was PAID OVER in one frame, summed
-// across its queries. A count and not a clock on purpose — see the ceiling below.
-console.log('body      build           tick p50    cpu p50   frame p50   draws    walked   compiled?');
+// `walked` is what a compiled system covered in one frame, `packed` what it had
+// to write — zero once the row table is being kept. Counts and not clocks on
+// purpose; see the ceiling below.
+console.log('body      build           tick p50    cpu p50   frame p50   draws    walked   packed   compiled?');
 for (const r of rows) {
     console.log(`${r.body.padEnd(9)} ${r.key.padEnd(13)} ${`${r.pump.p50.toFixed(3)} ms`.padStart(10)}`
         + ` ${`${r.cpu.p50.toFixed(3)} ms`.padStart(10)} ${`${r.frame.p50.toFixed(3)} ms`.padStart(11)}`
         + ` ${String(r.draws ?? '?').padStart(7)} ${String(r.aotCandidates ?? '?').padStart(9)}`
-        + `   ${r.running ?? '—'}`);
+        + ` ${String(r.aotPacked ?? '?').padStart(8)}   ${r.running ?? '—'}`);
 }
 
 let bad = 0;
@@ -358,6 +359,14 @@ const WORLD = ENTITIES + BYSTANDERS;
         } else if (BYSTANDERS > 0) {
             console.log(`${line} — ${(WORLD / Math.max(r.aotCandidates, 1)).toFixed(1)}x fewer`
                 + ' entities than the world has');
+        }
+        // Nothing in this scene moves after startup, so a row table packed once
+        // must still stand. Repacking it every frame is the other silent way to
+        // pay for the world: no error, no pixel, just time.
+        if (typeof r.aotPacked === 'number' && r.aotPacked > 0) {
+            console.error(`✗ ${r.body}: repacked ${r.aotPacked} rows in a world that did not`
+                + ' move — the row table is not being kept');
+            bad++;
         }
     }
 }

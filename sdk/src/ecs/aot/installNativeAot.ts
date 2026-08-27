@@ -40,7 +40,7 @@ export interface NativeAotBindings {
         rowsOffset: number, stride: number, indexMask: number,
         ownersOffset: number, ownerCount: number): boolean;
     resource(name: string, offset: number, bytes: number): boolean;
-    run(index: number): number;
+    run(index: number, scriptEpoch: number): number;
     reset(): void;
 }
 
@@ -96,7 +96,8 @@ export function nativeAotBindings(
         bound: call<boolean>('es_aot_bound', false),
         scriptRows: call<boolean>('es_aot_script_rows', false),
         resource: call<boolean>('es_aot_resource', false),
-        run: (index) => (run as (i: number) => number)(index),
+        run: (index, scriptEpoch) =>
+            (run as (i: number, e: number) => number)(index, scriptEpoch),
         reset: call<void>('es_aot_reset', undefined as void),
     };
 }
@@ -193,10 +194,14 @@ class NativeAotDispatch implements AotDispatcher {
         if (at === undefined) return false;
         this.reportPools_();
         this.reportResources_(twin);
+        // The epoch goes with the call: the host keeps last frame's row table
+        // when nothing moved, and only this side can say whether a script pool
+        // gained or lost a row.
+        //
         // Negative means the host still cannot name everything this system
         // reads — a pool with no rows yet, a resource nothing has written.
         // The interpreter keeps it this frame and it is asked again next.
-        if (this.bindings.run(at) < 0) return false;
+        if (this.bindings.run(at, this.world.scriptLayoutEpoch()) < 0) return false;
         // Once, the first time the host takes it. "Installed" says a module
         // loaded; this says a system is actually running as machine code, and
         // the two are different frames when a pool has to exist first.

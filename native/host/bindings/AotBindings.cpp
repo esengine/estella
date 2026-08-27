@@ -216,12 +216,17 @@ JSValue js_resource(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) 
 }
 
 /**
- * es_aot_run(i) -> records this host did not know, or -1 when nothing ran.
+ * es_aot_run(i, scriptEpoch) -> records this host did not know, or -1.
  *
  * Each query narrows itself to the shortest column it names; the list built here
  * is only the FALLBACK for one that cannot (`aot::narrowest`). When it was the
  * only road a compiled system cost the size of the WORLD — 2.9x for the same
  * 5,000 movers with 45,000 unmatchable entities around them.
+ *
+ * The stamp says whether last frame's rows still stand, and each side supplies
+ * the half it owns: the engine's pool versions are read HERE per call, because
+ * a despawn by the previous system moves them; the script epoch can only come
+ * from the language that owns those pools. An absent argument reuses nothing.
  */
 JSValue js_run(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     if (argc < 1) return JS_NewInt32(ctx, -1);
@@ -230,16 +235,24 @@ JSValue js_run(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     AotState& s = state();
     if (!s.installed) return JS_NewInt32(ctx, -1);
 
+    aot::WorldStamp world;
+    double scriptEpoch = 0.0;
+    if (argc >= 2 && JS_ToFloat64(ctx, &scriptEpoch, argv[1]) == 0 && host().registry != nullptr) {
+        // Summed, not paired: both halves only ever count up, so no change in
+        // one can be cancelled by a change in the other.
+        world = aot::WorldStamp{host().registry->layoutEpoch() + scriptEpoch, true};
+    }
+
     s.candidates.clear();
     if (!s.dispatcher.narrowsAt(i)) {
         host().registry->forEachEntity([&s](esengine::Entity e) { s.candidates.push_back(e.id()); });
     }
-    const auto cmds = s.dispatcher.run(i, s.candidates, resourceAt);
+    const auto cmds = s.dispatcher.run(i, s.candidates, resourceAt, world);
     // Asked AFTER the run, because that is where a late binding is settled.
     if (!s.dispatcher.boundAt(i)) return JS_NewInt32(ctx, -1);
-    // What this system was paid over, for the bench and for the gate that reads
-    // it. A no-op unless a bench was asked for.
-    benchNoteAotCandidates(s.dispatcher.candidatesWalked());
+    // What this system covered and what it actually wrote, for the bench and the
+    // gates that read them. A no-op unless a bench was asked for.
+    benchNoteAotCandidates(s.dispatcher.candidatesWalked(i), s.dispatcher.rowsPacked(i));
     // After the call, never during it: a despawn invalidates the rows it read.
     return JS_NewInt32(ctx, static_cast<int>(aot::applyCommands(*host().registry, cmds)));
 }
@@ -266,7 +279,7 @@ void registerAotBindings(HostState& h, JSValue global) {
     fn("es_aot_bound", js_bound, 1);
     fn("es_aot_script_rows", js_scriptRows, 8);
     fn("es_aot_resource", js_resource, 3);
-    fn("es_aot_run", js_run, 1);
+    fn("es_aot_run", js_run, 2);
     fn("es_aot_reset", js_reset, 0);
 }
 

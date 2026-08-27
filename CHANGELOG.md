@@ -16,6 +16,41 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The native row table is kept across frames, so both AOT roads now answer the
+  same two questions.** `AotDispatch.ts` states the model the web road has always
+  worked to: a row table is a function of two things — which entities match, and
+  where their components are — and each has an authority that answers cheaply.
+  The native road answered neither until this release; the narrowing above
+  settled the first, and this settles the second.
+
+  Each side supplies the half it owns. The engine's pool versions are read in the
+  host, per call, because a despawn applied by the system before this one moves
+  them; the script pools' epoch can only come from the language that owns them,
+  so `es_aot_run` takes it. A host that cannot be told repacks every frame, which
+  is the same rule the web road follows — trusting an address because nobody
+  could say it moved is how compiled code reads somebody else's bytes.
+
+  **Two conditions, not one, and the second is the one that is easy to miss.**
+  `Registry::layoutEpoch()` says whether ADDRESSES moved, and it is deliberately
+  not a membership signal: `SparseSet::emplace` bumps no version when the buffer
+  does not reallocate, so an entity can join a pool without moving the epoch. So
+  every column a query names is also watched by identity — not just the shortest
+  one, because a query matches on all of them and the one it narrowed on need not
+  be the one that changed. Both conditions are sabotage-verified: dropping either
+  turns a test red, and neither test was red before the corresponding check
+  existed.
+
+  Measured at 100,000 movers on this host, packing costs about 3.4 ns per entity
+  per frame: a thin system goes from 11.4 to 8.0 ns/entity and a heavy one from
+  14.6 to 12.5. **That is not the web road's 27.5 to under 2**, and the reason is
+  worth keeping: packing there is JavaScript resolving an address per component
+  per entity, and here it is C++ doing the same work an order of magnitude
+  cheaper. A conclusion measured on one host does not carry to the other.
+
+  `aotPacked` is published beside `aotCandidates`, and `--gate` requires it to be
+  zero in a scene that does not move — repacking a standing world is the other
+  silent way to pay for the frame.
+
 - **A compiled system is paid over what it matches, not over the world.** On the
   native road every compiled system was handed EVERY LIVE ENTITY as a candidate
   each frame and resolved every component of each one. The absence of a

@@ -13,6 +13,11 @@
  *          The first is the one that fails silently. The runner calls a twin
  *          wherever it finds one, so a twin for a system the host could not bind
  *          is a system that never runs at all.
+ *
+ *          The fourth is the script pools' epoch. The host keeps last frame's
+ *          row table while the world stands, and it can read the engine's half
+ *          itself — a script row appearing or going is the half only this side
+ *          can see.
  */
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
@@ -53,6 +58,7 @@ const MANIFEST: AotManifest = {
 function fakeHost(runnable: readonly string[]) {
     const order = MANIFEST.systems.map((s) => s.name);
     const calls: number[] = [];
+    const epochs: number[] = [];
     const reported: { name: string; rows: number; sparseCount: number }[] = [];
     const bindings: NativeAotBindings = {
         install: () => order.length,
@@ -65,14 +71,15 @@ function fakeHost(runnable: readonly string[]) {
         resource: () => true,
         // Negative is "I still cannot name everything this reads" — the answer
         // that sends the system back to the interpreter for this frame.
-        run: (i) => {
+        run: (i, scriptEpoch) => {
             if (!runnable.includes(order[i] ?? '')) return -1;
             calls.push(i);
+            epochs.push(scriptEpoch);
             return 0;
         },
         reset: () => {},
     };
-    return { bindings, calls, reported };
+    return { bindings, calls, reported, epochs };
 }
 
 function fixture(boundNames: readonly string[]) {
@@ -147,6 +154,33 @@ describe('installing compiled systems on a host that loads a library', () => {
         f.world.insert(second, Drift, { x: 0 });
         f.runner.run(system);
         expect(f.reported.length).toBeGreaterThan(afterFirst);
+    });
+
+    it('hands the host the script epoch, which moves when a row does', () => {
+        const f = fixture(['DriftSystem']);
+        const Drift = f.Drift;
+        const system = defineSystem([Query(Mut(Drift))], () => {}, { name: 'DriftSystem' });
+        const entity = f.world.spawn();
+        f.world.insert(entity, Drift, { x: 0 });
+
+        f.runner.run(system);
+        f.runner.run(system);
+        // Nothing moved between them, and the host may keep its rows only
+        // because this number said so.
+        expect(f.epochs.length).toBe(2);
+        expect(f.epochs[1]).toBe(f.epochs[0]);
+
+        // A row claimed, and a row given up. Neither moves an address the engine
+        // can see, and a deletion does not even change the column's length — so
+        // this is the only report the host gets.
+        const second = f.world.spawn();
+        f.world.insert(second, Drift, { x: 0 });
+        f.runner.run(system);
+        expect(f.epochs[2]).toBeGreaterThan(f.epochs[1]!);
+
+        f.world.remove(second, Drift);
+        f.runner.run(system);
+        expect(f.epochs[3]).toBeGreaterThan(f.epochs[2]!);
     });
 
     it('marks the Changed ticks the compiled code could not leave', () => {

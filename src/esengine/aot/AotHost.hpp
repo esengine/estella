@@ -19,9 +19,10 @@
  *          after the first frame at a given size.
  *
  *          A row table is a function of two things: which entities match, and
- *          where their components are. This answers the first — see
- *          {@link narrowest}. The second is open: unlike the web road
- *          (sdk/src/ecs/aot/AotDispatch.ts) this repacks every frame.
+ *          where their components are. {@link narrowest} answers the first;
+ *          {@link WorldStamp} answers the second, and when neither moved last
+ *          frame's rows are this frame's. Same model as the web road
+ *          (sdk/src/ecs/aot/AotDispatch.ts), reached through different doors.
  */
 #pragma once
 
@@ -58,6 +59,21 @@ using Candidates = std::optional<std::span<const std::uint32_t>>;
 
 /** A column's members, asked per call because a pool grows between them. */
 using CandidatesOf = std::function<Candidates()>;
+
+/**
+ * Whether any stored component MOVED — one number over every pool's version.
+ *
+ * `known` false means nobody could say, and then a held address must be
+ * re-resolved: trusting one because nothing could tell us it moved is how a
+ * compiled system reads somebody else's bytes.
+ */
+struct WorldStamp {
+    double at = 0.0;
+    bool known = false;
+
+    /** Same world, and both sides sure of it. Unknown never equals anything. */
+    bool operator==(const WorldStamp& o) const { return known && o.known && at == o.at; }
+};
 
 /** One declared `Query`: its components, in the order the query names them. */
 struct QuerySpec {
@@ -112,23 +128,37 @@ public:
     std::uint32_t commandCapacity() const { return static_cast<std::uint32_t>(cmds_.size()); }
 
     /**
-     * Entities the last `run` was PAID OVER, summed across its queries.
+     * Entities the last `run` covered, summed across its queries.
      *
-     * This is what a compiled system costs, not the body — measured at 20
-     * ns/entity for three multiply-adds and 21 for four substeps with a square
-     * root each. A count, because a clock reads a tenfold scan as a busy machine.
+     * The query's BREADTH, counted whether or not the rows were repacked — it is
+     * what a system would be paid over, and a ceiling on it is what says the
+     * dispatcher is not scanning the world (bench/aot-native/frame-bench.mjs).
      */
     std::uint32_t candidatesWalked() const { return walked_; }
 
+    /** Rows the last `run` actually wrote. Zero when it reused last frame's,
+     *  which is the whole saving and the only way to see it happen. */
+    std::uint32_t rowsPacked() const { return packed_; }
+
 private:
     friend std::span<const EsCmd> run(SystemFn, std::span<const std::uint32_t>,
-                                      std::span<const QuerySpec>, std::span<void* const>, CallArena&);
+                                      std::span<const QuerySpec>, std::span<void* const>,
+                                      CallArena&, WorldStamp);
     std::vector<es_addr_t> rows_;
     std::vector<EsQueryRows> queries_;
     std::vector<es_addr_t> resources_;
     std::vector<EsCmd> cmds_;
     std::uint32_t count_ = 0;
     std::uint32_t walked_ = 0;
+    std::uint32_t packed_ = 0;
+    /** The world the rows were packed against, and EVERY column they were packed
+     *  from, by identity — a query matches on all of them, and an engine pool can
+     *  gain a member without moving an address, so without moving the stamp. */
+    WorldStamp packedAt_;
+    std::vector<std::span<const std::uint32_t>> from_;
+    /** Per-call scratch, kept so a steady frame allocates nothing. */
+    std::vector<std::span<const std::uint32_t>> lists_;
+    std::vector<std::span<const std::uint32_t>> columns_;
     EsSysCtx ctx_{};
 };
 
@@ -144,43 +174,77 @@ inline std::span<const EsCmd> run(SystemFn fn,
                                   std::span<const std::uint32_t> fallback,
                                   std::span<const QuerySpec> queries,
                                   std::span<void* const> resources,
-                                  CallArena& arena) {
-    arena.rows_.clear();
+                                  CallArena& arena,
+                                  WorldStamp world = {}) {
+    // Its own column where a query has one, everybody where it has none. A freed
+    // slot in a script column reads as an entity nothing resolves for, so the
+    // completeness check below drops it like any other miss.
     arena.walked_ = 0;
-    arena.queries_.assign(queries.size(), EsQueryRows{});
-    arena.resources_.assign(resources.size(), es_addr_t{});
-
-    // Offsets first, addresses after: one vector holding every query's rows
-    // moves under the first query's pointer as the second grows, and the ctx
-    // has to point at something that will still be there during the call.
-    std::vector<std::size_t> starts(queries.size());
-    std::vector<std::uint32_t> counts(queries.size(), 0);
+    arena.lists_.assign(queries.size(), {});
+    arena.columns_.clear();
+    // A query that cannot say who it matches cannot say whether that changed, so
+    // falling back to the caller's list also gives up the row table.
+    bool narrowedEvery = !queries.empty();
     for (std::size_t q = 0; q < queries.size(); ++q) {
-        starts[q] = arena.rows_.size();
-        const auto& comps = queries[q].comps;
-        // Its own column where it has one, everybody where it does not. A
-        // freed slot in a script column reads as an entity nothing resolves
-        // for, so the completeness check below drops it like any other miss.
-        const Candidates narrowed = narrowest(queries[q]);
-        const std::span<const std::uint32_t> over = narrowed ? *narrowed : fallback;
-        arena.walked_ += static_cast<std::uint32_t>(over.size());
-        for (std::uint32_t e : over) {
-            const std::size_t mark = arena.rows_.size();
-            arena.rows_.push_back(static_cast<es_addr_t>(e));
-            bool complete = true;
-            for (const auto& at : comps) {
-                void* p = at(e);
-                if (p == nullptr) { complete = false; break; }
-                arena.rows_.push_back(reinterpret_cast<es_addr_t>(p));
-            }
-            if (complete) ++counts[q];
-            else arena.rows_.resize(mark);
+        Candidates best;
+        for (const CandidatesOf& source : queries[q].sources) {
+            if (!source) continue;
+            const Candidates got = source();
+            if (!got) continue;
+            arena.columns_.push_back(*got);
+            if (!best || got->size() < best->size()) best = got;
+        }
+        if (!best) narrowedEvery = false;
+        arena.lists_[q] = best ? *best : fallback;
+        arena.walked_ += static_cast<std::uint32_t>(arena.lists_[q].size());
+    }
+
+    bool reuse = narrowedEvery && (world == arena.packedAt_)
+        && arena.from_.size() == arena.columns_.size();
+    for (std::size_t c = 0; reuse && c < arena.columns_.size(); ++c) {
+        if (arena.columns_[c].data() != arena.from_[c].data()
+            || arena.columns_[c].size() != arena.from_[c].size()) {
+            reuse = false;
         }
     }
-    for (std::size_t q = 0; q < queries.size(); ++q) {
-        arena.queries_[q].rows = reinterpret_cast<es_addr_t>(arena.rows_.data() + starts[q]);
-        arena.queries_[q].count = counts[q];
+
+    arena.packed_ = 0;
+    if (!reuse) {
+        arena.rows_.clear();
+        arena.queries_.assign(queries.size(), EsQueryRows{});
+        // Offsets first, addresses after: one vector holding every query's rows
+        // moves under the first query's pointer as the second grows, and the ctx
+        // has to point at something that will still be there during the call.
+        std::vector<std::size_t> starts(queries.size());
+        std::vector<std::uint32_t> counts(queries.size(), 0);
+        for (std::size_t q = 0; q < queries.size(); ++q) {
+            starts[q] = arena.rows_.size();
+            const auto& comps = queries[q].comps;
+            for (std::uint32_t e : arena.lists_[q]) {
+                const std::size_t mark = arena.rows_.size();
+                arena.rows_.push_back(static_cast<es_addr_t>(e));
+                bool complete = true;
+                for (const auto& at : comps) {
+                    void* p = at(e);
+                    if (p == nullptr) { complete = false; break; }
+                    arena.rows_.push_back(reinterpret_cast<es_addr_t>(p));
+                }
+                if (complete) ++counts[q];
+                else arena.rows_.resize(mark);
+            }
+            arena.packed_ += counts[q];
+        }
+        for (std::size_t q = 0; q < queries.size(); ++q) {
+            arena.queries_[q].rows = reinterpret_cast<es_addr_t>(arena.rows_.data() + starts[q]);
+            arena.queries_[q].count = counts[q];
+        }
+        // Only a table that narrowed EVERY query can be offered again; an
+        // unknown stamp is recorded as unknown and never matches.
+        arena.packedAt_ = narrowedEvery ? world : WorldStamp{};
+        arena.from_ = arena.columns_;
     }
+
+    arena.resources_.assign(resources.size(), es_addr_t{});
     for (std::size_t r = 0; r < resources.size(); ++r) {
         arena.resources_[r] = reinterpret_cast<es_addr_t>(resources[r]);
     }
@@ -331,12 +395,13 @@ inline BoundSystem bind(const EsSystemDecl& decl,
 inline std::span<const EsCmd> runBound(const BoundSystem& bound,
                                        std::span<const std::uint32_t> fallback,
                                        const ResourceLookup& resources,
-                                       CallArena& arena) {
+                                       CallArena& arena,
+                                       WorldStamp world = {}) {
     if (bound.fn == nullptr) return {};
     std::vector<void*> addresses;
     addresses.reserve(bound.resourceNames.size());
     for (const char* name : bound.resourceNames) addresses.push_back(resources(name));
-    return run(bound.fn, fallback, bound.queries, addresses, arena);
+    return run(bound.fn, fallback, bound.queries, addresses, arena, world);
 }
 
 /**

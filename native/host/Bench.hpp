@@ -87,13 +87,15 @@ void benchBeforePresent();
 void benchNoteDraws(unsigned draws, unsigned sprites);
 
 /**
- * Entities a compiled system was paid over, added to this frame's total.
+ * What a compiled system covered, and what it had to write, added to this
+ * frame's totals.
  *
- * A count beside the clocks: a dispatcher back to offering every entity alive
- * makes a frame dearer in proportion to the WORLD, which on a busy machine reads
- * as noise. This is exact, so a gate can assert it with no tolerance.
+ * Counts beside the clocks: both regressions here — a dispatcher back to
+ * offering every entity alive, and a row table that stops being reused — cost
+ * time in proportion to the world, which on a busy machine reads as noise.
+ * These are exact, so a gate can assert them with no tolerance.
  */
-void benchNoteAotCandidates(unsigned candidates);
+void benchNoteAotCandidates(unsigned candidates, unsigned packed);
 
 /** Close the frame, and report once the last timed one is in.
  *  @return true when the host was asked to quit and the report is out. */

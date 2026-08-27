@@ -20,6 +20,9 @@
  *          Commands come back rather than being applied. A despawn invalidates
  *          the rows just handed over, so who applies them decides when — and
  *          this class does not know how to remove a component by name anyway.
+ *
+ *          One arena PER SYSTEM, not one shared: a shared one is overwritten by
+ *          the next system and nothing can be kept across frames.
  */
 #pragma once
 
@@ -54,6 +57,7 @@ public:
             names_.push_back(decl.name != nullptr ? decl.name : "");
             bound_.push_back(::esengine::aot::bind(decl, components, resources, candidates));
         }
+        arenas_ = std::vector<CallArena>(bound_.size());
         return true;
     }
 
@@ -90,12 +94,12 @@ public:
      * Run one system, and hand back what it wrote.
      *
      * `candidates` is the FALLBACK, walked only by a query that could not name
-     * its own column — ask {@link narrowsAt} first. Resources are resolved per
-     * call because the contract promises an address for the length of one; the
-     * components were resolved at install.
+     * its own column — ask {@link narrowsAt} first. `world` decides whether last
+     * frame's rows still stand; an unknown stamp repacks. Resources are resolved
+     * per call because the contract promises an address for one call only.
      */
     std::span<const EsCmd> run(std::size_t i, std::span<const std::uint32_t> candidates,
-                               const ResourceLookup& resources) {
+                               const ResourceLookup& resources, WorldStamp world = {}) {
         if (i >= bound_.size()) return {};
         // Asked again where install could not name everything: a pool the
         // scripting language owns does not exist until an entity has that
@@ -105,16 +109,25 @@ public:
             bound_[i] = ::esengine::aot::bind(module_.systems()[i], components_, resources_, candidates_);
         }
         if (bound_[i].fn == nullptr) return {};
-        return runBound(bound_[i], candidates, resources, arena_);
+        return runBound(bound_[i], candidates, resources, arenas_[i], world);
     }
 
-    /** Entities the last {@link run} was paid over. See CallArena. */
-    std::uint32_t candidatesWalked() const { return arena_.candidatesWalked(); }
+    /** Entities that system's last {@link run} covered. See CallArena. */
+    std::uint32_t candidatesWalked(std::size_t i) const {
+        return i < arenas_.size() ? arenas_[i].candidatesWalked() : 0u;
+    }
+
+    /** Rows that system's last {@link run} wrote — zero when it kept last
+     *  frame's, which is the only way to see the saving happen. */
+    std::uint32_t rowsPacked(std::size_t i) const {
+        return i < arenas_.size() ? arenas_[i].rowsPacked() : 0u;
+    }
 
     /** Close the module and forget the bindings — they point into it. */
     void reset() {
         bound_.clear();
         names_.clear();
+        arenas_.clear();
         components_ = {};
         resources_ = {};
         candidates_ = {};
@@ -134,7 +147,8 @@ private:
     /** Optional, and absent on a host that cannot enumerate a column: then every
      *  query falls back to the candidates the caller passes. */
     CandidateLookup candidates_;
-    CallArena arena_;
+    /** One per system, so a row table can outlive the call that built it. */
+    std::vector<CallArena> arenas_;
 };
 
 }  // namespace esengine::aot

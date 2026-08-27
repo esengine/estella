@@ -778,3 +778,155 @@ TEST_CASE("the generated table answers who has a component, and says so by name"
     addBystanders(w, 5);
     CHECK(of()->size() == w.entities.size() + w.bystanders.size());
 }
+
+// ---------------------------------------------------------------------------
+// Keeping the row table. A cache is worth what its invalidation is worth, so
+// every test here moves the world one way and asks whether the rows followed.
+// The stamp is the real pair the host sums, so a hole in it is a hole here.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+const ecs::Transform* xf(World& w, std::uint32_t e) {
+    return w.registry.tryGet<ecs::Transform>(Entity::fromRaw(e));
+}
+
+/** An entity holding a Mover row and NO Transform, so no query matches it yet. */
+void addMoverOnly(World& w) {
+    Entity e = w.registry.create();
+    w.entities.push_back(e.id());
+    w.movers.push_back(MoverRow{60.0, 1.0, -1.0});
+    const std::uint32_t at = e.index();
+    if (at >= w.moverSparse.size()) w.moverSparse.resize(at + 1u, 0u);
+    w.moverSparse[at] = static_cast<std::uint32_t>(w.movers.size());
+    w.moverOwners.push_back(e.id());
+}
+
+}  // namespace
+
+TEST_CASE("a table packed against a standing world is not packed again") {
+    World w = makeWorld();
+    addBystanders(w, 100);
+    const aot::BoundSystem bound = aot::bind(*declOf("MoveSystem"), componentsOf(w),
+                                             resourcesOf(w), candidatesOf(w));
+    REQUIRE(bound.fn != nullptr);
+
+    const aot::WorldStamp world{w.registry.layoutEpoch(), true};
+    aot::CallArena arena;
+    aot::runBound(bound, {}, resourcesOf(w), arena, world);
+    CHECK(arena.rowsPacked() == w.entities.size());
+    const float afterFirst = xf(w, w.entities[1])->position.x;
+
+    // Same world, same stamp: the rows stand, and the system still runs over
+    // them — a saving, not a skip.
+    aot::runBound(bound, {}, resourcesOf(w), arena, world);
+    CHECK(arena.rowsPacked() == 0u);
+    CHECK(arena.candidatesWalked() == w.entities.size());
+    CHECK(xf(w, w.entities[1])->position.x != afterFirst);
+}
+
+TEST_CASE("an unknown stamp is never the same world twice") {
+    World w = makeWorld();
+    const aot::BoundSystem bound = aot::bind(*declOf("MoveSystem"), componentsOf(w),
+                                             resourcesOf(w), candidatesOf(w));
+    aot::CallArena arena;
+    // The default: a host that cannot date its world. Trusting an address
+    // because nobody could say it moved is how compiled code reads other bytes.
+    for (int i = 0; i < 3; ++i) {
+        aot::runBound(bound, {}, resourcesOf(w), arena);
+        CHECK(arena.rowsPacked() == w.entities.size());
+    }
+}
+
+TEST_CASE("a query that falls back keeps no table") {
+    World w = makeWorld();
+    // No candidate lookup: the list is the caller's, and a caller that cannot
+    // say who matches cannot say whether that changed either.
+    const aot::BoundSystem wide = aot::bind(*declOf("MoveSystem"), componentsOf(w), resourcesOf(w));
+    const aot::WorldStamp world{w.registry.layoutEpoch(), true};
+    aot::CallArena arena;
+    for (int i = 0; i < 3; ++i) {
+        aot::runBound(wide, w.everyEntity(), resourcesOf(w), arena, world);
+        CHECK(arena.rowsPacked() == w.entities.size());
+    }
+}
+
+TEST_CASE("a cached table follows the world, whichever way it moved") {
+    World kept = makeWorld();
+    World fresh = makeWorld();
+    // Scenery first, so Transform is the LONGER column and the query narrows on
+    // Mover. Without it Transform is the shorter one, the narrowed column moves
+    // when it does, and the subcase below stops testing anything.
+    addBystanders(kept, 50);
+    addBystanders(fresh, 50);
+    addMoverOnly(kept);
+    addMoverOnly(fresh);
+
+    const aot::BoundSystem keptBound = aot::bind(*declOf("MoveSystem"), componentsOf(kept),
+                                                 resourcesOf(kept), candidatesOf(kept));
+    // No candidate lookup and no stamp: the control repacks every frame by
+    // construction, so the two agree only if invalidation is right.
+    const aot::BoundSystem freshBound = aot::bind(*declOf("MoveSystem"), componentsOf(fresh),
+                                                  resourcesOf(fresh));
+    aot::CallArena keptArena;
+    aot::CallArena freshArena;
+    double scriptEpoch = 0.0;
+
+    const auto step = [&] {
+        const aot::WorldStamp world{kept.registry.layoutEpoch() + scriptEpoch, true};
+        aot::runBound(keptBound, kept.everyEntity(), resourcesOf(kept), keptArena, world);
+        aot::runBound(freshBound, fresh.everyEntity(), resourcesOf(fresh), freshArena);
+        for (std::size_t i = 0; i < fresh.entities.size(); ++i) {
+            const auto* a = xf(kept, kept.entities[i]);
+            const auto* b = xf(fresh, fresh.entities[i]);
+            REQUIRE((a == nullptr) == (b == nullptr));
+            if (a == nullptr) continue;
+            REQUIRE(a->position.x == b->position.x);
+            REQUIRE(a->position.y == b->position.y);
+        }
+    };
+
+    step();
+    step();
+
+    SUBCASE("an entity joins by gaining the component the query did NOT narrow on") {
+        // The trap this exists for. The query narrows on Mover, whose column does
+        // not move; Transform's does, and an emplace inside its capacity bumps
+        // no version — so only checking EVERY column the query names reports it.
+        for (World* w : { &kept, &fresh }) {
+            w->registry.emplace<ecs::Transform>(Entity::fromRaw(w->entities.back()));
+        }
+        step();
+        step();
+        CHECK(xf(kept, kept.entities.back()) != nullptr);
+        CHECK(xf(kept, kept.entities.back())->position.x != 0.0f);
+    }
+
+    SUBCASE("an entity leaves, leaving a hole no span can see") {
+        // A freed slot keeps the column's pointer AND its length: `next_` never
+        // shrinks. Nothing but the script epoch can report this one.
+        const std::uint32_t gone = kept.entities[4];
+        for (World* w : { &kept, &fresh }) {
+            w->moverOwners[4] = aot::NO_OWNER;
+            w->moverSparse[Entity::fromRaw(w->entities[4]).index()] = 0u;
+        }
+        scriptEpoch += 1.0;
+        step();
+        const float held = xf(kept, gone)->position.x;
+        step();
+        CHECK(xf(kept, gone)->position.x == held);
+    }
+
+    SUBCASE("the same entities, at other addresses") {
+        // What the stamp is really for. Sorting permutes the pool IN PLACE, so
+        // the column keeps its pointer and its length while every row it named
+        // moves; `rebuildSparse` bumps the version and that is the only tell.
+        for (World* w : { &kept, &fresh }) {
+            w->registry.sort<ecs::Transform>([](const ecs::Transform& a, const ecs::Transform& b) {
+                return a.position.x < b.position.x;
+            });
+        }
+        step();
+        step();
+    }
+}
