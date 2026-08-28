@@ -61,6 +61,11 @@ export enum CanvasScaleMode {
     Match = 4,
 }
 
+/**
+ * The engine's `ClearFlags`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum ClearFlags {
     Nothing = 0,
     Color = 1,
@@ -68,6 +73,11 @@ export enum ClearFlags {
     ColorAndDepth = 3,
 }
 
+/**
+ * The engine's `EmitterShape`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum EmitterShape {
     Point = 0,
     Circle = 1,
@@ -115,6 +125,11 @@ export enum MaskMode {
     Stencil = 1,
 }
 
+/**
+ * The engine's `ParticleEasing`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum ParticleEasing {
     Linear = 0,
     EaseIn = 1,
@@ -122,6 +137,11 @@ export enum ParticleEasing {
     EaseInOut = 3,
 }
 
+/**
+ * The engine's `ProjectionType`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum ProjectionType {
     Perspective = 0,
     Orthographic = 1,
@@ -138,11 +158,21 @@ export enum ShapeType {
     RoundedRect = 2,
 }
 
+/**
+ * The engine's `SimulationSpace`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum SimulationSpace {
     World = 0,
     Local = 1,
 }
 
+/**
+ * The engine's `SubEmitterTrigger`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum SubEmitterTrigger {
     Death = 0,
     Birth = 1,
@@ -154,6 +184,11 @@ export enum TextAlign {
     Right = 2,
 }
 
+/**
+ * The engine's `TilemapOrientation`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum TilemapOrientation {
     Orthogonal = 0,
     Isometric = 1,
@@ -161,11 +196,21 @@ export enum TilemapOrientation {
     Hexagonal = 3,
 }
 
+/**
+ * The engine's `TilemapStaggerAxis`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum TilemapStaggerAxis {
     Y = 0,
     X = 1,
 }
 
+/**
+ * The engine's `TilemapStaggerIndex`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum TilemapStaggerIndex {
     Odd = 0,
     Even = 1,
@@ -176,6 +221,11 @@ export enum UIDisplay {
     None = 1,
 }
 
+/**
+ * The engine's `UIFillMethod`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum UIFillMethod {
     Horizontal = 0,
     Vertical = 1,
@@ -184,6 +234,11 @@ export enum UIFillMethod {
     Radial180 = 4,
 }
 
+/**
+ * The engine's `UIFillOrigin`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum UIFillOrigin {
     Left = 0,
     Right = 1,
@@ -201,12 +256,22 @@ export enum UIPositionType {
     Absolute = 1,
 }
 
+/**
+ * The engine's `UIVisualFit`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum UIVisualFit {
     Fill = 0,
     Contain = 1,
     Cover = 2,
 }
 
+/**
+ * The engine's `UIVisualType`, generated from the C++ enum.
+ *
+ * @beta
+ */
 export enum UIVisualType {
     None = 0,
     SolidColor = 1,

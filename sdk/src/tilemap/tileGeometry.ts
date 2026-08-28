@@ -19,8 +19,8 @@
 
 // Grid orientation, single-sourced from the C++ ES_ENUM via the generated module:
 // the number a cell placement switches on is the number the engine's grid uses.
-export { TilemapOrientation as TileOrientation } from '../wasm/wasm.generated';
-import { TilemapOrientation as TileOrientation } from '../wasm/wasm.generated';
+export { TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex } from '../wasm/wasm.generated';
+import { TilemapOrientation } from '../wasm/wasm.generated';
 
 /** The layout inputs a cell placement needs — a subset of the TilemapLayer component. */
 export interface TileGridParams {
@@ -56,11 +56,11 @@ export function tileCellCenter(p: TileGridParams, tx: number, ty: number): Vec2L
     const hw = p.tileWidth * 0.5;
     const hh = p.tileHeight * 0.5;
     switch (p.orientation) {
-        case TileOrientation.Isometric:
+        case TilemapOrientation.Isometric:
             return { x: (tx - ty) * hw, y: -(tx + ty) * hh };
-        case TileOrientation.Staggered:
-        case TileOrientation.Hexagonal: {
-            const side = p.orientation === TileOrientation.Hexagonal ? hexSide(p) : 0;
+        case TilemapOrientation.Staggered:
+        case TilemapOrientation.Hexagonal: {
+            const side = p.orientation === TilemapOrientation.Hexagonal ? hexSide(p) : 0;
             if (p.staggerAxisX) {
                 const colW = (p.tileWidth + side) * 0.5;
                 const staggered = ((tx & 1) !== 0) !== !!p.staggerIndexEven;
@@ -85,11 +85,11 @@ export function tileCellOutline(p: TileGridParams): Vec2Like[] {
     const hw = p.tileWidth * 0.5;
     const hh = p.tileHeight * 0.5;
     switch (p.orientation) {
-        case TileOrientation.Isometric:
-        case TileOrientation.Staggered:
+        case TilemapOrientation.Isometric:
+        case TilemapOrientation.Staggered:
             // Diamond: top, right, bottom, left.
             return [{ x: 0, y: hh }, { x: hw, y: 0 }, { x: 0, y: -hh }, { x: -hw, y: 0 }];
-        case TileOrientation.Hexagonal: {
+        case TilemapOrientation.Hexagonal: {
             const s = Math.min(hexSide(p), p.tileHeight, p.tileWidth); // clamp so it stays inside the box
             const hs = s * 0.5;
             if (p.staggerAxisX) {
@@ -112,15 +112,15 @@ export function tileCellOutline(p: TileGridParams): Vec2Like[] {
 
 /** True when the layout is anything other than a plain orthogonal square grid. */
 export function isNonOrthogonal(orientation: number): boolean {
-    return orientation !== TileOrientation.Orthogonal && orientation !== undefined;
+    return orientation !== TilemapOrientation.Orthogonal && orientation !== undefined;
 }
 
 /** True for the layouts that read the stagger axis/index (staggered + hexagonal). */
 export function usesStagger(orientation: number): boolean {
-    return orientation === TileOrientation.Staggered || orientation === TileOrientation.Hexagonal;
+    return orientation === TilemapOrientation.Staggered || orientation === TilemapOrientation.Hexagonal;
 }
 
 /** True for the hexagonal layout (the only one that reads the hex side length). */
 export function isHexOrientation(orientation: number): boolean {
-    return orientation === TileOrientation.Hexagonal;
+    return orientation === TilemapOrientation.Hexagonal;
 }

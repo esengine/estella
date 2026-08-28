@@ -25,6 +25,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ETC, ENTRIES } from './lib/sdkProgram.mjs';
+import { parseSnapshot } from './lib/apiSnapshot.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GENERATED = path.join(ROOT, 'sdk/src/wasm/wasm.generated.ts');
@@ -73,12 +75,40 @@ for (const rel of sources) {
     }
 }
 
+// ------------------------------------------------------- and how strongly
+//
+// A shape is MADE of these: an enum weaker than the shape naming it survives a
+// release while the values it may hold do not. `ES_ENUM(stability=)` answers it.
+const RANK = { public: 0, beta: 1, experimental: 2 };
+const api = new Map();
+for (const entry of Object.keys(ENTRIES)) {
+    const file = path.join(ETC, `${entry}.api.md`);
+    if (!existsSync(file)) continue;
+    for (const [name, sym] of parseSnapshot(readFileSync(file, 'utf8'))) {
+        const seen = api.get(name);
+        if (!seen) { api.set(name, { ...sym }); continue; }
+        if ((RANK[sym.tier] ?? 9) < (RANK[seen.tier] ?? 9)) seen.tier = sym.tier;
+    }
+}
+for (const [name, sym] of api) {
+    if ((RANK[sym.tier] ?? 9) > RANK.beta) continue;   // experimental promises nothing
+    const body = (sym.body ?? '').split('\n').filter((l) => !l.startsWith('@internal ')).join('\n');
+    for (const gen of GEN_ENUMS) {
+        if (!new RegExp(`:\\s*${gen}\\b`).test(body)) continue;
+        const theirs = api.get(gen)?.tier ?? 'experimental';
+        if ((RANK[theirs] ?? 9) <= (RANK[sym.tier] ?? 9)) continue;
+        problems.push(`${name} is @${sym.tier} and its shape is spelled in ${gen}, which is @${theirs}`);
+    }
+}
+
 if (problems.length) {
-    console.error('check-enum-twins: a number that crosses to C++ is restated and unheld.\n');
+    console.error('check-enum-twins: a number that crosses to C++ is restated or under-promised.\n');
     for (const p of [...new Set(problems)]) console.error(`  ${p}`);
     console.error('\nRe-export it from sdk/src/wasm/wasm.generated and pin the identity in'
         + ' sdk/tests/cpp-contract.test.ts, or — where the symbol must keep its own tier tag —'
-        + ' keep the declaration and pin its VALUES there.');
+        + ' keep the declaration and pin its VALUES there. An under-promised enum is answered'
+        + ' with ES_ENUM(stability=) at its C++ declaration.');
     process.exit(1);
 }
-console.log(`check-enum-twins: ${GEN_ENUMS.size} generated C++ enums, every TS restatement of one held to it.`);
+console.log(`check-enum-twins: ${GEN_ENUMS.size} generated C++ enums — every TS restatement held to`
+    + ' one, and every shape promised at beta or better spelled in vocabulary at least as strong.');

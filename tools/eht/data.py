@@ -47,3 +47,4 @@ class Enum:
     namespace: str
     values: List[str] = field(default_factory=list)
     underlying_type: str = "int"
+    annotations: Dict[str, str] = field(default_factory=dict)

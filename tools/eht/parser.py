@@ -24,7 +24,11 @@ class CppParser:
     RE_COMPONENT = re.compile(
         r'ES_COMPONENT\s*\(\s*((?:[^)"]|"[^"]*")*?)\s*\)\s*struct\s+(\w+)'
     )
-    RE_ENUM = re.compile(r'ES_ENUM\s*\(\s*\)\s*enum\s+class\s+(\w+)(?:\s*:\s*(\w+))?')
+    # Same annotation group as ES_COMPONENT: an enum takes `stability=` by the
+    # grammar everything else takes its metadata.
+    RE_ENUM = re.compile(
+        r'ES_ENUM\s*\(\s*((?:[^)"]|"[^"]*")*?)\s*\)\s*enum\s+class\s+(\w+)(?:\s*:\s*(\w+))?'
+    )
     # The annotation group `(?:[^)"]|"[^"]*")*?` accepts runs of non-paren chars
     # OR whole quoted strings, so a `)` or `,` *inside quotes* (e.g. a tooltip) does
     # not terminate the argument list. Non-greedy stops at the first UNquoted `)`.
@@ -116,8 +120,9 @@ class CppParser:
 
     def _parse_enums(self, content: str, namespace: str) -> None:
         for match in self.RE_ENUM.finditer(content):
-            enum_name = match.group(1)
-            underlying = match.group(2) or "int"
+            enum_annotations = self._parse_annotations(match.group(1))
+            enum_name = match.group(2)
+            underlying = match.group(3) or "int"
 
             brace_start = content.find('{', match.end())
             if brace_start == -1:
@@ -136,7 +141,8 @@ class CppParser:
 
             self.enums.append(Enum(
                 name=enum_name, namespace=namespace,
-                values=values, underlying_type=underlying
+                values=values, underlying_type=underlying,
+                annotations=enum_annotations
             ))
 
     def _parse_components(self, content: str, namespace: str, filepath: Path) -> None:

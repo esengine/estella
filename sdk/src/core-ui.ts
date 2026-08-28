@@ -24,6 +24,7 @@ export {
     UINode,
     UIVisual,
     UIVisualType,
+    UIVisualFit,
     UILayoutGeneration,
     UIMask,
     measureText,

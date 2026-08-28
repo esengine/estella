@@ -57,6 +57,16 @@ class TypeScriptGenerator:
             return []
         lines = ['// Enums', '']
         for enum in self.enums:
+            # From ES_ENUM(stability=): a component's fields are made of these, so
+            # an enum with no tier makes the component's promise only as strong as
+            # its weakest name. Untagged stays experimental, as everywhere else.
+            tier = enum.annotations.get('stability')
+            if tier:
+                lines.append('/**')
+                lines.append(f' * The engine\'s `{enum.name}`, generated from the C++ enum.')
+                lines.append(' *')
+                lines.append(f' * @{tier}')
+                lines.append(' */')
             lines.append(f'export enum {enum.name} {{')
             for i, val in enumerate(enum.values):
                 lines.append(f'    {val} = {i},')

@@ -9,7 +9,7 @@
 
 namespace esengine::ecs {
 
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class EmitterShape : i32 {
     Point = 0,
     Circle = 1,
@@ -20,7 +20,7 @@ enum class EmitterShape : i32 {
 // Single source of the easing choice serialized by sizeEasing/colorEasing; the
 // particle sim consumes it as particle::EasingType (alias) and the editor
 // dropdown + TS const are EHT-generated from here.
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class ParticleEasing : i32 {
     Linear = 0,
     EaseIn = 1,
@@ -28,7 +28,7 @@ enum class ParticleEasing : i32 {
     EaseInOut = 3,
 };
 
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class SimulationSpace : i32 {
     World = 0,
     Local = 1,
@@ -37,7 +37,7 @@ enum class SimulationSpace : i32 {
 // When a sub-emitter fires the referenced child emitter's burst: as each parent
 // particle is born, or as it dies. (Collision joins this list once particle
 // collision lands.)
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class SubEmitterTrigger : i32 {
     Death = 0,
     Birth = 1,

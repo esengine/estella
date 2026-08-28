@@ -18,7 +18,7 @@ namespace esengine::ecs {
  * component field maps straight to the runtime grid type. "Staggered" is the
  * staggered-isometric grid; it and Hexagonal share the stagger axis/index.
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class TilemapOrientation : u8 {
     Orthogonal = 0,
     Isometric = 1,
@@ -27,14 +27,14 @@ enum class TilemapOrientation : u8 {
 };
 
 /** Which axis the stagger runs along (Tiled staggeraxis). Y = rows shift, X = columns shift. */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class TilemapStaggerAxis : u8 {
     Y = 0,
     X = 1,
 };
 
 /** Which lines carry the half-cell shift (Tiled staggerindex). */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class TilemapStaggerIndex : u8 {
     Odd = 0,
     Even = 1,

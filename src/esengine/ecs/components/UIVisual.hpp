@@ -20,7 +20,7 @@ namespace esengine::ecs {
  * sliceBorder; Tiled = texture repeated by box/tileSize; Filled = texture
  * cropped to fillAmount along fillMethod/fillOrigin.
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class UIVisualType : u8 {
     None,
     SolidColor,
@@ -37,7 +37,7 @@ enum class UIVisualType : u8 {
  *        wedge from 0 to the mode's arc (90/180/360 degrees) — cooldown rings,
  *        speedometer arcs, corner meters.
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class UIFillMethod : u8 {
     Horizontal,
     Vertical,
@@ -46,7 +46,7 @@ enum class UIFillMethod : u8 {
     Radial180
 };
 
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class UIFillOrigin : u8 {
     Left,
     Right,
@@ -62,7 +62,7 @@ enum class UIFillOrigin : u8 {
  *        my artwork" mode. Cover scales up until the box is covered and crops
  *        the overflow, so the box is filled with no distortion.
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class UIVisualFit : u8 {
     Fill,
     Contain,

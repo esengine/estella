@@ -52,6 +52,7 @@ export { UINode, UIPositionType, UIDisplay, UIPointerEvents, AlignSelf, type UIN
 export {
     UIVisual,
     UIVisualType,
+    UIVisualFit,
     FillMethod,
     FillOrigin,
     type UIVisualData,

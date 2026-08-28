@@ -30,7 +30,7 @@ namespace esengine::ecs {
 /**
  * @brief Camera projection type
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class ProjectionType : u8 {
     Perspective,
     Orthographic
@@ -39,7 +39,7 @@ enum class ProjectionType : u8 {
 /**
  * @brief Camera clear flags
  */
-ES_ENUM()
+ES_ENUM(stability=beta)
 enum class ClearFlags : u8 {
     Nothing,
     Color,

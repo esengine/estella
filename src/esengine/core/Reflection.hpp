@@ -110,8 +110,13 @@
  *
  * @details Enums marked with this macro will be available as
  *          TypeScript enums with proper type checking.
+ *
+ *          `stability=public|beta|experimental` is the SDK tier of the generated
+ *          enum. A component's fields are made of these, so an enum weaker than
+ *          the component naming it is a promise with a hole where its vocabulary
+ *          should be. Untagged means `experimental`, as everywhere else.
  */
-#define ES_ENUM()
+#define ES_ENUM(...)
 
 /**
  * @brief Mark an enum value for explicit naming in bindings

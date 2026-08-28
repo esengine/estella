@@ -37,7 +37,7 @@ import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
 import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
 import { MaskMode } from '../src/ui/core/ui-mask';
 import { ScrollMovement } from '../src/ui/core/ui-scroll';
-import { TileOrientation } from '../src/tilemap/tileGeometry';
+import { TilemapOrientation } from '../src/tilemap/tileGeometry';
 import { TextAlign } from '../src/ui/core/text';
 import {
     FlexDirection, FlexWrap, JustifyContent, AlignItems, AlignContent,
@@ -206,7 +206,7 @@ describe('C++ contract: module-published enums ARE their EHT-generated twin', ()
         ['ParticleEasing', ParticleEasing, gen.ParticleEasing],
         ['MaskMode', MaskMode, gen.MaskMode],
         ['ScrollMovement', ScrollMovement, gen.ScrollMovement],
-        ['TileOrientation', TileOrientation, gen.TilemapOrientation],
+        ['TilemapOrientation', TilemapOrientation, gen.TilemapOrientation],
         ['FlexDirection', FlexDirection, gen.FlexDirection],
         ['FlexWrap', FlexWrap, gen.FlexWrap],
         ['JustifyContent', JustifyContent, gen.JustifyContent],

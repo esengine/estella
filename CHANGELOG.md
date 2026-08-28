@@ -116,6 +116,21 @@ published separately; it ships inside the editor.
   nothing. The order is the library's now; what to say when the engine is not
   built stays with each caller, which is the half that is actually theirs.
 
+- **An enum can say how strongly it is promised, and ten now do.** Typing those
+  fields made a hole visible that was always there: a `@beta` component whose
+  field values are governed by an enum nobody promised. `ES_ENUM(stability=)`
+  answers it at the C++ declaration, the way `ES_COMPONENT(stability=)` already
+  did — untagged still means `experimental`. `check-enum-twins` refuses a shape
+  promised at beta or better whose vocabulary is weaker.
+
+  Chasing it turned up types a creator could read on the surface and not name:
+  `TilemapLayerData.orientation` said `TilemapOrientation`, which the SDK
+  published only under the alias `TileOrientation`; `staggerAxis` and
+  `staggerIndex` named enums exported nowhere at all; so did `UIVisualData.fit`.
+  The alias is gone, the three are exported, and the editor — which restated
+  `STAGGER_AXIS_Y = 0` and three more of the same numbers under a comment saying
+  they match C++ — reads the engine's enums now.
+
 - **A component field that IS an enum is typed as one — 33 of them were `number`.**
   The generator had the answer and threw it away: `if is_enum(t): return 'number'`,
   with `ES_PROPERTY(enum=)` naming the enum for the fields stored as a `u8`. So
