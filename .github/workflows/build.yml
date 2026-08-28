@@ -613,3 +613,59 @@ jobs:
         run: |
           ls -l /usr/share/vulkan/icd.d/ || true
           xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
+
+  # The same question on Windows, and it is not redundant. Until this job existed
+  # NOTHING compiled the native host for MSVC except the release workflow, which
+  # runs on a tag: v0.59.0 found two bugs that way, one per 25-minute release --
+  # windows.h's min/max macros breaking `numeric_limits<u32>::max()` in a header
+  # everything includes, and `-fPIC` handed to a clang on the MSVC ABI, which
+  # rejects it where a GNU-ABI one shrugs. Both are compile errors a push could
+  # have shown. The render step earns its place separately: the second bug was
+  # not in the host at all but in the AOT compile an EXPORT runs, which nothing
+  # short of packaging a game reaches.
+  desktop-windows:
+    name: Desktop host (Windows) + pixels
+    runs-on: windows-latest
+    # Cold on a new pin because Dawn is built, a host compile after that. The
+    # cache key is the release workflow's, so whichever ran last warms the other.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/engine-submodules
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled into the host binary.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        shell: bash
+        run: node build-tools/cli.js native --deps-cache-key windows >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pinned checkouts + Dawn build
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      - name: Set up Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Fetch Dawn + QuickJS + SDL at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      - name: Build the Windows host and its runtime template
+        run: node build-tools/cli.js native --target windows
+
+      # No xvfb and no software driver: a Windows runner has a desktop and a
+      # D3D12 device of its own, which is what the release job relies on too.
+      - name: A game packaged from it renders
+        run: node tools/verify-desktop-render.mjs --tier pr
