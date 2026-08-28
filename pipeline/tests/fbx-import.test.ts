@@ -9,7 +9,7 @@
  * `scripts/lib/fbxFixtures.mjs` rather than hidden in a binary.
  */
 import { describe, it, expect } from 'vitest';
-import { importFbxMeshes } from '../src/assets/fbxImport';
+import { importFbxMeshes, dropInvisibleColors } from '../src/assets/fbxImport';
 import { assembleModelPrefab, materialProducts,
          type ImportedMesh, type ImportedNode } from '../src/assets/modelImport';
 import { MeshChannel } from 'esengine';
@@ -226,5 +226,51 @@ describe('fbx reporting', () => {
   it('refuses a file that is not an FBX at all', async () => {
     await expect(importFbxMeshes(new TextEncoder().encode('not an fbx'), 'x', 'x.fbx'))
       .rejects.toThrow();
+  });
+});
+
+/**
+ * A colour layer whose indices did not match the mesh decays to zeroes (ufbx
+ * clamps the bad index and says only "Clamped index"), and MeshRenderer
+ * multiplies its tint INTO those — so the model imports, occludes, and draws
+ * nothing. Real project, real numbers: 3 of 80 building models arrived 96-99%
+ * alpha-zero and were invisible with no error anywhere.
+ */
+describe('fbx vertex colours that would import an invisible mesh', () => {
+  /** `count` vertices, of which the first `opaque` have alpha 1. */
+  const layer = (count: number, opaque: number): Float32Array => {
+    const c = new Float32Array(count * 4);
+    for (let i = 0; i < opaque; i++) c.set([1, 1, 1, 1], i * 4);
+    return c;
+  };
+
+  it('keeps a layer that actually colours the mesh', () => {
+    const warnings: string[] = [];
+    const colors = layer(100, 100);
+    expect(dropInvisibleColors(colors, 100, 'm', warnings)).toBe(colors);
+    expect(warnings).toEqual([]);
+  });
+
+  it('keeps a layer that fades most — but not nearly all — of the mesh', () => {
+    const warnings: string[] = [];
+    const colors = layer(100, 10); // 90% transparent: a fade, not an erasure
+    expect(dropInvisibleColors(colors, 100, 'm', warnings)).toBe(colors);
+    expect(warnings).toEqual([]);
+  });
+
+  it('drops a layer that is transparent nearly everywhere, and says so', () => {
+    const warnings: string[] = [];
+    // The measured shape: 48 of 4238 vertices opaque (98.9% transparent).
+    expect(dropInvisibleColors(layer(4238, 48), 4238, 'building_acakemy_1_1', warnings)).toBeNull();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('building_acakemy_1_1');
+    expect(warnings[0]).toContain('98.9%');
+    expect(warnings[0]).toContain('invisible');
+  });
+
+  it('drops a layer that is wholly transparent', () => {
+    const warnings: string[] = [];
+    expect(dropInvisibleColors(layer(64, 0), 64, 'm', warnings)).toBeNull();
+    expect(warnings).toHaveLength(1);
   });
 });

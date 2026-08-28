@@ -394,17 +394,56 @@ function buildNodes(scene: FbxScene, meshIndexOf: Map<string, number[]>): Import
 
 /* -- Geometry ----------------------------------------------------------- */
 
+/**
+ * Share of vertices that may be fully transparent before a vertex-colour layer
+ * is read as broken rather than authored. Deliberately near 1: a mesh really can
+ * fade most of itself out, but one that is transparent at 19 vertices in 20 is
+ * not being shaded — it is being erased.
+ */
+const INVISIBLE_COLOR_SHARE = 0.95;
+
+/**
+ * The vertex colours to actually use: `colors`, or null when the layer would
+ * make the mesh invisible (see the call site). Warns, naming the share, so the
+ * substitution is never silent.
+ *
+ * Exported for the test: the decision is a threshold on real numbers, and the
+ * FBX fixtures write no colour layer to drive it end to end.
+ */
+export function dropInvisibleColors(colors: Float32Array, vertexCount: number,
+                                    name: string, warnings: string[]): Float32Array | null {
+    if (vertexCount === 0) return colors;
+    let transparent = 0;
+    for (let i = 0; i < vertexCount; i++) if ((colors[i * 4 + 3] ?? 0) === 0) transparent++;
+    const share = transparent / vertexCount;
+    if (share < INVISIBLE_COLOR_SHARE) return colors;
+    warnings.push(`${name}: ${(share * 100).toFixed(1)}% of its vertex colours are fully`
+        + ' transparent, which would import an invisible mesh — the layer is ignored and the'
+        + ' mesh uses white, as one with no colour layer does');
+    return null;
+}
+
 /** One material run of one FBX mesh as the `.esmesh` payload it becomes. */
 function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
                    material: ImportedMaterial | undefined, warnings: string[]): ImportedMesh {
     const positions = floats(payload, part.positions);
     const normals = part.normals ? floats(payload, part.normals) : null;
     const uvs = part.uvs ? floats(payload, part.uvs) : null;
-    const colors = part.colors ? floats(payload, part.colors) : null;
     const joints = part.joints ? ushorts(payload, part.joints) : null;
     const weights = part.weights ? floats(payload, part.weights) : null;
     const indices = uints(payload, part.indices);
     const vertexCount = part.vertexCount;
+    // MeshRenderer multiplies its tint INTO the vertex colours, so a layer that
+    // is transparent nearly everywhere is a mesh that imports, occludes, and
+    // draws nothing — with no error anywhere to say why. Nobody authors that;
+    // it is what a colour layer whose indices did not match the mesh decays to
+    // (ufbx clamps the bad index and hands back zeroes, warning only "Clamped
+    // index"). Measured on a real project: 3 of 80 building models arrived 96-99%
+    // alpha-zero and imported invisible. Drop the layer to white and SAY so —
+    // white is what a mesh with no colour layer already gets, so the fallback is
+    // the ordinary path rather than a special case.
+    const colors = part.colors ? dropInvisibleColors(floats(payload, part.colors),
+                                                     part.vertexCount, name, warnings) : null;
     // A pose the renderer cannot hold is not a pose — see the same read in the
     // glTF importer. Static, and it says why, rather than joints indexing a
     // matrix that was never uploaded.
