@@ -35,6 +35,12 @@ export function wrapModeFromName(value: string | undefined): WrapMode {
     return WRAP_MODE_BY_NAME[value] ?? WrapMode.Once;
 }
 
+/** Whether `value` is a wrap mode name at all — what tells an OVERRIDE from a
+ *  typo, where decoding to `Once` would look like a deliberate choice. */
+export function isWrapModeName(value: string | undefined): boolean {
+    return !!value && value in WRAP_MODE_BY_NAME;
+}
+
 /** Encode a wrapMode to its on-disk string (inverse of {@link wrapModeFromName}). */
 export function wrapModeToName(mode: WrapMode): string {
     return WRAP_MODE_NAMES[mode] ?? 'once';

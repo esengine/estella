@@ -9,7 +9,7 @@ import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';
-import { wrapModeFromName, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
+import { wrapModeFromName, isWrapModeName, TrackType, WrapMode, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { Timeline, TimelineAPI } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
@@ -27,6 +27,7 @@ export interface TimelinePlayerData {
     timeline: string;
     playing: boolean;
     speed: number;
+    /** Overrides the wrap mode the CLIP declares; empty means the clip's own. */
     wrapMode: string;
     /**
      * Latched true when a Once clip completes; cleared when `playing` is raised
@@ -35,15 +36,25 @@ export interface TimelinePlayerData {
     finished: boolean;
 }
 
+/**
+ * Which wrap mode a playing clip runs under: the CLIP's, unless the player names
+ * one to override it with. A string that is not a wrap mode name is a typo, not
+ * a choice, and leaves the clip's own mode standing.
+ */
+export function resolveWrapMode(playerWrapMode: string, assetWrapMode: WrapMode): WrapMode {
+    return isWrapModeName(playerWrapMode) ? wrapModeFromName(playerWrapMode) : assetWrapMode;
+}
+
 export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlayer', {
     timeline: '',
     playing: false,
     speed: 1.0,
-    wrapMode: 'once',
+    wrapMode: '',
     finished: false,
 }, {
     assetFields: [{ field: 'timeline', type: 'timeline' }],
     fields: {
+        wrapMode: { tooltip: "Override the clip's own wrap mode: once, loop or pingPong. Empty uses what the clip declares." },
         finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to replay.' },
     },
 });
@@ -127,7 +138,7 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
                     const asset = this.loadedAssets_.get(timelineKey) ?? this.loadedAssets_.get(player.timeline);
                     if (!asset) continue;
 
-                    const wrapMode = wrapModeFromName(player.wrapMode);
+                    const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
                     state.speed = player.speed;
                     state.wrapMode = wrapMode;

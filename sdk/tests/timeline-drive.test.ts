@@ -12,6 +12,7 @@ import {
 } from '../src/timeline/TimelineDrive';
 import { TimelineEventType } from '../src/timeline/TimelineRuntime';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
+import { resolveWrapMode } from '../src/timeline/TimelinePlugin';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
 import type { AudioAPI } from '../src/audio/Audio';
@@ -264,5 +265,25 @@ describe('TimelineAPI write-through (play/pause/stop reach the component flags)'
         s.prevTime = 1.4;
         api.stop(ROOT);
         expect(s).toMatchObject({ playing: false, time: 0, prevTime: 0 });
+    });
+});
+
+/** The clip declares the wrap mode; the player's field only overrides it. */
+describe('whose wrap mode wins', () => {
+    it('takes the clip\'s when the player names no override', () => {
+        expect(resolveWrapMode('', WrapMode.Loop)).toBe(WrapMode.Loop);
+        expect(resolveWrapMode('', WrapMode.PingPong)).toBe(WrapMode.PingPong);
+        expect(resolveWrapMode('', WrapMode.Once)).toBe(WrapMode.Once);
+    });
+
+    it('lets the player override the clip when it names one', () => {
+        expect(resolveWrapMode('once', WrapMode.Loop)).toBe(WrapMode.Once);
+        expect(resolveWrapMode('loop', WrapMode.Once)).toBe(WrapMode.Loop);
+    });
+
+    // An override nobody can spell must not silently become Once and re-create
+    // the bug: it is not a name, so it is not an override.
+    it('falls back to the clip for a name it cannot decode', () => {
+        expect(resolveWrapMode('sideways', WrapMode.Loop)).toBe(WrapMode.Loop);
     });
 });
