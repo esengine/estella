@@ -81,12 +81,19 @@ app.whenReady().then(async () => {
       if (!ready) await sleep(100);
     }
     if (!ready) throw new Error('the game host hook never appeared (boot failed?)');
-    await sleep(1500);
 
-    const got = await exec('window.__estellaCooked.compiled()');
-    const installedOk = got.installed.includes('MoveSystem');
     // Dispatched, and repeatedly: one call could be a startup pass.
-    const dispatchedOk = got.calls >= 10;
+    const WANT_CALLS = 10;
+    // Waited for, not slept through: a fixed 1.5s is a frame COUNT, and a runner
+    // with no GPU draws about four in it — six calls from a module that had
+    // loaded and was dispatching fine. The bar itself does not move.
+    let got = await exec('window.__estellaCooked.compiled()');
+    for (let i = 0; i < 100 && got.calls < WANT_CALLS; i++) {
+      await sleep(100);
+      got = await exec('window.__estellaCooked.compiled()');
+    }
+    const installedOk = got.installed.includes('MoveSystem');
+    const dispatchedOk = got.calls >= WANT_CALLS;
     const ok = installedOk && dispatchedOk;
     console.log(`\n[verify:aot] ${ok ? 'PASS' : 'FAIL'} — installed ${JSON.stringify(got.installed)}, ${got.calls} twin call(s)`);
     console.log('DRIVE_RESULT ' + JSON.stringify({ ...got, installedOk, dispatchedOk, diag: diag.slice(0, 6) }));
