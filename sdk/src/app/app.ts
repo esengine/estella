@@ -1043,12 +1043,26 @@ export class App {
         this.mainLoop();
     }
 
-    private mainLoop = async (): Promise<void> => {
+    /**
+     * @param rafTime The host's animation-frame timestamp, when it passes one.
+     */
+    private mainLoop = async (rafTime?: number): Promise<void> => {
         if (!this.running_) {
             return;
         }
 
-        const currentTime = platformNow();
+        // The frame's clock is the rAF timestamp, not the moment this callback got
+        // to run. The timestamp names the vsync the frame is being drawn for, so
+        // consecutive frames are exactly one refresh interval apart; platformNow()
+        // here measures instead WHEN the browser got round to calling us, and that
+        // delay's frame-to-frame variance enters delta twice — added to one frame,
+        // subtracted from the next. A perfectly regular display then hands out an
+        // irregular delta, and everything integrating `speed * delta` advances by
+        // unequal steps: judder, worst on a camera pan, where the whole screen moves.
+        // A host that passes no timestamp (a native shell driving its own loop) keeps
+        // the old measurement; the clamp below absorbs the one frame where the two
+        // clocks meet.
+        const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
         const deltaMs = currentTime - this.lastTime_;
 
         if (this.targetFrameInterval_ > 0 && deltaMs < this.targetFrameInterval_) {
@@ -1058,7 +1072,10 @@ export class App {
 
         this.lastTime_ = currentTime;
 
-        const rawDelta = Math.min(deltaMs / 1000, this.maxDeltaTime_);
+        // Never negative: two clocks with different origins meet on the first frame
+        // after run()/stepFrames seeds lastTime_ from platformNow(), and time running
+        // backwards is worse than a frame that stands still.
+        const rawDelta = Math.max(0, Math.min(deltaMs / 1000, this.maxDeltaTime_));
         const delta = rawDelta * this.play_speed_;
 
         await this.flushStartupSystems_();

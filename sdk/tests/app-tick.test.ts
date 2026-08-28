@@ -162,6 +162,60 @@ describe('App.stepFrames()', () => {
         expect(app.isPaused()).toBe(true);
     });
 
+    // A display hands out frames on a metronome; the callback that draws them does
+    // not start on one. Measuring delta at callback entry puts that start delay's
+    // variance into delta TWICE — added to one frame, subtracted from the next —
+    // so a steady 60 Hz becomes an unsteady delta, and `speed * delta` motion moves
+    // in unequal steps. The rAF timestamp is the vsync itself, which is the clock
+    // the frame is actually drawn against.
+    it('takes the frame clock from the animation-frame timestamp, not the callback entry time', async () => {
+        const realRaf = globalThis.requestAnimationFrame;
+        let pending: ((ts: number) => void) | null = null;
+        globalThis.requestAnimationFrame = ((fn: FrameRequestCallback) => {
+            pending = fn as unknown as (ts: number) => void;
+            return 1;
+        }) as unknown as typeof globalThis.requestAnimationFrame;
+
+        // The wall clock as the callback sees it: vsync plus however long the host
+        // took to get round to us this frame.
+        let entryNow = 1000;
+        setPlatform({ now: () => entryNow } as unknown as PlatformAdapter);
+
+        const app = App.new();
+        const deltasMs: number[] = [];
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(Time)], (time: { delta: number }) => { deltasMs.push(time.delta * 1000); },
+            { name: 'RecordDelta' },
+        ));
+
+        const settle = async (): Promise<void> => {
+            for (let i = 0; i < 30; i++) await Promise.resolve();
+        };
+
+        try {
+            await app.run();     // seeds the clock and runs one frame off platformNow()
+            await settle();
+            deltasMs.length = 0;
+
+            const VSYNC = 1000 / 60;
+            const startDelay = [0.2, 4.1, 0.9, 6.3, 1.7, 3.0];
+            for (let i = 1; i <= startDelay.length; i++) {
+                const vsync = 1000 + i * VSYNC;
+                entryNow = vsync + startDelay[i - 1];
+                const fire = pending!;
+                pending = null;
+                await fire(vsync);
+                await settle();
+            }
+
+            expect(deltasMs).toHaveLength(startDelay.length);
+            for (const d of deltasMs) expect(d).toBeCloseTo(VSYNC, 6);
+        } finally {
+            app.quit();
+            globalThis.requestAnimationFrame = realRaf;
+        }
+    });
+
     it('defaults to one frame', async () => {
         const app = App.new();
         await app.stepFrames();

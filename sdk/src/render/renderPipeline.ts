@@ -34,6 +34,12 @@ export interface RenderParams {
     elapsed: number;
     /** Background for the pass's load-op clear (default opaque black). */
     clearColor?: { x: number; y: number; z: number; w: number };
+    /**
+     * The caller already opened the frame (`beginFrame`) — as the render system
+     * does, so the transform pass can run before the cameras are read. Opening a
+     * frame twice ages the render-target pool twice, so it must happen once.
+     */
+    frameAlreadyBegun?: boolean;
 }
 
 export interface CameraRenderParams {
@@ -140,7 +146,7 @@ export class RenderPipeline {
             this.lastHeight_ = height;
         }
 
-        Renderer.beginFrame(elapsed);
+        if (!params.frameAlreadyBegun) Renderer.beginFrame(elapsed);
         Renderer.setViewport(0, 0, width, height);
         Renderer.begin(viewProjection, 0, /*clear color+depth*/ 3, params.clearColor);
         // The mask is sticky in the draw list; this path has no camera to own one.

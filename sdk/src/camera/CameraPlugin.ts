@@ -689,6 +689,21 @@ export function cameraPlugin(
                     }
 
                     pipeline.setActiveScenes(activeScenes ?? null);
+
+                    // The frame opens, and the world's transforms resolve, BEFORE any
+                    // camera is read. A camera's view is built from its Transform's
+                    // worldPosition, and the transform pass is what writes it: run
+                    // behind the read — its old home, inside submitScene — it handed
+                    // every camera the PREVIOUS frame's placement while the sprites
+                    // drew at this frame's, so a camera moved in Update trailed the
+                    // world it was looking at by exactly one frame. beginFrame is what
+                    // clears the pass's once-per-frame memo, so it has to lead; the
+                    // call still inside submitScene then finds the answer and costs
+                    // nothing.
+                    pipeline.beginFrame(elapsed);
+                    app.measureFrameScope('render.updateTransforms', () =>
+                        Renderer.updateTransforms({ _cpp: cppRegistry }));
+
                     // Authoritative tick (advance=true): ticks the director's blend.
                     const cameras = app.measureFrameScope('render.resolveCameras', () =>
                         resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool, elapsed, true));
@@ -706,9 +721,11 @@ export function cameraPlugin(
                                 viewProjection: IDENTITY,
                                 width, height, elapsed,
                                 clearColor,
+                                // Already opened above. Opening it twice ages the
+                                // render-target pool twice in one frame.
+                                frameAlreadyBegun: true,
                             });
                         } else {
-                            pipeline.beginFrame(elapsed);
                             pipeline.beginScreenCapture();
                             // One project-level choice, read once: a per-camera answer
                             // would let two cameras present the same surface at two

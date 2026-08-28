@@ -6300,6 +6300,7 @@ static prototype: RemovedQueryInstance<any>
 ```
 clearColor: { x: number; y: number; z: number; w: number; } | undefined
 elapsed: number
+frameAlreadyBegun: boolean | undefined
 height: number
 registry: { _cpp: CppRegistry; }
 viewProjection: Float32Array<ArrayBufferLike>
