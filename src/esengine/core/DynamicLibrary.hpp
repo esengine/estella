@@ -23,6 +23,12 @@
 #  ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
 #  endif
+// min/max arrive as MACROS otherwise, and the next numeric_limits<T>::max()
+// in any translation unit that included this reads as ::() -- reported
+// against that line, never against this one.
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
 #  include <windows.h>
 #else
 #  include <dlfcn.h>

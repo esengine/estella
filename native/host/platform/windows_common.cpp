@@ -12,6 +12,15 @@
  */
 #include "platform/windows_common.hpp"
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+// windows.h defines min/max as MACROS, and Types.hpp says
+// numeric_limits<u32>::max() -- which then reads as ::(), and the compiler
+// blames that line rather than this include. NOMINMAX is what turns them off.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <dwrite.h>
 #include <winhttp.h>
