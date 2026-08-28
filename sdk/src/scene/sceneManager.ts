@@ -9,6 +9,7 @@ import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
+import { AssetScope } from '../asset/AssetLease';
 import type { SystemDef } from '../ecs/system';
 import { Material } from '../render/material';
 import type { DrawCallback } from '../render/customDraw';
@@ -105,13 +106,18 @@ class SceneInstance {
     readonly savedEnabled = new Map<Entity, Map<RenderableComponentDef, boolean>>();
     readonly systemIds: symbol[] = [];
     /**
-     * Every path-keyed asset this scene acquired, by declared type. NOT a fixed
-     * list: it was seven fields, and the four types added since were preloaded
-     * and never released, because adding one meant remembering three places.
+     * What this scene's preload actually acquired, receipt by receipt. Released
+     * as a scope at unload, so what goes back is what was taken — not what the
+     * scene's refs resolve to by then.
+     */
+    readonly assetScope = new AssetScope();
+    /**
+     * Path-keyed assets registered by a loader that did its own acquiring
+     * ({@link SceneContext.trackAssets}) — a packaged scene carries no data, so
+     * the manager's preload never ran for it. Released by path, because a path
+     * is all such a caller ever had.
      */
     readonly loadedByType = new Map<string, Set<string>>();
-    /** Materials are keyed by HANDLE, not path — released through their own door. */
-    loadedMaterials: Set<number> | null = null;
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -550,27 +556,18 @@ export class SceneManagerState {
         onProgress?: SceneLoadProgressCallback,
     ): Promise<void> {
         if (sceneData) {
-            const discovered = discoverSceneAssets(sceneData);
             instance.loadedByType.clear();
-            // Whatever the scene declared, whatever its type. Materials are
-            // collected as handles below; skeletons belong to the SpineManager.
-            for (const [type, paths] of discovered.byType) {
-                if (type === 'material' || type === 'spine') continue;
-                instance.loadedByType.set(type, new Set(paths));
-            }
-            const bucketFor = (type: string): Set<string> => {
-                let set = instance.loadedByType.get(type);
-                if (!set) { set = new Set(); instance.loadedByType.set(type, set); }
-                return set;
-            };
-            instance.loadedMaterials = new Set();
 
             const collectAssets: LoadedSceneAssets = {
-                // The SAME sets the preloader fills in with what it actually
-                // loaded, so the release side sees acquisitions, not intentions.
-                texturePaths: bucketFor('texture'),
-                materialHandles: instance.loadedMaterials,
-                fontPaths: bucketFor('font'),
+                // What the scene DECLARED is an intention; ownership is the set
+                // of receipts the preload hands back, and only successful
+                // acquisitions produce one.
+                scope: instance.assetScope,
+                // The handle sets are the loader's scratch; ownership is the
+                // scope, so nothing here is read back at unload.
+                texturePaths: new Set(),
+                materialHandles: new Set(),
+                fontPaths: new Set(),
                 spineKeys: new Set(),
             };
 
@@ -632,22 +629,15 @@ export class SceneManagerState {
             ? this.app_.getResource(Assets)
             : null;
 
-        // Whatever the scene acquired, through the one batch door. A type with a
-        // registered loader has a release channel; one without no-ops.
+        // What this scene actually acquired, given back by receipt. Materials
+        // included — their leases are in here too, so releasing them again by
+        // handle below would be the double free this whole path exists to stop.
+        instance.assetScope.releaseAll();
+
+        // Assets a loader acquired on its own and only registered by path.
         assetsRes?.releaseAssets(instance.loadedByType);
 
-        if (instance.loadedMaterials) {
-            for (const handle of instance.loadedMaterials) {
-                // Release through Assets so the material's refcount + path cache
-                // stay coherent; a bare Material.release strands the destroyed
-                // handle in the cache for the next scene that reuses the material.
-                if (assetsRes) assetsRes.releaseMaterial(handle);
-                else Material.release(handle);
-            }
-        }
-
         instance.loadedByType.clear();
-        instance.loadedMaterials = null;
     }
 
     pause(name: string): void {

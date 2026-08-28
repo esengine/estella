@@ -324,13 +324,17 @@ describe('SceneManager', () => {
             expect(PostProcess.unbind).toHaveBeenCalledWith(1);
         });
 
-        it('unload() releases material handles from loadedAssets', async () => {
+        it('unload() releases what the scene acquired, by receipt', async () => {
+            let released = 0;
             vi.mocked(loadSceneWithAssets).mockImplementationOnce(
                 async (_world, _data, options) => {
-                    if (options?.collectAssets) {
-                        options.collectAssets.materialHandles.add(10);
-                        options.collectAssets.materialHandles.add(20);
-                    }
+                    // What the real preload hands back: a receipt per successful
+                    // acquire, materials included. Releasing by handle instead
+                    // would free whatever that path resolves to at unload.
+                    options?.collectAssets?.scope?.add({
+                        key: 'material:hero.esmat', generation: 1, value: null,
+                        release: () => { released++; },
+                    } as never);
                     return new Map();
                 }
             );
@@ -339,8 +343,8 @@ describe('SceneManager', () => {
             await manager.load('level1');
             await manager.unload('level1');
 
-            expect(Material.release).toHaveBeenCalledWith(10);
-            expect(Material.release).toHaveBeenCalledWith(20);
+            expect(released).toBe(1);
+            expect(Material.release).not.toHaveBeenCalled();
         });
 
         it('unload() clears activeScene if unloaded scene was active', async () => {

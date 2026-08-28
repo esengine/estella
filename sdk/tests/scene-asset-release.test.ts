@@ -2,14 +2,30 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    scene-asset-release.test.ts
- * @brief   Verify the per-category release wrappers on Assets plus that
- *          SceneInstance carries the extra loaded* buckets so unload can
- *          hand them back to Assets (previously leaked).
+ * @brief   A scene gives back what it acquired: the receipts its preload
+ *          produced, plus path-keyed assets a loader registered itself.
+ *
+ * @details Ownership is the set of RECEIPTS, not the refs the scene declares —
+ *          a declared asset whose load failed was never acquired, and after
+ *          invalidate() one path no longer names one instance.
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
+// Stands in for the preload: the real loadSceneWithAssets hands the owner the
+// receipts its acquires produced, and unload releases through those.
+const preloaded: Array<{ type: string; path: string; released: number }> = [];
 vi.mock('../src/scene/scene', () => ({
-    loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
+    loadSceneWithAssets: vi.fn(async (_w: unknown, _d: unknown, options?: {
+        collectAssets?: { scope?: { add: (l: unknown) => unknown } };
+    }) => {
+        for (const entry of preloaded) {
+            options?.collectAssets?.scope?.add({
+                key: `${entry.type}:${entry.path}`, generation: 1, value: null,
+                release: () => { entry.released++; },
+            });
+        }
+        return new Map();
+    }),
 }));
 vi.mock('../src/render/customDraw', () => ({
     registerDrawCallback: vi.fn(),
@@ -88,7 +104,7 @@ function createMockApp(assets?: unknown) {
 describe('Scene unload releases all tracked asset categories', () => {
     // Shared across the mock module, so a test that seeds it must not leak into
     // the next one's scene.
-    beforeEach(() => { discovered.byType = new Map(); });
+    beforeEach(() => { discovered.byType = new Map(); preloaded.length = 0; });
 
     /**
      * Every path-keyed type a scene can declare, one path each.
@@ -110,27 +126,38 @@ describe('Scene unload releases all tracked asset categories', () => {
         ['animatorcontroller', 'anim/hero.esanimator'],
     ];
 
-    it('buckets every type discovery reports, including ones added later', async () => {
-        // The original bug lived HERE, not in the release wiring: seven
-        // hard-coded buckets, so a scene declaring a tileset acquired a
-        // reference the manager never recorded and unload could not give back.
-        discovered.byType = new Map(TRACKED.map(([type, path]) => [type, new Set([path])]));
+    it('gives back every receipt its preload produced, whatever the type', async () => {
+        // The original bug lived in the bucketing: seven hard-coded categories,
+        // so a tileset was acquired and never given back. Ownership is receipts
+        // now, so a newly added type either produces one or was never acquired.
+        for (const [type, path] of TRACKED) preloaded.push({ type, path, released: 0 });
 
         const app = createMockApp({ releaseTexture: vi.fn(), releaseTyped: vi.fn() });
         const manager = new SceneManagerState(app as never);
         manager.register({ name: 'declaring', data: { version: '1.0', name: 'd', entities: [] } });
         await manager.load('declaring');
+        await manager.unload('declaring');
 
-        const instance = (manager as unknown as {
-            scenes_: Map<string, { loadedByType: Map<string, Set<string>> }>;
-        }).scenes_.get('declaring')!;
-
-        for (const [type, path] of TRACKED) {
-            expect(
-                [...(instance.loadedByType.get(type) ?? [])],
-                `the scene declared a ${type} and the manager kept no bucket for it`,
-            ).toContain(path);
+        for (const entry of preloaded) {
+            expect(entry.released, `the ${entry.type} it acquired was never given back`).toBe(1);
         }
+    });
+
+    it('declaring an asset it never acquired releases nothing', async () => {
+        // A failed load leaves no receipt, so unload has nothing to hand back
+        // and nothing to guess at. Declaring is not owning.
+        discovered.byType = new Map(TRACKED.map(([type, path]) => [type, new Set([path])]));
+        const released: Array<[string, string]> = [];
+        const app = createMockApp({
+            releaseTexture: (r: string) => { released.push(['texture', r]); },
+            releaseTyped: (t: string, r: string) => { released.push([t, r]); },
+        });
+        const manager = new SceneManagerState(app as never);
+        manager.register({ name: 'declaring', data: { version: '1.0', name: 'd', entities: [] } });
+        await manager.load('declaring');
+        await manager.unload('declaring');
+
+        expect(released).toEqual([]);
     });
 
     it('releases assets a scene tracked from inside setup (the packaged-game shape)', async () => {
@@ -198,33 +225,22 @@ describe('Scene unload releases all tracked asset categories', () => {
         }
     });
 
-    it('releases tracked materials through Assets by handle, not a bare Material.release', async () => {
+    it('releases materials through their receipt, not a bare Material.release', async () => {
         vi.mocked(Material.release).mockClear();
-        const releasedHandles: number[] = [];
-        const assetsStub = {
-            releaseTexture: vi.fn(), releaseTyped: vi.fn(), releaseFont: vi.fn(), releaseAudio: vi.fn(),
-            releaseAnimClip: vi.fn(), releaseTimeline: vi.fn(), releaseTilemap: vi.fn(),
-            releaseMaterial: (h: number) => { releasedHandles.push(h); },
-        };
+        preloaded.push({ type: 'material', path: 'mat/hero.esmat', released: 0 });
 
-        const app = createMockApp(assetsStub);
+        const app = createMockApp({ releaseTexture: vi.fn(), releaseTyped: vi.fn() });
         const manager = new SceneManagerState(app as never);
         manager.register({
             name: 'level1',
             data: { version: '1.0', name: 'level1', entities: [] },
         });
         await manager.load('level1');
-
-        const instance = (manager as unknown as {
-            scenes_: Map<string, { loadedMaterials: Set<number> }>;
-        }).scenes_.get('level1')!;
-        instance.loadedMaterials = new Set([11, 22]);
-
         await manager.unload('level1');
 
-        // Routed through Assets so the material refcount + path cache stay
-        // coherent; destroying the handle directly would strand it in the cache.
-        expect(releasedHandles).toEqual(expect.arrayContaining([11, 22]));
+        // Through the lease, so the material's refcount + path cache stay
+        // coherent; destroying the handle directly strands it in the cache.
+        expect(preloaded[0].released).toBe(1);
         expect(Material.release).not.toHaveBeenCalled();
     });
 

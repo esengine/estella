@@ -19,7 +19,7 @@ import { requireResourceManager, getResourceManager, evictTextureDimensions } fr
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
-import type { AssetLease } from './AssetLease';
+import { AssetScope, type AssetLease } from './AssetLease';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -245,6 +245,12 @@ export interface SceneAssetResult {
     meshHandles: Map<string, number>;
     environmentHandles: Map<string, number>;
     releaseCallbacks: ReleaseCallback[];
+    /**
+     * What this preload actually acquired. Release side reads THIS rather than
+     * re-deriving from the scene's declared refs: a failed load left no lease,
+     * and an invalidate mid-load left the receipt of the era we really got.
+     */
+    scope: AssetScope;
     missing: MissingAsset[];
 }
 
@@ -1155,6 +1161,7 @@ export class Assets {
         const meshHandles = new Map<string, number>();
         const environmentHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
+        const scope = new AssetScope();
 
         let loadedCount = 0;
 
@@ -1186,6 +1193,7 @@ export class Assets {
             for (const path of paths) {
                 tasks.push(() =>
                     acquire(path).then(lease => {
+                        scope.add(lease);
                         releaseCallbacks.push(() => lease.release());
                         if (handles) {
                             handles.set(path, (lease.value as { handle?: number } | null)?.handle ?? 0);
@@ -1252,7 +1260,7 @@ export class Assets {
         });
 
         return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                 releaseCallbacks, missing };
+                 releaseCallbacks, scope, missing };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {

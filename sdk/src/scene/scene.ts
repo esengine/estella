@@ -77,6 +77,12 @@ export interface LoadedSceneAssets {
     materialHandles: Set<number>;
     fontPaths: Set<string>;
     spineKeys: Set<string>;
+    /**
+     * The receipts the preload produced, handed to whoever owns the scene.
+     * Present means the owner releases through these and must not also release
+     * the same assets by path — that is the double free this replaces.
+     */
+    scope?: import('../asset/AssetLease').AssetScope;
 }
 
 /** Progress during a scene load, in assets: how many are done of how many.
@@ -532,6 +538,10 @@ export async function loadSceneWithAssets(
         assets.resolveSceneAssetPaths(data, result);
         applyTextureMetadata(data, result.textureHandles);
         if (options.collectAssets) {
+            // The receipts, when the owner asked for them. Materials keep their
+            // handle set too — callers read it to know what a scene is wearing —
+            // but the RELEASE rides the scope.
+            for (const lease of result.scope.leases()) options.collectAssets.scope?.add(lease);
             for (const handle of result.materialHandles.values()) {
                 if (handle) options.collectAssets.materialHandles.add(handle);
             }

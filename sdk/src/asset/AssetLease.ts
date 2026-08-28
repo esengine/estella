@@ -23,11 +23,10 @@ export interface AssetLease<T = unknown> {
 /**
  * @brief Everything one owner acquired, released together.
  *
- * @details What a scene, a group or a document owns. It holds receipts rather
- *          than paths, so unloading releases what was actually acquired — not
- *          what the manifest says the owner would acquire if it loaded today.
- *          An acquisition that failed produced no lease, so there is nothing to
- *          release and nothing to guess about.
+ * @details Holds receipts rather than paths, so unloading releases what was
+ *          actually acquired — not what the manifest says this owner would
+ *          acquire if it loaded today. A failed acquisition produced no lease,
+ *          so there is nothing to release and nothing to guess about.
  */
 export class AssetScope {
     private leases_: AssetLease[] = [];

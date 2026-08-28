@@ -105,6 +105,86 @@ describe('asset ownership is generation-exact', () => {
         expect(ledger.rows).toBe(0);
     });
 
+    it('a scene preload hands back a receipt per SUCCESSFUL acquire', async () => {
+        // Covers the wiring a mocked scene loader cannot: preloadSceneAssets
+        // fills the scope itself, and a load that threw leaves nothing in it.
+        const unloaded: string[] = [];
+        let n = 0;
+        const assets = makeAssets(unloaded);
+        assets.register<{ handle: number; id: string }>({
+            type: 'mesh',
+            load: async (path: string) => {
+                if (path.includes('broken')) throw new Error('no bytes');
+                return { handle: 70 + (++n), id: `mesh${n}` };
+            },
+            unload: (v: { id: string }) => { unloaded.push(v.id); },
+        } as never);
+
+        const scene = {
+            version: '1.0', name: 's', entities: [
+                { id: 1, name: 'a', parent: null, children: [],
+                  components: [{ type: 'MeshRenderer', data: { mesh: 'ship.esmesh' } }] },
+                { id: 2, name: 'b', parent: null, children: [],
+                  components: [{ type: 'MeshRenderer', data: { mesh: 'broken.esmesh' } }] },
+            ],
+        } as never;
+
+        const base = assets.sizes().refRows;
+        const result = await assets.preloadSceneAssets(scene);
+        expect(result.missing.map(m => m.ref)).toContain('broken.esmesh');
+        // One receipt: the failed acquire owns nothing, so unload has nothing
+        // to give back for it and nothing to guess at.
+        expect(result.scope.size).toBe(1);
+
+        result.scope.releaseAll();
+        expect(unloaded).toEqual(['mesh1']);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
+    it('one scene\'s unload cannot touch another scene\'s generation', async () => {
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const base = assets.sizes().refRows;
+
+        const sceneA = new AssetScope();
+        sceneA.add(await assets.acquireTyped('font', 'shared.ttf'));
+
+        // A hot update lands between the two scenes.
+        assets.invalidate('shared.ttf');
+
+        const sceneB = new AssetScope();
+        sceneB.add(await assets.acquireTyped('font', 'shared.ttf'));
+
+        sceneB.releaseAll();
+        expect(unloaded).toEqual(['gen2']);          // B gave back B's era
+        expect(assets.sizes().refRows).toBe(base + 1);   // A still holds one
+
+        sceneA.releaseAll();
+        expect(unloaded).toEqual(['gen2', 'gen1']);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
+    it('a scene survives many hot updates and still balances at unload', async () => {
+        // The dogfood shape: load, hot-update the same asset repeatedly, unload.
+        // Every era that was acquired is given back exactly once.
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const base = assets.sizes().refRows;
+        const scene = new AssetScope();
+
+        scene.add(await assets.acquireTyped('font', 'hero.ttf'));
+        for (let i = 0; i < 10; i++) {
+            assets.invalidate('hero.ttf');
+            scene.add(await assets.acquireTyped('font', 'hero.ttf'));
+        }
+        expect(scene.size).toBe(11);
+
+        scene.releaseAll();
+        expect(unloaded).toHaveLength(11);
+        expect(new Set(unloaded).size).toBe(11);      // no era freed twice
+        expect(assets.sizes().refRows).toBe(base);    // and none stranded
+    });
+
     it('a scope releases what it actually acquired', async () => {
         const unloaded: string[] = [];
         const assets = makeAssets(unloaded);

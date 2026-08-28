@@ -111,10 +111,9 @@ export class AssetRefLedger<T> {
     /**
      * Drop one reference to `key` without a receipt, oldest generation first.
      *
-     * The compatibility door for callers that only ever knew a path. It is
-     * exact while a key has ONE generation, which is every key that was never
-     * invalidated; `ambiguous` says it had to guess, so a caller that can carry
-     * a lease is asked to. See {@link release}.
+     * The compatibility door for callers that only knew a path. Exact while a
+     * key has ONE generation — every key never invalidated; `ambiguous` says it
+     * had to guess. See {@link release}.
      */
     releaseOldest(key: string): { value: T; exhausted: boolean; ambiguous: boolean } | undefined {
         const generations = this.byKey_.get(key);
