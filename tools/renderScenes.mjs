@@ -219,8 +219,12 @@ export const SCENES = [
   // WebGL2 only, and measured: on WebGPU these frames differ at ONE pixel of one
   // boundary, so the ratio is 1.68 without the policy and 1.36 with it - both under
   // the limit, which leaves the pair proving nothing there.
+  //
+  // atLeast is 1.8 because the seam's SIZE is the rasterizer's and its absence is
+  // not: policy on / off reads 1.354 / 3.033 on a real GPU and 1.356 / 2.196 on
+  // the software GL CI runs, so only 1.8 is mid-gap on both.
   { id: "sprite-seam", tier: "pr", env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-seam.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-seam.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_RENDER_RESOLUTION: "1", ESTELLA_VERIFY_SEAM: "{\"period\":73.143,\"phase\":54.857,\"band\":{\"y0\":100,\"y1\":156},\"limit\":2}" } },
-  { id: "sprite-seam-off", tier: "pr", env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-seam.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-seam.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SEAM: "{\"period\":73.143,\"phase\":54.857,\"band\":{\"y0\":100,\"y1\":156},\"atLeast\":2.5}" } },
+  { id: "sprite-seam-off", tier: "pr", env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-seam.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-seam.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SEAM: "{\"period\":73.143,\"phase\":54.857,\"band\":{\"y0\":100,\"y1\":156},\"atLeast\":1.8}" } },
   { id: "ysort-on", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_YSORT: "1", ESTELLA_VERIFY_SCENE: "/scenes/ysort.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ysort.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.5,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.5,\"y\":0.75,\"rgb\":[0,255,0],\"tol\":30}]" } },
   { id: "ysort-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ysort.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ysort.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30}]" } },
     // Depth layers (2.5D): same scene twice, one project setting apart. The near sprite is in the LOWER layer and both merge into ONE draw call, so inside the batch the order is fixed by index — no amount of sorting can produce the depth answer, which is what makes the pair discriminating.
