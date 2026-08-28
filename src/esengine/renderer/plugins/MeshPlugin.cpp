@@ -168,6 +168,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
     auto meshView = registry.view<ecs::Transform, ecs::MeshRenderer>();
+    // Read once: the phase is the same for every mesh this collect walks.
+    const bool shadowDepth = ctx.purpose == RenderPurpose::ShadowDepth;
 
     u32 litProgram = 0;
 
@@ -182,7 +184,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // scroll slower. A shadow pass looks from a light, whose centre means nothing to
         // it, and its map is fitted to unshifted bounds: a caster stands where it is.
         transform.ensureDecomposed();
-        const glm::vec3 position = ctx.shadow_pass
+        const glm::vec3 position = shadowDepth
             ? transform.worldPosition
             : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
         const auto& rotation = transform.worldRotation;
@@ -195,7 +197,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // Only GPU-resident geometry casts: the inline payload takes the CPU path
         // below, which bakes world space into vertices for the BATCH shader — a
         // shader that writes colour, not the depth this pass is here to collect.
-        if (ctx.shadow_pass && !resident) continue;
+        if (shadowDepth && !resident) continue;
         const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
         const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
@@ -263,7 +265,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // Casting into a shadow map: opaque and depth-tested whatever the camera's
         // pass makes it, and none of the three ways to describe a surface — lit, a
         // normal map, a material. LAST, so the pass outranks all three.
-        if (ctx.shadow_pass) {
+        if (shadowDepth) {
             key.stage = RenderStage::Opaque;
             key.blend = BlendMode::None;
             key.depthTest = true;
@@ -287,8 +289,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // with normals can be drawn unlit, and geometry without them takes
             // light off the constant normal a 2D surface has.
             const u32 residentShader =
-                meshProgram(ctx, resident->hasNormals, mesh.lit && !ctx.shadow_pass,
-                            normalTextureId != 0 && !ctx.shadow_pass, skinned, ctx.shadow_pass,
+                meshProgram(ctx, resident->hasNormals, mesh.lit && !shadowDepth,
+                            normalTextureId != 0 && !shadowDepth, skinned, shadowDepth,
                             key.envTextureId != 0);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED

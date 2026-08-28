@@ -27,6 +27,19 @@ class RenderContext;
 class MaterialStore;
 class RenderFrame;
 
+/**
+ * @brief What a collect is FOR — the phase, not a feature the geometry has.
+ *
+ * @details A shadow collect draws the scene's meshes from somewhere else for a
+ *          different answer: depth only, no material, no light. A bool per phase
+ *          would multiply as the frame gains passes, and two could be set at
+ *          once — which no phase ever is.
+ */
+enum class RenderPurpose : u8 {
+    Scene,
+    ShadowDepth,
+};
+
 struct RenderFrameContext {
     RenderContext& render_context;
     resource::ResourceManager& resources;
@@ -37,9 +50,9 @@ struct RenderFrameContext {
     const MaterialStore* materials = nullptr;
     /// The owning frame, for lazily-compiled batch variants (RenderFrame::batchProgram).
     RenderFrame* frame = nullptr;
-    /// This collect is the shadow pass: geometry draws depth-only, from the light.
-    /// Set by the frame, which also skips every plugin that casts nothing.
-    bool shadow_pass = false;
+    /// What this collect is for. The frame sets it, and also skips every plugin
+    /// that casts nothing when the purpose is a shadow map.
+    RenderPurpose purpose = RenderPurpose::Scene;
     /// The map that pass produced, handed to the meshes that receive it (0 = none).
     u32 shadow_texture_id = 0;
     /// The frame environment's prefiltered reflection atlas (0 = none this frame).

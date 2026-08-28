@@ -121,7 +121,8 @@ RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context,
     , resource_manager_(resource_manager)
     , pool_(device)
     , target_pool_(device)
-    , graph_(device, target_pool_) {
+    , graph_(device, target_pool_)
+    , shadow_pool_(device) {
     target_manager_.setDevice(device);
 }
 
@@ -152,6 +153,7 @@ void RenderFrame::init(u32 width, u32 height) {
 #endif
 
     pool_.init();
+    shadow_pool_.init();
     batch_shader_id_ = initBatchShader();
 
     RenderFrameContext initCtx{
@@ -175,6 +177,7 @@ void RenderFrame::shutdown() {
     }
     plugins_.clear();
     pool_.shutdown();
+    shadow_pool_.shutdown();
     releaseFrameTargets();
     target_pool_.clear();
 
@@ -190,6 +193,7 @@ void RenderFrame::shutdown() {
 
 void RenderFrame::recreateGpuResources() {
     pool_.recreateGpuResources();
+    shadow_pool_.recreateGpuResources();
     target_manager_.recreateGpuResources();
     // The framebuffers the pool is holding died with the device: the loans go
     // back and the memory behind them goes with it, or the next frame would draw
@@ -252,20 +256,17 @@ void RenderFrame::drawScene() {
     device_.setScissorTest(false);
 }
 
-// Every target this frame borrowed, given back. Three callers owe it: the end
-// of a frame, a device loss, and shutdown.
+// The atlas texture this frame published, unpublished — the target behind it is
+// the graph's loan. Owed by a new frame, a device loss and shutdown, because the
+// id the receiving draws were keyed by names nothing once its device is gone.
 void RenderFrame::releaseFrameTargets() {
-    if (shadow_target_ != rg::kNoTarget) {
-        target_pool_.release(shadow_target_);
-        shadow_target_ = rg::kNoTarget;
-    }
     shadow_texture_id_ = 0;
 }
 
 void RenderFrame::beginFrame() {
-    // Here and not at end(), which runs once per CAMERA: the atlas is borrowed
-    // once, spans every camera that reads it, and goes back before the next
-    // frame. Then one tick of the clock, by the frame that owns the pool.
+    // Here and not at end(), which runs once per CAMERA: every camera plans and
+    // renders its own maps, and the pool hands the same physical atlas to each in
+    // turn. Then one tick of the clock, by the frame that owns the pool.
     releaseFrameTargets();
     target_pool_.age();
 
@@ -497,6 +498,12 @@ void RenderFrame::end() {
         scene.viewportY = static_cast<u32>(std::max(scene_viewport_.y, 0));
         scene.viewportW = scene_viewport_.w;
         scene.viewportH = scene_viewport_.h;
+        // Named, not read: every draw that receives a shadow carries the atlas in
+        // its own key, so the graph owes the scene ordering and lifetime but must
+        // not spend a texture unit on it.
+        if (shadow_resource_ != rg::kNoResource) {
+            scene.dependencies.push_back(shadow_resource_);
+        }
         scene.execute = [this](const rg::PassContext&) { drawScene(); };
         graph_.addPass(std::move(scene));
     }
@@ -516,6 +523,8 @@ void RenderFrame::end() {
         FrameProfiler::get().gpuScope("graph", gpu_timer_.lastMs());
     }
     scene_resource_ = rg::kNoResource;
+    shadow_resource_ = rg::kNoResource;
+    shadow_views_.clear();
 
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
@@ -732,7 +741,7 @@ RenderFrameContext RenderFrame::makeContext() {
         view_projection_,
         &context_.materials(),
         this,
-        false,
+        RenderPurpose::Scene,
         shadow_texture_id_,
         environment_texture_id_
     };
@@ -1007,32 +1016,15 @@ static glm::vec3 cubeFace(u32 index) {
     return dir;
 }
 
-void RenderFrame::renderShadowMap(ecs::Registry& registry) {
+void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
+    shadow_resource_ = rg::kNoResource;
+    shadow_views_.clear();
     // Zeroed first, and the atlas given back: a tile that outlived its map would
     // shadow the scene against geometry from a frame that no longer exists.
     shadow_atlas_.reset();
     context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
     if (!in_frame_ || shadow_casters_.empty() || !device_.isDeviceUsable()) return;
-
-    // Borrowed for the frame rather than created once and held for the run:
-    // 2048² with depth is ~32MB, and a game that walks out of its one shadowed
-    // room should stop paying for it. Given back at the next beginFrame.
-
-    // A resize reclaims every target at the old size and a device loss frees
-    // the lot, so this handle can outlive what it named. It comes back stale
-    // rather than naming whatever refilled the slot, and re-borrows here.
-    if (!target_pool_.holds(shadow_target_)) shadow_target_ = rg::kNoTarget;
-    if (shadow_target_ == rg::kNoTarget) {
-        rg::TargetShape shape;
-        shape.width = kShadowAtlasSize;
-        shape.height = kShadowAtlasSize;
-        shape.depthStencil = true;
-        shape.linearFilter = false;
-        shadow_target_ = target_pool_.acquire(shape);
-    }
-    const FramebufferHandle shadowFbo = target_pool_.framebufferOf(shadow_target_);
-    if (shadowFbo == FramebufferHandle::Default) return;
 
     const glm::mat4 invVP = glm::inverse(view_projection_);
     // Clip's z axis back in world: w != 0 is an eye point, w == 0 says the projection
@@ -1084,24 +1076,15 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
         }
     }
 
-    const glm::mat4 sceneVP = view_projection_;
-    const GfxDevice::Viewport sceneViewport = device_.viewport();
     glm::mat4 matrices[MAX_SHADOW_TILES];
     glm::vec4 tiles[MAX_SHADOW_TILES];
-    bool cleared = false;
     bool anyTile = false;
-    // What the pass cost, for a profiler and the gates that pin it: the maps it
-    // actually rendered and the draws they took. Neither shows in a pixel, and a
-    // face that stopped being skipped would look exactly like one that never was.
-    u32 shadowTiles = 0;
-    u32 shadowDraws = 0;
-    u32 shadowCollects = 0;
 
     for (usize ci = 0; ci < shadow_casters_.size(); ++ci) {
         const ShadowCaster& caster = shadow_casters_[ci];
         const TilePlan mine = plan[ci];
         if (mine.count == 0) continue;
-        u32 drawnTiles = 0;
+        u32 plannedTiles = 0;
 
         for (u32 c = 0; c < mine.count; ++c) {
             const u32 tileIndex = mine.first + c;
@@ -1127,7 +1110,7 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
                 if (mine.count == 1) {
                     // What the map covers: the 3D geometry, unless the light asked for a
                     // fixed reach. A radius, so coverage does not change as the light turns.
-                    const CameraView view = computeCameraView(sceneVP);
+                    const CameraView view = computeCameraView(view_projection_);
                     const f32 fitted = haveBounds
                         ? 0.5f * glm::length(boundsMax - boundsMin)
                         : 0.5f * glm::length(glm::vec2(view.right - view.left,
@@ -1193,101 +1176,135 @@ void RenderFrame::renderShadowMap(ecs::Registry& registry) {
             // is derived there out of this matrix and the size of the square.
             tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex);
 
-            view_projection_ = projection;
-            frustum_.extractFromMatrix(projection);
             // A face whose frustum misses the whole of the geometry gathers nothing, and
             // asking each mesh in turn is the only way to find that out otherwise. The
             // box every mesh is inside answers it once, for the price of one test.
-            if (haveBounds && !frustum_.intersectsAABB((boundsMin + boundsMax) * 0.5f,
-                                                       (boundsMax - boundsMin) * 0.5f)) {
+            Frustum tileFrustum;
+            tileFrustum.extractFromMatrix(projection);
+            if (haveBounds && !tileFrustum.intersectsAABB((boundsMin + boundsMax) * 0.5f,
+                                                          (boundsMax - boundsMin) * 0.5f)) {
                 continue;
             }
-            ++shadowCollects;
 
-            // What the tile would hold, gathered before a pass is opened for it. Only
-            // the plugins that cast are asked: a map holds depth, and everything else
-            // would write colour into a texture every receiver reads back as one.
-            pool_.beginFrame();
-            draw_list_.clear();
-
-            auto ctx = makeContext();
-            ctx.shadow_pass = true;
-            RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_,
-                                            ctx, computeCameraView(projection)};
-            for (auto& plugin : plugins_) {
-                if (plugin->castsShadows()) plugin->collect(collectCtx);
-            }
-            draw_list_.finalize(pool_);
-            // A cube face pointing away from every mesh collects nothing, and a point
-            // light has six chances at that. The tile already holds what the atlas is
-            // cleared to — depth 1, nothing here — so a pass for it would agree at cost.
-            if (draw_list_.commandCount() == 0) continue;
-
-            // A self-contained pass, in the shape renderToTarget uses: swap what the frame
-            // looks through, draw, hand the target back. The first tile with anything in it
-            // clears the atlas — white, which is depth 1 unpacked: nothing here.
-            RenderPassDesc pass{shadowFbo, /*clearColor=*/!cleared};
-            pass.clearDepth = !cleared;
-            pass.clearColorValue[0] = pass.clearColorValue[1] = pass.clearColorValue[2] = 1.0f;
-            pass.clearColorValue[3] = 1.0f;
-            device_.beginRenderPass(pass);
-            cleared = true;
-            device_.setViewport(tile.x, tile.y, tile.size, tile.size);
-            pool_.upload();
-            // Not a camera's: this projection spans exactly the occluders it draws, so
-            // it sits inside either clip volume as built, and the depths it writes are
-            // compared against the copy of it the receiving shader holds.
-            context_.updateFrameConstants(projection);
-            // The depth variant is still a Lit shader and still declares the light block,
-            // and a draw whose declared UBO is unbound is undefined behaviour that draws
-            // nothing — the whole pass came back empty for exactly this.
-            context_.lights().uploadAndBind();
-            draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                               nullptr, context_.skinUbo());
-            ++drawnTiles;
-            shadowDraws += draw_list_.mergedDrawCallCount();
+            shadow_views_.push_back(ShadowView{projection, tile.x, tile.y, tile.size});
+            ++plannedTiles;
         }
 
-        // A caster whose every tile came back empty has no map to read. Published
-        // anyway, its range would cost each of the fragments it lights a fetch that
-        // can only answer "nothing here".
-        if (drawnTiles == 0) {
+        // A caster whose every tile was rejected has no map to read. Published anyway,
+        // its range would cost each of the fragments it lights a fetch that can only
+        // answer "nothing here".
+        if (plannedTiles == 0) {
             plan[ci].count = 0;
         } else {
-            shadowTiles += drawnTiles;
             anyTile = true;
         }
     }
 
-    ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
-    ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
-    ES_PROFILE_COUNTER("render.shadow.collects", shadowCollects);
+    ES_PROFILE_COUNTER("render.shadow.collects", static_cast<u32>(shadow_views_.size()));
+    if (!anyTile) return;
 
-    device_.endRenderPass();
-    device_.invalidatePipelineCache();
-
-    if (anyTile) {
-        shadow_texture_id_ = static_cast<u32>(target_pool_.textureOf(shadow_target_));
-        context_.lights().setShadowTiles(
-            matrices, tiles, shadow_atlas_.tileCount(),
-            glm::vec4(1.0f, 1.0f / static_cast<f32>(kShadowAtlasSize), 0.0f, 0.0f));
-        // Which of them each light reads. Without it a fragment would test against
-        // every map in the atlas, including ones rendered from where it cannot see.
-        for (usize i = 0; i < shadow_casters_.size(); ++i) {
-            if (plan[i].count == 0) continue;
-            context_.lights().setLightShadowTiles(shadow_casters_[i].slot,
-                                                  plan[i].first, plan[i].count);
-        }
+    // Borrowed, not held for the run: 2048² with depth is ~32MB. External because
+    // the id has to exist NOW rather than when the pass runs — the atlas travels
+    // into the sort key of every draw that receives it, and the scene collects next.
+    rg::TargetDesc desc;
+    desc.width = kShadowAtlasSize;
+    desc.height = kShadowAtlasSize;
+    desc.depthStencil = true;
+    desc.linearFilter = false;
+    shadow_resource_ = graph_.createExternalTarget(desc);
+    if (shadow_resource_ == rg::kNoResource) {
+        shadow_views_.clear();
+        return;
     }
 
-    // Back to the frame's own target and camera. The scene has drawn nothing yet, so
-    // re-opening the pass costs a load rather than the frame's contents.
-    view_projection_ = sceneVP;
-    frustum_.extractFromMatrix(sceneVP);
-    pool_.beginFrame();
-    draw_list_.clear();
-    openPass(PassClear{}, current_target_);
-    device_.setViewport(sceneViewport.x, sceneViewport.y, sceneViewport.w, sceneViewport.h);
+    shadow_texture_id_ = static_cast<u32>(graph_.textureOf(shadow_resource_));
+    context_.lights().setShadowTiles(
+        matrices, tiles, shadow_atlas_.tileCount(),
+        glm::vec4(1.0f, 1.0f / static_cast<f32>(kShadowAtlasSize), 0.0f, 0.0f));
+    // Which of them each light reads. Without it a fragment would test against
+    // every map in the atlas, including ones rendered from where it cannot see.
+    for (usize i = 0; i < shadow_casters_.size(); ++i) {
+        if (plan[i].count == 0) continue;
+        context_.lights().setLightShadowTiles(shadow_casters_[i].slot,
+                                              plan[i].first, plan[i].count);
+    }
+}
+
+void RenderFrame::declareShadowPass(ecs::Registry& registry) {
+    if (shadow_resource_ == rg::kNoResource) return;
+
+    rg::PassDesc shadow;
+    shadow.name = "shadow-atlas";
+    shadow.write = shadow_resource_;
+    // One pass for every map the frame renders, because they share an attachment:
+    // a point light's six faces are six viewports inside this pass rather than six
+    // passes the device has to transition the atlas between.
+    shadow.clear = true;
+    shadow.clearDepth = true;
+    // White is depth 1 unpacked: nothing here. A square the plan kept but whose
+    // collect comes back empty reads as no occluder rather than as a black wall.
+    shadow.clearColor[0] = shadow.clearColor[1] = shadow.clearColor[2] = 1.0f;
+    shadow.clearColor[3] = 1.0f;
+    shadow.execute = [this, &registry](const rg::PassContext&) { executeShadowPass(registry); };
+    graph_.addPass(std::move(shadow));
+}
+
+void RenderFrame::executeShadowPass(ecs::Registry& registry) {
+    // What the pass cost, for a profiler and the gates that pin it: the maps it
+    // actually rendered and the draws they took. Neither shows in a pixel, and a
+    // face that stopped being skipped would look exactly like one that never was.
+    u32 shadowTiles = 0;
+    u32 shadowDraws = 0;
+
+    for (const ShadowView& view : shadow_views_) {
+        // Its own pool and list. The scene's are finalized and uploaded by now and
+        // its pass is still to come, so collecting through them here would overwrite
+        // the vertices the scene is about to draw from.
+        shadow_pool_.beginFrame();
+        shadow_draw_list_.clear();
+
+        // What this looks through is the view's, held here rather than swapped into
+        // the frame's own: the scene pass after this one still reads the camera it
+        // was given, so there is nothing to put back.
+        Frustum viewFrustum;
+        viewFrustum.extractFromMatrix(view.view_projection);
+        auto ctx = makeContext();
+        ctx.view_projection = view.view_projection;
+        ctx.purpose = RenderPurpose::ShadowDepth;
+        // Only the plugins that cast are asked: a map holds depth, and everything
+        // else would write colour into a texture every receiver reads back as one.
+        RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, shadow_pool_,
+                                        shadow_draw_list_, ctx,
+                                        computeCameraView(view.view_projection)};
+        for (auto& plugin : plugins_) {
+            if (plugin->castsShadows()) plugin->collect(collectCtx);
+        }
+        shadow_draw_list_.finalize(shadow_pool_);
+        // A cube face pointing away from every mesh collects nothing, and a point
+        // light has six chances at that. The square already holds what the atlas was
+        // cleared to — depth 1, nothing here — so drawing it would agree at cost.
+        if (shadow_draw_list_.commandCount() == 0) continue;
+
+        device_.setViewport(view.x, view.y, view.size, view.size);
+        shadow_pool_.upload();
+        // Not a camera's: this projection spans exactly the occluders it draws, so
+        // it sits inside either clip volume as built, and the depths it writes are
+        // compared against the copy of it the receiving shader holds.
+        context_.updateFrameConstants(view.view_projection);
+        // The depth variant is still a Lit shader and still declares the light block,
+        // and a draw whose declared UBO is unbound is undefined behaviour that draws
+        // nothing — the whole pass came back empty for exactly this.
+        context_.lights().uploadAndBind();
+        shadow_draw_list_.execute(device_, shadow_pool_, context_.materials(),
+                                  context_.getWhiteTextureId(), nullptr, context_.skinUbo());
+        ++shadowTiles;
+        shadowDraws += shadow_draw_list_.mergedDrawCallCount();
+    }
+
+    ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
+    ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
+    // The scene draws next, through pipelines nothing here matches.
+    device_.invalidatePipelineCache();
 }
 
 /**
@@ -1346,7 +1363,11 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
     buildClipState();
     collectLights(registry);
-    renderShadowMap(registry);
+    // Decided here, drawn by the graph. Nothing in this function may touch the
+    // device: the frame reaches the host as several calls with its own draws
+    // between them, and a pass opened here would swallow them.
+    buildShadowPlan(registry);
+    declareShadowPass(registry);
 
     auto ctx = makeContext();
 

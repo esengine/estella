@@ -357,24 +357,37 @@ private:
     /// @return false when it names none, leaving the caller to add a flat term.
     bool collectEnvironment(const ecs::Light& light, const glm::vec3& scale);
     /**
-     * @brief Draws the scene's mesh occluders from the shadow-casting light, into a map
-     *        the main pass samples.
-     * @details Runs at the top of collectAll and re-opens the frame's own target behind
-     *          itself. A no-op unless collectLights found a light asking for one. Every
-     *          map a frame renders shares one atlas texture, and who owns which square
-     *          of it is ShadowAtlas's answer rather than the light type's.
+     * @brief Decides what the shadow pass will draw, without drawing any of it.
+     *
+     * @details Runs in collectAll, where nothing may touch the GPU: it allocates
+     *          the squares, builds each projection and drops the ones whose frustum
+     *          misses the scene. The tiles are published before the scene collects,
+     *          because the atlas id travels into every receiving draw's key.
      */
-    void renderShadowMap(ecs::Registry& registry);
+    void buildShadowPlan(ecs::Registry& registry);
+    /**
+     * @brief Declares the pass that fills the atlas, ahead of the scene that reads it.
+     *
+     * @details Ordering is the graph's to know, not a matter of this call coming
+     *          first: the scene names the atlas, so the graph keeps this pass alive
+     *          and runs it before the one that samples it. @p registry is captured
+     *          for the collect the pass does, and outlives execute().
+     */
+    void declareShadowPass(ecs::Registry& registry);
+    /// The shadow pass's body: for each planned square, collect the occluders it can
+    /// see and draw them. The graph has bound and cleared the atlas.
+    void executeShadowPass(ecs::Registry& registry);
     /// The scene pass's body: the draw, and the constants it needs current.
     void drawScene();
-    /// Gives back every target this frame borrowed from {@link target_pool_}.
+    /// Drops the atlas texture id the frame published; its target is the graph's
+    /// to give back.
     void releaseFrameTargets();
 
     /// The world box the resident meshes occupy — what a shadow map must cover.
     /// False when nothing 3D is in the scene.
     bool meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax);
-    /// Opens the frame's own target with @p clear's load-op. Shared by begin() and the
-    /// shadow pass, which re-opens it after drawing through a target of its own.
+    /// Opens the frame's own target with @p clear's load-op, for begin() to bind it
+    /// eagerly. Every other pass of the frame is the graph's to open.
     void openPass(const PassClear& clear, RenderTargetManager::Handle target);
     u32 initBatchShader();
     resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
@@ -412,7 +425,7 @@ private:
     };
     std::vector<CollectedLight> light_scratch_;  // reused across frames; collectLights only
     /// Every light that asked for a map this frame, in UBO slot order. Written by
-    /// collectLights, read by renderShadowMap; empty = nobody asked.
+    /// collectLights, read by buildShadowPlan; empty = nobody asked.
     std::vector<ShadowCaster> shadow_casters_;
     /// The frame's render targets, borrowed by shape and given back when the
     /// frame is done with them — shared with the post chains, which is what lets
@@ -430,10 +443,37 @@ private:
     FramebufferHandle scene_fbo_ = FramebufferHandle::Default;
     /// The camera's rect within its target; the scene pass carries it.
     GfxDevice::Viewport scene_viewport_{};
-    /// The atlas this frame borrowed, released at end(). kNoTarget = none.
-    rg::TargetHandle shadow_target_ = rg::kNoTarget;
-    /// Who owns which square of it. Rebuilt every frame: a tile means nothing once
-    /// the depths in it belong to a frame that is gone.
+    /// The atlas as a graph resource: the shadow pass writes it and the scene names
+    /// it, which is what orders the two. Borrowed from the pool every other target
+    /// comes from. kNoResource = no map this frame.
+    rg::ResourceId shadow_resource_ = rg::kNoResource;
+    /**
+     * @brief One square of the atlas, and what fills it.
+     *
+     * @details Decided on the CPU: by the time the pass runs, where it draws and what
+     *          it looks through are already answered, and all that is left is the draw.
+     */
+    struct ShadowView {
+        glm::mat4 view_projection{1.0f};
+        u32 x = 0;
+        u32 y = 0;
+        u32 size = 0;
+    };
+    /// What the pass will draw, in atlas order. Empty = nothing asked for a map, and
+    /// no pass is declared.
+    std::vector<ShadowView> shadow_views_;
+    /**
+     * @brief The shadow pass's own transient buffers and draw list.
+     *
+     * @details Not the scene's. By the time the graph runs the pass, flush() has
+     *          finalized and uploaded the scene's list, and the scene pass is still to
+     *          come — a shadow collect through the same pool would overwrite the
+     *          vertices the scene is about to draw from.
+     */
+    TransientBufferPool shadow_pool_;
+    DrawList shadow_draw_list_;
+    /// Who owns which square of the atlas. Rebuilt every frame: a tile means
+    /// nothing once the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
     u32 shadow_texture_id_ = 0;
