@@ -250,6 +250,54 @@ int main() {
               "and it survives a resize the fraction-sized targets do not");
     }
 
+    // --- a resource named but not bound still orders the two passes ---
+    //
+    // The scene reaches the atlas through its materials, not a sampler the graph
+    // wired: as a read it would claim a unit; as nothing, its producer is culled.
+    {
+        MockGfxDevice d;
+        rg::RenderGraph graph(d);
+        std::vector<std::string> ran;
+
+        graph.begin(256, 128);
+        const auto out = graph.importTarget(FramebufferHandle{9}, 256, 128);
+        rg::TargetDesc atlas;
+        atlas.width = 2048;
+        atlas.height = 2048;
+        atlas.depthStencil = true;
+        const auto maps = graph.createTarget(atlas);
+        graph.addPass(fullscreen("shadow-atlas", {}, maps, &ran));
+        rg::PassDesc scene = fullscreen("scene", {}, out, &ran);
+        scene.dependencies.push_back(maps);
+        graph.addPass(std::move(scene));
+        graph.execute();
+
+        CHECK(ran.size() == 2 && ran[0] == "shadow-atlas" && ran[1] == "scene",
+              "a pass reached only through a dependency survives culling, and runs first");
+        CHECK(d.bindLog.empty(), "and costs no texture unit, because nothing declared a read");
+        CHECK(graph.pooledTargetCount() == 1, "the atlas is a pooled target like any other");
+
+        // Lifetime has to count it too: an atlas whose last reader is not counted
+        // would either be recycled while the scene still samples it, or held to
+        // the end of the frame and paid for twice on the next camera.
+        graph.begin(256, 128);
+        const auto out2 = graph.importTarget(FramebufferHandle{9}, 256, 128);
+        const auto maps2 = graph.createTarget(atlas);
+        graph.addPass(fullscreen("shadow-atlas", {}, maps2));
+        rg::PassDesc scene2 = fullscreen("scene", {}, out2);
+        scene2.dependencies.push_back(maps2);
+        graph.addPass(std::move(scene2));
+        const auto after = graph.createTarget(atlas);
+        graph.addPass(fullscreen("second-camera-atlas", {}, after));
+        rg::PassDesc scene3 = fullscreen("scene-2", {}, out2);
+        scene3.dependencies.push_back(after);
+        graph.addPass(std::move(scene3));
+        graph.execute();
+
+        CHECK(d.createFramebufferCalls == 1,
+              "the atlas goes back after the pass that names it, so the next one reuses it");
+    }
+
     // --- the pool gives back what nothing asks for any more ---
     {
         MockGfxDevice d;

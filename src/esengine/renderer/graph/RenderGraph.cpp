@@ -124,6 +124,11 @@ void RenderGraph::cull(std::vector<bool>& live) const {
         for (ResourceId read : pass.reads) {
             if (read < resources_.size()) wanted[read] = true;
         }
+        // A dependency is wanted on the same terms as a read: the pass that
+        // produces it contributed to the image even though nothing binds it.
+        for (ResourceId dep : pass.dependencies) {
+            if (dep < resources_.size()) wanted[dep] = true;
+        }
     }
 }
 
@@ -158,6 +163,9 @@ void RenderGraph::execute() {
         for (ResourceId read : passes_[i].reads) {
             if (read < resources_.size()) resources_[read].lastRead = static_cast<i32>(i);
         }
+        for (ResourceId dep : passes_[i].dependencies) {
+            if (dep < resources_.size()) resources_[dep].lastRead = static_cast<i32>(i);
+        }
     }
 
     for (usize i = 0; i < passes_.size(); ++i) {
@@ -185,6 +193,7 @@ void RenderGraph::execute() {
         RenderPassDesc rp{};
         rp.target = fbo;
         rp.clearColor = pass.clear;
+        rp.clearDepth = pass.clearDepth;
         if (pass.clear) {
             for (u32 c = 0; c < 4; ++c) rp.clearColorValue[c] = pass.clearColor[c];
         }

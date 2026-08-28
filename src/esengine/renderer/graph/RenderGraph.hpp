@@ -85,8 +85,21 @@ struct PassContext {
 struct PassDesc {
     std::string name;
     std::vector<ResourceId> reads;
+    /**
+     * @brief Resources the pass uses but the graph must not bind.
+     *
+     * @details A scene pass reaches the shadow atlas through the material each
+     *          draw carries, so it owes the graph ordering but must not spend a
+     *          unit — as a `read` it would claim unit 0 from under the batch.
+     *          Culling counts it either way: a producer nothing names is dropped.
+     */
+    std::vector<ResourceId> dependencies;
     ResourceId write = kNoResource;
     bool clear = false;
+    /// Clears the depth attachment with the colour, for a target that has one.
+    /// A geometry pass writes depth, so the frame before it is not what it
+    /// should be tested against; a fullscreen pass has neither and ignores this.
+    bool clearDepth = false;
     f32 clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     /**
      * @brief The rect of its target this pass draws into. Zero width = all of it.
