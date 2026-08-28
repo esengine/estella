@@ -246,6 +246,15 @@ class MetadataGenerator:
     # './wasm.generated'.
     _BASE_TS_TYPES = {'Entity', 'Vec2', 'Vec3', 'Vec4', 'Quat', 'Color'}
 
+    def _enum_ts_names(self) -> set:
+        """Every enum name the generated wasm module publishes, which is where a
+        component-data field's enum type is imported from."""
+        if self._enum_names_cache is None:
+            self._enum_names_cache = {e.name for e in self.types.enums}
+        return self._enum_names_cache
+
+    _enum_names_cache = None
+
     def _data_ts_type(self, prop: Property) -> str:
         """TS type for a component-DATA field — the plain serialized shape, not the
         embind/Registry shape `TypeSystem.to_typescript` produces (which maps vectors
@@ -265,8 +274,14 @@ class MetadataGenerator:
             return 'number'
         if 'entity_ref' in prop.annotations or self.types.is_entity(t):
             return 'Entity'
+        # The enum, not the width it is stored in: the generator knows which one
+        # (either the field IS one, or ES_PROPERTY(enum=) names it) and dropping
+        # that leaves every C++-backed enum field in the SDK typed `number`.
         if self.types.is_enum(t):
-            return 'number'
+            return t.split('::')[-1]
+        named = prop.annotations.get('enum')
+        if named:
+            return named
         if t in self.types.CUSTOM_STRUCTS:
             return t
         if t in ('glm::vec2', 'glm::uvec2'):
@@ -307,7 +322,7 @@ class MetadataGenerator:
                 base = ts[:-2] if ts.endswith('[]') else ts
                 if base in self._BASE_TS_TYPES:
                     used_base.add(base)
-                elif base in self.types.CUSTOM_STRUCTS:
+                elif base in self.types.CUSTOM_STRUCTS or base in self._enum_ts_names():
                     used_struct.add(base)
                 field_lines.append(f'    {prop.name}: {ts};')
             # The SDK's tier, from ES_COMPONENT(stability=). It has to sit on the

@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { Dimension, Padding } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleEasing, ProjectionType, ScrollMovement, ShapeType, SimulationSpace, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -1073,7 +1073,7 @@ export interface BitmapTextData {
     text: string;
     color: Color;
     fontSize: number;
-    align: number;
+    align: TextAlign;
     spacing: number;
     parallax: Vec2;
     layer: number;
@@ -1102,7 +1102,7 @@ export interface BoxCollider3DData {
 }
 
 export interface CameraData {
-    projectionType: number;
+    projectionType: ProjectionType;
     fov: number;
     orthoSize: number;
     nearPlane: number;
@@ -1111,7 +1111,7 @@ export interface CameraData {
     isActive: boolean;
     priority: number;
     viewport: Vec4;
-    clearFlags: number;
+    clearFlags: ClearFlags;
     pixelPerfect: boolean;
     cullingMask: number;
     renderTarget: number;
@@ -1120,7 +1120,7 @@ export interface CameraData {
 export interface CanvasData {
     designResolution: Vec2;
     pixelsPerUnit: number;
-    scaleMode: number;
+    scaleMode: CanvasScaleMode;
     matchWidthOrHeight: number;
     backgroundColor: Color;
     layer: number;
@@ -1224,11 +1224,11 @@ export interface DragonBonesAnimationData {
 }
 
 export interface FlexContainerData {
-    direction: number;
-    wrap: number;
-    justifyContent: number;
-    alignItems: number;
-    alignContent: number;
+    direction: FlexDirection;
+    wrap: FlexWrap;
+    justifyContent: JustifyContent;
+    alignItems: AlignItems;
+    alignContent: AlignContent;
     gap: Vec2;
     padding: Padding;
 }
@@ -1240,7 +1240,7 @@ export interface InteractableData {
 }
 
 export interface LightData {
-    type: number;
+    type: LightType;
     color: Color;
     intensity: number;
     radius: number;
@@ -1308,7 +1308,7 @@ export interface ParticleEmitterData {
     maxParticles: number;
     lifetimeMin: number;
     lifetimeMax: number;
-    shape: number;
+    shape: EmitterShape;
     shapeRadius: number;
     shapeSize: Vec3;
     shapeAngle: number;
@@ -1320,10 +1320,10 @@ export interface ParticleEmitterData {
     startSizeMax: number;
     endSizeMin: number;
     endSizeMax: number;
-    sizeEasing: number;
+    sizeEasing: ParticleEasing;
     startColor: Color;
     endColor: Color;
-    colorEasing: number;
+    colorEasing: ParticleEasing;
     rotationMin: number;
     rotationMax: number;
     angularVelocityMin: number;
@@ -1342,9 +1342,9 @@ export interface ParticleEmitterData {
     blendMode: number;
     layer: number;
     material: number;
-    simulationSpace: number;
+    simulationSpace: SimulationSpace;
     enabled: boolean;
-    subEmitterTrigger: number;
+    subEmitterTrigger: SubEmitterTrigger;
     subEmitterChance: number;
     subEmitterInheritVelocity: number;
     subEmitter: Entity;
@@ -1360,7 +1360,7 @@ export interface ParticleEmitterData {
 }
 
 export interface ParticleForceFieldData {
-    type: number;
+    type: ForceFieldType;
     strength: number;
     radius: number;
     direction: Vec3;
@@ -1369,7 +1369,7 @@ export interface ParticleForceFieldData {
 }
 
 export interface RigidBody2DData {
-    bodyType: number;
+    bodyType: BodyType;
     gravityScale: number;
     linearDamping: number;
     angularDamping: number;
@@ -1379,7 +1379,7 @@ export interface RigidBody2DData {
 }
 
 export interface RigidBody3DData {
-    bodyType: number;
+    bodyType: BodyType;
     gravityScale: number;
     linearDamping: number;
     angularDamping: number;
@@ -1407,7 +1407,7 @@ export interface ShadowCaster2DData {
 }
 
 export interface ShapeRendererData {
-    shapeType: number;
+    shapeType: ShapeType;
     color: Color;
     size: Vec2;
     cornerRadius: number;
@@ -1479,10 +1479,10 @@ export interface SpriteData {
  */
 export interface TilemapLayerData {
     cellSize: Vec2;
-    orientation: number;
+    orientation: TilemapOrientation;
     hexSideLength: number;
-    staggerAxis: number;
-    staggerIndex: number;
+    staggerAxis: TilemapStaggerAxis;
+    staggerIndex: TilemapStaggerIndex;
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
@@ -1532,15 +1532,15 @@ export interface UIInteractionData {
 
 export interface UIMaskData {
     enabled: boolean;
-    mode: number;
+    mode: MaskMode;
     alphaCutoff: number;
 }
 
 export interface UINodeData {
-    position: number;
-    display: number;
+    position: UIPositionType;
+    display: UIDisplay;
     opacity: number;
-    pointerEvents: number;
+    pointerEvents: UIPointerEvents;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;
@@ -1550,7 +1550,7 @@ export interface UINodeData {
     flexGrow: number;
     flexShrink: number;
     flexBasis: Dimension;
-    alignSelf: number;
+    alignSelf: AlignSelf;
     marginLeft: Dimension;
     marginTop: Dimension;
     marginRight: Dimension;
@@ -1566,7 +1566,7 @@ export interface UIScrollData {
     content: Entity;
     horizontal: boolean;
     vertical: boolean;
-    movement: number;
+    movement: ScrollMovement;
     wheelSpeed: number;
     dragScroll: boolean;
     decelerationRate: number;
@@ -1579,16 +1579,16 @@ export interface UIScrollData {
  * @beta
  */
 export interface UIVisualData {
-    visualType: number;
+    visualType: UIVisualType;
     texture: number;
     color: Color;
-    fit: number;
+    fit: UIVisualFit;
     uvOffset: Vec2;
     uvScale: Vec2;
     sliceBorder: Vec4;
     tileSize: Vec2;
-    fillMethod: number;
-    fillOrigin: number;
+    fillMethod: UIFillMethod;
+    fillOrigin: UIFillOrigin;
     fillAmount: number;
     material: number;
     enabled: boolean;

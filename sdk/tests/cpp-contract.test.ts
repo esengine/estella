@@ -18,7 +18,7 @@
  * handshake EHT already enforces for components.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { EasingType } from '../src/animation/Easing';
@@ -228,5 +228,35 @@ describe('C++ contract: enums that must stay their own declaration', () => {
         expect({ ...TextAlign }).toEqual({
             Left: gen.TextAlign.Left, Center: gen.TextAlign.Center, Right: gen.TextAlign.Right,
         });
+    });
+});
+
+describe('C++ contract: a component field that IS an enum is typed as one', () => {
+    // The generator knows which enum a field is — its C++ type is one, or
+    // ES_PROPERTY names one. Answering `number` leaves the field unable to
+    // reject a value the engine has no meaning for.
+    it('no ES_PROPERTY(enum=) field is generated as a bare number', () => {
+        const data = readFileSync(
+            resolve(__dirname, '../src/ecs/component.generated.ts'), 'utf8');
+        const loose: string[] = [];
+        for (const dir of ['ecs/components', 'renderer/components']) {
+            const at = resolve(CPP, dir);
+            if (!existsSync(at)) continue;
+            for (const name of readdirSync(at).filter((f) => f.endsWith('.hpp'))) {
+                const lines = readFileSync(resolve(at, name), 'utf8').split('\n');
+                lines.forEach((line, i) => {
+                    const enumName = /enum=([A-Za-z_]\w*)/.exec(line)?.[1];
+                    if (!enumName) return;
+                    const decl = lines.slice(i, i + 5)
+                        .map((l) => /^\s*(?:u8|u16|u32|i8|i16|i32)\s+(\w+)\s*[{=]/.exec(l)?.[1])
+                        .find(Boolean);
+                    if (!decl) return;
+                    if (!new RegExp(`^\\s*${decl}: ${enumName};$`, 'm').test(data)) {
+                        loose.push(`${name}: ${decl} should be generated as ${enumName}`);
+                    }
+                });
+            }
+        }
+        expect(loose).toEqual([]);
     });
 });

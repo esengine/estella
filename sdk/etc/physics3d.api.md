@@ -356,7 +356,7 @@ BuiltinComponentDef<RigidBody3DData>
 ## RigidBody3DData — interface @experimental
 ```
 angularDamping: number
-bodyType: number
+bodyType: BodyType
 continuousCollision: boolean
 enabled: boolean
 fixedRotation: boolean

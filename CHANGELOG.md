@@ -116,6 +116,19 @@ published separately; it ships inside the editor.
   nothing. The order is the library's now; what to say when the engine is not
   built stays with each caller, which is the half that is actually theirs.
 
+- **A component field that IS an enum is typed as one — 33 of them were `number`.**
+  The generator had the answer and threw it away: `if is_enum(t): return 'number'`,
+  with `ES_PROPERTY(enum=)` naming the enum for the fields stored as a `u8`. So
+  `Camera.projectionType`, `Light.type`, `ParticleEmitter.shape`,
+  `TilemapLayer.orientation`, the five `FlexContainer` fields and 24 more could
+  hold any number at all, and the enum spelling next to them was decoration.
+
+  They carry their enum now, imported from the generated module like the struct
+  types already were. **Tightening found nothing wrong** — the SDK, the editor,
+  the plugins and the examples all compile unchanged, which says the values were
+  right and the types could not say so. The behaviour is pinned by a test that
+  walks the C++ annotations, so putting `number` back turns it red.
+
 - **`check-enum-twins` — nine TS enums that restate a C++ one are held to it, and
   a machine says which ones nobody was holding.** These cross the boundary as
   bare numbers, so a drift raises nothing: the SDK writes 1 where the renderer

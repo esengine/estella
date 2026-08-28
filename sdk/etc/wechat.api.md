@@ -1217,7 +1217,7 @@ BuiltinComponentDef<BitmapTextData>
 
 ## BitmapTextData — interface @experimental
 ```
-align: number
+align: TextAlign
 color: Color
 enabled: boolean
 font: number
@@ -1554,7 +1554,7 @@ minY: number
 ## CameraData — interface @beta
 ```
 aspectRatio: number
-clearFlags: number
+clearFlags: ClearFlags
 cullingMask: number
 farPlane: number
 fov: number
@@ -1563,7 +1563,7 @@ nearPlane: number
 orthoSize: number
 pixelPerfect: boolean
 priority: number
-projectionType: number
+projectionType: ProjectionType
 renderTarget: number
 showFrustum: boolean
 viewport: Vec4
@@ -1688,7 +1688,7 @@ designResolution: Vec2
 layer: number
 matchWidthOrHeight: number
 pixelsPerUnit: number
-scaleMode: number
+scaleMode: CanvasScaleMode
 ```
 
 ## CanvasScale — interface @experimental
@@ -4113,7 +4113,7 @@ shadowDistance: number
 shadowExtent: number
 shadowSoftness: number
 sourceAngle: number
-type: number
+type: LightType
 ```
 
 ## LightType — enum @experimental
@@ -5202,7 +5202,7 @@ collisionEnabled: boolean
 collisionFloor: number
 collisionFriction: number
 collisionLifetimeLoss: number
-colorEasing: number
+colorEasing: ParticleEasing
 colorGradient: { stops: { t: number; color: Color; }[]; }
 damping: number
 duration: number
@@ -5225,13 +5225,13 @@ playOnStart: boolean
 rate: number
 rotationMax: number
 rotationMin: number
-shape: number
+shape: EmitterShape
 shapeAngle: number
 shapeRadius: number
 shapeSize: Vec3
-simulationSpace: number
+simulationSpace: SimulationSpace
 sizeCurve: { keys: { t: number; v: number; }[]; }
-sizeEasing: number
+sizeEasing: ParticleEasing
 speedMax: number
 speedMin: number
 spriteColumns: number
@@ -5244,7 +5244,7 @@ startSizeMin: number
 subEmitter: number
 subEmitterChance: number
 subEmitterInheritVelocity: number
-subEmitterTrigger: number
+subEmitterTrigger: SubEmitterTrigger
 texture: number
 trailEnabled: boolean
 trailMinDistance: number
@@ -5264,7 +5264,7 @@ enabled: boolean
 falloff: boolean
 radius: number
 strength: number
-type: number
+type: ForceFieldType
 ```
 
 ## ParticlePlugin — class @experimental
@@ -6583,7 +6583,7 @@ BuiltinComponentDef<RigidBody3DData>
 ## RigidBody3DData — interface @experimental
 ```
 angularDamping: number
-bodyType: number
+bodyType: BodyType
 continuousCollision: boolean
 enabled: boolean
 fixedRotation: boolean
@@ -7167,7 +7167,7 @@ cornerRadius: number
 enabled: boolean
 layer: number
 parallax: Vec2
-shapeType: number
+shapeType: ShapeType
 size: Vec2
 ```
 
@@ -8254,12 +8254,12 @@ BuiltinComponentDef<TilemapLayerData>
 cellSize: Vec2
 hexSideLength: number
 opacity: number
-orientation: number
+orientation: TilemapOrientation
 originOffset: Vec2
 parallaxFactor: Vec2
 renderLayer: number
-staggerAxis: number
-staggerIndex: number
+staggerAxis: TilemapStaggerAxis
+staggerIndex: TilemapStaggerIndex
 tileset: number
 tilesetColumns: number
 tintColor: Color
