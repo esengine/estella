@@ -125,6 +125,7 @@ export {
     BUILTIN_MESH_TEMPLATES, builtinMeshTemplate, isBuiltinMeshRef,
     type BuiltinMeshTemplate,
 } from './asset/builtinMeshes';
+export { AssetScope, type AssetLease } from './asset/AssetLease';
 export { createCanvasTexture, type CanvasTexture } from './asset/canvasTexture';
 export type { GlImageSource } from './asset/glTextureUpload';
 

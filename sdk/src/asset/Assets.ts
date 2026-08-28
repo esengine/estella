@@ -18,7 +18,8 @@ import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
-import { AssetRefLedger } from './AssetRefLedger';
+import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
+import type { AssetLease } from './AssetLease';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -265,6 +266,21 @@ export type AssetRefResolver = (ref: string) => string | null;
  *    renaming or moving the file breaks nothing. Not hand-written; the realm's
  *    resolver turns it back into the path above before any fetch.
  */
+/**
+ * A path-addressed release had more than one generation to choose from, so it
+ * took the oldest and may have freed somebody else's asset. Reported once per
+ * key: the caller that can carry a lease should, and one that cannot needs to
+ * hear it once, not every frame.
+ */
+const ambiguousWarned_ = new Set<string>();
+function warnAmbiguousRelease_(key: string): void {
+    if (ambiguousWarned_.has(key)) return;
+    ambiguousWarned_.add(key);
+    log.warn('asset',
+        `release("${key}") had more than one live generation and released the oldest — `
+        + 'which may not be the one the caller holds. Release it by its lease instead.');
+}
+
 export class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;
@@ -443,6 +459,12 @@ export class Assets {
     }
 
     private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
+        return (await this.acquireTextureVariant_(ref, flip)).result;
+    }
+
+    private async acquireTextureVariant_(
+        ref: string, flip: boolean,
+    ): Promise<{ result: TextureResult; lease: AssetRefLease<number> }> {
         const path = this.resolveLoadPath_(ref);
         const cacheKey = this.textureCacheKey_(path, flip);
         const settings = this.textureImportResolver_?.(ref);
@@ -471,7 +493,7 @@ export class Assets {
                 `Assets were released while "${ref}" was loading; its texture has no owner. Load it again.`,
             );
         }
-        this.textureRefs_.acquire(cacheKey, result.handle);
+        const lease = this.textureRefs_.acquire(cacheKey, result.handle);
         this.recordHandlePath_('texture', result.handle, path);
         // The 9-slice border belongs to the IMAGE, so it rides its import
         // settings and is stamped onto the handle here — the one place every
@@ -482,7 +504,7 @@ export class Assets {
             const b = settings.sliceBorder;
             requireResourceManager().setTextureMetadata(result.handle, b.left, b.right, b.top, b.bottom);
         }
-        return result;
+        return { result, lease };
     }
 
     /**
@@ -559,7 +581,11 @@ export class Assets {
     }
 
     async loadAnimClip(ref: string): Promise<AnimClipResult> {
-        const result = await this.loadTyped<AnimClipResult>('anim-clip', ref);
+        return (await this.acquireAnimClip_(ref)).value;
+    }
+
+    private async acquireAnimClip_(ref: string): Promise<AssetLease<AnimClipResult>> {
+        const { value: result, lease } = await this.acquireTyped_<AnimClipResult>('anim-clip', ref);
         // The loader registers the clip under its RESOLVED load path (an absolute
         // URL in realms whose ref resolver returns fetchable URLs, e.g. the play
         // realm), but SpriteAnimator/Animator reference clips by the SERIALIZED
@@ -572,7 +598,10 @@ export class Assets {
             const clip = anim.getClip(result.clipId);
             if (clip && !anim.getClip(ref)) anim.aliasClip(ref, clip);
         }
-        return result;
+        return {
+            key: lease.key, generation: lease.generation, value: result,
+            release: () => this.releaseTypedLease('anim-clip', lease),
+        };
     }
 
     async loadTilemap(ref: string): Promise<TilemapResult> {
@@ -1143,27 +1172,27 @@ export class Assets {
         // with hundreds of assets doesn't saturate the network or tie up
         // image decoders all at once.
         const tasks: Array<() => Promise<void>> = [];
-        const pushHandleLoad = (
-            paths: Set<string>, loader: (p: string) => Promise<{ handle: number }>,
-            handles: Map<string, number>, label: string,
+        /**
+         * One task per path. The receipt is recorded only when the acquire
+         * SUCCEEDED — a failed load owns nothing, so there is nothing for the
+         * scene to give back and nothing to guess about at unload.
+         */
+        const pushAcquire = <T>(
+            paths: Set<string>,
+            acquire: (p: string) => Promise<AssetLease<T>>,
+            label: string,
+            handles?: Map<string, number>,
         ): void => {
             for (const path of paths) {
                 tasks.push(() =>
-                    loader(path).then(r => { handles.set(path, r.handle); }).catch(e => {
+                    acquire(path).then(lease => {
+                        releaseCallbacks.push(() => lease.release());
+                        if (handles) {
+                            handles.set(path, (lease.value as { handle?: number } | null)?.handle ?? 0);
+                        }
+                    }).catch(e => {
                         log.warn('asset', `Failed to load ${label}: ${path}`, e);
-                        handles.set(path, 0);
-                        recordFailure(path, label, e);
-                    }),
-                );
-            }
-        };
-        const pushFireAndForget = (
-            paths: Set<string>, loader: (p: string) => Promise<unknown>, label: string,
-        ): void => {
-            for (const path of paths) {
-                tasks.push(() =>
-                    loader(path).then(() => {}).catch(e => {
-                        log.warn('asset', `Failed to load ${label}: ${path}`, e);
+                        handles?.set(path, 0);
                         recordFailure(path, label, e);
                     }),
                 );
@@ -1176,18 +1205,19 @@ export class Assets {
         // which is the resolver's documented contract. Resolution happens inside
         // loadTexture anyway, so the bytes fetched are identical either way —
         // feeding it the resolved path only strips the lookup of its key.
-        pushHandleLoad(
+        pushAcquire(
             texturePaths,
-            p => this.loadTexture(discovered.rawFor.get(p) ?? p),
-            textureHandles,
+            p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
             'texture',
+            textureHandles,
         );
-        pushHandleLoad(materialPaths, p => this.loadMaterial(p), materialHandles, 'material');
-        pushHandleLoad(fontPaths, p => this.loadFont(p), fontHandles, 'font');
-        pushHandleLoad(meshPaths, p => this.loadTyped<{ handle: number }>('mesh', p), meshHandles, 'mesh');
-        pushHandleLoad(environmentPaths,
-                       p => this.loadTyped<{ handle: number }>('environment', p),
-                       environmentHandles, 'environment');
+        pushAcquire(materialPaths, p => this.acquireTyped<MaterialResult>('material', p),
+                    'material', materialHandles);
+        pushAcquire(fontPaths, p => this.acquireTyped<FontResult>('font', p), 'font', fontHandles);
+        pushAcquire(meshPaths, p => this.acquireTyped<{ handle: number }>('mesh', p),
+                    'mesh', meshHandles);
+        pushAcquire(environmentPaths, p => this.acquireTyped<{ handle: number }>('environment', p),
+                    'environment', environmentHandles);
         // The runtime scene loader owns spine as a two-phase load+apply through the
         // SpineManager (skeletons must bind to spawned entities); it opts out here so
         // spine page textures / virtual-FS writes aren't done twice.
@@ -1201,17 +1231,17 @@ export class Assets {
                 );
             }
         }
-        pushFireAndForget(animClipPaths, p => this.loadAnimClip(p), 'anim-clip');
-        pushFireAndForget(tilemapPaths, p => this.loadTilemap(p), 'tilemap');
-        pushFireAndForget(tilesetPaths, p => this.loadTileset(p), 'tileset');
-        pushFireAndForget(timelinePaths, p => this.loadTimeline(p), 'timeline');
-        pushFireAndForget(audioPaths, p => this.loadAudio(p), 'audio');
+        pushAcquire(animClipPaths, p => this.acquireAnimClip_(p), 'anim-clip');
+        pushAcquire(tilemapPaths, p => this.acquireTyped('tilemap', p), 'tilemap');
+        pushAcquire(tilesetPaths, p => this.acquireTyped('tileset', p), 'tileset');
+        pushAcquire(timelinePaths, p => this.acquireTyped('timeline', p), 'timeline');
+        pushAcquire(audioPaths, p => this.acquireTyped('audio', p), 'audio');
         // FSM/BT loaders register the parsed definition into the shared AI store
         // under the asset path, so a StateMachineAgent/BehaviorTreeAgent whose
         // fsm/bt is that path resolves once the scene finishes preloading.
-        pushFireAndForget(fsmPaths, p => this.loadTyped('statemachine', p), 'statemachine');
-        pushFireAndForget(btPaths, p => this.loadTyped('behaviortree', p), 'behaviortree');
-        pushFireAndForget(animatorPaths, p => this.loadTyped('animatorcontroller', p), 'animatorcontroller');
+        pushAcquire(fsmPaths, p => this.acquireTyped('statemachine', p), 'statemachine');
+        pushAcquire(btPaths, p => this.acquireTyped('behaviortree', p), 'behaviortree');
+        pushAcquire(animatorPaths, p => this.acquireTyped('animatorcontroller', p), 'animatorcontroller');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -1312,6 +1342,34 @@ export class Assets {
     }
 
     // =========================================================================
+    // Acquire — the same loads, but handing back an ownership receipt
+    // =========================================================================
+
+    /**
+     * Load a texture and get the receipt for THIS acquisition.
+     *
+     * The difference from {@link loadTexture} is who can be released correctly
+     * afterwards: a path names an asset, a lease names the instance this caller
+     * was handed. After `invalidate()` those are no longer the same thing.
+     */
+    async acquireTexture(ref: string): Promise<AssetLease<TextureResult>> {
+        const { result, lease } = await this.acquireTextureVariant_(ref, true);
+        return {
+            key: lease.key, generation: lease.generation, value: result,
+            release: () => this.releaseTextureLease(lease),
+        };
+    }
+
+    /** {@link acquireTexture} for everything that goes through a typed loader. */
+    async acquireTyped<T>(type: string, ref: string): Promise<AssetLease<T>> {
+        const { value, lease } = await this.acquireTyped_<T>(type, ref);
+        return {
+            key: lease.key, generation: lease.generation, value,
+            release: () => this.releaseTypedLease(type, lease),
+        };
+    }
+
+    // =========================================================================
     // Release
     // =========================================================================
 
@@ -1319,21 +1377,32 @@ export class Assets {
         const path = this.resolveLoadPath_(ref);
         for (const flip of [true, false]) {
             const key = this.textureCacheKey_(path, flip);
-            const dropped = this.textureRefs_.release(key);
-            if (!dropped?.exhausted) continue;
-
-            // Last SDK reference: drop our one C++ ref. The pool decides what
-            // that means — free immediately (no budget), or retain as an
-            // evictable cache entry that the next load revives by key.
-            requireResourceManager().releaseTexture(dropped.value);
-            evictTextureDimensions(dropped.value);
-            // Only when it is still the cached value: a superseded handle left
-            // the cache when its generation ended, and the entry there now
-            // belongs to a generation with holders of its own.
-            if (this.textureCache_.get(key)?.handle === dropped.value) {
-                this.textureCache_.delete(key);
-            }
+            const dropped = this.textureRefs_.releaseOldest(key);
+            if (!dropped) continue;
+            if (dropped.ambiguous) warnAmbiguousRelease_(key);
+            if (dropped.exhausted) this.disposeTexture_(key, dropped.value);
         }
+    }
+
+    /**
+     * Give back one texture acquisition by its receipt — exact even when
+     * `invalidate()` left two generations of the same path live.
+     */
+    releaseTextureLease(lease: AssetRefLease<number>): void {
+        const dropped = this.textureRefs_.release(lease);
+        if (dropped?.exhausted) this.disposeTexture_(lease.key, dropped.value);
+    }
+
+    /** The last SDK reference to a texture handle is gone: let the C++ pool decide. */
+    private disposeTexture_(key: string, handle: number): void {
+        // The pool decides what that means — free immediately (no budget), or
+        // retain as an evictable cache entry that the next load revives by key.
+        requireResourceManager().releaseTexture(handle);
+        evictTextureDimensions(handle);
+        // Only when it is still the cached value: a superseded handle left the
+        // cache when its generation ended, and the entry there now belongs to a
+        // generation with holders of its own.
+        if (this.textureCache_.get(key)?.handle === handle) this.textureCache_.delete(key);
     }
 
     releaseFont(ref: string): void {
@@ -1400,12 +1469,28 @@ export class Assets {
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
         const key = `${type}:${path}`;
-        const dropped = this.genericRefs_.release(key);
-        if (!dropped?.exhausted) return;
+        const dropped = this.genericRefs_.releaseOldest(key);
+        if (!dropped) return;
+        if (dropped.ambiguous) warnAmbiguousRelease_(key);
+        if (dropped.exhausted) this.disposeGeneric_(type, path, dropped.value);
+    }
 
-        this.loaders_.get(type)?.unload(dropped.value, this.getLoadContext_());
+    /**
+     * Give back one typed acquisition by its receipt — exact even when
+     * `invalidate()` left two generations of the same path live.
+     */
+    releaseTypedLease(type: string, lease: AssetRefLease<unknown>): void {
+        const dropped = this.genericRefs_.release(lease);
+        if (!dropped?.exhausted) return;
+        const path = lease.key.slice(type.length + 1);
+        this.disposeGeneric_(type, path, dropped.value);
+    }
+
+    /** The last reference to a typed asset is gone: hand it to its loader. */
+    private disposeGeneric_(type: string, path: string, value: unknown): void {
+        this.loaders_.get(type)?.unload(value, this.getLoadContext_());
         const cache = this.genericCache_.get(type);
-        if (cache && cache.get(path) === dropped.value) cache.delete(path);
+        if (cache && cache.get(path) === value) cache.delete(path);
     }
 
     /**
@@ -1442,7 +1527,10 @@ export class Assets {
             if (this.textureCache_.invalidate(key)) hit = true;
             // The ledger is NOT dropped: holders of the outgoing generation
             // still owe a release, and forgetting them is what stranded their
-            // texture with nobody able to free it.
+            // texture with nobody able to free it. Its era ends here, though —
+            // the next acquire opens a generation of its own even if the pool
+            // hands back a numerically equal handle.
+            this.textureRefs_.supersede(key);
             if (typeof rm?.invalidateTexturePath === 'function') {
                 if (rm.invalidateTexturePath(key)) hit = true;
             }
@@ -1451,7 +1539,9 @@ export class Assets {
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
         for (const [type, cache] of this.genericCache_.entries()) {
             if (cache.invalidate(path)) hit = true;
-            // The ledger stays: the outgoing generation's holders still owe a release.
+            // The ledger stays: the outgoing generation's holders still owe a
+            // release. Its era is closed so the next acquire cannot join it.
+            this.genericRefs_.supersede(`${type}:${path}`);
         }
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
@@ -1734,6 +1824,12 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
+        return (await this.acquireTyped_<T>(type, ref)).value;
+    }
+
+    private async acquireTyped_<T>(
+        type: string, ref: string,
+    ): Promise<{ value: T; lease: AssetRefLease<unknown> }> {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         if (!loader) {
             throw new Error(`No loader registered for type: ${type}`);
@@ -1749,10 +1845,10 @@ export class Assets {
         const result = await (cache.getOrLoad(path, () =>
             loader.load(path, this.getLoadContext_()),
         ) as Promise<T>);
-        this.genericRefs_.acquire(`${type}:${path}`, result);
+        const lease = this.genericRefs_.acquire(`${type}:${path}`, result);
         const handle = (result as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
-        return result;
+        return { value: result, lease };
     }
 
     private getLoadContext_(): LoadContext {
