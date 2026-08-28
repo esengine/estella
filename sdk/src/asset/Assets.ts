@@ -1406,8 +1406,9 @@ export class Assets {
     }
 
     /**
-     * Give back one texture acquisition by its receipt — exact even when
-     * `invalidate()` left two generations of the same path live.
+     * @internal Give back one texture acquisition by its receipt — exact even
+     * when `invalidate()` left two generations of the same path live. Callers
+     * hold an {@link AssetLease} and use its `release()`.
      */
     releaseTextureLease(lease: AssetRefLease<number>): void {
         const dropped = this.textureRefs_.release(lease);
@@ -1497,8 +1498,8 @@ export class Assets {
     }
 
     /**
-     * Give back one typed acquisition by its receipt — exact even when
-     * `invalidate()` left two generations of the same path live.
+     * @internal The typed twin of {@link releaseTextureLease}; callers use the
+     * lease's own `release()`.
      */
     releaseTypedLease(type: string, lease: AssetRefLease<unknown>): void {
         const dropped = this.genericRefs_.release(lease);
