@@ -119,7 +119,7 @@ export const GATES = [
     // master carrying a stamp older than their own GLSL.
     id: 'wgsl-twin-fresh',
     run: "if [ -f build/wasm/web/esengine.js ]; then "
-      + "node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader'); "
+      + "node tools/gen-shader-twins.mjs --check fixtures/scenes examples; "
       + "else echo 'wgsl-twin-fresh: skipped — no built engine in build/wasm/web'; fi",
     where: 'local',
     why: 'the check cooks each shader to hash the ASSEMBLED GLSL, so it needs the built engine and skips a machine without one; the render CI job runs it where the binary is',

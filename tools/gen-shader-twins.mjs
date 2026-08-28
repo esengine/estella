@@ -38,7 +38,7 @@
  * the GLSL side uses. Past three toggles the file is skipped and says so —
  * each one doubles the emitted programs.
  */
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -427,12 +427,29 @@ export async function processFile(module, file, opts) {
   }
 }
 
+/** Every .esshader under a directory, or the file itself. A caller that had to
+ *  list them needed a shell to do it, and `find` on Windows is a text search that
+ *  answers "File not found" and exits 0 -- so the gate ran on an empty list. */
+async function expand(arg) {
+  if (!(await stat(arg)).isDirectory()) return [arg];
+  const out = [];
+  for (const e of await readdir(arg, { withFileTypes: true, recursive: true })) {
+    if (e.isFile() && e.name.endsWith('.esshader')) out.push(path.join(e.parentPath ?? e.path, e.name));
+  }
+  return out.sort();
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const opts = { check: args.includes('--check'), force: args.includes('--force') };
-  const files = args.filter((a) => !a.startsWith('--'));
+  const roots = args.filter((a) => !a.startsWith('--'));
+  if (roots.length === 0) {
+    console.error('usage: node tools/gen-shader-twins.mjs [--check] [--force] <file.esshader | dir ...>');
+    process.exit(2);
+  }
+  const files = (await Promise.all(roots.map(expand))).flat();
   if (files.length === 0) {
-    console.error('usage: node tools/gen-shader-twins.mjs [--check] [--force] <file.esshader ...>');
+    console.error(`gen-shader-twins: no .esshader under ${roots.join(', ')}`);
     process.exit(2);
   }
 

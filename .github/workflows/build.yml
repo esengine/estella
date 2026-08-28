@@ -302,7 +302,7 @@ jobs:
     # is WebGPU-dead by design and gen-shader-twins --check exits 1 on it. Covers
     # examples/ too so a shipped user shader can never regress to WebGL-only.
     - name: Check shader twins
-      run: node tools/gen-shader-twins.mjs --check $(find fixtures/scenes examples -name '*.esshader')
+      run: node tools/gen-shader-twins.mjs --check fixtures/scenes examples
 
     # Pipeline smoke: strip a fixture's twins into a temp copy and require the
     # vendored converters (glslang wasm + naga WASI wasm) to produce one —
