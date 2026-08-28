@@ -139,10 +139,12 @@ describe('Assets.loadGroup', () => {
     it('dispatches every asset in a group through the typed loader, into the bundle', async () => {
         const assets = createAssets();
         assets.setManifest(createManifest());
-        // Spy the single texture channel so the assertion is about loadGroup's
-        // dispatch, not the mock's image-decode pipeline.
-        const spy = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 42, width: 64, height: 64 } as any);
+        // Spy the texture channel's acquire door so the assertion is about
+        // loadGroup's dispatch, not the mock's image-decode pipeline.
+        const spy = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:x', generation: 1,
+            value: { handle: 42, width: 64, height: 64 }, release: () => {},
+        } as any);
 
         const progressCalls: [number, number][] = [];
         const bundle = await assets.loadGroup('main', (loaded, total) => {
@@ -159,8 +161,10 @@ describe('Assets.loadGroup', () => {
     it('loads a different group independently', async () => {
         const assets = createAssets();
         assets.setManifest(createManifest());
-        const spy = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 7, width: 1, height: 1 } as any);
+        const spy = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:x', generation: 1,
+            value: { handle: 7, width: 1, height: 1 }, release: () => {},
+        } as any);
         const bundle = await assets.loadGroup('extra');
         expect(spy).toHaveBeenCalledTimes(1);
         expect(spy).toHaveBeenCalledWith('tex3.png');
@@ -193,7 +197,7 @@ describe('Assets.loadGroup', () => {
         sub.mockClear();
         const assets = createAssets();
         assets.setManifest(createManifest());
-        vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        vi.spyOn(assets, 'acquireTexture').mockResolvedValue({ key: 'texture:x', generation: 1, value: { handle: 1, width: 1, height: 1 }, release: () => {} } as any);
         await assets.loadGroup('extra'); // createManifest: 'extra' is bundleMode 'lazy'
         expect(sub).toHaveBeenCalledWith('extra');
     });
@@ -203,7 +207,7 @@ describe('Assets.loadGroup', () => {
         sub.mockClear();
         const assets = createAssets();
         assets.setManifest(createManifest());
-        vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        vi.spyOn(assets, 'acquireTexture').mockResolvedValue({ key: 'texture:x', generation: 1, value: { handle: 1, width: 1, height: 1 }, release: () => {} } as any);
         await assets.loadGroup('main'); // bundleMode 'local'
         expect(sub).not.toHaveBeenCalled();
     });

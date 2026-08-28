@@ -46,14 +46,19 @@ const backend = {
 const TYPES: Array<{
     type: AddressableAssetType;
     loadMethod: keyof Assets;
+    /** The typed door's first argument; absent when the method takes the path first. */
+    loadArg?: string;
     releasesVia: string | null;
 }> = [
-    { type: 'texture', loadMethod: 'loadTexture', releasesVia: 'texture' },
-    { type: 'material', loadMethod: 'loadMaterial', releasesVia: 'material' },
-    { type: 'font', loadMethod: 'loadFont', releasesVia: 'font' },
-    { type: 'bitmap-font', loadMethod: 'loadFont', releasesVia: 'font' },
-    { type: 'prefab', loadMethod: 'loadPrefab', releasesVia: 'prefab' },
-    { type: 'audio', loadMethod: 'loadAudio', releasesVia: 'audio' },
+    // The group loads through the ACQUIRE doors, so what it takes out is
+    // recorded as a receipt on the bundle rather than left to be guessed from
+    // the manifest at release time.
+    { type: 'texture', loadMethod: 'acquireTexture', releasesVia: 'texture' },
+    { type: 'material', loadMethod: 'acquireTyped', loadArg: 'material', releasesVia: 'material' },
+    { type: 'font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
+    { type: 'bitmap-font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
+    { type: 'prefab', loadMethod: 'acquireTyped', loadArg: 'prefab', releasesVia: 'prefab' },
+    { type: 'audio', loadMethod: 'acquireTyped', loadArg: 'audio', releasesVia: 'audio' },
     // Skeletons bind to spawned entities and belong to the SpineManager
     // lifecycle; releasing one here could yank it from under a live entity.
     { type: 'spine', loadMethod: 'loadSpine', releasesVia: null },
@@ -77,15 +82,22 @@ describe.each(TYPES)('group channel: $type', (row) => {
         const assets = Assets.create({ backend, module: mockModule });
         assets.setManifest(manifestWith(row.type));
 
-        const load = vi.spyOn(assets, row.loadMethod as 'loadTexture')
-            .mockResolvedValue({ handle: 1, width: 1, height: 1 } as never);
+        const load = vi.spyOn(assets, row.loadMethod as 'acquireTexture')
+            .mockResolvedValue({
+                key: `${row.type}:a.bin`, generation: 1,
+                value: { handle: 1, width: 1, height: 1 }, release: () => {},
+            } as never);
         // releaseTexture and releaseTyped are the only two release doors; both
         // are watched so a row cannot pass by going through neither.
         const releaseTexture = vi.spyOn(assets, 'releaseTexture').mockImplementation(() => {});
         const releaseTyped = vi.spyOn(assets, 'releaseTyped').mockImplementation(() => {});
 
         await assets.loadGroup('dlc');
-        expect(load, `loadGroup never loaded a ${row.type}`).toHaveBeenCalledWith('a.bin');
+        if (row.loadArg) {
+            expect(load, `loadGroup never loaded a ${row.type}`).toHaveBeenCalledWith(row.loadArg, 'a.bin');
+        } else {
+            expect(load, `loadGroup never loaded a ${row.type}`).toHaveBeenCalledWith('a.bin');
+        }
 
         assets.releaseGroup('dlc');
 
@@ -111,8 +123,10 @@ describe('group release addressing', () => {
         // a leak that looks exactly like a working release.
         const assets = Assets.create({ backend, module: mockModule });
         assets.setManifest(manifestWith('texture'));
-        const load = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 1, width: 1, height: 1 } as never);
+        const load = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:a.bin', generation: 1,
+            value: { handle: 1, width: 1, height: 1 }, release: () => {},
+        } as never);
         const release = vi.spyOn(assets, 'releaseTexture').mockImplementation(() => {});
 
         await assets.loadGroup('dlc');

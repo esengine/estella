@@ -82,8 +82,10 @@ describe('Assets.loadGroup — remote group', () => {
         const assets = createAssets(backendServing());
         assets.setManifest(cdnManifest('aaaa', 'rev-1'));
         assets.setRemoteRoot('https://cdn.example.com/build/');
-        const spy = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        const spy = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:x', generation: 1,
+            value: { handle: 1, width: 1, height: 1 }, release: () => {},
+        } as any);
 
         await assets.loadGroup('cdn');
 
@@ -94,8 +96,10 @@ describe('Assets.loadGroup — remote group', () => {
         const assets = createAssets(backendServing());
         assets.setManifest(cdnManifest('bbbb', 'rev-1'));
         assets.setRemoteRoot('https://cdn.example.com');
-        const spy = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
+        const spy = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:x', generation: 1,
+            value: { handle: 1, width: 1, height: 1 }, release: () => {},
+        } as any);
 
         await assets.loadGroup('cdn');
 

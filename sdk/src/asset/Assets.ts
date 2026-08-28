@@ -157,10 +157,22 @@ export interface AssetBundle {
     materials: Map<string, MaterialResult>;
     spine: Map<string, SpineResult>;
     fonts: Map<string, FontResult>;
+    /**
+     * What this load actually acquired. Release through it rather than by group
+     * name: a manifest can be updated between the two, and then the group's
+     * membership is no longer the set this bundle took out.
+     */
+    scope: AssetScope;
+    /** Give back everything this bundle acquired. Idempotent. */
+    release(): void;
 }
 
 function emptyBundle(): AssetBundle {
-    return { textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map() };
+    const scope = new AssetScope();
+    return {
+        textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map(),
+        scope, release: () => scope.releaseAll(),
+    };
 }
 
 
@@ -181,22 +193,26 @@ interface GroupAssetChannel {
 
 const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
     texture: {
-        load: (a, path, b) => a.loadTexture(path).then((r) => { b.textures.set(path, r); }),
+        load: (a, path, b) => a.acquireTexture(path)
+            .then((l) => { b.scope.add(l); b.textures.set(path, l.value); }),
         release: (a, path) => a.releaseTexture(path),
         displayable: true,
     },
     material: {
-        load: (a, path, b) => a.loadMaterial(path).then((r) => { b.materials.set(path, r); }),
+        load: (a, path, b) => a.acquireTyped<MaterialResult>('material', path)
+            .then((l) => { b.scope.add(l); b.materials.set(path, l.value); }),
         release: (a, path) => a.releaseTyped('material', path),
         displayable: true,
     },
     font: {
-        load: (a, path, b) => a.loadFont(path).then((r) => { b.fonts.set(path, r); }),
+        load: (a, path, b) => a.acquireTyped<FontResult>('font', path)
+            .then((l) => { b.scope.add(l); b.fonts.set(path, l.value); }),
         release: (a, path) => a.releaseTyped('font', path),
         displayable: true,
     },
     'bitmap-font': {
-        load: (a, path, b) => a.loadFont(path).then((r) => { b.fonts.set(path, r); }),
+        load: (a, path, b) => a.acquireTyped<FontResult>('font', path)
+            .then((l) => { b.scope.add(l); b.fonts.set(path, l.value); }),
         release: (a, path) => a.releaseTyped('font', path),
         displayable: true,
     },
@@ -209,12 +225,12 @@ const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
         displayable: true,
     },
     prefab: {
-        load: (a, path) => a.loadPrefab(path).then(() => {}),
+        load: (a, path, b) => a.acquireTyped('prefab', path).then((l) => { b.scope.add(l); }),
         release: (a, path) => a.releaseTyped('prefab', path),
         displayable: false,
     },
     audio: {
-        load: (a, path) => a.loadAudio(path).then(() => {}),
+        load: (a, path, b) => a.acquireTyped('audio', path).then((l) => { b.scope.add(l); }),
         release: (a, path) => a.releaseTyped('audio', path),
         displayable: false,
     },
@@ -784,14 +800,11 @@ export class Assets {
     }
 
     /**
-     * Release every asset {@link loadGroup} acquired for a group — the
-     * symmetric other half of on-demand delivery. Each asset goes through its
-     * type's canonical release channel, so reference counting decides what
-     * actually happens: an asset another scene or group still holds survives;
-     * one nobody holds drops to the evictable warm cache (textures, audio)
-     * or unloads. Call it when the player leaves the area the group backs;
-     * bouncing back is then absorbed by the warm caches instead of the
-     * network. Requires a manifest, like loadGroup; no-op without one.
+     * Release every asset the group's CURRENT membership names.
+     *
+     * @details Prefer `bundle.release()` on what {@link loadGroup} returned:
+     *          this door re-reads the manifest, so an update between the two
+     *          releases a set the load never took. No-op without a manifest.
      */
     releaseGroup(groupName: string): void {
         const model = this.manifestModel_;

@@ -16,6 +16,7 @@ import { Assets } from '../src/asset/Assets';
 import { AssetRefLedger } from '../src/asset/AssetRefLedger';
 import { AssetScope } from '../src/asset/AssetLease';
 import type { Backend } from '../src/asset/Backend';
+import type { AddressableManifest } from '../src/asset/AddressableManifest';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: vi.fn(() => false) }),
@@ -183,6 +184,35 @@ describe('asset ownership is generation-exact', () => {
         expect(unloaded).toHaveLength(11);
         expect(new Set(unloaded).size).toBe(11);      // no era freed twice
         expect(assets.sizes().refRows).toBe(base);    // and none stranded
+    });
+
+    it('a group bundle releases what it took, not what the manifest says today', async () => {
+        // Releasing by group NAME re-reads the manifest to decide what to give
+        // back. With atomic manifest updates that set is no longer the one this
+        // load took out, so the bundle carries its own receipts instead.
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const base = assets.sizes().refRows;
+        const manifestWith = (path: string): AddressableManifest => ({
+            version: '2.0',
+            groups: {
+                area: {
+                    bundleMode: 'local', labels: [],
+                    assets: { [path]: { path, type: 'font', size: 8, labels: [] } },
+                },
+            },
+        });
+
+        assets.setManifest(manifestWith('old.ttf'));
+        const bundle = await assets.loadGroup('area');
+        expect(bundle.scope.size).toBe(1);
+
+        // The world moves on: a hot update rewrites what "area" contains.
+        assets.setManifest(manifestWith('new.ttf'));
+
+        bundle.release();
+        expect(unloaded).toEqual(['gen1']);            // what it actually took
+        expect(assets.sizes().refRows).toBe(base);     // and nothing stranded
     });
 
     it('a scope releases what it actually acquired', async () => {
