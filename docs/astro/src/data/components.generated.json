@@ -4219,7 +4219,8 @@
         {
           "key": "wrapMode",
           "type": "string",
-          "default": "\"once\""
+          "default": "empty",
+          "doc": "Override the clip's own wrap mode: once, loop or pingPong. Empty uses what the clip declares."
         },
         {
           "key": "finished",
