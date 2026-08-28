@@ -162,12 +162,9 @@ describe('App.stepFrames()', () => {
         expect(app.isPaused()).toBe(true);
     });
 
-    // A display hands out frames on a metronome; the callback that draws them does
-    // not start on one. Measuring delta at callback entry puts that start delay's
-    // variance into delta TWICE — added to one frame, subtracted from the next —
-    // so a steady 60 Hz becomes an unsteady delta, and `speed * delta` motion moves
-    // in unequal steps. The rAF timestamp is the vsync itself, which is the clock
-    // the frame is actually drawn against.
+    // Measuring delta at callback entry folds the scheduling jitter in twice —
+    // added to one frame, subtracted from the next — turning a steady 60 Hz into
+    // unequal `speed * delta` steps. The rAF timestamp is the vsync itself.
     it('takes the frame clock from the animation-frame timestamp, not the callback entry time', async () => {
         const realRaf = globalThis.requestAnimationFrame;
         let pending: ((ts: number) => void) | null = null;

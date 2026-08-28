@@ -690,16 +690,9 @@ export function cameraPlugin(
 
                     pipeline.setActiveScenes(activeScenes ?? null);
 
-                    // The frame opens, and the world's transforms resolve, BEFORE any
-                    // camera is read. A camera's view is built from its Transform's
-                    // worldPosition, and the transform pass is what writes it: run
-                    // behind the read — its old home, inside submitScene — it handed
-                    // every camera the PREVIOUS frame's placement while the sprites
-                    // drew at this frame's, so a camera moved in Update trailed the
-                    // world it was looking at by exactly one frame. beginFrame is what
-                    // clears the pass's once-per-frame memo, so it has to lead; the
-                    // call still inside submitScene then finds the answer and costs
-                    // nothing.
+                    // Transforms resolve BEFORE any camera is read — a view is built
+                    // from Transform.worldPosition, and a pass behind the read hands
+                    // back the previous frame's placement. beginFrame clears the memo.
                     pipeline.beginFrame(elapsed);
                     app.measureFrameScope('render.updateTransforms', () =>
                         Renderer.updateTransforms({ _cpp: cppRegistry }));

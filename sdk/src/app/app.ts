@@ -1051,17 +1051,9 @@ export class App {
             return;
         }
 
-        // The frame's clock is the rAF timestamp, not the moment this callback got
-        // to run. The timestamp names the vsync the frame is being drawn for, so
-        // consecutive frames are exactly one refresh interval apart; platformNow()
-        // here measures instead WHEN the browser got round to calling us, and that
-        // delay's frame-to-frame variance enters delta twice — added to one frame,
-        // subtracted from the next. A perfectly regular display then hands out an
-        // irregular delta, and everything integrating `speed * delta` advances by
-        // unequal steps: judder, worst on a camera pan, where the whole screen moves.
-        // A host that passes no timestamp (a native shell driving its own loop) keeps
-        // the old measurement; the clamp below absorbs the one frame where the two
-        // clocks meet.
+        // The frame clock is the rAF timestamp — the vsync being drawn for — not
+        // callback entry, whose jitter would enter delta twice and judder motion.
+        // A host that passes no timestamp keeps the old measurement.
         const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
         const deltaMs = currentTime - this.lastTime_;
 
