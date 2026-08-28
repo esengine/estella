@@ -4763,6 +4763,18 @@
       ]
     },
     {
+      "name": "UIToggleGroup",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "allowSwitchOff",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Let a click turn the selected toggle off, leaving none selected."
+        }
+      ]
+    },
+    {
       "name": "UIVisual",
       "source": "cpp",
       "fields": [

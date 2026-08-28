@@ -136,8 +136,10 @@ export {
 
 export {
     UIToggle,
+    UIToggleGroup,
     createToggleSystem,
     type UIToggleData,
+    type UIToggleGroupData,
 } from './behavior/toggle';
 
 export {

@@ -21,7 +21,7 @@ import { UIInteraction, type UIInteractionData } from '../input/interactable';
 import { getEntityDepth, walkParentChain } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
 import { UISlider, createSliderSystem } from './slider';
-import { UIToggle, createToggleSystem } from './toggle';
+import { UIToggle, UIToggleGroup, createToggleSystem } from './toggle';
 import { UIDropdown, createDropdownSystem } from './dropdown';
 import { createScrollbarSystem } from './scrollbar';
 import { registerComponent } from '../../ecs/component';
@@ -115,6 +115,7 @@ export class UIBehaviorPlugin implements Plugin {
         );
 
         registerComponent('UIToggle', UIToggle);
+        registerComponent('UIToggleGroup', UIToggleGroup);
         app.addSystemToSchedule(
             Schedule.Update,
             createToggleSystem(world, events),
