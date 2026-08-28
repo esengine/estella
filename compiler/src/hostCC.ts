@@ -37,8 +37,13 @@ export function nativeModuleExt(platform: string = process.platform): string {
  * `-fPIC` because it is loaded, not linked; nothing else, because the C calls
  * only what `estella_abi.h` defines `static inline` — the module has no
  * undefined symbol to resolve and wants none of libc.
+ *
+ * Windows takes only `-shared`: a DLL is position-independent by construction,
+ * and clang on the MSVC ABI REJECTS `-fPIC` rather than ignoring it.
  */
-export const NATIVE_LINK_FLAGS: readonly string[] = ['-shared', '-fPIC'];
+export function nativeLinkFlags(platform: string = process.platform): readonly string[] {
+    return platform === 'win32' ? ['-shared'] : ['-shared', '-fPIC'];
+}
 
 /**
  * The host C compiler, or null where this machine has none.

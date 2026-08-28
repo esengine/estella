@@ -29,7 +29,7 @@ import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout, planFor } from '../../../compiler/src/abi';
 import { CFLAGS, WASM_LINK_FLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
-import { NATIVE_LINK_FLAGS, nativeModuleExt } from '../../../compiler/src/hostCC';
+import { nativeLinkFlags, nativeModuleExt } from '../../../compiler/src/hostCC';
 import { AOT_MANIFEST, AOT_WASM } from './aotArtifacts';
 
 /** Where the C and the wasm land, beside the script bundle. */
@@ -118,7 +118,7 @@ const TARGETS: Record<CompileTarget, TargetPlan> = {
   native: {
     addressBytes: 8,
     module: `systems${nativeModuleExt()}`,
-    linkFlags: () => [...NATIVE_LINK_FLAGS],
+    linkFlags: () => [...nativeLinkFlags()],
     compilesDecls: true,
     missing: 'this machine has no C compiler — install clang or gcc and put it on PATH',
   },

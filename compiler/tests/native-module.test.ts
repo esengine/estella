@@ -30,7 +30,7 @@ import { inlineSystem } from '../src/inline';
 import { builtinShapes } from '../src/builtins';
 import { packLayout } from '../src/abi';
 import { CFLAGS, cSymbol, emitC } from '../src/codegen';
-import { NATIVE_LINK_FLAGS, findHostCC, nativeModuleExt } from '../src/hostCC';
+import { nativeLinkFlags, findHostCC, nativeModuleExt } from '../src/hostCC';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const CC = findHostCC();
@@ -67,7 +67,7 @@ describe('the compiled systems, as a module a native host loads', () => {
 
         const out = join(dir, `systems${nativeModuleExt()}`);
         const built = spawnSync(CC!, [
-            ...CFLAGS, '-Wall', '-Wextra', ...NATIVE_LINK_FLAGS,
+            ...CFLAGS, '-Wall', '-Wextra', ...nativeLinkFlags(),
             '-o', out, join(dir, 'systems.c'), join(dir, 'systems_decl.c'),
         ], { encoding: 'utf8', cwd: dir });
 
