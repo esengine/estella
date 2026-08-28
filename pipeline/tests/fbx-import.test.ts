@@ -230,11 +230,8 @@ describe('fbx reporting', () => {
 });
 
 /**
- * A colour layer whose indices did not match the mesh decays to zeroes (ufbx
- * clamps the bad index and says only "Clamped index"), and MeshRenderer
- * multiplies its tint INTO those — so the model imports, occludes, and draws
- * nothing. Real project, real numbers: 3 of 80 building models arrived 96-99%
- * alpha-zero and were invisible with no error anywhere.
+ * MeshRenderer multiplies its tint into the vertex colours, so an
+ * all-transparent layer draws nothing. Measured: 3 of 80 real models.
  */
 describe('fbx vertex colours that would import an invisible mesh', () => {
   /** `count` vertices, of which the first `opaque` have alpha 1. */

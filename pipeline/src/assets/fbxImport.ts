@@ -403,12 +403,9 @@ function buildNodes(scene: FbxScene, meshIndexOf: Map<string, number[]>): Import
 const INVISIBLE_COLOR_SHARE = 0.95;
 
 /**
- * The vertex colours to actually use: `colors`, or null when the layer would
- * make the mesh invisible (see the call site). Warns, naming the share, so the
- * substitution is never silent.
- *
- * Exported for the test: the decision is a threshold on real numbers, and the
- * FBX fixtures write no colour layer to drive it end to end.
+ * The vertex colours to use: `colors`, or null when the layer would make the
+ * mesh invisible — null takes the same white path a mesh with no colour layer
+ * takes. Warns with the share, so the substitution is never silent.
  */
 export function dropInvisibleColors(colors: Float32Array, vertexCount: number,
                                     name: string, warnings: string[]): Float32Array | null {
@@ -433,15 +430,9 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
     const weights = part.weights ? floats(payload, part.weights) : null;
     const indices = uints(payload, part.indices);
     const vertexCount = part.vertexCount;
-    // MeshRenderer multiplies its tint INTO the vertex colours, so a layer that
-    // is transparent nearly everywhere is a mesh that imports, occludes, and
-    // draws nothing — with no error anywhere to say why. Nobody authors that;
-    // it is what a colour layer whose indices did not match the mesh decays to
-    // (ufbx clamps the bad index and hands back zeroes, warning only "Clamped
-    // index"). Measured on a real project: 3 of 80 building models arrived 96-99%
-    // alpha-zero and imported invisible. Drop the layer to white and SAY so —
-    // white is what a mesh with no colour layer already gets, so the fallback is
-    // the ordinary path rather than a special case.
+    // MeshRenderer multiplies its tint INTO these, so an all-transparent layer
+    // draws nothing. That is what a colour layer whose indices missed the mesh
+    // decays to, once ufbx clamps the bad index and returns zeroes.
     const colors = part.colors ? dropInvisibleColors(floats(payload, part.colors),
                                                      part.vertexCount, name, warnings) : null;
     // A pose the renderer cannot hold is not a pose — see the same read in the
