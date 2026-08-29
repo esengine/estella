@@ -89,4 +89,8 @@ int spine_probe_extract(int instanceId, int stage, int useCollector);
 // The nine counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
+// What the batch pool holds, into four u32 slots — slots ever opened, slots this
+// extraction used, and the vertex floats and indices it can take without growing.
+void spine_probe_storage(uint32_t* out);
+
 }  // extern "C"
