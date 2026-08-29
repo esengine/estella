@@ -115,18 +115,28 @@ would quietly stop rendering. Pass `keepPersistent: false` to `switchTo` or
 `unload` to tear down everything anyway, persistent entities included — the
 clean slate you want when returning to a main menu.
 
+What it **keeps**: the assets it is bound to. Promotion splits the scene's
+reference rather than transferring or dropping it, so a surviving entity owns
+what it draws with — the exact instance it is bound to, even when a hot update
+has since replaced the file — and gives it back when the entity is despawned,
+including as part of a parent's subtree. It also keeps its place: an entity
+detached from a parent that did not survive stays where it was on screen
+rather than jumping to its parent-relative position.
+
 Two things do **not** come along with it:
 
 - **The scene's systems.** Every system a scene declares is unregistered on
   unload, so a persistent entity's behavior has to come from a system
   registered on the `App` itself, not from the scene's `systems` list.
-- **The scene's asset references.** Unload releases the refs the scene took on
-  every texture, material, font, audio clip, anim clip, tilemap and timeline it
-  declared — persistence doesn't exempt them. If that was the last reference,
-  the asset is freed (at best it lingers as an evictable cache entry that the
-  next load revives), even though the surviving entity still draws with it.
-  Take a reference that outlives the scene instead: `Assets.preload` at
-  bootstrap, or an additive scene that is never unloaded.
+- **Assets a component names by reference** rather than by a runtime handle —
+  an anim clip, for instance. Those are still released with the scene, so take
+  a reference that outlives it: `Assets.preload` at bootstrap, or an additive
+  scene that is never unloaded. Textures, materials, fonts, meshes and
+  environments are handle-bound and come along.
+- **Its non-persistent children.** "This entity persists" is about the entity,
+  not its subtree: children that were not themselves marked are despawned with
+  the scene, and a persistent child of a non-persistent parent is detached and
+  survives on its own.
 
 <Aside type="caution">
   There is no Inspector checkbox for this. `SceneOwner` is an engine-internal
