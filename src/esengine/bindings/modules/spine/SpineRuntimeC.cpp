@@ -927,6 +927,116 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
     renderImpl<STAGE_EMIT, false>(instance, sink, clipping, nullptr);
 }
 
+namespace {
+
+/**
+ * spine's own `_makeClockwise`, which is static there, transcribed so the ladder
+ * below can stop before it. The full depth is held to the shipped clipStart's
+ * result, which is what says this stayed a transcription.
+ */
+void makeClockwise(spFloatArray* polygon) {
+    float* vertices = polygon->items;
+    const int length = polygon->size;
+    float area = vertices[length - 2] * vertices[1] - vertices[0] * vertices[length - 1];
+    for (int i = 0, n = length - 3; i < n; i += 2) {
+        const float p1x = vertices[i], p1y = vertices[i + 1];
+        const float p2x = vertices[i + 2], p2y = vertices[i + 3];
+        area += p1x * p2y - p2x * p1y;
+    }
+    if (area < 0) return;
+    for (int i = 0, lastX = length - 2, n = length >> 1; i < n; i += 2) {
+        const float x = vertices[i], y = vertices[i + 1];
+        const int other = lastX - i;
+        vertices[i] = vertices[other];
+        vertices[i + 1] = vertices[other + 1];
+        vertices[other] = x;
+        vertices[other + 1] = y;
+    }
+}
+
+/// The first clip region in draw order — the one every fixture here has one of.
+spSlot* firstClipSlot(spSkeleton* skeleton, spClippingAttachment** clip) {
+    for (int i = 0; i < skeleton->slotsCount; ++i) {
+        spSlot* slot = skeleton->drawOrder[i];
+        if (!slot || !slot->attachment) continue;
+        if (slot->attachment->type != SP_ATTACHMENT_CLIPPING) continue;
+        *clip = reinterpret_cast<spClippingAttachment*>(slot->attachment);
+        return slot;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+namespace {
+
+bool openToStage(Instance* instance, int stage, ClipStartCounts* counts) {
+    spClippingAttachment* clip = nullptr;
+    spSlot* slot = firstClipSlot(instance->skeleton, &clip);
+    if (!slot) return false;
+
+    const int length = clip->super.worldVerticesLength;
+    counts->rawVertices = static_cast<std::uint32_t>(length / 2);
+    float* vertices = spFloatArray_setSize(g_clipper->clippingPolygon, length)->items;
+    if (stage < CLIP_START_WORLD) return true;
+
+    g_clipper->clipAttachment = clip;
+    spVertexAttachment_computeWorldVertices(&clip->super, slot, 0, length, vertices, 0, 2);
+    if (stage < CLIP_START_WINDING) return true;
+
+    makeClockwise(g_clipper->clippingPolygon);
+    if (stage < CLIP_START_TRIANGULATE) return true;
+
+    spShortArray* triangles =
+        spTriangulator_triangulate(g_clipper->triangulator, g_clipper->clippingPolygon);
+    counts->triangulationTriangles = static_cast<std::uint32_t>(triangles->size / 3);
+    counts->triangulatorScratch = static_cast<std::uint32_t>(
+        g_clipper->triangulator->indicesArray->capacity
+        + g_clipper->triangulator->isConcaveArray->capacity
+        + g_clipper->triangulator->triangles->capacity);
+    if (stage < CLIP_START_DECOMPOSE) return true;
+
+    g_clipper->clippingPolygons =
+        spTriangulator_decompose(g_clipper->triangulator, g_clipper->clippingPolygon, triangles);
+    counts->pieces = static_cast<std::uint32_t>(g_clipper->clippingPolygons->size);
+    if (stage < CLIP_START_PIECES) return true;
+
+    for (int i = 0; i < g_clipper->clippingPolygons->size; ++i) {
+        spFloatArray* polygon = g_clipper->clippingPolygons->items[i];
+        makeClockwise(polygon);
+        spFloatArray_add(polygon, polygon->items[0]);
+        spFloatArray_add(polygon, polygon->items[1]);
+    }
+    for (int i = 0; i < g_clipper->clippingPolygons->size; ++i) {
+        counts->effectiveEdges +=
+            static_cast<std::uint32_t>(g_clipper->clippingPolygons->items[i]->size / 2);
+    }
+    if (stage < CLIP_START_PUBLISH) return true;
+
+    captureClipRegion();
+    counts->minX = g_clipRegion.minX;
+    counts->minY = g_clipRegion.minY;
+    counts->maxX = g_clipRegion.maxX;
+    counts->maxY = g_clipRegion.maxY;
+    return true;
+}
+
+}  // namespace
+
+bool clipStartStage(Instance* instance, int stage, ClipStartCounts* counts) {
+    if (!instance || !counts) return false;
+    *counts = ClipStartCounts{};
+    if (!g_clipper) g_clipper = spSkeletonClipping_create();
+
+    // Closed on both sides. A region left open makes the next real extraction's
+    // clipStart return immediately, so the ladder would be measuring one thing
+    // and poisoning another.
+    spSkeletonClipping_clipEnd2(g_clipper);
+    const bool opened = openToStage(instance, stage, counts);
+    spSkeletonClipping_clipEnd2(g_clipper);
+    return opened;
+}
+
 bool renderCounted(Instance* instance, TriangleSink& sink, bool clipping, ProbeCounts* counts) {
     if (!instance || !counts) return false;
     *counts = ProbeCounts{};

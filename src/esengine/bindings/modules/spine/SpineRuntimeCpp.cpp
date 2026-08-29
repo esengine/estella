@@ -546,6 +546,10 @@ bool renderCounted(Instance*, TriangleSink&, bool, ProbeCounts*) {
     return false;
 }
 
+bool clipStartStage(Instance*, int, ClipStartCounts*) {
+    return false;
+}
+
 int version() {
     return ES_SPINE_VERSION;
 }

@@ -317,6 +317,38 @@ void spine_probe_counts(std::uint32_t* out) {
     out[21] = g_probeCounts.clipOutputVertices;
 }
 
+/** The last staged open's counts. Benchmark only; a frame never writes it. */
+es::spine::ClipStartCounts g_clipStartCounts{};
+
+/**
+ * BENCHMARK ONLY — open the instance's first clip region to `stage`
+ * (es::spine::ClipStartStage), so what a 39-vertex polygon costs before a single
+ * triangle is cut can be priced without a clock inside the preparation.
+ */
+EMSCRIPTEN_KEEPALIVE
+int spine_probe_clip_start(int instanceId, int stage) {
+    g_clipStartCounts = es::spine::ClipStartCounts{};
+    auto* instance = g_ctx.instanceOf(instanceId);
+    if (!instance) return 0;
+    const bool ran = es::spine::clipStartStage(instance, stage, &g_clipStartCounts);
+    return ran ? 1 : 0;
+}
+
+/** Nine slots: five counts, then the region's bounds as four floats. */
+EMSCRIPTEN_KEEPALIVE
+void spine_probe_clip_start_counts(std::uint32_t* out) {
+    if (!out) return;
+    out[0] = g_clipStartCounts.rawVertices;
+    out[1] = g_clipStartCounts.triangulationTriangles;
+    out[2] = g_clipStartCounts.pieces;
+    out[3] = g_clipStartCounts.effectiveEdges;
+    out[4] = g_clipStartCounts.triangulatorScratch;
+    std::memcpy(out + 5, &g_clipStartCounts.minX, sizeof(float));
+    std::memcpy(out + 6, &g_clipStartCounts.minY, sizeof(float));
+    std::memcpy(out + 7, &g_clipStartCounts.maxX, sizeof(float));
+    std::memcpy(out + 8, &g_clipStartCounts.maxY, sizeof(float));
+}
+
 /**
  * What one instance's clipping costs THIS pose, in work not time, into eleven
  * u32 slots: the polygon as authored, what it decomposed into, the triangles

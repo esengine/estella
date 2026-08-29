@@ -89,6 +89,12 @@ int spine_probe_extract(int instanceId, int stage, int useCollector);
 // The twenty-two counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
+// BENCHMARK ONLY — open the first clip region to `stage` (es::spine::ClipStartStage).
+int spine_probe_clip_start(int instanceId, int stage);
+
+// Five counts then the region's bounds as four floats, into nine u32 slots.
+void spine_probe_clip_start_counts(uint32_t* out);
+
 // What one instance's clipping costs this pose, in work rather than time, into
 // eleven u32 slots. Poses and extracts; zero where the runtime cannot count.
 int spine_clipBudget(int instanceId, uint32_t* out);

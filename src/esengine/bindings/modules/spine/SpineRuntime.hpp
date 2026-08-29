@@ -282,6 +282,37 @@ struct ClipStorage {
 /** False where a backend has no clipper of its own to report on. */
 bool clipStorage(ClipStorage* out);
 
+/** How far {@link clipStartStage} runs. The shipped `clipStart` is a sequence of
+ *  separable calls, and each depth here is a prefix of it: nothing later feeds
+ *  anything earlier, so stopping short prices a step without a clock inside it. */
+enum ClipStartStage {
+    CLIP_START_RESET = 0,        ///< The scratch sized for the polygon.
+    CLIP_START_WORLD = 1,        ///< …and its world vertices computed.
+    CLIP_START_WINDING = 2,      ///< …made clockwise.
+    CLIP_START_TRIANGULATE = 3,  ///< …triangulated.
+    CLIP_START_DECOMPOSE = 4,    ///< …decomposed into convex pieces.
+    CLIP_START_PIECES = 5,       ///< …each piece wound and closed. spine ends here.
+    CLIP_START_PUBLISH = 6,      ///< …and this module's bounds and edges captured.
+};
+
+/** What opening a region had to do, so its time can be explained. */
+struct ClipStartCounts {
+    std::uint32_t rawVertices;
+    std::uint32_t triangulationTriangles;
+    std::uint32_t pieces;
+    std::uint32_t effectiveEdges;
+    /// The triangulator's own arrays, so a second storage problem inside the
+    /// preparation cannot hide the way the collector's did.
+    std::uint32_t triangulatorScratch;
+    float minX, minY, maxX, maxY;
+};
+
+/**
+ * BENCHMARK ONLY — open the instance's first clip region to `stage`. False when
+ * the instance has no clipping attachment or the backend has no staged open.
+ */
+bool clipStartStage(Instance* instance, int stage, ClipStartCounts* counts);
+
 /**
  * The whole walk with its counters on — what a diagnostic asks for, as opposed
  * to {@link renderStage}, which stops short and is for pricing steps. False
