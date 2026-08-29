@@ -166,6 +166,8 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 
 当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进**每一个声明了该资产的运行中字段**：内建的（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）与你自己的组件一视同仁，只要字段写在 `assetFields` 里。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
 
+替换品**按持有该资产的场景各获取一份**，每个场景整体迁移——要么它的绑定全换，要么一个都不换。因此卸载一个场景绝不会把更新后的贴图从另一个仍在绘制它的场景手里拿走；而一个场景卸载时交回的正是它持有的那些，无论中途经历过多少次更新。
+
 对于内建重绑器覆盖不到的东西——你手动绑定的贴图、一段音效、一个自定义系统——订阅 `onInvalidate` 自行重绑：
 
 ```ts

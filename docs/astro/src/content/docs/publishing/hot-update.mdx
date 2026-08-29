@@ -216,6 +216,12 @@ alike, as long as the field is declared in `assetFields`. The picture changes on
 its own; the scene author writes nothing. (The `hot-update-demo` example's game
 code is literally empty.)
 
+The replacement is acquired once **per scene that holds the asset**, and each
+scene is moved onto it as a unit — all of that scene's bindings or none. So
+unloading one scene never takes the updated texture away from another that is
+still drawing it, and a scene that unloads gives back exactly what it holds,
+however many updates it lived through.
+
 For anything the built-in rebinder doesn't cover — a texture you bound manually, a
 sound, a custom system — subscribe to `onInvalidate` and rebind yourself:
 

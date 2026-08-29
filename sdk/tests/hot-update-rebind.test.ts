@@ -313,6 +313,30 @@ describe('a replacement is a transaction per owning scope', () => {
         expect(assets.sizes().refRows).toBe(base);
     });
 
+    it('five hot updates in a row leave the scene owing exactly one release', async () => {
+        // The measured leak: each successful rebind took a texture out of the
+        // ledger with no receipt, so five updates left five rows that no unload
+        // could ever reach. What a scene owes is one release, always.
+        const { app, assets, manager } = sceneApp();
+        const base = assets.sizes().refRows;
+        manager.register({
+            name: 'level',
+            setup: sceneHolding(app, assets, 'hero.png', [{ component: Sprite, field: 'texture' }]),
+        });
+        await manager.loadAdditive('level');
+
+        for (let i = 0; i < 5; i++) {
+            assets.invalidate('hero.png');
+            await settle(app);
+            expect(boundValues(app, Sprite, 'texture'), `after update ${i + 1}`)
+                .toEqual([assets.getTexture('hero.png')!.handle]);
+            expect(assets.sizes().refRows, `after update ${i + 1}`).toBe(base + 1);
+        }
+
+        await manager.unload('level');
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
     it('an entity no scene owns is the app\'s, not nobody\'s', async () => {
         // The rebinder must not keep what it acquires, and an acquisition with
         // no owner is one nobody can ever give back — the leak this had.
