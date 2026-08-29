@@ -2109,6 +2109,7 @@ export class Assets {
             ...base,
             acquireTexture: async (path, flipY) =>
                 recorder.own(path, await base.acquireTexture(path, flipY), 'texture'),
+            acquireAsset: async (type, ref) => recorder.own(ref, await base.acquireAsset(type, ref), type),
             createOwnedTexture: async (width, height, pixels, flipY) => {
                 const lease = await base.createOwnedTexture!(width, height, pixels, flipY);
                 return recorder.own(`composed:${lease.value.handle}`, lease);
@@ -2136,6 +2137,9 @@ export class Assets {
             async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
                 const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
                 return self.textureLease_(lease, result);
+            },
+            async acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>> {
+                return self.acquireTyped<T>(type, ref);
             },
             async loadText(path: string): Promise<string> {
                 return self.backend.fetchText(self.backend.resolveUrl(path));

@@ -28,10 +28,10 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         // and uniforms come from the parent material, so no shader is loaded here.
         if (data.instanceOf) {
             const parentPath = resolveDocumentRef(path, data.instanceOf);
-            const parent = await this.load(parentPath, ctx);
-            const handle = Material.createFromAsset(data, 0, parent.handle);
+            const parent = await ctx.acquireAsset<MaterialResult>('material', parentPath);
+            const handle = Material.createFromAsset(data, 0, parent.value.handle);
             await this.applyTextureProps(handle, data, path, ctx);
-            return { handle, shaderHandle: parent.shaderHandle, parentHandle: parent.handle };
+            return { handle, shaderHandle: parent.value.shaderHandle };
         }
 
         // Enabled static switches select the shader permutation (compiled once per switch-set).
@@ -67,7 +67,6 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     }
 
     unload(asset: MaterialResult): void {
-        if (asset.parentHandle !== undefined) Material.release(asset.parentHandle);
         Material.release(asset.handle);
     }
 

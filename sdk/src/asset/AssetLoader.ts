@@ -25,8 +25,6 @@ export interface SpineLoadResult {
 export interface MaterialResult {
     handle: number;
     shaderHandle: number;
-    /** Parent material handle for an `instanceOf` material, released on unload. */
-    parentHandle?: number;
 }
 
 export interface FontResult {
@@ -104,6 +102,12 @@ export interface LoadContext {
      * this loader was handed.
      */
     acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>>;
+    /**
+     * The same for an asset of ANY type — a material instance acquiring the
+     * parent it diffs against. The general door; {@link acquireTexture} is the
+     * one specialization, for the flip variants a texture has.
+     */
+    acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>>;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
     /**

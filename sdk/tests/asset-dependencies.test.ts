@@ -62,15 +62,22 @@ const platformFactory = vi.hoisted(() => () => ({
 vi.mock('../src/platform', platformFactory);
 vi.mock('../src/platform/base', platformFactory);
 
-vi.mock('../src/render/material', () => ({
-    Material: {
-        createFromAsset: vi.fn(() => 11),
-        setUniform: vi.fn(),
-        tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
-        compileShader: vi.fn(() => 7),
-        release: vi.fn(),
-    },
-}));
+const materialFake = vi.hoisted(() => {
+    const live = new Set<number>();
+    let next = 100;
+    return {
+        live,
+        reset: () => { live.clear(); next = 100; },
+        Material: {
+            createFromAsset: vi.fn((): number => { const h = next++; live.add(h); return h; }),
+            setUniform: vi.fn(),
+            tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
+            compileShader: vi.fn(() => 7),
+            release: vi.fn((h: number) => { live.delete(h); }),
+        },
+    };
+});
+vi.mock('../src/render/material', () => ({ Material: materialFake.Material }));
 
 /** A `.tmj` whose one tileset lives in an external `.tsj`. */
 const MAP_WITH_EXTERNAL = JSON.stringify({
@@ -94,6 +101,10 @@ const MAP_WITH_COLLECTION = JSON.stringify({
 /** A material binding one texture, on a built-in shader (no shader file). */
 const MATERIAL = JSON.stringify({
     type: 'material', shader: 'builtin:sprite-unlit', properties: { mainTex: 'wall.png' },
+});
+/** An instance of it: no shader of its own, only diffs against its parent. */
+const CHILD_MATERIAL = JSON.stringify({
+    type: 'material', shader: '', instanceOf: 'parent.esmaterial', properties: {},
 });
 
 function realm(docs: Record<string, string>): Assets {
@@ -297,5 +308,56 @@ describe('a handle-bound loader owns nothing of its own', () => {
         expect(pool.liveTextures(), 'released while a holder was still using it').toBe(1);
         second.release();
         expect(pool.liveTextures()).toBe(0);
+    });
+});
+
+describe('a material instance acquires its parent', () => {
+    beforeEach(() => { pool = createPoolFake(); materialFake.reset(); });
+
+    function instanced(): Assets {
+        return realm({ 'parent.esmaterial': MATERIAL, 'child.esmaterial': CHILD_MATERIAL });
+    }
+
+    it('the parent is an owned dependency of the instance, named as a material', async () => {
+        const assets = instanced();
+        await assets.acquireTyped('material', 'materials/child.esmaterial');
+
+        expect(assets.dependenciesOf('material', 'materials/child.esmaterial'))
+            .toContainEqual({ kind: 'owned', type: 'material', path: 'materials/parent.esmaterial' });
+    });
+
+    it('the parent is an asset of this realm, with an era of its own', async () => {
+        // Loaded by recursion it was invisible: no cache entry, no receipt, and
+        // the graph stopped at the instance.
+        const assets = instanced();
+        await assets.acquireTyped('material', 'materials/child.esmaterial');
+
+        expect(assets.dependenciesOf('material', 'materials/parent.esmaterial'))
+            .toContainEqual({ kind: 'owned', type: 'texture', path: 'materials/wall.png' });
+    });
+
+    it('two instances of one parent share it', async () => {
+        const assets = realm({
+            'parent.esmaterial': MATERIAL,
+            'a.esmaterial': CHILD_MATERIAL,
+            'b.esmaterial': CHILD_MATERIAL,
+        });
+        await assets.acquireTyped('material', 'materials/a.esmaterial');
+        await assets.acquireTyped('material', 'materials/b.esmaterial');
+
+        expect(materialFake.live.size, 'the parent was built once per instance').toBe(3);
+    });
+
+    it('the last instance letting go gives the whole chain back', async () => {
+        const assets = instanced();
+        const first = await assets.acquireTyped('material', 'materials/child.esmaterial');
+        const second = await assets.acquireTyped('material', 'materials/child.esmaterial');
+
+        first.release();
+        expect(materialFake.live.size, 'released while a holder was still using it').toBe(2);
+
+        second.release();
+        expect(materialFake.live.size).toBe(0);
+        expect(pool.liveTextures(), 'the texture the PARENT bound').toBe(0);
     });
 });
