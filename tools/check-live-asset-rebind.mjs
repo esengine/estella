@@ -21,10 +21,12 @@
  *      what it takes out of the ledger is a row nobody can give back — that is
  *      the leak the rebinder had, one row per successful hot update.
  *   4. The runtime scene loader hands the scene its receipts, not its paths.
+ *   5. A loader holding a texture past its own load() acquires it, for the same
+ *      reason: it releases at unload, by which time the path may name two eras.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -143,6 +145,17 @@ if (!/\bpreloadSceneAssets\(/.test(loader)) {
   const call = /\btrackAssets\(/.exec(loader);
   if (call) {
     findings.push(`${LOADER}:${loader.slice(0, call.index).split('\n').length}  hands the scene PATHS while holding the preload's receipts — use trackAssetScope.`);
+  }
+}
+
+// The same rule one layer down: a loader that keeps a texture releases it at
+// unload, which is exactly when a path has stopped naming one instance.
+const LOADERS = path.join(ROOT, 'sdk/src/asset/loaders');
+for (const name of readdirSync(LOADERS).filter((f) => f.endsWith('.ts'))) {
+  const code = stripComments(readFileSync(path.join(LOADERS, name), 'utf8'));
+  const call = /\bctx\.releaseTexture\s*\(/.exec(code);
+  if (call) {
+    findings.push(`sdk/src/asset/loaders/${name}:${code.slice(0, call.index).split('\n').length}  gives a held texture back by PATH — keep the receipt acquireTexture hands you.`);
   }
 }
 

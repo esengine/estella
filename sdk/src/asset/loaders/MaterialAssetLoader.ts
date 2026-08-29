@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
+import type { AssetLoader, LoadContext, MaterialResult, TextureResult } from '../AssetLoader';
+import type { AssetLease } from '../AssetLease';
 import { BUILTIN_REF_PREFIX, isBuiltinAssetRef, resolveDocumentRef } from '../documentRef';
 import type { MaterialAssetData, ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
@@ -30,11 +31,11 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             const parentPath = resolveDocumentRef(path, data.instanceOf);
             const parent = await this.load(parentPath, ctx);
             const handle = Material.createFromAsset(data, 0, parent.handle);
-            const texturePaths = await this.applyTextureProps(handle, data, path, ctx);
+            const textureLeases = await this.applyTextureProps(handle, data, path, ctx);
             return {
                 handle,
                 shaderHandle: parent.shaderHandle,
-                texturePaths: [...(parent.texturePaths ?? []), ...texturePaths],
+                textureLeases: [...(parent.textureLeases ?? []), ...textureLeases],
                 parentHandle: parent.handle,
             };
         }
@@ -43,28 +44,29 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         const features = enabledSwitches(data.switches);
         const shaderHandle = await this.loadShader(path, data.shader, features, ctx);
         const handle = Material.createFromAsset(data, shaderHandle);
-        const texturePaths = await this.applyTextureProps(handle, data, path, ctx);
+        const textureLeases = await this.applyTextureProps(handle, data, path, ctx);
 
-        return { handle, shaderHandle, texturePaths };
+        return { handle, shaderHandle, textureLeases };
     }
 
     // A texture param is a string property (an asset ref); scalar/vector params are
-    // numbers/objects (handled by createFromAsset). Load each texture, bind it to its
-    // param, and return the refs so unload can release them (they hold a texture ref).
+    // numbers/objects (handled by createFromAsset). Bind each texture and keep its
+    // RECEIPT, so unload gives back the era this material bound rather than
+    // whichever one shares its path by then.
     private async applyTextureProps(
         handle: number,
         data: MaterialAssetData,
         matPath: string,
         ctx: LoadContext,
-    ): Promise<string[]> {
-        const bound: string[] = [];
+    ): Promise<AssetLease<TextureResult>[]> {
+        const bound: AssetLease<TextureResult>[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
             const texPath = resolveDocumentRef(matPath, value);
             try {
-                const tex = await ctx.loadTexture(texPath);
-                Material.setUniform(handle, name, Material.tex(tex.handle));
-                bound.push(texPath); // recorded only on success — matches the refcount taken
+                const tex = await ctx.acquireTexture(texPath);
+                Material.setUniform(handle, name, Material.tex(tex.value.handle));
+                bound.push(tex); // recorded only on success — matches the acquisition taken
             } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
                 log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
@@ -73,9 +75,9 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         return bound;
     }
 
-    unload(asset: MaterialResult, ctx: LoadContext): void {
-        if (asset.texturePaths) {
-            for (const texPath of asset.texturePaths) ctx.releaseTexture(texPath);
+    unload(asset: MaterialResult): void {
+        if (asset.textureLeases) {
+            for (const lease of asset.textureLeases) lease.release();
         }
         if (asset.parentHandle !== undefined) Material.release(asset.parentHandle);
         Material.release(asset.handle);

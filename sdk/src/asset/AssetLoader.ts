@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
+import type { AssetLease } from './AssetLease';
 import type { Catalog } from './Catalog';
 import type { TextureHandle, FontHandle } from '../types';
 import type { CppResourceManager } from '../wasm';
@@ -23,9 +24,9 @@ export interface SpineLoadResult {
 export interface MaterialResult {
     handle: number;
     shaderHandle: number;
-    /** Texture refs this material bound; released on unload to balance the
-     *  loadTexture that bound them (they aren't in the scene's texture set). */
-    texturePaths?: string[];
+    /** Receipts for the textures this material bound; released on unload. Not
+     *  paths: a hot update between load and unload makes one path name two. */
+    textureLeases?: AssetLease<TextureResult>[];
     /** Parent material handle for an `instanceOf` material, released on unload. */
     parentHandle?: number;
 }
@@ -98,8 +99,18 @@ export interface LoadContext {
     catalog: Catalog;
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
-    /** Release a texture obtained via {@link loadTexture} (balances the refcount).
-     *  Handles both flip variants, so the same ref that was loaded releases it. */
+    /**
+     * Load a texture and get the receipt for THIS acquisition — what a loader
+     * holding a texture past its own `load` needs, because a path-addressed
+     * release after an invalidate gives back the oldest era rather than the one
+     * this loader was handed.
+     */
+    acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>>;
+    /**
+     * Release by path — the compatibility door for a loader that only ever had
+     * one. Exact while a path names one instance; after an invalidate it gives
+     * back the OLDEST era sharing the path. See {@link acquireTexture}.
+     */
     releaseTexture(path: string): void;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;

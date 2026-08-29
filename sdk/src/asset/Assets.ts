@@ -1927,6 +1927,13 @@ export class Assets {
                 }
                 return self.loadTexture(path);
             },
+            async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
+                const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
+                return {
+                    key: lease.key, generation: lease.generation, value: result,
+                    release: () => self.releaseTextureLease(lease),
+                };
+            },
             releaseTexture(path: string): void {
                 self.releaseTexture(path);
             },

@@ -28,7 +28,7 @@ function makeCtx(): LoadContext {
     return {
         catalog: { getBuildPath: (p: string) => p },
         loadText: vi.fn(async (p: string) => (p.endsWith('.esmaterial') ? materialJson : '// shader src')),
-        loadTexture: vi.fn().mockRejectedValue(new Error('404 not found')),
+        acquireTexture: vi.fn().mockRejectedValue(new Error('404 not found')),
     } as unknown as LoadContext;
 }
 
@@ -74,28 +74,36 @@ describe('MaterialAssetLoader texture release on unload', () => {
         const materialJson = JSON.stringify({
             type: 'material', shader: 'fx.esshader', properties: { mainTex: TEX_REF },
         });
-        const releaseTexture = vi.fn();
+        const released: Array<{ key: string; generation: number }> = [];
+        let generation = 0;
         const ctx = {
             catalog: { getBuildPath: (p: string) => p },
             loadText: vi.fn(async (p: string) => (p.endsWith('.esmaterial') ? materialJson : '// shader src')),
-            loadTexture: vi.fn(async () => ({ handle: 42 })),
-            releaseTexture,
+            acquireTexture: vi.fn(async (path: string) => {
+                const lease = {
+                    key: `texture:${path}`, generation: ++generation, value: { handle: 42 },
+                    release: () => released.push({ key: lease.key, generation: lease.generation }),
+                };
+                return lease;
+            }),
         } as unknown as LoadContext;
-        return { ctx, releaseTexture };
+        return { ctx, released };
     }
 
-    it('records bound texture refs and releases them on unload (no VRAM leak)', async () => {
+    it('keeps the RECEIPT for each bound texture and gives it back on unload', async () => {
         const loader = new MaterialAssetLoader();
-        const { ctx, releaseTexture } = makeCtxWithTexture();
+        const { ctx, released } = makeCtxWithTexture();
 
         const result = await loader.load(MAT_PATH, ctx);
-        // The bound texture is recorded so unload can balance its loadTexture ref;
-        // the scene's texture set never sees a material-internal texture.
-        expect(result.texturePaths).toEqual(['assets/materials/missing.png']);
+        // The acquisition is recorded, not the path: a hot update between load
+        // and unload makes one path name two eras, and a release addressed by
+        // path gives back the older one — a stranger's.
+        expect(result.textureLeases?.map((l) => l.key))
+            .toEqual(['texture:assets/materials/missing.png']);
         expect(Material.setUniform).toHaveBeenCalled();
 
         loader.unload(result, ctx);
-        expect(releaseTexture).toHaveBeenCalledWith('assets/materials/missing.png');
+        expect(released).toEqual([{ key: 'texture:assets/materials/missing.png', generation: 1 }]);
         expect(Material.release).toHaveBeenCalledWith(11);
     });
 });
