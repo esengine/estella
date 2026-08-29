@@ -440,6 +440,33 @@ describe('a live binding follows the asset, whatever kind it is', () => {
             .toBe(fresh.value.handle);
     });
 
+    it('converging is not done while a reload is still in the air', async () => {
+        // The barrier a host asks about after `applyUpdate`: the asset graph has
+        // caught up, and this says whether the world reading it has. Answering
+        // between the queues would say yes with an acquisition in flight.
+        const app = App.new();
+        connectFakeCpp(app.world);
+        const assets = buildAssets({ 'hero.esmaterial': MATERIAL });
+        const bindings = installHotUpdateRebind(app, assets);
+
+        const before = await assets.acquireTyped<{ handle: number }>('material', 'hero.esmaterial');
+        const entity = app.world.spawn();
+        app.world.insert(entity, MeshRenderer, { material: before.value.handle } as never);
+
+        assets.invalidate('hero.esmaterial');
+        let converged = false;
+        void bindings.settled().then(() => { converged = true; });
+
+        await app.tick(1 / 60);
+        await Promise.resolve();
+        expect(converged, 'said the world had caught up with a reload in flight').toBe(false);
+
+        await settle(app);
+        expect(converged).toBe(true);
+        expect((app.world.get(entity, MeshRenderer) as { material: number }).material)
+            .not.toBe(before.value.handle);
+    });
+
     it('which kinds can be rebound is read from the loader doors', async () => {
         // A ref-bound asset has nothing to move: the field holds the name, and
         // what the name means is the slot's business.

@@ -381,6 +381,8 @@ export class Assets {
     /** Eras already given back, so N callers abandoning one shared load hand it
      *  over once between them rather than unloading it N times. */
     private retired_ = new WeakSet<PreparedLoad<unknown>>();
+    /** Propagations in flight — what {@link assetGraphSettled} waits on. */
+    private settling_ = new Set<Promise<void>>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
@@ -949,7 +951,11 @@ export class Assets {
         // A changed asset is content-addressed, so its next load finds the update
         // on its own. An era already BUILT from one cannot: it holds what it read
         // at the revision it was prepared in, and only the walk ends it.
-        for (const c of changed) void this.rebuild_(this.rebuildPlan_(c.key));
+        for (const c of changed) this.track_(this.rebuildAssetGraph_(this.rebuildPlan_(c.key)));
+        // The update is applied when the asset graph agrees with the manifest —
+        // not when the manifest was swapped. Bindings converge on a frame, which
+        // an app that is not ticking would never reach from here.
+        await this.assetGraphSettled();
         this.persistActiveManifest_(pending.manifestJson);
         this.pendingUpdate_ = null;
         return { ok: true, updated: changed.length, failed: [] };
@@ -1653,8 +1659,27 @@ export class Assets {
     invalidate(ref: string): boolean {
         const plan = this.rebuildPlan_(ref);
         const { hit, rebuilt } = this.invalidateOne_(ref);
-        if (plan.length > 0) void rebuilt.then(() => this.rebuild_(plan));
+        if (plan.length > 0) this.track_(rebuilt.then(() => this.rebuildAssetGraph_(plan)));
         return hit;
+    }
+
+    /**
+     * Resolves when every propagation started so far has landed.
+     *
+     * The ASSET graph only. What reads it — a component bound to a handle — is
+     * the second barrier, and it moves on a frame rather than here: see the
+     * live-binding coordinator's `settled`.
+     *
+     * @internal
+     */
+    async assetGraphSettled(): Promise<void> {
+        // A rebuild can start another (a group awaits the one before it), so
+        // draining once is not the same as being settled.
+        while (this.settling_.size > 0) {
+            const inFlight = [...this.settling_];
+            await Promise.all(inFlight);
+            for (const work of inFlight) this.settling_.delete(work);
+        }
     }
 
     /** What a change to `ref` reaches, after `ref` itself. */
@@ -1664,8 +1689,19 @@ export class Assets {
         return plan.map((group) => group.filter((p) => p !== root)).filter((g) => g.length > 0);
     }
 
+    /** Count one propagation as in flight until it lands. It answers to nobody
+     *  in the ordinary case, so a failure is reported here rather than thrown at
+     *  whoever happens to be waiting. */
+    private track_(work: Promise<void>): void {
+        const settled = work.catch((e: unknown) => {
+            log.warn('asset', 'propagating a change failed; what it reached keeps what it has', e);
+        });
+        this.settling_.add(settled);
+        void settled.finally(() => this.settling_.delete(settled));
+    }
+
     /** Each group only once everything it was built from has landed. */
-    private async rebuild_(plan: string[][]): Promise<void> {
+    private async rebuildAssetGraph_(plan: string[][]): Promise<void> {
         for (const group of plan) {
             await Promise.all(group.map((path) => this.invalidateOne_(path).rebuilt));
         }

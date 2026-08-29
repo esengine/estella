@@ -94,6 +94,10 @@ export {
     type ParsedTextureImportSettings,
 } from './asset';
 
+/** When the live bindings that READ the asset graph have caught up with it —
+ *  the second barrier of an update, the first being `Assets.applyUpdate`. */
+export { LiveBindings, type LiveBindingsData } from './hotUpdateRebind';
+
 // =============================================================================
 // Resource budget (VRAM)
 // =============================================================================

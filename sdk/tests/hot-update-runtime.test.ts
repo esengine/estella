@@ -132,8 +132,10 @@ describe('a hot update reaches what was built from what it changed', () => {
 
         await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
         await assets.applyUpdate();
-        for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 
+        // No flushing: applyUpdate resolving MEANS the asset graph agrees with
+        // the manifest. What reads the graph converges on a frame, which is the
+        // other barrier and not this one.
         expect(builtFrom[1], 'the widget kept the revision it was built in')
             .toBe(`https://cdn/v2/assets/${REMOTE_HASH}.png`);
     });

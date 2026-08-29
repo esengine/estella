@@ -27,6 +27,7 @@
  *          per install, not module-global — so realms don't share queues.
  */
 import type { App } from './app/app';
+import { defineResource } from './ecs/resource';
 import { Schedule, defineSystem, GetWorld } from './ecs/system';
 import { assetScopeForEntity } from './scene/sceneManager';
 import type { Entity } from './types';
@@ -44,13 +45,39 @@ function acquire(assets: Assets, type: AssetFieldType, ref: string): Promise<Ass
         : assets.acquireTyped(type, ref);
 }
 
-export function installHotUpdateRebind(app: App, assets: Assets): void {
+/**
+ * The second barrier of an update. `Assets.applyUpdate` resolves when the ASSET
+ * graph has caught up; the bindings that read it move on a frame, so a paused
+ * app converges when it resumes and this is how to wait for that.
+ *
+ * @beta
+ */
+export interface LiveBindingsData {
+    /** Resolves once every ended era seen so far has been migrated onto its
+     *  replacement, or given up on. Needs the app to be ticking. */
+    settled(): Promise<void>;
+}
+
+/** The per-App live-binding coordinator, for a game or host that has to know
+ *  when the world has caught up with an update.
+ *
+ * @beta
+ */
+export const LiveBindings = defineResource<LiveBindingsData>(null!, 'LiveBindings');
+
+export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsData {
     // Ended eras (with the value bound before the drop), awaiting the reload;
     // and replacements awaiting their owner's transaction.
     const pending: Array<{ ref: string; type: AssetFieldType; oldValue: unknown }> = [];
     const ready: Array<{
         type: AssetFieldType; oldValue: unknown; scope: AssetScope; lease: AssetLease;
     }> = [];
+    // Reloads started but not yet placed. Without them a caller can ask between
+    // the queues and be told the world has caught up while an acquisition is in
+    // the air.
+    let reloading = 0;
+    const waiting: Array<() => void> = [];
+    const converged = (): boolean => pending.length === 0 && ready.length === 0 && reloading === 0;
 
     assets.onInvalidate((event) => {
         // The type vocabulary is one: what a loader answers to is what a field
@@ -75,12 +102,13 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
             while (pending.length > 0) {
                 const { ref, type, oldValue } = pending.shift()!;
                 for (const scope of ownerScopesOf(world, type, oldValue, ownerScopeOf)) {
+                    reloading++;
                     void acquire(assets, type, ref).then(
                         (lease) => { ready.push({ type, oldValue, scope, lease }); },
                         (e: unknown) => {
                             log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, e);
                         },
-                    );
+                    ).finally(() => { reloading--; });
                 }
             }
             while (ready.length > 0) {
@@ -90,6 +118,7 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
                     { lease, boundValue: boundValueOf }, ownerScopeOf,
                 );
             }
+            if (converged()) for (const wake of waiting.splice(0)) wake();
         },
         {
             name: 'HotUpdateRebindSystem',
@@ -99,4 +128,12 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
             touches: () => ({ writes: componentsBindingAssetTypes(assets.handleBoundTypes()) }),
         },
     ));
+
+    const coordinator: LiveBindingsData = {
+        settled: () => (converged()
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => { waiting.push(resolve); })),
+    };
+    app.insertResource(LiveBindings, coordinator);
+    return coordinator;
 }
