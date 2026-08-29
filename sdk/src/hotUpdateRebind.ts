@@ -19,19 +19,13 @@
  */
 import type { App } from './app/app';
 import { Schedule, defineSystem, GetWorld } from './ecs/system';
-import { SceneOwner } from './ecs/component';
-import { SceneManager } from './scene/sceneManager';
+import { assetScopeForEntity } from './scene/sceneManager';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
 import type { AssetScope, AssetLease } from './asset/AssetLease';
-import type { TextureResult } from './asset/AssetLoader';
 import { componentsBindingAssetType } from './asset/liveAssetBindings';
-import { migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
+import { boundValueOf, migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
 import { log } from './util/logger';
-
-/** A texture lease as a bound field holds it. */
-const textureHandleOf = (lease: AssetLease): unknown =>
-    (lease.value as TextureResult | null)?.handle;
 
 export function installHotUpdateRebind(app: App, assets: Assets): void {
     // Refs whose asset era ended (with the handle bound before the drop),
@@ -47,18 +41,11 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
         if (oldHandle) pending.push({ ref: event.ref, oldHandle });
     });
 
-    /**
-     * The scope that owes a release for what this entity's fields hold. An
-     * entity no scene owns is the app's: nothing else outlives it, and an
-     * acquisition with no owner is one nobody can give back.
-     */
-    const ownerScopeOf = (entity: Entity): AssetScope => {
-        const owner = app.world.tryGet(entity, SceneOwner);
-        const scene = owner?.scene && app.hasResource(SceneManager)
-            ? app.getResource(SceneManager).assetScopeFor(owner.scene)
-            : null;
-        return scene ?? assets.appScope;
-    };
+    // Who owns what an entity holds is answered in ONE place, not here: a
+    // promoted entity carries no scene tag and owns its assets itself, and a
+    // second copy of this rule is how it came to be handed to the app instead.
+    const ownerScopeOf = (entity: Entity): AssetScope =>
+        assetScopeForEntity(app, assets, entity);
 
     app.addSystemToSchedule(Schedule.Update, defineSystem(
         [GetWorld()],
@@ -80,7 +67,7 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
                 const { oldHandle, scope, lease } = ready.shift()!;
                 migrateScopeBindings(
                     world, scope, 'texture', oldHandle,
-                    { lease, boundValue: textureHandleOf }, ownerScopeOf,
+                    { lease, boundValue: boundValueOf }, ownerScopeOf,
                 );
             }
         },

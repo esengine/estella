@@ -20,6 +20,7 @@ import type { TextureImportSettings, TextureImportSettingsResolver } from './loa
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
+import { EntityAssetScopes } from './entityAssetScopes';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -380,6 +381,7 @@ export class Assets {
     private refCounter_: AssetRefCounter | null = null;
     private invalidateListeners_ = new Set<InvalidateListener>();
     private readonly appScope_ = new AssetScope();
+    private readonly entityScopes_ = new EntityAssetScopes();
     /** `"<kind>:<handle>"` → resolved load path, recorded on every handle-yielding
      *  load. The REVERSE of resolution — inspectors and tooling that only hold a
      *  live World handle use it to name the asset (see {@link pathForHandle}). */
@@ -1715,6 +1717,16 @@ export class Assets {
      */
     get appScope(): AssetScope {
         return this.appScope_;
+    }
+
+    /**
+     * What entities own for themselves — a persistent entity that outlived the
+     * scene it came from. Ends at the entity's despawn.
+     *
+     * @internal
+     */
+    get entityScopes(): EntityAssetScopes {
+        return this.entityScopes_;
     }
 
     releaseAll(): void {

@@ -23,6 +23,9 @@
  *   4. The runtime scene loader hands the scene its receipts, not its paths.
  *   5. A loader holding a texture past its own load() acquires it, for the same
  *      reason: it releases at unload, by which time the path may name two eras.
+ *   6. Who owns what an entity holds is answered in ONE place. A second copy of
+ *      that rule is how a promoted entity's replacement went to the app scope,
+ *      which ends only when the app does.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -159,8 +162,19 @@ for (const name of readdirSync(LOADERS).filter((f) => f.endsWith('.ts'))) {
   }
 }
 
+// Owner resolution has one source of truth: assetScopeForEntity. A rebinder
+// working it out from the scene tag cannot know about an entity that owns its
+// assets itself.
+const OWNER_RULE = /\bSceneOwner\b|\bappScope\b|\bassetScopeFor\s*\(/;
+for (const file of REBIND_PATH) {
+  const code = stripComments(readFileSync(path.join(ROOT, file), 'utf8'));
+  const hit = OWNER_RULE.exec(code);
+  if (!hit) continue;
+  findings.push(`${file}:${code.slice(0, hit.index).split('\n').length}  works out who owns an entity's assets for itself — call assetScopeForEntity.`);
+}
+
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path names none of the ${components.size} asset-bearing components, reads the declaration, and the scene loader hands over receipts.`);
+  console.log(`check-live-asset-rebind: the rebind path names none of the ${components.size} asset-bearing components, reads the declaration, acquires by receipt, and asks one place who owns what.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);

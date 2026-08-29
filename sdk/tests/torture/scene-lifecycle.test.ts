@@ -92,6 +92,8 @@ function makeManager(setupGate: (name: string) => Promise<unknown>) {
         valid: (e: number) => live.has(e),
         has: (e: number, c: unknown) => components.get(e)?.has(c) ?? false,
         get: () => ({ scene: '', persistent: false }),
+        tryGet: (e: number, c: unknown) =>
+            (components.get(e)?.has(c) ? { scene: '', persistent: false } : null),
         insert: (e: number, c: unknown) => { components.get(e)?.add(c); },
         set: () => {},
         remove: (e: number, c: unknown) => { components.get(e)?.delete(c); },

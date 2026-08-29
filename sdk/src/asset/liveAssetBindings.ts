@@ -63,6 +63,17 @@ export function findLiveAssetBindings(
     return found;
 }
 
+/** Every asset field this one entity carries, whatever the type. */
+export function assetBindingsOf(world: World, entity: Entity): LiveAssetBinding[] {
+    const found: LiveAssetBinding[] = [];
+    for (const component of getComponentRegistry().values()) {
+        if (component.assetFields.length === 0) continue;
+        if (!world.has(entity, component)) continue;
+        for (const { field } of component.assetFields) found.push({ entity, component, field });
+    }
+    return found;
+}
+
 /** Read one binding's current value — what a rollback has to put back. */
 export function readLiveAssetBinding(world: World, binding: LiveAssetBinding): unknown {
     return (world.get(binding.entity, binding.component) as Record<string, unknown>)[binding.field];

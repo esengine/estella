@@ -9,7 +9,9 @@ import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
-import { AssetScope } from '../asset/AssetLease';
+import { AssetScope, type AssetLease } from '../asset/AssetLease';
+import { assetBindingsOf, readLiveAssetBinding } from '../asset/liveAssetBindings';
+import { leaseBoundAs } from '../asset/liveAssetRebind';
 import type { SystemDef } from '../ecs/system';
 import { Material } from '../render/material';
 import type { DrawCallback } from '../render/customDraw';
@@ -22,7 +24,7 @@ import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
 import { SceneOwner, Disabled, Parent, renderableComponents, type RenderableComponentDef } from '../ecs/component';
 import { detachPreservingWorldTransform } from '../ecs/entityUtils';
-import { Assets } from '../asset/AssetPlugin';
+import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
 
@@ -551,6 +553,7 @@ export class SceneManagerState {
      */
     private promoteToGlobal_(instance: SceneInstance, entity: Entity, wasSleeping: boolean): void {
         const world = this.app_.world;
+        this.promoteAssetOwnership_(instance, entity);
         const data = world.get(entity, SceneOwner);
         if (data.scene !== '') {
             data.scene = '';
@@ -560,6 +563,31 @@ export class SceneManagerState {
         // once the scene is gone, and the record of what it looked like awake
         // dies with the instance.
         if (wasSleeping) this.restoreSleepState_(instance, entity);
+    }
+
+    /**
+     * Split the scene's ownership of what this entity is bound to.
+     *
+     * `retain`, not a re-acquire: the era the fields hold is not the era their
+     * path resolves to once a hot update has passed this scene by. One per
+     * SOURCE receipt, and only where a binding names one by VALUE.
+     */
+    private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
+        const assets = this.app_.hasResource(Assets) ? this.app_.getResource(Assets) : null;
+        if (!assets) return;
+        const sources = new Set<AssetLease>();
+        for (const binding of assetBindingsOf(this.app_.world, entity)) {
+            const held = leaseBoundAs(
+                instance.assetScope, readLiveAssetBinding(this.app_.world, binding),
+            );
+            if (held) sources.add(held);
+        }
+        if (sources.size === 0) return;
+        const scope = assets.entityScopes.ensure(this.app_.world, entity);
+        for (const source of sources) {
+            const retained = source.retain();
+            if (retained) scope.add(retained);
+        }
     }
 
     /**
@@ -865,6 +893,23 @@ export const SceneManager = defineResource<SceneManagerState>(
     null!,
     'SceneManager'
 );
+
+/**
+ * Who owes a release for what this entity's asset fields hold: entity, then
+ * scene, then app. The one answer, for every caller.
+ *
+ * A promoted entity owns what it holds and carries no scene tag, so a caller
+ * working the rule out for itself hands its replacement to the app instead.
+ */
+export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity): AssetScope {
+    const own = assets.entityScopes.scopeFor(entity);
+    if (own) return own;
+    const owner = app.world.tryGet(entity, SceneOwner);
+    const scene = owner?.scene && app.hasResource(SceneManager)
+        ? app.getResource(SceneManager).assetScopeFor(owner.scene)
+        : null;
+    return scene ?? assets.appScope;
+}
 
 // =============================================================================
 // Scene System Wrapper

@@ -46,6 +46,7 @@ function createMockApp() {
         valid: (e: number) => live.has(e),
         has: () => false,
         get: () => ({ scene: '', persistent: false }),
+        tryGet: () => null,
         insert: () => {}, set: () => {}, remove: () => {},
     };
     return {

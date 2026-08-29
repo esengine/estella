@@ -29,6 +29,23 @@ import { log } from '../util/logger';
 /** The scope that owns what an entity's asset fields hold. */
 export type OwnerScopeResolver = (entity: Entity) => AssetScope;
 
+/**
+ * The value a bound field holds for this lease — a texture's handle.
+ *
+ * Undefined for an asset a field names by ref rather than by value. Those go
+ * unmatched rather than matched through a path, which after an invalidate names
+ * a different instance than the field is bound to.
+ */
+export function boundValueOf(lease: AssetLease): unknown {
+    return (lease.value as { handle?: number } | null)?.handle;
+}
+
+/** The receipt in `scope` that a bound value names, if the scope holds one. */
+export function leaseBoundAs(scope: AssetScope, value: unknown): AssetLease | undefined {
+    if (value === undefined || value === null || value === 0 || value === '') return undefined;
+    return scope.leases().find((lease) => boundValueOf(lease) === value);
+}
+
 /** One acquisition of the replacement, and how to read the value a bound field
  *  holds for a lease — a texture's handle, for the only kind rebound today. */
 export interface LiveAssetReplacement {
@@ -72,7 +89,7 @@ export function migrateScopeBindings(
 
     // What this scope holds for the outgoing era, found BEFORE the replacement
     // joins the scope — afterwards a search by value could match either.
-    const outgoing = scope.leases().find((lease) => replacement.boundValue(lease) === oldValue);
+    const outgoing = leaseBoundAs(scope, oldValue);
 
     const previous = bindings.map((binding) => readLiveAssetBinding(world, binding));
     let written = 0;
