@@ -304,7 +304,13 @@ namespace {
 void countTrack(spTrackEntry* entry, PoseCounts& counts) {
     for (; entry; entry = entry->mixingFrom) {
         ++counts.entries;
-        if (entry->animation) counts.timelines += static_cast<std::uint32_t>(entry->animation->timelinesCount);
+        if (!entry->animation) continue;
+#if ES_SPINE_VERSION >= 41
+        // 4.1 moved the timeline list into an array type; 3.8 counts them itself.
+        counts.timelines += static_cast<std::uint32_t>(entry->animation->timelines->size);
+#else
+        counts.timelines += static_cast<std::uint32_t>(entry->animation->timelinesCount);
+#endif
     }
 }
 
