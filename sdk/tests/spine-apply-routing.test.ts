@@ -12,6 +12,7 @@ import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { applySpineEntities, spineEntityProps } from '../src/spine/loadSpineScene';
 import type { SceneData } from '../src/scene/scene';
 import type { Entity } from '../src/types';
+import { fakeSpineEra } from './helpers/fakeSpineModule';
 
 const SPINE_COMP = 'ApplyRouting_Spine';
 
@@ -51,16 +52,15 @@ describe('applySpineEntities routes every version to the SpineManager (S3)', () 
             entityMap: new Map([[1, entity]]),
             registry: {} as never,
             assetInfo: new Map([['hero.skel:hero.atlas', {
-                version: '4.2' as const, era: 'hero.skel:hero.atlas#7', isBinary: true,
-                skelData: new Uint8Array(), atlasText: '', textures: new Map(),
+                version: '4.2' as const, preparation: null,
+                era: fakeSpineEra('hero.skel:hero.atlas#7', new Uint8Array()),
             }]]),
         });
         expect(manager.loadEntity).toHaveBeenCalledTimes(1);
         // The ERA, not the ref: two entities share a native skeleton only while
         // they are on the same generation of the asset.
         expect(manager.loadEntity).toHaveBeenCalledWith(
-            entity, expect.anything(), '', expect.anything(), expect.anything(),
-            'hero.skel:hero.atlas#7');
+            entity, expect.objectContaining({ id: 'hero.skel:hero.atlas#7' }), expect.anything());
         expect(manager.setAnimation).toHaveBeenCalledWith(entity, 'walk', true);
     });
 

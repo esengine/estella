@@ -11,6 +11,7 @@
  */
 import { vi } from 'vitest';
 import type { SpineWasmModule } from '../../src/spine/SpineModuleLoader';
+import type { SpineEraBinding } from '../../src/spine/prepareSpine';
 
 export interface FakeSpineModule {
     module: SpineWasmModule;
@@ -74,4 +75,23 @@ export function fakeSpineModule(): FakeSpineModule {
         HEAPU16: new Uint16Array(1024),
     } as never;
     return fake;
+}
+
+/** A prepared era with nothing behind it: what a runtime binds an entity to. */
+export function fakeSpineEra(
+    id: string, skelData: Uint8Array | string = new Uint8Array([1]),
+): SpineEraBinding & { claims: { retained: number; released: number } } {
+    const claims = { retained: 0, released: 0 };
+    return {
+        id,
+        claims,
+        value: {
+            skelData, atlasText: '', isBinary: typeof skelData !== 'string',
+            textures: new Map(),
+        },
+        retain: () => {
+            claims.retained++;
+            return { release: () => { claims.released++; } };
+        },
+    };
 }

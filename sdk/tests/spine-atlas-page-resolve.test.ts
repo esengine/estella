@@ -66,7 +66,7 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         expect(transcoder.transcodeToRgba).toHaveBeenCalledTimes(1);
         // Registered under the LOGICAL path — the atlas's stable identity.
         expect(rm.registerTextureWithPath).toHaveBeenCalledWith(11, 'assets/spine/spineboy.png');
-        const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.textures.get('spineboy.png');
+        const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.get('spineboy.png');
         expect(tex).toEqual({ glId: 7, w: 2, h: 2 });
     });
 
@@ -117,7 +117,7 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
             expect(createTextureFromKTX2).toHaveBeenCalledTimes(1);
             expect(source.decodePixels).not.toHaveBeenCalled();
             expect(rm.registerTextureWithPath).toHaveBeenCalledWith(21, 'assets/spine/spineboy.png');
-            const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.textures.get('spineboy.png');
+            const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.get('spineboy.png');
             expect(tex).toEqual({ glId: 7, w: 8, h: 8 });
         } finally {
             delete (rm as { createTextureFromKTX2?: unknown }).createTextureFromKTX2;
@@ -127,6 +127,6 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
     it('a KTX2 page in a realm without basis warns and skips, not throws', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const info = await loadSpineAssets({} as never, source, null, PAIR, async () => null);
-        expect(info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.textures.size).toBe(0);
+        expect(info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.size).toBe(0);
     });
 });

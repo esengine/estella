@@ -20,6 +20,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { wrapSpineModule, type SpineWasmModule } from './SpineModuleLoader';
+import type { SpineEraBinding, SpineEraClaim } from './prepareSpine';
 import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
@@ -34,18 +35,24 @@ interface EntityInfo {
     timeScale: number;
     playing: boolean;
     /** Which era of which asset. Entities sharing it share one loaded skeleton. */
-    era?: string;
+    era: string;
+}
+
+/** One parsed skeleton, and the era it was parsed from. The claim is the
+ *  residency's, not each entity's: the refcount already knows when the native
+ *  object is no longer needed, and a claim per entity would say it twice. */
+interface SkeletonResidency {
+    skelHandle: number;
+    refcount: number;
+    claim: SpineEraClaim;
 }
 
 export class SpineRuntime {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
     private disabledEntities_: Set<Entity> = new Set();
-    // era -> the one loaded skeleton (skeletonData + atlas + page textures)
-    // shared by every entity of that era; refcounted so it unloads when the last
-    // instance is removed. Without one, an entity falls back to its own
-    // per-entity skeleton (the pre-dedup behaviour).
-    private skeletons_: Map<string, { skelHandle: number; refcount: number }> = new Map();
+    // era -> the one native skeleton every entity of that era is posed by.
+    private skeletons_: Map<string, SkeletonResidency> = new Map();
 
     /** One runtime per loaded module: the ABI adapter is made here rather than
      *  handed in, because nothing else has a reason to hold one. */
@@ -57,29 +64,16 @@ export class SpineRuntime {
         return this.entities_.size;
     }
 
-    loadEntity(
-        entity: Entity,
-        skelData: Uint8Array | string,
-        atlasText: string,
-        textures: Map<string, { glId: number; w: number; h: number }>,
-        isBinary: boolean,
-        /**
-         * The identity of the prepared asset — its ERA, never merely its ref. A
-         * ref would find the skeleton parsed from the bytes BEFORE an update
-         * still referenced by another entity, and hand it back: every entity
-         * reloads, none of them onto the new content, and nothing reports it.
-         */
-        era?: string,
-    ): boolean {
+    loadEntity(entity: Entity, era: SpineEraBinding): boolean {
         // Commit after success, like the preparation that produced the asset:
         // what this replaces keeps posing until the new binding exists, so a
         // skeleton that will not parse costs the entity nothing.
-        const claimed = this.claimSkeleton_(skelData, atlasText, textures, isBinary, era);
+        const claimed = this.claimSkeleton_(era);
         if (claimed < 0) return false;
         const instanceId = this.controller_.createInstance(claimed);
         if (instanceId < 0) {
             log.error('spine', `Failed to create instance: ${this.controller_.getLastError()}`);
-            this.releaseSkeleton_({ skelHandle: claimed, era } as EntityInfo);
+            this.releaseSkeleton_({ skelHandle: claimed, era: era.id } as EntityInfo);
             return false;
         }
 
@@ -88,29 +82,34 @@ export class SpineRuntime {
         // never unloaded and re-parsed underneath an entity that stays on it.
         this.removeEntity(entity);
         this.entities_.set(entity, {
-            skelHandle: claimed, instanceId, era,
+            skelHandle: claimed, instanceId, era: era.id,
             skeletonScale: 1, flipX: false, flipY: false, layer: 0, timeScale: 1, playing: true,
         });
         return true;
     }
 
-    /** One claim on the era's native skeleton — the loaded one if this runtime
-     *  already has it, else a fresh parse. -1 when it will not parse. */
-    private claimSkeleton_(
-        skelData: Uint8Array | string,
-        atlasText: string,
-        textures: Map<string, { glId: number; w: number; h: number }>,
-        isBinary: boolean,
-        era?: string,
-    ): number {
-        const shared = era !== undefined ? this.skeletons_.get(era) : undefined;
+    /**
+     * One claim on the era's native skeleton — the loaded one if this runtime has
+     * it, else a fresh parse; -1 when the era cannot be joined or will not parse.
+     * Retained BEFORE anything is parsed from it: what a native skeleton was made
+     * of has to outlive it, and a page freed under it cannot be put back.
+     */
+    private claimSkeleton_(era: SpineEraBinding): number {
+        const shared = this.skeletons_.get(era.id);
         if (shared) {
             shared.refcount++;
             return shared.skelHandle;
         }
+        const claim = era.retain();
+        if (!claim) {
+            log.error('spine', `Spine era "${era.id}" can no longer be joined`);
+            return -1;
+        }
+        const { skelData, atlasText, isBinary, textures } = era.value;
         const skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
         if (skelHandle < 0) {
             log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
+            claim.release();
             return -1;
         }
         const pageCount = this.controller_.getAtlasPageCount(skelHandle);
@@ -121,7 +120,7 @@ export class SpineRuntime {
                 this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
             }
         }
-        if (era !== undefined) this.skeletons_.set(era, { skelHandle, refcount: 1 });
+        this.skeletons_.set(era.id, { skelHandle, refcount: 1, claim });
         return skelHandle;
     }
 
@@ -298,35 +297,28 @@ export class SpineRuntime {
         this.disabledEntities_.delete(entity);
     }
 
-    /** Drop one reference to an entity's skeleton; unload it only when shared
-     *  refcount hits zero (or immediately for an un-keyed per-entity skeleton). */
+    /** Drop one reference to an entity's skeleton. At zero the NATIVE object
+     *  goes first and the era it was parsed from after it — the order ownership
+     *  says, not the order today's unload happens to tolerate. */
     private releaseSkeleton_(info: EntityInfo): void {
-        if (info.era !== undefined) {
-            const shared = this.skeletons_.get(info.era);
-            if (shared) {
-                if (--shared.refcount <= 0) {
-                    this.controller_.unloadSkeleton(shared.skelHandle);
-                    this.skeletons_.delete(info.era);
-                }
-                return;
-            }
-        }
-        this.controller_.unloadSkeleton(info.skelHandle);
+        const shared = this.skeletons_.get(info.era);
+        if (!shared) return;
+        if (--shared.refcount > 0) return;
+        this.controller_.unloadSkeleton(shared.skelHandle);
+        this.skeletons_.delete(info.era);
+        shared.claim.release();
     }
 
-    /** Give back everything this runtime holds. The one teardown door. */
+    /** Give back everything this runtime holds, in the order it holds it:
+     *  instances, then the native skeletons, then the eras they came from. */
     dispose(): void {
         for (const info of this.entities_.values()) {
             this.controller_.destroyInstance(info.instanceId);
         }
-        // Unload each unique skeleton once: shared ones via skeletons_, plus any
-        // un-keyed per-entity skeletons.
-        const handles = new Set<number>();
-        for (const entry of this.skeletons_.values()) handles.add(entry.skelHandle);
-        for (const info of this.entities_.values()) {
-            if (info.era === undefined) handles.add(info.skelHandle);
+        for (const residency of this.skeletons_.values()) {
+            this.controller_.unloadSkeleton(residency.skelHandle);
+            residency.claim.release();
         }
-        for (const h of handles) this.controller_.unloadSkeleton(h);
         this.entities_.clear();
         this.disabledEntities_.clear();
         this.skeletons_.clear();

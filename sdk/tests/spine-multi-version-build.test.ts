@@ -10,6 +10,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
+import { fakeSpineEra } from './helpers/fakeSpineModule';
 import { SpineManager } from '../src/spine/SpineManager';
 import { SIDE_MODULES, SPINE_VERSIONS, spineModuleId } from '../src/sideModules/registry';
 
@@ -54,10 +55,10 @@ describe('Spine multi-version build pipeline', () => {
         const manager = new SpineManager({} as any, new Map());
 
         const v43 = await manager.loadEntity(
-            1 as any, '{"spine":"4.3.75-beta","skeleton":{}}', '', new Map(), {} as any,
+            1 as any, fakeSpineEra('boy#1', '{"spine":"4.3.75-beta","skeleton":{}}'), {} as any,
         );
         const v42 = await manager.loadEntity(
-            2 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
+            2 as any, fakeSpineEra('boy#2', '{"spine":"4.2.10","skeleton":{}}'), {} as any,
         );
 
         expect(v43).toBeNull();
@@ -78,7 +79,7 @@ describe('Spine multi-version build pipeline', () => {
         });
         const manager = new SpineManager(mockModule, new Map());
         await manager.loadEntity(
-            1 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
+            1 as any, fakeSpineEra('boy#1', '{"spine":"4.2.10","skeleton":{}}'), {} as any,
         );
         expect(touched).toBeNull();
         manager.dispose();

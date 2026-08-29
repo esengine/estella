@@ -21,6 +21,7 @@
  *          is decided once, here.
  */
 import { requireResourceManager } from '../wasm/resourceManager';
+import type { AssetLease } from '../asset/AssetLease';
 import { parseSpineAtlasPages } from './atlasPages';
 import { log } from '../util/logger';
 
@@ -57,6 +58,40 @@ export interface SpineIO {
     /** Whether the skeleton document is bytes rather than text — the extension
      *  of where it actually IS, which a uuid ref does not carry. */
     isBinary(ref: string): boolean;
+}
+
+/** A claim on an era, held by something derived from it. */
+export interface SpineEraClaim {
+    release(): void;
+}
+
+/**
+ * One prepared era, and the right to keep it alive.
+ *
+ * Indivisible on purpose: a runtime that was handed an id and a separate way to
+ * keep something alive can be handed the id of one generation and a claim on
+ * another. What it retains is always the generation whose bytes it parsed.
+ */
+export interface SpineEraBinding {
+    /** Which era — what a runtime keys its native residency by. */
+    readonly id: string;
+    readonly value: SpineAssetValue;
+    /**
+     * A claim on THIS generation. Never a fresh acquisition by name: after an
+     * invalidate that name resolves to a different era than the one this native
+     * skeleton was parsed from. Null when the era can no longer be joined.
+     */
+    retain(): SpineEraClaim | null;
+}
+
+/** The era binding for an acquired spine asset: identity is the pair plus the
+ *  generation, and the claim is a retain of exactly that generation. */
+export function spineEraOf(key: string, lease: AssetLease<SpineAssetValue>): SpineEraBinding {
+    return {
+        id: `${key}#${lease.generation}`,
+        value: lease.value,
+        retain: () => lease.retain(),
+    };
 }
 
 /** The identity of a spine asset in one realm: the pair, in one string. */

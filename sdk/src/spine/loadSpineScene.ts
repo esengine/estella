@@ -23,7 +23,9 @@ import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
-import { prepareSpine, spinePairKey, type SpineAssetValue, type SpineIO } from './prepareSpine';
+import { prepareSpine, spineEraOf, spinePairKey,
+         type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO } from './prepareSpine';
+import { requireResourceManager } from '../wasm/resourceManager';
 import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { AssetsData } from '../asset/AssetPlugin';
@@ -61,20 +63,17 @@ export function spineEntityProps(d: Record<string, unknown>): {
 export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
-type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
+type CppRegistry = Parameters<SpineManager['loadEntity']>[2];
 
-/** One prepared pair: what it is, the runtime version its skeleton names, and
- *  the identity of THIS preparation of it — see {@link SpineAssetInfo.era}. */
-export type SpineAssetInfo = SpineAssetValue & {
+/** One prepared pair: the era to bind entities to, the runtime version its
+ *  skeleton document names, and — for a preparation nothing else owns — the
+ *  claim this phase took, which the caller gives back once the eras are bound. */
+export interface SpineAssetInfo {
     version: SpineVersion | null;
-    /**
-     * Which generation of the pair this is. Entities sharing it share one native
-     * skeleton; entities on different ones do not, which is what makes an update
-     * actually load the new bytes instead of finding the old skeleton still
-     * referenced and handing it back.
-     */
-    era: string;
-};
+    era: SpineEraBinding;
+    /** Null when an owner holds the preparation's claim (the scene's receipt). */
+    preparation: SpineEraClaim | null;
+}
 
 /**
  * Phase 1 — fetch + decode each spine pair's skeleton/atlas/textures and detect
@@ -106,29 +105,32 @@ export async function loadSpineAssets(
     for (const pair of spinePairs) {
         try {
             const key = spinePairKey(pair.skeleton, pair.atlas);
-            let value: SpineAssetValue;
-            let era: string;
+            let era: SpineEraBinding;
+            let preparation: SpineEraClaim | null = null;
             if (owner) {
                 // The realm's era: a second scene of this pair joins it rather
                 // than uploading its pages again, and the receipt is the
                 // scene's, so the pages go back when the scene does.
                 const lease = await owner.assets.acquireSpine(pair.skeleton, pair.atlas);
                 owner.scope.add(lease);
-                value = lease.value;
-                era = `${key}#${lease.generation}`;
+                era = spineEraOf(key, lease as never);
             } else {
-                value = await prepareSpine(
-                    hostSpineIo(module, source, pair.atlas, transcoderProvider),
+                const pages: number[] = [];
+                const value = await prepareSpine(
+                    hostSpineIo(module, source, pair.atlas, transcoderProvider, pages),
                     pair.skeleton, pair.atlas,
                 );
-                era = `${key}#${++preparations}`;
+                const host = hostEra(`${key}#${++preparations}`, value, pages);
+                era = host.era;
+                preparation = host.preparation;
             }
+            const { skelData } = era.value;
             const version = spineManager
-                ? (typeof value.skelData === 'string'
-                    ? SpineManager.detectVersionJson(value.skelData)
-                    : SpineManager.detectVersion(value.skelData))
+                ? (typeof skelData === 'string'
+                    ? SpineManager.detectVersionJson(skelData)
+                    : SpineManager.detectVersion(skelData))
                 : null;
-            assetInfoMap.set(key, { ...value, version, era });
+            assetInfoMap.set(key, { version, era, preparation });
         } catch (err) {
             log.warn('runtime', `Failed to load spine asset: skel=${pair.skeleton} atlas=${pair.atlas}`, err);
         }
@@ -144,6 +146,28 @@ export async function loadSpineAssets(
 let preparations = 0;
 
 /**
+ * An era prepared by a host with no asset layer: the same capability the realm's
+ * lease provides, over the pages this preparation itself uploaded. The claim it
+ * starts with is the preparation's own, given back once the eras are bound —
+ * after which the runtimes posing it are the only holders.
+ */
+function hostEra(
+    id: string, value: SpineAssetValue, pages: number[],
+): { era: SpineEraBinding; preparation: SpineEraClaim } {
+    let claims = 1;
+    const drop = (): void => {
+        if (--claims > 0) return;
+        const rm = requireResourceManager();
+        for (const handle of pages) rm.releaseTexture(handle);
+        pages.length = 0;
+    };
+    return {
+        era: { id, value, retain: () => { claims++; return { release: drop }; } },
+        preparation: { release: drop },
+    };
+}
+
+/**
  * A host's own file access as a spine transport — the editor, and any target
  * driving this loader without an asset layer. Same algorithm as the asset
  * layer's; what differs is where the bytes come from and that a page taken here
@@ -153,7 +177,9 @@ function hostSpineIo(
     module: ESEngineModule | null,
     source: RuntimeAssetSource,
     atlasRef: string,
-    transcoderProvider?: TranscoderProvider,
+    transcoderProvider: TranscoderProvider | undefined,
+    /** The page handles this preparation uploaded — what its era gives back. */
+    pages: number[],
 ): SpineIO {
     const resolveRef = source.resolveRef ?? ((r: string) => r);
     // Pages are named relative to the atlas's AUTHORED location, not its staged
@@ -164,12 +190,16 @@ function hostSpineIo(
     return {
         text: (ref) => source.backend.fetchText(resolveRef(ref)),
         binary: (ref) => source.backend.fetchBinary(resolveRef(ref)),
-        page: (path) => createAtlasPageTexture(
-            resolveRef(path),
-            (p) => source.backend.fetchBinary(p),
-            (p) => source.decodePixels(p, false),
-            transcoderProvider, module,
-        ),
+        page: async (path) => {
+            const page = await createAtlasPageTexture(
+                resolveRef(path),
+                (p) => source.backend.fetchBinary(p),
+                (p) => source.decodePixels(p, false),
+                transcoderProvider, module,
+            );
+            pages.push(page.handle);
+            return page;
+        },
         // No dir ⇒ the page name IS the path (never a leading-slash "/page.png",
         // which resolves to nothing).
         pagePath: (name) => (dir ? `${dir}/${name}` : name),
@@ -213,8 +243,7 @@ export async function applySpineEntities(opts: {
             const entity = entityMap.get(sceneEntity.id);
             if (entity === undefined) continue;
 
-            await spineManager.loadEntity(
-                entity, info.skelData, info.atlasText, info.textures, registry, info.era);
+            await spineManager.loadEntity(entity, info.era, registry);
 
             spineManager.setEntityProps(entity, spineEntityProps(comp.data as Record<string, unknown>));
             const skin = comp.data.skin as string;
@@ -251,4 +280,7 @@ export async function loadSpineSceneEntities(opts: {
         registry: opts.registry,
         assetInfo,
     });
+    // The bound eras are held by the runtimes posing them now; a pair no entity
+    // took goes back here rather than living as long as the host does.
+    for (const info of assetInfo.values()) info.preparation?.release();
 }

@@ -7,6 +7,7 @@ import type { SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
+import type { SpineEraBinding } from './prepareSpine';
 import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
@@ -66,13 +67,12 @@ export class SpineManager {
 
     async loadEntity(
         entity: Entity,
-        skelData: Uint8Array | string,
-        atlasText: string,
-        textures: Map<string, { glId: number; w: number; h: number }>,
+        /** The prepared era and the right to keep it alive — indivisible, so a
+         *  runtime can never be given one generation's id with another's claim. */
+        era: SpineEraBinding,
         _registry: CppRegistry,
-        /** The prepared asset's ERA — see SpineRuntime.loadEntity. */
-        era?: string,
     ): Promise<SpineVersion | null> {
+        const { skelData } = era.value;
         const version = typeof skelData === 'string'
             ? SpineManager.detectVersionJson(skelData)
             : SpineManager.detectVersion(skelData);
@@ -88,9 +88,8 @@ export class SpineManager {
             return null;
         }
 
-        const isBinary = skelData instanceof Uint8Array;
         const previous = this.bindings_.get(entity);
-        const ok = runtime.loadEntity(entity, skelData, atlasText, textures, isBinary, era);
+        const ok = runtime.loadEntity(entity, era);
         if (!ok) {
             // Commit after success all the way up: the entity keeps the binding
             // it had, in whichever runtime that was.

@@ -12,8 +12,9 @@ import type { Entity } from '../src/types';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { applySpineEntities } from '../src/spine/loadSpineScene';
 import type { SceneData } from '../src/scene/scene';
+import type { SpineEraBinding } from '../src/spine/prepareSpine';
 
-import { fakeSpineModule, type FakeSpineModule } from './helpers/fakeSpineModule';
+import { fakeSpineModule, fakeSpineEra, type FakeSpineModule } from './helpers/fakeSpineModule';
 
 /** A runtime of one version over a faked module. */
 function runtimeOf(): { runtime: SpineRuntime; native: FakeSpineModule } {
@@ -21,13 +22,17 @@ function runtimeOf(): { runtime: SpineRuntime; native: FakeSpineModule } {
     return { runtime: new SpineRuntime('4.2', native.module), native };
 }
 
-const NO_TEX = new Map<string, { glId: number; w: number; h: number }>();
-
-function load(b: SpineRuntime, id: number, key?: string) {
-    b.loadEntity(id as Entity, new Uint8Array(), '', NO_TEX, true, key);
+/** One era per name, so entities of one name share a residency. */
+const eras = new Map<string, ReturnType<typeof fakeSpineEra>>();
+function load(b: SpineRuntime, id: number, key: string) {
+    let era = eras.get(key);
+    if (!era) { era = fakeSpineEra(key); eras.set(key, era); }
+    b.loadEntity(id as Entity, era);
 }
 
 describe('SpineRuntime skeleton dedup (S4-A)', () => {
+    beforeEach(() => { eras.clear(); });
+
     it('shares one skeleton across entities with the same asset key', () => {
         const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
@@ -71,13 +76,6 @@ describe('SpineRuntime skeleton dedup (S4-A)', () => {
         expect(c.loadSkeleton).toHaveBeenCalledTimes(1);    // still one skeletonData
     });
 
-    it('loads a fresh skeleton per entity when no asset key is given (legacy)', () => {
-        const { runtime: b, native: c } = runtimeOf();
-        load(b, 1);
-        load(b, 2);
-        expect(c.loadSkeleton).toHaveBeenCalledTimes(2);
-    });
-
     it('shutdown unloads each unique skeleton once and destroys every instance', () => {
         const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
@@ -108,26 +106,21 @@ describe('a hot swap loads the new bytes, once', () => {
         })),
     } as unknown as SceneData;
 
-    /** A manager that is the real backend, so what is asserted is what the
+    /** A manager that is the real runtime, so what is asserted is what the
      *  native side was actually told. */
-    function managerOver(backend: SpineRuntime) {
+    function managerOver(runtime: SpineRuntime) {
         return {
-            loadEntity: vi.fn(async (
-                entity: Entity, skelData: Uint8Array | string, atlasText: string,
-                textures: Map<string, { glId: number; w: number; h: number }>,
-                _registry: unknown, era?: string,
-            ) => {
-                backend.loadEntity(entity, skelData, atlasText, textures, true, era);
+            loadEntity: vi.fn(async (entity: Entity, era: SpineEraBinding) => {
+                runtime.loadEntity(entity, era);
                 return '4.2';
             }),
             setEntityProps: vi.fn(), setSkin: vi.fn(), setAnimation: vi.fn(),
         };
     }
 
-    function generation(era: string) {
+    function generation(id: string) {
         return new Map([['hero.skel:hero.atlas', {
-            version: '4.2' as const, era, isBinary: true,
-            skelData: new Uint8Array([era.length]), atlasText: era, textures: new Map(),
+            version: '4.2' as const, era: fakeSpineEra(id), preparation: null,
         }]]);
     }
 

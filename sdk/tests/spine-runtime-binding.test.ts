@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { SpineManager, type SpineVersion } from '../src/spine/SpineManager';
 import type { SpineModuleFactory } from '../src/spine/SpineModuleLoader';
 import type { Entity } from '../src/types';
-import { fakeSpineModule, type FakeSpineModule } from './helpers/fakeSpineModule';
+import { fakeSpineModule, fakeSpineEra, type FakeSpineModule } from './helpers/fakeSpineModule';
 
 /** A skeleton document that reports `version`, in the shape detection reads. */
 function skeletonOf(version: string): string {
@@ -35,13 +35,12 @@ function managerWithVersions() {
     return { manager: new SpineManager({} as never, factories), runtimes };
 }
 
-const NO_TEXTURES = new Map<string, { glId: number; w: number; h: number }>();
 const REGISTRY = {} as never;
 
 async function bind(
     manager: SpineManager, entity: Entity, version: string, era: string,
 ): Promise<SpineVersion | null> {
-    return manager.loadEntity(entity, skeletonOf(version), '', NO_TEXTURES, REGISTRY, era);
+    return manager.loadEntity(entity, fakeSpineEra(era, skeletonOf(version)), REGISTRY);
 }
 
 describe('one entity is posed by at most one runtime', () => {
