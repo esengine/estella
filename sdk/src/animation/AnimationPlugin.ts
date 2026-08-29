@@ -15,10 +15,9 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import { log } from '../util/logger';
 import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
-import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
-import { AnimatorController, AnimatorControllerAPI } from './Animator';
-import { Assets } from '../asset/AssetPlugin';
-import { resolveAssetKey } from '../asset/resolveAssetKey';
+import { SpriteAnimation, SpriteAnimationAPI, type SpriteAnimClip } from './SpriteAnimator';
+import { AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef } from './Animator';
+import { appRegistryAsset } from '../asset/registryLookup';
 import { playModeOnly } from '../ecs/env';
 import { SystemLabel } from '../ecs/systemLabels';
 
@@ -57,19 +56,20 @@ export class AnimationPlugin implements Plugin {
             { name: 'TweenSystem' }
         ), { runIf: playModeOnly });
 
-        // Resolve a `.esanimator` controller ref to the load path its loader keyed
-        // the store with (an `estella://…` URL in the play realm), matching the FSM
-        // plugin — without it, an Animator referencing a controller BY PATH resolves
-        // to nothing at runtime and silently never seeds a state.
-        const resolveKey = (ref: string): string =>
-            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+        // A `.esanim` / `.esanimator` comes from THIS app's realm, whose slots
+        // answer to the authored ref as well as the resolved path. A code
+        // registration still wins over one.
+        anim.useAssetClips((ref) => appRegistryAsset<SpriteAnimClip>(app, 'anim-clip', ref));
+        animator.useAssetControllers(
+            (ref) => appRegistryAsset<AnimatorControllerDef>(app, 'animatorcontroller', ref),
+        );
 
         // The state machine runs before the sprite animator so a transition's
         // clip switch applies the same frame it fires.
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(AnimatorController)],
             (ctrl: AnimatorControllerAPI) => {
-                ctrl.update(world, resolveKey);
+                ctrl.update(world);
             },
             { name: 'AnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });

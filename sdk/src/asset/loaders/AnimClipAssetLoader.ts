@@ -13,7 +13,6 @@ import type { AssetLoader, LoadContext, AnimClipResult, RegistryAssetLoader } fr
 import type { RegistryEra } from '../registryAssets';
 import { AssetScope } from '../AssetLease';
 import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
-import type { SpriteAnimClip } from '../../animation/SpriteAnimator';
 import { log } from '../../util/logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
@@ -43,16 +42,10 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
                 dependencies,
             };
         },
-        publish: (names, published, ctx) => {
-            const anim = ctx.getSpriteAnimation();
-            for (const name of names) anim?.aliasClip(name, published as SpriteAnimClip);
-        },
-        unpublish: (names, published, ctx) => {
-            const anim = ctx.getSpriteAnimation();
-            if (!anim) return;
-            for (const name of names) {
-                if (anim.getClip(name) === published) anim.unregisterClip(name);
-            }
-        },
+        // Nothing: the slot holds the era, and this app's sprite animation
+        // reads it there. A clip registered into the API as well would be a
+        // second copy of "which clip is walk.esanim now".
+        publish: () => {},
+        unpublish: () => {},
     };
 }

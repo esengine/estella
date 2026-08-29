@@ -404,6 +404,7 @@ ResourceDef<AnimatorControllerAPI>
 
 ## AnimatorControllerAPI — class @experimental
 ```
+@internal useAssetControllers: (source: (ref: string) => AnimatorControllerDef | undefined) => void
 clearControllers: () => void
 getBool: (entity: Entity, name: string) => boolean
 getController: (name: string) => AnimatorControllerDef | undefined
@@ -416,7 +417,7 @@ setFloat: (entity: Entity, name: string, value: number) => void
 setSpineDriver: (driver: SpineAnimationDriver | null) => void
 setTrigger: (entity: Entity, name: string) => void
 unregisterController: (name: string) => void
-update: (world: World, resolveKey?: (ref: string) => string) => void
+update: (world: World) => void
 static new (): AnimatorControllerAPI
 static prototype: AnimatorControllerAPI
 ```
@@ -7471,6 +7472,7 @@ ResourceDef<SpriteAnimationAPI>
 
 ## SpriteAnimationAPI — class @experimental
 ```
+@internal useAssetClips: (source: (ref: string) => SpriteAnimClip | undefined) => void
 aliasClip: (name: string, clip: SpriteAnimClip) => void
 clearClips: () => void
 getClip: (name: string) => SpriteAnimClip | undefined

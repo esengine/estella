@@ -72,6 +72,7 @@ export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame:
  */
 export class SpriteAnimationAPI {
     private readonly clips = new Map<string, SpriteAnimClip>();
+    private assetClips_: ((ref: string) => SpriteAnimClip | undefined) | null = null;
     private readonly entityListeners = new Map<Entity, SpriteAnimEventHandler[]>();
     private readonly globalListeners: SpriteAnimEventHandler[] = [];
 
@@ -96,8 +97,17 @@ export class SpriteAnimationAPI {
         this.clips.delete(name);
     }
 
+    /**
+     * @internal Where a clip loaded from a `.esanim` comes from: this app's
+     * realm. A code registration wins, as it always did — what changes is that
+     * the asset half is no longer a second copy kept in the map above.
+     */
+    useAssetClips(source: (ref: string) => SpriteAnimClip | undefined): void {
+        this.assetClips_ = source;
+    }
+
     getClip(name: string): SpriteAnimClip | undefined {
-        return this.clips.get(name);
+        return this.clips.get(name) ?? this.assetClips_?.(name);
     }
 
     clearClips(): void {
@@ -162,7 +172,7 @@ export class SpriteAnimationAPI {
             const animator = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
             if (!animator.enabled || !animator.playing || !animator.clip) continue;
 
-            const clip = this.clips.get(animator.clip);
+            const clip = this.getClip(animator.clip);
             if (!clip || clip.frames.length === 0) continue;
 
             // playing raised on a finished one-shot = replay from the top
@@ -244,7 +254,7 @@ export class SpriteAnimationAPI {
     // -- goto frame / label ---------------------------------------------------
 
     gotoFrame(animator: SpriteAnimatorData, frameIndex: number, andPlay: boolean = true): void {
-        const clip = this.clips.get(animator.clip);
+        const clip = this.getClip(animator.clip);
         if (!clip || clip.frames.length === 0) return;
 
         animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
@@ -254,7 +264,7 @@ export class SpriteAnimationAPI {
     }
 
     gotoLabel(animator: SpriteAnimatorData, label: string, andPlay: boolean = true): void {
-        const clip = this.clips.get(animator.clip);
+        const clip = this.getClip(animator.clip);
         if (!clip || !clip.labels) return;
 
         const frameIndex = clip.labels[label];

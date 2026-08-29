@@ -416,6 +416,7 @@ export function clearAnimatorControllerStore(): void {
  * resource; read it as `app.getResource(AnimatorController)`.
  */
 export class AnimatorControllerAPI {
+    private assetControllers_: ((ref: string) => AnimatorControllerDef | undefined) | null = null;
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
@@ -437,10 +438,20 @@ export class AnimatorControllerAPI {
         this.controllers.delete(name);
     }
 
+    /**
+     * @internal Where a `.esanimator` comes from: this app's realm. Set by the
+     * animation plugin; without one only code registrations answer.
+     */
+    useAssetControllers(source: (ref: string) => AnimatorControllerDef | undefined): void {
+        this.assetControllers_ = source;
+    }
+
     getController(name: string): AnimatorControllerDef | undefined {
-        // A code-registered name wins; otherwise fall back to a controller the
-        // asset loader registered under its `.esanimator` path.
-        return this.controllers.get(name) ?? getRegisteredAnimatorController(name);
+        // A code-registered name wins, then this realm's asset, then a
+        // controller registered by path through the module door.
+        return this.controllers.get(name)
+            ?? this.assetControllers_?.(name)
+            ?? getRegisteredAnimatorController(name);
     }
 
     clearControllers(): void {
@@ -493,19 +504,13 @@ export class AnimatorControllerAPI {
 
     // -- per-frame system -----------------------------------------------------
 
-    update(world: World, resolveKey?: (ref: string) => string): void {
+    update(world: World): void {
         const entities = world.getEntitiesWithComponents([Animator]);
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
             if (!a.enabled) continue;
 
-            // A code-registered NAME wins; otherwise the controller was loaded from
-            // a `.esanimator` asset and lives in the path store under its RESOLVED
-            // load path (e.g. `estella://…` in the play realm). Resolve the ref the
-            // same way the loader keyed it before falling back to the raw ref.
-            const def = this.controllers.get(a.controller)
-                ?? getRegisteredAnimatorController(resolveKey ? resolveKey(a.controller) : a.controller)
-                ?? getRegisteredAnimatorController(a.controller);
+            const def = this.getController(a.controller);
             if (!def || def.states.length === 0) continue;
 
             // Seed / repair the active state path. The path descends into a

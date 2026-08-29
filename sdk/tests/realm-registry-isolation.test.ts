@@ -130,6 +130,23 @@ describe('two realms in one process do not share an asset', () => {
         expect(b.assets.resolveRegistryAsset('timeline', 'cut/intro.estimeline')).toBeUndefined();
     });
 
+    it('a code-registered controller still wins over the realm\'s asset', async () => {
+        // This round changes which realm answers, not who wins: a name the game
+        // registered in code is still the one an Animator gets.
+        const { AnimatorControllerAPI } = await import('../src/animation/Animator');
+        const CODE = { initialState: 'run', states: [{ name: 'run' }] };
+        const DISK = JSON.stringify({ initialState: 'idle', states: [{ name: 'idle' }] });
+        const a = realm(() => DISK);
+        await a.assets.acquireTyped('animatorcontroller', 'enemy.esanimator');
+
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.useAssetControllers((ref) => a.assets.resolveRegistryAsset('animatorcontroller', ref));
+        expect(ctrl.getController('enemy.esanimator')?.initialState).toBe('idle');
+
+        ctrl.registerController('enemy.esanimator', CODE as never);
+        expect(ctrl.getController('enemy.esanimator')?.initialState).toBe('run');
+    });
+
     it('a code registration has no realm, and every app still sees it', async () => {
         // The other half of the rule: `registerFsm('patrol', …)` is not an asset.
         const { registerFsm } = await import('../src/ai/fsm/StateMachineAgent');

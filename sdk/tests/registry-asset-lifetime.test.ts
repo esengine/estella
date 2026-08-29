@@ -17,7 +17,7 @@ import { App } from '../src/app/app';
 import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { AssetScope } from '../src/asset/AssetLease';
-import { SpriteAnimationAPI, SpriteAnimator } from '../src/animation/SpriteAnimator';
+import { SpriteAnimationAPI, SpriteAnimator, type SpriteAnimClip } from '../src/animation/SpriteAnimator';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { markEngineComponentBaseline, seedEngineComponents } from '../src/ecs/component';
 import type { Entity } from '../src/types';
@@ -90,6 +90,9 @@ function buildAssets(sprites: SpriteAnimationAPI, doc: () => string) {
         module: { _malloc: vi.fn(() => 0), _free: vi.fn(), HEAPU8: new Uint8Array(1 << 16), GL: null, FS: null } as never,
         getSpriteAnimation: () => sprites,
     } as never);
+    // What AnimationPlugin wires: a clip loaded from a `.esanim` comes from this
+    // app's realm, and `getClip` is where the two halves meet.
+    sprites.useAssetClips((ref) => assets.resolveRegistryAsset<SpriteAnimClip>('anim-clip', ref));
     return assets;
 }
 
