@@ -59,9 +59,10 @@ const TYPES: Array<{
     { type: 'bitmap-font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
     { type: 'prefab', loadMethod: 'acquireTyped', loadArg: 'prefab', releasesVia: 'prefab' },
     { type: 'audio', loadMethod: 'acquireTyped', loadArg: 'audio', releasesVia: 'audio' },
-    // Skeletons bind to spawned entities and belong to the SpineManager
-    // lifecycle; releasing one here could yank it from under a live entity.
-    { type: 'spine', loadMethod: 'loadSpine', releasesVia: null },
+    // Nothing is special about spine any more: the bundle holds a receipt for
+    // the era it took, and gives back that one. What a live entity holds it
+    // holds through a receipt of its own.
+    { type: 'spine', loadMethod: 'acquireSpine', releasesVia: 'spine' },
 ];
 
 function manifestWith(type: AddressableAssetType): AddressableManifest {

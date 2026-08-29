@@ -776,6 +776,7 @@ ResourceDef<AssetsClass>
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
 @internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registryEntries: number; registrySlots: number; trackedRefRows: number; }
+acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
 acquireTexture: (ref: string) => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>
 applyUpdate: (onProgress?: (loaded: number, total: number) => void) => Promise<ApplyUpdateResult>
@@ -792,7 +793,6 @@ getAtlasFrame: (ref: string) => AtlasFrameInfo | null
 getLoader: <T>(type: string) => AssetLoader<T> | undefined
 getManifest: () => ManifestModel | null
 getRefCounter: () => AssetRefCounter | null
-getSpineLoader: () => SpineAssetLoader
 getTexture: (ref: string) => TextureResult | undefined
 getTextureLoader: () => TextureLoader
 invalidate: (ref: string) => boolean
@@ -843,7 +843,6 @@ setAssetRegistry: (registry: AssetRegistry) => void
 setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
 setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
-setSpineController: (controller: SpineModuleController) => void
 setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
 texturesAwaitingReupload: () => { handle: number; path: string; }[]
 static create: (options: AssetsOptions) => AssetsClass

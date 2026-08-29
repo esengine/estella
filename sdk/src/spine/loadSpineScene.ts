@@ -21,10 +21,9 @@ import type { Entity } from '../types';
 import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene/scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
-import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
-import { parseSpineAtlasPages } from './atlasPages';
+import { prepareSpine, spinePairKey, type SpineAssetValue, type SpineIO } from './prepareSpine';
 import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { BasisTranscoder } from '../asset/compressed';
 
@@ -62,12 +61,8 @@ export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
 type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
 
-export interface SpineAssetInfo {
-    version: SpineVersion | null;
-    skelData: Uint8Array | string;
-    atlasText: string;
-    textures: Map<string, { glId: number; w: number; h: number }>;
-}
+/** One prepared pair, plus the runtime version its skeleton document names. */
+export type SpineAssetInfo = SpineAssetValue & { version: SpineVersion | null };
 
 /**
  * Phase 1 — fetch + decode each spine pair's skeleton/atlas/textures and detect
@@ -83,76 +78,58 @@ export async function loadSpineAssets(
     transcoderProvider?: TranscoderProvider,
 ): Promise<Map<string, SpineAssetInfo>> {
     const assetInfoMap = new Map<string, SpineAssetInfo>();
-    const resolveRef = source.resolveRef ?? ((r: string) => r);
 
     for (const pair of spinePairs) {
-        const skelRef = pair.skeleton;
-        const atlasRef = pair.atlas;
-        const cacheKey = `${skelRef}:${atlasRef}`;
-
-        // Resolve skeleton/atlas refs (uuid/manifest → build path); the derived
-        // texPath below is already a path, so it is NOT re-resolved.
-        const atlasPath = resolveRef(atlasRef);
-
         try {
-            const atlasContent = await source.backend.fetchText(atlasPath);
-
-            const skelPath = resolveRef(skelRef);
-            const isBinary = getAssetTypeEntry(skelPath)?.contentType === 'binary';
-            const skelData: Uint8Array | string = isBinary
-                ? new Uint8Array(await source.backend.fetchBinary(skelPath))
-                : await source.backend.fetchText(skelPath);
-
+            const value = await prepareSpine(
+                hostSpineIo(module, source, pair.atlas, transcoderProvider),
+                pair.skeleton, pair.atlas,
+            );
             const version = spineManager
-                ? (typeof skelData === 'string'
-                    ? SpineManager.detectVersionJson(skelData)
-                    : SpineManager.detectVersion(skelData))
+                ? (typeof value.skelData === 'string'
+                    ? SpineManager.detectVersionJson(value.skelData)
+                    : SpineManager.detectVersion(value.skelData))
                 : null;
-
-            const texNames = parseSpineAtlasPages(atlasContent);
-            // Pages are named relative to the atlas's AUTHORED location, not its
-            // staged one — a content-addressed build renamed the atlas to a hash
-            // under assets/, so `atlasPath`'s directory is not where the pages were.
-            // Recover the authored directory from the atlas's logical address, so
-            // `<dir>/page.png` resolves through the manifest like every other ref.
-            const atlasLogical = source.resolveAddress?.(atlasRef) ?? atlasPath;
-            const atlasDir = atlasLogical.substring(0, atlasLogical.lastIndexOf('/'));
-            const rm = requireResourceManager();
-            const textures = new Map<string, { glId: number; w: number; h: number }>();
-
-            for (const texName of texNames) {
-                // No dir ⇒ the page name IS the path (never a leading-slash
-                // "/page.png", which resolves to nothing) — matches SpineAssetLoader.
-                const texPath = atlasDir ? atlasDir + '/' + texName : texName;
-                try {
-                    // The atlas names its pages by AUTHORED filename; a cook may
-                    // have re-encoded (.ktx2) or content-addressed the staged
-                    // file, so the derived logical path resolves through the
-                    // manifest/catalog like every other fetch.
-                    const staged = resolveRef(texPath);
-                    const page = await createAtlasPageTexture(
-                        staged,
-                        (p) => source.backend.fetchBinary(p),
-                        (p) => source.decodePixels(p, false),
-                        transcoderProvider, module,
-                    );
-                    rm.registerTextureWithPath(page.handle, texPath);
-                    textures.set(texName, {
-                        glId: rm.getTextureGLId(page.handle),
-                        w: page.width,
-                        h: page.height,
-                    });
-                } catch (err) {
-                    log.warn('runtime', `Failed to load texture: ${texPath}`, err);
-                }
-            }
-
-            assetInfoMap.set(cacheKey, { version, skelData, atlasText: atlasContent, textures });
+            assetInfoMap.set(spinePairKey(pair.skeleton, pair.atlas), { ...value, version });
         } catch (err) {
-            log.warn('runtime', `Failed to load spine asset: skel=${skelRef} atlas=${atlasRef}`, err);
+            log.warn('runtime', `Failed to load spine asset: skel=${pair.skeleton} atlas=${pair.atlas}`, err);
         }
     }
     return assetInfoMap;
+}
+
+/**
+ * A host's own file access as a spine transport — the editor, and any target
+ * driving this loader without an asset layer. Same algorithm as the asset
+ * layer's; what differs is where the bytes come from and that a page taken here
+ * has no receipt, so the host's own teardown is what ends it.
+ */
+function hostSpineIo(
+    module: ESEngineModule | null,
+    source: RuntimeAssetSource,
+    atlasRef: string,
+    transcoderProvider?: TranscoderProvider,
+): SpineIO {
+    const resolveRef = source.resolveRef ?? ((r: string) => r);
+    // Pages are named relative to the atlas's AUTHORED location, not its staged
+    // one — a content-addressed build renamed the atlas to a hash under assets/,
+    // so the staged path's directory is not where the pages were.
+    const atlasLogical = source.resolveAddress?.(atlasRef) ?? resolveRef(atlasRef);
+    const dir = atlasLogical.substring(0, atlasLogical.lastIndexOf('/'));
+    return {
+        text: (ref) => source.backend.fetchText(resolveRef(ref)),
+        binary: (ref) => source.backend.fetchBinary(resolveRef(ref)),
+        page: (path) => createAtlasPageTexture(
+            resolveRef(path),
+            (p) => source.backend.fetchBinary(p),
+            (p) => source.decodePixels(p, false),
+            transcoderProvider, module,
+        ),
+        // No dir ⇒ the page name IS the path (never a leading-slash "/page.png",
+        // which resolves to nothing).
+        pagePath: (name) => (dir ? `${dir}/${name}` : name),
+        isBinary: (ref) => getAssetTypeEntry(resolveRef(ref))?.contentType === 'binary',
+    };
 }
 
 /**
@@ -185,7 +162,7 @@ export async function applySpineEntities(opts: {
             const atlasRef = comp.data[spineDesc.atlasField] as string;
             if (!skelRef || !atlasRef) continue;
 
-            const info = assetInfo.get(`${skelRef}:${atlasRef}`);
+            const info = assetInfo.get(spinePairKey(skelRef, atlasRef));
             if (!info || !info.version) continue;
 
             const entity = entityMap.get(sceneEntity.id);

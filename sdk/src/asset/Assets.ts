@@ -25,6 +25,7 @@ import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import { DependencyRecorder, isInvalidatable, rebuildPlan, type AssetIdentity,
          type DependencyReceipt, type Preparation, type PreparedLoad } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
+import { spinePairKey } from '../spine/prepareSpine';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
@@ -42,7 +43,6 @@ import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAsset
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
-import type { SpineModuleController } from '../spine/SpineController';
 import { getComponentDefaults } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { discoverSceneAssets } from './discoverAssets';
@@ -238,11 +238,9 @@ const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
         displayable: true,
     },
     spine: {
-        load: (a, path, b) => a.loadSpine(path).then((r) => { b.spine.set(path, r); }),
-        // Skeletons bind to spawned entities and are owned by the
-        // SpineAssetLoader / SpineManager lifecycle; releasing one here could
-        // yank it out from under a live entity.
-        release: null,
+        load: (a, path, b) => a.acquireSpine(path)
+            .then((l) => { b.scope.add(l); b.spine.set(path, l.value); }),
+        release: (a, path) => a.releaseTyped('spine', path),
         displayable: true,
     },
     prefab: {
@@ -406,7 +404,7 @@ export class Assets {
         this.setManifest(options.manifest ?? null);
 
         this.textureLoader_ = new TextureLoader(options.module);
-        this.spineLoader_ = new SpineAssetLoader(options.module);
+        this.spineLoader_ = new SpineAssetLoader();
 
         this.registerBuiltinLoaders();
     }
@@ -609,14 +607,38 @@ export class Assets {
         if (handle !== 0) this.handleToPath_.set(`${kind}:${handle}`, path);
     }
 
+    /** {@link acquireSpine} without the receipt, for a caller that will let the
+     *  realm's teardown be its release. */
     async loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult> {
-        const skelPath = this.resolveLoadPath_(skeletonRef);
-        const ctx = this.getLoadContext_();
-        if (atlasRef) {
-            const atlasPath = this.resolveLoadPath_(atlasRef);
-            return this.spineLoader_.loadWithAtlas(skelPath, atlasPath, ctx);
+        return (await this.acquireSpine(skeletonRef, atlasRef)).value;
+    }
+
+    /**
+     * One spine PAIR — a skeleton and the atlas it is drawn with. The same
+     * skeleton with another atlas is another asset, which is why the receipt
+     * names the pair and not the skeleton's path.
+     */
+    async acquireSpine(skeletonRef: string, atlasRef?: string): Promise<AssetLease<SpineResult>> {
+        const skeleton = this.resolveLoadPath_(skeletonRef);
+        const atlas = this.spineAtlasOf_(skeleton, atlasRef);
+        const key = spinePairKey(skeleton, atlas);
+        const { value, lease } = await this.acquirePrepared_<SpineResult>(
+            'spine', key, skeletonRef,
+            (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx),
+        );
+        return this.typedLease_('spine', lease, value);
+    }
+
+    /** The atlas of a pair the caller named only half of: a skeleton's atlas is
+     *  a Catalog dependency, which is what a cook records for it. */
+    private spineAtlasOf_(skeleton: string, atlasRef?: string): string {
+        if (atlasRef) return this.resolveLoadPath_(atlasRef);
+        const deps = this.catalog.getDeps(skeleton);
+        if (deps.length === 0) {
+            throw new Error(`Spine skeleton has no atlas dependency: ${skeleton}. `
+                + 'Pass the atlas explicitly or configure Catalog deps.');
         }
-        return this.spineLoader_.load(skelPath, ctx);
+        return deps[0];
     }
 
     async loadMaterial(ref: string): Promise<MaterialResult> {
@@ -1274,13 +1296,16 @@ export class Assets {
                     'mesh', meshHandles);
         pushAcquire(environmentPaths, p => this.acquireTyped<{ handle: number }>('environment', p),
                     'environment', environmentHandles);
-        // The runtime scene loader owns spine as a two-phase load+apply through the
-        // SpineManager (skeletons must bind to spawned entities); it opts out here so
-        // spine page textures / virtual-FS writes aren't done twice.
+        // A pair, so not `pushAcquire` (which keys by one path); the receipt is
+        // the scene's exactly as every other one is. The runtime scene loader
+        // opts out: its second phase binds to entities that do not exist yet.
         if (!options?.skipSpine) {
             for (const pair of spinePairs) {
                 tasks.push(() =>
-                    this.loadSpine(pair.skeleton, pair.atlas).then(() => {}).catch(e => {
+                    this.acquireSpine(pair.skeleton, pair.atlas).then((lease) => {
+                        scope.add(lease);
+                        releaseCallbacks.push(() => lease.release());
+                    }).catch(e => {
                         log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
                         recordFailure(pair.skeleton, 'spine', e);
                     }),
@@ -1595,7 +1620,9 @@ export class Assets {
      * group channel table uses. Game code calls the named release* methods.
      */
     releaseTyped(type: string, ref: string): void {
-        const path = this.resolveLoadPath_(ref);
+        const path = type === 'spine'
+            ? spinePairKey(this.resolveLoadPath_(ref), this.spineAtlasOf_(this.resolveLoadPath_(ref)))
+            : this.resolveLoadPath_(ref);
         const kind = this.registryKind_(type);
         if (kind) {
             this.registrySlots_.releaseByName(type, this.assetIdentity_(ref));
@@ -1948,7 +1975,6 @@ export class Assets {
             evictTextureDimensions(value);
         }
 
-        this.spineLoader_.releaseAll();
         this.materialLoader_?.releaseAll();
 
         for (const cache of this.genericCache_.values()) {
@@ -1964,14 +1990,6 @@ export class Assets {
     // =========================================================================
     // Spine Controller
     // =========================================================================
-
-    setSpineController(controller: SpineModuleController): void {
-        this.spineLoader_.setSpineController(controller);
-    }
-
-    getSpineLoader(): SpineAssetLoader {
-        return this.spineLoader_;
-    }
 
     getTextureLoader(): TextureLoader {
         return this.textureLoader_;
@@ -2149,14 +2167,26 @@ export class Assets {
         if (!loader) {
             throw new Error(`No loader registered for type: ${type}`);
         }
-        const path = this.resolveLoadPath_(ref);
         if (!loader.load) {
             throw new Error(`Loader for "${type}" publishes by name; acquire it through its slot`);
         }
         const load = loader.load.bind(loader);
+        const path = this.resolveLoadPath_(ref);
+        return this.acquirePrepared_<T>(type, path, ref, (ctx) => load(path, ctx));
+    }
+
+    /**
+     * One era of one handle-bound asset, under the KEY that identifies it — the
+     * path for everything whose identity is a path, and the PAIR for spine,
+     * whose skeleton with another atlas is another asset. One ownership
+     * algorithm, differing only in what it calls one asset.
+     */
+    private async acquirePrepared_<T>(
+        type: string, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>,
+    ): Promise<{ value: T; lease: AssetRefLease<PreparedLoad<unknown>> }> {
         const epoch = this.resetEpoch_;
-        const era = await this.genericCacheFor_(type).getOrLoad(path, () =>
-            this.prepared_(async (ctx) => ({ value: await load(path, ctx) as unknown })),
+        const era = await this.genericCacheFor_(type).getOrLoad(key, () =>
+            this.prepared_(async (ctx) => ({ value: await prepare(ctx) as unknown })),
         );
         // BEFORE acquiring, as with textures: a realm that let go while this
         // loaded has drained the ledger this row would go in, so nothing would
@@ -2167,10 +2197,10 @@ export class Assets {
                 `Assets were released while "${ref}" was loading; it has no owner. Load it again.`,
             );
         }
-        const lease = this.genericRefs_.acquire(`${type}:${path}`, era);
+        const lease = this.genericRefs_.acquire(`${type}:${key}`, era);
         const result = era.value as T;
         const handle = (result as { handle?: unknown } | null)?.handle;
-        if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
+        if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, key);
         return { value: result, lease };
     }
 
@@ -2346,9 +2376,12 @@ export class Assets {
                 const lease = await base.createOwnedTexture!(width, height, pixels, flipY);
                 return recorder.own(`composed:${lease.value.handle}`, lease);
             },
-            readSource: async (path) => {
-                recorder.read(path);
-                return base.loadText(path);
+            readSource: async (ref) => {
+                // The edge records what was ASKED for; where the build put
+                // those bytes is this door's business, as it is for a texture.
+                // A loader resolving first records an identity nothing names.
+                recorder.read(ref);
+                return base.loadText(this.catalog.getBuildPath(ref));
             },
         };
     }

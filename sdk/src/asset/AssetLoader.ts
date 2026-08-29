@@ -6,6 +6,7 @@ import type { RegistryEra } from './registryAssets';
 import type { Catalog } from './Catalog';
 import type { TextureHandle, FontHandle } from '../types';
 import type { CppResourceManager } from '../wasm';
+import type { SpineAssetValue } from '../spine/prepareSpine';
 
 export interface TextureResult {
     handle: TextureHandle;
@@ -13,9 +14,12 @@ export interface TextureResult {
     height: number;
 }
 
-export interface SpineResult {
-    skeletonHandle: number;
-}
+/**
+ * One spine PAIR: the two documents it is, and the atlas pages it holds. No
+ * native skeleton — that belongs to a runtime backend of a particular Spine
+ * version, is built from this, and dies with the entities posing it.
+ */
+export type SpineResult = SpineAssetValue;
 
 export interface SpineLoadResult {
     success: boolean;
@@ -135,12 +139,13 @@ export interface LoadContext {
     ): Promise<AssetLease<TextureResult>>;
     /**
      * Read another asset's content because it shapes what this one becomes — a
-     * `.tsj` folded into a `.tmj`.
+     * `.tsj` folded into a `.tmj`. Takes the REF, not a build path: what is
+     * recorded is the identity an invalidation will name.
      *
      * Nothing is held; what is recorded is that this asset must be rebuilt when
      * that content changes. A log setting read during a load is not one.
      */
-    readSource?(path: string): Promise<string>;
+    readSource?(ref: string): Promise<string>;
     /**
      * Audio API for the owning app, resolved lazily so that
      * AudioPlugin / AssetPlugin can be installed in either order.

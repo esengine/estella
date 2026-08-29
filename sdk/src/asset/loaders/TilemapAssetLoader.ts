@@ -41,7 +41,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'depends on it — load it through the app Assets channel.');
         }
         const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>
-            readSource(ctx.catalog.getBuildPath(resolveTiledRef(path, source))));
+            readSource(resolveTiledRef(path, source)));
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }
