@@ -2,32 +2,46 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    AnimatorControllerAssetLoader.ts
- * @brief   Loads a `.esanimator` and registers it under its path in the global
- *          animator-controller store, so an Animator whose `controller` is that
- *          path resolves at runtime.
+ * @brief   Loads a `.esanimator` into the controller store under every ref a
+ *          component may spell it as, so an Animator resolves it at runtime.
  *
- * The `.esanimator` payload IS a runtime AnimatorControllerDef (plus editor-only
- * canvas positions on each state, which the interpreter ignores) — no compile
- * step. Mirrors {@link file://./FsmAssetLoader.ts}.
+ * Mirrors {@link file://./FsmAssetLoader.ts}: published by its slot, so a
+ * retiring era cannot take the newer one out from under the same name.
  */
-
-import type { AssetLoader, LoadContext, AnimatorControllerResult } from '../AssetLoader';
-import { registerAnimatorController } from '../../animation/Animator';
-import type { AnimatorControllerDef } from '../../animation/Animator';
+import type {
+    AssetLoader, LoadContext, AnimatorControllerResult, RegistryAssetLoader,
+} from '../AssetLoader';
+import type { RegistryEra } from '../registryAssets';
+import { AssetScope } from '../AssetLease';
+import {
+    registerAnimatorController, unregisterAnimatorController, getRegisteredAnimatorController,
+    type AnimatorControllerDef,
+} from '../../animation/Animator';
 
 export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorControllerResult> {
     readonly type = 'animatorcontroller';
     readonly extensions = ['.esanimator'];
 
-    async load(path: string, ctx: LoadContext): Promise<AnimatorControllerResult> {
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const text = await ctx.loadText(buildPath);
-        const def = JSON.parse(text) as AnimatorControllerDef;
-        registerAnimatorController(path, def);
-        return { controllerId: path };
-    }
-
-    unload(): void {
-        // Controllers are registered globally in the shared store.
-    }
+    readonly registry: RegistryAssetLoader<AnimatorControllerResult> = {
+        prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimatorControllerResult>> => {
+            const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
+            return {
+                published: JSON.parse(text) as AnimatorControllerDef,
+                value: { controllerId: path },
+                dependencies: new AssetScope(),
+            };
+        },
+        publish: (names, published) => {
+            for (const name of names) {
+                registerAnimatorController(name, published as AnimatorControllerDef);
+            }
+        },
+        unpublish: (names, published) => {
+            for (const name of names) {
+                if (getRegisteredAnimatorController(name) === published) {
+                    unregisterAnimatorController(name);
+                }
+            }
+        },
+    };
 }

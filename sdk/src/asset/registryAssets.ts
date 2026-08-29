@@ -39,7 +39,7 @@ export interface RegistryEra<T> {
 export interface RegistryAssetKind<T> {
     prepare(path: string): Promise<RegistryEra<T>>;
     publish(names: readonly string[], published: unknown): void;
-    unpublish(names: readonly string[]): void;
+    unpublish(names: readonly string[], published: unknown): void;
 }
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
@@ -54,6 +54,8 @@ export function isRegistrySlotLease(lease: AssetLease): lease is RegistrySlotLea
 }
 
 class Slot<T> {
+    /** What a lookup asks for. Distinct from `key`, which is what an OWNER
+     *  holds: a registry answers to a ref, not to an ownership identity. */
     readonly names: string[] = [];
     refs = 0;
     era: RegistryEra<T> | null = null;
@@ -71,17 +73,16 @@ export class RegistryAssetSlots {
     private nextId_ = 1;
 
     /**
-     * A claim on the slot for `key`, publishing its first era if there is none.
-     *
-     * `aliases` are further names the same asset answers to. They resolve to the
-     * SAME slot rather than to a copy of the object, so a republish is seen
-     * through every one of them.
+     * A claim on the slot `key` identifies, publishing its first era if there is
+     * none. `names` are what the registry answers to — the load path and every
+     * ref a component may spell it as, all resolving to the SAME slot rather
+     * than to a copy of the object.
      */
     async acquire<T>(
-        kind: RegistryAssetKind<T>, key: string, aliases: readonly string[] = [],
+        kind: RegistryAssetKind<T>, key: string, names: readonly string[],
     ): Promise<RegistrySlotLease<T>> {
         const slot = this.slotFor_(key) as Slot<T>;
-        for (const alias of aliases) this.alias_(slot as Slot<unknown>, alias);
+        for (const name of names) this.name_(slot as Slot<unknown>, name);
 
         if (!slot.era) {
             slot.loading ??= kind.prepare(key);
@@ -144,7 +145,7 @@ export class RegistryAssetSlots {
     /** Give up every slot. For a wholesale teardown. */
     releaseAll(kinds: (key: string) => RegistryAssetKind<unknown> | undefined): void {
         for (const slot of new Set(this.byName_.values())) {
-            kinds(slot.key)?.unpublish(slot.names);
+            kinds(slot.key)?.unpublish(slot.names, slot.era?.published);
             slot.era?.dependencies.releaseAll();
             slot.era = null;
             slot.refs = 0;
@@ -183,7 +184,7 @@ export class RegistryAssetSlots {
 
     private drop_(kind: RegistryAssetKind<unknown>, slot: Slot<unknown>): void {
         if (--slot.refs > 0) return;
-        kind.unpublish(slot.names);
+        kind.unpublish(slot.names, slot.era?.published);
         slot.era?.dependencies.releaseAll();
         slot.era = null;
         this.forget_(slot);
@@ -193,21 +194,21 @@ export class RegistryAssetSlots {
         let slot = this.byName_.get(key);
         if (!slot) {
             slot = new Slot<unknown>(key, this.nextId_++);
-            slot.names.push(key);
             this.byName_.set(key, slot);
         }
         return slot;
     }
 
-    private alias_(slot: Slot<unknown>, alias: string): void {
-        if (this.byName_.get(alias) === slot) return;
-        slot.names.push(alias);
-        this.byName_.set(alias, slot);
+    /** Index another lookup name onto this slot, and publish under it too. */
+    private name_(slot: Slot<unknown>, name: string): void {
+        if (this.byName_.get(name) === slot) return;
+        slot.names.push(name);
+        this.byName_.set(name, slot);
     }
 
     private forget_(slot: Slot<unknown>): void {
-        for (const name of slot.names) {
-            if (this.byName_.get(name) === slot) this.byName_.delete(name);
+        for (const [name, held] of [...this.byName_]) {
+            if (held === slot) this.byName_.delete(name);
         }
     }
 }

@@ -13,6 +13,8 @@ import type { TimelineAsset } from './TimelineTypes';
 
 export interface TimelineAssetRegistry {
     registerAsset(path: string, asset: TimelineAsset): void;
+    /** Take a name back out — the slot that published it has no holders left. */
+    unregisterAsset(path: string): void;
     getAsset(path: string): TimelineAsset | undefined;
     registerTextureHandles(path: string, handles: Map<string, number>): void;
     getTextureHandle(timelinePath: string, textureUuid: string): number;
@@ -27,6 +29,10 @@ export function setActiveTimelineAssetRegistry(registry: TimelineAssetRegistry |
 
 export function registerTimelineAsset(path: string, asset: TimelineAsset): void {
     active?.registerAsset(path, asset);
+}
+
+export function unregisterTimelineAsset(path: string): void {
+    active?.unregisterAsset(path);
 }
 
 export function getTimelineAsset(path: string): TimelineAsset | undefined {

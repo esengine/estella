@@ -767,7 +767,7 @@ ResourceDef<AssetsClass>
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void
 @internal releaseTyped: (type: string, ref: string) => void
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<unknown>) => void
-@internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registryEntries: number; trackedRefRows: number; }
+@internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registryEntries: number; registrySlots: number; trackedRefRows: number; }
 acquireTexture: (ref: string) => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>
 applyUpdate: (onProgress?: (loaded: number, total: number) => void) => Promise<ApplyUpdateResult>
@@ -8459,6 +8459,7 @@ getTextureHandle: (timelinePath: string, textureUuid: string) => number
 name: string
 registerAsset: (path: string, asset: TimelineAsset) => void
 registerTextureHandles: (path: string, handles: Map<string, number>) => void
+unregisterAsset: (path: string) => void
 static new (): TimelinePlugin
 static prototype: TimelinePlugin
 ```

@@ -21,6 +21,7 @@ import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
+import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -382,6 +383,7 @@ export class Assets {
     private invalidateListeners_ = new Set<InvalidateListener>();
     private readonly appScope_ = new AssetScope();
     private readonly entityScopes_ = new EntityAssetScopes();
+    private readonly registrySlots_ = new RegistryAssetSlots();
     /** `"<kind>:<handle>"` → resolved load path, recorded on every handle-yielding
      *  load. The REVERSE of resolution — inspectors and tooling that only hold a
      *  live World handle use it to name the asset (see {@link pathForHandle}). */
@@ -626,21 +628,14 @@ export class Assets {
         return (await this.acquireAnimClip_(ref)).value;
     }
 
+    /**
+     * A clip is published under the load path AND the ref as it was spelled: a
+     * realm whose resolver returns URLs hands the loader `estella://…/walk.esanim`
+     * while components ask for `assets/animations/walk.esanim`. Both names are
+     * the slot's, so a republish is seen through either.
+     */
     private async acquireAnimClip_(ref: string): Promise<AssetLease<AnimClipResult>> {
-        const { value: result, lease } = await this.acquireTyped_<AnimClipResult>('anim-clip', ref);
-        // The loader registers the clip under its RESOLVED load path (an absolute
-        // URL in realms whose ref resolver returns fetchable URLs, e.g. the play
-        // realm), but SpriteAnimator/Animator reference clips by the SERIALIZED
-        // ref (project-relative path). Alias the raw ref to the same clip object
-        // so lookups match in every realm — without this, play mode registered
-        // `estella://…/walk.esanim` while components asked for
-        // `assets/animations/walk.esanim`, and no clip ever advanced a frame.
-        const anim = this.getSpriteAnimation_();
-        if (anim && ref !== result.clipId) {
-            const clip = anim.getClip(result.clipId);
-            if (clip && !anim.getClip(ref)) anim.aliasClip(ref, clip);
-        }
-        return this.typedLease_('anim-clip', lease, result);
+        return this.acquireTyped<AnimClipResult>('anim-clip', ref);
     }
 
     async loadTilemap(ref: string): Promise<TilemapResult> {
@@ -1399,8 +1394,27 @@ export class Assets {
 
     /** {@link acquireTexture} for everything that goes through a typed loader. */
     async acquireTyped<T>(type: string, ref: string): Promise<AssetLease<T>> {
+        const slot = await this.acquireSlot_<T>(type, ref);
+        if (slot) return slot;
         const { value, lease } = await this.acquireTyped_<T>(type, ref);
         return this.typedLease_(type, lease, value);
+    }
+
+    /**
+     * A claim on the slot for a registry-backed asset, or null when this type is
+     * not one. The ref the caller spelled is an ALIAS of the slot: a component
+     * carries that spelling and looks the asset up by it, while the load path is
+     * whatever this realm resolved it to.
+     */
+    private async acquireSlot_<T>(type: string, ref: string): Promise<AssetLease<T> | null> {
+        const kind = this.registryKind_<T>(type);
+        if (!kind) return null;
+        const path = this.resolveLoadPath_(ref);
+        // The load path and the ref as the caller spelled it: a component looks
+        // the asset up by the spelling a scene serialized, which in a realm whose
+        // resolver returns URLs is not the path the loader was handed.
+        const names = ref === path ? [path] : [path, ref];
+        return this.registrySlots_.acquire(kind, `${type}:${path}`, names);
     }
 
     /**
@@ -1534,6 +1548,11 @@ export class Assets {
      */
     releaseTyped(type: string, ref: string): void {
         const path = this.resolveLoadPath_(ref);
+        const kind = this.registryKind_(type);
+        if (kind) {
+            this.registrySlots_.releaseByName(kind, `${type}:${path}`);
+            return;
+        }
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
@@ -1557,7 +1576,7 @@ export class Assets {
 
     /** The last reference to a typed asset is gone: hand it to its loader. */
     private disposeGeneric_(type: string, path: string, value: unknown): void {
-        this.loaders_.get(type)?.unload(value, this.getLoadContext_());
+        this.loaders_.get(type)?.unload?.(value, this.getLoadContext_());
         const cache = this.genericCache_.get(type);
         if (cache && cache.get(path) === value) cache.delete(path);
     }
@@ -1615,6 +1634,18 @@ export class Assets {
             // The ledger stays: the outgoing generation's holders still owe a
             // release. Its era is closed so the next acquire cannot join it.
             this.genericRefs_.supersede(`${type}:${path}`);
+        }
+
+        // A registry-backed asset has no cache entry to drop and no handle to
+        // swap: the update IS a new era published under the same names. Awaited
+        // by nobody — a failed prepare leaves holders the era they have.
+        for (const [type] of this.loaders_) {
+            const kind = this.registryKind_(type);
+            if (!kind || !this.registrySlots_.has(`${type}:${path}`)) continue;
+            hit = true;
+            void this.registrySlots_.republish(kind, `${type}:${path}`).catch((e: unknown) => {
+                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
+            });
         }
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
@@ -1682,6 +1713,7 @@ export class Assets {
         handlePaths: number;
         invalidateListeners: number;
         registryEntries: number;
+        registrySlots: number;
         trackedRefRows: number;
     } {
         const tex = this.textureCache_.sizes();
@@ -1702,6 +1734,7 @@ export class Assets {
             handlePaths: this.handleToPath_.size,
             invalidateListeners: this.invalidateListeners_.size,
             registryEntries: this.assetRegistry_?.size ?? 0,
+            registrySlots: this.registrySlots_.size,
             trackedRefRows: this.refCounter_?.getTotalRefRows() ?? 0,
         };
     }
@@ -1733,6 +1766,7 @@ export class Assets {
         // Through the normal door first, so what the app owned is disposed the
         // way any other owner's is rather than by the wholesale drain below.
         this.appScope_.releaseAll();
+        this.registrySlots_.releaseAll((key) => this.registryKind_(key.slice(0, key.indexOf(':'))) ?? undefined);
         const rm = requireResourceManager();
         this.resetEpoch_++;
         this.abandoned_.clear();
@@ -1760,7 +1794,7 @@ export class Assets {
         }
         this.genericCache_.clear();
         for (const { key, value } of this.genericRefs_.drain()) {
-            this.loaders_.get(key.slice(0, key.indexOf(':')))?.unload(value, this.getLoadContext_());
+            this.loaders_.get(key.slice(0, key.indexOf(':')))?.unload?.(value, this.getLoadContext_());
         }
         this.handleToPath_.clear();
     }
@@ -1942,13 +1976,34 @@ export class Assets {
             this.genericCache_.set(type, cache);
         }
 
+        if (!loader.load) {
+            throw new Error(`Loader for "${type}" publishes by name; acquire it through its slot`);
+        }
+        const load = loader.load.bind(loader);
         const result = await (cache.getOrLoad(path, () =>
-            loader.load(path, this.getLoadContext_()),
+            load(path, this.getLoadContext_()),
         ) as Promise<T>);
         const lease = this.genericRefs_.acquire(`${type}:${path}`, result);
         const handle = (result as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
         return { value: result, lease };
+    }
+
+    /**
+     * The slot table's view of one registry-backed loader — the LoadContext
+     * bound in, so the table stays about ownership and knows nothing about how
+     * any particular kind of asset is parsed or where it is published.
+     */
+    private registryKind_<T>(type: string): RegistryAssetKind<T> | null {
+        const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
+        const registry = loader?.registry;
+        if (!registry) return null;
+        const ctx = (): LoadContext => this.getLoadContext_();
+        return {
+            prepare: (path) => registry.prepare(path, ctx()),
+            publish: (names, published) => registry.publish(names, published, ctx()),
+            unpublish: (names, published) => registry.unpublish(names, published, ctx()),
+        };
     }
 
     private getLoadContext_(): LoadContext {

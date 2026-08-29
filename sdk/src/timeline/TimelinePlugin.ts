@@ -76,6 +76,11 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
         this.loadedAssets_.set(path, asset);
     }
 
+    unregisterAsset(path: string): void {
+        this.loadedAssets_.delete(path);
+        this.textureHandles_.delete(path);
+    }
+
     getAsset(path: string): TimelineAsset | undefined {
         return this.loadedAssets_.get(path);
     }

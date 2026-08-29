@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import type { AssetLease } from './AssetLease';
+import type { RegistryEra } from './registryAssets';
 import type { Catalog } from './Catalog';
 import type { TextureHandle, FontHandle } from '../types';
 import type { CppResourceManager } from '../wasm';
@@ -149,13 +150,36 @@ export interface LoadContext {
     getLocalization(): import('../i18n/Localization').LocalizationAPI | null;
 }
 
+/**
+ * A loader whose asset lives in a REGISTRY under its ref: what a component
+ * carries is the name, and every lookup asks what that name means now.
+ *
+ * `prepare` parses and acquires without publishing: publication is the slot's,
+ * so an era cannot take out the newer one that replaced it under the same name.
+ */
+export interface RegistryAssetLoader<T> {
+    prepare(path: string, ctx: LoadContext): Promise<RegistryEra<T>>;
+    publish(names: readonly string[], published: unknown, ctx: LoadContext): void;
+    /** Take these names back out — only where they still name `published`. Two
+     *  Assets instances share some registries, and a release in one must not
+     *  delete what the other put there. */
+    unpublish(names: readonly string[], published: unknown, ctx: LoadContext): void;
+}
+
+/**
+ * How one asset type is loaded. A loader implements EXACTLY ONE door: `load` +
+ * `unload` for an asset a component holds by handle, or `registry` for one it
+ * holds by ref. Two doors to the same asset is two answers about who owns it.
+ */
 export interface AssetLoader<T> {
     readonly type: string;
     readonly extensions: string[];
-    load(path: string, ctx: LoadContext): Promise<T>;
+    load?(path: string, ctx: LoadContext): Promise<T>;
     /** Free the loaded asset. `ctx` gives loaders that pulled sub-assets during
      *  load (e.g. a material's bound textures) a channel to release them. */
-    unload(asset: T, ctx: LoadContext): void;
+    unload?(asset: T, ctx: LoadContext): void;
+    /** Set instead of `load`/`unload` when the asset is published by name. */
+    registry?: RegistryAssetLoader<T>;
     /**
      * Sever any residency identity the loader's subsystem keeps for `path`
      * (hot reload: the source bytes changed, so a warm-cache entry must never

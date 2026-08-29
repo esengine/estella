@@ -51,6 +51,19 @@ export function registerFsm(key: string, def: FsmDefinition): CompiledFsm {
     return compiled;
 }
 
+/**
+ * @internal Publish an already-compiled FSM under `key` — the asset door, where
+ * one era compiles once however many names it answers to.
+ */
+export function publishFsm(key: string, compiled: CompiledFsm): void {
+    fsmStore.set(key, compiled);
+}
+
+/** @internal Take a name back out; the slot that published it has no holders. */
+export function unregisterFsm(key: string): void {
+    fsmStore.delete(key);
+}
+
 export function getFsm(key: string): CompiledFsm | undefined {
     return fsmStore.get(key);
 }

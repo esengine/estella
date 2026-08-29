@@ -1,37 +1,58 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
+/**
+ * @file    AnimClipAssetLoader.ts
+ * @brief   Loads a `.esanim` into the sprite-animation registry, under every ref
+ *          a component may spell it as.
+ *
+ * A clip is named by ref, not held by handle, so what an owner owns is the SLOT
+ * (see registryAssets.ts). The frame textures belong to the ERA that baked them
+ * in — nothing else can say when they stop being needed.
+ */
+import type { AssetLoader, LoadContext, AnimClipResult, RegistryAssetLoader } from '../AssetLoader';
+import type { RegistryEra } from '../registryAssets';
+import { AssetScope } from '../AssetLease';
 import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
+import type { SpriteAnimClip } from '../../animation/SpriteAnimator';
 import { log } from '../../util/logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
     readonly type = 'anim-clip';
     readonly extensions = ['.esanim'];
 
-    async load(path: string, ctx: LoadContext): Promise<AnimClipResult> {
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const text = await ctx.loadText(buildPath);
-        const data = parseAnimClipAsset(JSON.parse(text));
-        const texturePaths = extractAnimClipTexturePaths(data);
-        const textureHandles = new Map<string, number>();
+    readonly registry: RegistryAssetLoader<AnimClipResult> = {
+        prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimClipResult>> => {
+            const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
+            const data = parseAnimClipAsset(JSON.parse(text));
+            const dependencies = new AssetScope();
+            const textureHandles = new Map<string, number>();
 
-        for (const texPath of texturePaths) {
-            try {
-                const result = await ctx.loadTexture(texPath, true);
-                textureHandles.set(texPath, result.handle);
-            } catch (e) {
-                log.warn('asset', `Failed to load texture: ${texPath}`, e);
-                textureHandles.set(texPath, 0);
+            for (const texPath of extractAnimClipTexturePaths(data)) {
+                try {
+                    const lease = await ctx.acquireTexture(texPath, true);
+                    dependencies.add(lease);
+                    textureHandles.set(texPath, lease.value.handle);
+                } catch (e) {
+                    log.warn('asset', `Failed to load texture: ${texPath}`, e);
+                    textureHandles.set(texPath, 0);
+                }
             }
-        }
-
-        const clip = parseAnimClipData(path, data, textureHandles);
-        ctx.getSpriteAnimation()?.registerClip(clip);
-
-        return { clipId: path };
-    }
-
-    unload(_asset: AnimClipResult): void {
-        // AnimClips registered globally, no per-asset cleanup
-    }
+            return {
+                published: parseAnimClipData(path, data, textureHandles),
+                value: { clipId: path },
+                dependencies,
+            };
+        },
+        publish: (names, published, ctx) => {
+            const anim = ctx.getSpriteAnimation();
+            for (const name of names) anim?.aliasClip(name, published as SpriteAnimClip);
+        },
+        unpublish: (names, published, ctx) => {
+            const anim = ctx.getSpriteAnimation();
+            if (!anim) return;
+            for (const name of names) {
+                if (anim.getClip(name) === published) anim.unregisterClip(name);
+            }
+        },
+    };
 }
