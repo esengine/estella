@@ -258,6 +258,13 @@ export class SceneManagerState {
         this.app_ = app;
     }
 
+    /**
+     * Forget the scenes while the caller keeps the World.
+     *
+     * scene-teardown: NOT the shared protocol. Entities stay, so what they still
+     * render must not be released under them — and a dropped instance therefore
+     * keeps its receipts and systems. No caller in this repo says if that is right.
+     */
     reset(): void {
         for (const instance of this.scenes_.values()) {
             for (const id of instance.drawCallbacks.keys()) {

@@ -10,7 +10,9 @@
  * unregistered no draw callbacks and unbound no post-process.
  *
  *   1. `unload` and `rollbackFailedLoad_` perform no teardown of their own —
- *      both go through disposeSceneOwnedState_.
+ *      both go through disposeSceneOwnedState_. A third door that tears scenes
+ *      down its own way (reset) has to SAY so, with the reason: a silent copy
+ *      is how the second one came to be missing four steps.
  *   2. The protocol still performs all of them. Emptying a collection is not
  *      giving its contents back: dropping the `removeSystem` loop while keeping
  *      `systemIds.length = 0` leaves the systems running and looks tidy.
@@ -38,7 +40,8 @@ const stripComments = (text) =>
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/\/\/[^\n]*/g, '');
 
-const src = stripComments(readFileSync(path.join(ROOT, FILE), 'utf8'));
+const raw = readFileSync(path.join(ROOT, FILE), 'utf8');
+const src = stripComments(raw);
 
 /**
  * One method body, braces balanced. Anchored at the member declaration: matching
@@ -88,6 +91,17 @@ for (const name of ['unload', 'rollbackFailedLoad_']) {
     findings.push(`${FILE}:${body.line}  ${name}() tears down on its own (${op.source}) instead of through disposeSceneOwnedState_ — that is how the two copies came to disagree.`);
     break;
   }
+}
+
+// --- 1b. a door that deliberately differs says so --------------------------
+const reset = methodBody('reset');
+if (!reset) {
+  findings.push(`${FILE}  reset() is gone — this guard is reading the wrong file.`);
+  // The marker is read from the RAW text: it is a comment, and `src` has had
+  // its comments taken out.
+} else if (!/\bdisposeSceneOwnedState_\s*\(/.test(reset.text)
+           && !/scene-teardown:\s*\S/.test(raw.split('\n').slice(Math.max(0, reset.line - 9), reset.line - 1).join('\n'))) {
+  findings.push(`${FILE}:${reset.line}  reset() drops scenes without the shared teardown and without saying why — write \`// scene-teardown: <why>\` above it, or go through disposeSceneOwnedState_.`);
 }
 
 // --- 2. and the protocol still performs every one of them ------------------
