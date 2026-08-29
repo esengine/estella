@@ -254,6 +254,18 @@ struct ProbeCounts {
     /// whose bounds miss the region entirely, one wholly inside a convex one.
     std::uint32_t clipBoundsRejects;
     std::uint32_t clipInsideAccepts;
+
+    /// The same three answers counted in triangles rather than attachments,
+    /// which is what a budget is charged in.
+    std::uint32_t clipCandidateTriangles;
+    std::uint32_t clipRejectedTriangles;
+    std::uint32_t clipBypassedTriangles;
+    /// Σ over charged attachments of triangles × the edges of the region they
+    /// were charged against — accumulated per region rather than multiplied at
+    /// the end, so a skeleton with two regions is priced against both.
+    std::uint32_t clipEdgeWork;
+    std::uint32_t clipInputVertices;
+    std::uint32_t clipOutputVertices;
 };
 
 /** BENCHMARK ONLY — the clipper's own scratch arrays, so a second storage
@@ -269,6 +281,13 @@ struct ClipStorage {
 
 /** False where a backend has no clipper of its own to report on. */
 bool clipStorage(ClipStorage* out);
+
+/**
+ * The whole walk with its counters on — what a diagnostic asks for, as opposed
+ * to {@link renderStage}, which stops short and is for pricing steps. False
+ * where a backend has no counted walk.
+ */
+bool renderCounted(Instance* instance, TriangleSink& sink, bool clipping, ProbeCounts* counts);
 
 /**
  * BENCHMARK ONLY — the same walk as {@link render}, stopped at `stage`, so its

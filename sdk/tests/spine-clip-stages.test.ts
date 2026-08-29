@@ -31,6 +31,8 @@ const COUNTERS = [
     'verticesGenerated', 'verticesEmitted', 'indicesEmitted', 'emits',
     'clipPolygons', 'clipPolygonVertices', 'clipPolygonEdges', 'clipInputTriangles', 'clipOutputTriangles',
     'clipBoundsRejects', 'clipInsideAccepts',
+    'clipCandidateTriangles', 'clipRejectedTriangles', 'clipBypassedTriangles',
+    'clipEdgeWork', 'clipInputVertices', 'clipOutputVertices',
 ] as const;
 type Counts = Record<(typeof COUNTERS)[number], number>;
 const STAGE_EMIT = 5;

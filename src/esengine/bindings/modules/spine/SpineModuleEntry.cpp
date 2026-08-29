@@ -289,7 +289,7 @@ int spine_probe_extract(int instanceId, int stage, int useCollector) {
                                   stage, &g_probeCounts) ? 1 : 0;
 }
 
-/** The counts of the last {@link spine_probe_extract}, into sixteen u32 slots. */
+/** The counts of the last {@link spine_probe_extract}, into twenty-two u32 slots. */
 EMSCRIPTEN_KEEPALIVE
 void spine_probe_counts(std::uint32_t* out) {
     if (!out) return;
@@ -309,6 +309,43 @@ void spine_probe_counts(std::uint32_t* out) {
     out[13] = g_probeCounts.clipOutputTriangles;
     out[14] = g_probeCounts.clipBoundsRejects;
     out[15] = g_probeCounts.clipInsideAccepts;
+    out[16] = g_probeCounts.clipCandidateTriangles;
+    out[17] = g_probeCounts.clipRejectedTriangles;
+    out[18] = g_probeCounts.clipBypassedTriangles;
+    out[19] = g_probeCounts.clipEdgeWork;
+    out[20] = g_probeCounts.clipInputVertices;
+    out[21] = g_probeCounts.clipOutputVertices;
+}
+
+/**
+ * What one instance's clipping costs THIS pose, in work not time, into eleven
+ * u32 slots: the polygon as authored, what it decomposed into, the triangles
+ * that reached the region and what became of each, and what the cut handed
+ * back. Poses and extracts, because a diagnostic pays for its own answer.
+ */
+EMSCRIPTEN_KEEPALIVE
+int spine_clipBudget(int instanceId, std::uint32_t* out) {
+    if (!out) return 0;
+    for (int i = 0; i < 11; ++i) out[i] = 0;
+    auto* instance = g_ctx.instanceOf(instanceId);
+    if (!instance) return 0;
+
+    es::spine::ProbeCounts counts{};
+    CountingSink sink;
+    if (!es::spine::renderCounted(instance, sink, g_ctx.clippingEnabled, &counts)) return 0;
+
+    out[0] = counts.clipPolygonVertices;
+    out[1] = counts.clipPolygons;
+    out[2] = counts.clipPolygonEdges;
+    out[3] = counts.clipCandidateTriangles;
+    out[4] = counts.clipRejectedTriangles;
+    out[5] = counts.clipBypassedTriangles;
+    out[6] = counts.clipInputTriangles;
+    out[7] = counts.clipEdgeWork;
+    out[8] = counts.clipInputVertices;
+    out[9] = counts.clipOutputVertices;
+    out[10] = counts.clipOutputTriangles;
+    return 1;
 }
 
 /** BENCHMARK ONLY — the clipper's own scratch, into six u32 slots. Zero where a

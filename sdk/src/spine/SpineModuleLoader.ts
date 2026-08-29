@@ -61,6 +61,7 @@ export interface SpineWasmModule {
     _spine_probe_extract(instanceId: number, stage: number, useCollector: number): number;
     _spine_probe_counts(out: number): void;
     _spine_probe_clip_storage(out: number): void;
+    _spine_clipBudget(instanceId: number, out: number): number;
     _spine_probe_storage(out: number): void;
     _spine_probe_pose(instanceId: number, dt: number, stage: number): number;
     _spine_probe_pose_counts(out: number): void;
@@ -131,6 +132,12 @@ export interface SpineWrappedAPI {
     probeExtract(instanceId: number, stage: number, useCollector: number): number;
     probeCounts(out: number): void;
     probeClipStorage(out: number): void;
+
+    /**
+     * What one instance's clipping costs this pose, in work rather than time.
+     * Poses and extracts, so it is a diagnostic call and not a frame reading.
+     */
+    clipBudget(instanceId: number, out: number): number;
     probeStorage(out: number): void;
     probePose(instanceId: number, dt: number, stage: number): number;
     probePoseCounts(out: number): void;
@@ -186,6 +193,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         probeExtract: cw('spine_probe_extract', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probeExtract'],
         probeCounts: cw('spine_probe_counts', null, ['number']) as SpineWrappedAPI['probeCounts'],
         probeClipStorage: cw('spine_probe_clip_storage', null, ['number']) as SpineWrappedAPI['probeClipStorage'],
+        clipBudget: cw('spine_clipBudget', 'number', ['number', 'number']) as SpineWrappedAPI['clipBudget'],
         probeStorage: cw('spine_probe_storage', null, ['number']) as SpineWrappedAPI['probeStorage'],
         probePose: cw('spine_probe_pose', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probePose'],
         probePoseCounts: cw('spine_probe_pose_counts', null, ['number']) as SpineWrappedAPI['probePoseCounts'],

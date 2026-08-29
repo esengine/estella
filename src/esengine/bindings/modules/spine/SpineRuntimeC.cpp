@@ -637,6 +637,8 @@ namespace {
  */
 struct ClipRegion {
     float minX, minY, maxX, maxY;
+    /// Edges across the pieces, so a charge can be priced where it is made.
+    std::uint32_t edges;
     /// The decomposition came back as one piece, so "every vertex is inside it"
     /// means the whole triangle is. A concave region decomposes into several and
     /// a triangle can span two of them while being inside neither.
@@ -660,6 +662,12 @@ void captureClipRegion() {
     }
     g_clipRegion.convex = g_clipper->clippingPolygons
         && g_clipper->clippingPolygons->size == 1;
+    if (g_clipper->clippingPolygons) {
+        for (int p = 0; p < g_clipper->clippingPolygons->size; ++p) {
+            g_clipRegion.edges +=
+                static_cast<std::uint32_t>(g_clipper->clippingPolygons->items[p]->size / 2);
+        }
+    }
 }
 
 /// Bounds that cannot meet the region's: nothing of this attachment survives.
@@ -723,12 +731,21 @@ void emit(TriangleSink& sink, bool clipping,
         // Neither changes what is drawn. The first answers "nothing of this
         // survives" without cutting; the second answers "all of it does", and
         // keeps the attachment's own topology instead of a per-triangle rebuild.
+        if constexpr (COUNT) {
+            counts->clipCandidateTriangles += static_cast<std::uint32_t>(triangleCount / 3);
+        }
         if (outsideClipBounds(positions, vertexCount)) {
-            if constexpr (COUNT) counts->clipBoundsRejects++;
+            if constexpr (COUNT) {
+                counts->clipBoundsRejects++;
+                counts->clipRejectedTriangles += static_cast<std::uint32_t>(triangleCount / 3);
+            }
             return;
         }
         if (insideConvexClip(positions, vertexCount)) {
-            if constexpr (COUNT) counts->clipInsideAccepts++;
+            if constexpr (COUNT) {
+                counts->clipInsideAccepts++;
+                counts->clipBypassedTriangles += static_cast<std::uint32_t>(triangleCount / 3);
+            }
         } else {
             spSkeletonClipping_clipTriangles(g_clipper, positions, vertexCount * 2,
                                              triangles, triangleCount, uvs, 2);
@@ -741,6 +758,10 @@ void emit(TriangleSink& sink, bool clipping,
                 counts->clippedEmits++;
                 counts->clipInputTriangles += static_cast<std::uint32_t>(triangleCount / 3);
                 counts->clipOutputTriangles += static_cast<std::uint32_t>(outTriangleCount / 3);
+                counts->clipInputVertices += static_cast<std::uint32_t>(vertexCount);
+                counts->clipOutputVertices += static_cast<std::uint32_t>(outVertices);
+                counts->clipEdgeWork +=
+                    static_cast<std::uint32_t>(triangleCount / 3) * g_clipRegion.edges;
             }
         }
     }
@@ -904,6 +925,13 @@ bool clipStorage(ClipStorage* out) {
 
 void render(Instance* instance, TriangleSink& sink, bool clipping) {
     renderImpl<STAGE_EMIT, false>(instance, sink, clipping, nullptr);
+}
+
+bool renderCounted(Instance* instance, TriangleSink& sink, bool clipping, ProbeCounts* counts) {
+    if (!instance || !counts) return false;
+    *counts = ProbeCounts{};
+    renderImpl<STAGE_EMIT, true>(instance, sink, clipping, counts);
+    return true;
 }
 
 bool renderStage(Instance* instance, TriangleSink& sink, bool clipping,

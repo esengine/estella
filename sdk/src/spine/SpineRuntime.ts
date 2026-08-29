@@ -26,6 +26,7 @@ import { beginSpineFrame, newSpineFrameMetrics, SpineTimeWindow,
 import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
+import type { SpineClipBudget } from './spineMetrics';
 
 interface EntityInfo {
     skelHandle: number;
@@ -162,6 +163,12 @@ export class SpineRuntime {
         const info = this.entities_.get(entity);
         if (!info) return null;
         return this.controller_.getBounds(info.instanceId);
+    }
+
+    clipBudget(entity: Entity): SpineClipBudget | null {
+        const info = this.entities_.get(entity);
+        if (!info) return null;
+        return this.controller_.clipBudget(info.instanceId);
     }
 
     getAnimations(entity: Entity): string[] {

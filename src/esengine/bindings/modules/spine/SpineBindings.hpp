@@ -86,8 +86,12 @@ size_t spine_eventBufferBytes();
 // or counts and drops them: the one way to price the buffers apart from the work.
 int spine_probe_extract(int instanceId, int stage, int useCollector);
 
-// The sixteen counters of the last probe run, into as many u32 slots.
+// The twenty-two counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
+
+// What one instance's clipping costs this pose, in work rather than time, into
+// eleven u32 slots. Poses and extracts; zero where the runtime cannot count.
+int spine_clipBudget(int instanceId, uint32_t* out);
 
 // The clipper's own scratch capacities, into six u32 slots.
 void spine_probe_clip_storage(uint32_t* out);

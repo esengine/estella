@@ -11,7 +11,7 @@ import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../util/logger';
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
-import type { SkeletalProbe } from './spineMetrics';
+import type { SpineClipBudget, SkeletalProbe } from './spineMetrics';
 
 export interface RawSpineEvent {
     type: number;
@@ -190,6 +190,40 @@ export class SpineModuleController {
 
     getBoneRotation(instanceId: number, boneName: string): number {
         return this.api_.getBoneRotation(instanceId, boneName);
+    }
+
+    /**
+     * What this instance's clipping costs the engine in the pose it is in, as
+     * work rather than time: a coefficient measured on one machine and compiler
+     * stops being true, and the three quantities below do not.
+     *
+     * `null` where the runtime cannot answer — 2.1 and 4.3 have no counted walk.
+     */
+    clipBudget(instanceId: number): SpineClipBudget | null {
+        return withMalloc(this.raw_, 11 * 4, (ptr) => {
+            if (!this.api_.clipBudget(instanceId, ptr)) return null;
+            const u32 = this.raw_.HEAPU32;
+            const at = ptr >> 2;
+            const charged = u32[at + 6];
+            const inputVertices = u32[at + 8];
+            const outputVertices = u32[at + 9];
+            const outputTriangles = u32[at + 10];
+            return {
+                rawVertices: u32[at],
+                pieces: u32[at + 1],
+                effectiveEdges: u32[at + 2],
+                candidateTriangles: u32[at + 3],
+                rejectedTriangles: u32[at + 4],
+                bypassedTriangles: u32[at + 5],
+                chargedTriangles: charged,
+                edgeWork: u32[at + 7],
+                inputVertices,
+                outputVertices,
+                outputTriangles,
+                vertexAmplification: inputVertices > 0 ? outputVertices / inputVertices : 0,
+                triangleAmplification: charged > 0 ? outputTriangles / charged : 0,
+            };
+        });
     }
 
     getBounds(instanceId: number): { x: number; y: number; width: number; height: number } {

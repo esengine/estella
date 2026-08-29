@@ -8,7 +8,7 @@ import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } fro
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
-import type { SpineFrameMetrics } from './spineMetrics';
+import type { SpineClipBudget, SpineFrameMetrics } from './spineMetrics';
 import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
@@ -198,6 +198,10 @@ export class SpineManager {
 
     getBounds(entity: Entity): { x: number; y: number; width: number; height: number } | null {
         return this.runtimeOf_(entity)?.getBounds(entity) ?? null;
+    }
+
+    clipBudget(entity: Entity): SpineClipBudget | null {
+        return this.runtimeOf_(entity)?.clipBudget(entity) ?? null;
     }
 
     getAnimations(entity: Entity): string[] {

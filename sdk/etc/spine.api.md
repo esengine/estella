@@ -65,6 +65,7 @@ events: readonly SpineEvent[]
 ```
 @internal runtimeForDiagnostics: (version: SpineVersion) => SpineRuntime | undefined
 boundEntities: () => Iterable<Entity>
+clipBudget: (entity: Entity) => SpineClipBudget | null
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
 enableEvents: (entity: Entity) => void
@@ -104,6 +105,7 @@ static prototype: SpineManager
 ## SpineModuleController — class @experimental
 ```
 addAnimation: (instanceId: number, animation: string, loop?: boolean, delay?: number, track?: number) => boolean
+clipBudget: (instanceId: number) => SpineClipBudget | null
 collectEvents: (instanceId: number) => RawSpineEvent[]
 createInstance: (skeletonHandle: number) => number
 destroyInstance: (instanceId: number) => void
@@ -159,6 +161,7 @@ static prototype: SpinePlugin
 
 ## SpineRuntime — class @experimental
 ```
+clipBudget: (entity: Entity) => SpineClipBudget | null
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
 enableEvents: (entity: Entity) => void

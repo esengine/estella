@@ -21,6 +21,39 @@
  *          per entity to say so.
  */
 
+/**
+ * What one skeleton's clipping costs, in work rather than time. Three facts and
+ * not one score, because they do not grow alike: `rawVertices` prices OPENING a
+ * region and rises faster than itself, `edgeWork` prices the cut and is linear
+ * in triangles x edges, amplification is what clipping hands the stages after.
+ */
+export interface SpineClipBudget {
+    /** The polygon as authored. Fixed by the attachment, not by the pose. */
+    rawVertices: number;
+    /** Convex pieces it decomposed into. More than one means concave. */
+    pieces: number;
+    /** Edges across those pieces — what a cut is actually charged per triangle. */
+    effectiveEdges: number;
+
+    /** Triangles that reached the region at all. */
+    candidateTriangles: number;
+    /** …whose bounds could not meet it. */
+    rejectedTriangles: number;
+    /** …that were wholly inside a convex one and passed through untouched. */
+    bypassedTriangles: number;
+    /** …that the cut actually ran on. The only ones a budget is charged for. */
+    chargedTriangles: number;
+    /** Σ charged triangles x the edges of the region charging them. */
+    edgeWork: number;
+
+    inputVertices: number;
+    outputVertices: number;
+    outputTriangles: number;
+    /** Sharing the cut destroyed: it rebuilds every triangle's own vertices. */
+    vertexAmplification: number;
+    triangleAmplification: number;
+}
+
 /** Every crossing a frame made into the module, by what it asked for. */
 export interface SpineAbiCounts {
     pose: number;
