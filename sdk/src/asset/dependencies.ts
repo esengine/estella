@@ -72,6 +72,51 @@ export interface Preparation {
 }
 
 /**
+ * What to rebuild after `changed` changed, deepest dependency first, each cycle
+ * one group. `A takes B` while B read A is a real shape: what has to be acyclic
+ * is the plan, which is this graph's condensation. Tarjan emits a group after
+ * everything it reaches, so the list is reversed at the end.
+ */
+export function rebuildPlan(
+    changed: string, dependents: (path: string) => readonly string[],
+): string[][] {
+    const index = new Map<string, number>();
+    const low = new Map<string, number>();
+    const open = new Set<string>();
+    const stack: string[] = [];
+    const groups: string[][] = [];
+    let next = 0;
+
+    const visit = (node: string): void => {
+        index.set(node, next);
+        low.set(node, next);
+        next++;
+        stack.push(node);
+        open.add(node);
+        for (const parent of dependents(node)) {
+            if (!index.has(parent)) {
+                visit(parent);
+                low.set(node, Math.min(low.get(node)!, low.get(parent)!));
+            } else if (open.has(parent)) {
+                low.set(node, Math.min(low.get(node)!, index.get(parent)!));
+            }
+        }
+        if (low.get(node) !== index.get(node)) return;
+        const group: string[] = [];
+        for (;;) {
+            const member = stack.pop()!;
+            open.delete(member);
+            group.push(member);
+            if (member === node) break;
+        }
+        groups.push(group);
+    };
+
+    visit(changed);
+    return groups.reverse();
+}
+
+/**
  * What a handle-bound load produced, and what its preparation took — the same
  * sealing an era gets, for the asset kind whose current value lives in a cache
  * rather than under a slot's name.

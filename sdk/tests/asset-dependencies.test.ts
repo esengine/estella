@@ -447,3 +447,112 @@ describe('what must be rebuilt when this changes', () => {
         expect(assets.dependentsOf('maps/terrain.tsj')).toEqual([]);
     });
 });
+
+/** Let every pending load, republish and image decode settle. */
+async function settled(): Promise<void> {
+    for (let i = 0; i < 8; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe('a change reaches what was built from it', () => {
+    beforeEach(() => { pool = createPoolFake(); materialFake.reset(); });
+
+    it('a map rebuilds when the tileset it folded in changes', async () => {
+        // Nothing of the .tsj is held — it is not an asset, it is content the map
+        // READ. Without the source edge a change to it could never reach anyone.
+        const docs: Record<string, string> = {
+            'level.tmj': MAP_WITH_EXTERNAL, 'terrain.tsj': EXTERNAL_TILESET,
+        };
+        const assets = realm(docs);
+        await assets.acquireTyped('tilemap', 'maps/level.tmj');
+        expect(assets.dependenciesOf('tilemap', 'maps/level.tmj'))
+            .toContainEqual({ kind: 'owned', type: 'texture', path: 'maps/terrain.png' });
+
+        docs['terrain.tsj'] = JSON.stringify({
+            name: 'terrain', image: 'winter.png', columns: 2, tilecount: 4,
+            tilewidth: 4, tileheight: 4,
+        });
+        assets.invalidate('maps/terrain.tsj');
+        await settled();
+
+        expect(assets.dependenciesOf('tilemap', 'maps/level.tmj'))
+            .toContainEqual({ kind: 'owned', type: 'texture', path: 'maps/winter.png' });
+        expect(pool.liveTextures(), 'the era it replaced gave its texture back').toBe(1);
+    });
+
+    /** A chain: a texture, the asset that takes it, and the asset that takes that. */
+    function chain(assets: Assets, events: string[]): void {
+        assets.register({
+            type: 'child', extensions: ['.child'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    events.push('child:start');
+                    await ctx.acquireTexture('skin.png');
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                    events.push('child:end');
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+        assets.register({
+            type: 'parent', extensions: ['.parent'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    events.push('parent:start');
+                    await ctx.acquireAsset('child', 'c.child');
+                    events.push('parent:end');
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+    }
+
+    it('the child rebuilds before the parent that took it', async () => {
+        // A parent re-prepared first would acquire the era it already had. The
+        // order is the plan's, and the plan is the graph read backwards.
+        const events: string[] = [];
+        const assets = realm({});
+        chain(assets, events);
+        await assets.acquireTyped('parent', 'p.parent');
+        events.length = 0;
+
+        assets.invalidate('skin.png');
+        await settled();
+
+        expect(events).toEqual(['child:start', 'child:end', 'parent:start', 'parent:end']);
+    });
+
+    it('a cycle is a plan of one group, not a hang', async () => {
+        // `A takes B` while B READ A is a real shape. What must be acyclic is the
+        // plan, which is this graph's condensation — so each of them rebuilds
+        // once and the walk terminates.
+        const prepared: string[] = [];
+        const assets = realm({ 'a.aa': '{}', 'b.bb': '{}' });
+        assets.register({
+            type: 'aa', extensions: ['.aa'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    prepared.push('aa');
+                    await ctx.acquireAsset('bb', 'b.bb');
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+        assets.register({
+            type: 'bb', extensions: ['.bb'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    prepared.push('bb');
+                    await ctx.readSource!('a.aa');
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+        await assets.acquireTyped('aa', 'a.aa');
+        prepared.length = 0;
+
+        assets.invalidate('a.aa');
+        await settled();
+
+        expect(prepared).toEqual(['aa', 'bb']);
+    });
+});

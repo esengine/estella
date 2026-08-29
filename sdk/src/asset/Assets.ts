@@ -22,8 +22,8 @@ import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
-import { DependencyRecorder, isInvalidatable, type AssetIdentity, type DependencyReceipt,
-         type Preparation, type PreparedLoad } from './dependencies';
+import { DependencyRecorder, isInvalidatable, rebuildPlan, type AssetIdentity,
+         type DependencyReceipt, type Preparation, type PreparedLoad } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -1640,10 +1640,38 @@ export class Assets {
      * caught and logged — one bad subscriber can't prevent other
      * subscribers from observing the invalidation.
      *
-     * Returns true if any cache held `ref`.
+     * What was BUILT from `ref` ends too. The plan is read BEFORE anything is
+     * dropped, and walked deepest-first with each group awaiting the one before
+     * it: a parent re-prepared too early acquires the era it already had.
+     *
+     * Returns true if any cache held `ref` itself.
      */
     invalidate(ref: string): boolean {
-        const path = this.resolveRef(ref) ?? ref;
+        const plan = this.rebuildPlan_(ref);
+        const { hit, rebuilt } = this.invalidateOne_(ref);
+        if (plan.length > 0) void rebuilt.then(() => this.rebuild_(plan));
+        return hit;
+    }
+
+    /** What a change to `ref` reaches, after `ref` itself. */
+    private rebuildPlan_(ref: string): string[][] {
+        const root = this.resolveLoadPath_(ref);
+        const plan = rebuildPlan(root, (path) => this.dependentsOf(path).map((d) => d.path));
+        return plan.map((group) => group.filter((p) => p !== root)).filter((g) => g.length > 0);
+    }
+
+    /** Each group only once everything it was built from has landed. */
+    private async rebuild_(plan: string[][]): Promise<void> {
+        for (const group of plan) {
+            await Promise.all(group.map((path) => this.invalidateOne_(path).rebuilt));
+        }
+    }
+
+    /** End one asset's era: drop every record of it, re-publish what is
+     *  published by name, and say which kind ended. `rebuilt` settles when its
+     *  own re-preparation has landed. */
+    private invalidateOne_(ref: string): { hit: boolean; rebuilt: Promise<void> } {
+        const path = this.resolveLoadPath_(ref);
         // The texture handle bound to this path, captured BEFORE the caches drop
         // it, so a rebind listener can swap it in live components (hot update).
         const oldTextureHandle = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
@@ -1682,13 +1710,14 @@ export class Assets {
         // A registry-backed asset has no cache entry to drop and no handle to
         // swap: the update IS a new era published under the same names. Awaited
         // by nobody — a failed prepare leaves holders the era they have.
+        const republished: Array<Promise<unknown>> = [];
         for (const [type] of this.loaders_) {
             const kind = this.registryKind_(type);
             if (!kind || !this.registrySlots_.has(type, path)) continue;
             hit = true;
-            void this.registrySlots_.republish(kind, type, path).catch((e: unknown) => {
+            republished.push(this.registrySlots_.republish(kind, type, path).catch((e: unknown) => {
                 log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
-            });
+            }));
         }
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
@@ -1708,7 +1737,7 @@ export class Assets {
 
         for (const [type, oldValue] of dropped) this.fireInvalidate_({ ref, type, oldValue });
 
-        return hit;
+        return { hit, rebuilt: Promise.all(republished).then(() => undefined) };
     }
 
     /** Fire every onInvalidate listener with one generation's ending. Isolates
