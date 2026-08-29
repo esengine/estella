@@ -68,6 +68,7 @@ boundEntities: () => Iterable<Entity>
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
 enableEvents: (entity: Entity) => void
+frameMetrics: () => Array<{ version: SpineVersion; metrics: SpineFrameMetrics; }>
 getAnimations: (entity: Entity) => string[]
 getBounds: (entity: Entity) => { x: number; y: number; width: number; height: number; } | null
 getEntityVersion: (entity: Entity) => SpineVersion | undefined
@@ -78,6 +79,7 @@ hasInstance: (entity: Entity) => boolean
 hasRuntime: (version: SpineVersion) => boolean
 listConstraints: (entity: Entity) => ConstraintList | null
 loadEntity: (entity: Entity, era: SpineEraBinding, _registry: CppRegistry) => Promise<SpineVersion | null>
+observe: (on: boolean) => void
 removeEntity: (entity: Entity) => void
 setAnimation: (entity: Entity, animation: string, loop: boolean) => void
 setAttachment: (entity: Entity, slotName: string, attachmentName: string) => boolean
@@ -106,7 +108,7 @@ collectEvents: (instanceId: number) => RawSpineEvent[]
 createInstance: (skeletonHandle: number) => number
 destroyInstance: (instanceId: number) => void
 enableEvents: (instanceId: number) => void
-forEachMeshBatch: (instanceId: number, cb: MeshBatchVisitor) => void
+forEachMeshBatch: (instanceId: number, cb: MeshBatchVisitor, probe?: SkeletalProbe) => void
 getAnimations: (instanceId: number) => string[]
 getAtlasPageCount: (handle: number) => number
 getAtlasPageTextureName: (handle: number, pageIndex: number) => string
@@ -169,6 +171,8 @@ getSkins: (entity: Entity) => string[]
 getTransformConstraintMix: (entity: Entity, name: string) => TransformMixData | null
 listConstraints: (entity: Entity) => ConstraintList | null
 loadEntity: (entity: Entity, era: SpineEraBinding) => boolean
+metrics: () => SpineFrameMetrics | null
+observe: (on: boolean) => void
 removeEntity: (entity: Entity) => void
 setAnimation: (entity: Entity, animation: string, loop: boolean) => void
 setAttachment: (entity: Entity, slotName: string, attachmentName: string) => boolean
@@ -184,6 +188,7 @@ setTrackAlpha: (entity: Entity, track: number, alpha: number) => void
 setTransformConstraintMix: (entity: Entity, name: string, mix: TransformMixData) => boolean
 updateAll: (dt: number) => void
 version: SpineVersion
+windows: () => { pose: SpineTimeWindow; readback: SpineTimeWindow; total: SpineTimeWindow; }
 static new (version: SpineVersion, module: SpineWasmModule): SpineRuntime
 static prototype: SpineRuntime
 ```

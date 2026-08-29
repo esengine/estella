@@ -16,6 +16,7 @@
  *          array per batch per frame.
  */
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
+import type { SkeletalProbe } from '../spine/spineMetrics';
 
 /** The heap a module marshals through. */
 export interface SkeletalHeap {
@@ -45,23 +46,32 @@ export type MeshBatchVisitor = (
 /** Interleaved x,y,u,v,r,g,b,a — the layout every skeletal module writes. */
 const VERTEX_FLOATS = 8;
 
-/** Visit each posed batch. Views are valid only for the duration of each call. */
+/**
+ * Visit each posed batch. Views are valid only for the duration of each call.
+ *
+ * `probe` is counted into, never timed into: this loop is per batch per entity,
+ * so a clock read here is one per crossing.
+ */
 export function forEachMeshBatch(
     heap: SkeletalHeap,
     api: MeshBatchSource,
     instanceId: number,
     cb: MeshBatchVisitor,
+    probe?: SkeletalProbe,
 ): void {
     const batchCount = api.getMeshBatchCount(instanceId);
+    if (probe) probe.abi.batchCount++;
     if (batchCount === 0) return;
 
     withMalloc(heap, 8, metaPtr => {
+        if (probe) { probe.abi.malloc++; probe.abi.free++; probe.bytes.scratchAllocated += 8; }
         const texIdPtr = metaPtr;
         const blendPtr = metaPtr + 4;
 
         for (let i = 0; i < batchCount; i++) {
             const vertexCount = api.getMeshBatchVertexCount(instanceId, i);
             const indexCount = api.getMeshBatchIndexCount(instanceId, i);
+            if (probe) { probe.abi.vertexCount++; probe.abi.indexCount++; }
             if (vertexCount <= 0 || indexCount <= 0) continue;
 
             const vertByteLen = vertexCount * VERTEX_FLOATS * 4;
@@ -70,6 +80,16 @@ export function forEachMeshBatch(
                 const vertPtr = alloc(vertByteLen);
                 const idxPtr = alloc(idxByteLen);
                 api.getMeshBatchData(instanceId, i, vertPtr, idxPtr, texIdPtr, blendPtr);
+                if (probe) {
+                    probe.meshBatches++;
+                    probe.vertices += vertexCount;
+                    probe.indices += indexCount;
+                    probe.abi.batchData++;
+                    probe.abi.malloc += 2;
+                    probe.abi.free += 2;
+                    probe.bytes.scratchAllocated += vertByteLen + idxByteLen;
+                    probe.bytes.wasmRead += vertByteLen + idxByteLen;
+                }
                 cb(
                     new Uint8Array(heap.HEAPU8.buffer, vertPtr, vertByteLen),
                     new Uint8Array(heap.HEAPU8.buffer, idxPtr, idxByteLen),

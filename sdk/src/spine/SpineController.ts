@@ -11,6 +11,7 @@ import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../util/logger';
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
+import type { SkeletalProbe } from './spineMetrics';
 
 export interface RawSpineEvent {
     type: number;
@@ -220,8 +221,8 @@ export class SpineModuleController {
      * way on the C++ side, so reading them differently per runtime would be two
      * copies of one contract.
      */
-    forEachMeshBatch(instanceId: number, cb: MeshBatchVisitor): void {
-        forEachMeshBatch(this.raw_, this.api_, instanceId, cb);
+    forEachMeshBatch(instanceId: number, cb: MeshBatchVisitor, probe?: SkeletalProbe): void {
+        forEachMeshBatch(this.raw_, this.api_, instanceId, cb, probe);
     }
 
     // =========================================================================

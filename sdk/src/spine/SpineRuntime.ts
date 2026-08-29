@@ -21,6 +21,8 @@ import { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { wrapSpineModule, type SpineWasmModule } from './SpineModuleLoader';
 import type { SpineEraBinding, SpineEraClaim } from './prepareSpine';
+import { beginSpineFrame, newSpineFrameMetrics, SpineTimeWindow,
+         type SpineFrameMetrics } from './spineMetrics';
 import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
@@ -53,6 +55,11 @@ export class SpineRuntime {
     private disabledEntities_: Set<Entity> = new Set();
     // era -> the one native skeleton every entity of that era is posed by.
     private skeletons_: Map<string, SkeletonResidency> = new Map();
+    /** Null unless someone asked. The one field every probe is behind. */
+    private metrics_: SpineFrameMetrics | null = null;
+    private readonly poseWindow_ = new SpineTimeWindow();
+    private readonly readbackWindow_ = new SpineTimeWindow();
+    private readonly totalWindow_ = new SpineTimeWindow();
 
     /** One runtime per loaded module: the ABI adapter is made here rather than
      *  handed in, because nothing else has a reason to hold one. */
@@ -261,6 +268,9 @@ export class SpineRuntime {
     }
 
     updateAll(dt: number): void {
+        const m = this.metrics_;
+        if (m) beginSpineFrame(m);
+        const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             // Disabled means out of the frame entirely, so it costs no posing
             // either — the same meaning the DragonBones manager gives it.
@@ -268,7 +278,13 @@ export class SpineRuntime {
             // playing=false freezes the pose (skip advance, still submitted);
             // timeScale scales the advance (update() takes an arbitrary dt).
             if (info.playing) this.controller_.update(info.instanceId, dt * info.timeScale);
+            if (m) m.abi.pose++;
         }
+        if (!m) return;
+        m.time.pose = performance.now() - started;
+        m.entities = this.entities_.size;
+        m.residencies = this.skeletons_.size;
+        this.poseWindow_.push(m.time.pose);
     }
 
     /** @param core whichever engine core is present (see ecs/engineApi.ts) — the
@@ -276,6 +292,8 @@ export class SpineRuntime {
      *  host arena on a device. */
     extractAndSubmitMeshes(core: NonNullable<EngineApi>, registry: CppRegistry,
                            materialOf?: SkeletalMaterialOf): void {
+        const m = this.metrics_;
+        const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
             // Shared with every skeletal runtime (skeletal/submitMeshes): the core's
@@ -283,9 +301,39 @@ export class SpineRuntime {
             // what posed them. A false means the core cannot take geometry at all,
             // so there is no point asking again for the next entity.
             const accepted = submitEntityMeshes(core, registry, entity, info, cb =>
-                this.controller_.forEachMeshBatch(info.instanceId, cb), materialOf);
+                this.controller_.forEachMeshBatch(info.instanceId, cb, m ?? undefined),
+                                                materialOf, m ?? undefined);
             if (!accepted) return;
         }
+        if (!m) return;
+        // ONE clock pair for the whole pass. What it is made of — discovering
+        // batches, extracting them, copying them across — is counted rather than
+        // timed here; see benchmarks/spine-readback-phases for the split.
+        m.time.readback = performance.now() - started;
+        m.time.total = m.time.pose + m.time.readback;
+        this.readbackWindow_.push(m.time.readback);
+        this.totalWindow_.push(m.time.total);
+    }
+
+    /**
+     * Start or stop reporting what each frame costs. Off by default and off is
+     * free: every counter and both clock reads are behind this one field, so a
+     * runtime nobody is watching pays a branch per entity and nothing else.
+     */
+    observe(on: boolean): void {
+        this.metrics_ = on ? (this.metrics_ ?? newSpineFrameMetrics()) : null;
+    }
+
+    /** The LIVE frame record — the same object every frame, so reading it costs
+     *  nothing and holding it shows the next frame. Null when not observing. */
+    metrics(): SpineFrameMetrics | null {
+        return this.metrics_;
+    }
+
+    /** The last 120 frames of each timed phase. A mean hides the frame that
+     *  missed; these say whether one did. */
+    windows(): { pose: SpineTimeWindow; readback: SpineTimeWindow; total: SpineTimeWindow } {
+        return { pose: this.poseWindow_, readback: this.readbackWindow_, total: this.totalWindow_ };
     }
 
     removeEntity(entity: Entity): void {

@@ -17,6 +17,7 @@
 import { withScratch } from '../wasm/wasmScratch';
 import type { Entity } from '../types';
 import type { MeshBatchVisitor } from './meshBatches';
+import type { SkeletalProbe } from '../spine/spineMetrics';
 
 /** How an entity's skeleton sits in the world, independent of what posed it. */
 export interface SkeletalSubmitProps {
@@ -65,6 +66,7 @@ export function submitEntityMeshes(
     props: SkeletalSubmitProps,
     walk: MeshBatchWalker,
     materialOf?: SkeletalMaterialOf,
+    probe?: SkeletalProbe,
 ): boolean {
     const submit = core.renderer_submitSkeletalBatchByEntity;
     const heap = core.HEAPU8;
@@ -78,6 +80,10 @@ export function submitEntityMeshes(
             const dstIdx = alloc(idxBytes.byteLength);
             heap.set(vertBytes, dstVert);
             heap.set(idxBytes, dstIdx);
+            if (probe) {
+                probe.abi.submit++;
+                probe.bytes.coreWrite += vertBytes.byteLength + idxBytes.byteLength;
+            }
             submit.call(core, registry,
                 dstVert, vertexCount, dstIdx, indexCount,
                 textureId, blendMode, entity as number,

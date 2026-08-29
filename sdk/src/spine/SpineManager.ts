@@ -8,6 +8,7 @@ import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } fro
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
+import type { SpineFrameMetrics } from './spineMetrics';
 import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
@@ -44,6 +45,8 @@ export class SpineManager {
      *  runtime can only see its own entities, so one handed an entity another is
      *  posing cannot retire the binding it replaces. */
     private bindings_: Map<Entity, SpineRuntime> = new Map();
+    /** So a runtime loaded after `observe(true)` reports too. */
+    private observing_ = false;
 
     constructor(
         /** Whichever engine core is present (see ecs/engineApi.ts). */
@@ -154,6 +157,28 @@ export class SpineManager {
      *  and reaching a runtime directly is how one gets posed by two of them. */
     runtimeForDiagnostics(version: SpineVersion): SpineRuntime | undefined {
         return this.runtimes_.get(version);
+    }
+
+    /**
+     * Start or stop reporting what frames cost, on every runtime this app has
+     * and every one it loads later. Off by default.
+     */
+    observe(on: boolean): void {
+        this.observing_ = on;
+        for (const runtime of this.runtimes_.values()) runtime.observe(on);
+    }
+
+    /**
+     * What the last frame cost, per runtime — the unit anything is done about.
+     * Empty while not observing.
+     */
+    frameMetrics(): Array<{ version: SpineVersion; metrics: SpineFrameMetrics }> {
+        const out: Array<{ version: SpineVersion; metrics: SpineFrameMetrics }> = [];
+        for (const runtime of this.runtimes_.values()) {
+            const metrics = runtime.metrics();
+            if (metrics) out.push({ version: runtime.version, metrics });
+        }
+        return out;
     }
 
     setAnimation(entity: Entity, animation: string, loop: boolean): void {
@@ -300,6 +325,7 @@ export class SpineManager {
         const promise = (async () => {
             try {
                 const runtime = new SpineRuntime(version, await factory());
+                if (this.observing_) runtime.observe(true);
                 this.runtimes_.set(version, runtime);
                 return runtime;
             } catch (e) {
