@@ -30,6 +30,10 @@
  *      holds by handle, `registry` for one it holds by ref. Two doors to the
  *      same asset is two answers about who owns it — and the registry door
  *      exists because publication has to be the slot's, not an era's.
+ *   8. A registry-backed loader only PREPARES. Registering what it parsed into
+ *      a subsystem's own map as well is a second copy of "which asset this name
+ *      means" — and a module-global one crosses realms, so an editor world and
+ *      a play world answered each other's lookups.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -177,6 +181,10 @@ for (const file of REBIND_PATH) {
   findings.push(`${file}:${code.slice(0, hit.index).split('\n').length}  works out who owns an entity's assets for itself — call assetScopeForEntity.`);
 }
 
+// A registry-backed loader writes nothing. `register*`/`publish*` inside one is
+// the mirror this model exists to remove.
+const PUBLISHES = /\b(?:register|publish|unregister|unpublish)[A-Z]\w*\s*\(/;
+
 // One door per loader. A registry-backed loader that also published from a
 // `load` would be an era writing the registry, which is how a retiring one
 // deletes the entry its successor just put under the same name.
@@ -190,6 +198,10 @@ for (const name of readdirSync(LOADERS_DIR).filter((f) => f.endsWith('.ts'))) {
   const direct = /^\s{4}(?:async )?load\s*\(/m.test(code);
   if (registry === direct) {
     findings.push(`sdk/src/asset/loaders/${name}  has ${registry ? 'BOTH doors' : 'neither door'} — a loader answers with load/unload or with registry, never both.`);
+  }
+  const writes = registry ? PUBLISHES.exec(code) : null;
+  if (writes) {
+    findings.push(`sdk/src/asset/loaders/${name}:${code.slice(0, writes.index).split('\n').length}  publishes into a registry of its own (${writes[0].trim()}) — a registry-backed loader only prepares; the slot holds the era and answers the lookup.`);
   }
 }
 if (loaders < 10) {
