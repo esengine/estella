@@ -946,6 +946,10 @@ export class Assets {
         // The manifest record already says what kind each changed asset is; the
         // notification carries it rather than collapsing to "maybe a texture".
         for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
+        // A changed asset is content-addressed, so its next load finds the update
+        // on its own. An era already BUILT from one cannot: it holds what it read
+        // at the revision it was prepared in, and only the walk ends it.
+        for (const c of changed) void this.rebuild_(this.rebuildPlan_(c.key));
         this.persistActiveManifest_(pending.manifestJson);
         this.pendingUpdate_ = null;
         return { ok: true, updated: changed.length, failed: [] };

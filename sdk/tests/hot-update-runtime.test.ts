@@ -107,6 +107,38 @@ describe('Assets.loadGroup — remote group', () => {
     });
 });
 
+describe('a hot update reaches what was built from what it changed', () => {
+    it('re-prepares the asset that read a changed one, against the new content', async () => {
+        // The changed asset itself is content-addressed, so the next load of it
+        // finds the update on its own. What CANNOT is an era already built from
+        // it: it holds what it read at the revision it was prepared in.
+        const backend = backendServing(cdnManifest(REMOTE_HASH, 'rev-2'));
+        const assets = createAssets(backend);
+        assets.setManifest(cdnManifest('aaaa', 'rev-1'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const builtFrom: string[] = [];
+        assets.register({
+            type: 'widget', extensions: ['.widget'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    await ctx.readSource!('assets/hero.png');
+                    builtFrom.push(assets.resolveLoadPath('assets/hero.png'));
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+        await assets.acquireTyped('widget', 'w.widget');
+        expect(builtFrom).toEqual(['https://cdn/v1/assets/aaaa.png']);
+
+        await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+        await assets.applyUpdate();
+        for (let i = 0; i < 4; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(builtFrom[1], 'the widget kept the revision it was built in')
+            .toBe(`https://cdn/v2/assets/${REMOTE_HASH}.png`);
+    });
+});
+
 describe('Assets.checkForUpdate / applyUpdate', () => {
     it('checkForUpdate diffs the fetched manifest against the active one without applying', async () => {
         const assets = createAssets(backendServing(cdnManifest('zzzz', 'rev-2')));
