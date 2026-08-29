@@ -46,6 +46,23 @@ export interface DependencyReceipt {
     readonly path: string;
 }
 
+/** One asset of a realm: what kind it is, and the name its era is filed under. */
+export interface AssetIdentity {
+    readonly type: string;
+    readonly path: string;
+}
+
+/**
+ * Whether a change to what this edge names can invalidate the era that recorded
+ * it. A read is causality by definition; an acquisition only when it names an
+ * addressable asset, since a composed resource has no content anyone can change
+ * and its `composed:<handle>` identity is a debug name, not a lookup key.
+ */
+export function isInvalidatable(edge: DependencyReceipt): boolean {
+    if (edge.kind === 'source') return true;
+    return edge.type !== undefined;
+}
+
 /** What one preparation took, sealed onto what it produced. */
 export interface Preparation {
     /** Everything it acquired; released when what it produced retires. */

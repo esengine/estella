@@ -22,7 +22,8 @@ import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
-import { DependencyRecorder, type DependencyReceipt, type Preparation, type PreparedLoad } from './dependencies';
+import { DependencyRecorder, isInvalidatable, type AssetIdentity, type DependencyReceipt,
+         type Preparation, type PreparedLoad } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -2074,6 +2075,43 @@ export class Assets {
         const byPath = this.registrySlots_.dependenciesOf(type, path);
         if (byPath.length > 0) return byPath;
         return this.genericCache_.get(type)?.get(path)?.edges ?? [];
+    }
+
+    /**
+     * Every asset of this realm whose CURRENT era took `ref` — the reverse of
+     * {@link dependenciesOf}, walked from the eras so there is no table to keep.
+     * By canonical identity: a receipt says what the acquisition ASKED for (a
+     * `@uuid:` ref, a document-relative path) and a change names a file.
+     *
+     * @internal
+     */
+    dependentsOf(ref: string): AssetIdentity[] {
+        const canonical = new Map<string, string>();
+        const identify = (path: string): string => {
+            let known = canonical.get(path);
+            if (known === undefined) {
+                known = this.resolveLoadPath_(path);
+                canonical.set(path, known);
+            }
+            return known;
+        };
+        const target = identify(ref);
+        const out: AssetIdentity[] = [];
+        for (const era of this.eras_()) {
+            const took = era.edges.some((e) => isInvalidatable(e) && identify(e.path) === target);
+            if (took) out.push({ type: era.type, path: era.path });
+        }
+        return out;
+    }
+
+    /** Every live era of this realm, published under a name or held by handle. */
+    private *eras_(): Generator<{ type: string; path: string; edges: readonly DependencyReceipt[] }> {
+        for (const era of this.registrySlots_.eras()) {
+            yield { type: era.type, path: era.key, edges: era.edges };
+        }
+        for (const [type, cache] of this.genericCache_) {
+            for (const [path, era] of cache.entries()) yield { type, path, edges: era.edges };
+        }
     }
 
     /**

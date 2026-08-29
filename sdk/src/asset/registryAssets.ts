@@ -162,6 +162,16 @@ export class RegistryAssetSlots {
         return this.byName_.get(lookupKey(type, name))?.era?.edges ?? [];
     }
 
+    /** Every live era, by the key its slot is filed under. What a reverse walk
+     *  reads: who depends on what is computed from the eras themselves. */
+    eras(): Array<{ type: string; key: string; edges: readonly DependencyReceipt[] }> {
+        const out: Array<{ type: string; key: string; edges: readonly DependencyReceipt[] }> = [];
+        for (const slot of new Set(this.byName_.values())) {
+            if (slot.era) out.push({ type: slot.type, key: slot.key, edges: slot.era.edges });
+        }
+        return out;
+    }
+
     /**
      * What this realm publishes for (type, name) right now — the answer a
      * runtime lookup reads, and the only copy of it.

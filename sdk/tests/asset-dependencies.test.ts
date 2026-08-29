@@ -385,3 +385,65 @@ describe('a material instance acquires its parent', () => {
         expect(pool.liveTextures(), 'the texture the PARENT bound').toBe(0);
     });
 });
+
+describe('what must be rebuilt when this changes', () => {
+    beforeEach(() => { pool = createPoolFake(); materialFake.reset(); });
+
+    it('the map that folded a .tsj in is named by the file it read', async () => {
+        const assets = realm({ 'level.tmj': MAP_WITH_EXTERNAL, 'terrain.tsj': EXTERNAL_TILESET });
+        await assets.acquireTyped('tilemap', 'maps/level.tmj');
+
+        expect(assets.dependentsOf('maps/terrain.tsj'))
+            .toEqual([{ type: 'tilemap', path: 'maps/level.tmj' }]);
+    });
+
+    it('a texture names every era that took it, of any kind', async () => {
+        const assets = realm({ 'hero.esmaterial': MATERIAL });
+        await assets.acquireTyped('material', 'materials/hero.esmaterial');
+
+        expect(assets.dependentsOf('materials/wall.png'))
+            .toEqual([{ type: 'material', path: 'materials/hero.esmaterial' }]);
+    });
+
+    it('a composed resource names nobody', async () => {
+        // Its `composed:<handle>` identity is a debug name, not a lookup key —
+        // in an invalidation namespace it would collide with whatever handle
+        // number a file happened to be given.
+        const assets = realm({ 'level.tmj': MAP_WITH_COLLECTION });
+        await assets.acquireTyped('tilemap', 'maps/level.tmj');
+        const composed = assets.dependenciesOf('tilemap', 'maps/level.tmj')
+            .find((e) => e.path.startsWith('composed:'))!;
+
+        expect(assets.dependentsOf(composed.path)).toEqual([]);
+    });
+
+    it('a receipt spelled as a uuid answers to the file it resolves to', async () => {
+        // A receipt says what the acquisition ASKED for; a change names a file.
+        // Comparing the two spellings directly is how a graph misses every edge
+        // a scene serialized.
+        const assets = realm({});
+        assets.setAssetRefResolver((ref) => (ref === '@uuid:skin' ? 'art/skin.png' : ref));
+        assets.register({
+            type: 'widget', extensions: ['.widget'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    await ctx.acquireTexture('@uuid:skin');
+                    return { published: { path }, value: { id: path } };
+                },
+            },
+        });
+        await assets.acquireTyped('widget', 'x.widget');
+
+        expect(assets.dependentsOf('art/skin.png')).toEqual([{ type: 'widget', path: 'x.widget' }]);
+        expect(assets.dependentsOf('@uuid:skin'), 'the same asset, spelled the other way')
+            .toEqual([{ type: 'widget', path: 'x.widget' }]);
+    });
+
+    it('an era that retired takes its edges with it', async () => {
+        const assets = realm({ 'level.tmj': MAP_WITH_EXTERNAL, 'terrain.tsj': EXTERNAL_TILESET });
+        const held = await assets.acquireTyped('tilemap', 'maps/level.tmj');
+
+        held.release();
+        expect(assets.dependentsOf('maps/terrain.tsj')).toEqual([]);
+    });
+});
