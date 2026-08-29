@@ -86,7 +86,7 @@ size_t spine_eventBufferBytes();
 // or counts and drops them: the one way to price the buffers apart from the work.
 int spine_probe_extract(int instanceId, int stage, int useCollector);
 
-// The twenty-two counters of the last probe run, into as many u32 slots.
+// The twenty-four counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
 // BENCHMARK ONLY — open the first clip region to `stage` (es::spine::ClipStartStage).

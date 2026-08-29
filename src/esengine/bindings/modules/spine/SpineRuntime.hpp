@@ -266,6 +266,11 @@ struct ProbeCounts {
     std::uint32_t clipEdgeWork;
     std::uint32_t clipInputVertices;
     std::uint32_t clipOutputVertices;
+    /// Regions opened without triangulating, and regions that had to. A convex
+    /// polygon is its own only convex piece; proving that is linear, and
+    /// deriving it through an ear clip is quadratic.
+    std::uint32_t clipConvexBypasses;
+    std::uint32_t clipDecompositions;
 };
 
 /** BENCHMARK ONLY — the clipper's own scratch arrays, so a second storage

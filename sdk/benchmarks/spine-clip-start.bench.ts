@@ -51,6 +51,27 @@
  *
  *          coin lands on the synthetic 39-gon to within 0.4%, which is what says
  *          none of this is an artefact of authored shapes.
+ *
+ *          WHAT THIS LADDER NOW PRICES. A convex region is opened by proving it
+ *          convex, not by deriving that through an ear clip, so production takes
+ *          the sequence below only when the proof declines. The ladder still
+ *          calls triangulate and decompose directly, which is what makes it the
+ *          price of the FALLBACK — and the concave rows are the ones production
+ *          still pays.
+ *
+ *          Against a build without the bypass, 200 entities x 20 frames, min of
+ *          seven, alternating in one process:
+ *
+ *              asset     open before  open after  extract before  extract after
+ *              coin            1.913       0.181           2.737          1.005
+ *              tank            2.023       2.007           6.012          5.946
+ *              spineboy        0.221       0.230           0.964          0.970
+ *
+ *          coin loses 91% of its open. tank keeps all of it — a 32-vertex region
+ *          that decomposes into thirteen pieces is not convex and the proof says
+ *          so. spineboy pays about 0.01 µs more per open for a proof that
+ *          declines, which is what a conservative test costs where it cannot
+ *          help.
  */
 import { describe, bench, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';

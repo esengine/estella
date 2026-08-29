@@ -289,7 +289,7 @@ int spine_probe_extract(int instanceId, int stage, int useCollector) {
                                   stage, &g_probeCounts) ? 1 : 0;
 }
 
-/** The counts of the last {@link spine_probe_extract}, into twenty-two u32 slots. */
+/** The counts of the last {@link spine_probe_extract}, into twenty-four u32 slots. */
 EMSCRIPTEN_KEEPALIVE
 void spine_probe_counts(std::uint32_t* out) {
     if (!out) return;
@@ -315,6 +315,8 @@ void spine_probe_counts(std::uint32_t* out) {
     out[19] = g_probeCounts.clipEdgeWork;
     out[20] = g_probeCounts.clipInputVertices;
     out[21] = g_probeCounts.clipOutputVertices;
+    out[22] = g_probeCounts.clipConvexBypasses;
+    out[23] = g_probeCounts.clipDecompositions;
 }
 
 /** The last staged open's counts. Benchmark only; a frame never writes it. */

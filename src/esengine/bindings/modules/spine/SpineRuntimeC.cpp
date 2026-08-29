@@ -709,6 +709,159 @@ bool insideConvexClip(const float* positions, int vertexCount) {
     return true;
 }
 
+namespace {
+
+/**
+ * spine's own `_makeClockwise`, which is static there, transcribed so the ladder
+ * below can stop before it. The full depth is held to the shipped clipStart's
+ * result, which is what says this stayed a transcription.
+ */
+void makeClockwise(spFloatArray* polygon) {
+    float* vertices = polygon->items;
+    const int length = polygon->size;
+    float area = vertices[length - 2] * vertices[1] - vertices[0] * vertices[length - 1];
+    for (int i = 0, n = length - 3; i < n; i += 2) {
+        const float p1x = vertices[i], p1y = vertices[i + 1];
+        const float p2x = vertices[i + 2], p2y = vertices[i + 3];
+        area += p1x * p2y - p2x * p1y;
+    }
+    if (area < 0) return;
+    for (int i = 0, lastX = length - 2, n = length >> 1; i < n; i += 2) {
+        const float x = vertices[i], y = vertices[i + 1];
+        const int other = lastX - i;
+        vertices[i] = vertices[other];
+        vertices[i + 1] = vertices[other + 1];
+        vertices[other] = x;
+        vertices[other + 1] = y;
+    }
+}
+
+/// The first clip region in draw order — the one every fixture here has one of.
+spSlot* firstClipSlot(spSkeleton* skeleton, spClippingAttachment** clip) {
+    for (int i = 0; i < skeleton->slotsCount; ++i) {
+        spSlot* slot = skeleton->drawOrder[i];
+        if (!slot || !slot->attachment) continue;
+        if (slot->attachment->type != SP_ATTACHMENT_CLIPPING) continue;
+        *clip = reinterpret_cast<spClippingAttachment*>(slot->attachment);
+        return slot;
+    }
+    return nullptr;
+}
+
+/// One convex piece this module owns, for the region that is its own only piece.
+spArrayFloatArray* g_convexPolygons = nullptr;
+
+/**
+ * Convex beyond doubt, on THIS frame's world vertices — a deformed polygon is a
+ * different shape every frame. Conservative: a false negative costs only the ear
+ * clip this skips, a false positive changes what is drawn, so a cross product
+ * with no trustworthy sign or directions that turn twice both decline.
+ */
+bool isDefinitelyConvex(const spFloatArray* polygon) {
+    const int count = polygon->size / 2;
+    if (count < 3) return false;
+    const float* v = polygon->items;
+
+    float minX = v[0], maxX = v[0], minY = v[1], maxY = v[1];
+    for (int i = 2; i < polygon->size; i += 2) {
+        minX = v[i] < minX ? v[i] : minX;
+        maxX = v[i] > maxX ? v[i] : maxX;
+        minY = v[i + 1] < minY ? v[i + 1] : minY;
+        maxY = v[i + 1] > maxY ? v[i + 1] : maxY;
+    }
+    const float span = (maxX - minX) > (maxY - minY) ? (maxX - minX) : (maxY - minY);
+    if (!(span > 0.0f)) return false;
+    const float crossEpsilon = span * span * 1e-7f;
+
+    int sign = 0;
+    int xTurns = 0;
+    int yTurns = 0;
+    float previousDx = 0.0f;
+    float previousDy = 0.0f;
+    for (int i = 0; i < count; ++i) {
+        const int a = i * 2;
+        const int b = ((i + 1) % count) * 2;
+        const int c = ((i + 2) % count) * 2;
+        const float dx = v[b] - v[a], dy = v[b + 1] - v[a + 1];
+        const float ex = v[c] - v[b], ey = v[c + 1] - v[b + 1];
+        const float cross = dx * ey - dy * ex;
+        if (cross > -crossEpsilon && cross < crossEpsilon) return false;
+        const int turn = cross > 0.0f ? 1 : -1;
+        if (sign == 0) sign = turn;
+        else if (turn != sign) return false;
+
+        // A simple convex polygon's edge directions cross each axis exactly
+        // twice; a star keeps a consistent turn but crosses them four times.
+        if (i > 0) {
+            if ((dx < 0.0f) != (previousDx < 0.0f)) ++xTurns;
+            if ((dy < 0.0f) != (previousDy < 0.0f)) ++yTurns;
+        }
+        previousDx = dx;
+        previousDy = dy;
+    }
+    if ((v[0] - v[(count - 1) * 2] < 0.0f) != (previousDx < 0.0f)) ++xTurns;
+    if ((v[1] - v[(count - 1) * 2 + 1] < 0.0f) != (previousDy < 0.0f)) ++yTurns;
+    return xTurns <= 2 && yTurns <= 2;
+}
+
+/**
+ * The polygon as the region's only piece, in the rotation the decomposition
+ * would have produced: the ear clipper takes vertex 0 first, so the fan begins
+ * at the LAST vertex. Starting elsewhere clips to the same area but fanned from
+ * another corner — this is what keeps the output identical, not equivalent.
+ */
+spArrayFloatArray* asSingleConvexPiece(spFloatArray* polygon) {
+    if (!g_convexPolygons) {
+        g_convexPolygons = spArrayFloatArray_create(1);
+        spArrayFloatArray_add(g_convexPolygons, spFloatArray_create(16));
+    }
+    spFloatArray* piece = g_convexPolygons->items[0];
+    spFloatArray_clear(piece);
+    const int last = polygon->size - 2;
+    spFloatArray_addAllValues(piece, polygon->items, last, 2);
+    spFloatArray_addAllValues(piece, polygon->items, 0, last);
+    spFloatArray_add(piece, piece->items[0]);
+    spFloatArray_add(piece, piece->items[1]);
+    g_convexPolygons->size = 1;
+    return g_convexPolygons;
+}
+
+/**
+ * spine's `clipStart`, with the proof in front of the derivation. Everything
+ * before the branch is what it does; the branch is that a polygon already known
+ * convex needs neither the ear clip nor the decomposition to say so.
+ */
+template <bool COUNT>
+int openClipRegion(spSlot* slot, spClippingAttachment* clip, ProbeCounts* counts) {
+    if (g_clipper->clipAttachment) return 0;
+    g_clipper->clipAttachment = clip;
+
+    const int length = clip->super.worldVerticesLength;
+    float* vertices = spFloatArray_setSize(g_clipper->clippingPolygon, length)->items;
+    spVertexAttachment_computeWorldVertices(&clip->super, slot, 0, length, vertices, 0, 2);
+    makeClockwise(g_clipper->clippingPolygon);
+
+    if (isDefinitelyConvex(g_clipper->clippingPolygon)) {
+        if constexpr (COUNT) counts->clipConvexBypasses++;
+        g_clipper->clippingPolygons = asSingleConvexPiece(g_clipper->clippingPolygon);
+        return 1;
+    }
+
+    if constexpr (COUNT) counts->clipDecompositions++;
+    g_clipper->clippingPolygons = spTriangulator_decompose(
+        g_clipper->triangulator, g_clipper->clippingPolygon,
+        spTriangulator_triangulate(g_clipper->triangulator, g_clipper->clippingPolygon));
+    for (int i = 0; i < g_clipper->clippingPolygons->size; ++i) {
+        spFloatArray* piece = g_clipper->clippingPolygons->items[i];
+        makeClockwise(piece);
+        spFloatArray_add(piece, piece->items[0]);
+        spFloatArray_add(piece, piece->items[1]);
+    }
+    return g_clipper->clippingPolygons->size;
+}
+
+}  // namespace
+
 /**
  * Hand one attachment's triangles to the sink, clipped against the open clip
  * region when there is one. Clipping replaces the triangle set with the polygon
@@ -806,7 +959,7 @@ void renderImpl(Instance* instance, TriangleSink& sink, bool clipping, ProbeCoun
             if constexpr (COUNT) counts->clipStarts++;
             if (clipping && STAGE >= STAGE_CLIP_START) {
                 auto* clip = reinterpret_cast<spClippingAttachment*>(attachment);
-                const int pieces = spSkeletonClipping_clipStart(g_clipper, slot, clip);
+                const int pieces = openClipRegion<COUNT>(slot, clip, counts);
                 captureClipRegion();
                 if constexpr (COUNT) {
                     counts->clipPolygons += static_cast<std::uint32_t>(pieces);
@@ -927,46 +1080,6 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
     renderImpl<STAGE_EMIT, false>(instance, sink, clipping, nullptr);
 }
 
-namespace {
-
-/**
- * spine's own `_makeClockwise`, which is static there, transcribed so the ladder
- * below can stop before it. The full depth is held to the shipped clipStart's
- * result, which is what says this stayed a transcription.
- */
-void makeClockwise(spFloatArray* polygon) {
-    float* vertices = polygon->items;
-    const int length = polygon->size;
-    float area = vertices[length - 2] * vertices[1] - vertices[0] * vertices[length - 1];
-    for (int i = 0, n = length - 3; i < n; i += 2) {
-        const float p1x = vertices[i], p1y = vertices[i + 1];
-        const float p2x = vertices[i + 2], p2y = vertices[i + 3];
-        area += p1x * p2y - p2x * p1y;
-    }
-    if (area < 0) return;
-    for (int i = 0, lastX = length - 2, n = length >> 1; i < n; i += 2) {
-        const float x = vertices[i], y = vertices[i + 1];
-        const int other = lastX - i;
-        vertices[i] = vertices[other];
-        vertices[i + 1] = vertices[other + 1];
-        vertices[other] = x;
-        vertices[other + 1] = y;
-    }
-}
-
-/// The first clip region in draw order — the one every fixture here has one of.
-spSlot* firstClipSlot(spSkeleton* skeleton, spClippingAttachment** clip) {
-    for (int i = 0; i < skeleton->slotsCount; ++i) {
-        spSlot* slot = skeleton->drawOrder[i];
-        if (!slot || !slot->attachment) continue;
-        if (slot->attachment->type != SP_ATTACHMENT_CLIPPING) continue;
-        *clip = reinterpret_cast<spClippingAttachment*>(slot->attachment);
-        return slot;
-    }
-    return nullptr;
-}
-
-}  // namespace
 
 namespace {
 
@@ -1022,6 +1135,7 @@ bool openToStage(Instance* instance, int stage, ClipStartCounts* counts) {
 }
 
 }  // namespace
+
 
 bool clipStartStage(Instance* instance, int stage, ClipStartCounts* counts) {
     if (!instance || !counts) return false;

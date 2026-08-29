@@ -24,6 +24,8 @@ import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleL
 import { withScratch } from '../src/wasm/wasmScratch';
 import { syntheticSkeleton } from './helpers/syntheticSpine';
 import type { SyntheticOptions } from './helpers/syntheticSpine';
+import { drawnGeometry } from './helpers/clipGeometry';
+import type { DrawnGeometry } from './helpers/clipGeometry';
 
 const OVERRIDE = process.env.SPINE_WASM_OVERRIDE;
 const SPINE38_JS = OVERRIDE ? `${OVERRIDE}.js` : resolve(WASM_DIR, 'spine38.js');
@@ -35,15 +37,15 @@ const QUADS = 16;
 /** FNV-1a over every triangle's three vertices, in draw order. */
 const CASES: Array<{ name: string; options?: SyntheticOptions; skel?: string; atlas?: string; animation?: string; hash: string }> = [
     { name: 'all outside', options: { quads: QUADS, relation: 'outside' }, hash: '811c9dc5' },
-    { name: 'all inside', options: { quads: QUADS, relation: 'inside' }, hash: 'eab58c8d' },
-    { name: 'one quad crossing', options: { quads: QUADS, relation: 'one-crossing' }, hash: 'e7a9e7ca' },
-    { name: 'every quad crossing', options: { quads: QUADS, relation: 'all-crossing' }, hash: '38f405ae' },
-    { name: 'inside a concave region', options: { quads: QUADS, relation: 'inside', polygonVertices: 16, concave: true }, hash: 'eab58c8d' },
-    { name: 'concave 16 crossing', options: { quads: QUADS, relation: 'all-crossing', polygonVertices: 16, concave: true }, hash: 'cb8a6b7d' },
-    { name: 'coin', skel: 'coin-38/coin-pro.skel', atlas: 'coin-38/coin.atlas', hash: 'be3634d0' },
+    { name: 'all inside', options: { quads: QUADS, relation: 'inside' }, hash: '1472f54c' },
+    { name: 'one quad crossing', options: { quads: QUADS, relation: 'one-crossing' }, hash: '119ddde2' },
+    { name: 'every quad crossing', options: { quads: QUADS, relation: 'all-crossing' }, hash: 'f666e43f' },
+    { name: 'inside a concave region', options: { quads: QUADS, relation: 'inside', polygonVertices: 16, concave: true }, hash: '1472f54c' },
+    { name: 'concave 16 crossing', options: { quads: QUADS, relation: 'all-crossing', polygonVertices: 16, concave: true }, hash: '3a5b4493' },
+    { name: 'coin', skel: 'coin-38/coin-pro.skel', atlas: 'coin-38/coin.atlas', hash: '4dcc1457' },
     // The whole body inside a clip region it is entirely outside of: 339 input
     // triangles a frame, every one of them cut away to nothing.
-    { name: 'spineboy portal', skel: 'spineboy-38/spineboy-pro.skel', atlas: 'spineboy-38/spineboy.atlas', animation: 'portal', hash: '8590ad29' },
+    { name: 'spineboy portal', skel: 'spineboy-38/spineboy-pro.skel', atlas: 'spineboy-38/spineboy.atlas', animation: 'portal', hash: 'f7d4b73c' },
 ];
 
 let raw: SpineWasmModule;
@@ -96,35 +98,37 @@ function fnv1a(seed: number, bytes: Uint8Array): number {
 }
 
 /** Every triangle a frame draws, expanded to the vertices it draws them with. */
-function soup(instanceId: number): string {
+function drawn(instanceId: number): DrawnGeometry {
     const batches = api.getMeshBatchCount(instanceId);
-    let hash = 0x811c9dc5;
-    for (let b = 0; b < batches; b++) {
-        const vertices = api.getMeshBatchVertexCount(instanceId, b);
-        const indices = api.getMeshBatchIndexCount(instanceId, b);
-        withScratch(raw, (alloc) => {
-            const vp = alloc(vertices * 8 * 4 + 4);
-            const ip = alloc(indices * 2 + 2);
-            const tp = alloc(4);
-            const bp = alloc(4);
-            api.getMeshBatchData(instanceId, b, vp, ip, tp, bp);
-            const index = new Uint16Array(raw.HEAPU8.buffer, ip, indices);
-            for (let i = 0; i < indices; i++) {
-                const at = vp + index[i] * 8 * 4;
-                hash = fnv1a(hash, new Uint8Array(raw.HEAPU8.buffer, at, 8 * 4));
-            }
-            hash = fnv1a(hash, new Uint8Array(new Uint32Array([
-                indices, raw.HEAPU32[tp >> 2], raw.HEAPU32[bp >> 2],
-            ]).buffer));
-        });
-    }
-    return (hash >>> 0).toString(16).padStart(8, '0');
+    return drawnGeometry({
+        batches,
+        vertexCount: (b) => api.getMeshBatchVertexCount(instanceId, b),
+        indexCount: (b) => api.getMeshBatchIndexCount(instanceId, b),
+        read(b) {
+            const vertices = api.getMeshBatchVertexCount(instanceId, b);
+            const indices = api.getMeshBatchIndexCount(instanceId, b);
+            return withScratch(raw, (alloc) => {
+                const vp = alloc(vertices * 8 * 4 + 4);
+                const ip = alloc(indices * 2 + 2);
+                const tp = alloc(4);
+                const bp = alloc(4);
+                api.getMeshBatchData(instanceId, b, vp, ip, tp, bp);
+                return {
+                    vertices: new Float32Array(raw.HEAPU8.buffer.slice(vp, vp + vertices * 8 * 4)),
+                    indices: new Uint16Array(raw.HEAPU8.buffer.slice(ip, ip + indices * 2)),
+                };
+            });
+        },
+    });
 }
 
 describe.skipIf(!HAS_WASM)('the clip fast paths draw what the cut drew', () => {
     it.each(CASES)('$name: the same triangles, in the same order', (test) => {
-        const got = soup(instanceOf(test));
-        if (process.env.SPINE_CLIP_PARITY_REPORT) console.log(`${test.name.padEnd(26)} ${got}`);
-        expect(got, `${test.name}: the fast paths changed what is drawn`).toBe(test.hash);
+        const got = drawn(instanceOf(test));
+        if (process.env.SPINE_CLIP_PARITY_REPORT) {
+            console.log(`${test.name.padEnd(26)} ${got.digest} tri=${got.triangles} `
+                + `area=${got.area.toFixed(4)} verts=${got.vertices.length}`);
+        }
+        expect(got.digest, `${test.name}: the fast paths changed what is drawn`).toBe(test.hash);
     });
 });

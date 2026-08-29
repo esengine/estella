@@ -32,6 +32,22 @@ export interface SyntheticOptions {
     polygonVertices?: number;
     /** A star rather than a regular polygon — concave, so it decomposes. */
     concave?: boolean;
+    /** Authored the other way round, to separate convexity from winding. */
+    reverseWinding?: boolean;
+    /**
+     * Shapes a proof must decline. Both are NEAR-degenerate rather than exactly
+     * so: an exactly repeated point and an exactly collinear triple both give a
+     * cross product of zero, which any test catches. These are the ones only a
+     * tolerance catches.
+     */
+    degenerate?: 'near-repeated-point' | 'near-collinear';
+    /**
+     * A pentagram — every turn agrees in sign, so a proof that only checks the
+     * turns calls it convex. It is not: the edges cross.
+     */
+    selfIntersecting?: boolean;
+    /** An animation that deforms the polygon from convex to concave at 0.5s. */
+    deformToConcave?: boolean;
 }
 
 const STRIP_WIDTH = 800;
@@ -66,6 +82,40 @@ function polygon(vertexCount: number, radius: number, concave: boolean): number[
     return out;
 }
 
+/** The same ring, with the shapes a convexity proof has to decline folded in. */
+function degeneratePolygon(kind: 'near-repeated-point' | 'near-collinear', radius: number): number[] {
+    const ring = polygon(8, radius, false);
+    // Several float32 ulps of the coordinates, and still small enough that the
+    // cross product lands inside the proof's tolerance. Below that window the
+    // offset rounds away and the points come out EXACTLY collinear.
+    const nudge = radius * 4e-7;
+    if (kind === 'near-repeated-point') {
+        return [ring[0] + nudge, ring[1] + nudge, ...ring];
+    }
+    // Two points along one edge, bulged OUTWARD by a hair. The polygon stays
+    // convex and every turn keeps its sign, so nothing but the tolerance can
+    // decline it — which is the whole point of putting it here.
+    const [ax, ay] = [ring[0], ring[1]];
+    const [bx, by] = [ring[2], ring[3]];
+    const out = (t: number): number[] => {
+        const x = ax + (bx - ax) * t;
+        const y = ay + (by - ay) * t;
+        const scale = 1 + nudge / Math.hypot(x, y);
+        return [x * scale, y * scale];
+    };
+    return [ax, ay, ...out(1 / 3), ...out(2 / 3), ...ring.slice(2)];
+}
+
+/** A pentagram: five points, visited every other one, so the edges cross. */
+function pentagram(radius: number): number[] {
+    const out: number[] = [];
+    for (let step = 0; step < 5; step++) {
+        const angle = ((step * 2) % 5 / 5) * Math.PI * 2;
+        out.push(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    }
+    return out;
+}
+
 /**
  * The clip polygon for a relation. The rectangles are the point: they put a
  * known number of quads across the boundary rather than however many a circle's
@@ -73,6 +123,12 @@ function polygon(vertexCount: number, radius: number, concave: boolean): number[
  */
 function clipShape(options: SyntheticOptions): number[] {
     const { relation } = options;
+    if (options.degenerate) {
+        return degeneratePolygon(options.degenerate, STRIP_WIDTH * 1.5);
+    }
+    if (options.selfIntersecting) {
+        return pentagram(STRIP_WIDTH * 1.5);
+    }
     if (options.polygonVertices !== undefined) {
         // Big enough that even a star's inner radius clears the strip's corners,
         // so "inside" means inside whatever the shape is.
@@ -112,7 +168,12 @@ function clipShape(options: SyntheticOptions): number[] {
 /** A skeleton whose only slots are one clip region and one mesh inside it. */
 export function syntheticSkeleton(options: SyntheticOptions): SyntheticSkeleton {
     const mesh = strip(options.quads);
-    const clip = clipShape(options);
+    let clip = clipShape(options);
+    if (options.reverseWinding) {
+        const reversed: number[] = [];
+        for (let i = clip.length - 2; i >= 0; i -= 2) reversed.push(clip[i], clip[i + 1]);
+        clip = reversed;
+    }
     const json = {
         skeleton: { spine: '3.8.55', hash: 'synthetic', width: STRIP_WIDTH, height: STRIP_HEIGHT },
         bones: [{ name: 'root' }],
@@ -135,9 +196,26 @@ export function syntheticSkeleton(options: SyntheticOptions): SyntheticSkeleton 
                 },
             },
         }],
-        animations: { idle: {} },
+        animations: { idle: options.deformToConcave ? concaveDeform(clip) : {} },
     };
     return { json: JSON.stringify(json), atlas: ATLAS };
+}
+
+/**
+ * A deform timeline that pulls one vertex of the clip polygon inward, so the
+ * same attachment is convex at rest and concave half a second later. Nothing a
+ * convexity proof may answer once and remember.
+ */
+function concaveDeform(clip: number[]): Record<string, unknown> {
+    const deltas = new Array(clip.length).fill(0);
+    const inward = 1.6;
+    deltas[2] = -clip[2] * inward;
+    deltas[3] = -clip[3] * inward;
+    return {
+        deform: {
+            default: { clip: { clip: [{ time: 0 }, { time: 0.5, offset: 0, vertices: deltas }] } },
+        },
+    };
 }
 
 const ATLAS = `
