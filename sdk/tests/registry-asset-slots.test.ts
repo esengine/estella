@@ -10,7 +10,7 @@
  *          behind what is actually on screen the moment a hot update landed.
  */
 import { describe, it, expect } from 'vitest';
-import { RegistryAssetSlots, type RegistryAssetKind, type RegistryEra } from '../src/asset/registryAssets';
+import { RegistryAssetSlots, type RegistryAssetKind } from '../src/asset/registryAssets';
 import { AssetScope, type AssetLease } from '../src/asset/AssetLease';
 
 /** A kind whose every era is a distinguishable object owning one dependency. */
@@ -18,11 +18,11 @@ function fixture() {
     const released: string[] = [];
     let era = 0;
     const kind: RegistryAssetKind<{ id: string }> = {
-        prepare: async (path: string): Promise<RegistryEra<{ id: string }>> => {
+        prepare: async (path: string) => {
             const name = `${path}#${++era}`;
             const dependencies = new AssetScope();
             dependencies.add(fakeLease(`${name}:texture`, released));
-            return { published: { name }, value: { id: path }, dependencies };
+            return { published: { name }, value: { id: path }, dependencies, edges: [] };
         },
     };
     return { released, kind };

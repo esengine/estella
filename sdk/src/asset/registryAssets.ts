@@ -23,22 +23,30 @@
  *          today that is only prevented by the file extensions differing.
  */
 import type { AssetLease } from './AssetLease';
+import type { DependencyReceipt } from './dependencies';
 import { AssetScope } from './AssetLease';
 
-/** One era of a registry-backed asset. */
+/** What one preparation PRODUCED. What it took is recorded for it — see
+ *  dependencies.ts — so an era cannot describe a dependency it does not have. */
 export interface RegistryEra<T> {
     /** The runtime object a lookup returns while this era is the published one. */
     readonly published: unknown;
     /** The logical identity a holder keeps — the same across every era. */
     readonly value: T;
+}
+
+/** One era, with what its preparation took. */
+export interface PreparedEra<T> extends RegistryEra<T> {
     /** What this era acquired for itself; released when it retires. */
     readonly dependencies: AssetScope;
+    /** Every edge the preparation produced, owned and source alike. */
+    readonly edges: readonly DependencyReceipt[];
 }
 
 /** How one kind of registry-backed asset is prepared. Publishing is the slot's:
  *  it holds the era and answers the lookup, so there is nowhere else to write. */
 export interface RegistryAssetKind<T> {
-    prepare(path: string): Promise<RegistryEra<T>>;
+    prepare(path: string): Promise<PreparedEra<T>>;
 }
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
@@ -57,8 +65,8 @@ class Slot<T> {
      *  holds: a registry answers to a ref, not to an ownership identity. */
     readonly names: string[] = [];
     refs = 0;
-    era: RegistryEra<T> | null = null;
-    loading: Promise<RegistryEra<T>> | null = null;
+    era: PreparedEra<T> | null = null;
+    loading: Promise<PreparedEra<T>> | null = null;
 
     constructor(readonly type: string, readonly key: string, readonly id: number) {}
 }
@@ -91,7 +99,7 @@ export class RegistryAssetSlots {
 
         if (!slot.era) {
             slot.loading ??= kind.prepare(key);
-            let era: RegistryEra<T>;
+            let era: PreparedEra<T>;
             try {
                 era = await slot.loading;
             } catch (e) {
@@ -133,6 +141,12 @@ export class RegistryAssetSlots {
     /** Whether this name is one a slot of this type answers to. */
     has(type: string, name: string): boolean {
         return this.byName_.has(lookupKey(type, name));
+    }
+
+    /** What the current era of (type, name) took — the graph, as a projection
+     *  of acquisitions rather than a table anyone maintains. */
+    dependenciesOf(type: string, name: string): readonly DependencyReceipt[] {
+        return this.byName_.get(lookupKey(type, name))?.era?.edges ?? [];
     }
 
     /**

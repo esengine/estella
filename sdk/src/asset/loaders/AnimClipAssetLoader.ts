@@ -11,7 +11,6 @@
  */
 import type { AssetLoader, LoadContext, AnimClipResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
 import { log } from '../../util/logger';
 
@@ -23,13 +22,11 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimClipResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const data = parseAnimClipAsset(JSON.parse(text));
-            const dependencies = new AssetScope();
             const textureHandles = new Map<string, number>();
 
             for (const texPath of extractAnimClipTexturePaths(data)) {
                 try {
                     const lease = await ctx.acquireTexture(texPath, true);
-                    dependencies.add(lease);
                     textureHandles.set(texPath, lease.value.handle);
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
@@ -39,7 +36,6 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
             return {
                 published: parseAnimClipData(path, data, textureHandles),
                 value: { clipId: path },
-                dependencies,
             };
         },
         // Nothing: the slot holds the era, and this app's sprite animation

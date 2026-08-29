@@ -10,7 +10,6 @@
  */
 import type { AssetLoader, LoadContext, BtResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import type { BtDefinition } from '../../ai/bt/types';
 
 export class BtAssetLoader implements AssetLoader<BtResult> {
@@ -23,7 +22,6 @@ export class BtAssetLoader implements AssetLoader<BtResult> {
             return {
                 published: JSON.parse(text) as BtDefinition,
                 value: { btId: path },
-                dependencies: new AssetScope(),
             };
         },
         // Nothing: the slot holds the era, and this realm's lookup reads it

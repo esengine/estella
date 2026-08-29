@@ -10,7 +10,6 @@
  */
 import type { AssetLoader, LoadContext, TilesetResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import { parseTileset } from '../../tilemap/tilesetAsset';
 import type { PublishedTileset } from '../../tilemap/tilesetCache';
 import { log } from '../../util/logger';
@@ -23,7 +22,6 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<TilesetResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const asset = parseTileset(JSON.parse(text));
-            const dependencies = new AssetScope();
 
             // The atlas is a `@uuid:` ref inside the .estileset; the acquire resolves it.
             let textureHandle = 0;
@@ -32,7 +30,6 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
             if (asset.texture) {
                 try {
                     const lease = await ctx.acquireTexture(asset.texture, true);
-                    dependencies.add(lease);
                     textureHandle = lease.value.handle;
                     textureWidth = lease.value.width;
                     textureHeight = lease.value.height;
@@ -43,7 +40,7 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
             const published: PublishedTileset = {
                 resolved: { asset, textureHandle, textureWidth, textureHeight },
             };
-            return { published, value: { tilesetId: path }, dependencies };
+            return { published, value: { tilesetId: path } };
         },
     };
 }

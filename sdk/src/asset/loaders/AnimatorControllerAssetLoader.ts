@@ -12,7 +12,6 @@ import type {
     AssetLoader, LoadContext, AnimatorControllerResult, RegistryAssetLoader,
 } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import type { AnimatorControllerDef } from '../../animation/Animator';
 
 export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorControllerResult> {
@@ -25,7 +24,6 @@ export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorContro
             return {
                 published: JSON.parse(text) as AnimatorControllerDef,
                 value: { controllerId: path },
-                dependencies: new AssetScope(),
             };
         },
     };

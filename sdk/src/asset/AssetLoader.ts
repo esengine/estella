@@ -139,6 +139,14 @@ export interface LoadContext {
         width: number, height: number, pixels: Uint8Array, flipY: boolean,
     ): Promise<AssetLease<TextureResult>>;
     /**
+     * Read another asset's content because it shapes what this one becomes — a
+     * `.tsj` folded into a `.tmj`.
+     *
+     * Nothing is held; what is recorded is that this asset must be rebuilt when
+     * that content changes. A log setting read during a load is not one.
+     */
+    readSource?(path: string): Promise<string>;
+    /**
      * Audio API for the owning app, resolved lazily so that
      * AudioPlugin / AssetPlugin can be installed in either order.
      * Returns null when no AudioPlugin is installed — audio-typed

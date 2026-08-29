@@ -8,7 +8,6 @@
  */
 import type { AssetLoader, LoadContext, TimelineResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
 import type { PublishedTimeline } from '../../timeline/TimelineTypes';
 import { log } from '../../util/logger';
@@ -21,13 +20,11 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<TimelineResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const asset = parseTimelineAsset(JSON.parse(text));
-            const dependencies = new AssetScope();
             const textureHandles = new Map<string, number>();
 
             for (const texPath of extractTimelineAssetPaths(asset).textures) {
                 try {
                     const lease = await ctx.acquireTexture(texPath, true);
-                    dependencies.add(lease);
                     textureHandles.set(texPath, lease.value.handle);
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
@@ -35,7 +32,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
                 }
             }
             const published: PublishedTimeline = { asset, textureHandles };
-            return { published, value: { timelineId: path }, dependencies };
+            return { published, value: { timelineId: path } };
         },
         // Nothing: the slot holds the era, and the timeline system reads it
         // there. A module-level "active registry" answered with whichever app

@@ -764,6 +764,7 @@ ResourceDef<AssetsClass>
 ## AssetsData — type @beta
 ```
 @internal appScope: AssetScope
+@internal dependenciesOf: (type: string, ref: string) => readonly DependencyReceipt[]
 @internal entityScopes: EntityAssetScopes
 @internal publishedRegistryAssets: <T>(type: string) => T[]
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void

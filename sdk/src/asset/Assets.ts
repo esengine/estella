@@ -22,6 +22,7 @@ import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
+import { DependencyRecorder, type DependencyReceipt } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -2029,6 +2030,17 @@ export class Assets {
     }
 
     /**
+     * What the current era of a ref-bound asset took — the dependency graph as a
+     * PROJECTION of acquisitions, never a table anyone maintains.
+     *
+     * @internal
+     */
+    dependenciesOf(type: string, ref: string): readonly DependencyReceipt[] {
+        const own = this.registrySlots_.dependenciesOf(type, ref);
+        return own.length > 0 ? own : this.registrySlots_.dependenciesOf(type, this.resolveLoadPath_(ref));
+    }
+
+    /**
      * Everything this realm publishes of one type. What a schedule analysis
      * reads to learn what the graphs THIS app loaded reach for.
      *
@@ -2047,7 +2059,35 @@ export class Assets {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         const registry = loader?.registry;
         if (!registry) return null;
-        return { prepare: (path) => registry.prepare(path, this.getLoadContext_()) };
+        return {
+            prepare: async (path) => {
+                // One recorder per preparation: what the loader takes IS the
+                // era's ownership and IS the graph's edges, so neither can be
+                // a description it forgot to keep in step with its work.
+                const recorder = new DependencyRecorder();
+                const era = await registry.prepare(path, this.recordingContext_(recorder));
+                return { ...era, dependencies: recorder.acquired, edges: recorder.edges };
+            },
+        };
+    }
+
+    /** The load context one preparation sees: every door that takes something
+     *  reports it, and the plain readers stay plain. */
+    private recordingContext_(recorder: DependencyRecorder): LoadContext {
+        const base = this.getLoadContext_();
+        return {
+            ...base,
+            acquireTexture: async (path, flipY) =>
+                recorder.own(path, await base.acquireTexture(path, flipY), 'texture'),
+            createOwnedTexture: async (width, height, pixels, flipY) => {
+                const lease = await base.createOwnedTexture!(width, height, pixels, flipY);
+                return recorder.own(`composed:${lease.value.handle}`, lease);
+            },
+            readSource: async (path) => {
+                recorder.read(path);
+                return base.loadText(path);
+            },
+        };
     }
 
     private getLoadContext_(): LoadContext {

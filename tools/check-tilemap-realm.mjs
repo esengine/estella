@@ -13,7 +13,8 @@
  *   1. No module-level cache of a loaded map or resolved tileset. The realm's
  *      slot table is where the current era of a ref-bound asset lives.
  *   2. The tilemap/tileset loaders acquire (a receipt) or compose (an owned
- *      texture) — never `loadTexture`, which hands back nothing to release.
+ *      texture) — never `loadTexture`, which hands back nothing to release and
+ *      records no dependency.
  *   3. No module-level mutable "active" binding in the tilemap sources: an
  *      editor world and a play world are two apps, and a pointer answers one.
  *   4. `TilemapPlugin` holds no state. What it installs is per app.
@@ -73,8 +74,8 @@ for (const file of LOADERS) {
   if (loose) {
     findings.push(`${file}:${at(code, loose.index)}  takes a texture with no owner (${loose[0].trim()}) — acquireTexture for one that has a path, createOwnedTexture for one this composes.`);
   }
-  if (!/\bdependencies\.add\s*\(/.test(code)) {
-    findings.push(`${file}  puts nothing in its era's dependencies — whatever it resolved is pinned for the life of the app.`);
+  if (!/\bctx\.(?:acquireTexture|createOwnedTexture)\s*\(/.test(code)) {
+    findings.push(`${file}  takes no texture through a recorded door — whatever it resolves is pinned for the life of the app, and its era owns nothing.`);
   }
 }
 

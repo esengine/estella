@@ -34,6 +34,10 @@
  *      a subsystem's own map as well is a second copy of "which asset this name
  *      means" — and a module-global one crosses realms, so an editor world and
  *      a play world answered each other's lookups.
+ *   9. No loader describes a dependency. An edge is a projection of the
+ *      acquisition that made it, and a door for declaring one beside the work
+ *      is a second source of fact — the exact shape this line of work removed
+ *      from ownership.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -181,6 +185,10 @@ for (const file of REBIND_PATH) {
   findings.push(`${file}:${code.slice(0, hit.index).split('\n').length}  works out who owns an entity's assets for itself — call assetScopeForEntity.`);
 }
 
+// Nobody declares an edge. The recorder is the asset layer's; a loader reaches
+// dependencies only by acquiring something.
+const DECLARES_EDGE = /\b(?:addEdge|addDependency|DependencyRecorder)\b/;
+
 // A registry-backed loader writes nothing. `register*`/`publish*` inside one is
 // the mirror this model exists to remove.
 const PUBLISHES = /\b(?:register|publish|unregister|unpublish)[A-Z]\w*\s*\(/;
@@ -199,6 +207,10 @@ for (const name of readdirSync(LOADERS_DIR).filter((f) => f.endsWith('.ts'))) {
   if (registry === direct) {
     findings.push(`sdk/src/asset/loaders/${name}  has ${registry ? 'BOTH doors' : 'neither door'} — a loader answers with load/unload or with registry, never both.`);
   }
+  const declares = DECLARES_EDGE.exec(code);
+  if (declares) {
+    findings.push(`sdk/src/asset/loaders/${name}:${code.slice(0, declares.index).split('\n').length}  describes a dependency (${declares[0]}) — an edge comes from the acquisition, never from a loader saying so.`);
+  }
   const writes = registry ? PUBLISHES.exec(code) : null;
   if (writes) {
     findings.push(`sdk/src/asset/loaders/${name}:${code.slice(0, writes.index).split('\n').length}  publishes into a registry of its own (${writes[0].trim()}) — a registry-backed loader only prepares; the slot holds the era and answers the lookup.`);
@@ -210,7 +222,7 @@ if (loaders < 10) {
 }
 
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door.`);
+  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door and declares no edges.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);

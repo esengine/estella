@@ -156,6 +156,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         const ctx = {
             catalog: { getBuildPath: (p: string) => p },
             loadText: async (p: string) => sources.get(p)!,
+            readSource: async (p: string) => sources.get(p)!,
             decodePixels: async (p: string) => ({
                 width: 2, height: 2, pixels: tilePixels(p.includes('rock') ? 10 : 30),
             }),
@@ -178,6 +179,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         const loader = new TilemapAssetLoader();
         const ctx = {
             catalog: { getBuildPath: (p: string) => p },
+            readSource: async () => '{}',
             loadText: async () => JSON.stringify({
                 width: 1, height: 1, tilewidth: 2, tileheight: 2,
                 tilesets: [{
@@ -199,6 +201,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         const loader = new TilemapAssetLoader();
         const ctx = {
             catalog: { getBuildPath: (p: string) => p },
+            readSource: async () => '{}',
             loadText: async () => JSON.stringify({
                 width: 1, height: 1, tilewidth: 2, tileheight: 2,
                 tilesets: [{

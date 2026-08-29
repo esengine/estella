@@ -2,7 +2,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TilemapResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { AssetScope } from '../AssetLease';
 import {
     packCollectionGrid, parseTmjWithExternals, resolveTiledRef,
     type TiledMapData, type TiledTilesetData,
@@ -31,26 +30,34 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         }
         // External .tsj tilesets resolve relative to the map, through the same
         // text channel as the map itself.
+        // An external `.tsj` is not something this map holds — no runtime object
+        // — but folding it in decides what the map IS, so a change to it has to
+        // reach this map. That is a source acquisition.
+        const readSource = ctx.readSource;
+        if (!readSource) {
+            throw new Error(
+                `[tilemap] "${path}": this asset provider cannot read a dependency, so an `
+                + 'external .tsj could be folded in with nothing recording that the map '
+                + 'depends on it — load it through the app Assets channel.');
+        }
         const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>
-            ctx.loadText(ctx.catalog.getBuildPath(resolveTiledRef(path, source))));
+            readSource(ctx.catalog.getBuildPath(resolveTiledRef(path, source))));
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }
 
-        const dependencies = new AssetScope();
         const tilesets = [];
         for (const ts of mapData.tilesets) {
             // Image-collection tileset: fold the loose per-tile images into one
             // grid atlas — from here on it IS a grid tileset to everyone.
             if (ts.collectionTiles?.length) {
-                tilesets.push(await this.foldCollection_(path, ts, mapData, ctx, dependencies));
+                tilesets.push(await this.foldCollection_(path, ts, mapData, ctx));
                 continue;
             }
             const imagePath = resolveTiledRef(path, ts.image);
             let textureHandle = 0;
             try {
                 const lease = await ctx.acquireTexture(imagePath, true);
-                dependencies.add(lease);
                 textureHandle = lease.value.handle;
             } catch (e) {
                 // Loud, with the fix: a dead tileset texture makes every tile that
@@ -97,7 +104,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             objectGroups: mapData.objectGroups,
         } };
 
-        return { published, value: { sourceId: path }, dependencies };
+        return { published, value: { sourceId: path } };
     }
 
     /**
@@ -109,7 +116,6 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
      */
     private async foldCollection_(
         mapPath: string, ts: TiledTilesetData, mapData: TiledMapData, ctx: LoadContext,
-        dependencies: AssetScope,
     ): Promise<LoadedTilemapTileset> {
         if (!ctx.decodePixels || !ctx.createOwnedTexture) {
             throw new Error(
@@ -131,7 +137,6 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         // The atlas is composed here and exists for this era only: nothing else
         // can name it, so nothing else could ever give it back.
         const atlas = await ctx.createOwnedTexture(grid.width, grid.height, grid.pixels, true);
-        dependencies.add(atlas);
         // A folded image-collection atlas is packed gapless, so no margin/spacing.
         return {
             textureHandle: atlas.value.handle, columns: grid.columns, rows: grid.rows,
