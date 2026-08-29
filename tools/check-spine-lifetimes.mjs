@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  check-spine-lifetimes.mjs — the five spine lifetime invariants, frozen.
+ * @file  check-spine-lifetimes.mjs — the spine lifetime invariants, frozen.
  *
  * Spine spent four cuts becoming one lifetime model instead of two: an era owns
  * what its preparation acquired, a native skeleton retains the era it was parsed
@@ -27,10 +27,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const RUNTIME = 'sdk/src/spine/SpineRuntime.ts';
 const MANAGER = 'sdk/src/spine/SpineManager.ts';
+const BATCHES = 'src/esengine/bindings/modules/spine/SkeletalModule.hpp';
+const SKELETAL_ENTRIES = [
+    'src/esengine/bindings/modules/spine/SpineModuleEntry.cpp',
+    'src/esengine/bindings/modules/dragonbones/DragonBonesModuleEntry.cpp',
+];
 const SRC = 'sdk/src';
 const TESTS = 'sdk/tests';
 
-const missing = [RUNTIME, MANAGER].filter((f) => !existsSync(path.join(ROOT, f)));
+const missing = [RUNTIME, MANAGER, BATCHES, ...SKELETAL_ENTRIES]
+    .filter((f) => !existsSync(path.join(ROOT, f)));
 if (missing.length) {
     console.error(`check-spine-lifetimes is stale: ${missing.join(', ')} does not exist.`);
     process.exit(1);
@@ -75,8 +81,8 @@ const runtime = strip(read(RUNTIME));
 const manager = strip(read(MANAGER));
 
 /**
- * The five. `proof` is the judgment that fails when the invariant does; `holds`
- * is the structural half, where a regression has a shape a reader can grep for.
+ * `proof` is the judgment that fails when the invariant does; `holds` is the
+ * structural half, where a regression has a shape a reader can grep for.
  */
 const INVARIANTS = [
     {
@@ -114,6 +120,21 @@ const INVARIANTS = [
             return created >= 0 && retired > created
                 ? null
                 : `${RUNTIME}.loadEntity retires the old binding before the new one exists`;
+        },
+    },
+    {
+        rule: 'A frame\'s batch storage outlives the frame: slots are reopened, never destroyed, so what one frame grew into is what the next one writes into.',
+        proof: 'a steady pose reallocates nothing after the first frame',
+        holds: () => {
+            const list = strip(read(BATCHES));
+            const reset = list.slice(list.indexOf('void reset()'), list.indexOf('MeshBatch& open('));
+            if (/slots_\.(clear|resize|shrink_to_fit)/.test(reset)) {
+                return `${BATCHES}: reset() gives the slots back; capacity is scoped to the module, not the frame`;
+            }
+            const destroyed = SKELETAL_ENTRIES.filter((f) => /batches\.clear\s*\(/.test(strip(read(f))));
+            return destroyed.length === 0
+                ? null
+                : `${destroyed.join(', ')} destroys its batch list per frame rather than reopening it`;
         },
     },
     {

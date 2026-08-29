@@ -59,15 +59,75 @@ struct TriangleSink {
 };
 
 /**
+ * The batches of one extraction, in slots that outlive it: a slot is reopened
+ * rather than destroyed, so a frame writes into the capacity the last one grew.
+ * That capacity is the high-water mark of the largest extraction ever run here,
+ * held until the module goes — trimming it on a small frame is a per-frame free.
+ */
+class BatchList {
+public:
+    /// What the list can take before it allocates again.
+    struct Capacity {
+        std::size_t slots = 0;
+        std::size_t vertexFloats = 0;
+        std::size_t indices = 0;
+    };
+
+    /// Reopens the list for another extraction. A slot is emptied when it is
+    /// opened, not here, so a slot past the new extent cannot be read as this
+    /// extraction's either — nothing reaches one but `open`.
+    void reset() { active_ = 0; }
+
+    /// Starts a batch in this state, in the next slot's storage. The reference
+    /// is good until the next `open`, which may move every slot.
+    MeshBatch& open(std::uint32_t texture, int blendMode) {
+        if (active_ == slots_.size()) slots_.emplace_back();
+        MeshBatch& fresh = slots_[active_++];
+        fresh.vertices.clear();
+        fresh.indices.clear();
+        fresh.texture = texture;
+        fresh.blendMode = blendMode;
+        return fresh;
+    }
+
+    /// The batch still open — meaningful only while `size()` is nonzero.
+    MeshBatch& back() { return slots_[active_ - 1]; }
+
+    std::size_t size() const { return active_; }
+    const MeshBatch& operator[](std::size_t index) const { return slots_[index]; }
+    const MeshBatch* begin() const { return slots_.data(); }
+    const MeshBatch* end() const { return slots_.data() + active_; }
+
+    /// The whole pool, not what this extraction used: an idle slot keeps its
+    /// storage, which is the point.
+    Capacity capacity() const {
+        Capacity total;
+        total.slots = slots_.size();
+        for (const MeshBatch& slot : slots_) {
+            total.vertexFloats += slot.vertices.capacity();
+            total.indices += slot.indices.capacity();
+        }
+        return total;
+    }
+
+private:
+    std::vector<MeshBatch> slots_;
+    std::size_t active_ = 0;
+};
+
+/**
  * Batches what a runtime emits: a texture or blend change starts a new batch, so
  * does filling one, and incoming indices are rebased onto what is already written.
  *
  * Bound to its list rather than reaching for a global, so a module can pose into
- * a scratch list without disturbing the one its getters are serving.
+ * a scratch list without disturbing the one its getters are serving. A slot is
+ * reused for its storage only: batching stays sequential, so a state that comes
+ * back after another one starts a new batch rather than rejoining its own, which
+ * is what keeps the draw order.
  */
 class BatchCollector final : public TriangleSink {
 public:
-    explicit BatchCollector(std::vector<MeshBatch>& into) : batches_(into) {}
+    explicit BatchCollector(BatchList& into) : batches_(into) {}
 
     void emit(const float* positions, const float* uvs, int vertexCount,
               const std::uint16_t* indices, int indexCount,
@@ -93,27 +153,19 @@ public:
     }
 
 private:
-    // Indexed rather than pointed at: the list reallocates as it grows, and an
-    // index survives that.
     MeshBatch& batchFor(std::uint32_t texture, int blendMode, int incomingVertices) {
-        if (current_ < batches_.size()) {
-            MeshBatch& open = batches_[current_];
+        if (batches_.size() > 0) {
+            MeshBatch& open = batches_.back();
             const bool sameState = texture == open.texture && blendMode == open.blendMode;
             const bool fits =
                 open.vertices.size() / VERTEX_FLOATS + static_cast<std::size_t>(incomingVertices)
                 <= MAX_BATCH_VERTICES;
             if (sameState && fits) return open;
         }
-        current_ = batches_.size();
-        batches_.emplace_back();
-        MeshBatch& fresh = batches_.back();
-        fresh.texture = texture;
-        fresh.blendMode = blendMode;
-        return fresh;
+        return batches_.open(texture, blendMode);
     }
 
-    std::vector<MeshBatch>& batches_;
-    std::size_t current_ = static_cast<std::size_t>(-1);
+    BatchList& batches_;
 };
 
 /**

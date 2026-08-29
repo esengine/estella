@@ -14,6 +14,12 @@
  *          (SpineRuntimeC.cpp, `renderImpl<STAGE, COUNT>`); the one a frame runs
  *          has no stage check and no counter in it. Every depth costs exactly
  *          one crossing per instance, so the boundary cancels in the differences.
+ *
+ *          S4c minus S4 is the storage, and it is not what it looks like. Making
+ *          the batch slots outlive the frame — proven to reallocate nothing in a
+ *          steady scene, tests/spine-batch-storage — did not move this number at
+ *          all. What is left in the gap is the writing itself: eight pushes per
+ *          vertex, three thousand per skeleton, a million per frame.
  */
 import { describe, bench, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';

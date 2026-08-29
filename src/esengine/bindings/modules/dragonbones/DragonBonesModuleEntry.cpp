@@ -73,7 +73,7 @@ struct Context {
     es::skeletal::HandleTable<LoadedSkeleton> skeletons;
     es::skeletal::HandleTable<LiveInstance> instances;
 
-    std::vector<es::skeletal::MeshBatch> batches;
+    es::skeletal::BatchList batches;
     es::skeletal::StringBuffer strings;
     es::skeletal::EventBuffer events;
 
@@ -97,7 +97,7 @@ std::string skeletonName(int handle) { return "es_db_" + std::to_string(handle);
  * advanceTime — so painter order is the walk order and needs no sort here.
  */
 void extractBatches(int instanceId) {
-    g_ctx.batches.clear();
+    g_ctx.batches.reset();
     auto* live = g_ctx.instances.find(instanceId);
     if (!live || !live->armature) return;
 

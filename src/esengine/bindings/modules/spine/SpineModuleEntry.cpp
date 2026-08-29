@@ -60,7 +60,7 @@ struct Context {
     es::skeletal::HandleTable<SkeletonPtr> skeletons;
     es::skeletal::HandleTable<LiveInstance> instances;
 
-    std::vector<es::skeletal::MeshBatch> batches;
+    es::skeletal::BatchList batches;
     es::skeletal::StringBuffer strings;
     es::skeletal::EventBuffer events;
 
@@ -102,7 +102,7 @@ struct CountingSink final : es::skeletal::TriangleSink {
 es::spine::ProbeCounts g_probeCounts{};
 
 void extractBatches(int instanceId) {
-    g_ctx.batches.clear();
+    g_ctx.batches.reset();
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return;
 
@@ -276,7 +276,7 @@ int spine_probe_extract(int instanceId, int stage, int useCollector) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
     if (useCollector) {
-        g_ctx.batches.clear();
+        g_ctx.batches.reset();
         es::skeletal::BatchCollector collector(g_ctx.batches);
         return es::spine::renderStage(instance, collector, g_ctx.clippingEnabled,
                                       stage, &g_probeCounts) ? 1 : 0;
@@ -299,6 +299,22 @@ void spine_probe_counts(std::uint32_t* out) {
     out[6] = g_probeCounts.verticesEmitted;
     out[7] = g_probeCounts.indicesEmitted;
     out[8] = g_probeCounts.emits;
+}
+
+/**
+ * BENCHMARK ONLY — what the batch pool holds, into four u32 slots: slots ever
+ * opened, slots this extraction used, and the vertex floats and indices it can
+ * take without allocating again. Capacity that stops growing is what says a
+ * steady scene stopped reallocating; a wall clock can only suggest it.
+ */
+EMSCRIPTEN_KEEPALIVE
+void spine_probe_storage(std::uint32_t* out) {
+    if (!out) return;
+    const es::skeletal::BatchList::Capacity held = g_ctx.batches.capacity();
+    out[0] = static_cast<std::uint32_t>(held.slots);
+    out[1] = static_cast<std::uint32_t>(g_ctx.batches.size());
+    out[2] = static_cast<std::uint32_t>(held.vertexFloats);
+    out[3] = static_cast<std::uint32_t>(held.indices);
 }
 
 EMSCRIPTEN_KEEPALIVE

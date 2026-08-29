@@ -60,6 +60,7 @@ export interface SpineWasmModule {
     _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
     _spine_probe_extract(instanceId: number, stage: number, useCollector: number): number;
     _spine_probe_counts(out: number): void;
+    _spine_probe_storage(out: number): void;
 
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
@@ -126,6 +127,7 @@ export interface SpineWrappedAPI {
      */
     probeExtract(instanceId: number, stage: number, useCollector: number): number;
     probeCounts(out: number): void;
+    probeStorage(out: number): void;
 }
 
 export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
@@ -177,6 +179,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
 
         probeExtract: cw('spine_probe_extract', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probeExtract'],
         probeCounts: cw('spine_probe_counts', null, ['number']) as SpineWrappedAPI['probeCounts'],
+        probeStorage: cw('spine_probe_storage', null, ['number']) as SpineWrappedAPI['probeStorage'],
     };
 }
 
