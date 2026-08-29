@@ -150,13 +150,13 @@ entity that does not play it yet.
 
 An `.estimeline` document is plain data — the `TimelineAsset` type plus the
 `TrackType` / `InterpType` / `WrapMode` constants let you build one entirely in
-code. Register it with `registerTimelineAsset(path, asset)`, and any
-`TimelinePlayer` whose `timeline` names that same path plays it like an authored
-asset:
+code. Register it on the `Timeline` resource, and any `TimelinePlayer` whose
+`timeline` names it plays it like an authored asset — a name registered in code
+wins over a loaded `.estimeline` of the same name:
 
 ```typescript
 import {
-  defineSystem, Commands, registerTimelineAsset, TimelinePlayer,
+  defineSystem, Commands, Res, Timeline, TimelinePlayer,
   TrackType, InterpType, WrapMode, type TimelineAsset,
 } from 'esengine';
 
@@ -180,8 +180,8 @@ const slideIn: TimelineAsset = {
   }],
 };
 
-const attach = defineSystem([Commands()], (cmds) => {
-  registerTimelineAsset('code/slide-in', slideIn);
+const attach = defineSystem([Commands(), Res(Timeline)], (cmds, timeline) => {
+  timeline.registerAsset('code/slide-in', slideIn);
   cmds.spawn().insert(TimelinePlayer, {
     timeline: 'code/slide-in',
     playing: true,

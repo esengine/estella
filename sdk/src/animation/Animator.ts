@@ -391,11 +391,6 @@ export function registerAnimatorController(key: string, def: AnimatorControllerD
     animatorControllerStore.set(key, def);
 }
 
-/** @internal Take a name back out; the slot that published it has no holders. */
-export function unregisterAnimatorController(key: string): void {
-    animatorControllerStore.delete(key);
-}
-
 export function getRegisteredAnimatorController(key: string): AnimatorControllerDef | undefined {
     return animatorControllerStore.get(key);
 }

@@ -1550,7 +1550,7 @@ export class Assets {
         const path = this.resolveLoadPath_(ref);
         const kind = this.registryKind_(type);
         if (kind) {
-            this.registrySlots_.releaseByName(kind, type, path);
+            this.registrySlots_.releaseByName(type, path);
             return;
         }
         // NOT gated on a live cache entry: a generation superseded by
@@ -1766,7 +1766,7 @@ export class Assets {
         // Through the normal door first, so what the app owned is disposed the
         // way any other owner's is rather than by the wholesale drain below.
         this.appScope_.releaseAll();
-        this.registrySlots_.releaseAll((type) => this.registryKind_(type) ?? undefined);
+        this.registrySlots_.releaseAll();
         const rm = requireResourceManager();
         this.resetEpoch_++;
         this.abandoned_.clear();
@@ -2016,18 +2016,13 @@ export class Assets {
     /**
      * The slot table's view of one registry-backed loader — the LoadContext
      * bound in, so the table stays about ownership and knows nothing about how
-     * any particular kind of asset is parsed or where it is published.
+     * any particular kind of asset is parsed.
      */
     private registryKind_<T>(type: string): RegistryAssetKind<T> | null {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         const registry = loader?.registry;
         if (!registry) return null;
-        const ctx = (): LoadContext => this.getLoadContext_();
-        return {
-            prepare: (path) => registry.prepare(path, ctx()),
-            publish: (names, published) => registry.publish(names, published, ctx()),
-            unpublish: (names, published) => registry.unpublish(names, published, ctx()),
-        };
+        return { prepare: (path) => registry.prepare(path, this.getLoadContext_()) };
     }
 
     private getLoadContext_(): LoadContext {

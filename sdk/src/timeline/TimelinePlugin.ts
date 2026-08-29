@@ -83,6 +83,12 @@ export class TimelinePlugin implements Plugin {
             lower: entity => setFlags(entity, false, false),
             reset: entity => setFlags(entity, false, true),
         }));
+        // A `.estimeline` comes from THIS app's realm; a code registration wins.
+        app.getResource(Timeline).useAssetTimelines(
+            (ref) => (app.hasResource(Assets)
+                ? app.getResource(Assets).resolveRegistryAsset<PublishedTimeline>('timeline', ref)?.asset
+                : undefined),
+        );
 
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
@@ -108,14 +114,14 @@ export class TimelinePlugin implements Plugin {
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     if (!player.timeline) continue;
-                    // This app's realm, by the ref the component carries: the
-                    // slot answers to that spelling and to the path it resolved
-                    // to, so nothing here re-derives a load key.
+                    // A code registration first, then this app's realm — by the
+                    // ref the component carries, since the slot answers to that
+                    // spelling as well as to the path it resolved to.
+                    const asset = tl.getAsset(player.timeline);
+                    if (!asset) continue;
                     const published = assets?.resolveRegistryAsset<PublishedTimeline>(
                         'timeline', player.timeline,
                     );
-                    if (!published) continue;
-                    const asset = published.asset;
 
                     const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
@@ -126,7 +132,7 @@ export class TimelinePlugin implements Plugin {
                     this.ensureAnimFrames(entity, asset);
 
                     const justFinished = advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
-                    this.processAnimFrames(world, entity, state.time, published.textureHandles);
+                    this.processAnimFrames(world, entity, state.time, published?.textureHandles);
 
                     if (latchPlayerFinish(player, state, justFinished) || rewound) {
                         world.insert(entity, TimelinePlayer, player);
@@ -162,7 +168,7 @@ export class TimelinePlugin implements Plugin {
 
     private processAnimFrames(
         world: any, entity: Entity, currentTime: number,
-        textureHandles: ReadonlyMap<string, number>,
+        textureHandles: ReadonlyMap<string, number> | undefined,
     ): void {
         const state = this.animFramesStates_.get(entity);
         if (!state) return;
@@ -192,7 +198,7 @@ export class TimelinePlugin implements Plugin {
 
             if (frameIndex !== state.lastFrameIndices[t]) {
                 state.lastFrameIndices[t] = frameIndex;
-                const textureHandle = textureHandles.get(frames[frameIndex].texture) ?? 0;
+                const textureHandle = textureHandles?.get(frames[frameIndex].texture) ?? 0;
                 if (textureHandle) {
                     const sprite = world.get(entity, Sprite);
                     sprite.texture = textureHandle;

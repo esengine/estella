@@ -13,10 +13,7 @@ import type {
 } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import { AssetScope } from '../AssetLease';
-import {
-    registerAnimatorController, unregisterAnimatorController, getRegisteredAnimatorController,
-    type AnimatorControllerDef,
-} from '../../animation/Animator';
+import type { AnimatorControllerDef } from '../../animation/Animator';
 
 export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorControllerResult> {
     readonly type = 'animatorcontroller';
@@ -30,18 +27,6 @@ export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorContro
                 value: { controllerId: path },
                 dependencies: new AssetScope(),
             };
-        },
-        publish: (names, published) => {
-            for (const name of names) {
-                registerAnimatorController(name, published as AnimatorControllerDef);
-            }
-        },
-        unpublish: (names, published) => {
-            for (const name of names) {
-                if (getRegisteredAnimatorController(name) === published) {
-                    unregisterAnimatorController(name);
-                }
-            }
         },
     };
 }

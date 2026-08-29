@@ -416,9 +416,10 @@ describe('AnimatorController runtime load-by-path', () => {
         expect(ctrl.getController(PATH)?.initialState).toBe('run'); // code path wins
     });
 
-    it('the .esanimator loader prepares an era and publishes it under every name', async () => {
-        // Publication is the slot's, so the loader hands back what to publish
-        // rather than writing the store itself. Both halves are exercised here.
+    it('the .esanimator loader prepares an era and writes nothing anywhere', async () => {
+        // Preparing is the whole of it: the slot holds the era and answers the
+        // lookup, so a loader that also wrote a store would be a second copy of
+        // which controller a name means.
         const loader = new AnimatorControllerAssetLoader();
         expect(loader.type).toBe('animatorcontroller');
         expect(loader.extensions).toEqual(['.esanimator']);
@@ -431,13 +432,7 @@ describe('AnimatorController runtime load-by-path', () => {
 
         const era = await loader.registry.prepare(PATH, ctx);
         expect(era.value.controllerId).toBe(PATH);
-        expect(getRegisteredAnimatorController(PATH), 'prepare published on its own').toBeUndefined();
-
-        loader.registry.publish([PATH, 'alias.esanimator'], era.published, ctx);
-        expect(getRegisteredAnimatorController(PATH)?.initialState).toBe('idle');
-        expect(getRegisteredAnimatorController('alias.esanimator')?.initialState).toBe('idle');
-
-        loader.registry.unpublish([PATH, 'alias.esanimator'], era.published, ctx);
-        expect(getRegisteredAnimatorController('alias.esanimator')).toBeUndefined();
+        expect((era.published as { initialState: string }).initialState).toBe('idle');
+        expect(getRegisteredAnimatorController(PATH), 'prepare wrote a store').toBeUndefined();
     });
 });

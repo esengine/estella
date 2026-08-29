@@ -30,7 +30,5 @@ export class FsmAssetLoader implements AssetLoader<FsmResult> {
         // Nothing: the slot holds the era, and this realm's lookup reads it
         // there. Writing a module-global store as well is what let one app
         // answer with another's asset.
-        publish: () => {},
-        unpublish: () => {},
     };
 }

@@ -154,16 +154,11 @@ export interface LoadContext {
  * A loader whose asset lives in a REGISTRY under its ref: what a component
  * carries is the name, and every lookup asks what that name means now.
  *
- * `prepare` parses and acquires without publishing: publication is the slot's,
- * so an era cannot take out the newer one that replaced it under the same name.
+ * Preparing is all of it. The slot holds the era and answers the lookup, so
+ * there is no second place to write and nothing to keep in step with it.
  */
 export interface RegistryAssetLoader<T> {
     prepare(path: string, ctx: LoadContext): Promise<RegistryEra<T>>;
-    publish(names: readonly string[], published: unknown, ctx: LoadContext): void;
-    /** Take these names back out — only where they still name `published`. Two
-     *  Assets instances share some registries, and a release in one must not
-     *  delete what the other put there. */
-    unpublish(names: readonly string[], published: unknown, ctx: LoadContext): void;
 }
 
 /**

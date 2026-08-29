@@ -40,7 +40,5 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
         // Nothing: the slot holds the era, and the timeline system reads it
         // there. A module-level "active registry" answered with whichever app
         // built its plugin last.
-        publish: () => {},
-        unpublish: () => {},
     };
 }

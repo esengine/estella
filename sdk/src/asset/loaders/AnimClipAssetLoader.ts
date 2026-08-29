@@ -45,7 +45,5 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
         // Nothing: the slot holds the era, and this app's sprite animation
         // reads it there. A clip registered into the API as well would be a
         // second copy of "which clip is walk.esanim now".
-        publish: () => {},
-        unpublish: () => {},
     };
 }

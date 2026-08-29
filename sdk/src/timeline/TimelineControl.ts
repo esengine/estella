@@ -3,7 +3,7 @@
 import type { Entity } from '../types';
 import { defineResource } from '../ecs/resource';
 import { createTimelineState, type TimelineState } from './TimelineDrive';
-import { WrapMode } from './TimelineTypes';
+import { WrapMode, type TimelineAsset } from './TimelineTypes';
 
 /**
  * @internal How the api reaches the `TimelinePlayer` component flags. Injected
@@ -33,8 +33,35 @@ export interface PlayerFlagChannel {
  */
 export class TimelineAPI {
     private readonly states_ = new Map<Entity, TimelineState>();
+    private readonly codeAssets_ = new Map<string, TimelineAsset>();
+    private assetTimelines_: ((ref: string) => TimelineAsset | undefined) | null = null;
 
     constructor(private readonly flags_: PlayerFlagChannel | null = null) {}
+
+    /**
+     * Register a timeline built in code under `name`, so a `TimelinePlayer`
+     * whose `timeline` is that name plays it like an authored one.
+     *
+     * Per app, like every other code registration: a name registered here is
+     * this app's, and it wins over an asset of the same name.
+     */
+    registerAsset(name: string, asset: TimelineAsset): void {
+        this.codeAssets_.set(name, asset);
+    }
+
+    unregisterAsset(name: string): void {
+        this.codeAssets_.delete(name);
+    }
+
+    /** @internal Where a loaded `.estimeline` comes from: this app's realm. */
+    useAssetTimelines(source: (ref: string) => TimelineAsset | undefined): void {
+        this.assetTimelines_ = source;
+    }
+
+    /** What `name` plays: a code registration first, then this realm's asset. */
+    getAsset(name: string): TimelineAsset | undefined {
+        return this.codeAssets_.get(name) ?? this.assetTimelines_?.(name);
+    }
 
     /** @internal Plugin ensures (creating if needed) the per-entity playback state. */
     ensureState(entity: Entity, wrapMode: WrapMode, speed: number): TimelineState {

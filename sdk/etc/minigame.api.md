@@ -8665,13 +8665,17 @@ ResourceDef<TimelineAPI>
 @internal clearStates: () => void
 @internal ensureState: (entity: Entity, wrapMode: WrapMode, speed: number) => TimelineState
 @internal removeState: (entity: Entity) => void
+@internal useAssetTimelines: (source: (ref: string) => TimelineAsset | undefined) => void
+getAsset: (name: string) => TimelineAsset | undefined
 getCurrentTime: (entity: Entity) => number
 getState: (entity: Entity) => TimelineState | undefined
 isPlaying: (entity: Entity) => boolean
 pause: (entity: Entity) => void
 play: (entity: Entity) => void
+registerAsset: (name: string, asset: TimelineAsset) => void
 setTime: (entity: Entity, time: number) => void
 stop: (entity: Entity) => void
+unregisterAsset: (name: string) => void
 static new (flags_?: PlayerFlagChannel | null): TimelineAPI
 static prototype: TimelineAPI
 ```

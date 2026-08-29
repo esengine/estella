@@ -35,16 +35,10 @@ export interface RegistryEra<T> {
     readonly dependencies: AssetScope;
 }
 
-/**
- * How one kind of registry-backed asset is prepared and published.
- *
- * `prepare` must NOT publish: an era that could write the registry could also
- * take a newer era's entry out of it.
- */
+/** How one kind of registry-backed asset is prepared. Publishing is the slot's:
+ *  it holds the era and answers the lookup, so there is nowhere else to write. */
 export interface RegistryAssetKind<T> {
     prepare(path: string): Promise<RegistryEra<T>>;
-    publish(names: readonly string[], published: unknown): void;
-    unpublish(names: readonly string[], published: unknown): void;
 }
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
@@ -110,7 +104,6 @@ export class RegistryAssetSlots {
             // it is a cache hit, and publishing twice would retire what is live.
             if (!slot.era) {
                 slot.era = era;
-                kind.publish(slot.names, era.published);
             } else if (era !== slot.era) {
                 era.dependencies.releaseAll();
             }
@@ -131,9 +124,8 @@ export class RegistryAssetSlots {
         const era = await kind.prepare(slot.key);
         const previous = slot.era;
         slot.era = era;
-        kind.publish(slot.names, era.published);
-        // Its dependencies only. The registry entry it was under already names
-        // the era published above, and is not this one's to take away.
+        // Its dependencies only: what the name resolves to is the slot's, and
+        // the era above already holds it.
         previous.dependencies.releaseAll();
         return true;
     }
@@ -167,9 +159,8 @@ export class RegistryAssetSlots {
     }
 
     /** Give up every slot. For a wholesale teardown. */
-    releaseAll(kinds: (type: string) => RegistryAssetKind<unknown> | undefined): void {
+    releaseAll(): void {
         for (const slot of new Set(this.byName_.values())) {
-            kinds(slot.type)?.unpublish(slot.names, slot.era?.published);
             slot.era?.dependencies.releaseAll();
             slot.era = null;
             slot.refs = 0;
@@ -179,10 +170,10 @@ export class RegistryAssetSlots {
 
     /** Drop one claim on the slot `name` resolves to, without its receipt. The
      *  compatibility door for a caller that only ever had a path. */
-    releaseByName(kind: RegistryAssetKind<unknown>, type: string, name: string): boolean {
+    releaseByName(type: string, name: string): boolean {
         const slot = this.byName_.get(lookupKey(type, name));
         if (!slot || slot.refs === 0) return false;
-        this.drop_(kind, slot);
+        this.drop_(slot);
         return true;
     }
 
@@ -197,7 +188,7 @@ export class RegistryAssetSlots {
             release: () => {
                 if (spent) return;
                 spent = true;
-                this.drop_(kind as RegistryAssetKind<unknown>, slot as Slot<unknown>);
+                this.drop_(slot as Slot<unknown>);
             },
             retain: () => (this.byName_.get(lookupKey(slot.type, slot.key)) === (slot as Slot<unknown>) && slot.era
                 ? this.lease_(kind, slot)
@@ -206,9 +197,8 @@ export class RegistryAssetSlots {
         return lease;
     }
 
-    private drop_(kind: RegistryAssetKind<unknown>, slot: Slot<unknown>): void {
+    private drop_(slot: Slot<unknown>): void {
         if (--slot.refs > 0) return;
-        kind.unpublish(slot.names, slot.era?.published);
         slot.era?.dependencies.releaseAll();
         slot.era = null;
         this.forget_(slot);

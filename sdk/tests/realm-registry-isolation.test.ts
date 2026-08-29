@@ -124,6 +124,14 @@ describe('two realms in one process do not share an asset', () => {
         expect(inA?.asset.duration).toBe(1);
         expect(inB?.asset.duration, 'both apps read whichever built its plugin last').toBe(9);
 
+        // And a code registration still wins over the realm's asset.
+        const { TimelineAPI } = await import('../src/timeline/TimelineControl');
+        const api = new TimelineAPI();
+        api.useAssetTimelines((ref) => a.assets.resolveRegistryAsset<{ asset: { duration: number } }>('timeline', ref)?.asset as never);
+        expect(api.getAsset('cut/intro.estimeline')?.duration).toBe(1);
+        api.registerAsset('cut/intro.estimeline', { duration: 5 } as never);
+        expect(api.getAsset('cut/intro.estimeline')?.duration).toBe(5);
+
         // B goes away; A is still playing.
         b.assets.releaseAll();
         expect(a.assets.resolveRegistryAsset('timeline', 'cut/intro.estimeline')).toBeDefined();

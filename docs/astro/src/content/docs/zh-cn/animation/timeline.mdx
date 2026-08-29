@@ -135,13 +135,13 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 ## 用代码构建时间轴
 
 `.estimeline` 文档就是普通数据——用 `TimelineAsset` 类型加上 `TrackType` /
-`InterpType` / `WrapMode` 常量,可以完全在代码里构建。用
-`registerTimelineAsset(path, asset)` 注册后,任何 `timeline` 指向同一路径的
-`TimelinePlayer` 都会像播放编辑器资产一样播放它:
+`InterpType` / `WrapMode` 常量,可以完全在代码里构建。注册到 `Timeline` 资源上之后,
+任何 `timeline` 指向该名字的 `TimelinePlayer` 都会像播放编辑器资产一样播放它——
+代码注册的名字优先于同名的 `.estimeline` 资产:
 
 ```typescript
 import {
-  defineSystem, Commands, registerTimelineAsset, TimelinePlayer,
+  defineSystem, Commands, Res, Timeline, TimelinePlayer,
   TrackType, InterpType, WrapMode, type TimelineAsset,
 } from 'esengine';
 
@@ -165,8 +165,8 @@ const slideIn: TimelineAsset = {
   }],
 };
 
-const attach = defineSystem([Commands()], (cmds) => {
-  registerTimelineAsset('code/slide-in', slideIn);
+const attach = defineSystem([Commands(), Res(Timeline)], (cmds, timeline) => {
+  timeline.registerAsset('code/slide-in', slideIn);
   cmds.spawn().insert(TimelinePlayer, {
     timeline: 'code/slide-in',
     playing: true,
