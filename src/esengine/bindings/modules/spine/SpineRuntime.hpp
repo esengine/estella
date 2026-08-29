@@ -250,6 +250,10 @@ struct ProbeCounts {
     std::uint32_t clipPolygonEdges;
     std::uint32_t clipInputTriangles;
     std::uint32_t clipOutputTriangles;
+    /// Attachments the two fast paths answered without cutting anything: one
+    /// whose bounds miss the region entirely, one wholly inside a convex one.
+    std::uint32_t clipBoundsRejects;
+    std::uint32_t clipInsideAccepts;
 };
 
 /** BENCHMARK ONLY — the clipper's own scratch arrays, so a second storage

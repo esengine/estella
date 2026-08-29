@@ -22,7 +22,7 @@ export interface SyntheticSkeleton {
 }
 
 /** Where the clip polygon sits relative to the strip of quads. */
-export type ClipRelation = 'inside' | 'outside' | 'one-crossing' | 'all-crossing';
+export type ClipRelation = 'inside' | 'outside' | 'one-crossing' | 'all-crossing' | 'notched';
 
 export interface SyntheticOptions {
     /** Quads in the row; the mesh has twice this many triangles. */
@@ -74,6 +74,11 @@ function polygon(vertexCount: number, radius: number, concave: boolean): number[
 function clipShape(options: SyntheticOptions): number[] {
     const { relation } = options;
     if (options.polygonVertices !== undefined) {
+        // Big enough that even a star's inner radius clears the strip's corners,
+        // so "inside" means inside whatever the shape is.
+        if (relation === 'inside') {
+            return polygon(options.polygonVertices, STRIP_WIDTH * 1.5, options.concave ?? false);
+        }
         // The polygon axis: same relation for every vertex count — a shape that
         // covers the strip's width and cuts through its height.
         return polygon(options.polygonVertices, STRIP_WIDTH, options.concave ?? false)
@@ -92,6 +97,15 @@ function clipShape(options: SyntheticOptions): number[] {
         case 'all-crossing':
             // Spans the whole row but only its middle band, so every quad is cut.
             return [-halfW * 4, -halfH / 2, halfW * 4, -halfH / 2, halfW * 4, halfH / 2, -halfW * 4, halfH / 2];
+        case 'notched':
+            // Concave, but only clear of the strip: a rectangle with a bite out
+            // of its top edge at x 600..1000, where the strip ends at 400. So
+            // nothing of the strip is outside the region, and it is still cut.
+            return [
+                -halfW * 4, -halfH * 8, halfW * 4, -halfH * 8, halfW * 4, halfH * 8,
+                halfW * 2.5, halfH * 8, halfW * 2.5, halfH * 4, halfW * 1.5, halfH * 4,
+                halfW * 1.5, halfH * 8, -halfW * 4, halfH * 8,
+            ];
     }
 }
 

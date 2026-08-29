@@ -22,6 +22,7 @@ import type { SyntheticOptions } from './helpers/syntheticSpine';
 
 const SPINE38_JS = resolve(WASM_DIR, 'spine38.js');
 const SPINE38_WASM = resolve(WASM_DIR, 'spine38.wasm');
+const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine');
 const HAS_WASM = existsSync(SPINE38_WASM);
 
 /** The thirteen counters `spine_probe_counts` writes, in order. */
@@ -29,6 +30,7 @@ const COUNTERS = [
     'slots', 'regionAttachments', 'meshAttachments', 'clipStarts', 'clippedEmits',
     'verticesGenerated', 'verticesEmitted', 'indicesEmitted', 'emits',
     'clipPolygons', 'clipPolygonVertices', 'clipPolygonEdges', 'clipInputTriangles', 'clipOutputTriangles',
+    'clipBoundsRejects', 'clipInsideAccepts',
 ] as const;
 type Counts = Record<(typeof COUNTERS)[number], number>;
 const STAGE_EMIT = 5;
@@ -80,28 +82,10 @@ function countsOf(instanceId: number): Counts {
 
 describe.skipIf(!HAS_WASM)('the synthetic clip fixtures are what they claim', () => {
     it('a strip of quads is the triangles it says it is', () => {
-        const c = countsOf(instanceOf({ quads: QUADS, relation: 'inside' }));
+        const c = countsOf(instanceOf({ quads: QUADS, relation: 'one-crossing' }));
         expect(c.meshAttachments).toBe(1);
         expect(c.clipStarts).toBe(1);
         expect(c.clipInputTriangles, 'a quad is two triangles').toBe(QUADS * 2);
-    });
-
-    it('every quad inside the region survives whole', () => {
-        const c = countsOf(instanceOf({ quads: QUADS, relation: 'inside' }));
-        expect(c.clipOutputTriangles, 'a triangle that crossed nothing was still cut')
-            .toBe(c.clipInputTriangles);
-        // But not untouched: the clipper rebuilds every triangle from its own
-        // three vertices, so a mesh that shared them does not any more. Being
-        // inside a clip region is not free — 34 vertices come back as 96.
-        expect(c.verticesEmitted).toBe(c.clipOutputTriangles * 3);
-        expect(c.verticesEmitted).toBeGreaterThan(c.verticesGenerated);
-    });
-
-    it('a region the strip is not in emits nothing at all', () => {
-        const c = countsOf(instanceOf({ quads: QUADS, relation: 'outside' }));
-        expect(c.clipInputTriangles).toBe(QUADS * 2);
-        expect(c.clipOutputTriangles).toBe(0);
-        expect(c.emits, 'geometry that clipped away still reached the sink').toBe(0);
     });
 
     it('a boundary that ends inside one quad crosses only that one', () => {
@@ -131,6 +115,7 @@ describe.skipIf(!HAS_WASM)('the synthetic clip fixtures are what they claim', ()
         expect(concave.clipPolygonVertices).toBe(8);
         expect(convex.clipPolygons, 'a convex polygon needed decomposing').toBe(1);
         expect(concave.clipPolygons, 'a concave polygon came back as one piece').toBeGreaterThan(1);
+        expect(concave.clipPolygonEdges).toBeGreaterThan(convex.clipPolygonEdges);
     });
 
     it('the clipper stops growing its own scratch once a shape has run', () => {
@@ -146,5 +131,83 @@ describe.skipIf(!HAS_WASM)('the synthetic clip fixtures are what they claim', ()
 
         for (let frame = 0; frame < 5; frame++) countsOf(instanceId);
         expect(storage(), 'the clipper grew its scratch again on a steady shape').toEqual(warm);
+    });
+});
+
+describe.skipIf(!HAS_WASM)('the clip fast paths answer without cutting', () => {
+    it('a region the strip is not in is rejected on bounds alone', () => {
+        const c = countsOf(instanceOf({ quads: QUADS, relation: 'outside' }));
+        expect(c.clipBoundsRejects).toBe(1);
+        expect(c.clipInputTriangles, 'the clipper ran on geometry that cannot survive').toBe(0);
+        expect(c.emits, 'geometry that clipped away still reached the sink').toBe(0);
+    });
+
+    it('a strip wholly inside a convex region keeps its own topology', () => {
+        const c = countsOf(instanceOf({ quads: QUADS, relation: 'inside' }));
+        expect(c.clipInsideAccepts).toBe(1);
+        expect(c.clipInputTriangles, 'the clipper ran on geometry it cannot change').toBe(0);
+        // The whole point of the second path: the clipper rebuilds every triangle
+        // from its own three vertices, and a mesh that shared them stops sharing.
+        // 34 vertices went in and 34 come out, not 96.
+        expect(c.verticesEmitted).toBe(c.verticesGenerated);
+        expect(c.indicesEmitted).toBe(QUADS * 2 * 3);
+    });
+
+    it('a strip wholly inside a CONCAVE region is still cut', () => {
+        // Three vertices inside a concave polygon do not put the triangle inside
+        // it, so this path is convex-only on purpose; nothing being removed is
+        // what says the fixture really is within the region.
+        const c = countsOf(instanceOf({
+            quads: QUADS, relation: 'inside', polygonVertices: 16, concave: true,
+        }));
+        expect(c.clipPolygons, 'the fixture is not concave any more').toBeGreaterThan(1);
+        expect(c.clipInsideAccepts, 'a concave region took the convex fast path').toBe(0);
+        expect(c.clipOutputTriangles, 'the fixture is not wholly inside after all')
+            .toBe(c.clipInputTriangles);
+        expect(c.verticesEmitted, 'the slow path kept the sharing it cannot keep')
+            .toBe(c.clipOutputTriangles * 3);
+    });
+
+    it('a concave region cuts geometry that is entirely within it', () => {
+        // The strip spans x -400..400, the notch is at x 600..1000: nothing of
+        // the strip is outside the region, and it is still cut, because the
+        // pieces it decomposes into have boundaries the strip crosses.
+        const c = countsOf(instanceOf({ quads: QUADS, relation: 'notched' }));
+        expect(c.clipPolygons, 'the notch did not make it concave').toBeGreaterThan(1);
+        expect(c.clipBoundsRejects).toBe(0);
+        expect(c.clipInsideAccepts, 'a concave region took the convex fast path').toBe(0);
+        expect(c.clipInputTriangles).toBe(QUADS * 2);
+        expect(c.clipOutputTriangles).toBeGreaterThan(c.clipInputTriangles);
+    });
+
+    it('a shipped asset spends a frame cutting geometry that cannot survive', () => {
+        // spineboy's portal animation opens a clip region its whole body is
+        // outside of: 339 triangles a frame, cut to produce nothing. The bounds
+        // test earns its place on a shipped asset, not only an authored one.
+        const skelData = new Uint8Array(readFileSync(resolve(FIXTURES, 'spineboy-38/spineboy-pro.skel')));
+        const atlasText = readFileSync(resolve(FIXTURES, 'spineboy-38/spineboy.atlas'), 'utf-8');
+        const handle = withScratch(raw, (alloc) => {
+            const ptr = alloc(skelData.length);
+            raw.HEAPU8.set(skelData, ptr);
+            return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
+        });
+        api.setAtlasPageTexture(handle, 0, 1, 2048, 2048);
+        const instanceId = api.createInstance(handle);
+        expect(api.playAnimation(instanceId, 'portal', true, 0)).toBeTruthy();
+        api.update(instanceId, 0.3);
+
+        const c = countsOf(instanceId);
+        expect(c.clipStarts).toBe(1);
+        expect(c.clipBoundsRejects, 'nothing was rejected on bounds').toBeGreaterThan(10);
+        expect(c.clipInputTriangles, 'the cut still ran on geometry that cannot survive').toBe(0);
+    });
+
+    it('a region that is met, not missed, still goes through the cut', () => {
+        for (const relation of ['one-crossing', 'all-crossing'] as const) {
+            const c = countsOf(instanceOf({ quads: QUADS, relation }));
+            expect(c.clipBoundsRejects, `${relation} was rejected on bounds`).toBe(0);
+            expect(c.clipInsideAccepts, `${relation} was accepted as inside`).toBe(0);
+            expect(c.clipInputTriangles, `${relation} skipped the cut`).toBe(QUADS * 2);
+        }
     });
 });

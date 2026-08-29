@@ -630,6 +630,78 @@ bool setSkeletonColor(Instance* instance, float r, float g, float b, float a) {
 namespace {
 
 /**
+ * What the open clip region is, for the two questions that can be answered
+ * without cutting: where it is, and whether it is a single convex piece.
+ *
+ * Captured at clipStart because `clipEnd` clears the polygon it is read from.
+ */
+struct ClipRegion {
+    float minX, minY, maxX, maxY;
+    /// The decomposition came back as one piece, so "every vertex is inside it"
+    /// means the whole triangle is. A concave region decomposes into several and
+    /// a triangle can span two of them while being inside neither.
+    bool convex;
+};
+ClipRegion g_clipRegion{};
+
+void captureClipRegion() {
+    const spFloatArray* polygon = g_clipper->clippingPolygon;
+    g_clipRegion = ClipRegion{};
+    if (!polygon || polygon->size < 2) return;
+    g_clipRegion.minX = g_clipRegion.maxX = polygon->items[0];
+    g_clipRegion.minY = g_clipRegion.maxY = polygon->items[1];
+    for (int i = 2; i < polygon->size; i += 2) {
+        const float x = polygon->items[i];
+        const float y = polygon->items[i + 1];
+        g_clipRegion.minX = x < g_clipRegion.minX ? x : g_clipRegion.minX;
+        g_clipRegion.maxX = x > g_clipRegion.maxX ? x : g_clipRegion.maxX;
+        g_clipRegion.minY = y < g_clipRegion.minY ? y : g_clipRegion.minY;
+        g_clipRegion.maxY = y > g_clipRegion.maxY ? y : g_clipRegion.maxY;
+    }
+    g_clipRegion.convex = g_clipper->clippingPolygons
+        && g_clipper->clippingPolygons->size == 1;
+}
+
+/// Bounds that cannot meet the region's: nothing of this attachment survives.
+bool outsideClipBounds(const float* positions, int vertexCount) {
+    float minX = positions[0], maxX = positions[0];
+    float minY = positions[1], maxY = positions[1];
+    for (int i = 2; i < vertexCount * 2; i += 2) {
+        const float x = positions[i];
+        const float y = positions[i + 1];
+        minX = x < minX ? x : minX;
+        maxX = x > maxX ? x : maxX;
+        minY = y < minY ? y : minY;
+        maxY = y > maxY ? y : maxY;
+    }
+    return maxX < g_clipRegion.minX || minX > g_clipRegion.maxX
+        || maxY < g_clipRegion.minY || minY > g_clipRegion.maxY;
+}
+
+/**
+ * Every vertex strictly inside the single convex piece, by the SAME predicate
+ * the clipper uses, so a vertex on an edge falls through to the cut. One piece
+ * is a cost requirement, not a correctness one: a decomposed region's pieces
+ * have boundaries geometry crosses, so this test would run and fail.
+ */
+bool insideConvexClip(const float* positions, int vertexCount) {
+    if (!g_clipRegion.convex) return false;
+    const spFloatArray* polygon = g_clipper->clippingPolygons->items[0];
+    const float* edges = polygon->items;
+    for (int e = 0; e <= polygon->size - 4; e += 2) {
+        const float deltaX = edges[e] - edges[e + 2];
+        const float deltaY = edges[e + 1] - edges[e + 3];
+        const float edgeX2 = edges[e + 2], edgeY2 = edges[e + 3];
+        for (int i = 0; i < vertexCount * 2; i += 2) {
+            if (deltaX * (positions[i + 1] - edgeY2) - deltaY * (positions[i] - edgeX2) <= 0) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
  * Hand one attachment's triangles to the sink, clipped against the open clip
  * region when there is one. Clipping replaces the triangle set with the polygon
  * intersection RE-TRIANGULATED, which can hand back more vertices than it was
@@ -648,17 +720,28 @@ void emit(TriangleSink& sink, bool clipping,
     int outTriangleCount = triangleCount;
 
     if (STAGE >= STAGE_CLIP && clipping && spSkeletonClipping_isClipping(g_clipper)) {
-        spSkeletonClipping_clipTriangles(g_clipper, positions, vertexCount * 2,
-                                         triangles, triangleCount, uvs, 2);
-        outPositions = g_clipper->clippedVertices->items;
-        outVertices = g_clipper->clippedVertices->size / 2;
-        outUVs = g_clipper->clippedUVs->items;
-        outTriangles = g_clipper->clippedTriangles->items;
-        outTriangleCount = g_clipper->clippedTriangles->size;
-        if constexpr (COUNT) {
-            counts->clippedEmits++;
-            counts->clipInputTriangles += static_cast<std::uint32_t>(triangleCount / 3);
-            counts->clipOutputTriangles += static_cast<std::uint32_t>(outTriangleCount / 3);
+        // Neither changes what is drawn. The first answers "nothing of this
+        // survives" without cutting; the second answers "all of it does", and
+        // keeps the attachment's own topology instead of a per-triangle rebuild.
+        if (outsideClipBounds(positions, vertexCount)) {
+            if constexpr (COUNT) counts->clipBoundsRejects++;
+            return;
+        }
+        if (insideConvexClip(positions, vertexCount)) {
+            if constexpr (COUNT) counts->clipInsideAccepts++;
+        } else {
+            spSkeletonClipping_clipTriangles(g_clipper, positions, vertexCount * 2,
+                                             triangles, triangleCount, uvs, 2);
+            outPositions = g_clipper->clippedVertices->items;
+            outVertices = g_clipper->clippedVertices->size / 2;
+            outUVs = g_clipper->clippedUVs->items;
+            outTriangles = g_clipper->clippedTriangles->items;
+            outTriangleCount = g_clipper->clippedTriangles->size;
+            if constexpr (COUNT) {
+                counts->clippedEmits++;
+                counts->clipInputTriangles += static_cast<std::uint32_t>(triangleCount / 3);
+                counts->clipOutputTriangles += static_cast<std::uint32_t>(outTriangleCount / 3);
+            }
         }
     }
 
@@ -703,6 +786,7 @@ void renderImpl(Instance* instance, TriangleSink& sink, bool clipping, ProbeCoun
             if (clipping && STAGE >= STAGE_CLIP_START) {
                 auto* clip = reinterpret_cast<spClippingAttachment*>(attachment);
                 const int pieces = spSkeletonClipping_clipStart(g_clipper, slot, clip);
+                captureClipRegion();
                 if constexpr (COUNT) {
                     counts->clipPolygons += static_cast<std::uint32_t>(pieces);
                     counts->clipPolygonVertices +=

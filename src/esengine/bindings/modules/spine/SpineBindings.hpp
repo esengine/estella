@@ -86,7 +86,7 @@ size_t spine_eventBufferBytes();
 // or counts and drops them: the one way to price the buffers apart from the work.
 int spine_probe_extract(int instanceId, int stage, int useCollector);
 
-// The fourteen counters of the last probe run, into as many u32 slots.
+// The sixteen counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
 // The clipper's own scratch capacities, into six u32 slots.

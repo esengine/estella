@@ -42,7 +42,7 @@ const COUNTERS = [
     'slots', 'regionAttachments', 'meshAttachments', 'clipStarts', 'clippedEmits',
     'verticesGenerated', 'verticesEmitted', 'indicesEmitted', 'emits',
     'clipPolygons', 'clipPolygonVertices', 'clipPolygonEdges',
-    'clipInputTriangles', 'clipOutputTriangles',
+    'clipInputTriangles', 'clipOutputTriangles', 'clipBoundsRejects', 'clipInsideAccepts',
 ] as const;
 type Counts = Record<(typeof COUNTERS)[number], number>;
 

@@ -50,6 +50,26 @@
  *          vertex count: 0.065 / 0.158 / 0.406 / 2.001 µs at 4 / 8 / 16 / 39
  *          vertices. For coin that is HALF its clipping cost — to prepare a
  *          polygon that goes on to cut two triangles.
+ *
+ *          Two fast paths then took the two ends of that table out. Bounds that
+ *          cannot meet the region: 1.604 -> 0.011 µs. A mesh wholly inside a
+ *          convex one: 2.032 -> 0.064. Every other row moved by under 1%, so the
+ *          tests they added cost the cases they do not answer nothing.
+ *
+ *          Their hit rate on the shipped 3.8 corpus, over every animation of
+ *          every example that clips, is the reason they are worth the code —
+ *          and it is lopsided:
+ *
+ *              spineboy portal  339 input triangles a frame, ALL rejected on
+ *                               bounds — a whole body inside a region it is
+ *                               entirely outside of, cut to produce nothing
+ *              coin             11 of 20 clipped emits rejected on bounds
+ *              tank             none — genuinely crossing, and concave
+ *
+ *          The fully-inside path never fires on any of them: the three assets
+ *          that clip either cross their region or are outside it. It stays for
+ *          the shape it is meant for — a mask that contains its content — but
+ *          nothing in this corpus is that shape, and that should be said.
  */
 import { describe, bench, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
@@ -103,6 +123,7 @@ const COUNTERS = [
     'slots', 'regions', 'meshes', 'clipStarts', 'clippedEmits',
     'vGenerated', 'vEmitted', 'iEmitted', 'emits',
     'polygons', 'polygonVertices', 'polygonEdges', 'inTriangles', 'outTriangles',
+    'boundsRejects', 'insideAccepts',
 ] as const;
 
 let raw: SpineWasmModule;
