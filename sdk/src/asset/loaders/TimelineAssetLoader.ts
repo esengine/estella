@@ -10,17 +10,8 @@ import type { AssetLoader, LoadContext, TimelineResult, RegistryAssetLoader } fr
 import type { RegistryEra } from '../registryAssets';
 import { AssetScope } from '../AssetLease';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
-import type { TimelineAsset } from '../../timeline/TimelineTypes';
-import {
-    registerTimelineAsset, registerTimelineTextureHandles, unregisterTimelineAsset, getTimelineAsset,
-} from '../../timeline/TimelineAssetRegistry';
+import type { PublishedTimeline } from '../../timeline/TimelineTypes';
 import { log } from '../../util/logger';
-
-/** What one era publishes: the parsed asset and the handles it resolved. */
-interface PublishedTimeline {
-    asset: TimelineAsset;
-    textureHandles: Map<string, number>;
-}
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly type = 'timeline';
@@ -43,20 +34,13 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
                     textureHandles.set(texPath, 0);
                 }
             }
-            return { published: { asset, textureHandles }, value: { timelineId: path }, dependencies };
+            const published: PublishedTimeline = { asset, textureHandles };
+            return { published, value: { timelineId: path }, dependencies };
         },
-        publish: (names, published) => {
-            const { asset, textureHandles } = published as PublishedTimeline;
-            for (const name of names) {
-                registerTimelineAsset(name, asset);
-                if (textureHandles.size > 0) registerTimelineTextureHandles(name, textureHandles);
-            }
-        },
-        unpublish: (names, published) => {
-            const { asset } = published as PublishedTimeline;
-            for (const name of names) {
-                if (getTimelineAsset(name) === asset) unregisterTimelineAsset(name);
-            }
-        },
+        // Nothing: the slot holds the era, and the timeline system reads it
+        // there. A module-level "active registry" answered with whichever app
+        // built its plugin last.
+        publish: () => {},
+        unpublish: () => {},
     };
 }

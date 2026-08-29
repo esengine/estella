@@ -839,7 +839,6 @@ export {
 export {
     TimelinePlugin,
     timelinePlugin,
-    registerTimelineAsset,
     parseTimelineAsset,
     Timeline,
     TimelineAPI,

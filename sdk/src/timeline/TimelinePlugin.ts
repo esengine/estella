@@ -7,18 +7,13 @@ import { Time, type TimeData } from '../ecs/resource';
 import { defineComponent, getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
-import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';
-import { wrapModeFromName, isWrapModeName, TrackType, WrapMode, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
+import { wrapModeFromName, isWrapModeName, TrackType, WrapMode, type TimelineAsset,
+         type AnimFramesTrack, type PublishedTimeline } from './TimelineTypes';
 import { Timeline, TimelineAPI } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import type { SampleDeps } from './TimelineEvaluator';
-import {
-    setActiveTimelineAssetRegistry,
-    getTimelineTextureHandle,
-    type TimelineAssetRegistry,
-} from './TimelineAssetRegistry';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
@@ -64,37 +59,13 @@ interface AnimFramesState {
     lastFrameIndices: number[];
 }
 
-export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
+export class TimelinePlugin implements Plugin {
     name = 'timeline';
 
-    private loadedAssets_ = new Map<string, TimelineAsset>();
-    private textureHandles_ = new Map<string, Map<string, number>>();
     private animFramesStates_ = new Map<number, AnimFramesState>();
     private offDespawn_: (() => void) | null = null;
 
-    registerAsset(path: string, asset: TimelineAsset): void {
-        this.loadedAssets_.set(path, asset);
-    }
-
-    unregisterAsset(path: string): void {
-        this.loadedAssets_.delete(path);
-        this.textureHandles_.delete(path);
-    }
-
-    getAsset(path: string): TimelineAsset | undefined {
-        return this.loadedAssets_.get(path);
-    }
-
-    registerTextureHandles(path: string, handles: Map<string, number>): void {
-        this.textureHandles_.set(path, handles);
-    }
-
-    getTextureHandle(timelinePath: string, textureUuid: string): number {
-        return this.textureHandles_.get(timelinePath)?.get(textureUuid) ?? 0;
-    }
-
     build(app: App): void {
-        setActiveTimelineAssetRegistry(this);
         const world = app.world;
 
         // The api's play/pause/stop write through to the component flags (the
@@ -137,11 +108,14 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     if (!player.timeline) continue;
-                    // The loader keys loadedAssets_/textureHandles_ by the RESOLVED
-                    // path; the component holds the authored ref (see resolveAssetKey).
-                    const timelineKey = resolveAssetKey(assets, player.timeline);
-                    const asset = this.loadedAssets_.get(timelineKey) ?? this.loadedAssets_.get(player.timeline);
-                    if (!asset) continue;
+                    // This app's realm, by the ref the component carries: the
+                    // slot answers to that spelling and to the path it resolved
+                    // to, so nothing here re-derives a load key.
+                    const published = assets?.resolveRegistryAsset<PublishedTimeline>(
+                        'timeline', player.timeline,
+                    );
+                    if (!published) continue;
+                    const asset = published.asset;
 
                     const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
@@ -152,7 +126,7 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
                     this.ensureAnimFrames(entity, asset);
 
                     const justFinished = advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
-                    this.processAnimFrames(world, entity, state.time, timelineKey);
+                    this.processAnimFrames(world, entity, state.time, published.textureHandles);
 
                     if (latchPlayerFinish(player, state, justFinished) || rewound) {
                         world.insert(entity, TimelinePlayer, player);
@@ -171,9 +145,6 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.animFramesStates_.clear();
-        this.loadedAssets_.clear();
-        this.textureHandles_.clear();
-        setActiveTimelineAssetRegistry(null);
     }
 
     private ensureAnimFrames(entity: Entity, asset: TimelineAsset): void {
@@ -190,7 +161,8 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
     }
 
     private processAnimFrames(
-        world: any, entity: Entity, currentTime: number, timelinePath: string,
+        world: any, entity: Entity, currentTime: number,
+        textureHandles: ReadonlyMap<string, number>,
     ): void {
         const state = this.animFramesStates_.get(entity);
         if (!state) return;
@@ -220,7 +192,7 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
 
             if (frameIndex !== state.lastFrameIndices[t]) {
                 state.lastFrameIndices[t] = frameIndex;
-                const textureHandle = getTimelineTextureHandle(timelinePath, frames[frameIndex].texture);
+                const textureHandle = textureHandles.get(frames[frameIndex].texture) ?? 0;
                 if (textureHandle) {
                     const sprite = world.get(entity, Sprite);
                     sprite.texture = textureHandle;

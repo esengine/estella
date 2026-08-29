@@ -105,6 +105,31 @@ describe('two realms in one process do not share an asset', () => {
         expect(btTouches(b.app).writes).not.toContain('Sprite');
     });
 
+    it('a timeline plays its own realm\'s asset, and one app\'s cleanup leaves the other', async () => {
+        // The worst of the three: the timeline registry was a module-level
+        // pointer at whichever plugin built LAST, and the plugin object itself
+        // is a shared singleton.
+        const timeline = (duration: number, texture: string): string => JSON.stringify({
+            version: 1, duration, tracks: [{
+                type: 'animFrames', target: '', frames: [{ texture, duration: 1 }],
+            }],
+        });
+        const a = realm(() => timeline(1, 'a.png'));
+        const b = realm(() => timeline(9, 'b.png'));
+        await a.assets.acquireTyped('timeline', 'cut/intro.estimeline');
+        await b.assets.acquireTyped('timeline', 'cut/intro.estimeline');
+
+        const inA = a.assets.resolveRegistryAsset<{ asset: { duration: number } }>('timeline', 'cut/intro.estimeline');
+        const inB = b.assets.resolveRegistryAsset<{ asset: { duration: number } }>('timeline', 'cut/intro.estimeline');
+        expect(inA?.asset.duration).toBe(1);
+        expect(inB?.asset.duration, 'both apps read whichever built its plugin last').toBe(9);
+
+        // B goes away; A is still playing.
+        b.assets.releaseAll();
+        expect(a.assets.resolveRegistryAsset('timeline', 'cut/intro.estimeline')).toBeDefined();
+        expect(b.assets.resolveRegistryAsset('timeline', 'cut/intro.estimeline')).toBeUndefined();
+    });
+
     it('a code registration has no realm, and every app still sees it', async () => {
         // The other half of the rule: `registerFsm('patrol', …)` is not an asset.
         const { registerFsm } = await import('../src/ai/fsm/StateMachineAgent');

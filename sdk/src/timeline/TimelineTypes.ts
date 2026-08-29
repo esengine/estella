@@ -176,3 +176,13 @@ export interface TimelineAsset {
     wrapMode: WrapMode;
     tracks: Track[];
 }
+
+/**
+ * One era of a `.estimeline` as its realm publishes it: the parsed asset and the
+ * texture handles it resolved. Both belong to the era — a hot update prepares a
+ * new one rather than editing this in place.
+ */
+export interface PublishedTimeline {
+    asset: TimelineAsset;
+    textureHandles: Map<string, number>;
+}
