@@ -24,6 +24,7 @@ import type { Entity } from '../types';
 import type { AssetScope, AssetLease } from './AssetLease';
 import type { AssetFieldType } from '../scene/scene';
 import { findLiveAssetBindings, readLiveAssetBinding, writeLiveAssetBinding } from './liveAssetBindings';
+import { isRegistrySlotLease } from './registryAssets';
 import { log } from '../util/logger';
 
 /** The scope that owns what an entity's asset fields hold. */
@@ -44,6 +45,20 @@ export function boundValueOf(lease: AssetLease): unknown {
 export function leaseBoundAs(scope: AssetScope, value: unknown): AssetLease | undefined {
     if (value === undefined || value === null || value === 0 || value === '') return undefined;
     return scope.leases().find((lease) => boundValueOf(lease) === value);
+}
+
+/**
+ * The slot receipt in `scope` that answers to this ref, if the scope holds one.
+ *
+ * The other half of {@link leaseBoundAs}: a field naming an asset by ref points
+ * at a SLOT, and the slot's own names say which — no resolving a path, which
+ * after an invalidate names a different era than the field is reading.
+ */
+export function slotLeaseNamed(scope: AssetScope, ref: unknown): AssetLease | undefined {
+    if (typeof ref !== 'string' || ref === '') return undefined;
+    return scope.leases().find(
+        (lease) => isRegistrySlotLease(lease) && lease.names.includes(ref),
+    );
 }
 
 /** One acquisition of the replacement, and how to read the value a bound field

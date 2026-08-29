@@ -13,7 +13,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
-import { SpriteAnimationAPI } from '../src/animation/SpriteAnimator';
+import { App } from '../src/app/app';
+import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
+import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
+import { AssetScope } from '../src/asset/AssetLease';
+import { SpriteAnimationAPI, SpriteAnimator } from '../src/animation/SpriteAnimator';
+import { connectFakeCpp } from './helpers/fakeEngine';
+import { markEngineComponentBaseline, seedEngineComponents } from '../src/ecs/component';
+import type { Entity } from '../src/types';
 import type { Backend } from '../src/asset/Backend';
 
 function createPoolFake() {
@@ -85,6 +92,54 @@ function buildAssets(sprites: SpriteAnimationAPI, doc: () => string) {
     } as never);
     return assets;
 }
+
+// What an SDK entry does at load, and what the shared test setup then clears
+// before every test: the engine's own `defineComponent`s (SpriteAnimator among
+// them) live in the context registry, which is what a reflective walk reads.
+markEngineComponentBaseline();
+
+describe('a persistent entity carries a ref-bound asset out of its scene', () => {
+    beforeEach(() => { pool = createPoolFake(); seedEngineComponents(); });
+
+    it('the slot survives the scene, and ends with the entity', async () => {
+        // The half the last round left out: a promotion matched bindings by
+        // VALUE, and a field naming an asset by ref has no handle to match. It
+        // names the slot, and the slot's own names say which one.
+        const sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, () => clipDocument(1));
+        const app = App.new();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(AssetsResource, assets as never);
+        app.insertResource(SceneManager, manager);
+        const base = assets.sizes().refRows;
+        let e = 0 as Entity;
+
+        manager.register({
+            name: 'level',
+            setup: async (ctx) => {
+                const scope = new AssetScope();
+                scope.add(await assets.acquireTyped('anim-clip', 'anim/walk.esanim'));
+                ctx.trackAssetScope(scope);
+                e = ctx.spawn();
+                app.world.insert(e, SpriteAnimator, { clip: 'anim/walk.esanim' } as never);
+                ctx.setPersistent(e, true);
+            },
+        });
+        await manager.loadAdditive('level');
+        await manager.unload('level');
+
+        expect(app.world.valid(e)).toBe(true);
+        expect(sprites.getClip('anim/walk.esanim'), 'the scene took the clip with it').toBeDefined();
+        expect(assets.sizes().registrySlots).toBe(1);
+        expect(assets.sizes().refRows, 'the era it is reading is still owned').toBe(base + 2);
+
+        app.world.despawn(e);
+        expect(sprites.getClip('anim/walk.esanim')).toBeUndefined();
+        expect(assets.sizes().registrySlots).toBe(0);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+});
 
 describe('a registry-backed asset lives as long as it is held', () => {
     beforeEach(() => { pool = createPoolFake(); });

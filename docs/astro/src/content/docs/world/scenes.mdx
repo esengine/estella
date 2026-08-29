@@ -117,9 +117,12 @@ clean slate you want when returning to a main menu.
 
 What it **keeps**: the assets it is bound to. Promotion splits the scene's
 reference rather than transferring or dropping it, so a surviving entity owns
-what it draws with — the exact instance it is bound to, even when a hot update
-has since replaced the file — and gives it back when the entity is despawned,
-including as part of a parent's subtree. It also keeps its place: an entity
+what it draws with and gives it back when the entity is despawned, including as
+part of a parent's subtree. For a texture, material, font, mesh or environment
+that is the exact instance it is bound to, even when a hot update has since
+replaced the file; for an anim clip, timeline, state machine, behavior tree or
+animator controller — which a component names by ref and looks up on every
+frame — it is the entry itself, so the entity keeps following updates to it. It also keeps its place: an entity
 detached from a parent that did not survive stays where it was on screen
 rather than jumping to its parent-relative position.
 
@@ -128,11 +131,11 @@ Two things do **not** come along with it:
 - **The scene's systems.** Every system a scene declares is unregistered on
   unload, so a persistent entity's behavior has to come from a system
   registered on the `App` itself, not from the scene's `systems` list.
-- **Assets a component names by reference** rather than by a runtime handle —
-  an anim clip, for instance. Those are still released with the scene, so take
-  a reference that outlives it: `Assets.preload` at bootstrap, or an additive
-  scene that is never unloaded. Textures, materials, fonts, meshes and
-  environments are handle-bound and come along.
+- **Assets nothing declares.** Promotion reads the same `assetFields` the rest
+  of the engine does, so a texture you loaded yourself and assigned outside a
+  declared field is not something it can see — take a reference that outlives
+  the scene for those: `Assets.preload` at bootstrap, or an additive scene that
+  is never unloaded.
 - **Its non-persistent children.** "This entity persists" is about the entity,
   not its subtree: children that were not themselves marked are despawned with
   the scene, and a persistent child of a non-persistent parent is detached and

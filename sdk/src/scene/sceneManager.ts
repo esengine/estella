@@ -11,7 +11,7 @@ import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressC
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import { assetBindingsOf, readLiveAssetBinding } from '../asset/liveAssetBindings';
-import { leaseBoundAs } from '../asset/liveAssetRebind';
+import { leaseBoundAs, slotLeaseNamed } from '../asset/liveAssetRebind';
 import type { SystemDef } from '../ecs/system';
 import { Material } from '../render/material';
 import type { DrawCallback } from '../render/customDraw';
@@ -570,16 +570,19 @@ export class SceneManagerState {
      *
      * `retain`, not a re-acquire: the era the fields hold is not the era their
      * path resolves to once a hot update has passed this scene by. One per
-     * SOURCE receipt, and only where a binding names one by VALUE.
+     * SOURCE receipt — a handle names its receipt by value, a ref names the
+     * slot that publishes it.
      */
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
         const assets = this.app_.hasResource(Assets) ? this.app_.getResource(Assets) : null;
         if (!assets) return;
         const sources = new Set<AssetLease>();
         for (const binding of assetBindingsOf(this.app_.world, entity)) {
-            const held = leaseBoundAs(
-                instance.assetScope, readLiveAssetBinding(this.app_.world, binding),
-            );
+            const bound = readLiveAssetBinding(this.app_.world, binding);
+            // By value for a handle, by name for a ref: the two ways a field can
+            // say which acquisition it is reading.
+            const held = leaseBoundAs(instance.assetScope, bound)
+                ?? slotLeaseNamed(instance.assetScope, bound);
             if (held) sources.add(held);
         }
         if (sources.size === 0) return;
