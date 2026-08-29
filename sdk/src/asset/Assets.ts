@@ -638,10 +638,7 @@ export class Assets {
             const clip = anim.getClip(result.clipId);
             if (clip && !anim.getClip(ref)) anim.aliasClip(ref, clip);
         }
-        return {
-            key: lease.key, generation: lease.generation, value: result,
-            release: () => this.releaseTypedLease('anim-clip', lease),
-        };
+        return this.typedLease_('anim-clip', lease, result);
     }
 
     async loadTilemap(ref: string): Promise<TilemapResult> {
@@ -1395,18 +1392,46 @@ export class Assets {
      */
     async acquireTexture(ref: string): Promise<AssetLease<TextureResult>> {
         const { result, lease } = await this.acquireTextureVariant_(ref, true);
-        return {
-            key: lease.key, generation: lease.generation, value: result,
-            release: () => this.releaseTextureLease(lease),
-        };
+        return this.textureLease_(lease, result);
     }
 
     /** {@link acquireTexture} for everything that goes through a typed loader. */
     async acquireTyped<T>(type: string, ref: string): Promise<AssetLease<T>> {
         const { value, lease } = await this.acquireTyped_<T>(type, ref);
+        return this.typedLease_(type, lease, value);
+    }
+
+    /**
+     * The owner-facing receipt for one ledger acquisition.
+     *
+     * `retain` goes through the ledger rather than through this class's load
+     * path: an owner splitting what it holds joins the era it already has, which
+     * after an invalidate is not the era a path resolves to.
+     */
+    private textureLease_(
+        lease: AssetRefLease<number>, value: TextureResult,
+    ): AssetLease<TextureResult> {
+        return {
+            key: lease.key, generation: lease.generation, value,
+            release: () => this.releaseTextureLease(lease),
+            retain: () => {
+                const child = this.textureRefs_.retain(lease);
+                return child ? this.textureLease_(child, value) : null;
+            },
+        };
+    }
+
+    /** {@link textureLease_} for everything that goes through a typed loader. */
+    private typedLease_<T>(
+        type: string, lease: AssetRefLease<unknown>, value: T,
+    ): AssetLease<T> {
         return {
             key: lease.key, generation: lease.generation, value,
             release: () => this.releaseTypedLease(type, lease),
+            retain: () => {
+                const child = this.genericRefs_.retain(lease);
+                return child ? this.typedLease_(type, child, value) : null;
+            },
         };
     }
 
@@ -1929,10 +1954,7 @@ export class Assets {
             },
             async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
                 const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
-                return {
-                    key: lease.key, generation: lease.generation, value: result,
-                    release: () => self.releaseTextureLease(lease),
-                };
+                return self.textureLease_(lease, result);
             },
             releaseTexture(path: string): void {
                 self.releaseTexture(path);

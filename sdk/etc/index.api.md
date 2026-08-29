@@ -687,6 +687,7 @@ version: string
 generation: number
 key: string
 release: () => void
+retain: () => AssetLease<T> | null
 value: T
 ```
 

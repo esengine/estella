@@ -18,6 +18,14 @@ export interface AssetLease<T = unknown> {
     readonly value: T;
     /** Give this one acquisition back. Calling twice is a no-op, not a double free. */
     release(): void;
+    /**
+     * A second receipt for the SAME generation — an owner splitting what it holds.
+     *
+     * Not a re-acquire: this era may already be superseded, which is exactly when
+     * loading the path again hands back a different instance than the one the
+     * splitting owner is bound to. Null when the ledger has forgotten it.
+     */
+    retain(): AssetLease<T> | null;
 }
 
 /**

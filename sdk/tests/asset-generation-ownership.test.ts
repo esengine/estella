@@ -165,6 +165,43 @@ describe('asset ownership is generation-exact', () => {
         expect(assets.sizes().refRows).toBe(base);
     });
 
+    it('a retained receipt joins the era its source names, not the era the path resolves to', async () => {
+        // Splitting ownership is not acquiring: after an invalidate the path
+        // resolves to a NEW instance while the splitting owner is still bound to
+        // the old one, so a re-acquire receipts something nothing is using.
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const base = assets.sizes().refRows;
+
+        const held = await assets.acquireTyped<{ id: string }>('font', 'f.ttf');
+        assets.invalidate('f.ttf');                                     // gen1's era closes
+        const fresh = await assets.acquireTyped<{ id: string }>('font', 'f.ttf');
+        expect(fresh.value.id).toBe('gen2');
+
+        const retained = held.retain()!;
+        expect(retained.generation).toBe(held.generation);              // the same era...
+        expect(retained.value.id).toBe('gen1');                         // ...and the same instance
+        expect(assets.sizes().refRows).toBe(base + 3);
+
+        held.release();
+        expect(unloaded).toEqual([]);                 // gen1 is still owed by the retained one
+        retained.release();
+        expect(unloaded).toEqual(['gen1']);
+        fresh.release();
+        expect(unloaded).toEqual(['gen1', 'gen2']);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
+    it('there is nothing to retain once the last holder let go', async () => {
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const held = await assets.acquireTyped<{ id: string }>('font', 'f.ttf');
+        held.release();
+        // Not a resurrection door: the asset is gone, and a receipt for it would
+        // be one nobody could ever give back.
+        expect(held.retain()).toBeNull();
+    });
+
     it('a scope absorbs another\'s receipts, and gives back what it took', async () => {
         // The packaged-game shape: the loader acquires into a scope of its own
         // and hands the whole thing to the scene that will outlive it. Releasing

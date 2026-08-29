@@ -75,6 +75,24 @@ export class AssetRefLedger<T> {
     }
 
     /**
+     * A second holder of the generation `lease` names — a superseded one included.
+     *
+     * The difference from {@link acquire} is which era the caller joins: acquire
+     * asks what a NEW holder should load, which after an invalidate is a new era.
+     * An owner SPLITTING what it holds is a second owner of the one already bound.
+     */
+    retain(lease: AssetRefLease<T>): AssetRefLease<T> | undefined {
+        const generations = this.byKey_.get(lease.key);
+        const generation = generations?.find((g) => g.id === lease.generation);
+        if (!generation) return undefined;
+        generation.count++;
+        const child: LeaseImpl<T> = {
+            key: lease.key, generation: generation.id, value: generation.value, spent: false,
+        };
+        return child;
+    }
+
+    /**
      * The key's current generation is over: its holders keep what they have and
      * still owe a release, but the next acquire starts a new era rather than
      * joining theirs. Called when the cache entry is invalidated.
