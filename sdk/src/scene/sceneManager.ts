@@ -463,7 +463,7 @@ export class SceneManagerState {
      * scene — a failed load cannot promote an entity into a global one.
      */
     private rollbackFailedLoad_(name: string, instance: SceneInstance): void {
-        this.disposeSceneOwnedState_(instance, false);
+        this.disposeSceneOwnedState_(instance, false, false);
         this.removeSceneSlot_(name, instance);
     }
 
@@ -474,7 +474,9 @@ export class SceneManagerState {
      * An `unload` during a load tears the instance down, and that load's own
      * rollback then runs over it again — over whatever its setup added between.
      */
-    private disposeSceneOwnedState_(instance: SceneInstance, keepPersistent: boolean): void {
+    private disposeSceneOwnedState_(
+        instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
+    ): void {
         const world = this.app_.world;
         for (const entity of instance.entities) {
             if (keepPersistent && world.valid(entity) && world.has(entity, SceneOwner)) {
@@ -490,6 +492,10 @@ export class SceneManagerState {
                         data.scene = '';
                         world.insert(entity, SceneOwner, data);
                     }
+                    // The scene's sleep does not follow it out. Nothing will
+                    // wake this entity once the scene is gone, and the record of
+                    // what it looked like awake dies with the instance below.
+                    if (wasSleeping) this.restoreSleepState_(instance, entity);
                     continue;
                 }
             }
@@ -542,6 +548,9 @@ export class SceneManagerState {
         if (!instance) return;
 
         const ctx = this.contexts_.get(name)!;
+        // Read before the status becomes 'unloading': what a promoted entity
+        // needs put back is what sleep() took, and only the old status says so.
+        const wasSleeping = instance.status === 'sleeping';
         instance.status = 'unloading';
 
         if (instance.config.cleanup) {
@@ -554,7 +563,7 @@ export class SceneManagerState {
             }
         }
 
-        this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true);
+        this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping);
         this.removeSceneSlot_(name, instance);
     }
 
@@ -722,21 +731,25 @@ export class SceneManagerState {
         this.sleepingScenes_.delete(name);
         this.setPostProcessPassesEnabled(instance, true);
 
-        const world = this.app_.world;
-        for (const entity of instance.entities) {
-            if (!world.valid(entity)) continue;
-            world.remove(entity, Disabled);
-            const entitySaved = instance.savedEnabled.get(entity);
-            if (!entitySaved) continue;
-            for (const [comp, wasEnabled] of entitySaved) {
-                if (world.has(entity, comp)) {
-                    const data = world.get(entity, comp) as Record<string, unknown>;
-                    data[comp.renderableField] = wasEnabled;
-                    world.set(entity, comp, data as never);
-                }
-            }
-        }
+        for (const entity of instance.entities) this.restoreSleepState_(instance, entity);
         instance.savedEnabled.clear();
+    }
+
+    /** Put one entity back the way {@link sleep} found it. Shared with the
+     *  promotion of a persistent entity out of a sleeping scene, which is the
+     *  same question asked about one entity instead of all of them. */
+    private restoreSleepState_(instance: SceneInstance, entity: Entity): void {
+        const world = this.app_.world;
+        if (!world.valid(entity)) return;
+        world.remove(entity, Disabled);
+        const entitySaved = instance.savedEnabled.get(entity);
+        if (!entitySaved) return;
+        for (const [comp, wasEnabled] of entitySaved) {
+            if (!world.has(entity, comp)) continue;
+            const data = world.get(entity, comp) as Record<string, unknown>;
+            data[comp.renderableField] = wasEnabled;
+            world.set(entity, comp, data as never);
+        }
     }
 
     private setPostProcessPassesEnabled(instance: SceneInstance, enabled: boolean): void {

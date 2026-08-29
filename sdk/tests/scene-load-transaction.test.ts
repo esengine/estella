@@ -22,6 +22,7 @@ import { Assets } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
 import { PostProcess } from '../src/postprocess';
 import { getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
+import { Disabled, defineComponent } from '../src/ecs/component';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 
@@ -76,6 +77,10 @@ function harness() {
 }
 
 const CAMERA = 7 as Entity;
+
+/** Something sleep() switches off — the engine's renderables are C++-backed,
+ *  and what is under test is the protocol, not the component. */
+const Drawn = defineComponent('SleepPromotionDrawn', { visible: true }, { renderableField: 'visible' });
 
 describe('a scene load that fails leaves nothing of itself behind', () => {
     beforeEach(() => { clearDrawCallbacks(); });
@@ -198,6 +203,32 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
         expect(getDrawCallbacks().has('ghost')).toBe(false);
         expect(pp.size()).toBe(0);
         expect(manager.getScene('level')).toBeNull();
+    });
+
+    it('an entity promoted out of a SLEEPING scene comes out awake', async () => {
+        // sleep() keeps the record of what an entity looked like awake on the
+        // instance, and the instance is gone a line after the promotion — so an
+        // entity carried out asleep can never be woken by anything.
+        const { app, manager } = harness();
+        let spawned = 0 as Entity;
+
+        manager.register({
+            name: 'level',
+            setup: (ctx) => {
+                spawned = ctx.spawn();
+                app.world.insert(spawned, Drawn, { visible: true });
+                ctx.setPersistent(spawned, true);
+            },
+        });
+        await manager.load('level');
+        manager.sleep('level');
+        expect(app.world.has(spawned, Disabled), 'sleep() disables the scene').toBe(true);
+
+        await manager.unload('level');
+
+        expect(app.world.valid(spawned)).toBe(true);
+        expect(app.world.has(spawned, Disabled), 'promoted still asleep, with nothing left to wake it').toBe(false);
+        expect(app.world.get(spawned, Drawn).visible, 'and visible again').toBe(true);
     });
 
     it('a failed load cannot promote an entity to global ownership', async () => {
