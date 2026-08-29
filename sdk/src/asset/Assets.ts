@@ -22,7 +22,7 @@ import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
-import { DependencyRecorder, type DependencyReceipt } from './dependencies';
+import { DependencyRecorder, type DependencyReceipt, type Preparation } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -2059,16 +2059,25 @@ export class Assets {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         const registry = loader?.registry;
         if (!registry) return null;
-        return {
-            prepare: async (path) => {
-                // One recorder per preparation: what the loader takes IS the
-                // era's ownership and IS the graph's edges, so neither can be
-                // a description it forgot to keep in step with its work.
-                const recorder = new DependencyRecorder();
-                const era = await registry.prepare(path, this.recordingContext_(recorder));
-                return { ...era, dependencies: recorder.acquired, edges: recorder.edges };
-            },
-        };
+        return { prepare: (path) => this.prepared_((ctx) => registry.prepare(path, ctx)) };
+    }
+
+    /**
+     * Run one preparation: what the loader takes IS the result's ownership and
+     * IS the graph's edges. A transaction, because an acquisition on the way to
+     * a value that never arrives has no owner — the thing that would have held
+     * it does not exist.
+     */
+    private async prepared_<T extends object>(
+        work: (ctx: LoadContext) => Promise<T>,
+    ): Promise<T & Preparation> {
+        const recorder = new DependencyRecorder();
+        try {
+            return recorder.commit(await work(this.recordingContext_(recorder)));
+        } catch (e) {
+            recorder.rollback();
+            throw e;
+        }
     }
 
     /** The load context one preparation sees: every door that takes something

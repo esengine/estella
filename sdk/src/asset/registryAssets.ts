@@ -23,8 +23,7 @@
  *          today that is only prevented by the file extensions differing.
  */
 import type { AssetLease } from './AssetLease';
-import type { DependencyReceipt } from './dependencies';
-import { AssetScope } from './AssetLease';
+import type { DependencyReceipt, Preparation } from './dependencies';
 
 /** What one preparation PRODUCED. What it took is recorded for it — see
  *  dependencies.ts — so an era cannot describe a dependency it does not have. */
@@ -36,12 +35,7 @@ export interface RegistryEra<T> {
 }
 
 /** One era, with what its preparation took. */
-export interface PreparedEra<T> extends RegistryEra<T> {
-    /** What this era acquired for itself; released when it retires. */
-    readonly dependencies: AssetScope;
-    /** Every edge the preparation produced, owned and source alike. */
-    readonly edges: readonly DependencyReceipt[];
-}
+export type PreparedEra<T> = RegistryEra<T> & Preparation;
 
 /** How one kind of registry-backed asset is prepared. Publishing is the slot's:
  *  it holds the era and answers the lookup, so there is nowhere else to write. */

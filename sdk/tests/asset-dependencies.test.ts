@@ -161,3 +161,46 @@ describe('an edge comes from the acquisition that made it', () => {
                'one realm\'s edges showed up in the other').toBe(false);
     });
 });
+
+describe('a preparation is a transaction', () => {
+    beforeEach(() => { pool = createPoolFake(); });
+
+    /** A registry-backed loader that takes two textures and then fails. */
+    function brittle(assets: Assets): void {
+        assets.register({
+            type: 'brittle',
+            extensions: ['.brittle'],
+            registry: {
+                prepare: async (_path, ctx) => {
+                    await ctx.acquireTexture('a.png');
+                    await ctx.acquireTexture('b.png');
+                    throw new Error('prepare failed');
+                },
+            },
+        });
+    }
+
+    it('a preparation that throws keeps nothing it acquired', async () => {
+        // Nothing took over the receipts: there is no era to hold them, and the
+        // slot the acquire was for is gone. Only the attempt itself knows what
+        // it took, so only the attempt can give it back.
+        const assets = realm({});
+        brittle(assets);
+        const base = assets.sizes().refRows;
+
+        await expect(assets.acquireTyped('brittle', 'x.brittle')).rejects.toThrow('prepare failed');
+
+        expect(pool.liveTextures(), 'the textures the failed attempt took').toBe(0);
+        expect(assets.sizes().refRows, 'the ledger rows it opened').toBe(base);
+    });
+
+    it('a failed preparation publishes nothing and leaves no edges', async () => {
+        const assets = realm({});
+        brittle(assets);
+
+        await expect(assets.acquireTyped('brittle', 'x.brittle')).rejects.toThrow();
+
+        expect(assets.dependenciesOf('brittle', 'x.brittle')).toEqual([]);
+        expect(assets.resolveRegistryAsset('brittle', 'x.brittle')).toBeUndefined();
+    });
+});

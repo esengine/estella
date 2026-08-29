@@ -32,6 +32,7 @@
  */
 import type { AssetLease } from './AssetLease';
 import { AssetScope } from './AssetLease';
+import { log } from '../util/logger';
 
 export type DependencyKind = 'owned' | 'source';
 
@@ -45,29 +46,73 @@ export interface DependencyReceipt {
     readonly path: string;
 }
 
+/** What one preparation took, sealed onto what it produced. */
+export interface Preparation {
+    /** Everything it acquired; released when what it produced retires. */
+    readonly dependencies: AssetScope;
+    /** Every edge it produced, owned and source alike. */
+    readonly edges: readonly DependencyReceipt[];
+}
+
 /**
  * The recorder behind one preparation: everything it acquires lands here, so
  * neither the era's ownership nor the graph's edges depend on a loader
  * remembering to report anything.
+ *
+ * It is also the preparation's TRANSACTION. An acquisition made on the way to a
+ * value that never arrives has no owner — the era that would have held it does
+ * not exist, and no caller was ever handed a receipt for it — so a preparation
+ * either commits what it took onto what it produced, or gives all of it back.
  */
 export class DependencyRecorder {
     private readonly edges_: DependencyReceipt[] = [];
-    readonly acquired = new AssetScope();
+    private readonly acquired_ = new AssetScope();
+    private state_: 'open' | 'committed' | 'rolled-back' = 'open';
 
     /** A runtime resource this preparation now holds. */
     own<T>(path: string, lease: AssetLease<T>, type?: string): AssetLease<T> {
-        this.acquired.add(lease);
+        if (this.state_ !== 'open') return this.late_(lease);
+        this.acquired_.add(lease);
         this.edges_.push(type === undefined ? { kind: 'owned', path } : { kind: 'owned', type, path });
         return lease;
     }
 
     /** Content this preparation read to decide what to produce. */
     read(path: string): void {
+        if (this.state_ !== 'open') return;
         this.edges_.push({ kind: 'source', path });
     }
 
-    /** What this preparation took, in the order it took it. */
-    get edges(): readonly DependencyReceipt[] {
-        return this.edges_;
+    /**
+     * The preparation produced `value`: what it took is what that value owns.
+     *
+     * Sealing here rather than at the call site is what makes the two
+     * inseparable — there is no shape of the result that carries edges without
+     * the receipts behind them.
+     */
+    commit<T extends object>(value: T): T & Preparation {
+        this.state_ = 'committed';
+        return { ...value, dependencies: this.acquired_, edges: this.edges_ };
+    }
+
+    /** The preparation produced nothing, so it may keep nothing. */
+    rollback(): void {
+        this.state_ = 'rolled-back';
+        this.acquired_.releaseAll();
+        this.edges_.length = 0;
+    }
+
+    /**
+     * An acquisition that landed after the transaction settled: the losing half
+     * of a preparation whose other half threw, or a loader that kept the context
+     * past its own work. Nobody can own it either way, so it goes back here —
+     * the last place that still knows it exists.
+     */
+    private late_<T>(lease: AssetLease<T>): AssetLease<T> {
+        if (this.state_ === 'committed') {
+            log.warn('asset', `an acquisition of "${lease.key}" landed after its preparation was published`);
+        }
+        lease.release();
+        return lease;
     }
 }
