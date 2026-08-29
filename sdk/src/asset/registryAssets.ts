@@ -16,6 +16,11 @@
  *          under it. An era owns what it acquired for itself and nothing else —
  *          publication belongs to the slot, which is what makes it impossible
  *          for a retiring era to unpublish the newer one that replaced it.
+ *
+ *          A lookup identity is (asset TYPE, logical name). Bare names would
+ *          have two kinds of asset sharing one entry the moment a project's own
+ *          registry-backed type answered to a name an engine one already used —
+ *          today that is only prevented by the file extensions differing.
  */
 import type { AssetLease } from './AssetLease';
 import { AssetScope } from './AssetLease';
@@ -61,14 +66,20 @@ class Slot<T> {
     era: RegistryEra<T> | null = null;
     loading: Promise<RegistryEra<T>> | null = null;
 
-    constructor(readonly key: string, readonly id: number) {}
+    constructor(readonly type: string, readonly key: string, readonly id: number) {}
 }
 
 /**
  * Every registry-backed asset this Assets has published, by every name that
  * resolves to it.
  */
+/** One lookup identity. `\0` cannot occur in a path or a ref. */
+function lookupKey(type: string, name: string): string {
+    return `${type}\0${name}`;
+}
+
 export class RegistryAssetSlots {
+    /** By (type, name) — see the note on lookup identity above. */
     private byName_ = new Map<string, Slot<unknown>>();
     private nextId_ = 1;
 
@@ -79,10 +90,10 @@ export class RegistryAssetSlots {
      * than to a copy of the object.
      */
     async acquire<T>(
-        kind: RegistryAssetKind<T>, key: string, names: readonly string[],
+        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[],
     ): Promise<RegistrySlotLease<T>> {
-        const slot = this.slotFor_(key) as Slot<T>;
-        for (const name of names) this.name_(slot as Slot<unknown>, name);
+        const slot = this.slotFor_(type, key) as Slot<T>;
+        for (const name of names) this.name_(slot as Slot<unknown>, type, name);
 
         if (!slot.era) {
             slot.loading ??= kind.prepare(key);
@@ -114,8 +125,8 @@ export class RegistryAssetSlots {
      * with the era they have rather than losing it to a bad download. Answers
      * false when nothing holds this name.
      */
-    async republish<T>(kind: RegistryAssetKind<T>, name: string): Promise<boolean> {
-        const slot = this.byName_.get(name) as Slot<T> | undefined;
+    async republish<T>(kind: RegistryAssetKind<T>, type: string, name: string): Promise<boolean> {
+        const slot = this.byName_.get(lookupKey(type, name)) as Slot<T> | undefined;
         if (!slot?.era) return false;
         const era = await kind.prepare(slot.key);
         const previous = slot.era;
@@ -127,14 +138,27 @@ export class RegistryAssetSlots {
         return true;
     }
 
-    /** Whether this name is one a slot answers to. */
-    has(name: string): boolean {
-        return this.byName_.has(name);
+    /** Whether this name is one a slot of this type answers to. */
+    has(type: string, name: string): boolean {
+        return this.byName_.has(lookupKey(type, name));
     }
 
-    /** The runtime object published for `name`, if any. Diagnostics and tests. */
-    published(name: string): unknown {
-        return this.byName_.get(name)?.era?.published;
+    /**
+     * What this realm publishes for (type, name) right now — the answer a
+     * runtime lookup reads, and the only copy of it.
+     */
+    published(type: string, name: string): unknown {
+        return this.byName_.get(lookupKey(type, name))?.era?.published;
+    }
+
+    /** Everything published of one type. What a schedule analysis reads to learn
+     *  what the loaded graphs of this realm reach for. */
+    publishedOf(type: string): unknown[] {
+        const out: unknown[] = [];
+        for (const slot of new Set(this.byName_.values())) {
+            if (slot.type === type && slot.era) out.push(slot.era.published);
+        }
+        return out;
     }
 
     /** Live slots — one per asset, however many names it answers to. */
@@ -143,9 +167,9 @@ export class RegistryAssetSlots {
     }
 
     /** Give up every slot. For a wholesale teardown. */
-    releaseAll(kinds: (key: string) => RegistryAssetKind<unknown> | undefined): void {
+    releaseAll(kinds: (type: string) => RegistryAssetKind<unknown> | undefined): void {
         for (const slot of new Set(this.byName_.values())) {
-            kinds(slot.key)?.unpublish(slot.names, slot.era?.published);
+            kinds(slot.type)?.unpublish(slot.names, slot.era?.published);
             slot.era?.dependencies.releaseAll();
             slot.era = null;
             slot.refs = 0;
@@ -155,8 +179,8 @@ export class RegistryAssetSlots {
 
     /** Drop one claim on the slot `name` resolves to, without its receipt. The
      *  compatibility door for a caller that only ever had a path. */
-    releaseByName(kind: RegistryAssetKind<unknown>, name: string): boolean {
-        const slot = this.byName_.get(name);
+    releaseByName(kind: RegistryAssetKind<unknown>, type: string, name: string): boolean {
+        const slot = this.byName_.get(lookupKey(type, name));
         if (!slot || slot.refs === 0) return false;
         this.drop_(kind, slot);
         return true;
@@ -175,7 +199,7 @@ export class RegistryAssetSlots {
                 spent = true;
                 this.drop_(kind as RegistryAssetKind<unknown>, slot as Slot<unknown>);
             },
-            retain: () => (this.byName_.get(slot.key) === (slot as Slot<unknown>) && slot.era
+            retain: () => (this.byName_.get(lookupKey(slot.type, slot.key)) === (slot as Slot<unknown>) && slot.era
                 ? this.lease_(kind, slot)
                 : null),
         };
@@ -190,20 +214,26 @@ export class RegistryAssetSlots {
         this.forget_(slot);
     }
 
-    private slotFor_(key: string): Slot<unknown> {
-        let slot = this.byName_.get(key);
+    private slotFor_(type: string, key: string): Slot<unknown> {
+        const id = lookupKey(type, key);
+        let slot = this.byName_.get(id);
         if (!slot) {
-            slot = new Slot<unknown>(key, this.nextId_++);
-            this.byName_.set(key, slot);
+            slot = new Slot<unknown>(type, key, this.nextId_++);
+            this.byName_.set(id, slot);
         }
         return slot;
     }
 
-    /** Index another lookup name onto this slot, and publish under it too. */
-    private name_(slot: Slot<unknown>, name: string): void {
-        if (this.byName_.get(name) === slot) return;
-        slot.names.push(name);
-        this.byName_.set(name, slot);
+    /**
+     * Index another lookup name onto this slot, and publish under it too.
+     *
+     * The dedupe is on the NAME list, not on the index: the slot's own key is
+     * already indexed when it is created, and reading that back as "already
+     * known" left the list — which is what gets published — empty.
+     */
+    private name_(slot: Slot<unknown>, type: string, name: string): void {
+        if (!slot.names.includes(name)) slot.names.push(name);
+        this.byName_.set(lookupKey(type, name), slot);
     }
 
     private forget_(slot: Slot<unknown>): void {

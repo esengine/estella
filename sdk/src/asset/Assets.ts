@@ -1414,7 +1414,7 @@ export class Assets {
         // the asset up by the spelling a scene serialized, which in a realm whose
         // resolver returns URLs is not the path the loader was handed.
         const names = ref === path ? [path] : [path, ref];
-        return this.registrySlots_.acquire(kind, `${type}:${path}`, names);
+        return this.registrySlots_.acquire(kind, type, path, names);
     }
 
     /**
@@ -1550,7 +1550,7 @@ export class Assets {
         const path = this.resolveLoadPath_(ref);
         const kind = this.registryKind_(type);
         if (kind) {
-            this.registrySlots_.releaseByName(kind, `${type}:${path}`);
+            this.registrySlots_.releaseByName(kind, type, path);
             return;
         }
         // NOT gated on a live cache entry: a generation superseded by
@@ -1641,9 +1641,9 @@ export class Assets {
         // by nobody — a failed prepare leaves holders the era they have.
         for (const [type] of this.loaders_) {
             const kind = this.registryKind_(type);
-            if (!kind || !this.registrySlots_.has(`${type}:${path}`)) continue;
+            if (!kind || !this.registrySlots_.has(type, path)) continue;
             hit = true;
-            void this.registrySlots_.republish(kind, `${type}:${path}`).catch((e: unknown) => {
+            void this.registrySlots_.republish(kind, type, path).catch((e: unknown) => {
                 log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
             });
         }
@@ -1766,7 +1766,7 @@ export class Assets {
         // Through the normal door first, so what the app owned is disposed the
         // way any other owner's is rather than by the wholesale drain below.
         this.appScope_.releaseAll();
-        this.registrySlots_.releaseAll((key) => this.registryKind_(key.slice(0, key.indexOf(':'))) ?? undefined);
+        this.registrySlots_.releaseAll((type) => this.registryKind_(type) ?? undefined);
         const rm = requireResourceManager();
         this.resetEpoch_++;
         this.abandoned_.clear();
@@ -1987,6 +1987,30 @@ export class Assets {
         const handle = (result as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
         return { value: result, lease };
+    }
+
+    /**
+     * What THIS realm publishes for a ref-bound asset — the answer a runtime
+     * lookup reads, and the only copy of it.
+     *
+     * By the ref as spelled or the path it resolves to: a slot answers to both,
+     * so a lookup site need not know which spelling a scene serialized.
+     *
+     * @internal
+     */
+    resolveRegistryAsset<T>(type: string, ref: string): T | undefined {
+        return (this.registrySlots_.published(type, ref)
+            ?? this.registrySlots_.published(type, this.resolveLoadPath_(ref))) as T | undefined;
+    }
+
+    /**
+     * Everything this realm publishes of one type. What a schedule analysis
+     * reads to learn what the graphs THIS app loaded reach for.
+     *
+     * @internal
+     */
+    publishedRegistryAssets<T>(type: string): T[] {
+        return this.registrySlots_.publishedOf(type) as T[];
     }
 
     /**
