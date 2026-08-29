@@ -39,7 +39,9 @@ export const BehaviorTreeAgent = defineComponent<BehaviorTreeAgentData>('Behavio
     },
 });
 
-/** Behavior trees keyed by registration name or `.esbt` asset path. A tree IS its definition — no compile. */
+/** Trees a game registered in CODE, process-wide — see the FSM store for why it
+ *  is live rather than copied per App. An `.esbt` belongs to its realm, not
+ *  here. A tree IS its definition — no compile. */
 const btStore = new Map<string, BtDefinition>();
 
 export function registerBt(key: string, def: BtDefinition): BtDefinition {

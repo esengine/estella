@@ -18,7 +18,13 @@ import { Catalog } from '../src/asset/Catalog';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { fsmTouches } from '../src/ai/fsm/FsmPlugin';
 import { btTouches } from '../src/ai/bt/BtPlugin';
-import { clearFsmStore } from '../src/ai/fsm/StateMachineAgent';
+import { StateMachineAgent, clearFsmStore, registerFsm,
+         type StateMachineAgentData } from '../src/ai/fsm/StateMachineAgent';
+import { FsmPlugin, stepStateMachines } from '../src/ai/fsm/FsmPlugin';
+import { appRegistryAsset } from '../src/asset/registryLookup';
+import type { CommandsInstance } from '../src/ecs/commands';
+import type { AnyComponentDef, ComponentData } from '../src/ecs/component';
+import type { Entity } from '../src/types';
 import { clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import type { Backend } from '../src/asset/Backend';
@@ -60,6 +66,26 @@ function realm(text: (url: string) => string): { app: App; assets: Assets } {
     });
     app.insertResource(AssetsResource, assets as never);
     return { app, assets };
+}
+
+/** One entity carrying a StateMachineAgent — all `stepStateMachines` reads. */
+class AgentWorld {
+    private data = new Map<Entity, StateMachineAgentData>();
+    private next = 1;
+
+    spawn(agent: StateMachineAgentData): Entity {
+        const entity = this.next++ as Entity;
+        this.data.set(entity, agent);
+        return entity;
+    }
+    getEntitiesWithComponents(): readonly Entity[] { return [...this.data.keys()]; }
+    get<C extends AnyComponentDef>(entity: Entity, _component: C): ComponentData<C> {
+        return this.data.get(entity) as ComponentData<C>;
+    }
+    set<C extends AnyComponentDef>(entity: Entity, _component: C, value: ComponentData<C>): void {
+        this.data.set(entity, value as StateMachineAgentData);
+    }
+    has(): boolean { return true; }
 }
 
 describe('two realms in one process do not share an asset', () => {
@@ -153,6 +179,28 @@ describe('two realms in one process do not share an asset', () => {
 
         ctrl.registerController('enemy.esanimator', CODE as never);
         expect(ctrl.getController('enemy.esanimator')?.initialState).toBe('run');
+    });
+
+    it('a registration made after the App was built still reaches it', () => {
+        // Hot reload re-imports the bundle into a LIVE app, so a module-scope
+        // `registerFsm` runs after build on every edit. An app holding a copy
+        // taken at build would answer with the version from before it, forever.
+        const a = realm(() => fsmWriting('Sprite'));
+        new FsmPlugin().build(a.app);
+        registerFsm('lateComer', JSON.parse(fsmWriting('Camera')) as never);
+
+        expect(fsmTouches(a.app).writes, 'the app answered from a copy taken at build')
+            .toContain('Camera');
+
+        // And the step RUNS it, not only the schedule declaring it: the realm
+        // resolver answers nothing for a name that is not an asset.
+        const world = new AgentWorld();
+        const entity = world.spawn({ fsm: 'lateComer', current: '' });
+        stepStateMachines(
+            world, {} as CommandsInstance, 1 / 60, new Map(),
+            (ref) => appRegistryAsset(a.app, 'statemachine', ref),
+        );
+        expect(world.get(entity, StateMachineAgent).current).toBe('Act');
     });
 
     it('a code registration has no realm, and every app still sees it', async () => {

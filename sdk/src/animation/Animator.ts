@@ -376,12 +376,10 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
 });
 
 /**
- * Global controller store keyed by `.esanimator` asset path — the runtime twin of
- * the per-App {@link AnimatorControllerAPI.registerController} name registry. The
- * asset loader registers a disk controller here (the App resource isn't reachable
- * from a `LoadContext`), and {@link AnimatorControllerAPI} falls back to it when an
- * Animator's `controller` is a path rather than a code-registered name. Mirrors the
- * FSM store in {@link file://./ai/fsm/StateMachineAgent.ts}.
+ * Controllers a game registered in CODE by path, process-wide. Not where a
+ * `.esanimator` lands — an asset belongs to the realm that loaded it, which is
+ * why {@link AnimatorControllerAPI.getController} asks its own registrations,
+ * then its realm, and only then here.
  */
 const animatorControllerStore = new Map<string, AnimatorControllerDef>();
 

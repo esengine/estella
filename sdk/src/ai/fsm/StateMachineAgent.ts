@@ -41,10 +41,15 @@ export const StateMachineAgent = defineComponent<StateMachineAgentData>('StateMa
     },
 });
 
-/** Compiled FSMs keyed by registration name or `.esfsm` asset path. */
+/**
+ * FSMs a game registered in CODE, process-wide. An `.esfsm` does not land here —
+ * it belongs to the realm that loaded it, which a lookup asks first. Live rather
+ * than copied per App: hot reload re-imports the bundle into a RUNNING app, so a
+ * copy taken at build would answer with the version from before the edit.
+ */
 const fsmStore = new Map<string, CompiledFsm>();
 
-/** Register (compile) an FSM under `key`; code path and `.esfsm` loader share this store. */
+/** Register (compile) an FSM under `key` — the code half of the registry. */
 export function registerFsm(key: string, def: FsmDefinition): CompiledFsm {
     const compiled = compileFsm(def);
     fsmStore.set(key, compiled);
