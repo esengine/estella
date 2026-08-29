@@ -27,6 +27,7 @@ export interface SpineWasmModule {
     _spine_getBonePosition(instanceId: number, bone: number, outXPtr: number, outYPtr: number): number;
     _spine_getBoneRotation(instanceId: number, bone: number): number;
     _spine_getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    _spine_getSkeletonBounds(skeletonHandle: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): number;
 
     _spine_getMeshBatchCount(instanceId: number): number;
     _spine_getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
@@ -97,6 +98,8 @@ export interface SpineWrappedAPI {
     getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
     getBoneRotation(instanceId: number, bone: string): number;
     getBounds(instanceId: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): void;
+    /** The skeleton's authored extent — answerable without an instance or a pose. */
+    getSkeletonBounds(skeletonHandle: number, outXPtr: number, outYPtr: number, outWPtr: number, outHPtr: number): number;
     getMeshBatchCount(instanceId: number): number;
     getMeshBatchVertexCount(instanceId: number, batchIndex: number): number;
     getMeshBatchIndexCount(instanceId: number, batchIndex: number): number;
@@ -167,6 +170,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         getBonePosition: cw('spine_getBonePosition', 'number', ['number', 'string', 'number', 'number']) as SpineWrappedAPI['getBonePosition'],
         getBoneRotation: cw('spine_getBoneRotation', 'number', ['number', 'string']) as SpineWrappedAPI['getBoneRotation'],
         getBounds: cw('spine_getBounds', null, ['number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['getBounds'],
+        getSkeletonBounds: cw('spine_getSkeletonBounds', 'number', ['number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['getSkeletonBounds'],
         getMeshBatchCount: cw('spine_getMeshBatchCount', 'number', ['number']) as SpineWrappedAPI['getMeshBatchCount'],
         getMeshBatchVertexCount: cw('spine_getMeshBatchVertexCount', 'number', ['number', 'number']) as SpineWrappedAPI['getMeshBatchVertexCount'],
         getMeshBatchIndexCount: cw('spine_getMeshBatchIndexCount', 'number', ['number', 'number']) as SpineWrappedAPI['getMeshBatchIndexCount'],

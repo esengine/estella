@@ -89,6 +89,10 @@ int spine_probe_extract(int instanceId, int stage, int useCollector);
 // The twenty-four counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
+// The skeleton's authored extent, into four floats. No instance, no pose.
+int spine_getSkeletonBounds(int skeletonHandle, uintptr_t outXPtr, uintptr_t outYPtr,
+                            uintptr_t outWPtr, uintptr_t outHPtr);
+
 // BENCHMARK ONLY — open the first clip region to `stage` (es::spine::ClipStartStage).
 int spine_probe_clip_start(int instanceId, int stage);
 

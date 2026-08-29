@@ -439,6 +439,15 @@ bool boneRotation(const Instance* instance, const char* bone, float* degrees) {
     return true;
 }
 
+bool skeletonBounds(const Skeleton* skeleton, float* x, float* y, float* width, float* height) {
+    if (!skeleton || !skeleton->data) return false;
+    *x = skeleton->data->x;
+    *y = skeleton->data->y;
+    *width = skeleton->data->width;
+    *height = skeleton->data->height;
+    return true;
+}
+
 void bounds(const Instance* instance, float* x, float* y, float* width, float* height) {
     *x = *y = *width = *height = 0.0f;
     if (!instance) return;

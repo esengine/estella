@@ -262,6 +262,23 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
                       reinterpret_cast<float*>(outWPtr), reinterpret_cast<float*>(outHPtr));
 }
 
+/**
+ * The skeleton's AUTHORED extent, into four floats. Answerable from the data
+ * alone — no instance, no pose — which is what makes it usable for deciding
+ * whether a pose is worth computing. Zero and false where the runtime cannot
+ * report it.
+ */
+EMSCRIPTEN_KEEPALIVE
+int spine_getSkeletonBounds(int skeletonHandle, uintptr_t outXPtr, uintptr_t outYPtr,
+                            uintptr_t outWPtr, uintptr_t outHPtr) {
+    auto* x = reinterpret_cast<float*>(outXPtr);
+    auto* y = reinterpret_cast<float*>(outYPtr);
+    auto* w = reinterpret_cast<float*>(outWPtr);
+    auto* h = reinterpret_cast<float*>(outHPtr);
+    *x = *y = *w = *h = 0.0f;
+    return es::spine::skeletonBounds(g_ctx.skeletonOf(skeletonHandle), x, y, w, h) ? 1 : 0;
+}
+
 // =============================================================================
 // Mesh Extraction
 // =============================================================================

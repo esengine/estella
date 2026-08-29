@@ -197,6 +197,14 @@ bool bonePosition(const Instance* instance, const char* bone, float* x, float* y
 bool boneRotation(const Instance* instance, const char* bone, float* degrees);
 void bounds(const Instance* instance, float* x, float* y, float* width, float* height);
 
+/**
+ * The bounds the skeleton was AUTHORED with — from the data, before any instance
+ * exists and without posing one. A weaker promise than {@link bounds}, being the
+ * setup pose's extent, which an animation reaches outside of; what it can do
+ * that a posed extent cannot is decide whether a pose is worth computing.
+ */
+bool skeletonBounds(const Skeleton* skeleton, float* x, float* y, float* width, float* height);
+
 int constraintCount(const Instance* instance, ConstraintKind kind);
 const char* constraintName(const Instance* instance, ConstraintKind kind, int index);
 bool transformMix(const Instance* instance, const char* name, TransformMix* out);

@@ -569,6 +569,10 @@ bool clipStartStage(Instance*, int, ClipStartCounts*) {
     return false;
 }
 
+bool skeletonBounds(const Skeleton*, float*, float*, float*, float*) {
+    return false;
+}
+
 int version() {
     return ES_SPINE_VERSION;
 }
