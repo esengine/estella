@@ -41,7 +41,10 @@ export class SpineManager {
     private factories_: Map<SpineVersion, SpineModuleFactory>;
     private backends_: Map<SpineVersion, ModuleBackend> = new Map();
     private loadingBackends_: Map<SpineVersion, Promise<ModuleBackend | null>> = new Map();
-    private entityVersions_: Map<Entity, SpineVersion> = new Map();
+    /** Which runtime poses each entity. The authority for that is HERE: a
+     *  version backend can only see its own entities, so one that is handed an
+     *  entity another is posing cannot retire the binding it replaces. */
+    private bindings_: Map<Entity, { version: SpineVersion; backend: ModuleBackend }> = new Map();
 
     constructor(
         /** Whichever engine core is present (see ecs/engineApi.ts). */
@@ -88,12 +91,19 @@ export class SpineManager {
         }
 
         const isBinary = skelData instanceof Uint8Array;
+        const previous = this.bindings_.get(entity);
         const ok = backend.loadEntity(entity, skelData, atlasText, textures, isBinary, era);
         if (!ok) {
+            // Commit after success all the way up: the entity keeps the binding
+            // it had, in whichever runtime that was.
             log.error('spine', `Failed to load entity ${entity} into backend ${version}`);
             return null;
         }
-        this.entityVersions_.set(entity, version);
+        // A move BETWEEN runtimes: the one it went to removed nothing, because
+        // it never had this entity. Left behind, the old instance is posed and
+        // submitted every frame and no despawn ever reaches it.
+        if (previous && previous.backend !== backend) previous.backend.removeEntity(entity);
+        this.bindings_.set(entity, { version, backend });
         return version;
     }
 
@@ -112,27 +122,18 @@ export class SpineManager {
     /** The entities that currently have a skeleton bound — what a per-frame pass
      *  over "everything spine draws" iterates, without asking the World. */
     boundEntities(): Iterable<Entity> {
-        return this.entityVersions_.keys();
+        return this.bindings_.keys();
     }
 
     removeEntity(entity: Entity): void {
-        const version = this.entityVersions_.get(entity);
-        if (!version) {
-            this.entityVersions_.delete(entity);
-            return;
-        }
-        const backend = this.backends_.get(version);
-        if (backend) {
-            backend.removeEntity(entity);
-        }
-        this.entityVersions_.delete(entity);
+        this.bindings_.get(entity)?.backend.removeEntity(entity);
+        this.bindings_.delete(entity);
     }
 
     /**
-     * Tear down every loaded runtime backend, freeing the native skeletons /
-     * atlases each holds. Idempotent — clearing the maps makes a second call a
-     * no-op. Called from SpinePlugin.cleanup() on app teardown so spine wasm
-     * resources don't leak across an engine re-init.
+     * Tear down every loaded runtime, freeing the native skeletons / atlases
+     * each holds. Idempotent — clearing the maps makes a second call a no-op.
+     * The ONE teardown door: `shutdown()` was a second name for this.
      */
     dispose(): void {
         for (const backend of this.backends_.values()) {
@@ -140,67 +141,49 @@ export class SpineManager {
         }
         this.backends_.clear();
         this.loadingBackends_.clear();
-        this.entityVersions_.clear();
+        this.bindings_.clear();
     }
 
     getEntityVersion(entity: Entity): SpineVersion | undefined {
-        return this.entityVersions_.get(entity);
+        return this.bindings_.get(entity)?.version;
     }
 
     hasModuleBackend(version: SpineVersion): boolean {
         return this.backends_.has(version);
     }
 
-    getModuleBackend(version: SpineVersion): ModuleBackend | undefined {
+    /** @internal One version's runtime, for a diagnostic that has to look at
+     *  what it holds. Not a door into it: an entity's binding is this manager's,
+     *  and reaching a runtime directly is how one gets posed by two of them. */
+    moduleBackendForDiagnostics(version: SpineVersion): ModuleBackend | undefined {
         return this.backends_.get(version);
     }
 
     setAnimation(entity: Entity, animation: string, loop: boolean): void {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return;
-        const backend = this.backends_.get(version);
-        if (backend) backend.setAnimation(entity, animation, loop);
+        this.getEntityBackend_(entity)?.setAnimation(entity, animation, loop);
     }
 
     setSkin(entity: Entity, skin: string): void {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return;
-        const backend = this.backends_.get(version);
-        if (backend) backend.setSkin(entity, skin);
+        this.getEntityBackend_(entity)?.setSkin(entity, skin);
     }
 
     setEntityProps(entity: Entity, props: {
         skeletonScale?: number; flipX?: boolean; flipY?: boolean; layer?: number;
         timeScale?: number; playing?: boolean; color?: { r: number; g: number; b: number; a: number };
     }): void {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return;
-        const backend = this.backends_.get(version);
-        if (backend) backend.setEntityProps(entity, props);
+        this.getEntityBackend_(entity)?.setEntityProps(entity, props);
     }
 
     getBounds(entity: Entity): { x: number; y: number; width: number; height: number } | null {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return null;
-        const backend = this.backends_.get(version);
-        if (backend) return backend.getBounds(entity);
-        return null;
+        return this.getEntityBackend_(entity)?.getBounds(entity) ?? null;
     }
 
     getAnimations(entity: Entity): string[] {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return [];
-        const backend = this.backends_.get(version);
-        if (!backend) return [];
-        return backend.getAnimations(entity);
+        return this.getEntityBackend_(entity)?.getAnimations(entity) ?? [];
     }
 
     getSkins(entity: Entity): string[] {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return [];
-        const backend = this.backends_.get(version);
-        if (!backend) return [];
-        return backend.getSkins(entity);
+        return this.getEntityBackend_(entity)?.getSkins(entity) ?? [];
     }
 
     setDefaultMix(entity: Entity, duration: number): void {
@@ -297,22 +280,11 @@ export class SpineManager {
     }
 
     hasInstance(entity: Entity): boolean {
-        return this.entityVersions_.has(entity);
-    }
-
-    shutdown(): void {
-        for (const backend of this.backends_.values()) {
-            backend.shutdown();
-        }
-        this.backends_.clear();
-        this.loadingBackends_.clear();
-        this.entityVersions_.clear();
+        return this.bindings_.has(entity);
     }
 
     private getEntityBackend_(entity: Entity): ModuleBackend | undefined {
-        const version = this.entityVersions_.get(entity);
-        if (!version) return undefined;
-        return this.backends_.get(version);
+        return this.bindings_.get(entity)?.backend;
     }
 
     private async ensureBackend(version: SpineVersion): Promise<ModuleBackend | null> {

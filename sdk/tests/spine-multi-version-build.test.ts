@@ -45,7 +45,7 @@ describe('Spine multi-version build pipeline', () => {
 
         const manager = new SpineManager({} as any, factories as any);
         expect(manager).toBeDefined();
-        manager.shutdown();
+        manager.dispose();
     });
 
     test('SpineManager fails the load (no native fallback) when a version has no factory', async () => {
@@ -63,7 +63,7 @@ describe('Spine multi-version build pipeline', () => {
         expect(v43).toBeNull();
         expect(v42).toBeNull();
         expect(manager.getEntityVersion(1 as any)).toBeUndefined();
-        manager.shutdown();
+        manager.dispose();
     });
 
     test('SpineManager never touches a native spine_* binding', async () => {
@@ -81,7 +81,7 @@ describe('Spine multi-version build pipeline', () => {
             1 as any, '{"spine":"4.2.10","skeleton":{}}', '', new Map(), {} as any,
         );
         expect(touched).toBeNull();
-        manager.shutdown();
+        manager.dispose();
     });
 
     test('detectVersionJson routes every supported version, and only those', () => {

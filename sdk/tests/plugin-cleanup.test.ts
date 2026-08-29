@@ -22,7 +22,7 @@ describe('SpineManager.dispose', () => {
         const m = mgr as any;
         m.backends_.set('3.8', backendA);
         m.backends_.set('4.1', backendB);
-        m.entityVersions_.set(1, '3.8');
+        m.bindings_.set(1, { version: '3.8', backend: backendA });
         m.loadingBackends_.set('4.2', Promise.resolve(null));
 
         mgr.dispose();
@@ -30,7 +30,7 @@ describe('SpineManager.dispose', () => {
         expect(backendA.shutdown).toHaveBeenCalledTimes(1);
         expect(backendB.shutdown).toHaveBeenCalledTimes(1);
         expect(m.backends_.size).toBe(0);
-        expect(m.entityVersions_.size).toBe(0);
+        expect(m.bindings_.size).toBe(0);
         expect(m.loadingBackends_.size).toBe(0);
 
         // Idempotent: a second dispose is a no-op, not a re-shutdown / throw.

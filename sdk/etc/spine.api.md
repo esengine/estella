@@ -101,6 +101,7 @@ events: readonly SpineEvent[]
 
 ## SpineManager — class @experimental
 ```
+@internal moduleBackendForDiagnostics: (version: SpineVersion) => ModuleBackend | undefined
 boundEntities: () => Iterable<Entity>
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
@@ -108,7 +109,6 @@ enableEvents: (entity: Entity) => void
 getAnimations: (entity: Entity) => string[]
 getBounds: (entity: Entity) => { x: number; y: number; width: number; height: number; } | null
 getEntityVersion: (entity: Entity) => SpineVersion | undefined
-getModuleBackend: (version: SpineVersion) => ModuleBackend | undefined
 getPathConstraintMix: (entity: Entity, name: string) => PathMixData | null
 getSkins: (entity: Entity) => string[]
 getTransformConstraintMix: (entity: Entity, name: string) => TransformMixData | null
@@ -129,7 +129,6 @@ setSkin: (entity: Entity, skin: string) => void
 setSlotColor: (entity: Entity, slotName: string, r: number, g: number, b: number, a: number) => boolean
 setTrackAlpha: (entity: Entity, track: number, alpha: number) => void
 setTransformConstraintMix: (entity: Entity, name: string, mix: TransformMixData) => boolean
-shutdown: () => void
 submitMeshes: (registry: CppRegistry, materialOf?: SkeletalMaterialOf) => void
 updateAnimations: (dt: number) => void
 static detectVersion: (data: Uint8Array) => SpineVersion | null

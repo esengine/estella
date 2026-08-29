@@ -57,40 +57,58 @@ export class ModuleBackend {
          */
         era?: string,
     ): boolean {
-        // Re-loading a live entity (rapid editor ref edits, runtime asset swap)
-        // must free the old instance + skeleton refcount first, or replacing its
-        // EntityInfo below leaks the native instance and pins the shared skeleton.
-        if (this.entities_.has(entity)) this.removeEntity(entity);
-
-        let skelHandle: number;
-        const shared = era !== undefined ? this.skeletons_.get(era) : undefined;
-        if (shared) {
-            // Reuse the already-loaded skeleton — just spin up a fresh instance.
-            skelHandle = shared.skelHandle;
-            shared.refcount++;
-        } else {
-            skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
-            if (skelHandle < 0) {
-                log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
-                return false;
-            }
-            const pageCount = this.controller_.getAtlasPageCount(skelHandle);
-            for (let i = 0; i < pageCount; i++) {
-                const pageName = this.controller_.getAtlasPageTextureName(skelHandle, i);
-                const tex = textures.get(pageName);
-                if (tex) {
-                    this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
-                }
-            }
-            if (era !== undefined) this.skeletons_.set(era, { skelHandle, refcount: 1 });
+        // Commit after success, like the preparation that produced the asset:
+        // what this replaces keeps posing until the new binding exists, so a
+        // skeleton that will not parse costs the entity nothing.
+        const claimed = this.claimSkeleton_(skelData, atlasText, textures, isBinary, era);
+        if (claimed < 0) return false;
+        const instanceId = this.controller_.createInstance(claimed);
+        if (instanceId < 0) {
+            log.error('spine', `Failed to create instance: ${this.controller_.getLastError()}`);
+            this.releaseSkeleton_({ skelHandle: claimed, era } as EntityInfo);
+            return false;
         }
 
-        const instanceId = this.controller_.createInstance(skelHandle);
+        // Only now: the old instance and its claim on the era it was posing.
+        // Re-binding to the SAME era claimed it again above, so the skeleton is
+        // never unloaded and re-parsed underneath an entity that stays on it.
+        this.removeEntity(entity);
         this.entities_.set(entity, {
-            skelHandle, instanceId, era,
+            skelHandle: claimed, instanceId, era,
             skeletonScale: 1, flipX: false, flipY: false, layer: 0, timeScale: 1, playing: true,
         });
         return true;
+    }
+
+    /** One claim on the era's native skeleton — the loaded one if this runtime
+     *  already has it, else a fresh parse. -1 when it will not parse. */
+    private claimSkeleton_(
+        skelData: Uint8Array | string,
+        atlasText: string,
+        textures: Map<string, { glId: number; w: number; h: number }>,
+        isBinary: boolean,
+        era?: string,
+    ): number {
+        const shared = era !== undefined ? this.skeletons_.get(era) : undefined;
+        if (shared) {
+            shared.refcount++;
+            return shared.skelHandle;
+        }
+        const skelHandle = this.controller_.loadSkeleton(skelData, atlasText, isBinary);
+        if (skelHandle < 0) {
+            log.error('spine', `Failed to load skeleton: ${this.controller_.getLastError()}`);
+            return -1;
+        }
+        const pageCount = this.controller_.getAtlasPageCount(skelHandle);
+        for (let i = 0; i < pageCount; i++) {
+            const pageName = this.controller_.getAtlasPageTextureName(skelHandle, i);
+            const tex = textures.get(pageName);
+            if (tex) {
+                this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
+            }
+        }
+        if (era !== undefined) this.skeletons_.set(era, { skelHandle, refcount: 1 });
+        return skelHandle;
     }
 
     setEntityProps(entity: Entity, props: {
