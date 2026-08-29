@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
+import type { LoadContext } from '../src/asset/AssetLoader';
 
 function createPoolFake() {
     const live = new Set<number>();
@@ -393,7 +394,7 @@ describe('what must be rebuilt when this changes', () => {
         const assets = realm({ 'level.tmj': MAP_WITH_EXTERNAL, 'terrain.tsj': EXTERNAL_TILESET });
         await assets.acquireTyped('tilemap', 'maps/level.tmj');
 
-        expect(assets.dependentsOf('maps/terrain.tsj'))
+        expect(assets.dependentsOfSource('maps/terrain.tsj'))
             .toEqual([{ type: 'tilemap', path: 'maps/level.tmj' }]);
     });
 
@@ -401,7 +402,7 @@ describe('what must be rebuilt when this changes', () => {
         const assets = realm({ 'hero.esmaterial': MATERIAL });
         await assets.acquireTyped('material', 'materials/hero.esmaterial');
 
-        expect(assets.dependentsOf('materials/wall.png'))
+        expect(assets.dependentsOfSource('materials/wall.png'))
             .toEqual([{ type: 'material', path: 'materials/hero.esmaterial' }]);
     });
 
@@ -414,7 +415,7 @@ describe('what must be rebuilt when this changes', () => {
         const composed = assets.dependenciesOf('tilemap', 'maps/level.tmj')
             .find((e) => e.path.startsWith('composed:'))!;
 
-        expect(assets.dependentsOf(composed.path)).toEqual([]);
+        expect(assets.dependentsOfSource(composed.path)).toEqual([]);
     });
 
     it('a receipt spelled as a uuid answers to the file it resolves to', async () => {
@@ -434,8 +435,8 @@ describe('what must be rebuilt when this changes', () => {
         });
         await assets.acquireTyped('widget', 'x.widget');
 
-        expect(assets.dependentsOf('art/skin.png')).toEqual([{ type: 'widget', path: 'x.widget' }]);
-        expect(assets.dependentsOf('@uuid:skin'), 'the same asset, spelled the other way')
+        expect(assets.dependentsOfSource('art/skin.png')).toEqual([{ type: 'widget', path: 'x.widget' }]);
+        expect(assets.dependentsOfSource('@uuid:skin'), 'the same asset, spelled the other way')
             .toEqual([{ type: 'widget', path: 'x.widget' }]);
     });
 
@@ -444,7 +445,7 @@ describe('what must be rebuilt when this changes', () => {
         const held = await assets.acquireTyped('tilemap', 'maps/level.tmj');
 
         held.release();
-        expect(assets.dependentsOf('maps/terrain.tsj')).toEqual([]);
+        expect(assets.dependentsOfSource('maps/terrain.tsj')).toEqual([]);
     });
 });
 
@@ -521,10 +522,10 @@ describe('a change reaches what was built from it', () => {
         expect(events).toEqual(['child:start', 'child:end', 'parent:start', 'parent:end']);
     });
 
-    it('a cycle is a plan of one group, not a hang', async () => {
-        // `A takes B` while B READ A is a real shape. What must be acyclic is the
-        // plan, which is this graph's condensation — so each of them rebuilds
-        // once and the walk terminates.
+    it('a cycle is a plan, not a hang', async () => {
+        // `A takes B` while B READ A is a real shape. Entered at the file A lives
+        // at: A rebuilds, B because it read that file, then A again because the B
+        // it holds is a new era. Each vertex is planned once, so it terminates.
         const prepared: string[] = [];
         const assets = realm({ 'a.aa': '{}', 'b.bb': '{}' });
         assets.register({
@@ -553,6 +554,119 @@ describe('a change reaches what was built from it', () => {
         assets.invalidate('a.aa');
         await settled();
 
-        expect(prepared).toEqual(['aa', 'bb']);
+        expect(prepared).toEqual(['aa', 'bb', 'aa']);
+    });
+});
+
+describe('propagation keeps the type all the way to the effect', () => {
+    beforeEach(() => { pool = createPoolFake(); materialFake.reset(); });
+
+    /** Three assets, two of them under ONE path: (aa,p) reads the file x,
+     *  (bb,q) takes aa, (cc,p) takes bb. */
+    function chainOverOnePath(assets: Assets, prepared: string[]): void {
+        const link = (type: string, take: (ctx: LoadContext) => Promise<unknown>): void => {
+            assets.register({
+                type, extensions: [`.${type}`],
+                registry: {
+                    prepare: async (path, ctx) => {
+                        prepared.push(type);
+                        await take(ctx);
+                        return { published: { path }, value: { id: type } };
+                    },
+                },
+            });
+        };
+        link('aa', (ctx) => ctx.readSource!('x'));
+        link('bb', (ctx) => ctx.acquireAsset('aa', 'p'));
+        link('cc', (ctx) => ctx.acquireAsset('bb', 'q'));
+    }
+
+    it('a path that names two assets rebuilds them in the order the plan says', async () => {
+        // The plan already knows (aa,p) and (cc,p) are two vertices. Ending an
+        // era by PATH ends both of them at once, so cc is rebuilt against the bb
+        // it already had — before bb itself has been touched.
+        const assets = realm({});
+        const prepared: string[] = [];
+        chainOverOnePath(assets, prepared);
+        await assets.acquireTyped('cc', 'p');
+        expect(prepared).toEqual(['cc', 'bb', 'aa']);
+
+        prepared.length = 0;
+        assets.invalidate('x');
+        await settled();
+
+        expect(prepared).toEqual(['aa', 'bb', 'cc']);
+    });
+
+    it('an asset at the changed path is still rebuilt in its turn', async () => {
+        // It was filtered out of every group for sharing the changed path, which
+        // is the same type-erasure one level up: (cc,p) is not the thing that
+        // changed, it is what the chain reaches last.
+        const assets = realm({});
+        const prepared: string[] = [];
+        chainOverOnePath(assets, prepared);
+        await assets.acquireTyped('cc', 'p');
+
+        prepared.length = 0;
+        assets.invalidate('p');
+        await settled();
+
+        expect(prepared.lastIndexOf('cc'), 'cc last rebuilt before bb, so from the old bb')
+            .toBeGreaterThan(prepared.indexOf('bb'));
+    });
+
+    /** An asset AT p, and an asset that READ the file at p. */
+    function overOnePath(assets: Assets, prepared: string[]): void {
+        assets.register({
+            type: 'skin', extensions: ['.skin'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    prepared.push('skin');
+                    await ctx.acquireTexture('t.png');
+                    return { published: { path }, value: { id: 'skin' } };
+                },
+            },
+        });
+        assets.register({
+            type: 'reader', extensions: ['.reader'],
+            registry: {
+                prepare: async (path, ctx) => {
+                    prepared.push('reader');
+                    await ctx.readSource!('p');
+                    return { published: { path }, value: { id: 'reader' } };
+                },
+            },
+        });
+    }
+
+    it('an asset whose dependency changed is not a change to the FILE it lives at', async () => {
+        // The reader read the bytes at p. What changed is the texture (skin,p)
+        // acquired, so those bytes are exactly as it read them.
+        const assets = realm({});
+        const prepared: string[] = [];
+        overOnePath(assets, prepared);
+        await assets.acquireTyped('skin', 'p');
+        await assets.acquireTyped('reader', 'q');
+
+        prepared.length = 0;
+        assets.invalidate('t.png');
+        await settled();
+
+        expect(prepared).toEqual(['skin']);
+    });
+
+    it('a change to the file itself reaches both meanings of it', async () => {
+        const assets = realm({});
+        const prepared: string[] = [];
+        overOnePath(assets, prepared);
+        await assets.acquireTyped('skin', 'p');
+        await assets.acquireTyped('reader', 'q');
+
+        prepared.length = 0;
+        assets.invalidate('p');
+        await settled();
+
+        expect(prepared, 'the asset at p').toContain('skin');
+        expect(prepared, 'the asset that read p').toContain('reader');
     });
 });

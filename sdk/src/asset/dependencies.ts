@@ -72,14 +72,25 @@ export interface Preparation {
 }
 
 /**
+ * The two reverse questions, which are not one question with a flag.
+ *
+ * `ofSource` is asked of the file that changed: whoever READ it, and whoever
+ * acquired the asset living at it. `ofAsset` is asked of every vertex after
+ * that, and answers acquisitions only — those bytes have not changed.
+ */
+export interface DependencyOracle {
+    ofSource(path: string): readonly AssetIdentity[];
+    ofAsset(asset: AssetIdentity): readonly AssetIdentity[];
+}
+
+/**
  * What to rebuild after `changed` changed, deepest dependency first, each cycle
  * one group. The root is a PATH (a change names a file, which need not be an
  * asset); every vertex after it keeps its TYPE, since flattening two assets that
  * share a path invents a cycle between them. Tarjan emits last-reached first.
  */
 export function rebuildPlan(
-    changed: string,
-    dependents: (path: string, type?: string) => readonly AssetIdentity[],
+    changed: string, dependents: DependencyOracle,
 ): AssetIdentity[][] {
     const index = new Map<string, number>();
     const low = new Map<string, number>();
@@ -96,7 +107,7 @@ export function rebuildPlan(
         next++;
         stack.push(node);
         open.add(key);
-        for (const parent of dependents(node.path, node.type)) {
+        for (const parent of dependents.ofAsset(node)) {
             const above = keyOf(parent);
             if (!index.has(above)) {
                 visit(parent);
@@ -118,7 +129,7 @@ export function rebuildPlan(
 
     // A forest, not a tree: the changed file can be read by several assets, and
     // one already visited through another root is not visited again.
-    for (const root of dependents(changed)) {
+    for (const root of dependents.ofSource(changed)) {
         if (!index.has(keyOf(root))) visit(root);
     }
     return groups.reverse();

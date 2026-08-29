@@ -1666,7 +1666,7 @@ export class Assets {
      */
     invalidate(ref: string): boolean {
         const plan = this.rebuildPlan_(ref);
-        const { hit, rebuilt } = this.invalidateOne_(ref);
+        const { hit, rebuilt } = this.invalidateSource_(ref);
         if (plan.length > 0) this.track_(rebuilt.then(() => this.rebuildAssetGraph_(plan)));
         return hit;
     }
@@ -1690,12 +1690,14 @@ export class Assets {
         }
     }
 
-    /** What a change to `ref` reaches, after `ref` itself: this call ends its own
-     *  era, and a cycle back to it must not end it twice. */
+    /** What a change to `ref` reaches. Not filtered by path: an asset that
+     *  happens to live at the changed file can still be what the chain reaches
+     *  LAST, and dropping it there is the same erasure one level up. */
     private rebuildPlan_(ref: string): AssetIdentity[][] {
-        const root = this.resolveLoadPath_(ref);
-        const plan = rebuildPlan(root, (path, type) => this.dependentsOf(path, type));
-        return plan.map((group) => group.filter((v) => v.path !== root)).filter((g) => g.length > 0);
+        return rebuildPlan(this.resolveLoadPath_(ref), {
+            ofSource: (path) => this.dependentsOfSource(path),
+            ofAsset: (asset) => this.dependentsOfAsset(asset),
+        });
     }
 
     /** Count one propagation as in flight until it lands. It answers to nobody
@@ -1712,91 +1714,120 @@ export class Assets {
     /** Each group only once everything it was built from has landed. */
     private async rebuildAssetGraph_(plan: AssetIdentity[][]): Promise<void> {
         for (const group of plan) {
-            await Promise.all(group.map((vertex) => this.invalidateOne_(vertex.path).rebuilt));
+            await Promise.all(group.map((vertex) => this.invalidateAsset_(vertex).rebuilt));
         }
     }
 
-    /** End one asset's era: drop every record of it, re-publish what is
-     *  published by name, and say which kind ended. `rebuilt` settles when its
-     *  own re-preparation has landed. */
-    private invalidateOne_(ref: string): { hit: boolean; rebuilt: Promise<void> } {
-        const path = this.resolveLoadPath_(ref);
-        // The texture handle bound to this path, captured BEFORE the caches drop
-        // it, so a rebind listener can swap it in live components (hot update).
-        const oldTextureHandle = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
+    /**
+     * End every era at one PATH: a file changed, and whatever it names changed
+     * with it. What `invalidate(ref)` is, and what a hot update's changed key is.
+     */
+    private invalidateSource_(ref: string): { hit: boolean; rebuilt: Promise<void> } {
         let hit = false;
-        // What each kind of cache was holding for this path, so the event says
-        // which kind ended rather than leaving a listener to infer it.
-        const dropped = new Map<AssetFieldType | AddressableAssetType, unknown>();
-
-        // Textures: cache_key has a flip flag suffix, so check both. The C++
-        // pool's residency identity is severed too — an evictable entry under
-        // this key is freed and can never be revived with stale bytes.
-        const rm = getResourceManager();
-        for (const flip of [true, false]) {
-            const key = this.textureCacheKey_(path, flip);
-            if (this.textureCache_.invalidate(key)) { hit = true; dropped.set('texture', oldTextureHandle); }
-            // The ledger is NOT dropped: holders of the outgoing generation
-            // still owe a release, and forgetting them is what stranded their
-            // texture with nobody able to free it. Its era ends here, though —
-            // the next acquire opens a generation of its own even if the pool
-            // hands back a numerically equal handle.
-            this.textureRefs_.supersede(key);
-            if (typeof rm?.invalidateTexturePath === 'function') {
-                if (rm.invalidateTexturePath(key)) { hit = true; dropped.set('texture', oldTextureHandle); }
-            }
+        const work: Array<Promise<void>> = [];
+        for (const type of this.loaders_.keys()) {
+            const ended = this.invalidateAsset_({ type, path: ref });
+            hit = ended.hit || hit;
+            work.push(ended.rebuilt);
         }
+        return { hit, rebuilt: Promise.all(work).then(() => undefined) };
+    }
 
-        // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
-        for (const [type, cache] of this.genericCache_.entries()) {
-            const bound = cache.get(path)?.value;
-            if (cache.invalidate(path)) { hit = true; dropped.set(type as AssetFieldType, bound); }
-            // The ledger stays: the outgoing generation's holders still owe a
-            // release. Its era is closed so the next acquire cannot join it.
+    /**
+     * End ONE asset's era — its type all the way down. A path can name a texture
+     * and a material, and what one of them acquired changing is not a change to
+     * the other; a plan that knows the difference and then ends both has thrown
+     * away what it knew.
+     */
+    private invalidateAsset_(asset: AssetIdentity): { hit: boolean; rebuilt: Promise<void> } {
+        const { type } = asset;
+        const path = this.resolveLoadPath_(asset.path);
+        // Held by a cache or by a loader's own residency: what a listener is
+        // told about. A slot swaps its era instead, and reports nothing.
+        let dropped = false;
+        let oldValue: unknown;
+
+        if (type === 'texture') {
+            // The handle bound to this path, captured BEFORE the caches drop it,
+            // so a rebind listener can swap it in live components.
+            oldValue = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
+            const rm = getResourceManager();
+            // Both flip variants: the cache key carries the flag. The C++ pool's
+            // residency identity is severed too — an evictable entry under this
+            // key is freed and can never be revived with stale bytes.
+            for (const flip of [true, false]) {
+                const key = this.textureCacheKey_(path, flip);
+                if (this.textureCache_.invalidate(key)) dropped = true;
+                // The ledger is NOT dropped: holders of the outgoing generation
+                // still owe a release, and forgetting them strands their texture
+                // with nobody able to free it. The era still ends here.
+                this.textureRefs_.supersede(key);
+                if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(key)) {
+                    dropped = true;
+                }
+            }
+        } else {
+            const cache = this.genericCache_.get(type);
+            if (cache) {
+                oldValue = cache.get(path)?.value;
+                if (cache.invalidate(path)) dropped = true;
+            }
+            // The ledger stays, for the same reason as a texture's.
             this.genericRefs_.supersede(`${type}:${path}`);
         }
 
         // A registry-backed asset has no cache entry to drop and no handle to
         // swap: the update IS a new era published under the same names.
-        const slots = this.republishSlots_(ref);
-        if (slots.found) hit = true;
+        const slot = this.republishSlot_(type, asset.path);
 
-        // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
-        // the Assets-level entry — sever it unconditionally so a warm-cache
-        // revive can never serve stale bytes after a hot reload.
-        for (const [type, loader] of this.loaders_) {
-            if (!loader.invalidate?.(path)) continue;
-            hit = true;
-            if (!dropped.has(type as AssetFieldType)) dropped.set(type as AssetFieldType, undefined);
+        // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive the
+        // Assets-level entry — sever it so a warm-cache revive can never serve
+        // stale bytes after a hot reload.
+        if (this.loaders_.get(type)?.invalidate?.(path)) dropped = true;
+
+        // The reverse handle→path records of this kind are stale now: a reload
+        // mints new handles, and the old ones must stop naming the asset.
+        for (const [key, held] of this.handleToPath_) {
+            if (held === path && key.startsWith(`${type}:`)) this.handleToPath_.delete(key);
         }
 
-        // The reverse handle→path records for this path are stale now too — a
-        // reload mints new handles; the old ones must stop naming the asset.
-        for (const [key, p] of this.handleToPath_) {
-            if (p === path) this.handleToPath_.delete(key);
+        if (dropped) {
+            this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue });
         }
-
-        for (const [type, oldValue] of dropped) this.fireInvalidate_({ ref, type, oldValue });
-
-        return { hit, rebuilt: slots.rebuilt };
+        return { hit: dropped || slot.found, rebuilt: slot.rebuilt };
     }
 
     /**
-     * Prepare a new era for every registry slot this ref names, and publish each
+     * Prepare a new era for the slot (type, ref) names, and publish it
      * atomically. By IDENTITY: the slot is keyed by what the asset is, and this
      * preparation resolves where the current revision serves it.
      */
-    private republishSlots_(ref: string): { found: boolean; rebuilt: Promise<void> } {
+    private republishSlot_(type: string, ref: string): { found: boolean; rebuilt: Promise<void> } {
+        const kind = this.registryKind_(type);
         const identity = this.assetIdentity_(ref);
-        const work: Array<Promise<unknown>> = [];
-        for (const [type] of this.loaders_) {
-            const kind = this.registryKind_(type);
-            if (!kind || !this.registrySlots_.has(type, identity)) continue;
-            work.push(this.registrySlots_.republish(kind, type, identity).catch((e: unknown) => {
-                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
-            }));
+        if (!kind || !this.registrySlots_.has(type, identity)) {
+            return { found: false, rebuilt: Promise.resolve() };
         }
-        return { found: work.length > 0, rebuilt: Promise.all(work).then(() => undefined) };
+        const rebuilt = this.registrySlots_.republish(kind, type, identity).then(
+            () => undefined,
+            (e: unknown) => {
+                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
+            },
+        );
+        return { found: true, rebuilt };
+    }
+
+    /** {@link republishSlot_} for every type this ref names one of — a changed
+     *  FILE, which does not say what kind of asset lives at it. */
+    private republishSlots_(ref: string): { found: boolean; rebuilt: Promise<void> } {
+        const work: Array<Promise<void>> = [];
+        let found = false;
+        for (const type of this.loaders_.keys()) {
+            const slot = this.republishSlot_(type, ref);
+            found = slot.found || found;
+            work.push(slot.rebuilt);
+        }
+        return { found, rebuilt: Promise.all(work).then(() => undefined) };
     }
 
     /** Fire every onInvalidate listener with one generation's ending. Isolates
@@ -2206,7 +2237,26 @@ export class Assets {
      *
      * @internal
      */
-    dependentsOf(ref: string, type?: string): AssetIdentity[] {
+    dependentsOfSource(ref: string): AssetIdentity[] {
+        // Both meanings of a file: whoever READ it, and whoever acquired the
+        // asset that lives at it.
+        return this.dependents_(ref, isInvalidatable);
+    }
+
+    /**
+     * Every asset of this realm that ACQUIRED this one — the edge to follow once
+     * the walk is past the file that changed. A source read is NOT one: those
+     * bytes are exactly as their reader read them, and what ended here is this
+     * asset's own generation.
+     *
+     * @internal
+     */
+    dependentsOfAsset(asset: AssetIdentity): AssetIdentity[] {
+        return this.dependents_(asset.path, (e) => e.kind === 'owned' && e.type === asset.type);
+    }
+
+    /** Every era with an edge that `names` — the walk both doors share. */
+    private dependents_(ref: string, names: (e: DependencyReceipt) => boolean): AssetIdentity[] {
         const canonical = new Map<string, string>();
         const identify = (path: string): string => {
             let known = canonical.get(path);
@@ -2217,14 +2267,11 @@ export class Assets {
             return known;
         };
         const target = identify(ref);
-        // An acquisition names an ASSET, so a type narrows it; a source read
-        // names CONTENT, which is the same file whatever else lives at it.
-        const names = (e: DependencyReceipt): boolean =>
-            isInvalidatable(e) && identify(e.path) === target
-            && (type === undefined || e.kind === 'source' || e.type === type);
         const out: AssetIdentity[] = [];
         for (const era of this.eras_()) {
-            if (era.edges.some(names)) out.push({ type: era.type, path: era.path });
+            if (era.edges.some((e) => names(e) && identify(e.path) === target)) {
+                out.push({ type: era.type, path: era.path });
+            }
         }
         return out;
     }

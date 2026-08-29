@@ -13,10 +13,14 @@ import { describe, it, expect } from 'vitest';
 import { rebuildPlan } from '../src/asset/dependencies';
 import type { AssetIdentity } from '../src/asset/dependencies';
 
-/** A reverse graph as a table: what depends on (path, type). */
+/** A reverse graph as a table: the file's readers under its path, and each
+ *  asset's acquirers under `type:path`. */
 function graph(edges: Record<string, AssetIdentity[]>) {
-    return (path: string, type?: string): readonly AssetIdentity[] =>
-        edges[type === undefined ? path : `${type}:${path}`] ?? [];
+    return {
+        ofSource: (path: string): readonly AssetIdentity[] => edges[path] ?? [],
+        ofAsset: (asset: AssetIdentity): readonly AssetIdentity[] =>
+            edges[`${asset.type}:${asset.path}`] ?? [],
+    };
 }
 
 describe('a rebuild plan is over assets, not over paths', () => {
