@@ -63,7 +63,7 @@ describe('MaterialAssetLoader texture failure', () => {
     });
 });
 
-describe('MaterialAssetLoader texture release on unload', () => {
+describe('MaterialAssetLoader ownership on unload', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (Material.createFromAsset as ReturnType<typeof vi.fn>).mockReturnValue(11);
@@ -90,20 +90,17 @@ describe('MaterialAssetLoader texture release on unload', () => {
         return { ctx, released };
     }
 
-    it('keeps the RECEIPT for each bound texture and gives it back on unload', async () => {
+    it('destroys what it made and gives back nothing it acquired', async () => {
+        // The era that acquired it gives it back; releasing here frees it twice.
+        // That it DOES come back is asserted in asset-dependencies.test.ts.
         const loader = new MaterialAssetLoader();
         const { ctx, released } = makeCtxWithTexture();
 
         const result = await loader.load(MAT_PATH, ctx);
-        // The acquisition is recorded, not the path: a hot update between load
-        // and unload makes one path name two eras, and a release addressed by
-        // path gives back the older one — a stranger's.
-        expect(result.textureLeases?.map((l) => l.key))
-            .toEqual(['texture:assets/materials/missing.png']);
         expect(Material.setUniform).toHaveBeenCalled();
 
-        loader.unload(result, ctx);
-        expect(released).toEqual([{ key: 'texture:assets/materials/missing.png', generation: 1 }]);
+        loader.unload(result);
+        expect(released, 'the loader released a receipt it does not own').toEqual([]);
         expect(Material.release).toHaveBeenCalledWith(11);
     });
 });

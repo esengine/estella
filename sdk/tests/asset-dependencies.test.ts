@@ -62,6 +62,16 @@ const platformFactory = vi.hoisted(() => () => ({
 vi.mock('../src/platform', platformFactory);
 vi.mock('../src/platform/base', platformFactory);
 
+vi.mock('../src/render/material', () => ({
+    Material: {
+        createFromAsset: vi.fn(() => 11),
+        setUniform: vi.fn(),
+        tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
+        compileShader: vi.fn(() => 7),
+        release: vi.fn(),
+    },
+}));
+
 /** A `.tmj` whose one tileset lives in an external `.tsj`. */
 const MAP_WITH_EXTERNAL = JSON.stringify({
     width: 1, height: 1, tilewidth: 4, tileheight: 4,
@@ -79,6 +89,11 @@ const MAP_WITH_COLLECTION = JSON.stringify({
         tiles: [{ id: 0, image: 'rock.png', imagewidth: 4, imageheight: 4 }],
     }],
     layers: [{ type: 'tilelayer', name: 'g', width: 1, height: 1, data: [1] }],
+});
+
+/** A material binding one texture, on a built-in shader (no shader file). */
+const MATERIAL = JSON.stringify({
+    type: 'material', shader: 'builtin:sprite-unlit', properties: { mainTex: 'wall.png' },
 });
 
 function realm(docs: Record<string, string>): Assets {
@@ -202,5 +217,85 @@ describe('a preparation is a transaction', () => {
 
         expect(assets.dependenciesOf('brittle', 'x.brittle')).toEqual([]);
         expect(assets.resolveRegistryAsset('brittle', 'x.brittle')).toBeUndefined();
+    });
+});
+
+describe('a handle-bound load is a preparation too', () => {
+    beforeEach(() => { pool = createPoolFake(); });
+
+    /** A loader whose asset a component holds BY HANDLE, binding one texture. */
+    function gadget(assets: Assets, opts: { fail?: boolean } = {}): void {
+        assets.register<{ handle: number }>({
+            type: 'gadget',
+            extensions: ['.gadget'],
+            load: async (_path, ctx) => {
+                const tex = await ctx.acquireTexture('g.png');
+                if (opts.fail) throw new Error('load failed');
+                return { handle: tex.value.handle };
+            },
+            unload: () => {},
+        });
+    }
+
+    it('the texture it bound is an owned dependency of it', async () => {
+        // Nothing about a dependency is registry-shaped: what makes the edge is
+        // the acquisition, and a handle-bound asset acquires the same way.
+        const assets = realm({});
+        gadget(assets);
+        await assets.acquireTyped('gadget', 'x.gadget');
+
+        expect(assets.dependenciesOf('gadget', 'x.gadget'))
+            .toContainEqual({ kind: 'owned', type: 'texture', path: 'g.png' });
+    });
+
+    it('the last holder giving it back gives back what its preparation took', async () => {
+        const assets = realm({});
+        gadget(assets);
+        const held = await assets.acquireTyped('gadget', 'x.gadget');
+        expect(pool.liveTextures()).toBe(1);
+
+        held.release();
+        expect(pool.liveTextures(), 'the texture the load took').toBe(0);
+        expect(assets.dependenciesOf('gadget', 'x.gadget')).toEqual([]);
+    });
+
+    it('a load that throws keeps nothing it acquired', async () => {
+        const assets = realm({});
+        gadget(assets, { fail: true });
+        const base = assets.sizes().refRows;
+
+        await expect(assets.acquireTyped('gadget', 'x.gadget')).rejects.toThrow('load failed');
+
+        expect(pool.liveTextures(), 'the texture the failed load took').toBe(0);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+});
+
+describe('a handle-bound loader owns nothing of its own', () => {
+    beforeEach(() => { pool = createPoolFake(); });
+
+    it('a material\'s bound texture is its era\'s, and goes back with it', async () => {
+        // The receipts are the era's, not a field the loader keeps beside its
+        // result and remembers to hand back.
+        const assets = realm({ 'hero.esmaterial': MATERIAL });
+        const held = await assets.acquireTyped('material', 'materials/hero.esmaterial');
+        expect(pool.liveTextures()).toBe(1);
+
+        expect(assets.dependenciesOf('material', 'materials/hero.esmaterial'))
+            .toContainEqual({ kind: 'owned', type: 'texture', path: 'materials/wall.png' });
+
+        held.release();
+        expect(pool.liveTextures(), 'the texture the material bound').toBe(0);
+    });
+
+    it('two holders keep it, and the last one lets it go', async () => {
+        const assets = realm({ 'hero.esmaterial': MATERIAL });
+        const first = await assets.acquireTyped('material', 'materials/hero.esmaterial');
+        const second = await assets.acquireTyped('material', 'materials/hero.esmaterial');
+
+        first.release();
+        expect(pool.liveTextures(), 'released while a holder was still using it').toBe(1);
+        second.release();
+        expect(pool.liveTextures()).toBe(0);
     });
 });

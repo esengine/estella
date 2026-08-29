@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLoader, LoadContext, MaterialResult, TextureResult } from '../AssetLoader';
-import type { AssetLease } from '../AssetLease';
+import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
 import { BUILTIN_REF_PREFIX, isBuiltinAssetRef, resolveDocumentRef } from '../documentRef';
 import type { MaterialAssetData, ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
@@ -31,54 +30,43 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             const parentPath = resolveDocumentRef(path, data.instanceOf);
             const parent = await this.load(parentPath, ctx);
             const handle = Material.createFromAsset(data, 0, parent.handle);
-            const textureLeases = await this.applyTextureProps(handle, data, path, ctx);
-            return {
-                handle,
-                shaderHandle: parent.shaderHandle,
-                textureLeases: [...(parent.textureLeases ?? []), ...textureLeases],
-                parentHandle: parent.handle,
-            };
+            await this.applyTextureProps(handle, data, path, ctx);
+            return { handle, shaderHandle: parent.shaderHandle, parentHandle: parent.handle };
         }
 
         // Enabled static switches select the shader permutation (compiled once per switch-set).
         const features = enabledSwitches(data.switches);
         const shaderHandle = await this.loadShader(path, data.shader, features, ctx);
         const handle = Material.createFromAsset(data, shaderHandle);
-        const textureLeases = await this.applyTextureProps(handle, data, path, ctx);
+        await this.applyTextureProps(handle, data, path, ctx);
 
-        return { handle, shaderHandle, textureLeases };
+        return { handle, shaderHandle };
     }
 
     // A texture param is a string property (an asset ref); scalar/vector params are
-    // numbers/objects (handled by createFromAsset). Bind each texture and keep its
-    // RECEIPT, so unload gives back the era this material bound rather than
-    // whichever one shares its path by then.
+    // numbers/objects (handled by createFromAsset). The acquisition holds the
+    // receipt — this material's era gives it back — so binding is all there is
+    // to do here.
     private async applyTextureProps(
         handle: number,
         data: MaterialAssetData,
         matPath: string,
         ctx: LoadContext,
-    ): Promise<AssetLease<TextureResult>[]> {
-        const bound: AssetLease<TextureResult>[] = [];
+    ): Promise<void> {
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
             const texPath = resolveDocumentRef(matPath, value);
             try {
                 const tex = await ctx.acquireTexture(texPath);
                 Material.setUniform(handle, name, Material.tex(tex.value.handle));
-                bound.push(tex); // recorded only on success — matches the acquisition taken
             } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
                 log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
             }
         }
-        return bound;
     }
 
     unload(asset: MaterialResult): void {
-        if (asset.textureLeases) {
-            for (const lease of asset.textureLeases) lease.release();
-        }
         if (asset.parentHandle !== undefined) Material.release(asset.parentHandle);
         Material.release(asset.handle);
     }

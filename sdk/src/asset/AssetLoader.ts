@@ -25,9 +25,6 @@ export interface SpineLoadResult {
 export interface MaterialResult {
     handle: number;
     shaderHandle: number;
-    /** Receipts for the textures this material bound; released on unload. Not
-     *  paths: a hot update between load and unload makes one path name two. */
-    textureLeases?: AssetLease<TextureResult>[];
     /** Parent material handle for an `instanceOf` material, released on unload. */
     parentHandle?: number;
 }
@@ -107,12 +104,6 @@ export interface LoadContext {
      * this loader was handed.
      */
     acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>>;
-    /**
-     * Release by path — the compatibility door for a loader that only ever had
-     * one. Exact while a path names one instance; after an invalidate it gives
-     * back the OLDEST era sharing the path. See {@link acquireTexture}.
-     */
-    releaseTexture(path: string): void;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
     /**
@@ -187,9 +178,9 @@ export interface AssetLoader<T> {
     readonly type: string;
     readonly extensions: string[];
     load?(path: string, ctx: LoadContext): Promise<T>;
-    /** Free the loaded asset. `ctx` gives loaders that pulled sub-assets during
-     *  load (e.g. a material's bound textures) a channel to release them. */
-    unload?(asset: T, ctx: LoadContext): void;
+    /** Destroy what `load` made. What it ACQUIRED is the preparation's and goes
+     *  back with the era — a loader releasing it here would free it twice. */
+    unload?(asset: T): void;
     /** Set instead of `load`/`unload` when the asset is published by name. */
     registry?: RegistryAssetLoader<T>;
     /**

@@ -22,7 +22,7 @@ import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
-import { DependencyRecorder, type DependencyReceipt, type Preparation } from './dependencies';
+import { DependencyRecorder, type DependencyReceipt, type Preparation, type PreparedLoad } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MeshAssetLoader } from './loaders/MeshAssetLoader';
@@ -371,12 +371,12 @@ export class Assets {
     /** Handles already disowned in this epoch, so N callers sharing one load
      *  drop its single C++ reference once between them, not N times. */
     private abandoned_ = new Set<number>();
-    private genericCache_ = new Map<string, AsyncCache<unknown>>();
+    private genericCache_ = new Map<string, AsyncCache<PreparedLoad<unknown>>>();
     /** Per-asset reference counts for the generic caches, keyed `type:path`.
      *  Same contract as textures: every load*() increments, every release*()
      *  decrements, and the loader's unload runs only at zero — so an asset
      *  shared by two scenes survives the first scene's unload. */
-    private genericRefs_ = new AssetRefLedger<unknown>();
+    private genericRefs_ = new AssetRefLedger<PreparedLoad<unknown>>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
@@ -1465,7 +1465,7 @@ export class Assets {
 
     /** {@link textureLease_} for everything that goes through a typed loader. */
     private typedLease_<T>(
-        type: string, lease: AssetRefLease<unknown>, value: T,
+        type: string, lease: AssetRefLease<PreparedLoad<unknown>>, value: T,
     ): AssetLease<T> {
         return {
             key: lease.key, generation: lease.generation, value,
@@ -1593,7 +1593,7 @@ export class Assets {
      * @internal The typed twin of {@link releaseTextureLease}; callers use the
      * lease's own `release()`.
      */
-    releaseTypedLease(type: string, lease: AssetRefLease<unknown>): void {
+    releaseTypedLease(type: string, lease: AssetRefLease<PreparedLoad<unknown>>): void {
         const dropped = this.genericRefs_.release(lease);
         if (!dropped?.exhausted) return;
         const path = lease.key.slice(type.length + 1);
@@ -1601,10 +1601,21 @@ export class Assets {
     }
 
     /** The last reference to a typed asset is gone: hand it to its loader. */
-    private disposeGeneric_(type: string, path: string, value: unknown): void {
-        this.loaders_.get(type)?.unload?.(value, this.getLoadContext_());
+    private disposeGeneric_(type: string, path: string, era: PreparedLoad<unknown>): void {
+        this.retire_(type, era);
         const cache = this.genericCache_.get(type);
-        if (cache && cache.get(path) === value) cache.delete(path);
+        if (cache && cache.get(path) === era) cache.delete(path);
+    }
+
+    /** End one handle-bound era: its loader destroys what it made, then what its
+     *  preparation acquired goes back — in that order, since the value is what
+     *  is still using it. */
+    private retire_(type: string, era: PreparedLoad<unknown>): void {
+        try {
+            this.loaders_.get(type)?.unload?.(era.value);
+        } finally {
+            era.dependencies.releaseAll();
+        }
     }
 
     /**
@@ -1655,7 +1666,7 @@ export class Assets {
 
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
         for (const [type, cache] of this.genericCache_.entries()) {
-            const bound = cache.get(path);
+            const bound = cache.get(path)?.value;
             if (cache.invalidate(path)) { hit = true; dropped.set(type as AssetFieldType, bound); }
             // The ledger stays: the outgoing generation's holders still owe a
             // release. Its era is closed so the next acquire cannot join it.
@@ -1820,7 +1831,7 @@ export class Assets {
         }
         this.genericCache_.clear();
         for (const { key, value } of this.genericRefs_.drain()) {
-            this.loaders_.get(key.slice(0, key.indexOf(':')))?.unload?.(value, this.getLoadContext_());
+            this.retire_(key.slice(0, key.indexOf(':')), value);
         }
         this.handleToPath_.clear();
     }
@@ -1989,30 +2000,36 @@ export class Assets {
 
     private async acquireTyped_<T>(
         type: string, ref: string,
-    ): Promise<{ value: T; lease: AssetRefLease<unknown> }> {
+    ): Promise<{ value: T; lease: AssetRefLease<PreparedLoad<unknown>> }> {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         if (!loader) {
             throw new Error(`No loader registered for type: ${type}`);
         }
         const path = this.resolveLoadPath_(ref);
-
-        let cache = this.genericCache_.get(type);
-        if (!cache) {
-            cache = new AsyncCache<unknown>();
-            this.genericCache_.set(type, cache);
-        }
-
         if (!loader.load) {
             throw new Error(`Loader for "${type}" publishes by name; acquire it through its slot`);
         }
         const load = loader.load.bind(loader);
-        const result = await (cache.getOrLoad(path, () =>
-            load(path, this.getLoadContext_()),
-        ) as Promise<T>);
-        const lease = this.genericRefs_.acquire(`${type}:${path}`, result);
+        const era = await this.genericCacheFor_(type).getOrLoad(path, () =>
+            this.prepared_(async (ctx) => ({ value: await load(path, ctx) as unknown })),
+        );
+        const lease = this.genericRefs_.acquire(`${type}:${path}`, era);
+        const result = era.value as T;
         const handle = (result as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
         return { value: result, lease };
+    }
+
+    /** The cache of current eras for one handle-bound type. A load that lands
+     *  after its own deadline was never handed to anyone, so this is the last
+     *  place that knows it and what it acquired. */
+    private genericCacheFor_(type: string): AsyncCache<PreparedLoad<unknown>> {
+        let cache = this.genericCache_.get(type);
+        if (!cache) {
+            cache = new AsyncCache<PreparedLoad<unknown>>((era) => this.retire_(type, era));
+            this.genericCache_.set(type, cache);
+        }
+        return cache;
     }
 
     /**
@@ -2037,7 +2054,11 @@ export class Assets {
      */
     dependenciesOf(type: string, ref: string): readonly DependencyReceipt[] {
         const own = this.registrySlots_.dependenciesOf(type, ref);
-        return own.length > 0 ? own : this.registrySlots_.dependenciesOf(type, this.resolveLoadPath_(ref));
+        if (own.length > 0) return own;
+        const path = this.resolveLoadPath_(ref);
+        const byPath = this.registrySlots_.dependenciesOf(type, path);
+        if (byPath.length > 0) return byPath;
+        return this.genericCache_.get(type)?.get(path)?.edges ?? [];
     }
 
     /**
@@ -2115,9 +2136,6 @@ export class Assets {
             async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
                 const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
                 return self.textureLease_(lease, result);
-            },
-            releaseTexture(path: string): void {
-                self.releaseTexture(path);
             },
             async loadText(path: string): Promise<string> {
                 return self.backend.fetchText(self.backend.resolveUrl(path));

@@ -764,7 +764,7 @@ ResourceDef<AssetsClass>
 @internal publishedRegistryAssets: <T>(type: string) => T[]
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void
 @internal releaseTyped: (type: string, ref: string) => void
-@internal releaseTypedLease: (type: string, lease: AssetRefLease<unknown>) => void
+@internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
 @internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registryEntries: number; registrySlots: number; trackedRefRows: number; }
 acquireTexture: (ref: string) => Promise<AssetLease<TextureResult>>

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
-import type { AssetLease } from '../AssetLease';
+import type { AssetLoader, LoadContext } from '../AssetLoader';
 import { resolveDocumentRef } from '../documentRef';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { marshallingCore } from './engineCore';
@@ -22,17 +21,14 @@ interface EnvironmentAssetData {
 /** A baked environment, named by the handle a Light references. */
 export interface EnvironmentResult {
     handle: number;
-    /** The receipt for the atlas, so unload gives back the era this load took —
-     *  a path names two of them once a hot update has landed. */
-    specularLease?: AssetLease<TextureResult>;
 }
 
 /**
  * Loads `.esenv` — an environment's irradiance and its prefiltered reflection.
  *
- * The reflection is an ordinary texture asset, loaded through the same door as
- * any other: the environment holds a ref to it while it lives, and gives it back
- * on unload. Only the nine coefficients are the environment's own.
+ * The reflection is an ordinary texture asset, acquired through the same door as
+ * any other — so the preparation holds the receipt and the era gives it back.
+ * Only the nine coefficients are the environment's own.
  */
 export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
     readonly type = 'environment';
@@ -57,15 +53,13 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         // the load: nine coefficients still light the scene, and a reflection that
         // silently took the whole asset down would be the worse answer.
         let specularHandle = 0;
-        let specularLease: AssetLease<TextureResult> | undefined;
         if (data.specular) {
             const resolved = resolveDocumentRef(path, data.specular);
             try {
                 // flipY false: the atlas' rows are a layout, not a picture. Row 0
                 // is mip 0, and a load that turned it over would put the mip
                 // offsets — and every face's v — upside down.
-                specularLease = await ctx.acquireTexture(resolved, false);
-                specularHandle = specularLease.value.handle;
+                specularHandle = (await ctx.acquireTexture(resolved, false)).value.handle;
             } catch (e) {
                 log.warn('asset', `${path}: no reflection atlas at '${resolved}'`, e);
             }
@@ -79,15 +73,13 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         });
 
         if (!handle) {
-            specularLease?.release();
             throw new Error(`the engine rejected the environment in ${path}`);
         }
-        return { handle, specularLease };
+        return { handle };
     }
 
     unload(asset: EnvironmentResult): void {
         this.core_()?.environment_release?.(asset.handle);
-        asset.specularLease?.release();
     }
 }
 

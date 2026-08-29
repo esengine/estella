@@ -55,6 +55,13 @@ export interface Preparation {
 }
 
 /**
+ * What a handle-bound load produced, and what its preparation took — the same
+ * sealing an era gets, for the asset kind whose current value lives in a cache
+ * rather than under a slot's name.
+ */
+export type PreparedLoad<T> = Preparation & { readonly value: T };
+
+/**
  * The recorder behind one preparation: everything it acquires lands here, so
  * neither the era's ownership nor the graph's edges depend on a loader
  * remembering to report anything.
