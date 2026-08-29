@@ -43,6 +43,19 @@ export class AssetScope {
         this.leases_ = [];
     }
 
+    /**
+     * Take over every receipt `other` holds; it owes nothing afterwards.
+     *
+     * The transfer an owner needs when the acquiring code is not the owning
+     * code: a loader acquires into a scope of its own and hands the whole thing
+     * to whoever will outlive it.
+     */
+    absorb(other: AssetScope): void {
+        if (other === this) return;
+        for (const lease of other.leases_) this.leases_.push(lease);
+        other.leases_ = [];
+    }
+
     /** Stop tracking one lease without releasing it — for an ownership transfer. */
     forget(lease: AssetLease): boolean {
         const i = this.leases_.indexOf(lease);

@@ -165,6 +165,38 @@ describe('asset ownership is generation-exact', () => {
         expect(assets.sizes().refRows).toBe(base);
     });
 
+    it('a scope absorbs another\'s receipts, and gives back what it took', async () => {
+        // The packaged-game shape: the loader acquires into a scope of its own
+        // and hands the whole thing to the scene that will outlive it. Releasing
+        // by PATH instead is what took the wrong era below.
+        const unloaded: string[] = [];
+        const assets = makeAssets(unloaded);
+        const base = assets.sizes().refRows;
+
+        const sceneA = new AssetScope();
+        sceneA.add(await assets.acquireTyped('font', 'shared.ttf'));   // gen1
+
+        assets.invalidate('shared.ttf');                                // a hot update lands
+
+        const loaderScope = new AssetScope();
+        loaderScope.add(await assets.acquireTyped('font', 'shared.ttf'));  // gen2
+        const sceneB = new AssetScope();
+        sceneB.absorb(loaderScope);
+        expect(loaderScope.size).toBe(0);      // the loader owes nothing afterwards
+        expect(sceneB.size).toBe(1);
+
+        sceneB.releaseAll();
+        expect(unloaded).toEqual(['gen2']);                  // B's own era
+        expect(assets.sizes().refRows).toBe(base + 1);       // A still holds gen1
+
+        // What the path door does with the same call — the era it takes is the
+        // OLDEST, which is the scene that loaded before the update.
+        assets.releaseTyped('font', 'shared.ttf');
+        expect(unloaded).toEqual(['gen2', 'gen1']);
+        sceneA.releaseAll();                                  // already gone: no double free
+        expect(unloaded).toEqual(['gen2', 'gen1']);
+    });
+
     it('a scene survives many hot updates and still balances at unload', async () => {
         // The dogfood shape: load, hot-update the same asset repeatedly, unload.
         // Every era that was acquired is given back exactly once.

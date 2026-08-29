@@ -70,6 +70,14 @@ export interface SceneContext {
      * preloads its own, and a reference nothing records is one nothing releases.
      */
     trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void;
+    /**
+     * Take over the receipts a loader acquired for this scene.
+     *
+     * What {@link trackAssets} is for a caller that only ever had paths. A
+     * caller holding receipts hands them over instead: unload then gives back
+     * the acquisitions this load made, not the oldest ones sharing their path.
+     */
+    trackAssetScope(scope: AssetScope): void;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
     bindPostProcess(camera: Entity, stack: PostProcessStack): void;
@@ -158,6 +166,10 @@ class SceneContextImpl implements SceneContext {
             scene: this.instance_.config.name,
             persistent: false,
         });
+    }
+
+    trackAssetScope(scope: AssetScope): void {
+        this.instance_.assetScope.absorb(scope);
     }
 
     trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void {

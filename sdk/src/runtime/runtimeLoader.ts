@@ -483,10 +483,10 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             if (ctx) ctx.adopt(entity);
             else app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
         }
-        // And the assets, for the same reason: a packaged scene carries no
-        // `data`, so the manager's preload never ran and these references are
-        // ones only this function knows about.
-        ctx?.trackAssets(discovered.byType);
+        // The RECEIPTS, not the paths: after a hot update a path-addressed
+        // release gives back the oldest era, which belongs to whoever loaded
+        // before the update.
+        ctx?.trackAssetScope(assetResult.scope);
     }
 }
 

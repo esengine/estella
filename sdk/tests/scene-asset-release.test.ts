@@ -50,6 +50,7 @@ vi.mock('../src/asset/discoverAssets', () => ({
 
 import { SceneManagerState } from '../src/scene/sceneManager';
 import { Assets } from '../src/asset';
+import { AssetScope } from '../src/asset/AssetLease';
 import { Material } from '../src/render/material';
 
 /**
@@ -189,6 +190,28 @@ describe('Scene unload releases all tracked asset categories', () => {
         expect(releasedTextures, 'a packaged scene released no textures').toContain('tex/hero.png');
         expect(releasedTyped).toContainEqual(['audio', 'sfx/hit.wav']);
         expect(releasedTyped).toContainEqual(['tileset', 'maps/tiles.estileset']);
+    });
+
+    it('takes over the receipts a packaged scene\'s loader acquired', async () => {
+        // The runtime loader preloads into a scope of its own and hands it here.
+        // Reporting paths instead left a release guessing which era it meant,
+        // and left what the paths omitted (materials) with nobody to give back.
+        const released: string[] = [];
+        const app = createMockApp({
+            releaseTexture: vi.fn(), releaseTyped: vi.fn(),
+        });
+        const manager = new SceneManagerState(app as never);
+        const loaderScope = new AssetScope();
+        for (const key of ['texture:hero.png', 'material:hero.esmat']) {
+            loaderScope.add({ key, generation: 1, value: null, release: () => released.push(key) });
+        }
+
+        manager.register({ name: 'packaged', setup: (ctx) => { ctx.trackAssetScope(loaderScope); } });
+        await manager.load('packaged');
+        expect(loaderScope.size).toBe(0);        // ownership moved, it was not copied
+
+        await manager.unload('packaged');
+        expect(released).toEqual(['material:hero.esmat', 'texture:hero.png']);
     });
 
     it('releases every type the scene acquired, whatever its type', async () => {

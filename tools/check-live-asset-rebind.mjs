@@ -12,10 +12,12 @@
  *
  * A list like that cannot be kept correct, because the thing it must agree with
  * is authored somewhere else (a C++ ES_PROPERTY, a project's defineComponent).
- * So the rule guarded here is that there is no list:
+ * So the rules guarded here are that there is no list, and that a caller who
+ * holds receipts does not fall back to naming paths:
  *
  *   1. No file on the rebind path names an asset-bearing component type.
  *   2. The walk goes through the registry and reads `assetFields`.
+ *   3. The runtime scene loader hands the scene its receipts, not its paths.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -117,10 +119,24 @@ for (const fn of ['findLiveAssetBindings', 'componentsBindingAssetType']) {
   }
 }
 
+// A caller holding receipts must not hand over paths: a path-addressed release
+// after a hot update gives back the oldest era, and what the paths omit is
+// never given back at all.
+const LOADER = 'sdk/src/runtime/runtimeLoader.ts';
+const loader = stripComments(readFileSync(path.join(ROOT, LOADER), 'utf8'));
+if (!/\bpreloadSceneAssets\(/.test(loader)) {
+  findings.push(`${LOADER}  no longer preloads scene assets — this guard is reading the wrong file.`);
+} else {
+  const call = /\btrackAssets\(/.exec(loader);
+  if (call) {
+    findings.push(`${LOADER}:${loader.slice(0, call.index).split('\n').length}  hands the scene PATHS while holding the preload's receipts — use trackAssetScope.`);
+  }
+}
+
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path names none of the ${components.size} asset-bearing components, and reads the declaration.`);
+  console.log(`check-live-asset-rebind: the rebind path names none of the ${components.size} asset-bearing components, reads the declaration, and the scene loader hands over receipts.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);
-console.error('\nRebinding is per DECLARED asset field. Widen the walk instead of adding a case.');
+console.error('\nLive assets are addressed by what DECLARES them: the asset field for a binding, the receipt for an acquisition.');
 process.exit(1);

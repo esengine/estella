@@ -739,6 +739,7 @@ refCount: number
 ## AssetScope — class @experimental
 ```
 @internal leases: () => readonly AssetLease[]
+absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean
 releaseAll: () => void
@@ -6834,6 +6835,7 @@ name: string
 registerDrawCallback: (id: string, fn: DrawCallback) => void
 setPersistent: (entity: Entity, persistent: boolean) => void
 spawn: () => Entity
+trackAssetScope: (scope: AssetScope) => void
 trackAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void
 unbindPostProcess: (camera: Entity) => void
 ```
