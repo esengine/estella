@@ -86,8 +86,11 @@ size_t spine_eventBufferBytes();
 // or counts and drops them: the one way to price the buffers apart from the work.
 int spine_probe_extract(int instanceId, int stage, int useCollector);
 
-// The nine counters of the last probe run, into as many u32 slots.
+// The fourteen counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
+
+// The clipper's own scratch capacities, into six u32 slots.
+void spine_probe_clip_storage(uint32_t* out);
 
 // BENCHMARK ONLY — the pose run to `stage` (es::spine::PoseStage). This ADVANCES
 // the instance: a caller measuring with it owns that instance's clock.

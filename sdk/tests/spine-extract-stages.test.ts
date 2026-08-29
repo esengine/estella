@@ -41,10 +41,12 @@ const HAS_ASSETS = existsSync(SPINE38_WASM)
 const COUNTERS = [
     'slots', 'regionAttachments', 'meshAttachments', 'clipStarts', 'clippedEmits',
     'verticesGenerated', 'verticesEmitted', 'indicesEmitted', 'emits',
+    'clipPolygons', 'clipPolygonVertices', 'clipPolygonEdges',
+    'clipInputTriangles', 'clipOutputTriangles',
 ] as const;
 type Counts = Record<(typeof COUNTERS)[number], number>;
 
-const STAGE_EMIT = 4;
+const STAGE_EMIT = 5;
 
 let raw: SpineWasmModule;
 let api: SpineWrappedAPI;

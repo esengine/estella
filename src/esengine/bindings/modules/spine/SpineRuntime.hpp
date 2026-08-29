@@ -220,11 +220,13 @@ void render(Instance* instance, TriangleSink& sink, bool clipping);
  *  stage costs is the difference between two runs — the only way to price a step
  *  of this walk without a clock inside it. */
 enum RenderStage {
-    STAGE_SETUP = 0,     ///< The instance and the clipper; the loop does not run.
-    STAGE_TRAVERSE = 1,  ///< Walk the draw order, resolving what each slot holds.
-    STAGE_VERTICES = 2,  ///< …and compute world vertices and tint.
-    STAGE_CLIP = 3,      ///< …and clip them where a clip region is open.
-    STAGE_EMIT = 4,      ///< …and hand them to the sink. The full extraction.
+    STAGE_SETUP = 0,       ///< The instance and the clipper; the loop does not run.
+    STAGE_TRAVERSE = 1,    ///< Walk the draw order, resolving what each slot holds.
+    STAGE_VERTICES = 2,    ///< …and compute world vertices and tint.
+    STAGE_CLIP_START = 3,  ///< …and open each clip region: its polygon, made
+                           ///< clockwise and decomposed into convex pieces.
+    STAGE_CLIP = 4,        ///< …and cut the triangles against those pieces.
+    STAGE_EMIT = 5,        ///< …and hand them to the sink. The full extraction.
 };
 
 /** What the walk did, so a time can be explained rather than only reported. */
@@ -238,7 +240,31 @@ struct ProbeCounts {
     std::uint32_t verticesEmitted;
     std::uint32_t indicesEmitted;
     std::uint32_t emits;
+    /// Convex pieces the clip polygons decomposed into. One per clip region says
+    /// the polygon was convex; more is what a concave one costs before any
+    /// triangle is cut, and every piece re-runs the cut.
+    std::uint32_t clipPolygons;
+    std::uint32_t clipPolygonVertices;
+    /// Edges summed over those pieces — what a cut actually costs per triangle,
+    /// since the clip runs one pass per edge, per piece, per triangle.
+    std::uint32_t clipPolygonEdges;
+    std::uint32_t clipInputTriangles;
+    std::uint32_t clipOutputTriangles;
 };
+
+/** BENCHMARK ONLY — the clipper's own scratch arrays, so a second storage
+ *  problem inside it cannot hide behind the first one having been fixed. */
+struct ClipStorage {
+    std::uint32_t polygon;
+    std::uint32_t output;
+    std::uint32_t vertices;
+    std::uint32_t uvs;
+    std::uint32_t triangles;
+    std::uint32_t scratch;
+};
+
+/** False where a backend has no clipper of its own to report on. */
+bool clipStorage(ClipStorage* out);
 
 /**
  * BENCHMARK ONLY — the same walk as {@link render}, stopped at `stage`, so its

@@ -655,7 +655,11 @@ void emit(TriangleSink& sink, bool clipping,
         outUVs = g_clipper->clippedUVs->items;
         outTriangles = g_clipper->clippedTriangles->items;
         outTriangleCount = g_clipper->clippedTriangles->size;
-        if constexpr (COUNT) counts->clippedEmits++;
+        if constexpr (COUNT) {
+            counts->clippedEmits++;
+            counts->clipInputTriangles += static_cast<std::uint32_t>(triangleCount / 3);
+            counts->clipOutputTriangles += static_cast<std::uint32_t>(outTriangleCount / 3);
+        }
     }
 
     if (outVertices == 0 || outTriangleCount == 0) return;
@@ -696,9 +700,18 @@ void renderImpl(Instance* instance, TriangleSink& sink, bool clipping, ProbeCoun
         // draws nothing itself.
         if (attachment && attachment->type == SP_ATTACHMENT_CLIPPING) {
             if constexpr (COUNT) counts->clipStarts++;
-            if (clipping && STAGE >= STAGE_CLIP) {
-                spSkeletonClipping_clipStart(g_clipper, slot,
-                                             reinterpret_cast<spClippingAttachment*>(attachment));
+            if (clipping && STAGE >= STAGE_CLIP_START) {
+                auto* clip = reinterpret_cast<spClippingAttachment*>(attachment);
+                const int pieces = spSkeletonClipping_clipStart(g_clipper, slot, clip);
+                if constexpr (COUNT) {
+                    counts->clipPolygons += static_cast<std::uint32_t>(pieces);
+                    counts->clipPolygonVertices +=
+                        static_cast<std::uint32_t>(clip->super.worldVerticesLength / 2);
+                    for (int p = 0; p < g_clipper->clippingPolygons->size; ++p) {
+                        counts->clipPolygonEdges +=
+                            static_cast<std::uint32_t>(g_clipper->clippingPolygons->items[p]->size / 2);
+                    }
+                }
             }
             continue;
         }
@@ -788,10 +801,21 @@ void renderImpl(Instance* instance, TriangleSink& sink, bool clipping, ProbeCoun
 
         // Closes the region when this slot is the clip's end slot; a cheap no-op
         // otherwise, which is why every non-clip slot passes through here.
-        if (clipping && STAGE >= STAGE_CLIP) spSkeletonClipping_clipEnd(g_clipper, slot);
+        if (clipping && STAGE >= STAGE_CLIP_START) spSkeletonClipping_clipEnd(g_clipper, slot);
     }
 
-    if (clipping && STAGE >= STAGE_CLIP) spSkeletonClipping_clipEnd2(g_clipper);
+    if (clipping && STAGE >= STAGE_CLIP_START) spSkeletonClipping_clipEnd2(g_clipper);
+}
+
+bool clipStorage(ClipStorage* out) {
+    if (!out || !g_clipper) return false;
+    out->polygon = static_cast<std::uint32_t>(g_clipper->clippingPolygon->capacity);
+    out->output = static_cast<std::uint32_t>(g_clipper->clipOutput->capacity);
+    out->vertices = static_cast<std::uint32_t>(g_clipper->clippedVertices->capacity);
+    out->uvs = static_cast<std::uint32_t>(g_clipper->clippedUVs->capacity);
+    out->triangles = static_cast<std::uint32_t>(g_clipper->clippedTriangles->capacity);
+    out->scratch = static_cast<std::uint32_t>(g_clipper->scratch->capacity);
+    return true;
 }
 
 void render(Instance* instance, TriangleSink& sink, bool clipping) {
@@ -804,6 +828,7 @@ bool renderStage(Instance* instance, TriangleSink& sink, bool clipping,
         case STAGE_SETUP:    renderImpl<STAGE_SETUP, true>(instance, sink, clipping, counts); break;
         case STAGE_TRAVERSE: renderImpl<STAGE_TRAVERSE, true>(instance, sink, clipping, counts); break;
         case STAGE_VERTICES: renderImpl<STAGE_VERTICES, true>(instance, sink, clipping, counts); break;
+        case STAGE_CLIP_START: renderImpl<STAGE_CLIP_START, true>(instance, sink, clipping, counts); break;
         case STAGE_CLIP:     renderImpl<STAGE_CLIP, true>(instance, sink, clipping, counts); break;
         case STAGE_EMIT:     renderImpl<STAGE_EMIT, true>(instance, sink, clipping, counts); break;
         default: return false;

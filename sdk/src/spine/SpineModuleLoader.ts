@@ -60,6 +60,7 @@ export interface SpineWasmModule {
     _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
     _spine_probe_extract(instanceId: number, stage: number, useCollector: number): number;
     _spine_probe_counts(out: number): void;
+    _spine_probe_clip_storage(out: number): void;
     _spine_probe_storage(out: number): void;
     _spine_probe_pose(instanceId: number, dt: number, stage: number): number;
     _spine_probe_pose_counts(out: number): void;
@@ -129,6 +130,7 @@ export interface SpineWrappedAPI {
      */
     probeExtract(instanceId: number, stage: number, useCollector: number): number;
     probeCounts(out: number): void;
+    probeClipStorage(out: number): void;
     probeStorage(out: number): void;
     probePose(instanceId: number, dt: number, stage: number): number;
     probePoseCounts(out: number): void;
@@ -183,6 +185,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
 
         probeExtract: cw('spine_probe_extract', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probeExtract'],
         probeCounts: cw('spine_probe_counts', null, ['number']) as SpineWrappedAPI['probeCounts'],
+        probeClipStorage: cw('spine_probe_clip_storage', null, ['number']) as SpineWrappedAPI['probeClipStorage'],
         probeStorage: cw('spine_probe_storage', null, ['number']) as SpineWrappedAPI['probeStorage'],
         probePose: cw('spine_probe_pose', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probePose'],
         probePoseCounts: cw('spine_probe_pose_counts', null, ['number']) as SpineWrappedAPI['probePoseCounts'],

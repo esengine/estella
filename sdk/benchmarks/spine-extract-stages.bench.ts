@@ -15,7 +15,7 @@
  *          has no stage check and no counter in it. Every depth costs exactly
  *          one crossing per instance, so the boundary cancels in the differences.
  *
- *          S4c minus S4 is the storage, and it was never the reallocation:
+ *          S5c minus S5 is the storage, and it was never the reallocation:
  *          making the slots outlive the frame drove that to zero and moved this
  *          number by nothing. It was the per-element writing — eight pushes per
  *          vertex, three thousand per skeleton — and appending in blocks instead
@@ -87,7 +87,8 @@ describe.skipIf(!HAS_ASSETS)(`Spine extraction stages: ${ENTITIES} entities x${F
     bench('S0 setup (the crossing and the instance lookup)', () => { pass(0, 0); });
     bench('S1 + draw-order traversal', () => { pass(1, 0); });
     bench('S2 + world vertices and tint', () => { pass(2, 0); });
-    bench('S3 + clipping', () => { pass(3, 0); });
-    bench('S4 + emit, counted and dropped', () => { pass(4, 0); });
-    bench('S4c + emit into the frame\'s batch vectors', () => { pass(4, 1); });
+    bench('S3 + open the clip regions', () => { pass(3, 0); });
+    bench('S4 + cut the triangles', () => { pass(4, 0); });
+    bench('S5 + emit, counted and dropped', () => { pass(5, 0); });
+    bench('S5c + emit into the frame\'s batch vectors', () => { pass(5, 1); });
 });

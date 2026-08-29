@@ -538,6 +538,10 @@ bool poseStage(Instance*, float, int, PoseCounts*) {
     return false;
 }
 
+bool clipStorage(ClipStorage*) {
+    return false;
+}
+
 int version() {
     return ES_SPINE_VERSION;
 }

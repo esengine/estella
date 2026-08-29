@@ -289,7 +289,7 @@ int spine_probe_extract(int instanceId, int stage, int useCollector) {
                                   stage, &g_probeCounts) ? 1 : 0;
 }
 
-/** The counts of the last {@link spine_probe_extract}, into nine u32 slots. */
+/** The counts of the last {@link spine_probe_extract}, into fourteen u32 slots. */
 EMSCRIPTEN_KEEPALIVE
 void spine_probe_counts(std::uint32_t* out) {
     if (!out) return;
@@ -302,6 +302,26 @@ void spine_probe_counts(std::uint32_t* out) {
     out[6] = g_probeCounts.verticesEmitted;
     out[7] = g_probeCounts.indicesEmitted;
     out[8] = g_probeCounts.emits;
+    out[9] = g_probeCounts.clipPolygons;
+    out[10] = g_probeCounts.clipPolygonVertices;
+    out[11] = g_probeCounts.clipPolygonEdges;
+    out[12] = g_probeCounts.clipInputTriangles;
+    out[13] = g_probeCounts.clipOutputTriangles;
+}
+
+/** BENCHMARK ONLY — the clipper's own scratch, into six u32 slots. Zero where a
+ *  backend keeps no clipper of its own. */
+EMSCRIPTEN_KEEPALIVE
+void spine_probe_clip_storage(std::uint32_t* out) {
+    if (!out) return;
+    es::spine::ClipStorage held{};
+    es::spine::clipStorage(&held);
+    out[0] = held.polygon;
+    out[1] = held.output;
+    out[2] = held.vertices;
+    out[3] = held.uvs;
+    out[4] = held.triangles;
+    out[5] = held.scratch;
 }
 
 /**
