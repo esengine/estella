@@ -165,7 +165,10 @@ describe.skipIf(!HAS_ASSETS)('the staged pose is the shipped pose', () => {
 
         expect(c.tracks).toBe(1);
         expect(c.entries).toBe(1);
-        expect(c.timelines, 'a playing track carries no timelines').toBeGreaterThan(0);
+        // Exact, not "more than none": a counter wired to a constant satisfies
+        // every inequality that could be written about it, and one of these was
+        // shipped reading 0xAAAA for two commits before a survey read it back.
+        expect(c.timelines, "walk's timelines").toBe(38);
         expect(c.bones).toBe(64);
         expect(c.ikConstraints).toBe(7);
         expect(c.transformConstraints).toBe(7);
@@ -199,6 +202,7 @@ describe.skipIf(!HAS_ASSETS)('the staged pose is the shipped pose', () => {
 
         expect(mixing.tracks, 'a mix is one track').toBe(1);
         expect(mixing.entries, 'the entry it is mixing out of did not apply').toBe(2);
-        expect(mixing.timelines).toBeGreaterThan(solo.timelines);
+        expect(solo.timelines, "walk's timelines").toBe(38);
+        expect(mixing.timelines, "run's 41 on top of walk's 38").toBe(79);
     });
 });

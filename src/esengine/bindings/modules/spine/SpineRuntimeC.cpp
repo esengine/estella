@@ -304,7 +304,7 @@ namespace {
 void countTrack(spTrackEntry* entry, PoseCounts& counts) {
     for (; entry; entry = entry->mixingFrom) {
         ++counts.entries;
-        counts.timelines += entry->animation ? 0xAAAAu : 0xBBBBu;
+        if (entry->animation) counts.timelines += static_cast<std::uint32_t>(entry->animation->timelinesCount);
     }
 }
 
