@@ -108,6 +108,9 @@ export const GATES = [
   { id: 'capabilities', run: 'node tools/check-capabilities.mjs', needs: 'editor' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs', needs: 'editor' },
   { id: 'component-fields', run: 'node tools/check-component-fields.mjs' },
+  // A field declares that it carries an asset in one place; everything that acts
+  // on live assets has to read THAT rather than keep a list of components beside it.
+  { id: 'live-asset-rebind', run: 'node tools/check-live-asset-rebind.mjs' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },
