@@ -26,6 +26,8 @@ import { SpineManager, type SpineVersion } from './SpineManager';
 import { prepareSpine, spinePairKey, type SpineAssetValue, type SpineIO } from './prepareSpine';
 import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { BasisTranscoder } from '../asset/compressed';
+import type { AssetsData } from '../asset/AssetPlugin';
+import type { AssetScope } from '../asset/AssetLease';
 
 /**
  * The in-place editable spine props from a SpineAnimation component's data — the
@@ -61,13 +63,34 @@ export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
 type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
 
-/** One prepared pair, plus the runtime version its skeleton document names. */
-export type SpineAssetInfo = SpineAssetValue & { version: SpineVersion | null };
+/** One prepared pair: what it is, the runtime version its skeleton names, and
+ *  the identity of THIS preparation of it — see {@link SpineAssetInfo.era}. */
+export type SpineAssetInfo = SpineAssetValue & {
+    version: SpineVersion | null;
+    /**
+     * Which generation of the pair this is. Entities sharing it share one native
+     * skeleton; entities on different ones do not, which is what makes an update
+     * actually load the new bytes instead of finding the old skeleton still
+     * referenced and handing it back.
+     */
+    era: string;
+};
 
 /**
  * Phase 1 — fetch + decode each spine pair's skeleton/atlas/textures and detect
  * its runtime version. Keyed by `skeletonRef:atlasRef` for {@link applySpineEntities}.
  */
+/**
+ * Who prepares the pairs, and who owns what the preparation takes. With one,
+ * two scenes of a spine asset share its era — one page upload, one native
+ * skeleton — and the receipts are the scene's. Without one the same algorithm
+ * runs over a host's own file access, and what it uploads is the host's.
+ */
+export interface SpineAssetOwner {
+    assets: AssetsData;
+    scope: AssetScope;
+}
+
 export async function loadSpineAssets(
     /** The wasm engine module, or null on a core with no heap — the atlas page upload
      *  goes through the ResourceManager's byte path there. */
@@ -76,27 +99,49 @@ export async function loadSpineAssets(
     spineManager: SpineManager | null | undefined,
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     transcoderProvider?: TranscoderProvider,
+    owner?: SpineAssetOwner,
 ): Promise<Map<string, SpineAssetInfo>> {
     const assetInfoMap = new Map<string, SpineAssetInfo>();
 
     for (const pair of spinePairs) {
         try {
-            const value = await prepareSpine(
-                hostSpineIo(module, source, pair.atlas, transcoderProvider),
-                pair.skeleton, pair.atlas,
-            );
+            const key = spinePairKey(pair.skeleton, pair.atlas);
+            let value: SpineAssetValue;
+            let era: string;
+            if (owner) {
+                // The realm's era: a second scene of this pair joins it rather
+                // than uploading its pages again, and the receipt is the
+                // scene's, so the pages go back when the scene does.
+                const lease = await owner.assets.acquireSpine(pair.skeleton, pair.atlas);
+                owner.scope.add(lease);
+                value = lease.value;
+                era = `${key}#${lease.generation}`;
+            } else {
+                value = await prepareSpine(
+                    hostSpineIo(module, source, pair.atlas, transcoderProvider),
+                    pair.skeleton, pair.atlas,
+                );
+                era = `${key}#${++preparations}`;
+            }
             const version = spineManager
                 ? (typeof value.skelData === 'string'
                     ? SpineManager.detectVersionJson(value.skelData)
                     : SpineManager.detectVersion(value.skelData))
                 : null;
-            assetInfoMap.set(spinePairKey(pair.skeleton, pair.atlas), { ...value, version });
+            assetInfoMap.set(key, { ...value, version, era });
         } catch (err) {
             log.warn('runtime', `Failed to load spine asset: skel=${pair.skeleton} atlas=${pair.atlas}`, err);
         }
     }
     return assetInfoMap;
 }
+
+/**
+ * How many preparations this process has run. An id, not state: what it has to
+ * be is distinct, so that entities of one preparation share a skeleton and
+ * entities of two never do.
+ */
+let preparations = 0;
 
 /**
  * A host's own file access as a spine transport — the editor, and any target
@@ -169,8 +214,7 @@ export async function applySpineEntities(opts: {
             if (entity === undefined) continue;
 
             await spineManager.loadEntity(
-                entity, info.skelData, info.atlasText, info.textures, registry,
-                `${skelRef}:${atlasRef}`);
+                entity, info.skelData, info.atlasText, info.textures, registry, info.era);
 
             spineManager.setEntityProps(entity, spineEntityProps(comp.data as Record<string, unknown>));
             const skin = comp.data.skin as string;

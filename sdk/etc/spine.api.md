@@ -23,7 +23,7 @@ getPathConstraintMix: (entity: Entity, name: string) => PathMixData | null
 getSkins: (entity: Entity) => string[]
 getTransformConstraintMix: (entity: Entity, name: string) => TransformMixData | null
 listConstraints: (entity: Entity) => ConstraintList | null
-loadEntity: (entity: Entity, skelData: Uint8Array | string, atlasText: string, textures: Map<string, { glId: number; w: number; h: number; }>, isBinary: boolean, assetKey?: string) => boolean
+loadEntity: (entity: Entity, skelData: Uint8Array | string, atlasText: string, textures: Map<string, { glId: number; w: number; h: number; }>, isBinary: boolean, era?: string) => boolean
 removeEntity: (entity: Entity) => void
 setAnimation: (entity: Entity, animation: string, loop: boolean) => void
 setAttachment: (entity: Entity, slotName: string, attachmentName: string) => boolean
@@ -115,7 +115,7 @@ getTransformConstraintMix: (entity: Entity, name: string) => TransformMixData | 
 hasInstance: (entity: Entity) => boolean
 hasModuleBackend: (version: SpineVersion) => boolean
 listConstraints: (entity: Entity) => ConstraintList | null
-loadEntity: (entity: Entity, skelData: Uint8Array | string, atlasText: string, textures: Map<string, { glId: number; w: number; h: number; }>, _registry: CppRegistry, assetKey?: string) => Promise<SpineVersion | null>
+loadEntity: (entity: Entity, skelData: Uint8Array | string, atlasText: string, textures: Map<string, { glId: number; w: number; h: number; }>, _registry: CppRegistry, era?: string) => Promise<SpineVersion | null>
 removeEntity: (entity: Entity) => void
 setAnimation: (entity: Entity, animation: string, loop: boolean) => void
 setAttachment: (entity: Entity, slotName: string, attachmentName: string) => boolean
@@ -219,7 +219,7 @@ mixY: number
 
 ## loadSpineAssets — function @experimental
 ```
-(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function @experimental

@@ -69,7 +69,8 @@ export class SpineManager {
         atlasText: string,
         textures: Map<string, { glId: number; w: number; h: number }>,
         _registry: CppRegistry,
-        assetKey?: string,
+        /** The prepared asset's ERA — see ModuleBackend.loadEntity. */
+        era?: string,
     ): Promise<SpineVersion | null> {
         const version = typeof skelData === 'string'
             ? SpineManager.detectVersionJson(skelData)
@@ -87,7 +88,7 @@ export class SpineManager {
         }
 
         const isBinary = skelData instanceof Uint8Array;
-        const ok = backend.loadEntity(entity, skelData, atlasText, textures, isBinary, assetKey);
+        const ok = backend.loadEntity(entity, skelData, atlasText, textures, isBinary, era);
         if (!ok) {
             log.error('spine', `Failed to load entity ${entity} into backend ${version}`);
             return null;

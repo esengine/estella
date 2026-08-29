@@ -17,17 +17,17 @@ interface EntityInfo {
     layer: number;
     timeScale: number;
     playing: boolean;
-    /** Dedup key (asset ref). Entities sharing a key share one loaded skeleton. */
-    assetKey?: string;
+    /** Which era of which asset. Entities sharing it share one loaded skeleton. */
+    era?: string;
 }
 
 export class ModuleBackend {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
     private disabledEntities_: Set<Entity> = new Set();
-    // assetKey -> the one loaded skeleton (skeletonData + atlas + page textures)
-    // shared by every entity of that asset; refcounted so it unloads when the
-    // last instance is removed. Without a key, an entity falls back to its own
+    // era -> the one loaded skeleton (skeletonData + atlas + page textures)
+    // shared by every entity of that era; refcounted so it unloads when the last
+    // instance is removed. Without one, an entity falls back to its own
     // per-entity skeleton (the pre-dedup behaviour).
     private skeletons_: Map<string, { skelHandle: number; refcount: number }> = new Map();
 
@@ -49,7 +49,13 @@ export class ModuleBackend {
         atlasText: string,
         textures: Map<string, { glId: number; w: number; h: number }>,
         isBinary: boolean,
-        assetKey?: string,
+        /**
+         * The identity of the prepared asset — its ERA, never merely its ref. A
+         * ref would find the skeleton parsed from the bytes BEFORE an update
+         * still referenced by another entity, and hand it back: every entity
+         * reloads, none of them onto the new content, and nothing reports it.
+         */
+        era?: string,
     ): boolean {
         // Re-loading a live entity (rapid editor ref edits, runtime asset swap)
         // must free the old instance + skeleton refcount first, or replacing its
@@ -57,7 +63,7 @@ export class ModuleBackend {
         if (this.entities_.has(entity)) this.removeEntity(entity);
 
         let skelHandle: number;
-        const shared = assetKey !== undefined ? this.skeletons_.get(assetKey) : undefined;
+        const shared = era !== undefined ? this.skeletons_.get(era) : undefined;
         if (shared) {
             // Reuse the already-loaded skeleton — just spin up a fresh instance.
             skelHandle = shared.skelHandle;
@@ -76,12 +82,12 @@ export class ModuleBackend {
                     this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
                 }
             }
-            if (assetKey !== undefined) this.skeletons_.set(assetKey, { skelHandle, refcount: 1 });
+            if (era !== undefined) this.skeletons_.set(era, { skelHandle, refcount: 1 });
         }
 
         const instanceId = this.controller_.createInstance(skelHandle);
         this.entities_.set(entity, {
-            skelHandle, instanceId, assetKey,
+            skelHandle, instanceId, era,
             skeletonScale: 1, flipX: false, flipY: false, layer: 0, timeScale: 1, playing: true,
         });
         return true;
@@ -264,12 +270,12 @@ export class ModuleBackend {
     /** Drop one reference to an entity's skeleton; unload it only when shared
      *  refcount hits zero (or immediately for an un-keyed per-entity skeleton). */
     private releaseSkeleton_(info: EntityInfo): void {
-        if (info.assetKey !== undefined) {
-            const shared = this.skeletons_.get(info.assetKey);
+        if (info.era !== undefined) {
+            const shared = this.skeletons_.get(info.era);
             if (shared) {
                 if (--shared.refcount <= 0) {
                     this.controller_.unloadSkeleton(shared.skelHandle);
-                    this.skeletons_.delete(info.assetKey);
+                    this.skeletons_.delete(info.era);
                 }
                 return;
             }
@@ -286,7 +292,7 @@ export class ModuleBackend {
         const handles = new Set<number>();
         for (const entry of this.skeletons_.values()) handles.add(entry.skelHandle);
         for (const info of this.entities_.values()) {
-            if (info.assetKey === undefined) handles.add(info.skelHandle);
+            if (info.era === undefined) handles.add(info.skelHandle);
         }
         for (const h of handles) this.controller_.unloadSkeleton(h);
         this.entities_.clear();

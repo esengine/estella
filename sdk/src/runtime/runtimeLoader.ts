@@ -339,8 +339,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         const mod = await host.acquire('basis');
         return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
     };
+    // Prepared by the realm, owned by the scene: the receipts join the scope
+    // this scene gives back, and a second scene of one spine asset joins its era
+    // instead of uploading its pages again.
     const spineAssetInfo = app.sideModules
-        ? await loadSpineAssets(module, source, spineManager, discovered.spines, transcoderProvider)
+        ? await loadSpineAssets(module, source, spineManager, discovered.spines, transcoderProvider,
+                                { assets: sceneAssets, scope: assetResult.scope })
         : new Map<string, SpineAssetInfo>();
 
     // DragonBones, the same two phases. The manager is acquired only when the

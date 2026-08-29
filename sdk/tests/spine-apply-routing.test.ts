@@ -51,12 +51,16 @@ describe('applySpineEntities routes every version to the SpineManager (S3)', () 
             entityMap: new Map([[1, entity]]),
             registry: {} as never,
             assetInfo: new Map([['hero.skel:hero.atlas', {
-                version: '4.2' as const, skelData: new Uint8Array(), atlasText: '', textures: new Map(),
+                version: '4.2' as const, era: 'hero.skel:hero.atlas#7', isBinary: true,
+                skelData: new Uint8Array(), atlasText: '', textures: new Map(),
             }]]),
         });
         expect(manager.loadEntity).toHaveBeenCalledTimes(1);
+        // The ERA, not the ref: two entities share a native skeleton only while
+        // they are on the same generation of the asset.
         expect(manager.loadEntity).toHaveBeenCalledWith(
-            entity, expect.anything(), '', expect.anything(), expect.anything(), 'hero.skel:hero.atlas');
+            entity, expect.anything(), '', expect.anything(), expect.anything(),
+            'hero.skel:hero.atlas#7');
         expect(manager.setAnimation).toHaveBeenCalledWith(entity, 'walk', true);
     });
 

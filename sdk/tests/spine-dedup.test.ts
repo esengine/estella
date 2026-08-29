@@ -6,10 +6,13 @@
  *          the same asset (keyed) and refcounts it, instead of loading a fresh
  *          skeletonData per entity. Without a key it falls back to per-entity.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ModuleBackend } from '../src/spine/ModuleBackend';
 import type { SpineModuleController } from '../src/spine/SpineController';
 import type { Entity } from '../src/types';
+import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { applySpineEntities } from '../src/spine/loadSpineScene';
+import type { SceneData } from '../src/scene/scene';
 
 function makeController() {
     let nextSkel = 1, nextInst = 100;
@@ -97,5 +100,100 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
         b.shutdown();
         expect(c.unloadSkeleton).toHaveBeenCalledTimes(2); // hero + villain, once each
         expect(c.destroyInstance).toHaveBeenCalledTimes(3); // three instances
+    });
+});
+
+
+describe('a hot swap loads the new bytes, once', () => {
+    const COMP = 'SpineHotSwap_Spine';
+    beforeEach(() => {
+        clearUserComponents();
+        defineComponent(COMP, { skeleton: '', atlas: '' }, {
+            skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
+        });
+    });
+
+    /** Two entities of ONE pair — what makes the shared skeleton shared. */
+    const SCENE = {
+        version: 1,
+        entities: [1, 2].map((id) => ({
+            id,
+            components: [{ type: COMP, data: { skeleton: 'hero.skel', atlas: 'hero.atlas' } }],
+        })),
+    } as unknown as SceneData;
+
+    /** A manager that is the real backend, so what is asserted is what the
+     *  native side was actually told. */
+    function managerOver(backend: ModuleBackend) {
+        return {
+            loadEntity: vi.fn(async (
+                entity: Entity, skelData: Uint8Array | string, atlasText: string,
+                textures: Map<string, { glId: number; w: number; h: number }>,
+                _registry: unknown, era?: string,
+            ) => {
+                backend.loadEntity(entity, skelData, atlasText, textures, true, era);
+                return '4.2';
+            }),
+            setEntityProps: vi.fn(), setSkin: vi.fn(), setAnimation: vi.fn(),
+        };
+    }
+
+    function generation(era: string) {
+        return new Map([['hero.skel:hero.atlas', {
+            version: '4.2' as const, era, isBinary: true,
+            skelData: new Uint8Array([era.length]), atlasText: era, textures: new Map(),
+        }]]);
+    }
+
+    it('does not reuse the skeleton built from the era before it', async () => {
+        // Two entities share one skeleton, so the update removes one reference,
+        // finds the other still holding it, and hands back the skeleton the OLD
+        // bytes were parsed into — with nothing reporting a failure.
+        const controller = makeController();
+        const backend = new ModuleBackend(controller as never);
+        const spineManager = managerOver(backend);
+        const entityMap = new Map([[1, 11 as Entity], [2, 12 as Entity]]);
+        const apply = (era: string) => applySpineEntities({
+            spineManager: spineManager as never,
+            sceneData: SCENE, entityMap, registry: {} as never, assetInfo: generation(era) as never,
+        });
+
+        await apply('hero.skel:hero.atlas#1');
+        expect(controller.loadSkeleton).toHaveBeenCalledTimes(1);
+
+        await apply('hero.skel:hero.atlas#2');
+
+        expect(controller.loadSkeleton, 'the new era was never parsed').toHaveBeenCalledTimes(2);
+        expect(controller.unloadSkeleton, 'the era nobody is left in must go')
+            .toHaveBeenCalledTimes(1);
+        expect(controller.createInstance, 'one instance per entity per era').toHaveBeenCalledTimes(4);
+    });
+
+    it('the era its last entity leaves is the one that goes', async () => {
+        // Old and new coexist while a holder of each is alive: the first entity
+        // moves to the new era, the second is still posing the old one.
+        const controller = makeController();
+        const backend = new ModuleBackend(controller as never);
+        const spineManager = managerOver(backend);
+        const both = new Map([[1, 11 as Entity], [2, 12 as Entity]]);
+        await applySpineEntities({
+            spineManager: spineManager as never,
+            sceneData: SCENE, entityMap: both, registry: {} as never,
+            assetInfo: generation('era#1') as never,
+        });
+
+        // Only entity 1 moves on.
+        await applySpineEntities({
+            spineManager: spineManager as never,
+            sceneData: SCENE, entityMap: new Map([[1, 11 as Entity]]), registry: {} as never,
+            assetInfo: generation('era#2') as never,
+        });
+
+        expect(controller.unloadSkeleton, 'the old era was pulled from under entity 2')
+            .not.toHaveBeenCalled();
+
+        backend.removeEntity(12 as Entity);
+        expect(controller.unloadSkeleton, 'the old era outlived its last entity')
+            .toHaveBeenCalledTimes(1);
     });
 });
