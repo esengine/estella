@@ -42,10 +42,42 @@ constexpr int VERTEX_FLOATS = 8;
 /// 16-bit indices, so a batch closes before one would wrap.
 constexpr std::size_t MAX_BATCH_VERTICES = 65535;
 
+/**
+ * Append-only storage that keeps what it allocated when it is emptied.
+ *
+ * A vector would do this too, but only through `push_back`'s per-element check
+ * or `resize`'s zero-fill of bytes about to be overwritten — and a thousand
+ * skeletons write three thousand of these each, every frame.
+ */
+template <class T>
+class Buffer {
+public:
+    void clear() { size_ = 0; }
+
+    /// Room for `count` more, to write through. The next append invalidates it.
+    T* append(std::size_t count) {
+        if (size_ + count > storage_.size()) storage_.resize(size_ + count);
+        T* at = storage_.data() + size_;
+        size_ += count;
+        return at;
+    }
+
+    std::size_t size() const { return size_; }
+    const T* data() const { return storage_.data(); }
+    const T& operator[](std::size_t index) const { return storage_[index]; }
+
+    /// What it can take before it allocates again.
+    std::size_t capacity() const { return storage_.capacity(); }
+
+private:
+    std::vector<T> storage_;
+    std::size_t size_ = 0;
+};
+
 /// One draw's worth of geometry.
 struct MeshBatch {
-    std::vector<float> vertices;
-    std::vector<std::uint16_t> indices;
+    Buffer<float> vertices;
+    Buffer<std::uint16_t> indices;
     std::uint32_t texture = 0;
     int blendMode = 0;
 };
@@ -137,18 +169,22 @@ public:
         MeshBatch& batch = batchFor(texture, blendMode, vertexCount);
         const auto base = static_cast<std::uint16_t>(batch.vertices.size() / VERTEX_FLOATS);
 
-        for (int i = 0; i < vertexCount; ++i) {
-            batch.vertices.push_back(positions[i * 2]);
-            batch.vertices.push_back(positions[i * 2 + 1]);
-            batch.vertices.push_back(uvs[i * 2]);
-            batch.vertices.push_back(uvs[i * 2 + 1]);
-            batch.vertices.push_back(rgba[0]);
-            batch.vertices.push_back(rgba[1]);
-            batch.vertices.push_back(rgba[2]);
-            batch.vertices.push_back(rgba[3]);
+        float* vertex = batch.vertices.append(
+            static_cast<std::size_t>(vertexCount) * VERTEX_FLOATS);
+        for (int i = 0; i < vertexCount; ++i, vertex += VERTEX_FLOATS) {
+            vertex[0] = positions[i * 2];
+            vertex[1] = positions[i * 2 + 1];
+            vertex[2] = uvs[i * 2];
+            vertex[3] = uvs[i * 2 + 1];
+            vertex[4] = rgba[0];
+            vertex[5] = rgba[1];
+            vertex[6] = rgba[2];
+            vertex[7] = rgba[3];
         }
+
+        std::uint16_t* index = batch.indices.append(static_cast<std::size_t>(indexCount));
         for (int i = 0; i < indexCount; ++i) {
-            batch.indices.push_back(static_cast<std::uint16_t>(base + indices[i]));
+            index[i] = static_cast<std::uint16_t>(base + indices[i]);
         }
     }
 

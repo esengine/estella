@@ -2,24 +2,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    spine-extract-stages.bench.ts
- * @brief   What the 7.6 ms inside `extractBatches` is made of.
+ * @brief   What `extractBatches` is made of.
  *
- * @details `spine_getMeshBatchCount` poses and rebuilds every vertex buffer
- *          before it can answer, and that is three quarters of a thousand-entity
- *          frame. This prices the steps of that walk the same way the readback
- *          split was priced — by running it to five depths and subtracting —
- *          rather than by putting a clock inside a loop that runs per slot.
+ * @details `spine_getMeshBatchCount` poses and refills every vertex buffer
+ *          before it can answer, and it is a quarter of a thousand-entity frame.
+ *          This prices the steps of that walk the same way the readback split
+ *          was priced — by running it to five depths and subtracting — rather
+ *          than by putting a clock inside a loop that runs per slot.
  *
  *          The staged walk is a separate compile-time instantiation
  *          (SpineRuntimeC.cpp, `renderImpl<STAGE, COUNT>`); the one a frame runs
  *          has no stage check and no counter in it. Every depth costs exactly
  *          one crossing per instance, so the boundary cancels in the differences.
  *
- *          S4c minus S4 is the storage, and it is not what it looks like. Making
- *          the batch slots outlive the frame — proven to reallocate nothing in a
- *          steady scene, tests/spine-batch-storage — did not move this number at
- *          all. What is left in the gap is the writing itself: eight pushes per
- *          vertex, three thousand per skeleton, a million per frame.
+ *          S4c minus S4 is the storage, and it was never the reallocation:
+ *          making the slots outlive the frame drove that to zero and moved this
+ *          number by nothing. It was the per-element writing — eight pushes per
+ *          vertex, three thousand per skeleton — and appending in blocks instead
+ *          took the gap from 6.08 ms per frame to 0.49 at a thousand entities.
  */
 import { describe, bench, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
