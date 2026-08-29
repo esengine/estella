@@ -2111,6 +2111,21 @@ export class Assets {
     }
 
     /**
+     * The asset types a component holds BY HANDLE — the loaders with a `load`
+     * door. What a live rebind can migrate: a ref-bound asset's slot swaps
+     * under the name a field already holds, so there is nothing to move.
+     *
+     * @internal
+     */
+    handleBoundTypes(): string[] {
+        const types: string[] = [];
+        for (const [type, loader] of this.loaders_) {
+            if (loader.load) types.push(type);
+        }
+        return types;
+    }
+
+    /**
      * Every asset of this realm whose CURRENT era took `ref` — the reverse of
      * {@link dependenciesOf}, walked from the eras so there is no table to keep.
      * By canonical identity: a receipt says what the acquisition ASKED for (a

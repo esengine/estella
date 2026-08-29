@@ -27,12 +27,12 @@ export interface LiveAssetBinding {
     readonly field: string;
 }
 
-/** Component names carrying at least one field of this asset type — what a
- *  system walking those bindings reaches for, from the same declaration. */
-export function componentsBindingAssetType(type: AssetFieldType): string[] {
+/** Component names carrying at least one field of any of these asset types —
+ *  what a system walking those bindings reaches for, from the same declaration. */
+export function componentsBindingAssetTypes(types: readonly string[]): string[] {
     const names: string[] = [];
     for (const [name, component] of getComponentRegistry()) {
-        if (component.assetFields.some((f) => f.type === type)) names.push(name);
+        if (component.assetFields.some((f) => types.includes(f.type))) names.push(name);
     }
     return names;
 }

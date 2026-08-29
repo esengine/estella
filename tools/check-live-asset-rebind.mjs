@@ -131,7 +131,7 @@ function functionBody(text, name) {
 // Per function, not per file: the file kept the word `assetFields` in a
 // neighbouring helper while the walk itself had been replaced by a literal.
 const discovery = stripComments(readFileSync(path.join(ROOT, REBIND_PATH[0]), 'utf8'));
-for (const fn of ['findLiveAssetBindings', 'componentsBindingAssetType']) {
+for (const fn of ['findLiveAssetBindings', 'componentsBindingAssetTypes']) {
   const body = functionBody(discovery, fn);
   if (body === null) {
     findings.push(`${REBIND_PATH[0]}  ${fn}() is gone — the rebind path's only door to the declaration.`);

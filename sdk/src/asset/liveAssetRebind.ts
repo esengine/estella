@@ -31,14 +31,21 @@ import { log } from '../util/logger';
 export type OwnerScopeResolver = (entity: Entity) => AssetScope;
 
 /**
- * The value a bound field holds for this lease — a texture's handle.
+ * What a bound field holds for this asset value — a handle.
  *
- * Undefined for an asset a field names by ref rather than by value. Those go
- * unmatched rather than matched through a path, which after an invalidate names
- * a different instance than the field is bound to.
+ * One rule for both ends of a replacement: the outgoing value an invalidation
+ * reports, and the incoming lease. Undefined for an asset a field names by REF
+ * rather than by value, which is not migrated at all — its slot swaps under the
+ * name the field already holds.
  */
+export function boundValueIn(value: unknown): unknown {
+    if (typeof value === 'number') return value;
+    return (value as { handle?: number } | null)?.handle;
+}
+
+/** {@link boundValueIn} for what a receipt names. */
 export function boundValueOf(lease: AssetLease): unknown {
-    return (lease.value as { handle?: number } | null)?.handle;
+    return boundValueIn(lease.value);
 }
 
 /** The receipt in `scope` that a bound value names, if the scope holds one. */
@@ -62,7 +69,7 @@ export function slotLeaseNamed(scope: AssetScope, ref: unknown): AssetLease | un
 }
 
 /** One acquisition of the replacement, and how to read the value a bound field
- *  holds for a lease — a texture's handle, for the only kind rebound today. */
+ *  holds for it. */
 export interface LiveAssetReplacement {
     readonly lease: AssetLease;
     readonly boundValue: (lease: AssetLease) => unknown;

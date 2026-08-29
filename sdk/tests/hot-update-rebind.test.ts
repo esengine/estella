@@ -80,11 +80,29 @@ const platformFactory = vi.hoisted(() => () => ({
 vi.mock('../src/platform', platformFactory);
 vi.mock('../src/platform/base', platformFactory);
 
-function buildAssets(): Assets {
+const materialFake = vi.hoisted(() => {
+    let next = 100;
+    return {
+        reset: () => { next = 100; },
+        Material: {
+            createFromAsset: vi.fn((): number => next++),
+            setUniform: vi.fn(),
+            tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
+            compileShader: vi.fn(() => 7),
+            release: vi.fn(),
+        },
+    };
+});
+vi.mock('../src/render/material', () => ({ Material: materialFake.Material }));
+
+function buildAssets(docs: Record<string, string> = {}): Assets {
     return Assets.create({
         backend: {
             fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
-            fetchText: vi.fn(async () => '{}'),
+            fetchText: vi.fn(async (url: string) => {
+                const key = Object.keys(docs).find((k) => url.endsWith(k));
+                return key ? docs[key] : '{}';
+            }),
             resolveUrl: (p: string) => `http://test/${p}`,
         } as unknown as Backend,
         module: { _malloc: vi.fn(() => 0), _free: vi.fn(), HEAPU8: new Uint8Array(1 << 16), GL: null, FS: null } as never,
@@ -388,5 +406,47 @@ describe('a scope migrates all of its bindings or none', () => {
         expect(replacementReleased).toBe(1);
         expect(scope.size).toBe(1);
         expect(scope.leases()[0]).toBe(outgoing);
+    });
+});
+
+describe('a live binding follows the asset, whatever kind it is', () => {
+    beforeEach(() => { pool = createPoolFake(); materialFake.reset(); });
+
+    /** A material on a built-in shader, binding no textures of its own. */
+    const MATERIAL = JSON.stringify({
+        type: 'material', shader: 'builtin:sprite-unlit', properties: {},
+    });
+
+    it('a material field moves to the new generation, like a texture field', async () => {
+        // Every handle-bound kind — material, font, mesh, environment — follows
+        // the same transaction a texture does; nothing about it is texture-shaped.
+        const app = App.new();
+        connectFakeCpp(app.world);
+        const assets = buildAssets({ 'hero.esmaterial': MATERIAL });
+        installHotUpdateRebind(app, assets);
+
+        const before = await assets.acquireTyped<{ handle: number }>('material', 'hero.esmaterial');
+        const entity = app.world.spawn();
+        app.world.insert(entity, MeshRenderer, { material: before.value.handle } as never);
+
+        assets.invalidate('hero.esmaterial');
+        await settle(app);
+
+        const after = (app.world.get(entity, MeshRenderer) as { material: number }).material;
+        expect(after, 'the field kept the handle from before the update')
+            .not.toBe(before.value.handle);
+        const fresh = await assets.acquireTyped<{ handle: number }>('material', 'hero.esmaterial');
+        expect(after, 'the field moved to something other than the published era')
+            .toBe(fresh.value.handle);
+    });
+
+    it('which kinds can be rebound is read from the loader doors', async () => {
+        // A ref-bound asset has nothing to move: the field holds the name, and
+        // what the name means is the slot's business.
+        const assets = buildAssets();
+
+        expect(assets.handleBoundTypes()).toContain('material');
+        expect(assets.handleBoundTypes()).not.toContain('anim-clip');
+        expect(assets.handleBoundTypes()).not.toContain('tilemap');
     });
 });
