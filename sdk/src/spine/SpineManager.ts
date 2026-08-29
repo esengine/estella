@@ -6,9 +6,7 @@ import type { Entity } from '../types';
 import type { SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import type { SpineModuleFactory } from './SpineModuleLoader';
-import { wrapSpineModule } from './SpineModuleLoader';
-import { SpineModuleController } from './SpineController';
-import { ModuleBackend } from './ModuleBackend';
+import { SpineRuntime } from './SpineRuntime';
 import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
@@ -39,12 +37,12 @@ function runtimeFor(reported: string): SpineVersion | null {
 export class SpineManager {
     private coreModule_: NonNullable<EngineApi>;
     private factories_: Map<SpineVersion, SpineModuleFactory>;
-    private backends_: Map<SpineVersion, ModuleBackend> = new Map();
-    private loadingBackends_: Map<SpineVersion, Promise<ModuleBackend | null>> = new Map();
+    private runtimes_: Map<SpineVersion, SpineRuntime> = new Map();
+    private loadingRuntimes_: Map<SpineVersion, Promise<SpineRuntime | null>> = new Map();
     /** Which runtime poses each entity. The authority for that is HERE: a
-     *  version backend can only see its own entities, so one that is handed an
-     *  entity another is posing cannot retire the binding it replaces. */
-    private bindings_: Map<Entity, { version: SpineVersion; backend: ModuleBackend }> = new Map();
+     *  runtime can only see its own entities, so one handed an entity another is
+     *  posing cannot retire the binding it replaces. */
+    private bindings_: Map<Entity, SpineRuntime> = new Map();
 
     constructor(
         /** Whichever engine core is present (see ecs/engineApi.ts). */
@@ -72,7 +70,7 @@ export class SpineManager {
         atlasText: string,
         textures: Map<string, { glId: number; w: number; h: number }>,
         _registry: CppRegistry,
-        /** The prepared asset's ERA — see ModuleBackend.loadEntity. */
+        /** The prepared asset's ERA — see SpineRuntime.loadEntity. */
         era?: string,
     ): Promise<SpineVersion | null> {
         const version = typeof skelData === 'string'
@@ -84,38 +82,38 @@ export class SpineManager {
         // Every version loads into its per-version side-module backend; there is
         // no native runtime fallback. A missing factory for `version` fails the
         // load (logged below) — spine is strictly pay-for-use.
-        const backend = await this.ensureBackend(version);
-        if (!backend) {
-            log.error('spine', `Failed to create backend for version ${version}`);
+        const runtime = await this.ensureRuntime(version);
+        if (!runtime) {
+            log.error('spine', `Failed to create the runtime for version ${version}`);
             return null;
         }
 
         const isBinary = skelData instanceof Uint8Array;
         const previous = this.bindings_.get(entity);
-        const ok = backend.loadEntity(entity, skelData, atlasText, textures, isBinary, era);
+        const ok = runtime.loadEntity(entity, skelData, atlasText, textures, isBinary, era);
         if (!ok) {
             // Commit after success all the way up: the entity keeps the binding
             // it had, in whichever runtime that was.
-            log.error('spine', `Failed to load entity ${entity} into backend ${version}`);
+            log.error('spine', `Failed to load entity ${entity} into the ${version} runtime`);
             return null;
         }
         // A move BETWEEN runtimes: the one it went to removed nothing, because
         // it never had this entity. Left behind, the old instance is posed and
         // submitted every frame and no despawn ever reaches it.
-        if (previous && previous.backend !== backend) previous.backend.removeEntity(entity);
-        this.bindings_.set(entity, { version, backend });
+        if (previous && previous !== runtime) previous.removeEntity(entity);
+        this.bindings_.set(entity, runtime);
         return version;
     }
 
     updateAnimations(dt: number): void {
-        for (const backend of this.backends_.values()) {
-            backend.updateAll(dt);
+        for (const runtime of this.runtimes_.values()) {
+            runtime.updateAll(dt);
         }
     }
 
     submitMeshes(registry: CppRegistry, materialOf?: SkeletalMaterialOf): void {
-        for (const backend of this.backends_.values()) {
-            backend.extractAndSubmitMeshes(this.coreModule_, registry, materialOf);
+        for (const runtime of this.runtimes_.values()) {
+            runtime.extractAndSubmitMeshes(this.coreModule_, registry, materialOf);
         }
     }
 
@@ -126,7 +124,7 @@ export class SpineManager {
     }
 
     removeEntity(entity: Entity): void {
-        this.bindings_.get(entity)?.backend.removeEntity(entity);
+        this.bindings_.get(entity)?.removeEntity(entity);
         this.bindings_.delete(entity);
     }
 
@@ -136,11 +134,11 @@ export class SpineManager {
      * The ONE teardown door: `shutdown()` was a second name for this.
      */
     dispose(): void {
-        for (const backend of this.backends_.values()) {
-            backend.shutdown();
+        for (const runtime of this.runtimes_.values()) {
+            runtime.dispose();
         }
-        this.backends_.clear();
-        this.loadingBackends_.clear();
+        this.runtimes_.clear();
+        this.loadingRuntimes_.clear();
         this.bindings_.clear();
     }
 
@@ -148,103 +146,103 @@ export class SpineManager {
         return this.bindings_.get(entity)?.version;
     }
 
-    hasModuleBackend(version: SpineVersion): boolean {
-        return this.backends_.has(version);
+    hasRuntime(version: SpineVersion): boolean {
+        return this.runtimes_.has(version);
     }
 
     /** @internal One version's runtime, for a diagnostic that has to look at
      *  what it holds. Not a door into it: an entity's binding is this manager's,
      *  and reaching a runtime directly is how one gets posed by two of them. */
-    moduleBackendForDiagnostics(version: SpineVersion): ModuleBackend | undefined {
-        return this.backends_.get(version);
+    runtimeForDiagnostics(version: SpineVersion): SpineRuntime | undefined {
+        return this.runtimes_.get(version);
     }
 
     setAnimation(entity: Entity, animation: string, loop: boolean): void {
-        this.getEntityBackend_(entity)?.setAnimation(entity, animation, loop);
+        this.runtimeOf_(entity)?.setAnimation(entity, animation, loop);
     }
 
     setSkin(entity: Entity, skin: string): void {
-        this.getEntityBackend_(entity)?.setSkin(entity, skin);
+        this.runtimeOf_(entity)?.setSkin(entity, skin);
     }
 
     setEntityProps(entity: Entity, props: {
         skeletonScale?: number; flipX?: boolean; flipY?: boolean; layer?: number;
         timeScale?: number; playing?: boolean; color?: { r: number; g: number; b: number; a: number };
     }): void {
-        this.getEntityBackend_(entity)?.setEntityProps(entity, props);
+        this.runtimeOf_(entity)?.setEntityProps(entity, props);
     }
 
     getBounds(entity: Entity): { x: number; y: number; width: number; height: number } | null {
-        return this.getEntityBackend_(entity)?.getBounds(entity) ?? null;
+        return this.runtimeOf_(entity)?.getBounds(entity) ?? null;
     }
 
     getAnimations(entity: Entity): string[] {
-        return this.getEntityBackend_(entity)?.getAnimations(entity) ?? [];
+        return this.runtimeOf_(entity)?.getAnimations(entity) ?? [];
     }
 
     getSkins(entity: Entity): string[] {
-        return this.getEntityBackend_(entity)?.getSkins(entity) ?? [];
+        return this.runtimeOf_(entity)?.getSkins(entity) ?? [];
     }
 
     setDefaultMix(entity: Entity, duration: number): void {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) backend.setDefaultMix(entity, duration);
     }
 
     setMixDuration(entity: Entity, fromAnim: string, toAnim: string, duration: number): void {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) backend.setMixDuration(entity, fromAnim, toAnim, duration);
     }
 
     setTrackAlpha(entity: Entity, track: number, alpha: number): void {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) backend.setTrackAlpha(entity, track, alpha);
     }
 
     setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (!backend) return false;
         return backend.setAttachment(entity, slotName, attachmentName);
     }
 
     setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (!backend) return false;
         return backend.setIKTarget(entity, constraintName, targetX, targetY, mix);
     }
 
     setSlotColor(entity: Entity, slotName: string, r: number, g: number, b: number, a: number): boolean {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (!backend) return false;
         return backend.setSlotColor(entity, slotName, r, g, b, a);
     }
 
     listConstraints(entity: Entity): ConstraintList | null {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) return backend.listConstraints(entity);
         return null;
     }
 
     getTransformConstraintMix(entity: Entity, name: string): TransformMixData | null {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) return backend.getTransformConstraintMix(entity, name);
         return null;
     }
 
     setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) return backend.setTransformConstraintMix(entity, name, mix);
         return false;
     }
 
     getPathConstraintMix(entity: Entity, name: string): PathMixData | null {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) return backend.getPathConstraintMix(entity, name);
         return null;
     }
 
     setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) return backend.setPathConstraintMix(entity, name, mix);
         return false;
     }
@@ -259,18 +257,18 @@ export class SpineManager {
      * the moment it is written and this call holds between such writes.
      */
     setEnabled(entity: Entity, enabled: boolean): void {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) backend.setEnabled(entity, enabled);
     }
 
     enableEvents(entity: Entity): void {
-        const backend = this.getEntityBackend_(entity);
+        const backend = this.runtimeOf_(entity);
         if (backend) backend.enableEvents(entity);
     }
 
     collectAllEvents(): { entity: Entity; raw: RawSpineEvent }[] {
         const result: { entity: Entity; raw: RawSpineEvent }[] = [];
-        for (const backend of this.backends_.values()) {
+        for (const backend of this.runtimes_.values()) {
             const events = backend.collectAllEvents();
             for (const evt of events) {
                 result.push(evt);
@@ -283,15 +281,15 @@ export class SpineManager {
         return this.bindings_.has(entity);
     }
 
-    private getEntityBackend_(entity: Entity): ModuleBackend | undefined {
-        return this.bindings_.get(entity)?.backend;
+    private runtimeOf_(entity: Entity): SpineRuntime | undefined {
+        return this.bindings_.get(entity);
     }
 
-    private async ensureBackend(version: SpineVersion): Promise<ModuleBackend | null> {
-        const existing = this.backends_.get(version);
+    private async ensureRuntime(version: SpineVersion): Promise<SpineRuntime | null> {
+        const existing = this.runtimes_.get(version);
         if (existing) return existing;
 
-        const loading = this.loadingBackends_.get(version);
+        const loading = this.loadingRuntimes_.get(version);
         if (loading) return loading;
 
         const factory = this.factories_.get(version);
@@ -302,21 +300,18 @@ export class SpineManager {
 
         const promise = (async () => {
             try {
-                const raw = await factory();
-                const api = wrapSpineModule(raw);
-                const controller = new SpineModuleController(raw, api);
-                const backend = new ModuleBackend(controller);
-                this.backends_.set(version, backend);
-                return backend;
+                const runtime = new SpineRuntime(version, await factory());
+                this.runtimes_.set(version, runtime);
+                return runtime;
             } catch (e) {
                 log.error('spine', `Failed to load WASM module for version ${version}`, e);
                 return null;
             } finally {
-                this.loadingBackends_.delete(version);
+                this.loadingRuntimes_.delete(version);
             }
         })();
 
-        this.loadingBackends_.set(version, promise);
+        this.loadingRuntimes_.set(version, promise);
         return promise;
     }
 }

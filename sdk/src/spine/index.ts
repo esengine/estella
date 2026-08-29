@@ -4,9 +4,9 @@ export { SpinePlugin, spinePlugin, SpineEvents, Spine } from './SpinePlugin';
 export type { SpineEvent, SpineEventType, SpineEventsData } from './SpinePlugin';
 export { SpineManager } from './SpineManager';
 export type { SpineVersion } from './SpineManager';
-export { ModuleBackend } from './ModuleBackend';
+export { SpineRuntime } from './SpineRuntime';
 export { SpineModuleController } from './SpineController';
-export type { SpineEventCallback, ConstraintList, TransformMixData, PathMixData } from './SpineController';
+export type { ConstraintList, TransformMixData, PathMixData } from './SpineController';
 export type { SpineModuleFactory } from './SpineModuleLoader';
 export { wrapSpineModule } from './SpineModuleLoader';
 // Shared spine scene loader — the editor loads spine entities through the same

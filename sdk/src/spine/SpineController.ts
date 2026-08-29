@@ -5,14 +5,12 @@
  * @brief   Spine animation control for the modular Spine WASM module
  */
 
-import type { Entity, Vec2 } from '../types';
+import type { Vec2 } from '../types';
 import type { SpineWasmModule, SpineWrappedAPI } from './SpineModuleLoader';
 import { SpineModuleBridge } from './SpineBridge';
 import { log } from '../util/logger';
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
-
-export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'dispose' | 'event';
 
 export interface RawSpineEvent {
     type: number;
@@ -47,24 +45,10 @@ export interface PathMixData {
     mixY: number;
 }
 
-export type SpineEventCallback = (event: SpineEvent) => void;
-
-export interface SpineEvent {
-    type: SpineEventType;
-    entity: Entity;
-    track: number;
-    animation: string | null;
-    eventName?: string;
-    intValue?: number;
-    floatValue?: number;
-    stringValue?: string;
-}
-
 export class SpineModuleController {
     private raw_: SpineWasmModule;
     private api_: SpineWrappedAPI;
     private bridge_ = new SpineModuleBridge();
-    private listeners_: Map<Entity, Map<SpineEventType, Set<SpineEventCallback>>>;
 
     constructor(raw: SpineWasmModule, api: SpineWrappedAPI) {
         this.raw_ = raw;
@@ -74,7 +58,6 @@ export class SpineModuleController {
         // reads and withScratch allocations that must run even after an abort.
         this.bridge_.connect(api, raw);
         this.api_ = this.bridge_.module;
-        this.listeners_ = new Map();
     }
 
     get raw(): SpineWasmModule {
@@ -370,26 +353,4 @@ export class SpineModuleController {
     // Listeners
     // =========================================================================
 
-    on(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void {
-        if (!this.listeners_.has(entity)) {
-            this.listeners_.set(entity, new Map());
-        }
-        const entityListeners = this.listeners_.get(entity)!;
-        if (!entityListeners.has(type)) {
-            entityListeners.set(type, new Set());
-        }
-        entityListeners.get(type)!.add(callback);
-    }
-
-    off(entity: Entity, type: SpineEventType, callback: SpineEventCallback): void {
-        const entityListeners = this.listeners_.get(entity);
-        if (!entityListeners) return;
-        const typeListeners = entityListeners.get(type);
-        if (!typeListeners) return;
-        typeListeners.delete(callback);
-    }
-
-    removeAllListeners(entity: Entity): void {
-        this.listeners_.delete(entity);
-    }
 }

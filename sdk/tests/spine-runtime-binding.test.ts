@@ -15,63 +15,24 @@ import { describe, it, expect, vi } from 'vitest';
 import { SpineManager, type SpineVersion } from '../src/spine/SpineManager';
 import type { SpineModuleFactory } from '../src/spine/SpineModuleLoader';
 import type { Entity } from '../src/types';
+import { fakeSpineModule, type FakeSpineModule } from './helpers/fakeSpineModule';
 
 /** A skeleton document that reports `version`, in the shape detection reads. */
 function skeletonOf(version: string): string {
     return JSON.stringify({ skeleton: { spine: version } });
 }
 
-/** One version's wasm module, faked at the ABI: every export the controller
- *  reaches for, and a switch for making the next parse fail. */
-function fakeModule(state: { parses: boolean; skeletons: number[]; instances: number[] }) {
-    let nextSkeleton = 1;
-    let nextInstance = 1000;
-    const exports: Record<string, (...args: never[]) => unknown> = {
-        spine_loadSkeleton: () => {
-            if (!state.parses) return -1;
-            const handle = nextSkeleton++;
-            state.skeletons.push(handle);
-            return handle;
-        },
-        spine_unloadSkeleton: ((handle: number) => {
-            state.skeletons.splice(state.skeletons.indexOf(handle), 1);
-        }) as never,
-        spine_getLastError: () => 'the fake refused to parse',
-        spine_getAtlasPageCount: () => 0,
-        spine_createInstance: () => {
-            const id = nextInstance++;
-            state.instances.push(id);
-            return id;
-        },
-        spine_destroyInstance: ((id: number) => {
-            state.instances.splice(state.instances.indexOf(id), 1);
-        }) as never,
-        spine_getMeshBatchCount: () => 0,
-    };
-    return {
-        cwrap: (name: string) => exports[name] ?? (() => 0),
-        _malloc: () => 0,
-        _free: () => {},
-        HEAPU8: new Uint8Array(4096),
-        HEAPF32: new Float32Array(1024),
-        HEAP32: new Int32Array(1024),
-        HEAPU32: new Uint32Array(1024),
-        HEAPU16: new Uint16Array(1024),
-    } as never;
-}
-
 /** A manager over two faked runtimes, and the state each of them holds. */
 function managerWithVersions() {
-    const runtimes = {
-        '4.1': { parses: true, skeletons: [] as number[], instances: [] as number[] },
-        '4.2': { parses: true, skeletons: [] as number[], instances: [] as number[] },
+    const runtimes: Record<'4.1' | '4.2', FakeSpineModule> = {
+        '4.1': fakeSpineModule(),
+        '4.2': fakeSpineModule(),
     };
     const factories = new Map<SpineVersion, SpineModuleFactory>([
-        ['4.1', (async () => fakeModule(runtimes['4.1'])) as never],
-        ['4.2', (async () => fakeModule(runtimes['4.2'])) as never],
+        ['4.1', (async () => runtimes['4.1'].module) as never],
+        ['4.2', (async () => runtimes['4.2'].module) as never],
     ]);
-    const core = {} as never;
-    return { manager: new SpineManager(core, factories), runtimes };
+    return { manager: new SpineManager({} as never, factories), runtimes };
 }
 
 const NO_TEXTURES = new Map<string, { glId: number; w: number; h: number }>();

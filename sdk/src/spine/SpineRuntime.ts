@@ -1,10 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    SpineRuntime.ts
+ * @brief   One loaded Spine version: what it holds, and what it poses.
+ *
+ * @details A runtime is a wasm module of one Spine version plus everything that
+ *          lives inside it — the native skeletons it parsed, by ERA, and the
+ *          instance each entity is posed by. Its ABI half is a private adapter
+ *          (heap, scratch allocation, guarded calls); the two are one lifetime,
+ *          which is why they are one object.
+ *
+ *          It does NOT decide which runtime an entity belongs to. That is the
+ *          manager's: a runtime can only see its own entities, so one handed an
+ *          entity another is posing has nothing to retire.
+ */
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
-import type { SpineModuleController } from './SpineController';
+import { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
+import { wrapSpineModule, type SpineWasmModule } from './SpineModuleLoader';
+import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
 
@@ -21,7 +37,7 @@ interface EntityInfo {
     era?: string;
 }
 
-export class ModuleBackend {
+export class SpineRuntime {
     private controller_: SpineModuleController;
     private entities_: Map<Entity, EntityInfo> = new Map();
     private disabledEntities_: Set<Entity> = new Set();
@@ -31,12 +47,10 @@ export class ModuleBackend {
     // per-entity skeleton (the pre-dedup behaviour).
     private skeletons_: Map<string, { skelHandle: number; refcount: number }> = new Map();
 
-    constructor(controller: SpineModuleController) {
-        this.controller_ = controller;
-    }
-
-    get controller(): SpineModuleController {
-        return this.controller_;
+    /** One runtime per loaded module: the ABI adapter is made here rather than
+     *  handed in, because nothing else has a reason to hold one. */
+    constructor(readonly version: SpineVersion, module: SpineWasmModule) {
+        this.controller_ = new SpineModuleController(module, wrapSpineModule(module));
     }
 
     get entityCount(): number {
@@ -279,7 +293,6 @@ export class ModuleBackend {
         const info = this.entities_.get(entity);
         if (!info) return;
         this.controller_.destroyInstance(info.instanceId);
-        this.controller_.removeAllListeners(entity); // keyed by entity, not instanceId
         this.releaseSkeleton_(info);
         this.entities_.delete(entity);
         this.disabledEntities_.delete(entity);
@@ -301,7 +314,8 @@ export class ModuleBackend {
         this.controller_.unloadSkeleton(info.skelHandle);
     }
 
-    shutdown(): void {
+    /** Give back everything this runtime holds. The one teardown door. */
+    dispose(): void {
         for (const info of this.entities_.values()) {
             this.controller_.destroyInstance(info.instanceId);
         }

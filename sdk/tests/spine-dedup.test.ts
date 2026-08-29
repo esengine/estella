@@ -2,43 +2,34 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    spine-dedup.test.ts
- * @brief   S4-A: ModuleBackend shares one loaded skeleton across every entity of
+ * @brief   S4-A: SpineRuntime shares one loaded skeleton across every entity of
  *          the same asset (keyed) and refcounts it, instead of loading a fresh
  *          skeletonData per entity. Without a key it falls back to per-entity.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ModuleBackend } from '../src/spine/ModuleBackend';
-import type { SpineModuleController } from '../src/spine/SpineController';
+import { SpineRuntime } from '../src/spine/SpineRuntime';
 import type { Entity } from '../src/types';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { applySpineEntities } from '../src/spine/loadSpineScene';
 import type { SceneData } from '../src/scene/scene';
 
-function makeController() {
-    let nextSkel = 1, nextInst = 100;
-    return {
-        loadSkeleton: vi.fn(() => nextSkel++),
-        getLastError: vi.fn(() => ''),
-        getAtlasPageCount: vi.fn(() => 0),
-        getAtlasPageTextureName: vi.fn(() => ''),
-        setAtlasPageTexture: vi.fn(),
-        createInstance: vi.fn(() => nextInst++),
-        destroyInstance: vi.fn(),
-        removeAllListeners: vi.fn(),
-        unloadSkeleton: vi.fn(),
-    } as unknown as SpineModuleController & Record<string, ReturnType<typeof vi.fn>>;
+import { fakeSpineModule, type FakeSpineModule } from './helpers/fakeSpineModule';
+
+/** A runtime of one version over a faked module. */
+function runtimeOf(): { runtime: SpineRuntime; native: FakeSpineModule } {
+    const native = fakeSpineModule();
+    return { runtime: new SpineRuntime('4.2', native.module), native };
 }
 
 const NO_TEX = new Map<string, { glId: number; w: number; h: number }>();
 
-function load(b: ModuleBackend, id: number, key?: string) {
+function load(b: SpineRuntime, id: number, key?: string) {
     b.loadEntity(id as Entity, new Uint8Array(), '', NO_TEX, true, key);
 }
 
-describe('ModuleBackend skeleton dedup (S4-A)', () => {
+describe('SpineRuntime skeleton dedup (S4-A)', () => {
     it('shares one skeleton across entities with the same asset key', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
         load(b, 2, 'hero');
         expect(c.loadSkeleton).toHaveBeenCalledTimes(1);   // one skeletonData
@@ -46,8 +37,7 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
     });
 
     it('unloads the shared skeleton only when the last instance is removed', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
         load(b, 2, 'hero');
 
@@ -59,8 +49,7 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
     });
 
     it('re-loading a live entity onto a different skeleton frees the old instance + skeleton', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
         expect(c.createInstance).toHaveBeenCalledTimes(1);
 
@@ -72,8 +61,7 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
     });
 
     it('re-loading the same shared skeleton keeps it loaded (net-zero refcount), swaps the instance', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
         load(b, 2, 'hero');
         load(b, 1, 'hero'); // re-load entity 1 onto the same shared skeleton
@@ -84,20 +72,18 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
     });
 
     it('loads a fresh skeleton per entity when no asset key is given (legacy)', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1);
         load(b, 2);
         expect(c.loadSkeleton).toHaveBeenCalledTimes(2);
     });
 
     it('shutdown unloads each unique skeleton once and destroys every instance', () => {
-        const c = makeController();
-        const b = new ModuleBackend(c as never);
+        const { runtime: b, native: c } = runtimeOf();
         load(b, 1, 'hero');
         load(b, 2, 'hero');
         load(b, 3, 'villain');
-        b.shutdown();
+        b.dispose();
         expect(c.unloadSkeleton).toHaveBeenCalledTimes(2); // hero + villain, once each
         expect(c.destroyInstance).toHaveBeenCalledTimes(3); // three instances
     });
@@ -124,7 +110,7 @@ describe('a hot swap loads the new bytes, once', () => {
 
     /** A manager that is the real backend, so what is asserted is what the
      *  native side was actually told. */
-    function managerOver(backend: ModuleBackend) {
+    function managerOver(backend: SpineRuntime) {
         return {
             loadEntity: vi.fn(async (
                 entity: Entity, skelData: Uint8Array | string, atlasText: string,
@@ -149,8 +135,7 @@ describe('a hot swap loads the new bytes, once', () => {
         // Two entities share one skeleton, so the update removes one reference,
         // finds the other still holding it, and hands back the skeleton the OLD
         // bytes were parsed into — with nothing reporting a failure.
-        const controller = makeController();
-        const backend = new ModuleBackend(controller as never);
+        const { runtime: backend, native: controller } = runtimeOf();
         const spineManager = managerOver(backend);
         const entityMap = new Map([[1, 11 as Entity], [2, 12 as Entity]]);
         const apply = (era: string) => applySpineEntities({
@@ -172,8 +157,7 @@ describe('a hot swap loads the new bytes, once', () => {
     it('the era its last entity leaves is the one that goes', async () => {
         // Old and new coexist while a holder of each is alive: the first entity
         // moves to the new era, the second is still posing the old one.
-        const controller = makeController();
-        const backend = new ModuleBackend(controller as never);
+        const { runtime: backend, native: controller } = runtimeOf();
         const spineManager = managerOver(backend);
         const both = new Map([[1, 11 as Entity], [2, 12 as Entity]]);
         await applySpineEntities({

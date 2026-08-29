@@ -17,25 +17,25 @@ import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
 describe('SpineManager.dispose', () => {
     it('shuts down every backend and clears all state, idempotently', () => {
         const mgr = new SpineManager({} as any, new Map());
-        const backendA = { shutdown: vi.fn() };
-        const backendB = { shutdown: vi.fn() };
+        const backendA = { dispose: vi.fn() };
+        const backendB = { dispose: vi.fn() };
         const m = mgr as any;
-        m.backends_.set('3.8', backendA);
-        m.backends_.set('4.1', backendB);
-        m.bindings_.set(1, { version: '3.8', backend: backendA });
-        m.loadingBackends_.set('4.2', Promise.resolve(null));
+        m.runtimes_.set('3.8', backendA);
+        m.runtimes_.set('4.1', backendB);
+        m.bindings_.set(1, backendA);
+        m.loadingRuntimes_.set('4.2', Promise.resolve(null));
 
         mgr.dispose();
 
-        expect(backendA.shutdown).toHaveBeenCalledTimes(1);
-        expect(backendB.shutdown).toHaveBeenCalledTimes(1);
-        expect(m.backends_.size).toBe(0);
+        expect(backendA.dispose).toHaveBeenCalledTimes(1);
+        expect(backendB.dispose).toHaveBeenCalledTimes(1);
+        expect(m.runtimes_.size).toBe(0);
         expect(m.bindings_.size).toBe(0);
-        expect(m.loadingBackends_.size).toBe(0);
+        expect(m.loadingRuntimes_.size).toBe(0);
 
         // Idempotent: a second dispose is a no-op, not a re-shutdown / throw.
         expect(() => mgr.dispose()).not.toThrow();
-        expect(backendA.shutdown).toHaveBeenCalledTimes(1);
+        expect(backendA.dispose).toHaveBeenCalledTimes(1);
     });
 });
 
