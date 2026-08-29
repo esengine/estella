@@ -16,7 +16,7 @@
  */
 import type { Entity } from '../types';
 import type { World } from './world';
-import { Disabled, renderableComponents } from './component';
+import { Disabled, renderableComponents, Transform } from './component';
 import { UINode, UIDisplay, type UINodeData } from '../ui/core/ui-node';
 
 /**
@@ -79,4 +79,23 @@ export function setEntityActive(world: World, entity: Entity, active: boolean): 
 
 export function isEntityActive(world: World, entity: Entity): boolean {
     return !world.has(entity, Disabled);
+}
+
+/**
+ * Take `entity` out of its parent's hierarchy and leave it where it was.
+ *
+ * A bare {@link World.removeParent} keeps the LOCAL transform — a position
+ * relative to a parent that is no longer there, so the entity jumps. The world
+ * transform, as of the last transform pass, becomes the local one.
+ */
+export function detachPreservingWorldTransform(world: World, entity: Entity): void {
+    const transform = world.tryGet(entity, Transform);
+    world.removeParent(entity);
+    if (!transform) return;
+    world.set(entity, Transform, {
+        ...transform,
+        position: { ...transform.worldPosition },
+        rotation: { ...transform.worldRotation },
+        scale: { ...transform.worldScale },
+    });
 }

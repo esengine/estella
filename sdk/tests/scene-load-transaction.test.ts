@@ -22,7 +22,8 @@ import { Assets } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
 import { PostProcess } from '../src/postprocess';
 import { getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
-import { Disabled, defineComponent } from '../src/ecs/component';
+import { Disabled, Parent, Transform, defineComponent } from '../src/ecs/component';
+import { connectFakeCpp } from './helpers/fakeEngine';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 
@@ -249,5 +250,102 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
 
         await expect(manager.load('level')).rejects.toThrow('boom');
         expect(app.world.valid(spawned), 'a persistent entity escaped a failed load').toBe(false);
+    });
+});
+
+describe('unload decides who lives before it destroys anything', () => {
+    /** A hierarchy the engine really walks: despawn takes the subtree with it. */
+    function hierarchyApp() {
+        const app = App.new();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        return { app, manager };
+    }
+
+    const at = (x: number, y: number) => ({
+        position: { x, y, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
+        worldPosition: { x, y, z: 0 }, worldRotation: { x: 0, y: 0, z: 0, w: 1 },
+        worldScale: { x: 1, y: 1, z: 1 },
+    });
+
+    it('a persistent child of a doomed parent survives, where it was', async () => {
+        // `despawn` tears down the whole subtree, so the parent's turn in the
+        // loop was killing the survivor — and whether it lived at all came down
+        // to which of the two the iteration reached first.
+        const { app, manager } = hierarchyApp();
+        let parent = 0 as Entity;
+        let child = 0 as Entity;
+
+        manager.register({
+            name: 'level',
+            setup: (ctx) => {
+                parent = ctx.spawn();
+                child = ctx.spawn();
+                app.world.insert(parent, Transform, at(500, 200));
+                app.world.insert(child, Transform, {
+                    ...at(550, 200), position: { x: 50, y: 0, z: 0 },
+                });
+                app.world.setParent(child, parent);
+                ctx.setPersistent(child, true);
+            },
+        });
+        await manager.load('level');
+        await manager.unload('level');
+
+        expect(app.world.valid(parent), 'the doomed parent').toBe(false);
+        expect(app.world.valid(child), 'the persistent child went down with it').toBe(true);
+        expect(app.world.has(child, Parent), 'still parented to a dead entity').toBe(false);
+        // And it did not jump: its local transform was relative to a parent that
+        // is no longer there, so what survives is where it actually was.
+        expect(app.world.get(child, Transform).position).toEqual({ x: 550, y: 200, z: 0 });
+    });
+
+    it('a persistent parent does not drag its non-persistent children along', async () => {
+        // "This entity persists" is what the API says, not "this subtree does".
+        const { app, manager } = hierarchyApp();
+        let parent = 0 as Entity;
+        let child = 0 as Entity;
+
+        manager.register({
+            name: 'level',
+            setup: (ctx) => {
+                parent = ctx.spawn();
+                child = ctx.spawn();
+                app.world.setParent(child, parent);
+                ctx.setPersistent(parent, true);
+            },
+        });
+        await manager.load('level');
+        await manager.unload('level');
+
+        expect(app.world.valid(parent), 'the persistent parent').toBe(true);
+        expect(app.world.valid(child), 'a subtree persisted that nobody asked to persist').toBe(false);
+    });
+
+    it('a persistent child of a persistent parent keeps its parent', async () => {
+        const { app, manager } = hierarchyApp();
+        let parent = 0 as Entity;
+        let child = 0 as Entity;
+
+        manager.register({
+            name: 'level',
+            setup: (ctx) => {
+                parent = ctx.spawn();
+                child = ctx.spawn();
+                app.world.insert(child, Transform, at(50, 0));
+                app.world.setParent(child, parent);
+                ctx.setPersistent(parent, true);
+                ctx.setPersistent(child, true);
+            },
+        });
+        await manager.load('level');
+        await manager.unload('level');
+
+        expect(app.world.valid(parent)).toBe(true);
+        expect(app.world.valid(child)).toBe(true);
+        // Nothing between them died, so nothing about them changes.
+        expect(app.world.has(child, Parent), 'a surviving hierarchy was flattened').toBe(true);
+        expect(app.world.get(child, Transform).position).toEqual({ x: 50, y: 0, z: 0 });
     });
 });

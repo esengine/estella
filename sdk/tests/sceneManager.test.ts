@@ -56,6 +56,7 @@ vi.mock('../src/ecs/component', () => {
     ];
     return {
         SceneOwner: Symbol('SceneOwner'),
+        Parent: Symbol('Parent'),
         Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
         ...Object.fromEntries(renderables.map((d) => [d._name, d])),
         renderableComponents: () => renderables,
@@ -100,6 +101,7 @@ function createMockApp() {
         valid: vi.fn((e: number) => entities.has(e)),
         has: vi.fn((e: number, comp: symbol) => entities.get(e)?.has(comp) ?? false),
         get: vi.fn((e: number, comp: symbol) => entities.get(e)?.get(comp)),
+        tryGet: vi.fn((e: number, comp: symbol) => entities.get(e)?.get(comp) ?? null),
         insert: vi.fn((e: number, comp: symbol, data: any) => {
             if (!entities.has(e)) entities.set(e, new Map());
             entities.get(e)!.set(comp, data);

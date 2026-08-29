@@ -19,10 +19,10 @@ import { defineComponent, getComponentRegistry, type AnyComponentDef } from '../
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
-import type { CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
 import { ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
+import { connectFakeCpp } from './helpers/fakeEngine';
 import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
 import { AssetScope } from '../src/asset/AssetLease';
 import { Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
@@ -30,28 +30,6 @@ import { UIVisual } from '../src/ui/core/ui-visual';
 import { findLiveAssetBindings } from '../src/asset/liveAssetBindings';
 import { migrateScopeBindings } from '../src/asset/liveAssetRebind';
 import type { AssetLease } from '../src/asset/AssetLease';
-
-// ---------------------------------------------------------------------------
-// The C++ side, modelled: a component store that add/get/has/remove really move.
-// ---------------------------------------------------------------------------
-
-function connectFakeCpp(world: World): void {
-    let nextEntity = 1;
-    const registry: Record<string, unknown> = {
-        create: () => nextEntity++,
-        destroy: () => {},
-        hasParent: () => false,
-        setParent: () => {},
-    };
-    for (const name of Object.keys(COMPONENT_META)) {
-        const rows = new Map<number, Record<string, unknown>>();
-        registry[`add${name}`] = (e: number, data: Record<string, unknown>) => { rows.set(e, { ...data }); };
-        registry[`get${name}`] = (e: number) => rows.get(e);
-        registry[`has${name}`] = (e: number) => rows.has(e);
-        registry[`remove${name}`] = (e: number) => { rows.delete(e); };
-    }
-    world.connectCpp(registry as unknown as CppRegistry);
-}
 
 /** The pool, modelled: every decode mints a handle, invalidate severs revival. */
 function createPoolFake() {

@@ -20,7 +20,8 @@ import { registerDrawCallback, unregisterDrawCallback } from '../render/customDr
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
-import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef } from '../ecs/component';
+import { SceneOwner, Disabled, Parent, renderableComponents, type RenderableComponentDef } from '../ecs/component';
+import { detachPreservingWorldTransform } from '../ecs/entityUtils';
 import { Assets } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
@@ -485,27 +486,18 @@ export class SceneManagerState {
         instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
     ): void {
         const world = this.app_.world;
-        for (const entity of instance.entities) {
-            if (keepPersistent && world.valid(entity) && world.has(entity, SceneOwner)) {
-                const data = world.get(entity, SceneOwner);
-                if (data.persistent) {
-                    // A persistent entity outlives its origin scene, so it is now
-                    // global. Clear the owning-scene tag — otherwise every
-                    // scene-gated consumer (the camera render filter, system/draw
-                    // gating) still sees it owned by a scene that no longer exists
-                    // and orphans it (a persistent camera would stop rendering).
-                    // scene === '' is the existing "always active" rule.
-                    if (data.scene !== '') {
-                        data.scene = '';
-                        world.insert(entity, SceneOwner, data);
-                    }
-                    // The scene's sleep does not follow it out. Nothing will
-                    // wake this entity once the scene is gone, and the record of
-                    // what it looked like awake dies with the instance below.
-                    if (wasSleeping) this.restoreSleepState_(instance, entity);
-                    continue;
-                }
-            }
+        const { survivors, doomed } = this.partitionOnUnload_(instance, keepPersistent);
+        // Decide first, destroy after. `despawn` takes the whole subtree with it,
+        // so a survivor under a doomed parent was being killed by its parent's
+        // turn in the loop — whether it lived at all came down to iteration order.
+        const doomedSet = new Set(doomed);
+        for (const survivor of survivors) {
+            if (!world.has(survivor, Parent)) continue;
+            const parent = world.get(survivor, Parent).entity as Entity;
+            if (doomedSet.has(parent)) detachPreservingWorldTransform(world, survivor);
+        }
+        for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
+        for (const entity of doomed) {
             if (world.valid(entity)) world.despawn(entity);
         }
         instance.entities.clear();
@@ -528,6 +520,46 @@ export class SceneManagerState {
         instance.postProcessBindings.clear();
 
         this.releaseSceneAssets_(instance);
+    }
+
+    /**
+     * Who lives through this unload and who does not, decided before anything is
+     * destroyed. Persistence is only asked of a scene that COMMITTED: a rollback
+     * passes `keepPersistent: false`, and everything it made is doomed.
+     */
+    private partitionOnUnload_(
+        instance: SceneInstance, keepPersistent: boolean,
+    ): { survivors: Entity[]; doomed: Entity[] } {
+        const world = this.app_.world;
+        const survivors: Entity[] = [];
+        const doomed: Entity[] = [];
+        for (const entity of instance.entities) {
+            if (!world.valid(entity)) continue;
+            const owner = keepPersistent ? world.tryGet(entity, SceneOwner) : null;
+            if (owner?.persistent) survivors.push(entity);
+            else doomed.push(entity);
+        }
+        return { survivors, doomed };
+    }
+
+    /**
+     * Hand one entity over to nobody in particular: it outlives the scene it came
+     * from, so nothing scene-gated may still read it as that scene's.
+     *
+     * `scene === ''` is the existing "always active" rule; left as the dead
+     * scene's, a persistent camera would stop rendering.
+     */
+    private promoteToGlobal_(instance: SceneInstance, entity: Entity, wasSleeping: boolean): void {
+        const world = this.app_.world;
+        const data = world.get(entity, SceneOwner);
+        if (data.scene !== '') {
+            data.scene = '';
+            world.insert(entity, SceneOwner, data);
+        }
+        // The scene's sleep does not follow it out: nothing will wake this entity
+        // once the scene is gone, and the record of what it looked like awake
+        // dies with the instance.
+        if (wasSleeping) this.restoreSleepState_(instance, entity);
     }
 
     /**
