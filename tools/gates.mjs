@@ -111,6 +111,9 @@ export const GATES = [
   // A field declares that it carries an asset in one place; everything that acts
   // on live assets has to read THAT rather than keep a list of components beside it.
   { id: 'live-asset-rebind', run: 'node tools/check-live-asset-rebind.mjs' },
+  // A scene that unloads and a load that failed halfway own the same things;
+  // two implementations of giving them back is how one came to miss four steps.
+  { id: 'scene-teardown', run: 'node tools/check-scene-teardown.mjs' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },

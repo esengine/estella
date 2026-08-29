@@ -456,25 +456,85 @@ export class SceneManagerState {
     }
 
     /**
-     * Roll back a load that threw partway. Without this, the half-registered
-     * instance stays in `scenes_` stuck at `status==='loading'` while its
-     * `loadPromise` is deleted in `finally` — so a retry hits the
-     * `status==='loading'` branch and returns the now-undefined loadPromise,
-     * wedging the scene so it can NEVER be loaded again. We also despawn any
-     * entities `setup`/`loadSceneData_` spawned before the throw, to avoid a leak.
+     * Roll back a load that threw partway, through the teardown a successful
+     * unload runs: a half-loaded scene owns what a loaded one owns.
+     *
+     * `keepPersistent: false` because persistence is a property of a COMMITTED
+     * scene — a failed load cannot promote an entity into a global one.
      */
     private rollbackFailedLoad_(name: string, instance: SceneInstance): void {
+        this.disposeSceneOwnedState_(instance, false);
+        this.removeSceneSlot_(name, instance);
+    }
+
+    /**
+     * Give back everything this instance owns — the one teardown protocol.
+     *
+     * Idempotent by construction: every collection is emptied as it is walked.
+     * An `unload` during a load tears the instance down, and that load's own
+     * rollback then runs over it again — over whatever its setup added between.
+     */
+    private disposeSceneOwnedState_(instance: SceneInstance, keepPersistent: boolean): void {
+        const world = this.app_.world;
         for (const entity of instance.entities) {
-            if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
+            if (keepPersistent && world.valid(entity) && world.has(entity, SceneOwner)) {
+                const data = world.get(entity, SceneOwner);
+                if (data.persistent) {
+                    // A persistent entity outlives its origin scene, so it is now
+                    // global. Clear the owning-scene tag — otherwise every
+                    // scene-gated consumer (the camera render filter, system/draw
+                    // gating) still sees it owned by a scene that no longer exists
+                    // and orphans it (a persistent camera would stop rendering).
+                    // scene === '' is the existing "always active" rule.
+                    if (data.scene !== '') {
+                        data.scene = '';
+                        world.insert(entity, SceneOwner, data);
+                    }
+                    continue;
+                }
+            }
+            if (world.valid(entity)) world.despawn(entity);
         }
         instance.entities.clear();
-        // Only clear the registry slots if they still point at THIS instance — a
-        // concurrent unload+reload may already own them, and clobbering the newer
-        // load would corrupt it. (A cancelled load's unload already cleared them.)
-        if (this.scenes_.get(name) === instance) {
-            this.scenes_.delete(name);
-            this.contexts_.delete(name);
+        instance.savedEnabled.clear();
+
+        for (const id of instance.drawCallbacks.keys()) {
+            unregisterDrawCallback(id);
         }
+        instance.drawCallbacks.clear();
+
+        for (const id of instance.systemIds) {
+            this.app_.removeSystem(id);
+        }
+        instance.systemIds.length = 0;
+
+        const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
+        for (const camera of instance.postProcessBindings.keys()) {
+            pp?.unbind(camera);
+        }
+        instance.postProcessBindings.clear();
+
+        this.releaseSceneAssets_(instance);
+    }
+
+    /**
+     * Forget the scene, if the slot is still this instance's.
+     *
+     * The identity check is the whole point: a concurrent unload + reload may
+     * already have put a NEWER instance in the slot, and a rollback that
+     * cleared it by name would delete the live scene out from under it.
+     */
+    private removeSceneSlot_(name: string, instance: SceneInstance): void {
+        if (this.scenes_.get(name) !== instance) return;
+        this.scenes_.delete(name);
+        this.contexts_.delete(name);
+        this.additiveScenes_.delete(name);
+        this.pausedScenes_.delete(name);
+        this.sleepingScenes_.delete(name);
+
+        const orderIdx = this.loadOrder_.indexOf(name);
+        if (orderIdx !== -1) this.loadOrder_.splice(orderIdx, 1);
+        if (this.activeScene_ === name) this.activeScene_ = null;
     }
 
     async unload(name: string, options?: TransitionOptions): Promise<void> {
@@ -494,63 +554,8 @@ export class SceneManagerState {
             }
         }
 
-        const keepPersistent = options?.keepPersistent ?? true;
-        for (const entity of instance.entities) {
-            if (keepPersistent && this.app_.world.valid(entity) &&
-                this.app_.world.has(entity, SceneOwner)) {
-                const data = this.app_.world.get(entity, SceneOwner);
-                if (data.persistent) {
-                    // A persistent entity outlives its origin scene, so it is now
-                    // global. Clear the owning-scene tag — otherwise every
-                    // scene-gated consumer (the camera render filter, system/draw
-                    // gating) still sees it owned by a scene that no longer exists
-                    // and orphans it (a persistent camera would stop rendering).
-                    // scene === '' is the existing "always active" rule.
-                    if (data.scene !== '') {
-                        data.scene = '';
-                        this.app_.world.insert(entity, SceneOwner, data);
-                    }
-                    continue;
-                }
-            }
-            if (this.app_.world.valid(entity)) {
-                this.app_.world.despawn(entity);
-            }
-        }
-        instance.entities.clear();
-
-        for (const id of instance.drawCallbacks.keys()) {
-            unregisterDrawCallback(id);
-        }
-        instance.drawCallbacks.clear();
-
-        for (const id of instance.systemIds) {
-            this.app_.removeSystem(id);
-        }
-        instance.systemIds.length = 0;
-
-        const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
-        for (const camera of instance.postProcessBindings.keys()) {
-            pp?.unbind(camera);
-        }
-        instance.postProcessBindings.clear();
-
-        this.releaseSceneAssets_(instance);
-
-        this.scenes_.delete(name);
-        this.contexts_.delete(name);
-        this.additiveScenes_.delete(name);
-        this.pausedScenes_.delete(name);
-        this.sleepingScenes_.delete(name);
-
-        const orderIdx = this.loadOrder_.indexOf(name);
-        if (orderIdx !== -1) {
-            this.loadOrder_.splice(orderIdx, 1);
-        }
-
-        if (this.activeScene_ === name) {
-            this.activeScene_ = null;
-        }
+        this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true);
+        this.removeSceneSlot_(name, instance);
     }
 
     /**

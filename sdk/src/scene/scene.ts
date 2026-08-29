@@ -538,10 +538,10 @@ export async function loadSceneWithAssets(
         assets.resolveSceneAssetPaths(data, result);
         applyTextureMetadata(data, result.textureHandles);
         if (options.collectAssets) {
-            // The receipts, when the owner asked for them. Materials keep their
-            // handle set too — callers read it to know what a scene is wearing —
-            // but the RELEASE rides the scope.
-            for (const lease of result.scope.leases()) options.collectAssets.scope?.add(lease);
+            // The receipts MOVE to the owner (absorb, not add): two scopes each
+            // holding every receipt leaves "which one releases it" unanswered.
+            // Materials keep their handle set too, but the RELEASE rides the scope.
+            options.collectAssets.scope?.absorb(result.scope);
             for (const handle of result.materialHandles.values()) {
                 if (handle) options.collectAssets.materialHandles.add(handle);
             }
