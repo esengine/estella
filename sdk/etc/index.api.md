@@ -4438,6 +4438,7 @@ findAsset: (pathOrAddress: string) => AddressableManifestAsset | null
 group: (name: string) => AddressableManifestGroup | null
 groupNames: () => string[]
 groupsByMode: (mode: BundleMode) => string[]
+remoteAssetIdentity: (ref: string) => string | null
 remoteAssetPath: (ref: string) => string | null
 resolvePath: (ref: string, normalize?: (ref: string) => string) => string
 revision: () => string | null

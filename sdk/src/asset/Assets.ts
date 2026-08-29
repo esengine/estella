@@ -951,7 +951,13 @@ export class Assets {
         // A changed asset is content-addressed, so its next load finds the update
         // on its own. An era already BUILT from one cannot: it holds what it read
         // at the revision it was prepared in, and only the walk ends it.
-        for (const c of changed) this.track_(this.rebuildAssetGraph_(this.rebuildPlan_(c.key)));
+        for (const c of changed) {
+            // Read the plan before anything is re-prepared, then the changed
+            // asset's own slot: it is keyed by its identity, so the update
+            // reaches it by preparing an era from the new revision's locator.
+            const plan = this.rebuildPlan_(c.key);
+            this.track_(this.republishSlots_(c.key).rebuilt.then(() => this.rebuildAssetGraph_(plan)));
+        }
         // The update is applied when the asset graph agrees with the manifest —
         // not when the manifest was swapped. Bindings converge on a frame, which
         // an app that is not ticking would never reach from here.
@@ -1424,12 +1430,14 @@ export class Assets {
     private async acquireSlot_<T>(type: string, ref: string): Promise<AssetLease<T> | null> {
         const kind = this.registryKind_<T>(type);
         if (!kind) return null;
-        const path = this.resolveLoadPath_(ref);
-        // The load path and the ref as the caller spelled it: a component looks
-        // the asset up by the spelling a scene serialized, which in a realm whose
-        // resolver returns URLs is not the path the loader was handed.
-        const names = ref === path ? [path] : [path, ref];
-        return this.registrySlots_.acquire(kind, type, path, names);
+        // Keyed by identity, never by the locator: a content-addressed url is
+        // revision-specific, so a slot keyed by one is a slot PER REVISION and
+        // an update publishes into a new one while every holder reads the old.
+        const identity = this.assetIdentity_(ref);
+        // Answering to the ref as the caller spelled it too: a component looks
+        // the asset up by the spelling a scene serialized.
+        const names = ref === identity ? [identity] : [identity, ref];
+        return this.registrySlots_.acquire(kind, type, identity, names);
     }
 
     /**
@@ -1590,7 +1598,7 @@ export class Assets {
         const path = this.resolveLoadPath_(ref);
         const kind = this.registryKind_(type);
         if (kind) {
-            this.registrySlots_.releaseByName(type, path);
+            this.registrySlots_.releaseByName(type, this.assetIdentity_(ref));
             return;
         }
         // NOT gated on a live cache entry: a generation superseded by
@@ -1748,17 +1756,9 @@ export class Assets {
         }
 
         // A registry-backed asset has no cache entry to drop and no handle to
-        // swap: the update IS a new era published under the same names. Awaited
-        // by nobody — a failed prepare leaves holders the era they have.
-        const republished: Array<Promise<unknown>> = [];
-        for (const [type] of this.loaders_) {
-            const kind = this.registryKind_(type);
-            if (!kind || !this.registrySlots_.has(type, path)) continue;
-            hit = true;
-            republished.push(this.registrySlots_.republish(kind, type, path).catch((e: unknown) => {
-                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
-            }));
-        }
+        // swap: the update IS a new era published under the same names.
+        const slots = this.republishSlots_(ref);
+        if (slots.found) hit = true;
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
         // the Assets-level entry — sever it unconditionally so a warm-cache
@@ -1777,7 +1777,25 @@ export class Assets {
 
         for (const [type, oldValue] of dropped) this.fireInvalidate_({ ref, type, oldValue });
 
-        return { hit, rebuilt: Promise.all(republished).then(() => undefined) };
+        return { hit, rebuilt: slots.rebuilt };
+    }
+
+    /**
+     * Prepare a new era for every registry slot this ref names, and publish each
+     * atomically. By IDENTITY: the slot is keyed by what the asset is, and this
+     * preparation resolves where the current revision serves it.
+     */
+    private republishSlots_(ref: string): { found: boolean; rebuilt: Promise<void> } {
+        const identity = this.assetIdentity_(ref);
+        const work: Array<Promise<unknown>> = [];
+        for (const [type] of this.loaders_) {
+            const kind = this.registryKind_(type);
+            if (!kind || !this.registrySlots_.has(type, identity)) continue;
+            work.push(this.registrySlots_.republish(kind, type, identity).catch((e: unknown) => {
+                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
+            }));
+        }
+        return { found: work.length > 0, rebuilt: Promise.all(work).then(() => undefined) };
     }
 
     /** Fire every onInvalidate listener with one generation's ending. Isolates
@@ -2012,9 +2030,28 @@ export class Assets {
         // its CDN url — so a scene @uuid ref to a remote asset loads from, and
         // hot-updates with, the CDN, not just loadGroup'd DLC assets. Gated on a
         // remote root being set, so same-origin realms (editor Play, a build with
-        // no CDN) keep their normal resolver + base-prefixing untouched.
+        // no CDN) keep their normal resolver + base-prefixing untouched. It is
+        // the one step that carries a REVISION, which is why identity stops
+        // short of it.
         const remote = this.remoteAssetPath_(ref);
         if (remote != null) return remote;
+        return this.assetIdentity_(ref);
+    }
+
+    /**
+     * What a ref MEANS in this realm, with no revision in it.
+     *
+     * Distinct from {@link resolveLoadPath_}, which goes on to where that asset
+     * is served from NOW. Identity is what a slot is keyed by and what two
+     * spellings agree on; a locator is what one preparation reads.
+     */
+    private assetIdentity_(ref: string): string {
+        if (isBuiltinMeshRef(ref)) return ref;
+        // A manifest names one asset three ways — record key, address, build
+        // path — and only it knows they are the same asset. Folding them here is
+        // what keeps a uuid ref and a path ref on ONE slot.
+        const named = this.manifestModel_?.remoteAssetIdentity(ref);
+        if (named != null) return named;
         const resolved = this.assetRefResolver_?.(ref) ?? ref;
         return this.catalog.resolve(resolved);
     }
@@ -2128,7 +2165,7 @@ export class Assets {
      */
     resolveRegistryAsset<T>(type: string, ref: string): T | undefined {
         return (this.registrySlots_.published(type, ref)
-            ?? this.registrySlots_.published(type, this.resolveLoadPath_(ref))) as T | undefined;
+            ?? this.registrySlots_.published(type, this.assetIdentity_(ref))) as T | undefined;
     }
 
     /**
@@ -2140,10 +2177,9 @@ export class Assets {
     dependenciesOf(type: string, ref: string): readonly DependencyReceipt[] {
         const own = this.registrySlots_.dependenciesOf(type, ref);
         if (own.length > 0) return own;
-        const path = this.resolveLoadPath_(ref);
-        const byPath = this.registrySlots_.dependenciesOf(type, path);
-        if (byPath.length > 0) return byPath;
-        return this.genericCache_.get(type)?.get(path)?.edges ?? [];
+        const byIdentity = this.registrySlots_.dependenciesOf(type, this.assetIdentity_(ref));
+        if (byIdentity.length > 0) return byIdentity;
+        return this.genericCache_.get(type)?.get(this.resolveLoadPath_(ref))?.edges ?? [];
     }
 
     /**
@@ -2217,7 +2253,14 @@ export class Assets {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         const registry = loader?.registry;
         if (!registry) return null;
-        return { prepare: (path) => this.prepared_((ctx) => registry.prepare(path, ctx)) };
+        // The locator is resolved HERE, once per era: the slot holds an identity,
+        // and where that asset is served from is a property of the revision the
+        // preparation runs in.
+        return {
+            prepare: (identity) => this.prepared_(
+                (ctx) => registry.prepare(this.resolveLoadPath_(identity), ctx),
+            ),
+        };
     }
 
     /**

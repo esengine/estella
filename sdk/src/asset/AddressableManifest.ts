@@ -221,7 +221,7 @@ export class ManifestModel {
 
     private keyIndex_: Map<string, AddressableManifestAsset> | null = null;
     private pathIndex_: Map<string, AddressableManifestAsset> | null = null;
-    private remoteIndex_: Map<string, string> | null = null;
+    private remoteIndex_: { byRef: Map<string, string>; identity: Map<string, string> } | null = null;
 
     private indexes(): { byKey: Map<string, AddressableManifestAsset>; byPath: Map<string, AddressableManifestAsset> } {
         if (!this.keyIndex_ || !this.pathIndex_) {
@@ -268,22 +268,37 @@ export class ManifestModel {
      * manifest), while local / lazy assets keep their normal resolution.
      */
     remoteAssetPath(ref: string): string | null {
+        return this.remoteIndexes_().byRef.get(ref) ?? null;
+    }
+
+    /**
+     * The stable name of the `remote`-group asset a ref names — its address,
+     * else the key it is filed under. NOT interchangeable with
+     * {@link remoteAssetPath}: a build path is content-addressed, so it names
+     * one revision, while this is what every revision agrees on.
+     */
+    remoteAssetIdentity(ref: string): string | null {
+        return this.remoteIndexes_().identity.get(ref) ?? null;
+    }
+
+    /** Both remote indexes, built together from one walk. */
+    private remoteIndexes_(): { byRef: Map<string, string>; identity: Map<string, string> } {
         if (!this.remoteIndex_) {
-            const idx = new Map<string, string>();
+            const byRef = new Map<string, string>();
+            const identity = new Map<string, string>();
             for (const group of Object.values(this.manifest.groups)) {
                 if (normalizeBundleMode(group.bundleMode) !== 'remote') continue;
                 for (const [key, asset] of Object.entries(group.assets)) {
-                    idx.set(key, asset.path);
-                    idx.set(asset.path, asset.path);
-                    if (asset.address) {
-                        idx.set(asset.address, asset.path);
-                        idx.set(`/${asset.address}`, asset.path);
+                    const name = asset.address ?? key;
+                    for (const ref of [key, asset.path, ...(asset.address ? [asset.address, `/${asset.address}`] : [])]) {
+                        byRef.set(ref, asset.path);
+                        identity.set(ref, name);
                     }
                 }
             }
-            this.remoteIndex_ = idx;
+            this.remoteIndex_ = { byRef, identity };
         }
-        return this.remoteIndex_.get(ref) ?? null;
+        return this.remoteIndex_;
     }
 
     /**

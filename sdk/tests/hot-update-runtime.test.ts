@@ -107,6 +107,61 @@ describe('Assets.loadGroup — remote group', () => {
     });
 });
 
+/** A cdn manifest whose one asset is REF-BOUND — a slot, not a handle. */
+function cdnSlotManifest(hash: string, revision: string): AddressableManifest {
+    return {
+        version: '2.0',
+        revision,
+        groups: {
+            cdn: {
+                bundleMode: 'remote',
+                labels: [],
+                assets: {
+                    'uuid-w': {
+                        path: `assets/${hash}.widget`, address: 'assets/hero.widget',
+                        type: 'json', size: 10, labels: [], contentHash: hash,
+                    },
+                },
+            },
+        },
+    };
+}
+
+describe('a slot is keyed by what the asset IS, not by where this revision serves it', () => {
+    it('the same slot re-prepares from the new revision\'s url', async () => {
+        // Keyed by the resolved url, a slot is revision-specific: the update
+        // publishes nothing into it, and every holder — components look their
+        // ref up on each frame — reads the old era for the life of the app.
+        const backend = backendServing(cdnSlotManifest(REMOTE_HASH, 'rev-2'));
+        const assets = createAssets(backend);
+        assets.setManifest(cdnSlotManifest('aaaa', 'rev-1'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const loadedFrom: string[] = [];
+        assets.register({
+            type: 'widget', extensions: ['.widget'],
+            registry: {
+                prepare: async (path) => {
+                    loadedFrom.push(path);
+                    return { published: { from: path }, value: { id: 'assets/hero.widget' } };
+                },
+            },
+        });
+
+        const held = await assets.acquireTyped('widget', 'assets/hero.widget');
+        expect(loadedFrom).toEqual(['https://cdn/v1/assets/aaaa.widget']);
+
+        await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+        await assets.applyUpdate();
+
+        expect(loadedFrom[1], 'the update published nothing into the slot')
+            .toBe(`https://cdn/v2/assets/${REMOTE_HASH}.widget`);
+        expect(assets.sizes().registrySlots, 'the update opened a second slot for one asset').toBe(1);
+        expect(assets.resolveRegistryAsset('widget', 'assets/hero.widget'))
+            .toEqual({ from: `https://cdn/v2/assets/${REMOTE_HASH}.widget` });
+        held.release();
+    });
+});
+
 describe('a hot update reaches what was built from what it changed', () => {
     it('re-prepares the asset that read a changed one, against the new content', async () => {
         // The changed asset itself is content-addressed, so the next load of it
