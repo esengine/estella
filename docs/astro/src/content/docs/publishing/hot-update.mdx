@@ -208,17 +208,24 @@ the download and swap.
 
 When a scene references an asset by `@uuid` and that asset lives in a remote
 group, `applyUpdate` does **everything** — it downloads the new bytes, swaps the
-manifest, and the built-in rebinder replaces the old texture in every live
-`Sprite` and `MeshRenderer` on screen. The picture changes on its own; the scene author
-writes nothing. (The `hot-update-demo` example's game code is literally empty.)
+manifest, and the built-in rebinder replaces the old texture in **every live field
+that declares one** — built-in (`Sprite.texture`, `MeshRenderer.texture` /
+`.normalMap`, `UIVisual.texture`, `TilemapLayer.tileset`,
+`ParticleEmitter.texture`, `TrailRenderer.texture`) and your own components
+alike, as long as the field is declared in `assetFields`. The picture changes on
+its own; the scene author writes nothing. (The `hot-update-demo` example's game
+code is literally empty.)
 
 For anything the built-in rebinder doesn't cover — a texture you bound manually, a
 sound, a custom system — subscribe to `onInvalidate` and rebind yourself:
 
 ```ts
-const unsub = assets.onInvalidate((ref) => {
-  // `ref` was just invalidated by an update — reload it and rebind wherever you use it.
-  void assets.loadTexture(ref).then((tex) => { /* assign tex.handle */ });
+const unsub = assets.onInvalidate((event) => {
+  // `event.ref` was just invalidated by an update. `event.type` says what kind of
+  // asset it was ('texture', 'audio', 'material', …) and `event.oldValue` what live
+  // holders were bound to before the drop (a texture's handle).
+  if (event.type !== 'texture') return;
+  void assets.loadTexture(event.ref).then((tex) => { /* assign tex.handle */ });
 });
 ```
 
@@ -233,7 +240,7 @@ The hot-update surface lives on the `Assets` resource (`Res(Assets)`):
 | `restorePersistedUpdate(key)` | `boolean` | At boot, restore the manifest a prior `applyUpdate` persisted under `key`. The runtime calls this for you when `persistUpdateKey` is set. |
 | `setRemoteRoot(url?)` | `void` | Point remote-group resolution at a CDN root (`undefined` clears it → same-origin). The runtime sets this from the build's `remoteRoot`. |
 | `remoteRoot` | `string \| undefined` | The active CDN root (getter). |
-| `onInvalidate(listener)` | `() => void` | Subscribe to per-ref invalidations (for custom rebinding). Returns an unsubscribe function. |
+| `onInvalidate(listener)` | `() => void` | Subscribe to invalidations. The listener receives `{ ref, type, oldValue }` (for custom rebinding); returns an unsubscribe function. |
 | `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | Load a whole group on demand (the DLC pattern — see below). |
 | `releaseGroup(name)` | `void` | Release everything `loadGroup(name)` acquired. |
 

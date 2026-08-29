@@ -164,14 +164,17 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 
 ### 零代码重绑
 
-当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进屏幕上每一个运行中的 `Sprite` 与 `MeshRenderer`。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
+当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进**每一个声明了该资产的运行中字段**：内建的（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）与你自己的组件一视同仁，只要字段写在 `assetFields` 里。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
 
 对于内建重绑器覆盖不到的东西——你手动绑定的贴图、一段音效、一个自定义系统——订阅 `onInvalidate` 自行重绑：
 
 ```ts
-const unsub = assets.onInvalidate((ref) => {
-  // `ref` 刚被一次更新失效——重新加载它，并在你用到它的地方重绑。
-  void assets.loadTexture(ref).then((tex) => { /* 赋值 tex.handle */ });
+const unsub = assets.onInvalidate((event) => {
+  // `event.ref` 刚被一次更新失效。`event.type` 说明它是哪一类资产
+  // （'texture'、'audio'、'material' …），`event.oldValue` 是丢弃前运行中的持有者
+  // 所绑定的值（贴图即句柄）。
+  if (event.type !== 'texture') return;
+  void assets.loadTexture(event.ref).then((tex) => { /* 赋值 tex.handle */ });
 });
 ```
 
@@ -186,7 +189,7 @@ const unsub = assets.onInvalidate((ref) => {
 | `restorePersistedUpdate(key)` | `boolean` | 在启动时，恢复上一次 `applyUpdate` 以 `key` 持久化的清单。设了 `persistUpdateKey` 时运行时会替你调用。 |
 | `setRemoteRoot(url?)` | `void` | 把远端组解析指向某个 CDN 根地址（`undefined` 清除 → 同源）。运行时会从构建的 `remoteRoot` 设置它。 |
 | `remoteRoot` | `string \| undefined` | 当前 CDN 根地址（getter）。 |
-| `onInvalidate(listener)` | `() => void` | 订阅逐引用的失效（用于自定义重绑）。返回一个取消订阅的函数。 |
+| `onInvalidate(listener)` | `() => void` | 订阅失效事件。监听器收到 `{ ref, type, oldValue }`（用于自定义重绑）；返回一个取消订阅的函数。 |
 | `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | 按需加载整个组（DLC 模式——见下文）。 |
 | `releaseGroup(name)` | `void` | 释放 `loadGroup(name)` 获取的一切。 |
 

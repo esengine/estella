@@ -28,8 +28,12 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
     const pending: Array<{ ref: string; oldHandle: number }> = [];
     const swaps: Array<{ oldHandle: number; newHandle: number }> = [];
 
-    assets.onInvalidate((ref, oldTextureHandle) => {
-        if (oldTextureHandle) pending.push({ ref, oldHandle: oldTextureHandle });
+    assets.onInvalidate((event) => {
+        // Textures only for now, said by reading the kind rather than by the event
+        // being unable to describe anything else.
+        if (event.type !== 'texture') return;
+        const oldHandle = typeof event.oldValue === 'number' ? event.oldValue : 0;
+        if (oldHandle) pending.push({ ref: event.ref, oldHandle });
     });
 
     app.addSystemToSchedule(Schedule.Update, defineSystem(

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
-import { ManifestModel, normalizeBundleMode, type AddressableManifest } from './AddressableManifest';
+import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
 import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformWriteCacheFile } from '../platform';
@@ -43,7 +43,7 @@ import { getComponentDefaults } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { discoverSceneAssets } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
-import type { SceneData } from '../scene/scene';
+import type { SceneData, AssetFieldType } from '../scene/scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
 import { UUID_REF_PREFIX } from './AssetRegistry';
@@ -51,10 +51,27 @@ import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../util/logger';
 import { recoverDevice, finishDeviceRecovery } from '../render/renderer';
 
-/** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries.
- *  `oldTextureHandle` is the texture handle that was bound before the drop (0 when
- *  none / not a texture) — the built-in rebinder swaps it to the reloaded handle. */
-export type InvalidateListener = (ref: string, oldTextureHandle?: number) => void;
+/**
+ * One asset generation ending: which ref, what kind of asset it was, and what
+ * live holders were bound to just before the drop.
+ *
+ * The kind travels because every source of one knows it, and a listener that
+ * has to guess can only serve the kind somebody had in mind.
+ */
+export interface AssetInvalidation {
+    /** As the caller spelled it, not the resolved path. */
+    readonly ref: string;
+    /** In whichever vocabulary the source knew: a loader/field type, or the
+     *  manifest's type for an applied update. */
+    readonly type: AssetFieldType | AddressableAssetType;
+    /** What holders were bound to: a texture's handle, a loader's value.
+     *  Undefined when nothing was cached to report. */
+    readonly oldValue?: unknown;
+}
+
+/** Callback fired when an asset generation ends — `Assets.invalidate(ref)`
+ *  dropped cache entries, or `applyUpdate` replaced the content behind a ref. */
+export type InvalidateListener = (event: AssetInvalidation) => void;
 
 /** Input to {@link Assets.checkForUpdate}. */
 export interface CheckForUpdateOptions {
@@ -926,7 +943,9 @@ export class Assets {
         }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
         this.setManifest(pending.model);
-        for (const c of changed) this.fireInvalidate_(c.key, oldHandles.get(c.key) ?? 0);
+        // The manifest record already says what kind each changed asset is; the
+        // notification carries it rather than collapsing to "maybe a texture".
+        for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
         this.persistActiveManifest_(pending.manifestJson);
         this.pendingUpdate_ = null;
         return { ok: true, updated: changed.length, failed: [] };
@@ -1539,6 +1558,9 @@ export class Assets {
         // it, so a rebind listener can swap it in live components (hot update).
         const oldTextureHandle = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
         let hit = false;
+        // What each kind of cache was holding for this path, so the event says
+        // which kind ended rather than leaving a listener to infer it.
+        const dropped = new Map<AssetFieldType | AddressableAssetType, unknown>();
 
         // Textures: cache_key has a flip flag suffix, so check both. The C++
         // pool's residency identity is severed too — an evictable entry under
@@ -1546,7 +1568,7 @@ export class Assets {
         const rm = getResourceManager();
         for (const flip of [true, false]) {
             const key = this.textureCacheKey_(path, flip);
-            if (this.textureCache_.invalidate(key)) hit = true;
+            if (this.textureCache_.invalidate(key)) { hit = true; dropped.set('texture', oldTextureHandle); }
             // The ledger is NOT dropped: holders of the outgoing generation
             // still owe a release, and forgetting them is what stranded their
             // texture with nobody able to free it. Its era ends here, though —
@@ -1554,13 +1576,14 @@ export class Assets {
             // hands back a numerically equal handle.
             this.textureRefs_.supersede(key);
             if (typeof rm?.invalidateTexturePath === 'function') {
-                if (rm.invalidateTexturePath(key)) hit = true;
+                if (rm.invalidateTexturePath(key)) { hit = true; dropped.set('texture', oldTextureHandle); }
             }
         }
 
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
         for (const [type, cache] of this.genericCache_.entries()) {
-            if (cache.invalidate(path)) hit = true;
+            const bound = cache.get(path);
+            if (cache.invalidate(path)) { hit = true; dropped.set(type as AssetFieldType, bound); }
             // The ledger stays: the outgoing generation's holders still owe a
             // release. Its era is closed so the next acquire cannot join it.
             this.genericRefs_.supersede(`${type}:${path}`);
@@ -1569,8 +1592,10 @@ export class Assets {
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
         // the Assets-level entry — sever it unconditionally so a warm-cache
         // revive can never serve stale bytes after a hot reload.
-        for (const loader of this.loaders_.values()) {
-            if (loader.invalidate?.(path)) hit = true;
+        for (const [type, loader] of this.loaders_) {
+            if (!loader.invalidate?.(path)) continue;
+            hit = true;
+            if (!dropped.has(type as AssetFieldType)) dropped.set(type as AssetFieldType, undefined);
         }
 
         // The reverse handle→path records for this path are stale now too — a
@@ -1579,18 +1604,17 @@ export class Assets {
             if (p === path) this.handleToPath_.delete(key);
         }
 
-        if (hit) this.fireInvalidate_(ref, oldTextureHandle);
+        for (const [type, oldValue] of dropped) this.fireInvalidate_({ ref, type, oldValue });
 
         return hit;
     }
 
-    /** Fire every onInvalidate listener with `ref` (and the pre-drop texture
-     *  handle, when known, so a rebinder can swap it in live components). Isolates
+    /** Fire every onInvalidate listener with one generation's ending. Isolates
      *  throws. Shared by {@link invalidate} and {@link applyUpdate}. */
-    private fireInvalidate_(ref: string, oldTextureHandle = 0): void {
+    private fireInvalidate_(event: AssetInvalidation): void {
         for (const listener of this.invalidateListeners_) {
             try {
-                listener(ref, oldTextureHandle);
+                listener(event);
             } catch (e) {
                 log.warn('asset', 'onInvalidate listener threw', e);
             }

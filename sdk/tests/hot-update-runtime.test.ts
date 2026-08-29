@@ -130,8 +130,8 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         const assets = createAssets(backend);
         assets.setManifest(cdnManifest('aaaa', 'rev-1'));
         assets.setRemoteRoot('https://cdn/v1');
-        const rebinds: string[] = [];
-        assets.onInvalidate((ref) => rebinds.push(ref));
+        const rebinds: Array<{ ref: string; type: string }> = [];
+        assets.onInvalidate((e) => rebinds.push({ ref: e.ref, type: e.type }));
 
         await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
         const progress: [number, number][] = [];
@@ -149,7 +149,8 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         expect((platform as unknown as { __cache: Map<string, ArrayBuffer> })
             .__cache.get(`https://cdn/v2/assets/${REMOTE_HASH}.png`)?.byteLength).toBe(8);
         // A renderer bound to the changed asset's stable key is told to rebind.
-        expect(rebinds).toEqual(['uuid-1']);
+        // The manifest knew the kind; the notification carries it.
+        expect(rebinds).toEqual([{ ref: 'uuid-1', type: 'texture' }]);
         expect(progress[0]).toEqual([0, 1]);
         expect(progress[progress.length - 1]).toEqual([1, 1]);
     });
@@ -159,8 +160,8 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         const assets = createAssets(backendServing(cdnManifest('deadbeefdeadbeef', 'rev-2')));
         assets.setManifest(cdnManifest('aaaa', 'rev-1'));
         assets.setRemoteRoot('https://cdn/v1');
-        const rebinds: string[] = [];
-        assets.onInvalidate((ref) => rebinds.push(ref));
+        const rebinds: Array<{ ref: string; type: string }> = [];
+        assets.onInvalidate((e) => rebinds.push({ ref: e.ref, type: e.type }));
 
         await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
         const result = await assets.applyUpdate();

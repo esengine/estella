@@ -21,8 +21,7 @@ import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
 import type { CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
-import { registerComponent } from '../src/ecs/component';
-import { UIVisual } from '../src/ui/core/ui-visual';
+import { ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
 import { findLiveAssetBindings } from '../src/asset/liveAssetBindings';
 
@@ -108,10 +107,10 @@ function buildAssets(): Assets {
     });
 }
 
-/** UIVisual is registered by the UI plugin, whose build() this test does not run.
- *  Registering it by hand is what that plugin does, and the completeness check
- *  below refuses to pass while any C++-declared texture field is missing. */
-registerComponent('UIVisual', UIVisual);
+// What every SDK entry does at load: register the engine's whole component
+// catalogue. Without it the registry holds only what this test file happened to
+// import, and the completeness check below would be measuring the imports.
+ensureBuiltinComponentsRegistered();
 
 /** Every (component, field) in the live registry that binds a texture. */
 function declaredTextureFields(): Array<{ component: AnyComponentDef; field: string }> {

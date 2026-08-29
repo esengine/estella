@@ -3,8 +3,8 @@
 /**
  * @file    assets-invalidate-event.test.ts
  * @brief   Assets.onInvalidate subscription contract: listeners fire on
- *          successful invalidations, unsubscribe works, and a throwing
- *          listener doesn't starve others.
+ *          successful invalidations carrying WHICH KIND of asset ended,
+ *          unsubscribe works, and a throwing listener doesn't starve others.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
@@ -53,9 +53,12 @@ describe('Assets.onInvalidate', () => {
 
         const hit = assets.invalidate('tex/hot.png');
         expect(hit).toBe(true);
-        // Fires with the original ref + the pre-drop texture handle (0 here — the
-        // seeded entry is the unflipped variant; the rebinder reads flip=true).
-        expect(listener).toHaveBeenCalledWith('tex/hot.png', expect.any(Number));
+        // Fires with the original ref, the KIND of asset that ended, and the value
+        // holders were bound to (0 here — the seeded entry is the unflipped
+        // variant; the rebinder reads flip=true).
+        expect(listener).toHaveBeenCalledWith({
+            ref: 'tex/hot.png', type: 'texture', oldValue: expect.any(Number),
+        });
     });
 
     it('unsubscribe function prevents further notifications', () => {
@@ -124,8 +127,9 @@ describe('Assets.onInvalidate', () => {
         assets.onInvalidate(c);
 
         assets.invalidate('tex/a.png');
-        expect(a).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
-        expect(b).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
-        expect(c).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
+        const event = { ref: 'tex/a.png', type: 'texture', oldValue: expect.any(Number) };
+        expect(a).toHaveBeenCalledWith(event);
+        expect(b).toHaveBeenCalledWith(event);
+        expect(c).toHaveBeenCalledWith(event);
     });
 });
