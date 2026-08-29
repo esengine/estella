@@ -21,8 +21,10 @@
  *      what it takes out of the ledger is a row nobody can give back — that is
  *      the leak the rebinder had, one row per successful hot update.
  *   4. The runtime scene loader hands the scene its receipts, not its paths.
- *   5. A loader holding a texture past its own load() acquires it, for the same
- *      reason: it releases at unload, by which time the path may name two eras.
+ *   5. A loader owns nothing. What it acquires is the preparation's and comes
+ *      back when the era retires, so a receipt kept in a result field or given
+ *      back in unload is a second answer about who owns a sub-asset — and the
+ *      one that fires twice.
  *   6. Who owns what an entity holds is answered in ONE place. A second copy of
  *      that rule is how a promoted entity's replacement went to the app scope,
  *      which ends only when the app does.
@@ -163,14 +165,48 @@ if (!/\bpreloadSceneAssets\(/.test(loader)) {
   }
 }
 
-// The same rule one layer down: a loader that keeps a texture releases it at
-// unload, which is exactly when a path has stopped naming one instance.
-const LOADERS = path.join(ROOT, 'sdk/src/asset/loaders');
-for (const name of readdirSync(LOADERS).filter((f) => f.endsWith('.ts'))) {
-  const code = stripComments(readFileSync(path.join(LOADERS, name), 'utf8'));
-  const call = /\bctx\.releaseTexture\s*\(/.exec(code);
+// The same rule one layer down: a loader owns nothing. It acquires through a
+// door that records what it took, and the era gives it back — so a receipt in a
+// result field, or a release() inside a loader, is the second owner.
+/** Every `export interface` body in a file, by name. */
+function interfaces(code) {
+  const declaration = /export interface (\w+) \{/g;
+  const out = [];
+  let m;
+  while ((m = declaration.exec(code))) {
+    const start = code.indexOf('{', m.index);
+    let i = start;
+    for (let depth = 0; i < code.length; i++) {
+      if (code[i] === '{') depth++;
+      else if (code[i] === '}' && --depth === 0) break;
+    }
+    out.push({ name: m[1], body: code.slice(start, i), at: start });
+  }
+  return out;
+}
+
+const OWNS = [
+  path.join(ROOT, 'sdk/src/asset/AssetLoader.ts'),
+  ...readdirSync(path.join(ROOT, 'sdk/src/asset/loaders'))
+    .filter((f) => f.endsWith('.ts'))
+    .map((f) => path.join(ROOT, 'sdk/src/asset/loaders', f)),
+];
+for (const file of OWNS) {
+  const rel = path.relative(ROOT, file);
+  const code = stripComments(readFileSync(file, 'utf8'));
+  for (const { name, body, at } of interfaces(code)) {
+    // A FIELD of lease type. A door that HANDS one over — `acquireTexture(…):
+    // Promise<AssetLease<…>>` — is the opposite: it is how a receipt reaches
+    // the preparation that will own it.
+    const field = /\n\s*(?:readonly\s+)?\w+\??:\s*[^(\n]*\bAssetLease\b/.exec(body);
+    if (!field) continue;
+    const line = code.slice(0, at + field.index).split('\n').length + 1;
+    findings.push(`${rel}:${line}  ${name} keeps a receipt in a field — what a load acquired is the preparation's, and the era gives it back.`);
+  }
+  if (rel === 'sdk/src/asset/AssetLoader.ts') continue;
+  const call = /\.release\(\s*\)/.exec(code);
   if (call) {
-    findings.push(`sdk/src/asset/loaders/${name}:${code.slice(0, call.index).split('\n').length}  gives a held texture back by PATH — keep the receipt acquireTexture hands you.`);
+    findings.push(`${rel}:${code.slice(0, call.index).split('\n').length}  gives back a receipt it does not own — releasing it here frees it a second time when the era retires.`);
   }
 }
 
@@ -222,7 +258,7 @@ if (loaders < 10) {
 }
 
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door and declares no edges.`);
+  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door, owns nothing and declares no edges.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);
