@@ -761,6 +761,7 @@ ResourceDef<AssetsClass>
 
 ## AssetsData — type @beta
 ```
+@internal appScope: AssetScope
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void
 @internal releaseTyped: (type: string, ref: string) => void
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<unknown>) => void
@@ -7128,6 +7129,7 @@ ResourceDef<SceneManagerState>
 
 ## SceneManagerState — class @beta
 ```
+@internal assetScopeFor: (name: string) => AssetScope | null
 bringToTop: (name: string) => void
 getActive: () => string | null
 getActiveScenes: () => string[]

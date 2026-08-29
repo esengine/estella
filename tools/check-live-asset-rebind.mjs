@@ -17,7 +17,10 @@
  *
  *   1. No file on the rebind path names an asset-bearing component type.
  *   2. The walk goes through the registry and reads `assetFields`.
- *   3. The runtime scene loader hands the scene its receipts, not its paths.
+ *   3. The rebind path acquires by receipt. A `load*` hands back no receipt, so
+ *      what it takes out of the ledger is a row nobody can give back — that is
+ *      the leak the rebinder had, one row per successful hot update.
+ *   4. The runtime scene loader hands the scene its receipts, not its paths.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -30,6 +33,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The files that answer "which live fields hold this asset?". */
 const REBIND_PATH = [
   'sdk/src/asset/liveAssetBindings.ts',
+  'sdk/src/asset/liveAssetRebind.ts',
   'sdk/src/hotUpdateRebind.ts',
 ];
 
@@ -116,6 +120,15 @@ for (const fn of ['findLiveAssetBindings', 'componentsBindingAssetType']) {
   }
   if (!/getComponentRegistry\(/.test(body) || !/\.assetFields\b/.test(body)) {
     findings.push(`${REBIND_PATH[0]}  ${fn}() no longer walks getComponentRegistry() reading assetFields — the declaration is the only thing that knows which fields carry an asset.`);
+  }
+}
+
+// A replacement is acquired, never merely loaded: `load*` hands back no receipt.
+for (const file of REBIND_PATH) {
+  const code = stripComments(readFileSync(path.join(ROOT, file), 'utf8'));
+  const call = /\bload(?:Texture|Material|Font|Audio|Typed|Prefab|Mesh)\s*\(/.exec(code);
+  if (call) {
+    findings.push(`${file}:${code.slice(0, call.index).split('\n').length}  takes an asset out with a load*, which hands back no receipt — acquire it.`);
   }
 }
 

@@ -652,6 +652,16 @@ export class SceneManagerState {
         instance.loadedByType.clear();
     }
 
+    /**
+     * What the named scene acquired, so an owner-aware operation (a live asset
+     * replacement) can put a receipt where this scene will give it back.
+     *
+     * @internal
+     */
+    assetScopeFor(name: string): AssetScope | null {
+        return this.scenes_.get(name)?.assetScope ?? null;
+    }
+
     pause(name: string): void {
         const instance = this.scenes_.get(name);
         if (!instance || instance.status !== 'running') return;

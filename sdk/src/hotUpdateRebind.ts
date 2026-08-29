@@ -3,30 +3,41 @@
 /**
  * @file    hotUpdateRebind.ts
  * @brief   Built-in hot-update rebinder — makes a hot update transparent to game
- *          code. When applyUpdate / invalidate drops an asset it reports the
- *          value that was bound; this reloads the ref (now resolved to the fresh
- *          content) and swaps old→new in every live component that declares a
- *          field of that asset type, so a scene that references an asset by
- *          @uuid updates on screen with ZERO game code.
+ *          code. When applyUpdate / invalidate ends an asset's era this reloads
+ *          the ref (now resolved to the fresh content) and moves every live
+ *          binding of it onto the new one, so a scene that references an asset
+ *          by @uuid updates on screen with ZERO game code.
  *
- *          Which fields those are comes from `component.assetFields` — see
- *          liveAssetBindings.ts for why it cannot be a list kept here.
+ *          It is a transaction coordinator, not an owner: which fields hold the
+ *          asset comes from `component.assetFields` (liveAssetBindings.ts), and
+ *          the replacement is acquired once per owning scope and handed to that
+ *          scope (liveAssetRebind.ts). What it acquires and cannot place, it
+ *          gives back.
  *
  *          Registered once per App (initRuntime). State lives in this closure —
  *          per install, not module-global — so realms don't share queues.
  */
 import type { App } from './app/app';
 import { Schedule, defineSystem, GetWorld } from './ecs/system';
+import { SceneOwner } from './ecs/component';
+import { SceneManager } from './scene/sceneManager';
+import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
-import {
-    componentsBindingAssetType, findLiveAssetBindings, writeLiveAssetBinding,
-} from './asset/liveAssetBindings';
+import type { AssetScope, AssetLease } from './asset/AssetLease';
+import type { TextureResult } from './asset/AssetLoader';
+import { componentsBindingAssetType } from './asset/liveAssetBindings';
+import { migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
+import { log } from './util/logger';
+
+/** A texture lease as a bound field holds it. */
+const textureHandleOf = (lease: AssetLease): unknown =>
+    (lease.value as TextureResult | null)?.handle;
 
 export function installHotUpdateRebind(app: App, assets: Assets): void {
-    // Refs whose asset was invalidated (with the handle bound before the drop),
-    // awaiting a reload; and resolved old→new handle swaps awaiting application.
+    // Refs whose asset era ended (with the handle bound before the drop),
+    // awaiting the reload; and replacements awaiting their owner's transaction.
     const pending: Array<{ ref: string; oldHandle: number }> = [];
-    const swaps: Array<{ oldHandle: number; newHandle: number }> = [];
+    const ready: Array<{ oldHandle: number; scope: AssetScope; lease: AssetLease }> = [];
 
     assets.onInvalidate((event) => {
         // Textures only for now, said by reading the kind rather than by the event
@@ -36,22 +47,41 @@ export function installHotUpdateRebind(app: App, assets: Assets): void {
         if (oldHandle) pending.push({ ref: event.ref, oldHandle });
     });
 
+    /**
+     * The scope that owes a release for what this entity's fields hold. An
+     * entity no scene owns is the app's: nothing else outlives it, and an
+     * acquisition with no owner is one nobody can give back.
+     */
+    const ownerScopeOf = (entity: Entity): AssetScope => {
+        const owner = app.world.tryGet(entity, SceneOwner);
+        const scene = owner?.scene && app.hasResource(SceneManager)
+            ? app.getResource(SceneManager).assetScopeFor(owner.scene)
+            : null;
+        return scene ?? assets.appScope;
+    };
+
     app.addSystemToSchedule(Schedule.Update, defineSystem(
         [GetWorld()],
         (world) => {
-            // Kick a reload for each newly-invalidated ref; the async result (the
-            // new handle) lands in `swaps` a frame or two later.
+            // One acquisition per owning scope; the async results land in
+            // `ready` a frame or two later, each with the scope it is for.
             while (pending.length > 0) {
                 const { ref, oldHandle } = pending.shift()!;
-                void assets.loadTexture(ref).then((tex) => {
-                    if (tex.handle !== oldHandle) swaps.push({ oldHandle, newHandle: tex.handle });
-                });
-            }
-            while (swaps.length > 0) {
-                const { oldHandle, newHandle } = swaps.shift()!;
-                for (const binding of findLiveAssetBindings(world, 'texture', oldHandle)) {
-                    writeLiveAssetBinding(world, binding, newHandle);
+                for (const scope of ownerScopesOf(world, 'texture', oldHandle, ownerScopeOf)) {
+                    void assets.acquireTexture(ref).then(
+                        (lease) => { ready.push({ oldHandle, scope, lease }); },
+                        (e: unknown) => {
+                            log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, e);
+                        },
+                    );
                 }
+            }
+            while (ready.length > 0) {
+                const { oldHandle, scope, lease } = ready.shift()!;
+                migrateScopeBindings(
+                    world, scope, 'texture', oldHandle,
+                    { lease, boundValue: textureHandleOf }, ownerScopeOf,
+                );
             }
         },
         {

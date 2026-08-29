@@ -379,6 +379,7 @@ export class Assets {
     private assetRegistry_: AssetRegistry | null = null;
     private refCounter_: AssetRefCounter | null = null;
     private invalidateListeners_ = new Set<InvalidateListener>();
+    private readonly appScope_ = new AssetScope();
     /** `"<kind>:<handle>"` → resolved load path, recorded on every handle-yielding
      *  load. The REVERSE of resolution — inspectors and tooling that only hold a
      *  live World handle use it to name the asset (see {@link pathForHandle}). */
@@ -1678,7 +1679,23 @@ export class Assets {
         };
     }
 
+    /**
+     * What this Assets acquired for an owner the engine cannot name — a live
+     * binding on an entity no scene owns.
+     *
+     * Its life is this instance's, which is how long such an entity can live.
+     * Never a place to park an acquisition an owner exists for.
+     *
+     * @internal
+     */
+    get appScope(): AssetScope {
+        return this.appScope_;
+    }
+
     releaseAll(): void {
+        // Through the normal door first, so what the app owned is disposed the
+        // way any other owner's is rather than by the wholesale drain below.
+        this.appScope_.releaseAll();
         const rm = requireResourceManager();
         this.resetEpoch_++;
         this.abandoned_.clear();

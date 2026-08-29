@@ -23,7 +23,13 @@ import type { CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
 import { ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
+import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
+import { AssetScope } from '../src/asset/AssetLease';
+import { Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
+import { UIVisual } from '../src/ui/core/ui-visual';
 import { findLiveAssetBindings } from '../src/asset/liveAssetBindings';
+import { migrateScopeBindings } from '../src/asset/liveAssetRebind';
+import type { AssetLease } from '../src/asset/AssetLease';
 
 // ---------------------------------------------------------------------------
 // The C++ side, modelled: a component store that add/get/has/remove really move.
@@ -202,5 +208,183 @@ describe('the hot-update rebinder reaches every declared texture field', () => {
         expect(findLiveAssetBindings(world, 'texture', 7)).toEqual([]);
         world.insert(e, Widget, { icon: 7 });
         expect(findLiveAssetBindings(world, 'texture', 7)).toHaveLength(1);
+    });
+});
+
+describe('a replacement is a transaction per owning scope', () => {
+    beforeEach(() => { pool = createPoolFake(); });
+
+    /** An App with scenes, whose world's C++ side is the store above. */
+    function sceneApp(): { app: App; assets: Assets; manager: SceneManagerState } {
+        const app = App.new();
+        connectFakeCpp(app.world);
+        const assets = buildAssets();
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        installHotUpdateRebind(app, assets);
+        return { app, assets, manager };
+    }
+
+    /** A scene that acquires `ref` for itself and binds it to `fields`. */
+    function sceneHolding(
+        app: App, assets: Assets, ref: string,
+        fields: Array<{ component: AnyComponentDef; field: string }>,
+    ) {
+        return async (ctx: SceneContext): Promise<void> => {
+            const scope = new AssetScope();
+            const lease = await assets.acquireTexture(ref);
+            scope.add(lease);
+            ctx.trackAssetScope(scope);
+            for (const { component, field } of fields) {
+                const entity = ctx.spawn();
+                app.world.insert(entity, component, { [field]: lease.value.handle } as never);
+            }
+        };
+    }
+
+    const boundValues = (app: App, component: AnyComponentDef, field: string): number[] =>
+        app.world.getEntitiesWithComponents([component])
+            .map((e) => (app.world.get(e, component) as Record<string, number>)[field]);
+
+    it('two scenes holding one texture get one acquisition EACH', async () => {
+        // The cardinality the world-wide swap got wrong: it acquired once and
+        // moved both owners onto it, so one of the two receipts named an era
+        // nothing was drawing and the era both were drawing had one holder.
+        const { app, assets, manager } = sceneApp();
+        const base = assets.sizes().refRows;
+
+        manager.register({ name: 'a', setup: sceneHolding(app, assets, 'hero.png', [{ component: Sprite, field: 'texture' }]) });
+        manager.register({ name: 'b', setup: sceneHolding(app, assets, 'hero.png', [{ component: TrailRenderer, field: 'texture' }]) });
+        await manager.loadAdditive('a');
+        await manager.loadAdditive('b');
+
+        const before = assets.getTexture('hero.png')!.handle;
+        expect(assets.sizes().refRows).toBe(base + 2);          // two owners, one era
+
+        assets.invalidate('hero.png');
+        await settle(app);
+
+        const after = assets.getTexture('hero.png')!.handle;
+        expect(after).not.toBe(before);
+        expect(boundValues(app, Sprite, 'texture')).toEqual([after]);
+        expect(boundValues(app, TrailRenderer, 'texture')).toEqual([after]);
+        // Two owners still, of the new era: one acquisition each, and the era
+        // they left has no holders.
+        expect(assets.sizes().refRows).toBe(base + 2);
+
+        await manager.unload('a');
+        // B is still drawing it, and still owes exactly one release.
+        expect(assets.sizes().refRows).toBe(base + 1);
+        expect(boundValues(app, TrailRenderer, 'texture')).toEqual([after]);
+
+        await manager.unload('b');
+        expect(assets.sizes().refRows).toBe(base);              // nothing stranded
+    });
+
+    it('one scene\'s four fields move together, and it owes ONE release', async () => {
+        // Per scope, not per binding: a scene left holding the new era for some
+        // of its fields and the old one for the rest owes two receipts for one
+        // replacement, and nothing afterwards can say which field is which.
+        const { app, assets, manager } = sceneApp();
+        const base = assets.sizes().refRows;
+        const fields = [
+            { component: Sprite, field: 'texture' },
+            { component: UIVisual, field: 'texture' },
+            { component: MeshRenderer, field: 'normalMap' },
+            { component: ParticleEmitter, field: 'texture' },
+        ];
+        manager.register({ name: 'level', setup: sceneHolding(app, assets, 'hero.png', fields) });
+        await manager.loadAdditive('level');
+
+        const before = assets.getTexture('hero.png')!.handle;
+        expect(assets.sizes().refRows).toBe(base + 1);
+
+        assets.invalidate('hero.png');
+        await settle(app);
+
+        const after = assets.getTexture('hero.png')!.handle;
+        expect(after).not.toBe(before);
+        for (const { component, field } of fields) {
+            expect(boundValues(app, component, field), `${component._name}.${field}`).toEqual([after]);
+        }
+        expect(assets.sizes().refRows).toBe(base + 1);          // one owner, one receipt
+
+        await manager.unload('level');
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
+    it('an entity no scene owns is the app\'s, not nobody\'s', async () => {
+        // The rebinder must not keep what it acquires, and an acquisition with
+        // no owner is one nobody can ever give back — the leak this had.
+        const { app, assets } = sceneApp();
+        const base = assets.sizes().refRows;
+
+        const lease = await assets.acquireTexture('hero.png');
+        const entity = app.world.spawn();
+        app.world.insert(entity, Sprite, { texture: lease.value.handle });
+
+        assets.invalidate('hero.png');
+        await settle(app);
+        const after = assets.getTexture('hero.png')!.handle;
+        expect(boundValues(app, Sprite, 'texture')).toEqual([after]);
+
+        lease.release();                                  // the game lets go of its own era
+        expect(assets.sizes().refRows).toBe(base + 1);    // the app owns the replacement
+        assets.releaseAll();
+        expect(assets.sizes().refRows).toBe(base);        // and gives it back at teardown
+    });
+});
+
+describe('a scope migrates all of its bindings or none', () => {
+    /** A world whose Nth write refuses — the failure the rollback exists for. */
+    function worldFailingWriteAt(nth: number): World {
+        const world = new World();
+        connectFakeCpp(world);
+        let writes = 0;
+        const set = world.set.bind(world);
+        world.set = ((entity: never, component: never, data: never) => {
+            if (++writes === nth) throw new Error('component store refused the write');
+            return set(entity, component, data);
+        }) as typeof world.set;
+        return world;
+    }
+
+    it('puts back every binding it had already written, and gives the replacement back', () => {
+        const scope = new AssetScope();
+        let released = 0;
+        const outgoing = {
+            key: 'texture:hero.png', generation: 1, value: { handle: 11 },
+            release: () => { released++; },
+        };
+        scope.add(outgoing as never);
+
+        const world = worldFailingWriteAt(3);
+        const Widget = defineComponent(
+            'RollbackTestWidget', { icon: 0 },
+            { assetFields: [{ field: 'icon', type: 'texture' }] },
+        );
+        const entities = [world.spawn(), world.spawn(), world.spawn(), world.spawn()];
+        for (const e of entities) world.insert(e, Widget, { icon: 11 });
+
+        let replacementReleased = 0;
+        const replacement = {
+            lease: {
+                key: 'texture:hero.png', generation: 2, value: { handle: 22 },
+                release: () => { replacementReleased++; },
+            },
+            boundValue: (lease: AssetLease) => (lease.value as { handle: number }).handle,
+        };
+        const migrated = migrateScopeBindings(
+            world, scope, 'texture', 11, replacement as never, () => scope,
+        );
+
+        expect(migrated).toBe(false);
+        // Every binding still holds the era the scope still owns...
+        for (const e of entities) expect((world.get(e, Widget) as { icon: number }).icon).toBe(11);
+        expect(released).toBe(0);
+        // ...and the replacement was given back rather than kept by anyone.
+        expect(replacementReleased).toBe(1);
+        expect(scope.size).toBe(1);
+        expect(scope.leases()[0]).toBe(outgoing);
     });
 });
