@@ -150,3 +150,53 @@ describe('a tilemap era owns the textures it resolved', () => {
         expect(pool.liveTextures(), 'a composed texture nothing can name was left behind').toBe(0);
     });
 });
+
+describe('a tilemap runtime belongs to one app', () => {
+    it('two apps with the same entity ids do not share derived state', async () => {
+        // The plugin object is a shared singleton and every one of these
+        // collections is entity-keyed. Two apps both count entities from 1.
+        const { tilemapPlugin, TilemapRuntimeState } = await import('../src/tilemap/tilemapPlugin');
+        const { App } = await import('../src/app/app');
+
+        // Through the real installer, and the SAME plugin object both times —
+        // which is what `DefaultPlugins` hands every app.
+        const a = App.new();
+        const b = App.new();
+        tilemapPlugin.build(a);
+        tilemapPlugin.build(b);
+        expect(a.getResource(TilemapRuntimeState), 'one plugin object, one runtime for both apps')
+            .not.toBe(b.getResource(TilemapRuntimeState));
+
+        const layersOf = (app: typeof a): Set<number> =>
+            (app.getResource(TilemapRuntimeState) as unknown as { initializedLayers_: Set<number> })
+                .initializedLayers_;
+        layersOf(a).add(1);
+        expect(layersOf(b).has(1), 'one app\'s layer showed up in the other').toBe(false);
+
+        // And a teardown is one app's: B keeps what it had.
+        layersOf(b).add(1);
+        a.getResource(TilemapRuntimeState).dispose();
+        expect(layersOf(a).size).toBe(0);
+        expect(layersOf(b).has(1), 'one app\'s cleanup emptied the other').toBe(true);
+    });
+});
+
+describe('the tilemap toolkit reads its own app\'s core', () => {
+    it('two apps with two engines answer for themselves', async () => {
+        // `Res(Tilemaps)` was one static object over a module-level `module_`,
+        // so the app that initialised last answered for both — an editor world
+        // reading tiles out of the play world's engine.
+        const { createTilemapAPI, Tilemaps } = await import('../src/tilemap/tilemapAPI');
+        const { App } = await import('../src/app/app');
+        const core = (answer: number) =>
+            ({ tilemap_getTile: vi.fn(() => answer), tilemap_initLayer: vi.fn() }) as never;
+
+        const a = App.new();
+        const b = App.new();
+        a.insertResource(Tilemaps, createTilemapAPI(core(111)));
+        b.insertResource(Tilemaps, createTilemapAPI(core(222)));
+
+        expect(a.getResource(Tilemaps).getTile(1, 0, 0)).toBe(111);
+        expect(b.getResource(Tilemaps).getTile(1, 0, 0), 'both apps read one engine').toBe(222);
+    });
+});

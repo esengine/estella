@@ -114,6 +114,10 @@ export const GATES = [
   // A scene that unloads and a load that failed halfway own the same things;
   // two implementations of giving them back is how one came to miss four steps.
   { id: 'scene-teardown', run: 'node tools/check-scene-teardown.mjs' },
+  // The subsystem that held all four retired shapes at once: a module-global
+  // asset cache, an ownerless texture, an "active runtime" pointer, and
+  // World-local state on a plugin object several Apps share.
+  { id: 'tilemap-realm', run: 'node tools/check-tilemap-realm.mjs' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },

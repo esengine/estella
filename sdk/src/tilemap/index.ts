@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { Tilemap, TilemapLayer, type TilemapData, type TilemapLayerData } from './components';
 export { TilemapAPI, Tilemaps, initTilemapAPI, shutdownTilemapAPI } from './tilemapAPI';
-export { TilemapLiveSync, type ApplyTilesetRefs } from './tilemapLiveSync';
-export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
+export { TilemapLiveSync } from './tilemapLiveSync';
+export { TilemapPlugin, tilemapPlugin, TilemapRuntime, TilemapRuntimeState } from './tilemapPlugin';
 export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,

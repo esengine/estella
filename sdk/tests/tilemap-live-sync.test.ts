@@ -1,53 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  TilemapLiveSync forwarding contract — the editor→runtime channel for a
- *        layer's `.estileset` ref list. The plugin binds its ref-apply in build()
- *        and clears it in cleanup(); the editor pushes ref-list changes through
- *        setLayerTilesets. Guards that pushes reach the bound plugin, that an
- *        unbound channel is inert (no runtime), and that cleanup stops delivery.
+ * @file    tilemap-live-sync.test.ts
+ * @brief   The editor→runtime channel for a layer's `.estileset` ref list, and
+ *          which app it reaches.
+ *
+ * @details An editor world beside a play world is two Apps. The push names the
+ *          one it is for, so neither the caller nor the runtime has to work out
+ *          which of them a pointer happens to be aimed at.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { App } from '../src/app/app';
 import { TilemapLiveSync } from '../src/tilemap/tilemapLiveSync';
+import { TilemapRuntime, TilemapRuntimeState } from '../src/tilemap/tilemapPlugin';
 
-describe('TilemapLiveSync', () => {
-  beforeEach(() => TilemapLiveSync._bind(null));
-  afterEach(() => TilemapLiveSync._bind(null));
+/** An app carrying a runtime whose applies are observable. */
+function appWithRuntime(): { app: App; seen: Array<{ entity: number; refs: string[] }> } {
+    const app = App.new();
+    const runtime = new TilemapRuntime();
+    const seen: Array<{ entity: number; refs: string[] }> = [];
+    (runtime as unknown as { applyTilesetRefs_: (e: number, r: readonly string[]) => void })
+        .applyTilesetRefs_ = (entity, refs) => seen.push({ entity, refs: [...refs] });
+    app.insertResource(TilemapRuntimeState, runtime);
+    return { app, seen };
+}
 
-  it('forwards setLayerTilesets to the bound apply fn', () => {
-    const calls: Array<{ entity: number; refs: string[] }> = [];
-    TilemapLiveSync._bind((entity, refs) => calls.push({ entity, refs: [...refs] }));
-    TilemapLiveSync.setLayerTilesets(7, ['@uuid:a', '@uuid:b']);
-    expect(calls).toEqual([{ entity: 7, refs: ['@uuid:a', '@uuid:b'] }]);
-  });
+describe('a live tileset push names the app it is for', () => {
+    it('reaches that app\'s runtime, and only that one', () => {
+        // Deliberately the same entity id in both: two Apps always have them.
+        const edit = appWithRuntime();
+        const play = appWithRuntime();
 
-  it('is a no-op when unbound (no runtime plugin has built)', () => {
-    expect(() => TilemapLiveSync.setLayerTilesets(1, ['@uuid:x'])).not.toThrow();
-  });
+        TilemapLiveSync.setLayerTilesets(edit.app, 10, ['@uuid:a', '@uuid:b']);
 
-  it('an empty list still forwards (clears a layer to zero tilesets)', () => {
-    let seen: readonly string[] | null = null;
-    TilemapLiveSync._bind((_e, refs) => { seen = refs; });
-    TilemapLiveSync.setLayerTilesets(3, []);
-    expect(seen).toEqual([]);
-  });
+        expect(edit.seen).toEqual([{ entity: 10, refs: ['@uuid:a', '@uuid:b'] }]);
+        expect(play.seen, 'the other realm was driven too').toEqual([]);
+    });
 
-  it('cleanup (unbind) stops delivery — a later push is inert', () => {
-    let count = 0;
-    TilemapLiveSync._bind(() => { count++; });
-    TilemapLiveSync.setLayerTilesets(1, ['@uuid:a']);
-    TilemapLiveSync._bind(null); // plugin.cleanup()
-    TilemapLiveSync.setLayerTilesets(1, ['@uuid:a']);
-    expect(count).toBe(1);
-  });
+    it('an empty list still forwards — that is how a layer is cleared', () => {
+        const { app, seen } = appWithRuntime();
+        TilemapLiveSync.setLayerTilesets(app, 3, []);
+        expect(seen).toEqual([{ entity: 3, refs: [] }]);
+    });
 
-  it('rebinding points delivery at the newest plugin (world rebuild)', () => {
-    const a: number[] = [];
-    const b: number[] = [];
-    TilemapLiveSync._bind((e) => a.push(e));
-    TilemapLiveSync._bind((e) => b.push(e)); // a second build() replaces the binding
-    TilemapLiveSync.setLayerTilesets(5, ['@uuid:a']);
-    expect(a).toEqual([]);
-    expect(b).toEqual([5]);
-  });
+    it('an app with no tilemap runtime is a no-op, not a throw', () => {
+        expect(() => TilemapLiveSync.setLayerTilesets(App.new(), 1, ['@uuid:x'])).not.toThrow();
+    });
+
+    it('a disposed runtime stops delivering', () => {
+        const { app, seen } = appWithRuntime();
+        app.getResource(TilemapRuntimeState).dispose();
+        TilemapLiveSync.setLayerTilesets(app, 1, ['@uuid:a']);
+        expect(seen).toEqual([]);
+    });
 });

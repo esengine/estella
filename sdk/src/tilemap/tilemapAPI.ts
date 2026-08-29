@@ -103,32 +103,40 @@ export function shutdownTilemapAPI(): void {
  */
 export const TILESET_SLOT_STRIDE = 6;
 
-export const TilemapAPI = {
+/**
+ * The tilemap toolkit over ONE engine core.
+ *
+ * A factory rather than a singleton: an editor world and a play world are two
+ * apps with two cores, and a module-level `module_` answered both with whichever
+ * initialised last — so one app's reads went to the other's engine.
+ */
+function tilemapAPI(moduleOf: () => TilemapModule | null) {
+  return {
     initLayer(entity: number, width: number, height: number,
               tileWidth: number, tileHeight: number): void {
-        module_?.tilemap_initLayer(entity, width, height, tileWidth, tileHeight);
+        moduleOf()?.tilemap_initLayer(entity, width, height, tileWidth, tileHeight);
     },
 
     destroyLayer(entity: number): void {
-        module_?.tilemap_destroyLayer(entity);
+        moduleOf()?.tilemap_destroyLayer(entity);
     },
 
     setTile(entity: number, x: number, y: number, tileId: number): void {
-        module_?.tilemap_setTile(entity, x, y, tileId);
+        moduleOf()?.tilemap_setTile(entity, x, y, tileId);
     },
 
     getTile(entity: number, x: number, y: number): number {
-        if (!module_) return 0;
-        return module_.tilemap_getTile(entity, x, y);
+        if (!moduleOf()) return 0;
+        return moduleOf()!.tilemap_getTile(entity, x, y);
     },
 
     fillRect(entity: number, x: number, y: number,
              w: number, h: number, tileId: number): void {
-        module_?.tilemap_fillRect(entity, x, y, w, h, tileId);
+        moduleOf()?.tilemap_fillRect(entity, x, y, w, h, tileId);
     },
 
     setTiles(entity: number, tiles: Uint16Array): void {
-        const m = module_;
+        const m = moduleOf();
         if (!m) return;
         const bytes = tiles.byteLength;
         withMalloc(m, bytes, ptr => {
@@ -147,7 +155,7 @@ export const TilemapAPI = {
         firstId: number; textureHandle: number; columns: number;
         margin?: number; spacing?: number; extrude?: number;
     }[]): void {
-        const m = module_;
+        const m = moduleOf();
         if (!m) return;
         const STRIDE = TILESET_SLOT_STRIDE;
         const packed = new Uint32Array(slots.length * STRIDE);
@@ -166,34 +174,34 @@ export const TilemapAPI = {
     },
 
     hasLayer(entity: number): boolean {
-        if (!module_) return false;
-        return module_.tilemap_hasLayer(entity);
+        if (!moduleOf()) return false;
+        return moduleOf()!.tilemap_hasLayer(entity);
     },
 
     setRenderProps(entity: number, textureHandle: number, tilesetColumns: number,
                    uvTileW: number, uvTileH: number,
                    sortLayer: number, depth: number,
                    parallaxX: number, parallaxY: number): void {
-        module_?.tilemap_setRenderProps(entity, textureHandle, tilesetColumns,
+        moduleOf()?.tilemap_setRenderProps(entity, textureHandle, tilesetColumns,
             uvTileW, uvTileH, sortLayer, depth, parallaxX, parallaxY);
     },
 
     setTint(entity: number, r: number, g: number, b: number, a: number,
             opacity: number): void {
-        module_?.tilemap_setTint(entity, r, g, b, a, opacity);
+        moduleOf()?.tilemap_setTint(entity, r, g, b, a, opacity);
     },
 
     setVisible(entity: number, visible: boolean): void {
-        module_?.tilemap_setVisible(entity, visible);
+        moduleOf()?.tilemap_setVisible(entity, visible);
     },
 
     setOriginEntity(layerKey: number, originEntity: number): void {
-        module_?.tilemap_setOriginEntity(layerKey, originEntity);
+        moduleOf()?.tilemap_setOriginEntity(layerKey, originEntity);
     },
 
     setTileAnimation(entity: number, tileId: number,
                      frames: { tileId: number; duration: number }[]): void {
-        const m = module_;
+        const m = moduleOf();
         if (!m || frames.length === 0) return;
         const buf = new Uint32Array(frames.length * 2);
         for (let i = 0; i < frames.length; i++) {
@@ -209,44 +217,45 @@ export const TilemapAPI = {
 
     /** Drop every tile animation on the layer (a tileset swap re-adds the new set's). */
     clearTileAnimations(entity: number): void {
-        module_?.tilemap_clearTileAnimations(entity);
+        moduleOf()?.tilemap_clearTileAnimations(entity);
     },
 
     advanceAnimations(entity: number, dtMs: number): void {
-        module_?.tilemap_advanceAnimations(entity, dtMs);
+        moduleOf()?.tilemap_advanceAnimations(entity, dtMs);
     },
 
     setTileProperty(entity: number, tileId: number,
                     key: string, value: string): void {
-        module_?.tilemap_setTileProperty(entity, tileId, key, value);
+        moduleOf()?.tilemap_setTileProperty(entity, tileId, key, value);
     },
 
     getTileProperty(entity: number, x: number, y: number, key: string): string {
-        if (!module_) return '';
-        return module_.tilemap_getTileProperty(entity, x, y, key);
+        if (!moduleOf()) return '';
+        return moduleOf()!.tilemap_getTileProperty(entity, x, y, key);
     },
 
     flipTile(entity: number, x: number, y: number,
              flipH: boolean, flipV: boolean, flipD: boolean): void {
-        module_?.tilemap_flipTile(entity, x, y, flipH, flipV, flipD);
+        moduleOf()?.tilemap_flipTile(entity, x, y, flipH, flipV, flipD);
     },
 
     rotateTile(entity: number, x: number, y: number, degrees: number): void {
-        module_?.tilemap_rotateTile(entity, x, y, degrees);
+        moduleOf()?.tilemap_rotateTile(entity, x, y, degrees);
     },
 
     initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void {
         // Prefer the idempotent binding so a second call doesn't wipe tiles.
-        if (module_?.tilemap_initInfinite) {
-            module_.tilemap_initInfinite(entity, tileWidth, tileHeight);
+        const m = moduleOf();
+        if (m?.tilemap_initInfinite) {
+            m.tilemap_initInfinite(entity, tileWidth, tileHeight);
             return;
         }
-        module_?.tilemap_initInfiniteLayer(entity, tileWidth, tileHeight);
+        moduleOf()?.tilemap_initInfiniteLayer(entity, tileWidth, tileHeight);
     },
 
     setChunkTiles(entity: number, chunkX: number, chunkY: number,
                   tiles: Uint16Array, width: number, height: number): void {
-        const m = module_;
+        const m = moduleOf();
         if (!m) return;
         const bytes = tiles.byteLength;
         withMalloc(m, bytes, ptr => {
@@ -256,43 +265,64 @@ export const TilemapAPI = {
     },
 
     setGridType(entity: number, type: number): void {
-        module_?.tilemap_setGridType(entity, type);
+        moduleOf()?.tilemap_setGridType(entity, type);
     },
 
     /** Hexagonal-grid layout inputs (Tiled hexsidelength/staggeraxis/staggerindex);
      *  only read when the layer's grid type is Hexagonal (3). */
     setHexParams(entity: number, sideLength: number, staggerAxisX: boolean, staggerIndexEven: boolean): void {
-        module_?.tilemap_setHexParams(entity, sideLength, staggerAxisX ? 1 : 0, staggerIndexEven ? 1 : 0);
+        moduleOf()?.tilemap_setHexParams(entity, sideLength, staggerAxisX ? 1 : 0, staggerIndexEven ? 1 : 0);
     },
 
     tileToWorld(entity: number, tx: number, ty: number,
                 originX: number, originY: number): { x: number; y: number } {
-        if (!module_) return { x: 0, y: 0 };
-        const ptr = module_.tilemap_tileToWorld(entity, tx, ty, originX, originY);
-        const floats = new Float32Array(module_.HEAPU8.buffer, ptr, 2);
+        if (!moduleOf()) return { x: 0, y: 0 };
+        const m0 = moduleOf()!;
+        const ptr = m0.tilemap_tileToWorld(entity, tx, ty, originX, originY);
+        const floats = new Float32Array(m0.HEAPU8.buffer, ptr, 2);
         return { x: floats[0], y: floats[1] };
     },
 
     worldToTile(entity: number, wx: number, wy: number,
                 originX: number, originY: number): { x: number; y: number } {
-        if (!module_) return { x: 0, y: 0 };
-        const ptr = module_.tilemap_worldToTile(entity, wx, wy, originX, originY);
-        const floats = new Float32Array(module_.HEAPU8.buffer, ptr, 2);
+        if (!moduleOf()) return { x: 0, y: 0 };
+        const m0 = moduleOf()!;
+        const ptr = m0.tilemap_worldToTile(entity, wx, wy, originX, originY);
+        const floats = new Float32Array(m0.HEAPU8.buffer, ptr, 2);
         return { x: floats[0], y: floats[1] };
     },
 
     exportChunks(entity: number): string {
-        return module_?.tilemap_exportChunks?.(entity) ?? '';
+        return moduleOf()?.tilemap_exportChunks?.(entity) ?? '';
     },
 
     importChunks(entity: number, encoded: string): boolean {
-        return module_?.tilemap_importChunks?.(entity, encoded) ?? false;
+        return moduleOf()?.tilemap_importChunks?.(entity, encoded) ?? false;
     },
-};
+  };
+}
+
+/** The tilemap toolkit's shape, however it was bound. */
+export type TilemapToolkit = ReturnType<typeof tilemapAPI>;
+
+/**
+ * The host/tooling seam: the editor's tile tools and tests reach the core that
+ * {@link initTilemapAPI} bound, where no App is in scope. Game code reads
+ * `Res(Tilemaps)`, which is its own app's.
+ */
+export const TilemapAPI: TilemapToolkit = tilemapAPI(() => module_);
+
+/** @internal One toolkit per App, over that app's core. */
+export function createTilemapAPI(engine: NonNullable<EngineApi>): TilemapToolkit {
+    const own = new TilemapBridge();
+    own.connect(engine);
+    const module = own.module as unknown as TilemapModule;
+    return tilemapAPI(() => module);
+}
 
 /**
  * The canonical game-code accessor: `Res(Tilemaps)`, same shape as every other
- * subsystem resource. Wraps the {@link TilemapAPI} singleton — see its doc for
- * when direct use is appropriate.
+ * subsystem resource. The tilemap plugin inserts its app's own toolkit; the
+ * default is the host seam above, for a world with no tilemap plugin built.
  */
-export const Tilemaps = defineResource<typeof TilemapAPI>(TilemapAPI, 'Tilemaps');
+export const Tilemaps = defineResource<TilemapToolkit>(TilemapAPI, 'Tilemaps');

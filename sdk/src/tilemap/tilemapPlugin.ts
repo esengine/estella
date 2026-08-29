@@ -4,9 +4,9 @@ import type { App, Plugin } from '../app/app';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../ecs/component';
 import { Schedule } from '../ecs/system';
+import { defineResource } from '../ecs/resource';
 import type { SystemDef } from '../ecs/system';
-import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
-import { TilemapLiveSync } from './tilemapLiveSync';
+import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI, createTilemapAPI, Tilemaps } from './tilemapAPI';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene/scene';
 import { tilemapSource, resolvedTileset, type LoadedTilemapSource } from './tilesetCache';
@@ -35,9 +35,15 @@ const GRID_TYPE_MAP: Record<string, number> = {
 const GRID_STAGGERED = 2;
 const GRID_HEXAGONAL = 3;
 
-export class TilemapPlugin implements Plugin {
-    name = 'tilemap';
-
+/**
+ * One app's tilemap runtime: every derived layer, collider, animation and
+ * resolved tileset it is holding.
+ *
+ * All of it is entity-keyed, so it belongs to one World. Two apps count their
+ * entities from 1, and a shared instance cannot tell them apart.
+ */
+export class TilemapRuntime {
+    private applyTilesetRefs_: ((entity: number, refs: readonly string[]) => void) | null = null;
     private initializedLayers_ = new Set<number>();
     /** TilemapLayer entity → the tile size last pushed to its C++ layer (`w*K+h`).
      *  The renderer + worldToTile read the C++ `tile_width`; the component `cellSize`
@@ -82,7 +88,7 @@ export class TilemapPlugin implements Plugin {
         table: LayerCollisionTable;
     }>();
 
-    build(app: App): void {
+    install(app: App): void {
         // Whichever core is present (the wasm module on the web, the native host's
         // bindings on a device). A core built without ES_ENABLE_TILEMAP answers
         // none of these, and says so once instead of throwing on the first tile.
@@ -92,6 +98,9 @@ export class TilemapPlugin implements Plugin {
             return;
         }
         initTilemapAPI(engine);
+        // And this app's own toolkit over its own core: `Res(Tilemaps)` must not
+        // answer with whichever engine initialised the module seam last.
+        app.insertResource(Tilemaps, createTilemapAPI(engine));
 
         // Tile chunks live in a C++ blob, not the component's field record, so
         // teach the scene (de)serializer to carry them out-of-band instead of
@@ -112,7 +121,7 @@ export class TilemapPlugin implements Plugin {
             else tilesetRefs.delete(entity);
             liveResolved.delete(entity);
         };
-        TilemapLiveSync._bind(applyTilesetRefs);
+        this.applyTilesetRefs_ = applyTilesetRefs;
 
         // Tile-collision queries (tileCollisionAt / isTileSolid): resolve a layer to
         // its collision vocabulary — a derived Tiled child's table, or a painted
@@ -701,6 +710,16 @@ export class TilemapPlugin implements Plugin {
         }
     }
 
+    /**
+     * The editor's out-of-band push: a layer's `.estileset` ref list changed.
+     * Reached through THIS app's runtime, so an editor world and a play world
+     * cannot answer for each other — which a module-level "active plugin"
+     * pointer decided by whoever built last.
+     */
+    setLayerTilesets(entity: number, refs: readonly string[]): void {
+        this.applyTilesetRefs_?.(entity, refs);
+    }
+
     resetLayers(): void {
         for (const entity of this.initializedLayers_) {
             TilemapAPI.destroyLayer(entity);
@@ -721,11 +740,32 @@ export class TilemapPlugin implements Plugin {
         this.queryTableCache_.clear();
     }
 
-    cleanup(): void {
+    dispose(): void {
         this.resetLayers();
-        TilemapLiveSync._bind(null);
+        this.applyTilesetRefs_ = null;
         _bindTileCollisionLookup(null);
         shutdownTilemapAPI();
+    }
+}
+
+/** @internal One per App, created by the plugin's build. */
+export const TilemapRuntimeState = defineResource<TilemapRuntime>(null!, 'TilemapRuntime');
+
+/**
+ * Installs the tilemap runtime into an app. Stateless on purpose: what it
+ * installs is per app, and this object is a singleton that several apps share.
+ */
+export class TilemapPlugin implements Plugin {
+    name = 'tilemap';
+
+    build(app: App): void {
+        const runtime = new TilemapRuntime();
+        app.insertResource(TilemapRuntimeState, runtime);
+        runtime.install(app);
+    }
+
+    cleanup(app?: App): void {
+        if (app?.hasResource(TilemapRuntimeState)) app.getResource(TilemapRuntimeState).dispose();
     }
 }
 

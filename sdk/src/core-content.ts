@@ -637,7 +637,6 @@ export {
     type TerrainIndices,
     type WangIndex,
     type WangIndices,
-    type ApplyTilesetRefs,
 } from './tilemap';
 
 // =============================================================================
