@@ -37,18 +37,18 @@ const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine');
 const ASSETS = [
     {
         name: 'spineboy', skel: 'spineboy-38/spineboy-pro.skel', atlas: 'spineboy-38/spineboy.atlas',
-        hash: 'eb4af120', batches: [{ vertices: 274, indices: 1017, texture: 1, blend: 0 }],
+        hash: '2046a073', batches: [{ vertices: 278, indices: 1023, texture: 1, blend: 0 }],
     },
     {
         name: 'raptor', skel: 'raptor-38/raptor-pro.skel', atlas: 'raptor-38/raptor.atlas',
-        hash: 'b0eae4ed', batches: [{ vertices: 592, indices: 2091, texture: 1, blend: 0 }],
+        hash: 'a25dcd8b', batches: [{ vertices: 588, indices: 2085, texture: 1, blend: 0 }],
     },
     {
         name: 'coin', skel: 'coin-38/coin-pro.skel', atlas: 'coin-38/coin.atlas',
-        hash: '86e9d8d9',
+        hash: '034b3ea2',
         batches: [
             { vertices: 12, indices: 18, texture: 1, blend: 0 },
-            { vertices: 4, indices: 6, texture: 1, blend: 1 },
+            { vertices: 38, indices: 96, texture: 1, blend: 1 },
         ],
     },
 ] as const;
@@ -106,8 +106,8 @@ function posed(asset: { skel: string; atlas: string }, texture = 1): number {
         api.setAtlasPageTexture(skelHandle, i, texture, 1024, 1024);
     }
     const instanceId = api.createInstance(skelHandle);
-    const first = api.getAnimations(instanceId).split(',')[0];
-    if (first) api.playAnimation(instanceId, first, 1, 0);
+    const [first] = JSON.parse(api.getAnimations(instanceId)) as string[];
+    if (!api.playAnimation(instanceId, first, true, 0)) throw new Error(`no animation "${first}"`);
     api.update(instanceId, 0.35);
     return instanceId;
 }
@@ -160,7 +160,7 @@ describe.skipIf(!HAS_ASSETS)('spine batch storage outlives the frame', () => {
         api.getMeshBatchCount(big);
         const warm = storage();
         expect(warm.vertexFloats, 'the warm-up frame did not size the pool')
-            .toBeGreaterThanOrEqual(592 * 8);
+            .toBeGreaterThanOrEqual(588 * 8);
 
         for (let frame = 1; frame <= 6; frame++) {
             api.getMeshBatchCount(steady);
@@ -215,7 +215,7 @@ describe.skipIf(!HAS_ASSETS)('spine batch storage outlives the frame', () => {
 
         api.getMeshBatchCount(raptor);
         const high = storage();
-        expect(high.vertexFloats).toBeGreaterThanOrEqual(592 * 8);
+        expect(high.vertexFloats).toBeGreaterThanOrEqual(588 * 8);
 
         // The smaller frame keeps the larger one's storage rather than trimming
         // it: giving it back is the per-frame free this change removed.

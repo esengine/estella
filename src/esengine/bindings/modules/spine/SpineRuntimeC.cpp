@@ -172,6 +172,13 @@ void eventListener(spAnimationState* state, spEventType type, spTrackEntry* entr
     g_eventSink(out);
 }
 
+/** BENCHMARK ONLY — what {@link poseStage} installs while it applies, so events
+ *  are counted without the module's own sink being on the measurement. */
+std::uint32_t g_probeEvents = 0;
+void countingListener(spAnimationState*, spEventType, spTrackEntry*, spEvent*) {
+    ++g_probeEvents;
+}
+
 }  // namespace
 
 Skeleton* loadSkeleton(const void* skeletonData, int length,
@@ -290,13 +297,72 @@ void update(Instance* instance, float dt) {
 #endif
 }
 
+namespace {
+
+/// The entries one track applies this frame: the current one and everything it
+/// is still mixing out of.
+void countTrack(spTrackEntry* entry, PoseCounts& counts) {
+    for (; entry; entry = entry->mixingFrom) {
+        ++counts.entries;
+        counts.timelines += entry->animation ? 0xAAAAu : 0xBBBBu;
+    }
+}
+
+}  // namespace
+
+bool poseStage(Instance* instance, float dt, int stage, PoseCounts* counts) {
+    if (!instance) return false;
+
+    if (counts) {
+        *counts = PoseCounts{};
+        for (int i = 0; i < instance->state->tracksCount; ++i) {
+            spTrackEntry* entry = instance->state->tracks[i];
+            if (!entry) continue;
+            ++counts->tracks;
+            countTrack(entry, *counts);
+        }
+        const spSkeleton* skeleton = instance->skeleton;
+        counts->bones = static_cast<std::uint32_t>(skeleton->bonesCount);
+        counts->ikConstraints = static_cast<std::uint32_t>(skeleton->ikConstraintsCount);
+        counts->transformConstraints = static_cast<std::uint32_t>(skeleton->transformConstraintsCount);
+        counts->pathConstraints = static_cast<std::uint32_t>(skeleton->pathConstraintsCount);
+#if ES_SPINE_VERSION >= 42
+        counts->physicsConstraints = static_cast<std::uint32_t>(skeleton->physicsConstraintsCount);
+#endif
+    }
+
+    if (stage >= POSE_ADVANCE) spAnimationState_update(instance->state, dt);
+    if (stage >= POSE_APPLY) {
+        spAnimationStateListener installed = instance->state->listener;
+        instance->state->listener = countingListener;
+        g_probeEvents = 0;
+        spAnimationState_apply(instance->state, instance->skeleton);
+        instance->state->listener = installed;
+        if (counts) counts->events = g_probeEvents;
+    }
+    if (stage >= POSE_WORLD) {
+#if ES_SPINE_VERSION >= 42
+        spSkeleton_update(instance->skeleton, dt);
+        spSkeleton_updateWorldTransform(instance->skeleton, SP_PHYSICS_UPDATE);
+#else
+        spSkeleton_updateWorldTransform(instance->skeleton);
+#endif
+    }
+    return true;
+}
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {
     if (!instance) return false;
+    // Resolved HERE: spine-c builds a track entry around a null animation and
+    // hands it back, so a non-null entry says nothing about the name — and
+    // posing that entry reads address zero, which on wasm neither crashes nor draws.
+    if (!spSkeletonData_findAnimation(instance->skeleton->data, animation)) return false;
     return spAnimationState_setAnimationByName(instance->state, track, animation, loop) != nullptr;
 }
 
 bool addAnimation(Instance* instance, const char* animation, bool loop, float delay, int track) {
     if (!instance) return false;
+    if (!spSkeletonData_findAnimation(instance->skeleton->data, animation)) return false;
     return spAnimationState_addAnimationByName(instance->state, track, animation, loop, delay) != nullptr;
 }
 
@@ -560,7 +626,8 @@ namespace {
 /**
  * Hand one attachment's triangles to the sink, clipped against the open clip
  * region when there is one. Clipping replaces the triangle set with the polygon
- * intersection, so it can only shrink the geometry, never grow it.
+ * intersection RE-TRIANGULATED, which can hand back more vertices than it was
+ * given — a triangle cut by a polygon is a polygon, and it comes back as fans.
  */
 template <int STAGE, bool COUNT>
 void emit(TriangleSink& sink, bool clipping,

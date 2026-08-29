@@ -101,6 +101,9 @@ struct CountingSink final : es::skeletal::TriangleSink {
 /** The last probe run's counts. Benchmark only; a frame never writes it. */
 es::spine::ProbeCounts g_probeCounts{};
 
+/** The last staged pose's counts. Benchmark only, for the same reason. */
+es::spine::PoseCounts g_poseCounts{};
+
 void extractBatches(int instanceId) {
     g_ctx.batches.reset();
     auto* instance = g_ctx.instanceOf(instanceId);
@@ -299,6 +302,34 @@ void spine_probe_counts(std::uint32_t* out) {
     out[6] = g_probeCounts.verticesEmitted;
     out[7] = g_probeCounts.indicesEmitted;
     out[8] = g_probeCounts.emits;
+}
+
+/**
+ * BENCHMARK ONLY — the pose run to `stage` (es::spine::PoseStage). Advancing a
+ * pose is not a query: this MOVES the instance forward, so a caller measuring
+ * with it owns the instance's clock.
+ */
+EMSCRIPTEN_KEEPALIVE
+int spine_probe_pose(int instanceId, float dt, int stage) {
+    g_poseCounts = es::spine::PoseCounts{};
+    auto* instance = g_ctx.instanceOf(instanceId);
+    if (!instance) return 0;
+    return es::spine::poseStage(instance, dt, stage, &g_poseCounts) ? 1 : 0;
+}
+
+/** The counts of the last {@link spine_probe_pose}, into nine u32 slots. */
+EMSCRIPTEN_KEEPALIVE
+void spine_probe_pose_counts(std::uint32_t* out) {
+    if (!out) return;
+    out[0] = g_poseCounts.tracks;
+    out[1] = g_poseCounts.entries;
+    out[2] = g_poseCounts.timelines;
+    out[3] = g_poseCounts.bones;
+    out[4] = g_poseCounts.ikConstraints;
+    out[5] = g_poseCounts.transformConstraints;
+    out[6] = g_poseCounts.pathConstraints;
+    out[7] = g_poseCounts.physicsConstraints;
+    out[8] = g_poseCounts.events;
 }
 
 /**

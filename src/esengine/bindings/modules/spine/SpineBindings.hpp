@@ -89,6 +89,13 @@ int spine_probe_extract(int instanceId, int stage, int useCollector);
 // The nine counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
+// BENCHMARK ONLY — the pose run to `stage` (es::spine::PoseStage). This ADVANCES
+// the instance: a caller measuring with it owns that instance's clock.
+int spine_probe_pose(int instanceId, float dt, int stage);
+
+// What that pose had to do, into nine u32 slots.
+void spine_probe_pose_counts(uint32_t* out);
+
 // What the batch pool holds, into four u32 slots — slots ever opened, slots this
 // extraction used, and the vertex floats and indices it can take without growing.
 void spine_probe_storage(uint32_t* out);

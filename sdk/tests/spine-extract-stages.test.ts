@@ -75,8 +75,8 @@ function posed(asset: { skel: string; atlas: string }): { skelHandle: number; in
         api.setAtlasPageTexture(skelHandle, i, 1, 1024, 1024);
     }
     const instanceId = api.createInstance(skelHandle);
-    const first = api.getAnimations(instanceId).split(',')[0];
-    if (first) api.playAnimation(instanceId, first, 1, 0);
+    const [first] = JSON.parse(api.getAnimations(instanceId)) as string[];
+    if (!api.playAnimation(instanceId, first, true, 0)) throw new Error(`no animation "${first}"`);
     api.update(instanceId, 0.35);
     return { skelHandle, instanceId };
 }
@@ -127,8 +127,9 @@ describe.skipIf(!HAS_ASSETS)('the staged walk is the shipped walk', () => {
         expect(c.slots).toBeGreaterThan(0);
         expect(c.regionAttachments + c.meshAttachments + c.clipStarts).toBeLessThanOrEqual(c.slots);
         expect(c.emits).toBeLessThanOrEqual(c.regionAttachments + c.meshAttachments);
-        // Clipping can only shrink geometry, never grow it.
-        expect(c.verticesEmitted).toBeLessThanOrEqual(c.verticesGenerated);
+        // Clipping is the only thing that can move emitted away from generated,
+        // and it moves it EITHER way: the intersection comes back re-triangulated,
+        // so coin emits 50 vertices for the 20 it generated.
         if (c.clippedEmits === 0) expect(c.verticesEmitted).toBe(c.verticesGenerated);
     });
 

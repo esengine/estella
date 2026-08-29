@@ -65,4 +65,20 @@ describe.skipIf(!HAS_SPINE38)('Spine 3.8 side module loads + animates a real 3.8
         const moved = Math.abs(p1!.x - p0!.x) + Math.abs(p1!.y - p0!.y);
         expect(moved).toBeGreaterThan(0.5); // the foot visibly swings during a walk cycle
     });
+
+    it('a name the skeleton does not have is refused, and leaves the pose alone', () => {
+        // spine-c builds a track entry around a null animation and hands it back,
+        // so the entry cannot be the answer: unchecked, the call reports success,
+        // poses nothing, and reads address zero every frame without saying so.
+        const instance = controller.createInstance(skelHandle);
+        expect(controller.play(instance, 'walk', true)).toBe(true);
+        controller.update(instance, 0.4);
+        const walking = controller.getBonePosition(instance, 'front-foot');
+
+        expect(controller.play(instance, 'sashay', true)).toBe(false);
+        expect(controller.addAnimation(instance, 'sashay', true, 0)).toBe(false);
+
+        controller.update(instance, 0.0);
+        expect(controller.getBonePosition(instance, 'front-foot')).toEqual(walking);
+    });
 });

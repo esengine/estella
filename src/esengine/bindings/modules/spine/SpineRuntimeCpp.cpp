@@ -534,6 +534,10 @@ bool renderStage(Instance*, TriangleSink&, bool, int, ProbeCounts*) {
     return false;
 }
 
+bool poseStage(Instance*, float, int, PoseCounts*) {
+    return false;
+}
+
 int version() {
     return ES_SPINE_VERSION;
 }

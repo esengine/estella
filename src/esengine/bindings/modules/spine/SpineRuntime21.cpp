@@ -345,11 +345,13 @@ void update(Instance* instance, float dt) {
 
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {
     if (!instance) return false;
+    if (!spSkeletonData_findAnimation(instance->skeleton->data, animation)) return false;
     return spAnimationState_setAnimationByName(instance->state, track, animation, loop) != nullptr;
 }
 
 bool addAnimation(Instance* instance, const char* animation, bool loop, float delay, int track) {
     if (!instance) return false;
+    if (!spSkeletonData_findAnimation(instance->skeleton->data, animation)) return false;
     return spAnimationState_addAnimationByName(instance->state, track, animation, loop, delay) != nullptr;
 }
 
@@ -548,6 +550,10 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
  *  (3.8 / 4.1 / 4.2). False rather than zeros, so a measurement cannot report
  *  this backend as free. */
 bool renderStage(Instance*, TriangleSink&, bool, int, ProbeCounts*) {
+    return false;
+}
+
+bool poseStage(Instance*, float, int, PoseCounts*) {
     return false;
 }
 

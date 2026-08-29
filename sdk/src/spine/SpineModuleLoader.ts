@@ -61,6 +61,8 @@ export interface SpineWasmModule {
     _spine_probe_extract(instanceId: number, stage: number, useCollector: number): number;
     _spine_probe_counts(out: number): void;
     _spine_probe_storage(out: number): void;
+    _spine_probe_pose(instanceId: number, dt: number, stage: number): number;
+    _spine_probe_pose_counts(out: number): void;
 
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
@@ -128,6 +130,8 @@ export interface SpineWrappedAPI {
     probeExtract(instanceId: number, stage: number, useCollector: number): number;
     probeCounts(out: number): void;
     probeStorage(out: number): void;
+    probePose(instanceId: number, dt: number, stage: number): number;
+    probePoseCounts(out: number): void;
 }
 
 export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
@@ -180,6 +184,8 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         probeExtract: cw('spine_probe_extract', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probeExtract'],
         probeCounts: cw('spine_probe_counts', null, ['number']) as SpineWrappedAPI['probeCounts'],
         probeStorage: cw('spine_probe_storage', null, ['number']) as SpineWrappedAPI['probeStorage'],
+        probePose: cw('spine_probe_pose', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probePose'],
+        probePoseCounts: cw('spine_probe_pose_counts', null, ['number']) as SpineWrappedAPI['probePoseCounts'],
     };
 }
 

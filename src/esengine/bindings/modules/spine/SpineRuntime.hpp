@@ -249,6 +249,37 @@ struct ProbeCounts {
 bool renderStage(Instance* instance, TriangleSink& sink, bool clipping,
                  int stage, ProbeCounts* counts);
 
+/** How far {@link poseStage} runs. Each includes the ones before it, so a step
+ *  costs the difference between two runs. Unlike the render stages these MUTATE,
+ *  and a short run is still a legitimate prefix: advancing does not read the
+ *  skeleton, and resolving reads only what applying wrote. */
+enum PoseStage {
+    POSE_SETUP = 0,    ///< The instance lookup; nothing advances.
+    POSE_ADVANCE = 1,  ///< Advance the tracks: time, mixing, queued entries.
+    POSE_APPLY = 2,    ///< …and evaluate their timelines onto the bones.
+    POSE_WORLD = 3,    ///< …and resolve world transforms and constraints — a whole pose.
+};
+
+/** What a pose had to do, so its time can be explained rather than only reported. */
+struct PoseCounts {
+    std::uint32_t tracks;
+    std::uint32_t entries;  ///< Track entries applied, `mixingFrom` chains included.
+    std::uint32_t timelines;
+    std::uint32_t bones;
+    std::uint32_t ikConstraints;
+    std::uint32_t transformConstraints;
+    std::uint32_t pathConstraints;
+    std::uint32_t physicsConstraints;
+    std::uint32_t events;
+};
+
+/**
+ * BENCHMARK ONLY — the same pose as {@link update}, stopped at `stage`.
+ * False where a backend has no instrumented pose (2.1, spine-cpp), so a
+ * measurement cannot quietly report zeros for one.
+ */
+bool poseStage(Instance* instance, float dt, int stage, PoseCounts* counts);
+
 /** 21 / 38 / 41 / 42 / 43 — whatever `spine_runtimeVersion()` should report. */
 int version();
 

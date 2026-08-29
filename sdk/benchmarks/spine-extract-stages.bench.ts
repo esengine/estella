@@ -67,10 +67,10 @@ beforeAll(async () => {
     for (let i = 0, pages = api.getAtlasPageCount(skelHandle); i < pages; i++) {
         api.setAtlasPageTexture(skelHandle, i, 1, 1024, 1024);
     }
-    const animation = api.getAnimations(skelHandle ? api.createInstance(skelHandle) : 0).split(',')[0];
+    const [animation] = JSON.parse(api.getAnimations(api.createInstance(skelHandle))) as string[];
     for (let i = 0; i < ENTITIES; i++) {
         const id = api.createInstance(skelHandle);
-        api.playAnimation(id, animation || 'walk', 1, 0);
+        if (!api.playAnimation(id, animation, true, 0)) throw new Error(`no animation "${animation}"`);
         api.update(id, 0.1 + i * 0.001);
         instances.push(id);
     }
