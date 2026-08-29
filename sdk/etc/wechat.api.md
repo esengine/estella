@@ -761,7 +761,7 @@ ResourceDef<AssetsClass>
 @internal appScope: AssetScope
 @internal assetGraphSettled: () => Promise<void>
 @internal dependenciesOf: (type: string, ref: string) => readonly DependencyReceipt[]
-@internal dependentsOf: (ref: string) => AssetIdentity[]
+@internal dependentsOf: (ref: string, type?: string) => AssetIdentity[]
 @internal entityScopes: EntityAssetScopes
 @internal handleBoundTypes: () => string[]
 @internal publishedRegistryAssets: <T>(type: string) => T[]

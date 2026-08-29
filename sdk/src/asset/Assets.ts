@@ -1690,11 +1690,12 @@ export class Assets {
         }
     }
 
-    /** What a change to `ref` reaches, after `ref` itself. */
-    private rebuildPlan_(ref: string): string[][] {
+    /** What a change to `ref` reaches, after `ref` itself: this call ends its own
+     *  era, and a cycle back to it must not end it twice. */
+    private rebuildPlan_(ref: string): AssetIdentity[][] {
         const root = this.resolveLoadPath_(ref);
-        const plan = rebuildPlan(root, (path) => this.dependentsOf(path).map((d) => d.path));
-        return plan.map((group) => group.filter((p) => p !== root)).filter((g) => g.length > 0);
+        const plan = rebuildPlan(root, (path, type) => this.dependentsOf(path, type));
+        return plan.map((group) => group.filter((v) => v.path !== root)).filter((g) => g.length > 0);
     }
 
     /** Count one propagation as in flight until it lands. It answers to nobody
@@ -1709,9 +1710,9 @@ export class Assets {
     }
 
     /** Each group only once everything it was built from has landed. */
-    private async rebuildAssetGraph_(plan: string[][]): Promise<void> {
+    private async rebuildAssetGraph_(plan: AssetIdentity[][]): Promise<void> {
         for (const group of plan) {
-            await Promise.all(group.map((path) => this.invalidateOne_(path).rebuilt));
+            await Promise.all(group.map((vertex) => this.invalidateOne_(vertex.path).rebuilt));
         }
     }
 
@@ -2205,7 +2206,7 @@ export class Assets {
      *
      * @internal
      */
-    dependentsOf(ref: string): AssetIdentity[] {
+    dependentsOf(ref: string, type?: string): AssetIdentity[] {
         const canonical = new Map<string, string>();
         const identify = (path: string): string => {
             let known = canonical.get(path);
@@ -2216,10 +2217,14 @@ export class Assets {
             return known;
         };
         const target = identify(ref);
+        // An acquisition names an ASSET, so a type narrows it; a source read
+        // names CONTENT, which is the same file whatever else lives at it.
+        const names = (e: DependencyReceipt): boolean =>
+            isInvalidatable(e) && identify(e.path) === target
+            && (type === undefined || e.kind === 'source' || e.type === type);
         const out: AssetIdentity[] = [];
         for (const era of this.eras_()) {
-            const took = era.edges.some((e) => isInvalidatable(e) && identify(e.path) === target);
-            if (took) out.push({ type: era.type, path: era.path });
+            if (era.edges.some(names)) out.push({ type: era.type, path: era.path });
         }
         return out;
     }

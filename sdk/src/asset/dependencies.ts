@@ -73,46 +73,54 @@ export interface Preparation {
 
 /**
  * What to rebuild after `changed` changed, deepest dependency first, each cycle
- * one group. `A takes B` while B read A is a real shape: what has to be acyclic
- * is the plan, which is this graph's condensation. Tarjan emits a group after
- * everything it reaches, so the list is reversed at the end.
+ * one group. The root is a PATH (a change names a file, which need not be an
+ * asset); every vertex after it keeps its TYPE, since flattening two assets that
+ * share a path invents a cycle between them. Tarjan emits last-reached first.
  */
 export function rebuildPlan(
-    changed: string, dependents: (path: string) => readonly string[],
-): string[][] {
+    changed: string,
+    dependents: (path: string, type?: string) => readonly AssetIdentity[],
+): AssetIdentity[][] {
     const index = new Map<string, number>();
     const low = new Map<string, number>();
     const open = new Set<string>();
-    const stack: string[] = [];
-    const groups: string[][] = [];
+    const stack: AssetIdentity[] = [];
+    const groups: AssetIdentity[][] = [];
     let next = 0;
+    const keyOf = (id: AssetIdentity): string => `${id.type}\0${id.path}`;
 
-    const visit = (node: string): void => {
-        index.set(node, next);
-        low.set(node, next);
+    const visit = (node: AssetIdentity): void => {
+        const key = keyOf(node);
+        index.set(key, next);
+        low.set(key, next);
         next++;
         stack.push(node);
-        open.add(node);
-        for (const parent of dependents(node)) {
-            if (!index.has(parent)) {
+        open.add(key);
+        for (const parent of dependents(node.path, node.type)) {
+            const above = keyOf(parent);
+            if (!index.has(above)) {
                 visit(parent);
-                low.set(node, Math.min(low.get(node)!, low.get(parent)!));
-            } else if (open.has(parent)) {
-                low.set(node, Math.min(low.get(node)!, index.get(parent)!));
+                low.set(key, Math.min(low.get(key)!, low.get(above)!));
+            } else if (open.has(above)) {
+                low.set(key, Math.min(low.get(key)!, index.get(above)!));
             }
         }
-        if (low.get(node) !== index.get(node)) return;
-        const group: string[] = [];
+        if (low.get(key) !== index.get(key)) return;
+        const group: AssetIdentity[] = [];
         for (;;) {
             const member = stack.pop()!;
-            open.delete(member);
+            open.delete(keyOf(member));
             group.push(member);
-            if (member === node) break;
+            if (keyOf(member) === key) break;
         }
         groups.push(group);
     };
 
-    visit(changed);
+    // A forest, not a tree: the changed file can be read by several assets, and
+    // one already visited through another root is not visited again.
+    for (const root of dependents(changed)) {
+        if (!index.has(keyOf(root))) visit(root);
+    }
     return groups.reverse();
 }
 
