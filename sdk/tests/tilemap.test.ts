@@ -8,11 +8,7 @@ import {
     initTilemapAPI,
     shutdownTilemapAPI,
 } from '../src/tilemap';
-import {
-    registerTilemapSource,
-    getTilemapSource,
-    clearTilemapSourceCache,
-} from '../src/tilemap/tilesetCache';
+import type { LoadedTilemapSource } from '../src/tilemap/tilesetCache';
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
     generateLayerCollision, generateObjectCollision, spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid,
@@ -145,6 +141,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
     it('the loader folds a collection into one uploaded grid tileset', async () => {
         const loader = new TilemapAssetLoader();
         const uploads: Array<{ width: number; height: number }> = [];
+        const destroyed: number[] = [];
         const sources = new Map<string, string>([['maps/level.tmj', JSON.stringify({
             width: 1, height: 1, tilewidth: 2, tileheight: 2,
             tilesets: [{
@@ -162,15 +159,18 @@ describe('image-collection tilesets fold into a grid atlas', () => {
             decodePixels: async (p: string) => ({
                 width: 2, height: 2, pixels: tilePixels(p.includes('rock') ? 10 : 30),
             }),
-            createTextureFromPixels: async (width: number, height: number) => {
+            createOwnedTexture: async (width: number, height: number) => {
                 uploads.push({ width, height });
-                return { handle: 77, width, height };
+                return {
+                    key: 'composed:77', generation: 77, value: { handle: 77, width, height },
+                    release: () => { destroyed.push(77); }, retain: () => null,
+                };
             },
         } as unknown as LoadContext;
 
-        await loader.load('maps/level.tmj', ctx);
+        const era = await loader.registry.prepare('maps/level.tmj', ctx);
         expect(uploads).toEqual([{ width: 4, height: 2 }]); // ONE folded 2x1 page
-        const src = getTilemapSource('maps/level.tmj')!;
+        const src = (era.published as { source: LoadedTilemapSource }).source;
         expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5, margin: 0, spacing: 0 });
     });
 
@@ -187,9 +187,12 @@ describe('image-collection tilesets fold into a grid atlas', () => {
                 layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
             }),
             decodePixels: async () => ({ width: 4, height: 4, pixels: new Uint8Array(64) }),
-            createTextureFromPixels: async () => ({ handle: 1, width: 4, height: 4 }),
+            createOwnedTexture: async () => ({
+                key: 'composed:1', generation: 1, value: { handle: 1, width: 4, height: 4 },
+                release: () => {}, retain: () => null,
+            }),
         } as unknown as LoadContext;
-        await expect(loader.load('maps/level.tmj', ctx)).rejects.toThrow(/match the\s+grid/);
+        await expect(loader.registry.prepare('maps/level.tmj', ctx)).rejects.toThrow(/match the\s+grid/);
     });
 
     it('a provider without pixel plumbing fails loud, not silently white', async () => {
@@ -205,7 +208,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
                 layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
             }),
         } as unknown as LoadContext;
-        await expect(loader.load('maps/level.tmj', ctx)).rejects.toThrow(/image collection/);
+        await expect(loader.registry.prepare('maps/level.tmj', ctx)).rejects.toThrow(/image collection/);
     });
 });
 
@@ -216,40 +219,7 @@ describe('TilemapAssetLoader — .tmx fails loud with the fix', () => {
             catalog: { getBuildPath: (p: string) => p },
             loadText: async () => '<?xml version="1.0" encoding="UTF-8"?>\n<map version="1.10"></map>',
         } as unknown as LoadContext;
-        await expect(loader.load('maps/level.tmx', ctx)).rejects.toThrow(/JSON map files \(\*\.tmj\)/);
-    });
-});
-
-describe('TilemapSource cache', () => {
-    beforeEach(() => {
-        clearTilemapSourceCache();
-    });
-
-    it('should register and retrieve tilemap source', () => {
-        const source = {
-            tileWidth: 16,
-            tileHeight: 16,
-            layers: [{ name: 'Ground', width: 10, height: 10, tiles: new Uint16Array([1, 2, 3]) }],
-            tilesets: [{ textureHandle: 42, columns: 8, rows: 8, firstId: 1 }],
-        };
-        registerTilemapSource('maps/level1.tmj', source);
-        expect(getTilemapSource('maps/level1.tmj')).toBe(source);
-    });
-
-    it('should return undefined for unregistered path', () => {
-        expect(getTilemapSource('nonexistent.tmj')).toBeUndefined();
-    });
-
-    it('should clear all entries', () => {
-        const source = {
-            tileWidth: 16, tileHeight: 16,
-            layers: [], tilesets: [],
-        };
-        registerTilemapSource('a.tmj', source);
-        registerTilemapSource('b.tmj', source);
-        clearTilemapSourceCache();
-        expect(getTilemapSource('a.tmj')).toBeUndefined();
-        expect(getTilemapSource('b.tmj')).toBeUndefined();
+        await expect(loader.registry.prepare('maps/level.tmx', ctx)).rejects.toThrow(/JSON map files \(\*\.tmj\)/);
     });
 });
 
@@ -1588,12 +1558,4 @@ describe('generateLayerCollision (B2-1 runtime tile collision)', () => {
         expect(generateLayerCollision(world, tiles, 2, 2, 16, 16, new Set([1]), 0, 0)).toHaveLength(0);
     });
 
-    it('carries collisionTileIds through the runtime source cache', () => {
-        clearTilemapSourceCache();
-        registerTilemapSource('lvl.tmj', {
-            tileWidth: 16, tileHeight: 16, layers: [], tilesets: [],
-            collisionTileIds: [3, 7],
-        });
-        expect(getTilemapSource('lvl.tmj')?.collisionTileIds).toEqual([3, 7]);
-    });
 });

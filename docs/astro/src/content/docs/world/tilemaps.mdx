@@ -350,19 +350,21 @@ modern way to read them is `Query(Marker)`: on load, point objects converge into
 regions — the very same entities you author by hand — so one query reads objects
 whether they came from Tiled or the Estella editor.
 
-The raw group data is still available by the map's source path with `getTilemapSource`
+The raw group data is still available by the map's source path with `tilemapSource`
 — each group carries its objects with position, size, `type` (Tiled's class), `shape`,
 and custom `properties`:
 
 ```typescript
-import { getTilemapSource } from 'esengine';
+import { defineSystem, Res, Assets, tilemapSource } from 'esengine';
 
-const src = getTilemapSource('assets/maps/level.tmj');
-for (const group of src?.objectGroups ?? []) {
-  for (const obj of group.objects) {
-    if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+const readSpawns = defineSystem([Res(Assets)], (assets) => {
+  const src = tilemapSource(assets, 'assets/maps/level.tmj');
+  for (const group of src?.objectGroups ?? []) {
+    for (const obj of group.objects) {
+      if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+    }
   }
-}
+});
 ```
 
 Objects that carry a tile reference (a **gid** — tiles stamped onto an object layer

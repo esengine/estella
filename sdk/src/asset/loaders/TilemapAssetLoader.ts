@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLoader, LoadContext, TilemapResult } from '../AssetLoader';
+import type { AssetLoader, LoadContext, TilemapResult, RegistryAssetLoader } from '../AssetLoader';
+import type { RegistryEra } from '../registryAssets';
+import { AssetScope } from '../AssetLease';
 import {
     packCollectionGrid, parseTmjWithExternals, resolveTiledRef,
     type TiledMapData, type TiledTilesetData,
 } from '../../tilemap/tiledLoader';
-import { registerTilemapSource, unregisterTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
+import type { LoadedTilemapTileset, PublishedTilemap } from '../../tilemap/tilesetCache';
 import { log } from '../../util/logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     readonly type = 'tilemap';
     readonly extensions = ['.tmj', '.tmx'];
 
-    async load(path: string, ctx: LoadContext): Promise<TilemapResult> {
+    readonly registry: RegistryAssetLoader<TilemapResult> = {
+        prepare: (path, ctx) => this.prepare_(path, ctx),
+    };
+
+    private async prepare_(path: string, ctx: LoadContext): Promise<RegistryEra<TilemapResult>> {
         const buildPath = ctx.catalog.getBuildPath(path);
         const text = await ctx.loadText(buildPath);
         // The engine has ONE Tiled parser and it speaks the JSON format. A
@@ -31,19 +37,21 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }
 
+        const dependencies = new AssetScope();
         const tilesets = [];
         for (const ts of mapData.tilesets) {
             // Image-collection tileset: fold the loose per-tile images into one
             // grid atlas — from here on it IS a grid tileset to everyone.
             if (ts.collectionTiles?.length) {
-                tilesets.push(await this.foldCollection_(path, ts, mapData, ctx));
+                tilesets.push(await this.foldCollection_(path, ts, mapData, ctx, dependencies));
                 continue;
             }
             const imagePath = resolveTiledRef(path, ts.image);
             let textureHandle = 0;
             try {
-                const result = await ctx.loadTexture(imagePath, true);
-                textureHandle = result.handle;
+                const lease = await ctx.acquireTexture(imagePath, true);
+                dependencies.add(lease);
+                textureHandle = lease.value.handle;
             } catch (e) {
                 // Loud, with the fix: a dead tileset texture makes every tile that
                 // uses it invisible (the renderer drops handle-0 slots), while the
@@ -62,7 +70,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             });
         }
 
-        registerTilemapSource(path, {
+        const published: PublishedTilemap = { source: {
             tileWidth: mapData.tileWidth,
             tileHeight: mapData.tileHeight,
             // Carry every parsed field the runtime cache/plugin consume — the loader
@@ -87,9 +95,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             tileAnimations: mapData.tileAnimations,
             tileProperties: mapData.tileProperties,
             objectGroups: mapData.objectGroups,
-        });
+        } };
 
-        return { sourceId: path };
+        return { published, value: { sourceId: path }, dependencies };
     }
 
     /**
@@ -101,8 +109,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
      */
     private async foldCollection_(
         mapPath: string, ts: TiledTilesetData, mapData: TiledMapData, ctx: LoadContext,
+        dependencies: AssetScope,
     ): Promise<LoadedTilemapTileset> {
-        if (!ctx.decodePixels || !ctx.createTextureFromPixels) {
+        if (!ctx.decodePixels || !ctx.createOwnedTexture) {
             throw new Error(
                 `[tilemap] "${mapPath}": tileset "${ts.name}" is an image collection, but this `
                 + 'asset provider cannot decode/compose pixels — load it through the app Assets channel.');
@@ -119,18 +128,15 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             return { id: tile.id, pixels: decoded.pixels };
         }));
         const grid = packCollectionGrid(tiles, mapData.tileWidth, mapData.tileHeight);
-        const tex = await ctx.createTextureFromPixels(grid.width, grid.height, grid.pixels, true);
+        // The atlas is composed here and exists for this era only: nothing else
+        // can name it, so nothing else could ever give it back.
+        const atlas = await ctx.createOwnedTexture(grid.width, grid.height, grid.pixels, true);
+        dependencies.add(atlas);
         // A folded image-collection atlas is packed gapless, so no margin/spacing.
-        return { textureHandle: tex.handle, columns: grid.columns, rows: grid.rows, firstId: ts.firstGid, margin: 0, spacing: 0 };
+        return {
+            textureHandle: atlas.value.handle, columns: grid.columns, rows: grid.rows,
+            firstId: ts.firstGid, margin: 0, spacing: 0,
+        };
     }
 
-    unload(_asset: TilemapResult): void {
-        // Tilemap sources registered globally
-    }
-
-    /** Hot reload: sever the global source registration too — the Assets-level
-     *  cache drop alone would leave the tilemap sync rendering the stale parse. */
-    invalidate(path: string): boolean {
-        return unregisterTilemapSource(path);
-    }
 }

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ResolvedTileset, ResolvedTileCollision } from './tilesetResolve';
 import type { TiledObjectGroupData } from './tiledLoader';
+import type { AssetsData } from '../asset/AssetPlugin';
 
 export interface LoadedTilemapChunk {
     x: number;
@@ -49,48 +50,41 @@ export interface LoadedTilemapSource {
     /** Rich per-tile collision (Tiled collision editor / modifier properties) — see TiledMapData.tileShapes. */
     tileShapes?: Map<number, ResolvedTileCollision>;
     /**
-     * Tiled object layers — spawn/marker data queryable by gameplay via
-     * `getTilemapSource`; groups marked per `isCollisionObjectGroup` also spawn
-     * static colliders in play mode.
+     * Tiled object layers — spawn/marker data queryable by gameplay through the
+     * app's Assets; groups marked per `isCollisionObjectGroup` also spawn static
+     * colliders in play mode.
      */
     objectGroups?: TiledObjectGroupData[];
 }
 
-const tilemapCache_ = new Map<string, LoadedTilemapSource>();
 
-export function registerTilemapSource(path: string, data: LoadedTilemapSource): void {
-    tilemapCache_.set(path, data);
+
+/** One era of a `.tmj` as its realm publishes it. */
+export interface PublishedTilemap {
+    source: LoadedTilemapSource;
 }
 
-export function getTilemapSource(path: string): LoadedTilemapSource | undefined {
-    return tilemapCache_.get(path);
+/** One era of a `.estileset` as its realm publishes it. */
+export interface PublishedTileset {
+    resolved: ResolvedTileset;
 }
 
-/** Drop one source (hot reload: the `.tmj` changed on disk). The tilemap sync
- *  notices the entry vanish and tears the derived layers down; the reload
- *  registers fresh data and they re-derive. Returns true if the path was held. */
-export function unregisterTilemapSource(path: string): boolean {
-    return tilemapCache_.delete(path);
+/**
+ * The map `ref` names in this realm — object groups, tile properties, collision
+ * ids, the parsed layers.
+ *
+ * Takes the Assets to ask: a map belongs to the realm that loaded it, and an
+ * editor world beside a play world is two of them.
+ */
+export function tilemapSource(
+    assets: AssetsData | null | undefined, ref: string,
+): LoadedTilemapSource | undefined {
+    return assets?.resolveRegistryAsset<PublishedTilemap>('tilemap', ref)?.source;
 }
 
-export function clearTilemapSourceCache(): void {
-    tilemapCache_.clear();
-}
-
-// — Resolved `.estileset` tilesets (parsed asset + loaded atlas texture) —
-// The runtime tileset loader registers here; the tilemap sync resolves a layer's
-// tileset(s) into the render table + collision + animations LIVE off these (no
-// columns copied onto the layer, no collision baked at author-time).
-const resolvedTilesetCache_ = new Map<string, ResolvedTileset>();
-
-export function registerResolvedTileset(path: string, data: ResolvedTileset): void {
-    resolvedTilesetCache_.set(path, data);
-}
-
-export function getResolvedTileset(path: string): ResolvedTileset | undefined {
-    return resolvedTilesetCache_.get(path);
-}
-
-export function clearResolvedTilesetCache(): void {
-    resolvedTilesetCache_.clear();
+/** The tileset `ref` names in this realm: the parsed asset plus its atlas. */
+export function resolvedTileset(
+    assets: AssetsData | null | undefined, ref: string,
+): ResolvedTileset | undefined {
+    return assets?.resolveRegistryAsset<PublishedTileset>('tileset', ref)?.resolved;
 }

@@ -51,9 +51,9 @@ export {
     type TerrainIndex, type TerrainIndices, type WangIndex, type WangIndices,
 } from './autotile';
 export {
-    registerTilemapSource, getTilemapSource, clearTilemapSourceCache,
-    registerResolvedTileset, getResolvedTileset, clearResolvedTilesetCache,
+    tilemapSource, resolvedTileset,
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
+    type PublishedTilemap, type PublishedTileset,
 } from './tilesetCache';
 export { getTextureDimensions, type TextureDimensions } from '../wasm/resourceManager';
 

@@ -1437,6 +1437,31 @@ export class Assets {
         };
     }
 
+    /**
+     * A receipt for a texture this engine COMPOSED — no path, no generation, no
+     * cache entry to join. Its only identity is the handle, so the last holder
+     * destroys it rather than handing it back to a pool that could revive it.
+     */
+    private ownedTextureLease_(value: TextureResult): AssetLease<TextureResult> {
+        let holders = 0;
+        const lease = (): AssetLease<TextureResult> => {
+            holders++;
+            let spent = false;
+            return {
+                key: `composed:${value.handle}`, generation: value.handle, value,
+                release: () => {
+                    if (spent) return;
+                    spent = true;
+                    if (--holders > 0) return;
+                    requireResourceManager().releaseTexture(value.handle);
+                    evictTextureDimensions(value.handle);
+                },
+                retain: () => lease(),
+            };
+        };
+        return lease();
+    }
+
     /** {@link textureLease_} for everything that goes through a typed loader. */
     private typedLease_<T>(
         type: string, lease: AssetRefLease<unknown>, value: T,
@@ -2060,6 +2085,11 @@ export class Assets {
             },
             async createTextureFromPixels(width, height, pixels, flipY) {
                 return self.textureLoader_.loadFromPixels(width, height, pixels, flipY);
+            },
+            async createOwnedTexture(width, height, pixels, flipY) {
+                return self.ownedTextureLease_(
+                    await self.textureLoader_.loadFromPixels(width, height, pixels, flipY),
+                );
             },
             getAudio() {
                 return self.getAudio_();

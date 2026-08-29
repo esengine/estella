@@ -307,14 +307,16 @@ Tiled 还是 Estella 编辑器。
 尺寸、`type`(Tiled 的 class)、`shape` 和自定义 `properties`:
 
 ```typescript
-import { getTilemapSource } from 'esengine';
+import { defineSystem, Res, Assets, tilemapSource } from 'esengine';
 
-const src = getTilemapSource('assets/maps/level.tmj');
-for (const group of src?.objectGroups ?? []) {
-  for (const obj of group.objects) {
-    if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+const readSpawns = defineSystem([Res(Assets)], (assets) => {
+  const src = tilemapSource(assets, 'assets/maps/level.tmj');
+  for (const group of src?.objectGroups ?? []) {
+    for (const obj of group.objects) {
+      if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+    }
   }
-}
+});
 ```
 
 携带瓦片引用(**gid**——在 Tiled 里盖到对象层上的瓦片)的对象会渲染为地图的精灵

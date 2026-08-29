@@ -130,6 +130,15 @@ export interface LoadContext {
         width: number, height: number, pixels: Uint8Array, flipY: boolean,
     ): Promise<TextureResult>;
     /**
+     * The same upload, as something an era can OWN: a texture composed from
+     * pixels has no path, no generation and no cache, so there is no receipt to
+     * acquire — but it still has to be given back, and only the era that
+     * composed it knows when. Releasing destroys it.
+     */
+    createOwnedTexture?(
+        width: number, height: number, pixels: Uint8Array, flipY: boolean,
+    ): Promise<AssetLease<TextureResult>>;
+    /**
      * Audio API for the owning app, resolved lazily so that
      * AudioPlugin / AssetPlugin can be installed in either order.
      * Returns null when no AudioPlugin is installed — audio-typed

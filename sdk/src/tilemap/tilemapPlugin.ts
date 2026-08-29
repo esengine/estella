@@ -9,7 +9,7 @@ import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { TilemapLiveSync } from './tilemapLiveSync';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene/scene';
-import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
+import { tilemapSource, resolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
 import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
@@ -306,7 +306,7 @@ export class TilemapPlugin implements Plugin {
                         const resolvedList = [];
                         for (const ref of refs) {
                             const key = resolveAssetKey(assets, ref);
-                            const r = getResolvedTileset(key) ?? getResolvedTileset(ref);
+                            const r = resolvedTileset(assets, ref);
                             if (r) {
                                 resolvedList.push(r);
                             } else if (assets && !requestedTilesetLoads.has(key)) {
@@ -383,12 +383,9 @@ export class TilemapPlugin implements Plugin {
 
                     const tilemap = world.tryGet(entity, Tilemap) as { source: string } | null;
 
-                    // The loader keys the source cache by the RESOLVED path and
-                    // `resolveSceneAssetPaths` leaves `source` as the authored ref, so
-                    // resolve at lookup (see resolveAssetKey), falling back to the raw ref.
-                    const cached = tilemap?.source
-                        ? getTilemapSource(resolveAssetKey(assets, tilemap.source)) ?? getTilemapSource(tilemap.source)
-                        : undefined;
+                    // This app's realm, by the ref the component carries: the slot
+                    // answers to that spelling and to the path it resolved to.
+                    const cached = tilemap?.source ? tilemapSource(assets, tilemap.source) : undefined;
 
                     // Derived children must mirror the CURRENT source. A cleared field,
                     // an invalidated cache entry (hot reload), or different source data

@@ -1,46 +1,49 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Runtime `.estileset` loader — parses the tileset asset and loads its
- *        atlas texture, caching the resolved tileset so the tilemap sync can
- *        derive the render table + collision + animations LIVE (no baking).
- *        Mirrors {@link TilemapAssetLoader} (the `.tmj` path).
+ * @file  Runtime `.estileset` loader — parses the tileset and acquires its atlas,
+ *        so the tilemap sync can derive the render table + collision + animations
+ *        LIVE (no baking). Mirrors {@link TilemapAssetLoader} (the `.tmj` path).
+ *
+ * A component names a tileset by REF, so what an owner owns is the slot; the
+ * atlas belongs to the ERA that resolved it, and goes back when that era retires.
  */
-import type { AssetLoader, LoadContext, TilesetResult } from '../AssetLoader';
+import type { AssetLoader, LoadContext, TilesetResult, RegistryAssetLoader } from '../AssetLoader';
+import type { RegistryEra } from '../registryAssets';
+import { AssetScope } from '../AssetLease';
 import { parseTileset } from '../../tilemap/tilesetAsset';
-import { registerResolvedTileset } from '../../tilemap/tilesetCache';
+import type { PublishedTileset } from '../../tilemap/tilesetCache';
 import { log } from '../../util/logger';
 
 export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
     readonly type = 'tileset';
     readonly extensions = ['.estileset'];
 
-    async load(path: string, ctx: LoadContext): Promise<TilesetResult> {
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const text = await ctx.loadText(buildPath);
-        const asset = parseTileset(JSON.parse(text));
+    readonly registry: RegistryAssetLoader<TilesetResult> = {
+        prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<TilesetResult>> => {
+            const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
+            const asset = parseTileset(JSON.parse(text));
+            const dependencies = new AssetScope();
 
-        // The atlas is a `@uuid:` ref inside the .estileset; loadTexture resolves it.
-        let textureHandle = 0;
-        let textureWidth: number | undefined;
-        let textureHeight: number | undefined;
-        if (asset.texture) {
-            try {
-                const tex = await ctx.loadTexture(asset.texture, true);
-                textureHandle = tex.handle;
-                textureWidth = tex.width;
-                textureHeight = tex.height;
-            } catch (e) {
-                log.warn('asset', `Failed to load tileset atlas: ${asset.texture}`, e);
+            // The atlas is a `@uuid:` ref inside the .estileset; the acquire resolves it.
+            let textureHandle = 0;
+            let textureWidth: number | undefined;
+            let textureHeight: number | undefined;
+            if (asset.texture) {
+                try {
+                    const lease = await ctx.acquireTexture(asset.texture, true);
+                    dependencies.add(lease);
+                    textureHandle = lease.value.handle;
+                    textureWidth = lease.value.width;
+                    textureHeight = lease.value.height;
+                } catch (e) {
+                    log.warn('asset', `Failed to load tileset atlas: ${asset.texture}`, e);
+                }
             }
-        }
-
-        registerResolvedTileset(path, { asset, textureHandle, textureWidth, textureHeight });
-        return { tilesetId: path };
-    }
-
-    unload(_asset: TilesetResult): void {
-        // Resolved tilesets live in the module cache (cleared on scene reset); the
-        // atlas texture is ref-counted by the texture loader. Nothing per-asset here.
-    }
+            const published: PublishedTileset = {
+                resolved: { asset, textureHandle, textureWidth, textureHeight },
+            };
+            return { published, value: { tilesetId: path }, dependencies };
+        },
+    };
 }
