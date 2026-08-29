@@ -90,11 +90,15 @@ describe('a refresh publishes only if it is still the current one', () => {
         const { released, kind, finish } = gated();
         const slots = new RegistryAssetSlots();
         const acquiring = slots.acquire(kind, 'anim-clip', 'walk.esanim', ['walk.esanim']);
+        // Watched before the gate opens: the acquire rejects the moment the
+        // preparation lands, and a rejection nobody is holding yet is an
+        // unhandled one — which would then be indistinguishable from a real leak.
+        const rejects = expect(acquiring).rejects.toThrow(/released while it was loading/);
 
         slots.releaseAll();
         await finish(1);
 
-        await expect(acquiring).rejects.toThrow(/released while it was loading/);
+        await rejects;
         expect(released, 'the era nobody could own kept what it took')
             .toEqual(['walk.esanim#1:texture']);
         expect(slots.size).toBe(0);
