@@ -20,12 +20,11 @@ import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
 import { playModeOnly } from '../../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
-import { Assets } from '../../asset/AssetPlugin';
-import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from './Blackboard';
 import { createFsmRunState, stepFsm, type CompiledFsm, type FsmRunState } from './FsmRunner';
 import { aiRegistry, type AiContext } from './AiContext';
 import { StateMachineAgent, getFsm, allFsms } from './StateMachineAgent';
+import { appRegistryAsset, appRegistryAssets } from '../../asset/registryLookup';
 import { actionRefName, actionRefArg, actionRefParams } from './types';
 import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../worldView';
 import { ensureBuiltinAiRegistrations } from '../builtins';
@@ -69,7 +68,7 @@ export function stepStateMachines(
     // maps a plain/`@uuid:` ref to that key); the agent still holds the authored
     // ref, so resolve before lookup. Falls back to the raw ref for `registerFsm`
     // code names, which are keyed verbatim. Optional so tests need no realm.
-    resolveKey?: (ref: string) => string,
+    resolveFsm?: (ref: string) => CompiledFsm | undefined,
 ): void {
     if (dt <= 0) return;
 
@@ -87,7 +86,7 @@ export function stepStateMachines(
     for (const entity of world.getEntitiesWithComponents([StateMachineAgent])) {
         const agent = world.get(entity, StateMachineAgent);
         if (!agent.fsm) continue;
-        const fsm = getFsm(resolveKey ? resolveKey(agent.fsm) : agent.fsm) ?? getFsm(agent.fsm);
+        const fsm = resolveFsm?.(agent.fsm) ?? getFsm(agent.fsm);
         if (!fsm) continue;
 
         let st = states.get(entity);
@@ -131,10 +130,17 @@ export function* fsmLeaves(fsm: CompiledFsm): Iterable<LeafRef> {
     }
 }
 
-/** What the FSM system reaches for: the union over every loaded graph. */
-export function fsmTouches(): SystemTouches {
+/**
+ * What the FSM system reaches for: the union over the graphs THIS app has —
+ * the ones its realm published, plus the ones code registered.
+ *
+ * Read per app, because a schedule is per app: a module-global store had one
+ * app's asset deciding what another app's system declares it touches.
+ */
+export function fsmTouches(app: App): SystemTouches {
     const builder = new TouchesBuilder().writing(StateMachineAgent._name);
-    for (const fsm of allFsms()) touchesOfLeaves(aiRegistry, fsmLeaves(fsm), builder);
+    const loaded = [...appRegistryAssets<CompiledFsm>(app, 'statemachine'), ...allFsms()];
+    for (const fsm of loaded) touchesOfLeaves(aiRegistry, fsmLeaves(fsm), builder);
     return builder.build();
 }
 
@@ -168,20 +174,22 @@ export class FsmPlugin implements Plugin {
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiFsm, new StateMachines(states));
 
-        const resolveKey = (ref: string): string =>
-            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+        // This realm's publication first; `stepStateMachines` falls back to a
+        // code registration, which is keyed verbatim and has no realm.
+        const resolveFsm = (ref: string): CompiledFsm | undefined =>
+            appRegistryAsset<CompiledFsm>(app, 'statemachine', ref);
 
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
-                    stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveKey);
+                    stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveFsm);
                 },
                 // Asked per analysis, not once: a graph loaded later changes the
                 // answer, and no graph at all means this system touches only the
                 // agent component.
-                { name: 'StateMachineSystem', touches: fsmTouches },
+                { name: 'StateMachineSystem', touches: () => fsmTouches(app) },
             ),
             { runIf: playModeOnly },
         );

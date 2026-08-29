@@ -11,7 +11,6 @@
 import type { AssetLoader, LoadContext, BtResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import { AssetScope } from '../AssetLease';
-import { registerBt, unregisterBt, getBt } from '../../ai/bt/BehaviorTreeAgent';
 import type { BtDefinition } from '../../ai/bt/types';
 
 export class BtAssetLoader implements AssetLoader<BtResult> {
@@ -27,13 +26,10 @@ export class BtAssetLoader implements AssetLoader<BtResult> {
                 dependencies: new AssetScope(),
             };
         },
-        publish: (names, published) => {
-            for (const name of names) registerBt(name, published as BtDefinition);
-        },
-        unpublish: (names, published) => {
-            for (const name of names) {
-                if (getBt(name) === published) unregisterBt(name);
-            }
-        },
+        // Nothing: the slot holds the era, and this realm's lookup reads it
+        // there. Writing a module-global store as well is what let one app
+        // answer with another's asset.
+        publish: () => {},
+        unpublish: () => {},
     };
 }

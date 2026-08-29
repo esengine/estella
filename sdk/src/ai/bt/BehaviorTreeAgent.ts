@@ -47,11 +47,6 @@ export function registerBt(key: string, def: BtDefinition): BtDefinition {
     return def;
 }
 
-/** @internal Take a name back out; the slot that published it has no holders. */
-export function unregisterBt(key: string): void {
-    btStore.delete(key);
-}
-
 export function getBt(key: string): BtDefinition | undefined {
     return btStore.get(key);
 }

@@ -12,6 +12,7 @@ import { aiRegistry } from '../src/ai/fsm/AiContext';
 import { registerFsm, clearFsmStore, StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { registerBt, clearBtStore, BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
 import { fsmTouches } from '../src/ai/fsm/FsmPlugin';
+import type { App } from '../src/app/app';
 import { btTouches } from '../src/ai/bt/BtPlugin';
 import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import { TouchesBuilder } from '../src/ai/worldView';
@@ -25,20 +26,24 @@ beforeEach(() => {
     ensureBuiltinAiRegistrations();
 });
 
+/** An app with no Assets: what a graph declares is being tested here, not which
+ *  realm published it. */
+const NO_REALM = { hasResource: () => false } as unknown as App;
+
 describe('an FSM system, asked what it touches', () => {
     it('names only its own component when no graph is loaded', () => {
-        expect(fsmTouches()).toEqual({ reads: [], writes: [StateMachineAgent._name] });
+        expect(fsmTouches(NO_REALM)).toEqual({ reads: [], writes: [StateMachineAgent._name] });
     });
 
     it('answers from the graph that is loaded, not from the registry', () => {
         // `spriteAnim.*` is registered either way; what puts SpriteAnimator in
         // the answer is a graph that names it.
-        expect(fsmTouches().writes).not.toContain('SpriteAnimator');
+        expect(fsmTouches(NO_REALM).writes).not.toContain('SpriteAnimator');
         registerFsm('run', {
             initial: 'idle',
             states: [{ name: 'idle', onEnter: 'spriteAnim.play' }],
         });
-        expect(fsmTouches().writes).toContain('SpriteAnimator');
+        expect(fsmTouches(NO_REALM).writes).toContain('SpriteAnimator');
     });
 
     it('includes what a transition condition reads', () => {
@@ -49,7 +54,7 @@ describe('an FSM system, asked what it touches', () => {
                 { name: 'done' },
             ],
         });
-        expect(fsmTouches().reads).toContain('TimelinePlayer');
+        expect(fsmTouches(NO_REALM).reads).toContain('TimelinePlayer');
     });
 
     it('reads the component out of a property.set path', () => {
@@ -60,8 +65,8 @@ describe('an FSM system, asked what it touches', () => {
                 onEnter: { name: 'property.set', params: { path: 'UIVisual.color.a', value: '0.5' } },
             }],
         });
-        expect(fsmTouches().writes).toContain('UIVisual');
-        expect(fsmTouches().opaque).toBeUndefined();
+        expect(fsmTouches(NO_REALM).writes).toContain('UIVisual');
+        expect(fsmTouches(NO_REALM).opaque).toBeUndefined();
     });
 
     it('reads it out of the canonical string form too', () => {
@@ -69,7 +74,7 @@ describe('an FSM system, asked what it touches', () => {
             initial: 'hit',
             states: [{ name: 'hit', onEnter: { name: 'property.set', arg: 'Sprite.color.r=1' } }],
         });
-        expect(fsmTouches().writes).toContain('Sprite');
+        expect(fsmTouches(NO_REALM).writes).toContain('Sprite');
     });
 
     // The whole point of declaring: a union that quietly dropped the leaf it
@@ -80,7 +85,7 @@ describe('an FSM system, asked what it touches', () => {
             initial: 'a',
             states: [{ name: 'a', onEnter: 'spriteAnim.play', onUpdate: 'game.mystery' }],
         });
-        const touches = fsmTouches();
+        const touches = fsmTouches(NO_REALM);
         expect(touches.opaque).toBe(true);
         // Still says what it DOES know — a bad claim is not a reason to say nothing.
         expect(touches.writes).toContain('SpriteAnimator');
@@ -89,14 +94,14 @@ describe('an FSM system, asked what it touches', () => {
     it('takes a declaring registration at its word', () => {
         aiRegistry.registerAction('game.hurt', { run: noop, touches: { writes: ['Health'] } });
         registerFsm('fight', { initial: 'a', states: [{ name: 'a', onEnter: 'game.hurt' }] });
-        expect(fsmTouches()).toMatchObject({ writes: ['Health', StateMachineAgent._name] });
+        expect(fsmTouches(NO_REALM)).toMatchObject({ writes: ['Health', StateMachineAgent._name] });
     });
 
     // A name nothing registered is a no-op at run time, so counting it as
     // unknown would make one typo hide the reach of an entire project.
     it('ignores a leaf no registration answers to', () => {
         registerFsm('typo', { initial: 'a', states: [{ name: 'a', onEnter: 'spriteAnim.paly' }] });
-        expect(fsmTouches().opaque).toBeUndefined();
+        expect(fsmTouches(NO_REALM).opaque).toBeUndefined();
     });
 });
 
@@ -111,7 +116,7 @@ describe('a behaviour-tree system, asked what it touches', () => {
                 ],
             },
         });
-        const touches = btTouches();
+        const touches = btTouches(NO_REALM);
         expect(touches.reads).toContain('TimelinePlayer');
         expect(touches.writes).toContain('SpriteAnimator');
         expect(touches.writes).toContain(BehaviorTreeAgent._name);
@@ -124,7 +129,7 @@ describe('a behaviour-tree system, asked what it touches', () => {
             root: { type: 'action', name: 'spriteAnim.stop' },
             orphans: [{ type: 'action', name: 'timeline.play' }],
         });
-        expect(btTouches().writes).not.toContain('TimelinePlayer');
+        expect(btTouches(NO_REALM).writes).not.toContain('TimelinePlayer');
     });
 });
 

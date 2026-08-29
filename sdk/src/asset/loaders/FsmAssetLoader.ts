@@ -12,8 +12,7 @@
 import type { AssetLoader, LoadContext, FsmResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import { AssetScope } from '../AssetLease';
-import { publishFsm, unregisterFsm, getFsm } from '../../ai/fsm/StateMachineAgent';
-import { compileFsm, type CompiledFsm } from '../../ai/fsm/FsmRunner';
+import { compileFsm } from '../../ai/fsm/FsmRunner';
 import type { FsmDefinition } from '../../ai/fsm/types';
 
 export class FsmAssetLoader implements AssetLoader<FsmResult> {
@@ -28,13 +27,10 @@ export class FsmAssetLoader implements AssetLoader<FsmResult> {
             // machine, and two compilations of it are two machines.
             return { published: compileFsm(def), value: { fsmId: path }, dependencies: new AssetScope() };
         },
-        publish: (names, published) => {
-            for (const name of names) publishFsm(name, published as CompiledFsm);
-        },
-        unpublish: (names, published) => {
-            for (const name of names) {
-                if (getFsm(name) === published) unregisterFsm(name);
-            }
-        },
+        // Nothing: the slot holds the era, and this realm's lookup reads it
+        // there. Writing a module-global store as well is what let one app
+        // answer with another's asset.
+        publish: () => {},
+        unpublish: () => {},
     };
 }

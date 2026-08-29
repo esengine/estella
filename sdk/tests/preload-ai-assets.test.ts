@@ -75,23 +75,27 @@ describe('preloadSceneAssets — AI brains', () => {
         });
     });
 
-    it('loads .esfsm / .esbt referenced by agents into the AI store', async () => {
+    it('loads .esfsm / .esbt referenced by agents into the realm that preloaded them', async () => {
         const assets = Assets.create({ backend: aiBackend(), catalog: Catalog.empty(), module: null as never });
 
-        expect(getFsm(FSM_PATH)).toBeUndefined();
-        expect(getBt(BT_PATH)).toBeUndefined();
+        expect(assets.resolveRegistryAsset('statemachine', FSM_PATH)).toBeUndefined();
+        expect(assets.resolveRegistryAsset('behaviortree', BT_PATH)).toBeUndefined();
 
         const result = await assets.preloadSceneAssets(scene, undefined, { skipSpine: true });
 
         expect(result.missing).toEqual([]);
-        expect(getFsm(FSM_PATH)).toBeDefined();
-        expect(getBt(BT_PATH)).toBeDefined();
+        expect(assets.resolveRegistryAsset('statemachine', FSM_PATH)).toBeDefined();
+        expect(assets.resolveRegistryAsset('behaviortree', BT_PATH)).toBeDefined();
+        // The code-registration store is not where an asset lands any more: an
+        // app's assets are its own, and that map has no realm.
+        expect(getFsm(FSM_PATH)).toBeUndefined();
+        expect(getBt(BT_PATH)).toBeUndefined();
     });
 
-    it('keys the store by the resolved ref when a realm resolver is set', async () => {
+    it('answers to the authored ref and to the path a realm resolved it to', async () => {
         // Mirrors the play realm: the ref resolver prefixes the origin, so the
-        // FSM/BT register under the resolved path — the key FsmPlugin/BtPlugin's
-        // resolveKey reproduces from the agent's authored ref.
+        // load path is not the spelling the agent carries. Both are names of the
+        // one slot, so no lookup site has to re-derive the resolved key.
         const base = 'estella://project';
         const assets = Assets.create({ backend: aiBackend(), catalog: Catalog.empty(), module: null as never });
         assets.setAssetRefResolver((ref) => (ref.includes('://') ? ref : `${base}/${ref}`));
@@ -99,8 +103,12 @@ describe('preloadSceneAssets — AI brains', () => {
         const result = await assets.preloadSceneAssets(scene, undefined, { skipSpine: true });
 
         expect(result.missing).toEqual([]);
-        expect(getFsm(`${base}/${FSM_PATH}`)).toBeDefined();
-        expect(getBt(`${base}/${BT_PATH}`)).toBeDefined();
-        expect(getFsm(FSM_PATH)).toBeUndefined(); // NOT keyed by the raw ref
+        expect(assets.resolveRegistryAsset('statemachine', `${base}/${FSM_PATH}`)).toBeDefined();
+        expect(assets.resolveRegistryAsset('statemachine', FSM_PATH)).toBeDefined();
+        expect(assets.resolveRegistryAsset('behaviortree', `${base}/${BT_PATH}`)).toBeDefined();
+
+        // And another realm in the same process has none of it.
+        const other = Assets.create({ backend: aiBackend(), catalog: Catalog.empty(), module: null as never });
+        expect(other.resolveRegistryAsset('statemachine', FSM_PATH)).toBeUndefined();
     });
 });

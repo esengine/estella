@@ -20,13 +20,12 @@ import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
 import { playModeOnly } from '../../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
-import { Assets } from '../../asset/AssetPlugin';
-import { resolveAssetKey } from '../../asset/resolveAssetKey';
 import { Blackboard } from '../fsm/Blackboard';
 import { aiRegistry, type AiContext } from '../fsm/AiContext';
 import { tickBt, createBtRunState, type BtRunState } from './BtRunner';
 import { BehaviorTreeAgent, getBt, allBts } from './BehaviorTreeAgent';
-import type { BtNode } from './types';
+import { appRegistryAsset, appRegistryAssets } from '../../asset/registryLookup';
+import type { BtNode, BtDefinition } from './types';
 import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../worldView';
 import { ensureBuiltinAiRegistrations } from '../builtins';
 
@@ -66,7 +65,7 @@ export function stepBehaviorTrees(
     // A `.esbt` asset registers under its resolved path; the agent holds the
     // authored ref, so resolve before lookup (falls back to the raw ref for
     // `registerBt` code names). Optional so tests need no realm.
-    resolveKey?: (ref: string) => string,
+    resolveTree?: (ref: string) => BtDefinition | undefined,
 ): void {
     if (dt <= 0) return;
 
@@ -84,7 +83,7 @@ export function stepBehaviorTrees(
     for (const entity of world.getEntitiesWithComponents([BehaviorTreeAgent])) {
         const agent = world.get(entity, BehaviorTreeAgent);
         if (!agent.bt) continue;
-        const def = getBt(resolveKey ? resolveKey(agent.bt) : agent.bt) ?? getBt(agent.bt);
+        const def = resolveTree?.(agent.bt) ?? getBt(agent.bt);
         if (!def) continue;
 
         let st = states.get(entity);
@@ -134,9 +133,12 @@ export function* btLeaves(node: BtNode): Iterable<LeafRef> {
 }
 
 /** What the BT system reaches for: the union over every loaded tree. */
-export function btTouches(): SystemTouches {
+/** The union over the trees THIS app has: its realm's, plus code-registered
+ *  ones. Per app, because a schedule is per app. */
+export function btTouches(app: App): SystemTouches {
     const builder = new TouchesBuilder().writing(BehaviorTreeAgent._name);
-    for (const tree of allBts()) touchesOfLeaves(aiRegistry, btLeaves(tree.root), builder);
+    const loaded = [...appRegistryAssets<BtDefinition>(app, 'behaviortree'), ...allBts()];
+    for (const tree of loaded) touchesOfLeaves(aiRegistry, btLeaves(tree.root), builder);
     return builder.build();
 }
 
@@ -151,19 +153,20 @@ export class BtPlugin implements Plugin {
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiBt, new BehaviorTrees(states));
 
-        const resolveKey = (ref: string): string =>
-            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+        // This realm's publication first, then a code registration keyed verbatim.
+        const resolveTree = (ref: string): BtDefinition | undefined =>
+            appRegistryAsset<BtDefinition>(app, 'behaviortree', ref);
 
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
                 [Res(Time), Commands(), GetWorld()],
                 (time: TimeData, commands: CommandsInstance, world) => {
-                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveKey);
+                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveTree);
                 },
                 // See fsmTouches: the reach is the union over the loaded trees,
                 // which is why it is asked for rather than stated.
-                { name: 'BehaviorTreeSystem', touches: btTouches },
+                { name: 'BehaviorTreeSystem', touches: () => btTouches(app) },
             ),
             { runIf: playModeOnly },
         );
