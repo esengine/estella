@@ -26,6 +26,10 @@
  *   6. Who owns what an entity holds is answered in ONE place. A second copy of
  *      that rule is how a promoted entity's replacement went to the app scope,
  *      which ends only when the app does.
+ *   7. A loader has exactly ONE door: `load`/`unload` for an asset a component
+ *      holds by handle, `registry` for one it holds by ref. Two doors to the
+ *      same asset is two answers about who owns it — and the registry door
+ *      exists because publication has to be the slot's, not an era's.
  *
  * Run: node tools/check-live-asset-rebind.mjs   (exit 1 on violation)
  */
@@ -173,8 +177,28 @@ for (const file of REBIND_PATH) {
   findings.push(`${file}:${code.slice(0, hit.index).split('\n').length}  works out who owns an entity's assets for itself — call assetScopeForEntity.`);
 }
 
+// One door per loader. A registry-backed loader that also published from a
+// `load` would be an era writing the registry, which is how a retiring one
+// deletes the entry its successor just put under the same name.
+const LOADERS_DIR = path.join(ROOT, 'sdk/src/asset/loaders');
+let loaders = 0;
+for (const name of readdirSync(LOADERS_DIR).filter((f) => f.endsWith('.ts'))) {
+  const code = stripComments(readFileSync(path.join(LOADERS_DIR, name), 'utf8'));
+  if (!/implements AssetLoader</.test(code)) continue;
+  loaders++;
+  const registry = /\breadonly registry\b/.test(code);
+  const direct = /^\s{4}(?:async )?load\s*\(/m.test(code);
+  if (registry === direct) {
+    findings.push(`sdk/src/asset/loaders/${name}  has ${registry ? 'BOTH doors' : 'neither door'} — a loader answers with load/unload or with registry, never both.`);
+  }
+}
+if (loaders < 10) {
+  console.error(`check-live-asset-rebind: found only ${loaders} loader(s) — the parser no longer matches how they are declared.`);
+  process.exit(1);
+}
+
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path names none of the ${components.size} asset-bearing components, reads the declaration, acquires by receipt, and asks one place who owns what.`);
+  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);
