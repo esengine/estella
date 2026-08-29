@@ -118,6 +118,9 @@ export const GATES = [
   // asset cache, an ownerless texture, an "active runtime" pointer, and
   // World-local state on a plugin object several Apps share.
   { id: 'tilemap-realm', run: 'node tools/check-tilemap-realm.mjs' },
+  // The five spine lifetime invariants, each with the judgment that proves it:
+  // what they replaced were teardown protocols, and a protocol comes back quietly.
+  { id: 'spine-lifetimes', run: 'node tools/check-spine-lifetimes.mjs' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },
