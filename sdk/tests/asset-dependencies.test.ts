@@ -270,6 +270,30 @@ describe('a handle-bound load is a preparation too', () => {
         expect(assets.dependenciesOf('gadget', 'x.gadget')).toEqual([]);
     });
 
+    it('a load that lands after the realm let go has no owner to hand to', async () => {
+        // Handing it over would open a ledger row in a realm that already
+        // drained its own, and nothing would ever unload it.
+        const assets = realm({});
+        let finish = (): void => {};
+        assets.register<{ handle: number }>({
+            type: 'slow', extensions: ['.slow'],
+            load: async (_path, ctx) => {
+                const tex = await ctx.acquireTexture('g.png');
+                await new Promise<void>((resolve) => { finish = resolve; });
+                return { handle: tex.value.handle };
+            },
+            unload: () => {},
+        });
+
+        const loading = assets.acquireTyped('slow', 'x.slow');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assets.releaseAll();
+        finish();
+
+        await expect(loading).rejects.toThrow(/released while/);
+        expect(pool.liveTextures(), 'the texture the ownerless load took').toBe(0);
+    });
+
     it('a load that throws keeps nothing it acquired', async () => {
         const assets = realm({});
         gadget(assets, { fail: true });

@@ -377,6 +377,9 @@ export class Assets {
      *  decrements, and the loader's unload runs only at zero — so an asset
      *  shared by two scenes survives the first scene's unload. */
     private genericRefs_ = new AssetRefLedger<PreparedLoad<unknown>>();
+    /** Eras already given back, so N callers abandoning one shared load hand it
+     *  over once between them rather than unloading it N times. */
+    private retired_ = new WeakSet<PreparedLoad<unknown>>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
@@ -1611,6 +1614,8 @@ export class Assets {
      *  preparation acquired goes back — in that order, since the value is what
      *  is still using it. */
     private retire_(type: string, era: PreparedLoad<unknown>): void {
+        if (this.retired_.has(era)) return;
+        this.retired_.add(era);
         try {
             this.loaders_.get(type)?.unload?.(era.value);
         } finally {
@@ -2010,9 +2015,19 @@ export class Assets {
             throw new Error(`Loader for "${type}" publishes by name; acquire it through its slot`);
         }
         const load = loader.load.bind(loader);
+        const epoch = this.resetEpoch_;
         const era = await this.genericCacheFor_(type).getOrLoad(path, () =>
             this.prepared_(async (ctx) => ({ value: await load(path, ctx) as unknown })),
         );
+        // BEFORE acquiring, as with textures: a realm that let go while this
+        // loaded has drained the ledger this row would go in, so nothing would
+        // ever unload it.
+        if (epoch !== this.resetEpoch_) {
+            this.retire_(type, era);
+            throw new Error(
+                `Assets were released while "${ref}" was loading; it has no owner. Load it again.`,
+            );
+        }
         const lease = this.genericRefs_.acquire(`${type}:${path}`, era);
         const result = era.value as T;
         const handle = (result as { handle?: unknown } | null)?.handle;

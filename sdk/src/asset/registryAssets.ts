@@ -61,6 +61,9 @@ class Slot<T> {
     refs = 0;
     era: PreparedEra<T> | null = null;
     loading: Promise<PreparedEra<T>> | null = null;
+    /** Which refresh is the current one. A preparation that started before the
+     *  count moved is answering a question nobody is asking any more. */
+    refresh = 0;
 
     constructor(readonly type: string, readonly key: string, readonly id: number) {}
 }
@@ -102,6 +105,13 @@ export class RegistryAssetSlots {
                 throw e;
             }
             slot.loading = null;
+            // The realm can have let go of everything while this prepared. The
+            // slot is off the table, so publishing into it would hand a lease on
+            // an era nothing resolves to and nobody will ever release.
+            if (this.byName_.get(lookupKey(type, key)) !== slot) {
+                era.dependencies.releaseAll();
+                throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);
+            }
             // Another acquire may have published while this one awaited; joining
             // it is a cache hit, and publishing twice would retire what is live.
             if (!slot.era) {
@@ -118,12 +128,21 @@ export class RegistryAssetSlots {
      *
      * A failed prepare leaves the slot exactly as it was — holders keep working
      * with the era they have rather than losing it to a bad download. Answers
-     * false when nothing holds this name.
+     * false when nothing holds this name, and when what came back is no longer
+     * the answer to any live question.
      */
     async republish<T>(kind: RegistryAssetKind<T>, type: string, name: string): Promise<boolean> {
         const slot = this.byName_.get(lookupKey(type, name)) as Slot<T> | undefined;
         if (!slot?.era) return false;
+        const ticket = ++slot.refresh;
         const era = await kind.prepare(slot.key);
+        // Two things can have happened while this prepared: a newer refresh
+        // started, or the last holder let go. Publishing either way puts an era
+        // where nothing will ever release it.
+        if (ticket !== slot.refresh || !slot.era) {
+            era.dependencies.releaseAll();
+            return false;
+        }
         const previous = slot.era;
         slot.era = era;
         // Its dependencies only: what the name resolves to is the slot's, and
