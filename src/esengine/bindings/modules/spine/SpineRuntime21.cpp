@@ -544,6 +544,13 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
     }
 }
 
+/** Not instrumented: the cost decomposition is measured on the spine-c walk
+ *  (3.8 / 4.1 / 4.2). False rather than zeros, so a measurement cannot report
+ *  this backend as free. */
+bool renderStage(Instance*, TriangleSink&, bool, int, ProbeCounts*) {
+    return false;
+}
+
 int version() {
     return ES_SPINE_VERSION;
 }

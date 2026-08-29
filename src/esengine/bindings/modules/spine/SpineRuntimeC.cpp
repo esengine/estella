@@ -562,17 +562,19 @@ namespace {
  * region when there is one. Clipping replaces the triangle set with the polygon
  * intersection, so it can only shrink the geometry, never grow it.
  */
+template <int STAGE, bool COUNT>
 void emit(TriangleSink& sink, bool clipping,
           float* positions, int vertexCount, float* uvs,
           unsigned short* triangles, int triangleCount,
-          uint32_t texture, int blendMode, const float rgba[4]) {
+          uint32_t texture, int blendMode, const float rgba[4],
+          ProbeCounts* counts) {
     float* outPositions = positions;
     float* outUVs = uvs;
     unsigned short* outTriangles = triangles;
     int outVertices = vertexCount;
     int outTriangleCount = triangleCount;
 
-    if (clipping && spSkeletonClipping_isClipping(g_clipper)) {
+    if (STAGE >= STAGE_CLIP && clipping && spSkeletonClipping_isClipping(g_clipper)) {
         spSkeletonClipping_clipTriangles(g_clipper, positions, vertexCount * 2,
                                          triangles, triangleCount, uvs, 2);
         outPositions = g_clipper->clippedVertices->items;
@@ -580,23 +582,38 @@ void emit(TriangleSink& sink, bool clipping,
         outUVs = g_clipper->clippedUVs->items;
         outTriangles = g_clipper->clippedTriangles->items;
         outTriangleCount = g_clipper->clippedTriangles->size;
+        if constexpr (COUNT) counts->clippedEmits++;
     }
 
     if (outVertices == 0 || outTriangleCount == 0) return;
+    if constexpr (COUNT) {
+        counts->emits++;
+        counts->verticesEmitted += static_cast<std::uint32_t>(outVertices);
+        counts->indicesEmitted += static_cast<std::uint32_t>(outTriangleCount);
+    }
+    if constexpr (STAGE < STAGE_EMIT) return;
     sink.emit(outPositions, outUVs, outVertices, outTriangles, outTriangleCount,
               texture, blendMode, rgba);
 }
 
 }  // namespace
 
-void render(Instance* instance, TriangleSink& sink, bool clipping) {
+/**
+ * The walk, once. `STAGE` and `COUNT` are compile-time: the shipped `render`
+ * instantiates it with the full stage and no counting, so every stage check and
+ * every counter below is gone before the module is linked.
+ */
+template <int STAGE, bool COUNT>
+void renderImpl(Instance* instance, TriangleSink& sink, bool clipping, ProbeCounts* counts) {
     if (!instance) return;
     if (!g_clipper) g_clipper = spSkeletonClipping_create();
+    if constexpr (STAGE < STAGE_TRAVERSE) return;
 
     spSkeleton* skeleton = instance->skeleton;
     const spColor& skeletonColor = skeleton->color;
 
     for (int i = 0; i < skeleton->slotsCount; ++i) {
+        if constexpr (COUNT) counts->slots++;
         spSlot* slot = skeleton->drawOrder[i];
         if (!slot) continue;
 
@@ -605,7 +622,8 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
         // A clipping attachment opens a region that runs until its end slot; it
         // draws nothing itself.
         if (attachment && attachment->type == SP_ATTACHMENT_CLIPPING) {
-            if (clipping) {
+            if constexpr (COUNT) counts->clipStarts++;
+            if (clipping && STAGE >= STAGE_CLIP) {
                 spSkeletonClipping_clipStart(g_clipper, slot,
                                              reinterpret_cast<spClippingAttachment*>(attachment));
             }
@@ -622,6 +640,9 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
             const int blendMode = blendModeOf(slot);
 
             if (attachment->type == SP_ATTACHMENT_REGION) {
+                if constexpr (COUNT) counts->regionAttachments++;
+                // Nothing below this is what a traversal costs.
+                if constexpr (STAGE < STAGE_VERTICES) continue;
                 auto* region = reinterpret_cast<spRegionAttachment*>(attachment);
                 g_worldVertices.resize(8);
 #if ES_SPINE_VERSION < 40
@@ -651,11 +672,15 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
                     };
                     premultiplyTint(rgba, pma);
 
+                    if constexpr (COUNT) counts->verticesGenerated += 4;
                     static unsigned short quad[6] = {0, 1, 2, 2, 3, 0};
-                    emit(sink, clipping, g_worldVertices.data(), 4, region->uvs, quad, 6,
-                         texture, blendForPage(blendMode, pma), rgba);
+                    emit<STAGE, COUNT>(sink, clipping, g_worldVertices.data(), 4, region->uvs,
+                                       quad, 6, texture, blendForPage(blendMode, pma), rgba,
+                                       counts);
                 }
             } else if (attachment->type == SP_ATTACHMENT_MESH) {
+                if constexpr (COUNT) counts->meshAttachments++;
+                if constexpr (STAGE < STAGE_VERTICES) continue;
                 auto* mesh = reinterpret_cast<spMeshAttachment*>(attachment);
                 const int length = SUPER(mesh)->worldVerticesLength;
                 g_worldVertices.resize(length);
@@ -680,19 +705,37 @@ void render(Instance* instance, TriangleSink& sink, bool clipping) {
                     };
                     premultiplyTint(rgba, pma);
 
-                    emit(sink, clipping, g_worldVertices.data(), length / 2, mesh->uvs,
-                         mesh->triangles, mesh->trianglesCount,
-                         texture, blendForPage(blendMode, pma), rgba);
+                    if constexpr (COUNT) counts->verticesGenerated += length / 2;
+                    emit<STAGE, COUNT>(sink, clipping, g_worldVertices.data(), length / 2,
+                                       mesh->uvs, mesh->triangles, mesh->trianglesCount,
+                                       texture, blendForPage(blendMode, pma), rgba, counts);
                 }
             }
         }
 
         // Closes the region when this slot is the clip's end slot; a cheap no-op
         // otherwise, which is why every non-clip slot passes through here.
-        if (clipping) spSkeletonClipping_clipEnd(g_clipper, slot);
+        if (clipping && STAGE >= STAGE_CLIP) spSkeletonClipping_clipEnd(g_clipper, slot);
     }
 
-    if (clipping) spSkeletonClipping_clipEnd2(g_clipper);
+    if (clipping && STAGE >= STAGE_CLIP) spSkeletonClipping_clipEnd2(g_clipper);
+}
+
+void render(Instance* instance, TriangleSink& sink, bool clipping) {
+    renderImpl<STAGE_EMIT, false>(instance, sink, clipping, nullptr);
+}
+
+bool renderStage(Instance* instance, TriangleSink& sink, bool clipping,
+                 int stage, ProbeCounts* counts) {
+    switch (stage) {
+        case STAGE_SETUP:    renderImpl<STAGE_SETUP, true>(instance, sink, clipping, counts); break;
+        case STAGE_TRAVERSE: renderImpl<STAGE_TRAVERSE, true>(instance, sink, clipping, counts); break;
+        case STAGE_VERTICES: renderImpl<STAGE_VERTICES, true>(instance, sink, clipping, counts); break;
+        case STAGE_CLIP:     renderImpl<STAGE_CLIP, true>(instance, sink, clipping, counts); break;
+        case STAGE_EMIT:     renderImpl<STAGE_EMIT, true>(instance, sink, clipping, counts); break;
+        default: return false;
+    }
+    return true;
 }
 
 int version() {

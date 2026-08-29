@@ -216,6 +216,39 @@ bool setSkeletonColor(Instance* instance, float r, float g, float b, float a);
 /** Poses the skeleton's attachments into `sink`, applying clip regions when asked. */
 void render(Instance* instance, TriangleSink& sink, bool clipping);
 
+/** How far {@link renderStage} runs. Each includes the ones before it, so what a
+ *  stage costs is the difference between two runs — the only way to price a step
+ *  of this walk without a clock inside it. */
+enum RenderStage {
+    STAGE_SETUP = 0,     ///< The instance and the clipper; the loop does not run.
+    STAGE_TRAVERSE = 1,  ///< Walk the draw order, resolving what each slot holds.
+    STAGE_VERTICES = 2,  ///< …and compute world vertices and tint.
+    STAGE_CLIP = 3,      ///< …and clip them where a clip region is open.
+    STAGE_EMIT = 4,      ///< …and hand them to the sink. The full extraction.
+};
+
+/** What the walk did, so a time can be explained rather than only reported. */
+struct ProbeCounts {
+    std::uint32_t slots;
+    std::uint32_t regionAttachments;
+    std::uint32_t meshAttachments;
+    std::uint32_t clipStarts;
+    std::uint32_t clippedEmits;
+    std::uint32_t verticesGenerated;
+    std::uint32_t verticesEmitted;
+    std::uint32_t indicesEmitted;
+    std::uint32_t emits;
+};
+
+/**
+ * BENCHMARK ONLY — the same walk as {@link render}, stopped at `stage`, so its
+ * cost can be decomposed without a clock inside the loop being decomposed.
+ * False where a backend has no instrumented walk (2.1, spine-cpp), so a
+ * measurement cannot quietly report zeros for one.
+ */
+bool renderStage(Instance* instance, TriangleSink& sink, bool clipping,
+                 int stage, ProbeCounts* counts);
+
 /** 21 / 38 / 41 / 42 / 43 — whatever `spine_runtimeVersion()` should report. */
 int version();
 

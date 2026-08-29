@@ -81,4 +81,12 @@ int spine_runtimeVersion();
 // buffer is the module's own vector, so only the module can say how much is live.
 size_t spine_eventBufferBytes();
 
+// BENCHMARK ONLY, never on a frame path — the extraction run to `stage`
+// (es::spine::RenderStage). `useCollector` stores the triangles as a frame does
+// or counts and drops them: the one way to price the buffers apart from the work.
+int spine_probe_extract(int instanceId, int stage, int useCollector);
+
+// The nine counters of the last probe run, into as many u32 slots.
+void spine_probe_counts(uint32_t* out);
+
 }  // extern "C"

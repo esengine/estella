@@ -58,6 +58,8 @@ export interface SpineWasmModule {
     _spine_setTransformConstraintMix(instanceId: number, name: number, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): number;
     _spine_getPathConstraintMix(instanceId: number, name: number): number;
     _spine_setPathConstraintMix(instanceId: number, name: number, position: number, spacing: number, rotate: number, x: number, y: number): number;
+    _spine_probe_extract(instanceId: number, stage: number, useCollector: number): number;
+    _spine_probe_counts(out: number): void;
 
     cwrap(ident: string, returnType: string | null, argTypes: string[]): (...args: unknown[]) => unknown;
     UTF8ToString(ptr: number): string;
@@ -116,6 +118,14 @@ export interface SpineWrappedAPI {
     setTransformConstraintMix(instanceId: number, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean;
     getPathConstraintMix(instanceId: number, name: string): string;
     setPathConstraintMix(instanceId: number, name: string, position: number, spacing: number, rotate: number, x: number, y: number): boolean;
+
+    /**
+     * BENCHMARK ONLY — run the extraction to `stage` and report what the walk
+     * did (see benchmarks/spine-extract-stages). Nothing on a frame path calls
+     * these: a frame's crossings are asserted in tests/spine-extract-stages.
+     */
+    probeExtract(instanceId: number, stage: number, useCollector: number): number;
+    probeCounts(out: number): void;
 }
 
 export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
@@ -164,6 +174,9 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         setTransformConstraintMix: cw('spine_setTransformConstraintMix', 'number', ['number', 'string', 'number', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setTransformConstraintMix'],
         getPathConstraintMix: cw('spine_getPathConstraintMix', 'string', ['number', 'string']) as SpineWrappedAPI['getPathConstraintMix'],
         setPathConstraintMix: cw('spine_setPathConstraintMix', 'number', ['number', 'string', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setPathConstraintMix'],
+
+        probeExtract: cw('spine_probe_extract', 'number', ['number', 'number', 'number']) as SpineWrappedAPI['probeExtract'],
+        probeCounts: cw('spine_probe_counts', null, ['number']) as SpineWrappedAPI['probeCounts'],
     };
 }
 

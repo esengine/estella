@@ -91,6 +91,16 @@ void collectEvent(const Event& event) {
 }
 
 /// Re-poses `instanceId` and refills the batch list the getters below read.
+/** Takes what a stage emitted and keeps none of it: the walk without the cost of
+ *  storing its output. Benchmark only — see spine_probe_extract. */
+struct CountingSink final : es::skeletal::TriangleSink {
+    void emit(const float*, const float*, int, const std::uint16_t*, int,
+              std::uint32_t, int, const float[4]) override {}
+};
+
+/** The last probe run's counts. Benchmark only; a frame never writes it. */
+es::spine::ProbeCounts g_probeCounts{};
+
 void extractBatches(int instanceId) {
     g_ctx.batches.clear();
     auto* instance = g_ctx.instanceOf(instanceId);
@@ -252,6 +262,44 @@ void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
 // =============================================================================
 // Mesh Extraction
 // =============================================================================
+
+/**
+ * BENCHMARK ONLY — the extraction run to `stage`.
+ *
+ * `useCollector` 0 counts the emitted triangles and drops them, 1 stores them as
+ * a frame does; the difference at the last stage is what the collector's vectors
+ * cost. Not on any frame path: the staged walk is its own instantiation.
+ */
+EMSCRIPTEN_KEEPALIVE
+int spine_probe_extract(int instanceId, int stage, int useCollector) {
+    g_probeCounts = es::spine::ProbeCounts{};
+    auto* instance = g_ctx.instanceOf(instanceId);
+    if (!instance) return 0;
+    if (useCollector) {
+        g_ctx.batches.clear();
+        es::skeletal::BatchCollector collector(g_ctx.batches);
+        return es::spine::renderStage(instance, collector, g_ctx.clippingEnabled,
+                                      stage, &g_probeCounts) ? 1 : 0;
+    }
+    CountingSink sink;
+    return es::spine::renderStage(instance, sink, g_ctx.clippingEnabled,
+                                  stage, &g_probeCounts) ? 1 : 0;
+}
+
+/** The counts of the last {@link spine_probe_extract}, into nine u32 slots. */
+EMSCRIPTEN_KEEPALIVE
+void spine_probe_counts(std::uint32_t* out) {
+    if (!out) return;
+    out[0] = g_probeCounts.slots;
+    out[1] = g_probeCounts.regionAttachments;
+    out[2] = g_probeCounts.meshAttachments;
+    out[3] = g_probeCounts.clipStarts;
+    out[4] = g_probeCounts.clippedEmits;
+    out[5] = g_probeCounts.verticesGenerated;
+    out[6] = g_probeCounts.verticesEmitted;
+    out[7] = g_probeCounts.indicesEmitted;
+    out[8] = g_probeCounts.emits;
+}
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getMeshBatchCount(int instanceId) {
