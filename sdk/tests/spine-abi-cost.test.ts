@@ -91,7 +91,8 @@ function era(id: string): SpineEraBinding {
         // module is told a texture id once, at parse.
         textures: new Map([['spineboy.png', { glId: 1, w: 1024, h: 1024 }]]),
     };
-    return { id, value, retain: () => ({ release: () => {} }) };
+    return { id, pair: { skeleton: `${id}.skel`, atlas: `${id}.atlas` },
+             value, retain: () => ({ release: () => {} }) };
 }
 
 /** N entities on `eras` distinct eras, posed for one frame so batches exist. */

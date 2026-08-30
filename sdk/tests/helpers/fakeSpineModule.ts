@@ -11,7 +11,7 @@
  */
 import { vi } from 'vitest';
 import type { SpineWasmModule } from '../../src/spine/SpineModuleLoader';
-import type { SpineEraBinding } from '../../src/spine/prepareSpine';
+import type { SpineEraBinding, SpinePair } from '../../src/spine/prepareSpine';
 import type { SpineCullingEnvelope } from '../../src/spine/spineBounds';
 
 export interface FakeSpineModule {
@@ -93,10 +93,12 @@ export function fakeSpineModule(): FakeSpineModule {
 export function fakeSpineEra(
     id: string, skelData: Uint8Array | string = new Uint8Array([1]),
     culling: SpineCullingEnvelope = { kind: 'unknown' },
+    pair: SpinePair = { skeleton: `${id}.skel`, atlas: `${id}.atlas` },
 ): SpineEraBinding & { claims: { retained: number; released: number } } {
     const claims = { retained: 0, released: 0 };
     return {
         id,
+        pair,
         claims,
         culling,
         value: {

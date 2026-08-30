@@ -59,6 +59,7 @@ function era(id: string, culling: SpineCullingEnvelope): SpineEraBinding {
     return {
         id, culling,
         value: { skelData, atlasText, isBinary: true, textures: new Map() },
+        pair: { skeleton: `${id}.skel`, atlas: `${id}.atlas` },
         retain: () => ({ release: () => {} }),
     };
 }

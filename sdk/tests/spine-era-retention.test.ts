@@ -21,7 +21,7 @@ import { AssetScope } from '../src/asset/AssetLease';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
-import { spineEraOf, spinePairKey, type SpineAssetValue, type SpineEraBinding } from '../src/spine/prepareSpine';
+import { spineEraOf, type SpineAssetValue, type SpineEraBinding } from '../src/spine/prepareSpine';
 import { fakeSpineModule } from './helpers/fakeSpineModule';
 
 function createPoolFake() {
@@ -98,7 +98,7 @@ function realm(docs: Record<string, string>): Assets {
 async function acquired(assets: Assets, scope: AssetScope): Promise<SpineEraBinding> {
     const lease = await assets.acquireSpine(SKEL, ATLAS);
     scope.add(lease);
-    return spineEraOf(spinePairKey(SKEL, ATLAS), lease as never);
+    return spineEraOf({ skeleton: SKEL, atlas: ATLAS }, lease as never);
 }
 
 /** The binding, with its retains and releases counted (and ordered). */
@@ -108,6 +108,7 @@ function counted(era: SpineEraBinding) {
         claims,
         era: {
             id: era.id,
+            pair: era.pair,
             value: era.value,
             retain: () => {
                 claims.retained++;

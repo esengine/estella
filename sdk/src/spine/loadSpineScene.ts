@@ -24,7 +24,8 @@ import { getAssetTypeEntry } from '../assetTypes';
 import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { prepareSpine, spineEraOf, spinePairKey,
-         type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO } from './prepareSpine';
+         type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO,
+         type SpinePair } from './prepareSpine';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { BasisTranscoder } from '../asset/compressed';
@@ -119,14 +120,14 @@ export async function loadSpineAssets(
                 // scene's, so the pages go back when the scene does.
                 const lease = await owner.assets.acquireSpine(pair.skeleton, pair.atlas);
                 owner.scope.add(lease);
-                era = spineEraOf(key, lease as never, certificates.envelopeFor(key));
+                era = spineEraOf(pair, lease as never, certificates.envelopeFor(key));
             } else {
                 const pages: number[] = [];
                 const value = await prepareSpine(
                     hostSpineIo(module, source, pair.atlas, transcoderProvider, pages),
                     pair.skeleton, pair.atlas,
                 );
-                const host = hostEra(`${key}#${++preparations}`, value, pages);
+                const host = hostEra(`${key}#${++preparations}`, pair, value, pages);
                 era = host.era;
                 preparation = host.preparation;
             }
@@ -158,7 +159,7 @@ let preparations = 0;
  * after which the runtimes posing it are the only holders.
  */
 function hostEra(
-    id: string, value: SpineAssetValue, pages: number[],
+    id: string, pair: SpinePair, value: SpineAssetValue, pages: number[],
 ): { era: SpineEraBinding; preparation: SpineEraClaim } {
     let claims = 1;
     const drop = (): void => {
@@ -169,7 +170,7 @@ function hostEra(
     };
     return {
         // A host preparation has no project metadata to read a promise from.
-        era: { id, value, culling: { kind: 'unknown' },
+        era: { id, pair, value, culling: { kind: 'unknown' },
                retain: () => { claims++; return { release: drop }; } },
         preparation: { release: drop },
     };

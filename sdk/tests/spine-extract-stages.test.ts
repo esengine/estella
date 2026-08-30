@@ -154,6 +154,7 @@ describe.skipIf(!HAS_ASSETS)('the staged walk is the shipped walk', () => {
         const era: SpineEraBinding = {
             id: 'probe#1',
             value: { skelData, atlasText, isBinary: true, textures: new Map() },
+            pair: { skeleton: 'probe.skel', atlas: 'probe.atlas' },
             retain: () => ({ release: () => {} }),
         };
         const runtime = new SpineRuntime('3.8', watched);

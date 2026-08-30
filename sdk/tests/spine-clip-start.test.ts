@@ -184,6 +184,7 @@ describe.skipIf(!HAS_WASM)('the staged open is the shipped open', () => {
         const era: SpineEraBinding = {
             id: 'clip-start#1',
             value: { skelData, atlasText, isBinary: true, textures: new Map() },
+            pair: { skeleton: 'clip-start.skel', atlas: 'clip-start.atlas' },
             retain: () => ({ release: () => {} }),
         };
         const runtime = new SpineRuntime('3.8', watched);

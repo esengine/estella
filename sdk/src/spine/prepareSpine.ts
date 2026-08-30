@@ -61,6 +61,17 @@ export interface SpineIO {
     isBinary(ref: string): boolean;
 }
 
+/**
+ * A spine asset's identity: the skeleton document and the atlas it is drawn
+ * with. Carried rather than composed into a key and split back out — a ref can
+ * be `@uuid:...` and a path can be `C:/...`, so a string with a separator in it
+ * is not something the pair can be recovered from.
+ */
+export interface SpinePair {
+    skeleton: string;
+    atlas: string;
+}
+
 /** A claim on an era, held by something derived from it. */
 export interface SpineEraClaim {
     release(): void;
@@ -76,6 +87,8 @@ export interface SpineEraClaim {
 export interface SpineEraBinding {
     /** Which era — what a runtime keys its native residency by. */
     readonly id: string;
+    /** Which ASSET, for anything that has to name it back to a person. */
+    readonly pair: SpinePair;
     readonly value: SpineAssetValue;
     /**
      * A claim on THIS generation. Never a fresh acquisition by name: after an
@@ -95,11 +108,12 @@ export interface SpineEraBinding {
 /** The era binding for an acquired spine asset: identity is the pair plus the
  *  generation, and the claim is a retain of exactly that generation. */
 export function spineEraOf(
-    key: string, lease: AssetLease<SpineAssetValue>,
+    pair: SpinePair, lease: AssetLease<SpineAssetValue>,
     culling: SpineCullingEnvelope = { kind: 'unknown' },
 ): SpineEraBinding {
     return {
-        id: `${key}#${lease.generation}`,
+        id: `${spinePairKey(pair.skeleton, pair.atlas)}#${lease.generation}`,
+        pair,
         value: lease.value,
         retain: () => lease.retain(),
         culling,

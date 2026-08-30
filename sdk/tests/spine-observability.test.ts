@@ -55,6 +55,7 @@ function era(id: string): SpineEraBinding {
             skelData, atlasText, isBinary: true,
             textures: new Map([['spineboy.png', { glId: 1, w: 1024, h: 1024 }]]),
         },
+        pair: { skeleton: `${id}.skel`, atlas: `${id}.atlas` },
         retain: () => ({ release: () => {} }),
     };
 }

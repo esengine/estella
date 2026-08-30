@@ -20,7 +20,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { SpineModuleController } from './SpineController';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
 import { wrapSpineModule, type SpineWasmModule } from './SpineModuleLoader';
-import type { SpineEraBinding, SpineEraClaim } from './prepareSpine';
+import type { SpineEraBinding, SpineEraClaim, SpinePair } from './prepareSpine';
 import { beginSpineFrame, newSpineFrameMetrics, SpineTimeWindow,
          type SpineFrameMetrics } from './spineMetrics';
 import type { SpineVersion } from '../sideModules/registry';
@@ -70,6 +70,8 @@ interface SkeletonResidency {
     skelHandle: number;
     refcount: number;
     claim: SpineEraClaim;
+    /** Which asset this era is a generation of, for anything naming it to a person. */
+    pair: SpinePair;
 
     /**
      * The two proofs a deferred world pose needs, both settled once when the
@@ -177,7 +179,7 @@ export class SpineRuntime {
         // a new generation makes a new residency that asks again — the capability
         // belongs to the skeleton this handle is, not to the name it came under.
         this.skeletons_.set(era.id, {
-            skelHandle, refcount: 1, claim,
+            skelHandle, refcount: 1, claim, pair: era.pair,
             // A binding that carries no envelope promised nothing.
             culling: era.culling ?? { kind: 'unknown' },
             requiresContinuousWorldPose: this.controller_.requiresContinuousWorldPose(skelHandle),
@@ -408,7 +410,7 @@ export class SpineRuntime {
         const out: SpineResidencyFacts[] = [];
         for (const [era, residency] of this.skeletons_) {
             out.push({
-                era, entities: residency.refcount, culling: residency.culling,
+                era, pair: residency.pair, entities: residency.refcount, culling: residency.culling,
                 requiresContinuousWorldPose: residency.requiresContinuousWorldPose,
                 mayDefer: residencyMayDefer(residency),
             });

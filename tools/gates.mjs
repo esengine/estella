@@ -121,6 +121,9 @@ export const GATES = [
   // The five spine lifetime invariants, each with the judgment that proves it:
   // what they replaced were teardown protocols, and a protocol comes back quietly.
   { id: 'spine-lifetimes', run: 'node tools/check-spine-lifetimes.mjs' },
+  // The profiler's spine section renders the realm's report and computes none
+  // of it: one side measures a frame, or two of them disagree about it.
+  { id: 'spine-panel', run: 'node tools/check-spine-panel.mjs', needs: 'editor' },
   // …and that each of them can be reached on a device, where the registry is
   // assembled from ptr accessors rather than from embind.
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },

@@ -177,6 +177,19 @@ describe('why an asset is not lazy', () => {
         dispose(runtimes);
     });
 
+    it('carries the pair, so nothing downstream has to split an era id', () => {
+        // Refs that CONTAIN the separator, because that is the case a split gets
+        // wrong: `@uuid:a:@uuid:b` has three colons and one right answer.
+        const pair = { skeleton: '@uuid:aaaa', atlas: '@uuid:bbbb' };
+        const fake = fakeSpineModule();
+        const runtime = new SpineRuntime('3.8', fake.module);
+        runtime.loadEntity(1 as Entity, fakeSpineEra('era#1', new Uint8Array([1]), CERTIFIED, pair));
+
+        const asset = spineSceneDiagnostics([runtime], true).assets[0];
+        expect(asset.pair, 'the pair was rebuilt from a string instead of carried').toEqual(pair);
+        runtime.dispose();
+    });
+
     it('puts the biggest asset first, so the first line is the one that matters', () => {
         const runtimes = scene([
             { era: 'few#1', entities: 2 },

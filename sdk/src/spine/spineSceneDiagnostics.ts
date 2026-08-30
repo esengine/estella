@@ -27,6 +27,7 @@
  */
 import type { SpineVersion } from '../sideModules/registry';
 import type { SpineCullingEnvelope } from './spineBounds';
+import type { SpinePair } from './prepareSpine';
 import type { SpineAbiCounts, SpineByteCounts, SpineFrameMetrics,
               SpineTimeWindow } from './spineMetrics';
 
@@ -38,6 +39,8 @@ import type { SpineAbiCounts, SpineByteCounts, SpineFrameMetrics,
  */
 export interface SpineResidencyFacts {
     era: string;
+    /** The asset this era is a generation of. */
+    pair: SpinePair;
     /** Its refcount — entities posed by it, disabled ones included. */
     entities: number;
     culling: SpineCullingEnvelope;
@@ -68,6 +71,12 @@ export interface SpineAssetDiagnostic {
     version: SpineVersion;
     /** The era — one generation of one skeleton+atlas pair. */
     era: string;
+    /**
+     * The asset, as the two refs it is made of. Carried rather than split back
+     * out of `era`: a ref can be `@uuid:...` and a path can be `C:/...`, so
+     * anything routing a person to this asset has to be handed the pair.
+     */
+    pair: SpinePair;
     /** Entities posed by it, disabled ones included: it is the residency's refcount. */
     entities: number;
     mayDefer: boolean;
@@ -205,7 +214,8 @@ export function spineSceneDiagnostics(
         for (const facts of runtime.residencies()) {
             if (facts.mayDefer) deferrable += facts.entities;
             assets.push({
-                version: runtime.version, era: facts.era, entities: facts.entities,
+                version: runtime.version, era: facts.era, pair: facts.pair,
+                entities: facts.entities,
                 mayDefer: facts.mayDefer, envelope: facts.culling.kind,
                 blockedBy: blockersOf(facts),
             });
