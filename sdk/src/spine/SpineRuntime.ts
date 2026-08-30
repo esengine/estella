@@ -39,6 +39,17 @@ interface EntityInfo {
     playing: boolean;
     /** Which era of which asset. Entities sharing it share one loaded skeleton. */
     era: string;
+
+    /**
+     * Bumped by anything that changes what a world pose would come out as: an
+     * advance, and any constraint or attachment change that only takes effect
+     * when the world transforms are next resolved.
+     */
+    logicalRevision: number;
+    /** The revision the world transforms currently reflect. */
+    worldRevision: number;
+    /** Advanced but not yet resolved, for the runtimes whose world step reads it. */
+    pendingDt: number;
 }
 
 /** One parsed skeleton, and the era it was parsed from. The claim is the
@@ -92,6 +103,9 @@ export class SpineRuntime {
         this.entities_.set(entity, {
             skelHandle: claimed, instanceId, era: era.id,
             skeletonScale: 1, flipX: false, flipY: false, layer: 0, timeScale: 1, playing: true,
+            // Equal because creating the instance resolved its setup pose: an
+            // entity that never plays owes nothing and is never re-resolved.
+            logicalRevision: 0, worldRevision: 0, pendingDt: 0,
         });
         return true;
     }
@@ -156,7 +170,9 @@ export class SpineRuntime {
 
     setSkin(entity: Entity, skin: string): void {
         const info = this.entities_.get(entity);
-        if (info) this.controller_.setSkin(info.instanceId, skin);
+        if (!info) return;
+        this.controller_.setSkin(info.instanceId, skin);
+        this.poseChanged_(info);
     }
 
     getBounds(entity: Entity): { x: number; y: number; width: number; height: number } | null {
@@ -205,12 +221,14 @@ export class SpineRuntime {
     setAttachment(entity: Entity, slotName: string, attachmentName: string): boolean {
         const info = this.entities_.get(entity);
         if (!info) return false;
+        this.poseChanged_(info);
         return this.controller_.setAttachment(info.instanceId, slotName, attachmentName);
     }
 
     setIKTarget(entity: Entity, constraintName: string, targetX: number, targetY: number, mix: number): boolean {
         const info = this.entities_.get(entity);
         if (!info) return false;
+        this.poseChanged_(info);
         return this.controller_.setIKTarget(info.instanceId, constraintName, targetX, targetY, mix);
     }
 
@@ -235,6 +253,7 @@ export class SpineRuntime {
     setTransformConstraintMix(entity: Entity, name: string, mix: TransformMixData): boolean {
         const info = this.entities_.get(entity);
         if (!info) return false;
+        this.poseChanged_(info);
         return this.controller_.setTransformConstraintMix(info.instanceId, name, mix);
     }
 
@@ -247,6 +266,7 @@ export class SpineRuntime {
     setPathConstraintMix(entity: Entity, name: string, mix: PathMixData): boolean {
         const info = this.entities_.get(entity);
         if (!info) return false;
+        this.poseChanged_(info);
         return this.controller_.setPathConstraintMix(info.instanceId, name, mix);
     }
 
@@ -274,6 +294,35 @@ export class SpineRuntime {
         return result;
     }
 
+    /**
+     * Resolve this entity's world transforms if they do not already reflect its
+     * local pose; returns whether it had to. The REVISION is the authority, not
+     * the frame — a frame that resolves and then moves an IK target owes another
+     * one, and a frame key would hand the next asker the pose from before it.
+     */
+    ensurePose(entity: Entity): boolean {
+        const info = this.entities_.get(entity);
+        if (!info || this.disabledEntities_.has(entity)) return false;
+        if (info.worldRevision === info.logicalRevision) {
+            if (this.metrics_) this.metrics_.pose.worldDeferred++;
+            return false;
+        }
+        this.controller_.materializeWorldPose(info.instanceId, info.pendingDt);
+        info.worldRevision = info.logicalRevision;
+        info.pendingDt = 0;
+        if (this.metrics_) {
+            this.metrics_.pose.worldMaterializations++;
+            this.metrics_.abi.world++;
+        }
+        return true;
+    }
+
+    /** What only the world transforms will show — a constraint retargeted, an
+     *  attachment swapped. The local pose is already whatever it was. */
+    private poseChanged_(info: EntityInfo): void {
+        info.logicalRevision++;
+    }
+
     updateAll(dt: number): void {
         const m = this.metrics_;
         if (m) beginSpineFrame(m);
@@ -284,8 +333,17 @@ export class SpineRuntime {
             if (this.disabledEntities_.has(entity)) continue;
             // playing=false freezes the pose (skip advance, still submitted);
             // timeScale scales the advance (update() takes an arbitrary dt).
-            if (info.playing) this.controller_.update(info.instanceId, dt * info.timeScale);
-            if (m) m.abi.pose++;
+            if (info.playing) {
+                const step = dt * info.timeScale;
+                this.controller_.advanceAndApply(info.instanceId, step);
+                info.logicalRevision++;
+                info.pendingDt += step;
+                if (m) { m.abi.pose++; m.pose.logicalUpdates++; }
+            }
+            // Every entity's world pose is demanded here for now. Which of them
+            // could be left owed is the next cut's question; this one is only
+            // about the debt existing.
+            this.ensurePose(entity);
         }
         if (!m) return;
         m.time.pose = performance.now() - started;
@@ -303,6 +361,10 @@ export class SpineRuntime {
         const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
+            // The renderer is a consumer of the world pose like any other, and
+            // asks for it the same way. Today it is already resolved.
+            this.ensurePose(entity);
+            if (m) m.pose.meshExtractions++;
             // Shared with every skeletal runtime (skeletal/submitMeshes): the core's
             // entry point takes geometry and a transform, and knows nothing about
             // what posed them. A false means the core cannot take geometry at all,

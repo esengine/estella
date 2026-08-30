@@ -227,6 +227,17 @@ export class SpineModuleController {
         });
     }
 
+    /** The animation clock onto the bones' LOCAL transforms — see spineBounds
+     *  and the runtime's ensurePose for why this is not the whole pose. */
+    advanceAndApply(instanceId: number, dt: number): void {
+        this.api_.advanceAndApply(instanceId, dt);
+    }
+
+    /** The world transforms the local pose implies. */
+    materializeWorldPose(instanceId: number, dt: number): void {
+        this.api_.materializeWorldPose(instanceId, dt);
+    }
+
     /** Seconds; negative where this skeleton has no such animation. */
     animationDuration(skeletonHandle: number, animation: string): number {
         return this.api_.getAnimationDuration(skeletonHandle, animation);

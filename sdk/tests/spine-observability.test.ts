@@ -159,8 +159,13 @@ describe.skipIf(!HAS_ASSETS)('a frame can say what it cost', () => {
         expect(m.residencies, 'ten eras, ten native skeletons').toBe(10);
         expect(Object.keys(m)).toEqual([
             'frame', 'entities', 'residencies', 'meshBatches', 'vertices', 'indices',
-            'abi', 'bytes', 'time',
+            'abi', 'pose', 'bytes', 'time',
         ]);
+        // `pose` is the frame in DEMAND rather than in calls: what was advanced,
+        // what had to be resolved, and what asked and found it already was.
+        expect(m.pose.logicalUpdates).toBe(100);
+        expect(m.pose.worldMaterializations, 'a world pose was resolved twice').toBe(100);
+        expect(m.pose.worldDeferred, 'the extraction re-resolved what it asked for').toBe(100);
         runtime.dispose();
     });
 });

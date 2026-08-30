@@ -180,7 +180,10 @@ describe.skipIf(!HAS_ASSETS)('what a spine entity costs per frame', () => {
         expect(rows).toHaveLength(10);
     });
 
-    it('posing is one crossing per entity, whatever the entity count', () => {
+    it('posing is two crossings per entity, whatever the entity count', () => {
+        // Two since a pose became two things it can be asked for separately:
+        // advancing the animation, and resolving the world it implies. The
+        // second one is what a frame can one day decline to ask for.
         const { module, crossings } = counting(module38);
         const runtime = new SpineRuntime('3.8', module);
         populate(runtime, 10, 1);
@@ -194,12 +197,14 @@ describe.skipIf(!HAS_ASSETS)('what a spine entity costs per frame', () => {
         frame(runtime, null);
         const hundred = crossings.total();
 
-        expect(ten).toBe(10);
-        expect(hundred, 'posing stopped being one call per entity').toBe(100);
+        expect(ten).toBe(20);
+        expect(hundred, 'posing stopped being two calls per entity').toBe(200);
         runtime.dispose();
     });
 
     it('reading a pose back is 2 + 3 per batch, per entity, per frame', () => {
+        // The pose itself is two more, which this counts but does not attribute
+        // to the readback: they are the frame's other half.
         // The number a batch ABI would change: today the walk asks how many
         // batches, then three questions per batch, and allocates twice per batch
         // — all of it per entity.
@@ -214,16 +219,19 @@ describe.skipIf(!HAS_ASSETS)('what a spine entity costs per frame', () => {
         const c = crossings.counts;
 
         expect(batches).toBeGreaterThan(0);
-        expect(c.get('spine_update')).toBe(1);
+        expect(c.get('spine_advanceAndApply')).toBe(1);
+        expect(c.get('spine_materializeWorldPose'), 'the world was resolved more than once')
+            .toBe(1);
         expect(c.get('spine_getMeshBatchCount')).toBe(1);
         expect(c.get('spine_getMeshBatchVertexCount')).toBe(batches);
         expect(c.get('spine_getMeshBatchIndexCount')).toBe(batches);
         expect(c.get('spine_getMeshBatchData')).toBe(batches);
         // Two allocations per batch (vertices + indices) plus the meta pair.
         expect(c.get('_malloc')).toBe(1 + batches * 2);
-        // The formula, for the wall: 4 fixed + 7 per batch, per entity, per
-        // frame. A batch ABI is a change to THIS.
-        expect(crossings.total()).toBe(4 + 7 * batches);
+        // The formula, for the wall: 5 fixed + 7 per batch, per entity, per
+        // frame. It was 4 while a pose was one call. A batch ABI is a change to
+        // THIS; so was splitting the pose, deliberately.
+        expect(crossings.total()).toBe(5 + 7 * batches);
         runtime.dispose();
     });
 

@@ -89,13 +89,14 @@ function posedBounds(instanceId: number): Rect {
 
 /** A runtime whose per-entity work can be counted from the outside. */
 function countingRuntime(): { runtime: SpineRuntime; calls: Record<string, number> } {
-    const calls: Record<string, number> = { update: 0, batchCount: 0, submit: 0 };
+    const calls: Record<string, number> = { update: 0, world: 0, batchCount: 0, submit: 0 };
     const cwrap = raw.cwrap.bind(raw);
     const watched = Object.create(raw) as SpineWasmModule;
     watched.cwrap = ((name: string, ret: unknown, args: unknown) => {
         const fn = cwrap(name, ret as never, args as never);
         return (...called: unknown[]) => {
-            if (name === 'spine_update') calls.update++;
+            if (name === 'spine_advanceAndApply') calls.update++;
+            if (name === 'spine_materializeWorldPose') calls.world++;
             if (name === 'spine_getMeshBatchCount') calls.batchCount++;
             return (fn as (...a: unknown[]) => unknown)(...called);
         };
@@ -129,7 +130,8 @@ describe.skipIf(!HAS_WASM)('what a spine frame poses, and who asked', () => {
         runtime.updateAll(1 / 60);
         runtime.extractAndSubmitMeshes(core, {} as never);
 
-        expect(calls.update, 'a pose was skipped for some entity').toBe(entities);
+        expect(calls.update, 'an advance was skipped for some entity').toBe(entities);
+        expect(calls.world, 'a world pose was skipped, or resolved twice').toBe(entities);
         expect(calls.batchCount, 'an extraction was skipped for some entity').toBe(entities);
         runtime.dispose();
     });
@@ -150,7 +152,10 @@ describe.skipIf(!HAS_WASM)('what a spine frame poses, and who asked', () => {
         runtime.updateAll(1 / 60);
         runtime.extractAndSubmitMeshes(core, {} as never);
 
-        expect(calls.update, 'frozen and disabled entities did not both decline a pose').toBe(3);
+        expect(calls.update, 'frozen and disabled entities did not both decline an advance').toBe(3);
+        // A frozen entity's world already reflects its local pose, so demanding
+        // one costs nothing — the revision says the debt was already paid.
+        expect(calls.world, 'a frozen entity was re-resolved').toBe(3);
         expect(calls.batchCount, 'a frozen entity stopped being drawn').toBe(5);
         runtime.dispose();
     });

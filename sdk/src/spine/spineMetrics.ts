@@ -57,6 +57,8 @@ export interface SpineClipBudget {
 /** Every crossing a frame made into the module, by what it asked for. */
 export interface SpineAbiCounts {
     pose: number;
+    /** Crossings that resolved world transforms — the other half of a pose. */
+    world: number;
     batchCount: number;
     vertexCount: number;
     indexCount: number;
@@ -78,6 +80,19 @@ export interface SpineByteCounts {
 
 /** One runtime's frame. Mutated in place — a frame that allocates to say what a
  *  frame cost is measuring itself. */
+/**
+ * A frame's posing, as what was asked for rather than what was called.
+ *
+ * `worldDeferred` is a demand that found the world already current — which is
+ * how "at most one materialization per revision" reads from the outside.
+ */
+export interface SpinePoseCounts {
+    logicalUpdates: number;
+    worldMaterializations: number;
+    worldDeferred: number;
+    meshExtractions: number;
+}
+
 export interface SpineFrameMetrics {
     frame: number;
     entities: number;
@@ -86,6 +101,8 @@ export interface SpineFrameMetrics {
     vertices: number;
     indices: number;
     abi: SpineAbiCounts;
+    /** What the frame's poses were made of, in demand rather than in calls. */
+    pose: SpinePoseCounts;
     bytes: SpineByteCounts;
     /** Milliseconds. `readback` is the whole extract+submit pass; see the file
      *  note for why it is not four numbers. */
@@ -95,7 +112,8 @@ export interface SpineFrameMetrics {
 export function newSpineFrameMetrics(): SpineFrameMetrics {
     return {
         frame: 0, entities: 0, residencies: 0, meshBatches: 0, vertices: 0, indices: 0,
-        abi: { pose: 0, batchCount: 0, vertexCount: 0, indexCount: 0, batchData: 0, malloc: 0, free: 0, submit: 0 },
+        abi: { pose: 0, world: 0, batchCount: 0, vertexCount: 0, indexCount: 0, batchData: 0, malloc: 0, free: 0, submit: 0 },
+        pose: { logicalUpdates: 0, worldMaterializations: 0, worldDeferred: 0, meshExtractions: 0 },
         bytes: { wasmRead: 0, coreWrite: 0, scratchAllocated: 0 },
         time: { pose: 0, readback: 0, total: 0 },
     };
@@ -105,9 +123,11 @@ export function newSpineFrameMetrics(): SpineFrameMetrics {
 export function beginSpineFrame(m: SpineFrameMetrics): void {
     m.frame++;
     m.entities = 0; m.residencies = 0; m.meshBatches = 0; m.vertices = 0; m.indices = 0;
-    m.abi.pose = 0; m.abi.batchCount = 0; m.abi.vertexCount = 0; m.abi.indexCount = 0;
+    m.abi.pose = 0; m.abi.world = 0; m.abi.batchCount = 0; m.abi.vertexCount = 0; m.abi.indexCount = 0;
     m.abi.batchData = 0; m.abi.malloc = 0; m.abi.free = 0; m.abi.submit = 0;
     m.bytes.wasmRead = 0; m.bytes.coreWrite = 0; m.bytes.scratchAllocated = 0;
+    m.pose.logicalUpdates = 0; m.pose.worldMaterializations = 0;
+    m.pose.worldDeferred = 0; m.pose.meshExtractions = 0;
     m.time.pose = 0; m.time.readback = 0; m.time.total = 0;
 }
 

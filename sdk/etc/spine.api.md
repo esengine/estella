@@ -105,6 +105,7 @@ static prototype: SpineManager
 ## SpineModuleController — class @experimental
 ```
 addAnimation: (instanceId: number, animation: string, loop?: boolean, delay?: number, track?: number) => boolean
+advanceAndApply: (instanceId: number, dt: number) => void
 animationDuration: (skeletonHandle: number, animation: string) => number
 clipBudget: (instanceId: number) => SpineClipBudget | null
 collectEvents: (instanceId: number) => RawSpineEvent[]
@@ -124,6 +125,7 @@ getSkins: (instanceId: number) => string[]
 getTransformConstraintMix: (instanceId: number, name: string) => TransformMixData | null
 listConstraints: (instanceId: number) => ConstraintList
 loadSkeleton: (skelData: Uint8Array | string, atlasText: string, isBinary: boolean) => number
+materializeWorldPose: (instanceId: number, dt: number) => void
 play: (instanceId: number, animation: string, loop?: boolean, track?: number) => boolean
 raw: SpineWasmModule
 requiresContinuousWorldPose: (skeletonHandle: number) => boolean
@@ -168,6 +170,7 @@ clipBudget: (entity: Entity) => SpineClipBudget | null
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 dispose: () => void
 enableEvents: (entity: Entity) => void
+ensurePose: (entity: Entity) => boolean
 entityCount: number
 extractAndSubmitMeshes: (core: NonNullable<EngineApi>, registry: CppRegistry, materialOf?: SkeletalMaterialOf) => void
 getAnimations: (entity: Entity) => string[]
