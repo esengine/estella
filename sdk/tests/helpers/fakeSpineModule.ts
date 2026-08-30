@@ -12,6 +12,7 @@
 import { vi } from 'vitest';
 import type { SpineWasmModule } from '../../src/spine/SpineModuleLoader';
 import type { SpineEraBinding } from '../../src/spine/prepareSpine';
+import type { SpineCullingEnvelope } from '../../src/spine/spineBounds';
 
 export interface FakeSpineModule {
     module: SpineWasmModule;
@@ -24,6 +25,10 @@ export interface FakeSpineModule {
     unloadSkeleton: ReturnType<typeof vi.fn>;
     createInstance: ReturnType<typeof vi.fn>;
     destroyInstance: ReturnType<typeof vi.fn>;
+    /** What this fake runtime claims about its own constraints. */
+    continuousWorldPose: boolean;
+    /** How many times a residency asked — the answer is settled once. */
+    continuousQueries: number;
 }
 
 export function fakeSpineModule(): FakeSpineModule {
@@ -33,6 +38,9 @@ export function fakeSpineModule(): FakeSpineModule {
         skeletons: [] as number[],
         instances: [] as number[],
         parses: true,
+        /** What the fake runtime says about its own constraints. */
+        continuousWorldPose: false,
+        continuousQueries: 0,
     } as FakeSpineModule;
 
     fake.loadSkeleton = vi.fn(() => {
@@ -63,6 +71,10 @@ export function fakeSpineModule(): FakeSpineModule {
         spine_getLastError: () => 'the fake refused to parse',
         spine_getAtlasPageCount: () => 0,
         spine_getMeshBatchCount: () => 0,
+        spine_requiresContinuousWorldPose: () => {
+            fake.continuousQueries++;
+            return fake.continuousWorldPose ? 1 : 0;
+        },
     };
     fake.module = {
         cwrap: (name: string) => exports[name] ?? (() => 0),
@@ -80,11 +92,13 @@ export function fakeSpineModule(): FakeSpineModule {
 /** A prepared era with nothing behind it: what a runtime binds an entity to. */
 export function fakeSpineEra(
     id: string, skelData: Uint8Array | string = new Uint8Array([1]),
+    culling: SpineCullingEnvelope = { kind: 'unknown' },
 ): SpineEraBinding & { claims: { retained: number; released: number } } {
     const claims = { retained: 0, released: 0 };
     return {
         id,
         claims,
+        culling,
         value: {
             skelData, atlasText: '', isBinary: typeof skelData !== 'string',
             textures: new Map(),

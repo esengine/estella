@@ -180,8 +180,10 @@ getSkins: (entity: Entity) => string[]
 getTransformConstraintMix: (entity: Entity, name: string) => TransformMixData | null
 listConstraints: (entity: Entity) => ConstraintList | null
 loadEntity: (entity: Entity, era: SpineEraBinding) => boolean
+mayDefer: (entity: Entity) => boolean
 metrics: () => SpineFrameMetrics | null
 observe: (on: boolean) => void
+poseEligibility: (entity: Entity) => { culling: SpineCullingEnvelope; requiresContinuousWorldPose: boolean; } | null
 removeEntity: (entity: Entity) => void
 setAnimation: (entity: Entity, animation: string, loop: boolean) => void
 setAttachment: (entity: Entity, slotName: string, attachmentName: string) => boolean
@@ -224,7 +226,7 @@ mixY: number
 
 ## loadSpineAssets — function @experimental
 ```
-(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner, certificates?: SpineCertificateSource): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function @experimental

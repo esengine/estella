@@ -24,6 +24,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import type { AssetLease } from '../asset/AssetLease';
 import { parseSpineAtlasPages } from './atlasPages';
 import { log } from '../util/logger';
+import type { SpineCullingEnvelope } from './spineBounds';
 
 /** One atlas page, as the runtime needs it: a GL id and its size. */
 export interface SpinePage {
@@ -82,15 +83,26 @@ export interface SpineEraBinding {
      * skeleton was parsed from. Null when the era can no longer be joined.
      */
     retain(): SpineEraClaim | null;
+
+    /**
+     * What culling may assume about this asset's extent. Carried with the era
+     * because a residency is made from one, but it belongs to the PAIR: a
+     * promise about the asset survives the generation it was read beside.
+     */
+    readonly culling: SpineCullingEnvelope;
 }
 
 /** The era binding for an acquired spine asset: identity is the pair plus the
  *  generation, and the claim is a retain of exactly that generation. */
-export function spineEraOf(key: string, lease: AssetLease<SpineAssetValue>): SpineEraBinding {
+export function spineEraOf(
+    key: string, lease: AssetLease<SpineAssetValue>,
+    culling: SpineCullingEnvelope = { kind: 'unknown' },
+): SpineEraBinding {
     return {
         id: `${key}#${lease.generation}`,
         value: lease.value,
         retain: () => lease.retain(),
+        culling,
     };
 }
 

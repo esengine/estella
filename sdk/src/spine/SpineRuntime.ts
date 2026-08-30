@@ -27,6 +27,8 @@ import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { SpineClipBudget } from './spineMetrics';
+import { mayDeferWorldPose } from './spineBounds';
+import type { SpineCullingEnvelope } from './spineBounds';
 
 interface EntityInfo {
     skelHandle: number;
@@ -59,6 +61,26 @@ interface SkeletonResidency {
     skelHandle: number;
     refcount: number;
     claim: SpineEraClaim;
+
+    /**
+     * The two proofs a deferred world pose needs, both settled once when the
+     * residency is made: what the asset promised, and what this runtime says
+     * about its own constraints. Kept as the two FACTS rather than one verdict,
+     * so a diagnostic can say which of them is missing.
+     */
+    culling: SpineCullingEnvelope;
+    requiresContinuousWorldPose: boolean;
+}
+
+/**
+ * Whether entities of this residency may be left owing a world pose. Both
+ * proofs, and the absence of either is a no — see spineBounds for why an
+ * observation is not one of them.
+ */
+export function residencyMayDefer(residency: {
+    culling: SpineCullingEnvelope; requiresContinuousWorldPose: boolean;
+}): boolean {
+    return mayDeferWorldPose(residency.culling, residency.requiresContinuousWorldPose);
 }
 
 export class SpineRuntime {
@@ -142,7 +164,14 @@ export class SpineRuntime {
                 this.controller_.setAtlasPageTexture(skelHandle, i, tex.glId, tex.w, tex.h);
             }
         }
-        this.skeletons_.set(era.id, { skelHandle, refcount: 1, claim });
+        // Asked once, here. A hundred entities of this era share the answer, and
+        // a new generation makes a new residency that asks again — the capability
+        // belongs to the skeleton this handle is, not to the name it came under.
+        this.skeletons_.set(era.id, {
+            skelHandle, refcount: 1, claim,
+            culling: era.culling,
+            requiresContinuousWorldPose: this.controller_.requiresContinuousWorldPose(skelHandle),
+        });
         return skelHandle;
     }
 
@@ -292,6 +321,31 @@ export class SpineRuntime {
             }
         }
         return result;
+    }
+
+    /**
+     * Whether this entity's world pose may be left owed when nothing wants it —
+     * both proofs, settled when its residency was made. The scheduler that will
+     * use it does not exist yet; a diagnostic asking why can already read the
+     * two facts off the residency.
+     */
+    mayDefer(entity: Entity): boolean {
+        const info = this.entities_.get(entity);
+        const residency = info ? this.skeletons_.get(info.era) : undefined;
+        return residency ? residencyMayDefer(residency) : false;
+    }
+
+    /** Why, for a diagnostic: the promise, and what the runtime says of itself. */
+    poseEligibility(entity: Entity): {
+        culling: SpineCullingEnvelope; requiresContinuousWorldPose: boolean;
+    } | null {
+        const info = this.entities_.get(entity);
+        const residency = info ? this.skeletons_.get(info.era) : undefined;
+        if (!residency) return null;
+        return {
+            culling: residency.culling,
+            requiresContinuousWorldPose: residency.requiresContinuousWorldPose,
+        };
     }
 
     /**
