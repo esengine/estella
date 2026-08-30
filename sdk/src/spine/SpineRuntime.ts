@@ -423,16 +423,41 @@ export class SpineRuntime {
         }
         const controller = this.controller_;
         let open = true;
+        // The same debt an entity carries: advancing moves the LOCAL pose, and
+        // the world transforms are resolved when somebody wants the geometry.
+        let pendingDt = 0;
+        let owed = true;
+        const resolve = (): void => {
+            if (!owed) return;
+            controller.materializeWorldPose(instanceId, pendingDt);
+            pendingDt = 0;
+            owed = false;
+        };
         return {
             animations: () => (open ? controller.getAnimations(instanceId) : []),
             skins: () => (open ? controller.getSkins(instanceId) : []),
-            play: (animation) => { if (open) controller.play(instanceId, animation, false); },
-            setSkin: (skin) => { if (open) controller.setSkin(instanceId, skin); },
-            advance: (dt) => { if (open) controller.advanceAndApply(instanceId, dt); },
+            play: (animation) => {
+                if (!open) return;
+                controller.play(instanceId, animation, false);
+                pendingDt = 0;
+                owed = true;
+            },
+            setSkin: (skin) => { if (open) { controller.setSkin(instanceId, skin); owed = true; } },
+            advance: (dt) => {
+                if (!open) return;
+                controller.advanceAndApply(instanceId, dt);
+                pendingDt += dt;
+                owed = true;
+            },
             duration: (animation) =>
                 (open ? Math.max(0, controller.animationDuration(skelHandle, animation)) : 0),
-            clipBudget: () => (open ? controller.clipBudget(instanceId) : null),
-            forEachMeshBatch: (cb) => { if (open) controller.forEachMeshBatch(instanceId, cb); },
+            clipBudget: () => { if (!open) return null; resolve(); return controller.clipBudget(instanceId); },
+            forEachMeshBatch: (cb) => {
+                if (!open) return;
+                // Asking for the geometry IS the demand for the world pose.
+                resolve();
+                controller.forEachMeshBatch(instanceId, cb);
+            },
             dispose: () => {
                 if (!open) return;
                 open = false;
