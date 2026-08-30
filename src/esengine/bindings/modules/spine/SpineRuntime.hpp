@@ -175,7 +175,31 @@ void setMixDuration(Skeleton* skeleton, const char* from, const char* to, float 
 // --- instances -------------------------------------------------------------
 
 Instance* createInstance(Skeleton* skeleton);
+/**
+ * Advance the animation clock onto the bones' LOCAL transforms — track time,
+ * mixing, events, attachment and draw-order timelines, none of it world space.
+ * A fifth of a pose, so nothing that skips frames should skip this.
+ */
+void advanceAndApply(Instance* instance, float dt);
+
+/**
+ * Resolve the bones' WORLD transforms from the local ones, constraints and all:
+ * four fifths of a pose, and the only part a frame nobody sees has no use for.
+ * `dt` is read only where the skeleton carries stateful physics — see
+ * {@link requiresContinuousWorldPose} for when deferring this is the same thing.
+ */
+void materializeWorldPose(Instance* instance, float dt);
+
+/** {@link advanceAndApply} then {@link materializeWorldPose} — a whole frame. */
 void update(Instance* instance, float dt);
+
+/**
+ * Whether this skeleton's world pose carries state from the last one, so it may
+ * never be deferred. The runtime answers for its own version rather than a
+ * caller reasoning about which constraints a Spine release has: IK, transform
+ * and path solve the current local pose; physics integrates, and cannot.
+ */
+bool requiresContinuousWorldPose(const Skeleton* skeleton);
 
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track);
 bool addAnimation(Instance* instance, const char* animation, bool loop, float delay, int track);

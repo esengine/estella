@@ -211,10 +211,40 @@ EMSCRIPTEN_KEEPALIVE
 void spine_update(int instanceId, float dt) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return;
-
+    // The composition lives in the runtime beside the two halves, so there is
+    // one definition of what a whole frame is rather than one here as well.
     g_ctx.events.clear();
-
     es::spine::update(instance, dt);
+}
+
+/**
+ * Advance the animation clock and apply it to the bones' LOCAL transforms —
+ * everything an animation means, and nothing about where it is in the world.
+ * The events this produced are queued here, so a caller drains them whether or
+ * not it goes on to materialize a world pose.
+ */
+EMSCRIPTEN_KEEPALIVE
+void spine_advanceAndApply(int instanceId, float dt) {
+    auto* instance = g_ctx.instanceOf(instanceId);
+    if (!instance) return;
+    g_ctx.events.clear();
+    es::spine::advanceAndApply(instance, dt);
+}
+
+/**
+ * Resolve the world transforms the local pose implies. Deferring it past an
+ * advance is only equivalent where the skeleton says so — see
+ * {@link spine_requiresContinuousWorldPose}.
+ */
+EMSCRIPTEN_KEEPALIVE
+void spine_materializeWorldPose(int instanceId, float dt) {
+    es::spine::materializeWorldPose(g_ctx.instanceOf(instanceId), dt);
+}
+
+/** 1 where this skeleton's world pose carries state and may not be deferred. */
+EMSCRIPTEN_KEEPALIVE
+int spine_requiresContinuousWorldPose(int skeletonHandle) {
+    return es::spine::requiresContinuousWorldPose(g_ctx.skeletonOf(skeletonHandle)) ? 1 : 0;
 }
 
 // =============================================================================

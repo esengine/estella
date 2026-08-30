@@ -21,6 +21,9 @@ export interface SpineWasmModule {
     _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
     _spine_setSkin(instanceId: number, name: number): void;
     _spine_update(instanceId: number, dt: number): void;
+    _spine_advanceAndApply(instanceId: number, dt: number): void;
+    _spine_materializeWorldPose(instanceId: number, dt: number): void;
+    _spine_requiresContinuousWorldPose(skeletonHandle: number): number;
 
     _spine_getAnimations(instanceId: number): number;
     _spine_getSkins(instanceId: number): number;
@@ -93,6 +96,16 @@ export interface SpineWrappedAPI {
     addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
     setSkin(instanceId: number, name: string): void;
     update(instanceId: number, dt: number): void;
+
+    /**
+     * The two halves {@link update} is made of. Advancing is what an animation
+     * MEANS — track time, mixing, events, attachments — and materializing is
+     * where those local transforms become world ones. Only the second is worth
+     * skipping, and only where {@link requiresContinuousWorldPose} says it may be.
+     */
+    advanceAndApply(instanceId: number, dt: number): void;
+    materializeWorldPose(instanceId: number, dt: number): void;
+    requiresContinuousWorldPose(skeletonHandle: number): number;
     getAnimations(instanceId: number): string;
     getSkins(instanceId: number): string;
     getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
@@ -165,6 +178,9 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         addAnimation: cw('spine_addAnimation', 'number', ['number', 'string', 'number', 'number', 'number']) as SpineWrappedAPI['addAnimation'],
         setSkin: cw('spine_setSkin', null, ['number', 'string']) as SpineWrappedAPI['setSkin'],
         update: cw('spine_update', null, ['number', 'number']) as SpineWrappedAPI['update'],
+        advanceAndApply: cw('spine_advanceAndApply', null, ['number', 'number']) as SpineWrappedAPI['advanceAndApply'],
+        materializeWorldPose: cw('spine_materializeWorldPose', null, ['number', 'number']) as SpineWrappedAPI['materializeWorldPose'],
+        requiresContinuousWorldPose: cw('spine_requiresContinuousWorldPose', 'number', ['number']) as SpineWrappedAPI['requiresContinuousWorldPose'],
         getAnimations: cw('spine_getAnimations', 'string', ['number']) as SpineWrappedAPI['getAnimations'],
         getSkins: cw('spine_getSkins', 'string', ['number']) as SpineWrappedAPI['getSkins'],
         getBonePosition: cw('spine_getBonePosition', 'number', ['number', 'string', 'number', 'number']) as SpineWrappedAPI['getBonePosition'],

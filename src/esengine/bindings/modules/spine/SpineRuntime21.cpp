@@ -336,11 +336,26 @@ Instance* createInstance(Skeleton* skeleton) {
     return instance.release();
 }
 
-void update(Instance* instance, float dt) {
+void advanceAndApply(Instance* instance, float dt) {
     if (!instance) return;
     spAnimationState_update(instance->state, dt);
     spAnimationState_apply(instance->state, instance->skeleton);
+}
+
+void materializeWorldPose(Instance* instance, float dt) {
+    if (!instance) return;
+    (void)dt;
     spSkeleton_updateWorldTransform(instance->skeleton);
+}
+
+void update(Instance* instance, float dt) {
+    advanceAndApply(instance, dt);
+    materializeWorldPose(instance, dt);
+}
+
+bool requiresContinuousWorldPose(const Skeleton*) {
+    // 2.1 has no constraint that carries state across a pose.
+    return false;
 }
 
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {

@@ -284,16 +284,36 @@ Instance* createInstance(Skeleton* skeleton) {
     return instance.release();
 }
 
-void update(Instance* instance, float dt) {
+void advanceAndApply(Instance* instance, float dt) {
     if (!instance) return;
     spAnimationState_update(instance->state, dt);
     spAnimationState_apply(instance->state, instance->skeleton);
+}
+
+void materializeWorldPose(Instance* instance, float dt) {
+    if (!instance) return;
 #if ES_SPINE_VERSION >= 42
-    // 4.2 skeletons carry physics constraints, which advance with the clock.
+    // 4.2 skeletons carry physics constraints, which advance with the clock —
+    // which is exactly why a skeleton that has any may not defer this.
     spSkeleton_update(instance->skeleton, dt);
     spSkeleton_updateWorldTransform(instance->skeleton, SP_PHYSICS_UPDATE);
 #else
+    (void)dt;
     spSkeleton_updateWorldTransform(instance->skeleton);
+#endif
+}
+
+void update(Instance* instance, float dt) {
+    advanceAndApply(instance, dt);
+    materializeWorldPose(instance, dt);
+}
+
+bool requiresContinuousWorldPose(const Skeleton* skeleton) {
+    if (!skeleton || !skeleton->data) return false;
+#if ES_SPINE_VERSION >= 42
+    return skeleton->data->physicsConstraintsCount > 0;
+#else
+    return false;
 #endif
 }
 

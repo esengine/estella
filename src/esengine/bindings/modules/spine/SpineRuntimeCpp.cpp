@@ -28,6 +28,7 @@
 #include "./SpineRuntime.hpp"
 
 #include <spine/spine.h>
+#include <spine/PhysicsConstraintData.h>
 #include <spine/SkeletonRenderer.h>
 
 #include <vector>
@@ -225,12 +226,32 @@ Instance* createInstance(Skeleton* skeleton) {
     return instance.release();
 }
 
-void update(Instance* instance, float dt) {
+void advanceAndApply(Instance* instance, float dt) {
     if (!instance) return;
     instance->state->update(dt);
     instance->state->apply(*instance->skeleton);
+}
+
+void materializeWorldPose(Instance* instance, float dt) {
+    if (!instance) return;
     instance->skeleton->update(dt);
     instance->skeleton->updateWorldTransform(sp::Physics_Update);
+}
+
+void update(Instance* instance, float dt) {
+    advanceAndApply(instance, dt);
+    materializeWorldPose(instance, dt);
+}
+
+bool requiresContinuousWorldPose(const Skeleton* skeleton) {
+    if (!skeleton || !skeleton->data) return false;
+    // 4.3 keeps one constraint list and tells them apart by spine's own RTTI,
+    // which is what this build has instead of the compiler's.
+    sp::Array<sp::ConstraintData*>& constraints = skeleton->data->getConstraints();
+    for (size_t i = 0; i < constraints.size(); ++i) {
+        if (constraints[i]->getRTTI().instanceOf(sp::PhysicsConstraintData::rtti)) return true;
+    }
+    return false;
 }
 
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {

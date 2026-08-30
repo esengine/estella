@@ -89,6 +89,15 @@ int spine_probe_extract(int instanceId, int stage, int useCollector);
 // The twenty-four counters of the last probe run, into as many u32 slots.
 void spine_probe_counts(uint32_t* out);
 
+// Advance the animation clock and apply it to the bones' LOCAL transforms.
+void spine_advanceAndApply(int instanceId, float dt);
+
+// Resolve the world transforms the local pose implies.
+void spine_materializeWorldPose(int instanceId, float dt);
+
+// 1 where this skeleton's world pose carries state and may not be deferred.
+int spine_requiresContinuousWorldPose(int skeletonHandle);
+
 // The skeleton's authored extent, into four floats. No instance, no pose.
 int spine_getSkeletonBounds(int skeletonHandle, uintptr_t outXPtr, uintptr_t outYPtr,
                             uintptr_t outWPtr, uintptr_t outHPtr);
