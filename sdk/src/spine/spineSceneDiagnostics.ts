@@ -28,6 +28,8 @@
 import type { SpineVersion } from '../sideModules/registry';
 import type { SpineCullingEnvelope } from './spineBounds';
 import type { SpinePair } from './prepareSpine';
+import type { SpineClipBudget } from './spineMetrics';
+import type { MeshBatchVisitor } from '../skeletal/meshBatches';
 import type { SpineAbiCounts, SpineByteCounts, SpineFrameMetrics,
               SpineTimeWindow } from './spineMetrics';
 
@@ -392,4 +394,23 @@ export function formatSpineDiagnostics(d: SpineSceneDiagnostics): string {
     if (d.findings.length > 0) lines.push('');
     for (const finding of d.findings) lines.push(...wrapped('  * ', sentence(finding)));
     return lines.join('\n');
+}
+
+/**
+ * One skeleton an editor poses itself: outside the frame's tick and its submit,
+ * driven only by whoever opened it. The batch walk is the SAME one a scene
+ * entity's geometry crosses — a preview posed another way draws another thing.
+ */
+export interface SpinePreviewInstance {
+    animations(): string[];
+    skins(): string[];
+    /** Start `animation` from its beginning, unlooped — the caller owns the clock. */
+    play(animation: string): void;
+    setSkin(skin: string): void;
+    advance(dt: number): void;
+    duration(animation: string): number;
+    /** What clipping costs in the pose it is standing in. */
+    clipBudget(): SpineClipBudget | null;
+    forEachMeshBatch(visit: MeshBatchVisitor): void;
+    dispose(): void;
 }

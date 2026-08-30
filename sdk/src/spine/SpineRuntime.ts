@@ -31,7 +31,7 @@ import { mayDeferWorldPose, scanObservedBounds } from './spineBounds';
 import type { SpineBoundsSource } from './spineBounds';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { withScratch } from '../wasm/wasmScratch';
-import type { SpineResidencyFacts } from './spineSceneDiagnostics';
+import type { SpineResidencyFacts, SpinePreviewInstance } from './spineSceneDiagnostics';
 
 /**
  * What a camera said about an entity. `unknown` is not a no — it is the absence
@@ -402,6 +402,43 @@ export class SpineRuntime {
         return {
             culling: residency.culling,
             requiresContinuousWorldPose: residency.requiresContinuousWorldPose,
+        };
+    }
+
+    /**
+     * A skeleton posed by nobody but its caller.
+     *
+     * Outside `entities_` on purpose — the map `updateAll` and the submit both
+     * walk — so a preview is never advanced or drawn by the frame. What it gives
+     * back is the same instance and the same batch walk a scene entity gets.
+     */
+    openPreview(era: SpineEraBinding): SpinePreviewInstance | null {
+        const skelHandle = this.claimSkeleton_(era);
+        if (skelHandle < 0) return null;
+        const instanceId = this.controller_.createInstance(skelHandle);
+        if (instanceId < 0) {
+            log.error('spine', `Failed to create preview instance: ${this.controller_.getLastError()}`);
+            this.releaseSkeleton_({ skelHandle, era: era.id } as EntityInfo);
+            return null;
+        }
+        const controller = this.controller_;
+        let open = true;
+        return {
+            animations: () => (open ? controller.getAnimations(instanceId) : []),
+            skins: () => (open ? controller.getSkins(instanceId) : []),
+            play: (animation) => { if (open) controller.play(instanceId, animation, false); },
+            setSkin: (skin) => { if (open) controller.setSkin(instanceId, skin); },
+            advance: (dt) => { if (open) controller.advanceAndApply(instanceId, dt); },
+            duration: (animation) =>
+                (open ? Math.max(0, controller.animationDuration(skelHandle, animation)) : 0),
+            clipBudget: () => (open ? controller.clipBudget(instanceId) : null),
+            forEachMeshBatch: (cb) => { if (open) controller.forEachMeshBatch(instanceId, cb); },
+            dispose: () => {
+                if (!open) return;
+                open = false;
+                controller.destroyInstance(instanceId);
+                this.releaseSkeleton_({ skelHandle, era: era.id } as EntityInfo);
+            },
         };
     }
 

@@ -10,7 +10,7 @@ import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
 import type { SpineClipBudget } from './spineMetrics';
 import { spineSceneDiagnostics } from './spineSceneDiagnostics';
-import type { SpineSceneDiagnostics } from './spineSceneDiagnostics';
+import type { SpineSceneDiagnostics, SpinePreviewInstance } from './spineSceneDiagnostics';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { log } from '../util/logger';
 
@@ -162,6 +162,21 @@ export class SpineManager {
     observe(on: boolean): void {
         this.observing_ = on;
         for (const runtime of this.runtimes_.values()) runtime.observe(on);
+    }
+
+    /**
+     * Open a skeleton for an editor to pose itself, outside this manager's
+     * bindings: it is never advanced by `updateAnimations` and never drawn by
+     * `submitMeshes`. Null when the era's version has no runtime here.
+     */
+    async openPreview(era: SpineEraBinding): Promise<SpinePreviewInstance | null> {
+        const { skelData } = era.value;
+        const version = typeof skelData === 'string'
+            ? SpineManager.detectVersionJson(skelData)
+            : SpineManager.detectVersion(skelData);
+        if (!version) return null;
+        const runtime = await this.ensureRuntime(version);
+        return runtime ? runtime.openPreview(era) : null;
     }
 
     /** Whether anything is counting. */

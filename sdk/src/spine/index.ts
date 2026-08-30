@@ -24,6 +24,7 @@ export { spineSceneDiagnostics, formatSpineDiagnostics } from './spineSceneDiagn
 export type {
     SpineSceneDiagnostics, SpineAssetDiagnostic, SpineFinding, SpineFindingCode,
     SpineDeferralBlocker, SpinePoseTotals, SpineResidencyFacts, SpineDiagnosticRuntime,
+    SpinePreviewInstance,
 } from './spineSceneDiagnostics';
 // Shared spine scene loader — the editor loads spine entities through the same
 // single implementation the builder runtime uses (see ./loadSpineScene).
