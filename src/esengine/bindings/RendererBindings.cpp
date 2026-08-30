@@ -38,6 +38,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <cstring>
 #include <utility>
 
 namespace esengine {
@@ -972,6 +973,67 @@ bool renderer_takeFrameCapture(u32 handle, uintptr_t dest, u32 destSize) {
         for (u32 i = 0; i + 3 < destSize; i += 4) std::swap(px[i], px[i + 2]);
     }
     return true;
+}
+
+u32 renderer_createSkeletalPreview(i32 w, i32 h) {
+    if (!g_renderFrame || w <= 0 || h <= 0) return 0;
+    return static_cast<u32>(g_renderFrame->createSkeletalPreview(
+        static_cast<u32>(w), static_cast<u32>(h)));
+}
+
+i32 renderer_submitSkeletalPreviewBatch(
+    u32 preview,
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode, uintptr_t transformPtr,
+    i32 layer, f32 depth, u32 materialId
+) {
+    if (!g_renderFrame || vertexCount < 0 || indexCount < 0) return 0;
+    // Skeletal vertex format is x,y,u,v,r,g,b,a (8 floats per vertex).
+    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8,
+                                       "renderer_submitSkeletalPreviewBatch.vertices");
+    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount),
+                                      "renderer_submitSkeletalPreviewBatch.indices");
+    auto* transform = boundarySpan<f32>(transformPtr, 16,
+                                        "renderer_submitSkeletalPreviewBatch.transform");
+    if (!vertices || !indices || !transform) return 0;
+    return g_renderFrame->submitSkeletalPreviewBatch(
+        preview, vertices, vertexCount, indices, indexCount,
+        textureId, blendMode, transform, layer, depth, materialId) ? 1 : 0;
+}
+
+i32 renderer_renderSkeletalPreview(u32 preview, uintptr_t viewProjectionPtr) {
+    if (!g_renderFrame) return 0;
+    auto* vp = boundarySpan<f32>(viewProjectionPtr, 16, "renderer_renderSkeletalPreview.vp");
+    if (!vp) return 0;
+    glm::mat4 viewProjection{1.0f};
+    std::memcpy(&viewProjection[0][0], vp, sizeof(f32) * 16);
+    return g_renderFrame->renderSkeletalPreview(preview, viewProjection) ? 1 : 0;
+}
+
+i32 renderer_pollSkeletalPreview(u32 preview) {
+    return g_renderFrame ? g_renderFrame->pollSkeletalPreview(preview) : 2;
+}
+
+uintptr_t renderer_getSkeletalPreviewPtr(u32 preview) {
+    return g_renderFrame
+        ? reinterpret_cast<uintptr_t>(g_renderFrame->skeletalPreviewPixels(preview)) : 0;
+}
+
+u32 renderer_getSkeletalPreviewSize(u32 preview) {
+    return g_renderFrame ? g_renderFrame->skeletalPreviewSize(preview) : 0;
+}
+
+u32 renderer_getSkeletalPreviewWidth(u32 preview) {
+    return g_renderFrame ? g_renderFrame->skeletalPreviewWidth(preview) : 0;
+}
+
+u32 renderer_getSkeletalPreviewHeight(u32 preview) {
+    return g_renderFrame ? g_renderFrame->skeletalPreviewHeight(preview) : 0;
+}
+
+void renderer_destroySkeletalPreview(u32 preview) {
+    if (g_renderFrame) g_renderFrame->destroySkeletalPreview(preview);
 }
 
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {

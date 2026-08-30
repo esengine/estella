@@ -542,6 +542,20 @@ export interface ESEngineModule {
     renderer_getSnapshotWidth(): number;
     renderer_getSnapshotHeight(): number;
     renderer_renderMaterialPreview(materialId: number, w: number, h: number): void;
+    /** A skeletal preview, owned by its handle: every call names one, so two of
+     *  them cannot reach each other and there is no "current" preview. */
+    renderer_createSkeletalPreview(w: number, h: number): number;
+    renderer_submitSkeletalPreviewBatch(
+        preview: number, verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number, textureId: number, blendMode: number,
+        transformPtr: number, layer: number, depth: number, materialId: number): number;
+    renderer_renderSkeletalPreview(preview: number, viewProjectionPtr: number): number;
+    renderer_pollSkeletalPreview(preview: number): number;
+    renderer_getSkeletalPreviewPtr(preview: number): number;
+    renderer_getSkeletalPreviewSize(preview: number): number;
+    renderer_getSkeletalPreviewWidth(preview: number): number;
+    renderer_getSkeletalPreviewHeight(preview: number): number;
+    renderer_destroySkeletalPreview(preview: number): void;
     renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
     /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */
     renderer_pollPreviewReadback(): number;

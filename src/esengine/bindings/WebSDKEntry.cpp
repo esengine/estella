@@ -705,6 +705,17 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
     emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
     emscripten::function("renderer_renderMaterialPreview", &esengine::renderer_renderMaterialPreview);
+    // Skeletal previews. Every one names its handle — there is no current preview
+    // and no begin/end pair, so two of them cannot reach each other.
+    emscripten::function("renderer_createSkeletalPreview", &esengine::renderer_createSkeletalPreview);
+    emscripten::function("renderer_submitSkeletalPreviewBatch", &esengine::renderer_submitSkeletalPreviewBatch);
+    emscripten::function("renderer_renderSkeletalPreview", &esengine::renderer_renderSkeletalPreview);
+    emscripten::function("renderer_pollSkeletalPreview", &esengine::renderer_pollSkeletalPreview);
+    emscripten::function("renderer_getSkeletalPreviewPtr", &esengine::renderer_getSkeletalPreviewPtr);
+    emscripten::function("renderer_getSkeletalPreviewSize", &esengine::renderer_getSkeletalPreviewSize);
+    emscripten::function("renderer_getSkeletalPreviewWidth", &esengine::renderer_getSkeletalPreviewWidth);
+    emscripten::function("renderer_getSkeletalPreviewHeight", &esengine::renderer_getSkeletalPreviewHeight);
+    emscripten::function("renderer_destroySkeletalPreview", &esengine::renderer_destroySkeletalPreview);
     emscripten::function("renderer_renderMeshPreview", &esengine::renderer_renderMeshPreview);
     emscripten::function("renderer_pollPreviewReadback", &esengine::renderer_pollPreviewReadback);
     emscripten::function("renderer_getPreviewPtr", &esengine::renderer_getPreviewPtr);

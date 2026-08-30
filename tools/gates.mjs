@@ -134,6 +134,9 @@ export const GATES = [
   { id: 'tilemap-realm', run: 'node tools/check-tilemap-realm.mjs' },
   // The five spine lifetime invariants, each with the judgment that proves it:
   // what they replaced were teardown protocols, and a protocol comes back quietly.
+  // An offscreen preview is addressed by its handle, never entered: no current
+  // preview, no begin/end pair, and batches that own their bytes.
+  { id: 'preview-ownership', run: 'node tools/check-preview-ownership.mjs' },
   { id: 'spine-lifetimes', run: 'node tools/check-spine-lifetimes.mjs' },
   // The profiler's spine section renders the realm's report and computes none
   // of it: one side measures a frame, or two of them disagree about it.

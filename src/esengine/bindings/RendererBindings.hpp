@@ -162,6 +162,23 @@ u32 renderer_getSnapshotSize();
 u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
+// A skeletal preview is owned by whoever created it: every call names the
+// handle, so two of them cannot reach each other and there is no "current" one.
+u32 renderer_createSkeletalPreview(i32 w, i32 h);
+i32 renderer_submitSkeletalPreviewBatch(
+    u32 preview,
+    uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount,
+    u32 textureId, i32 blendMode, uintptr_t transformPtr,
+    i32 layer, f32 depth, u32 materialId);
+i32 renderer_renderSkeletalPreview(u32 preview, uintptr_t viewProjectionPtr);
+i32 renderer_pollSkeletalPreview(u32 preview);
+uintptr_t renderer_getSkeletalPreviewPtr(u32 preview);
+u32 renderer_getSkeletalPreviewSize(u32 preview);
+u32 renderer_getSkeletalPreviewWidth(u32 preview);
+u32 renderer_getSkeletalPreviewHeight(u32 preview);
+void renderer_destroySkeletalPreview(u32 preview);
+
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h);
 void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h);
 i32 renderer_pollPreviewReadback();

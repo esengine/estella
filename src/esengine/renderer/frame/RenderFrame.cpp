@@ -18,7 +18,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
+#include <utility>
 #include <vector>
 
 namespace esengine {
@@ -603,16 +605,22 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 }
 
 void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
+    renderSurface(registry, viewProjection, preview_, w, h, {});
+}
+
+void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewProjection,
+                                PreviewSurface& surface, u32 w, u32 h,
+                                std::span<const PendingSkeletalBatch> extraSkeletalBatches) {
     if (w == 0 || h == 0) return;
     if (!device_.isDeviceUsable()) return;
 
-    if (preview_rt_ == 0) {
-        preview_rt_ = target_manager_.create(w, h, /*depth=*/false, /*linearFilter=*/false);
-    } else if (auto* existing = target_manager_.get(preview_rt_);
+    if (surface.target == 0) {
+        surface.target = target_manager_.create(w, h, /*depth=*/false, /*linearFilter=*/false);
+    } else if (auto* existing = target_manager_.get(surface.target);
                existing && (existing->getWidth() != w || existing->getHeight() != h)) {
         existing->resize(w, h);
     }
-    auto* rt = target_manager_.get(preview_rt_);
+    auto* rt = target_manager_.get(surface.target);
     if (!rt) return;
 
     RenderPassDesc previewPass{rt->getFramebuffer(), /*clearColor=*/true};
@@ -633,6 +641,16 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
 
     collectAll(registry);
 
+    // AFTER the collect, because the clear above would have eaten them. Geometry
+    // a caller posed itself and handed over, replayed through the one skeletal
+    // path a scene's batches take.
+    for (const auto& batch : extraSkeletalBatches) {
+        submitSkeletalBatch(batch.vertices.data(), static_cast<i32>(batch.vertices.size() / 8),
+                            batch.indices.data(), static_cast<i32>(batch.indices.size()),
+                            batch.textureId, batch.blendMode, &batch.transform[0][0],
+                            batch.entity, batch.layer, batch.depth, batch.materialId);
+    }
+
     draw_list_.finalize(pool_);
     pool_.upload();
     context_.updateCameraConstants(viewProjection);
@@ -645,19 +663,124 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
     device_.invalidatePipelineCache();
 
     // Async readback seam (same shape as the replay snapshot above).
-    if (preview_readback_ != ReadbackHandle::Invalid) device_.discardReadback(preview_readback_);
-    preview_w_ = w;
-    preview_h_ = h;
-    preview_pixels_.clear();
-    preview_readback_ = device_.requestReadback(rt->getFramebuffer(), w, h);
+    if (surface.readback != ReadbackHandle::Invalid) device_.discardReadback(surface.readback);
+    surface.width = w;
+    surface.height = h;
+    surface.pixels.clear();
+    surface.readback = device_.requestReadback(rt->getFramebuffer(), w, h);
 }
 
 i32 RenderFrame::pollSnapshotReadback() {
     return pollReadback(snapshot_readback_, snapshot_pixels_, snapshot_w_, snapshot_h_);
 }
 
+RenderFrame::SkeletalPreview* RenderFrame::skeletalPreview(SkeletalPreviewId id) {
+    auto it = skeletal_previews_.find(id);
+    return it == skeletal_previews_.end() ? nullptr : it->second.get();
+}
+
+const RenderFrame::SkeletalPreview* RenderFrame::skeletalPreview(SkeletalPreviewId id) const {
+    auto it = skeletal_previews_.find(id);
+    return it == skeletal_previews_.end() ? nullptr : it->second.get();
+}
+
+RenderFrame::SkeletalPreviewId RenderFrame::createSkeletalPreview(u32 w, u32 h) {
+    if (w == 0 || h == 0) return 0;
+    auto preview = std::make_unique<SkeletalPreview>();
+    // Its own one-entity scene. The transform is identity and stays that way:
+    // where a preview stands is the preview camera's business, and a batch
+    // arrives with its own model matrix.
+    preview->entity = preview->registry.create();
+    preview->registry.emplace<ecs::Transform>(preview->entity);
+    preview->surface.width = w;
+    preview->surface.height = h;
+    const SkeletalPreviewId id = next_skeletal_preview_++;
+    skeletal_previews_.emplace(id, std::move(preview));
+    return id;
+}
+
+bool RenderFrame::submitSkeletalPreviewBatch(
+    SkeletalPreviewId id,
+    const f32* vertices, i32 vertexCount,
+    const u16* indices, i32 indexCount,
+    u32 textureId, i32 blendMode, const f32* transform16,
+    i32 layer, f32 depth, u32 materialId
+) {
+    auto* preview = skeletalPreview(id);
+    if (!preview || !vertices || !indices || vertexCount < 0 || indexCount < 0) return false;
+    PendingSkeletalBatch batch;
+    // COPIED, not referenced: this sits until the next render call, and the
+    // caller's scratch is gone the moment it returns.
+    batch.vertices.assign(vertices, vertices + static_cast<usize>(vertexCount) * 8);
+    batch.indices.assign(indices, indices + static_cast<usize>(indexCount));
+    batch.textureId = textureId;
+    batch.blendMode = blendMode;
+    if (transform16) std::memcpy(&batch.transform[0][0], transform16, sizeof(f32) * 16);
+    batch.entity = preview->entity;
+    batch.layer = layer;
+    batch.depth = depth;
+    batch.materialId = materialId;
+    preview->pending.push_back(std::move(batch));
+    return true;
+}
+
+bool RenderFrame::renderSkeletalPreview(SkeletalPreviewId id, const glm::mat4& viewProjection) {
+    auto* preview = skeletalPreview(id);
+    if (!preview) return false;
+    // One in flight per preview. A second render would land two images for one
+    // camera and leave a caller no way to say which its overlay belongs to.
+    if (preview->surface.readback != ReadbackHandle::Invalid) return false;
+    // Taken before the draw: a render that throws or bails must not leave last
+    // frame's geometry to be drawn again on top of the next one.
+    const auto batches = std::exchange(preview->pending, {});
+    renderSurface(preview->registry, viewProjection, preview->surface,
+                  preview->surface.width, preview->surface.height, batches);
+    return true;
+}
+
+i32 RenderFrame::pollSkeletalPreview(SkeletalPreviewId id) {
+    auto* preview = skeletalPreview(id);
+    if (!preview) return 2;
+    return pollReadback(preview->surface.readback, preview->surface.pixels,
+                        preview->surface.width, preview->surface.height);
+}
+
+const u8* RenderFrame::skeletalPreviewPixels(SkeletalPreviewId id) const {
+    const auto* preview = skeletalPreview(id);
+    return preview ? preview->surface.pixels.data() : nullptr;
+}
+
+u32 RenderFrame::skeletalPreviewSize(SkeletalPreviewId id) const {
+    const auto* preview = skeletalPreview(id);
+    return preview ? static_cast<u32>(preview->surface.pixels.size()) : 0;
+}
+
+u32 RenderFrame::skeletalPreviewWidth(SkeletalPreviewId id) const {
+    const auto* preview = skeletalPreview(id);
+    return preview ? preview->surface.width : 0;
+}
+
+u32 RenderFrame::skeletalPreviewHeight(SkeletalPreviewId id) const {
+    const auto* preview = skeletalPreview(id);
+    return preview ? preview->surface.height : 0;
+}
+
+void RenderFrame::destroySkeletalPreview(SkeletalPreviewId id) {
+    auto it = skeletal_previews_.find(id);
+    if (it == skeletal_previews_.end()) return;
+    // Logical ownership ends now; the device's outstanding work is handed back
+    // the same way every other readback is, so nothing lands in freed pixels.
+    auto& surface = it->second->surface;
+    if (surface.readback != ReadbackHandle::Invalid) {
+        device_.discardReadback(surface.readback);
+        surface.readback = ReadbackHandle::Invalid;
+    }
+    if (surface.target != 0) target_manager_.release(surface.target);
+    skeletal_previews_.erase(it);
+}
+
 i32 RenderFrame::pollPreviewReadback() {
-    return pollReadback(preview_readback_, preview_pixels_, preview_w_, preview_h_);
+    return pollReadback(preview_.readback, preview_.pixels, preview_.width, preview_.height);
 }
 
 i32 RenderFrame::pollReadback(ReadbackHandle& handle, std::vector<u8>& pixels, u32 w, u32 h) {

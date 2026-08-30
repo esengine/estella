@@ -23,6 +23,8 @@
 #include "../../resource/ResourceManager.hpp"
 
 #include <glm/glm.hpp>
+#include <span>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <memory>
@@ -172,6 +174,41 @@ public:
     );
 
     /**
+     * @brief One offscreen render's resources, correct only together.
+     *
+     * @details Loose, they were one slot: two previews in flight overwrote each
+     *          other's target, readback and pixels. As an object, a caller with
+     *          its own preview owns its own surface.
+     */
+    struct PreviewSurface {
+        RenderTargetManager::Handle target = 0;
+        ReadbackHandle readback = ReadbackHandle::Invalid;
+        std::vector<u8> pixels;
+        u32 width = 0;
+        u32 height = 0;
+    };
+
+    /**
+     * @brief Skeletal geometry a caller holds until it renders, owning its bytes.
+     *
+     * @details A scene's batches go straight into the frame being built. A
+     *          preview's cross the ABI, wait for a render call, and are replayed
+     *          — so they cannot be spans into the caller's scratch. Owning the
+     *          bytes is what lets `submit` return and the caller reuse its buffer.
+     */
+    struct PendingSkeletalBatch {
+        std::vector<f32> vertices;
+        std::vector<u16> indices;
+        u32 textureId = 0;
+        i32 blendMode = 0;
+        glm::mat4 transform{1.0f};
+        Entity entity{};
+        i32 layer = 0;
+        f32 depth = 0.0f;
+        u32 materialId = 0;
+    };
+
+    /**
      * @brief Batch vertices posed by a skeletal runtime, drawn as one entity's geometry.
      * @details Serves every such runtime — Spine and DragonBones both arrive here — and
      *          links none of them: what crosses is x,y,u,v,r,g,b,a per vertex. @p materialId
@@ -241,13 +278,57 @@ public:
      * viewport exactly. Clobbers the transient draw list/pool, which the next real frame rebuilds.
      */
     void renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h);
-    const u8* getPreviewPixels() const { return preview_pixels_.data(); }
-    u32 getPreviewSize() const { return static_cast<u32>(preview_pixels_.size()); }
-    u32 getPreviewWidth() const { return preview_w_; }
-    u32 getPreviewHeight() const { return preview_h_; }
+    const u8* getPreviewPixels() const { return preview_.pixels.data(); }
+    u32 getPreviewSize() const { return static_cast<u32>(preview_.pixels.size()); }
+    u32 getPreviewWidth() const { return preview_.width; }
+    u32 getPreviewHeight() const { return preview_.height; }
 
     /** Lands the preview's async readback; same 0/1/2 contract as pollSnapshotReadback(). */
     i32 pollPreviewReadback();
+
+    // — Skeletal previews —————————————————————————————————————————————————————
+    // Every call names its handle: no current preview, no mode, no begin/end
+    // pair, so two in flight cannot reach each other whatever the call order.
+
+    /** A skeletal preview's id. Carries a generation, so a destroyed one cannot
+     *  come back pointing at whatever took its slot. */
+    using SkeletalPreviewId = u64;
+
+    /** A preview of @p w×@p h, or 0 when one cannot be made. */
+    SkeletalPreviewId createSkeletalPreview(u32 w, u32 h);
+
+    /** Hand one batch to @p id, which COPIES it: the caller may reuse its
+     *  buffers the moment this returns. False for an id that is not live — a
+     *  stale handle is a mistake worth hearing about, not a no-op. */
+    bool submitSkeletalPreviewBatch(
+        SkeletalPreviewId id,
+        const f32* vertices, i32 vertexCount,
+        const u16* indices, i32 indexCount,
+        u32 textureId, i32 blendMode, const f32* transform16,
+        i32 layer, f32 depth, u32 materialId);
+
+    /**
+     * Draw everything handed to @p id, and start its readback. CONSUMES the
+     * batches, so a render that fails cannot draw last frame's pose again.
+     *
+     * Refused while this preview's readback is in flight — one at a time keeps a
+     * landed image and the camera it was drawn with together.
+     */
+    bool renderSkeletalPreview(SkeletalPreviewId id, const glm::mat4& viewProjection);
+
+    /** Lands @p id's readback: 0 pending, 1 pixels available, 2 nothing to read. */
+    i32 pollSkeletalPreview(SkeletalPreviewId id);
+    const u8* skeletalPreviewPixels(SkeletalPreviewId id) const;
+    u32 skeletalPreviewSize(SkeletalPreviewId id) const;
+    u32 skeletalPreviewWidth(SkeletalPreviewId id) const;
+    u32 skeletalPreviewHeight(SkeletalPreviewId id) const;
+
+    /**
+     * End @p id. Ownership ends here and the id stops answering; the target and
+     * any readback still in the device's hands are released the way every other
+     * one is, so nothing lands in freed memory.
+     */
+    void destroySkeletalPreview(SkeletalPreviewId id);
 
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
     void collectAll(ecs::Registry& registry);
@@ -291,6 +372,17 @@ private:
     // resets @p handle. Returns the 0/1/2 contract of the public poll methods.
     i32 pollReadback(ReadbackHandle& handle, std::vector<u8>& pixels, u32 w, u32 h);
 
+    /**
+     * The collect+execute body every preview shares, with an explicit target.
+     *
+     * @p extraSkeletalBatches replay AFTER `collectAll` — before it the draw
+     * list is cleared and they are dropped. A span, not a callback: a hook here
+     * would become where every future pass is inserted.
+     */
+    void renderSurface(ecs::Registry& registry, const glm::mat4& viewProjection,
+                       PreviewSurface& surface, u32 w, u32 h,
+                       std::span<const PendingSkeletalBatch> extraSkeletalBatches);
+
     Stats stats_;
     /**
      * ONE per frame, spanning the graph. GL's TIME_ELAPSED has a single global
@@ -304,11 +396,21 @@ private:
     ReadbackHandle snapshot_readback_ = ReadbackHandle::Invalid;
     u32 snapshot_w_ = 0;
     u32 snapshot_h_ = 0;
-    std::vector<u8> preview_pixels_;
-    RenderTargetManager::Handle preview_rt_ = 0;
-    ReadbackHandle preview_readback_ = ReadbackHandle::Invalid;
-    u32 preview_w_ = 0;
-    u32 preview_h_ = 0;
+    PreviewSurface preview_;
+
+    /** One editor preview: its own scene, its own surface, its own pending work. */
+    struct SkeletalPreview {
+        ecs::Registry registry;
+        Entity entity{};
+        std::vector<PendingSkeletalBatch> pending;
+        PreviewSurface surface;
+    };
+    std::unordered_map<SkeletalPreviewId, Unique<SkeletalPreview>> skeletal_previews_;
+    /** Never reused, so a destroyed id can only ever be a destroyed id. */
+    SkeletalPreviewId next_skeletal_preview_ = 1;
+
+    SkeletalPreview* skeletalPreview(SkeletalPreviewId id);
+    const SkeletalPreview* skeletalPreview(SkeletalPreviewId id) const;
     bool in_frame_ = false;
     bool flushed_ = false;
     /// Depth state for the capture's attachment — see applySceneDepthNeed.

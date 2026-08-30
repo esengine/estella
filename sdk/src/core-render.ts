@@ -93,6 +93,8 @@ export {
 } from './render/material';
 
 export { renderMeshPreview } from './render/assetPreview';
+export { SkeletalPreview } from './render/skeletalPreview';
+export type { SkeletalPreviewBatch } from './render/skeletalPreview';
 
 export {
     BUILTIN_SHADER_TEMPLATES,
