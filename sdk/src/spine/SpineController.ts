@@ -12,6 +12,7 @@ import { log } from '../util/logger';
 import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { forEachMeshBatch, type MeshBatchVisitor } from '../skeletal/meshBatches';
 import type { SpineClipBudget, SkeletalProbe } from './spineMetrics';
+import type { SpineAABB } from './spineBounds';
 
 export interface RawSpineEvent {
     type: number;
@@ -223,6 +224,28 @@ export class SpineModuleController {
                 vertexAmplification: inputVertices > 0 ? outputVertices / inputVertices : 0,
                 triangleAmplification: charged > 0 ? outputTriangles / charged : 0,
             };
+        });
+    }
+
+    /** Seconds; negative where this skeleton has no such animation. */
+    animationDuration(skeletonHandle: number, animation: string): number {
+        return this.api_.getAnimationDuration(skeletonHandle, animation);
+    }
+
+    /** Whether this skeleton's world pose carries state and may not be deferred. */
+    requiresContinuousWorldPose(skeletonHandle: number): boolean {
+        return !!this.api_.requiresContinuousWorldPose(skeletonHandle);
+    }
+
+    /** What the skeleton was AUTHORED at, in its own space — no instance, no
+     *  pose, and never an authority over culling. See spineBounds. */
+    skeletonBounds(skeletonHandle: number): SpineAABB | null {
+        return withMalloc(this.raw_, 16, (ptr) => {
+            if (!this.api_.getSkeletonBounds(skeletonHandle, ptr, ptr + 4, ptr + 8, ptr + 12)) return null;
+            const f32 = this.raw_.HEAPF32;
+            const at = ptr >> 2;
+            return { minX: f32[at], minY: f32[at + 1],
+                     maxX: f32[at] + f32[at + 2], maxY: f32[at + 1] + f32[at + 3] };
         });
     }
 

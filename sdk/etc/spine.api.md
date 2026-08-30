@@ -105,6 +105,7 @@ static prototype: SpineManager
 ## SpineModuleController — class @experimental
 ```
 addAnimation: (instanceId: number, animation: string, loop?: boolean, delay?: number, track?: number) => boolean
+animationDuration: (skeletonHandle: number, animation: string) => number
 clipBudget: (instanceId: number) => SpineClipBudget | null
 collectEvents: (instanceId: number) => RawSpineEvent[]
 createInstance: (skeletonHandle: number) => number
@@ -125,6 +126,7 @@ listConstraints: (instanceId: number) => ConstraintList
 loadSkeleton: (skelData: Uint8Array | string, atlasText: string, isBinary: boolean) => number
 play: (instanceId: number, animation: string, loop?: boolean, track?: number) => boolean
 raw: SpineWasmModule
+requiresContinuousWorldPose: (skeletonHandle: number) => boolean
 setAtlasPageTexture: (handle: number, pageIndex: number, textureId: number, width: number, height: number) => void
 setAttachment: (instanceId: number, slotName: string, attachmentName: string) => boolean
 setDefaultMix: (skeletonHandle: number, duration: number) => void
@@ -136,6 +138,7 @@ setSkin: (instanceId: number, skinName: string) => void
 setSlotColor: (instanceId: number, slotName: string, r: number, g: number, b: number, a: number) => boolean
 setTrackAlpha: (instanceId: number, track: number, alpha: number) => void
 setTransformConstraintMix: (instanceId: number, name: string, mix: TransformMixData) => boolean
+skeletonBounds: (skeletonHandle: number) => SpineAABB | null
 unloadSkeleton: (handle: number) => void
 update: (instanceId: number, dt: number) => void
 static new (raw: SpineWasmModule, api: SpineWrappedAPI): SpineModuleController

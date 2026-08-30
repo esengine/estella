@@ -353,6 +353,12 @@ void update(Instance* instance, float dt) {
     materializeWorldPose(instance, dt);
 }
 
+float animationDuration(const Skeleton* skeleton, const char* animation) {
+    if (!skeleton || !skeleton->data) return -1.0f;
+    spAnimation* found = spSkeletonData_findAnimation(skeleton->data, animation);
+    return found ? found->duration : -1.0f;
+}
+
 bool requiresContinuousWorldPose(const Skeleton*) {
     // 2.1 has no constraint that carries state across a pose.
     return false;

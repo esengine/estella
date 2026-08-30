@@ -243,6 +243,12 @@ void update(Instance* instance, float dt) {
     materializeWorldPose(instance, dt);
 }
 
+float animationDuration(const Skeleton* skeleton, const char* animation) {
+    if (!skeleton || !skeleton->data) return -1.0f;
+    sp::Animation* found = skeleton->data->findAnimation(animation);
+    return found ? found->getDuration() : -1.0f;
+}
+
 bool requiresContinuousWorldPose(const Skeleton* skeleton) {
     if (!skeleton || !skeleton->data) return false;
     // 4.3 keeps one constraint list and tells them apart by spine's own RTTI,

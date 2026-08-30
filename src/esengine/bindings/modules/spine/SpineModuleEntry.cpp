@@ -241,6 +241,12 @@ void spine_materializeWorldPose(int instanceId, float dt) {
     es::spine::materializeWorldPose(g_ctx.instanceOf(instanceId), dt);
 }
 
+/** How long one animation runs; negative where there is no such animation. */
+EMSCRIPTEN_KEEPALIVE
+float spine_getAnimationDuration(int skeletonHandle, const char* animation) {
+    return es::spine::animationDuration(g_ctx.skeletonOf(skeletonHandle), animation);
+}
+
 /** 1 where this skeleton's world pose carries state and may not be deferred. */
 EMSCRIPTEN_KEEPALIVE
 int spine_requiresContinuousWorldPose(int skeletonHandle) {

@@ -24,6 +24,7 @@ export interface SpineWasmModule {
     _spine_advanceAndApply(instanceId: number, dt: number): void;
     _spine_materializeWorldPose(instanceId: number, dt: number): void;
     _spine_requiresContinuousWorldPose(skeletonHandle: number): number;
+    _spine_getAnimationDuration(skeletonHandle: number, animation: number): number;
 
     _spine_getAnimations(instanceId: number): number;
     _spine_getSkins(instanceId: number): number;
@@ -106,6 +107,8 @@ export interface SpineWrappedAPI {
     advanceAndApply(instanceId: number, dt: number): void;
     materializeWorldPose(instanceId: number, dt: number): void;
     requiresContinuousWorldPose(skeletonHandle: number): number;
+    /** Seconds; negative where the skeleton has no such animation. */
+    getAnimationDuration(skeletonHandle: number, animation: string): number;
     getAnimations(instanceId: number): string;
     getSkins(instanceId: number): string;
     getBonePosition(instanceId: number, bone: string, outXPtr: number, outYPtr: number): boolean;
@@ -181,6 +184,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         advanceAndApply: cw('spine_advanceAndApply', null, ['number', 'number']) as SpineWrappedAPI['advanceAndApply'],
         materializeWorldPose: cw('spine_materializeWorldPose', null, ['number', 'number']) as SpineWrappedAPI['materializeWorldPose'],
         requiresContinuousWorldPose: cw('spine_requiresContinuousWorldPose', 'number', ['number']) as SpineWrappedAPI['requiresContinuousWorldPose'],
+        getAnimationDuration: cw('spine_getAnimationDuration', 'number', ['number', 'string']) as SpineWrappedAPI['getAnimationDuration'],
         getAnimations: cw('spine_getAnimations', 'string', ['number']) as SpineWrappedAPI['getAnimations'],
         getSkins: cw('spine_getSkins', 'string', ['number']) as SpineWrappedAPI['getSkins'],
         getBonePosition: cw('spine_getBonePosition', 'number', ['number', 'string', 'number', 'number']) as SpineWrappedAPI['getBonePosition'],

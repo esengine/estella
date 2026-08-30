@@ -308,6 +308,12 @@ void update(Instance* instance, float dt) {
     materializeWorldPose(instance, dt);
 }
 
+float animationDuration(const Skeleton* skeleton, const char* animation) {
+    if (!skeleton || !skeleton->data) return -1.0f;
+    spAnimation* found = spSkeletonData_findAnimation(skeleton->data, animation);
+    return found ? found->duration : -1.0f;
+}
+
 bool requiresContinuousWorldPose(const Skeleton* skeleton) {
     if (!skeleton || !skeleton->data) return false;
 #if ES_SPINE_VERSION >= 42

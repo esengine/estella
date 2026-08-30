@@ -201,6 +201,11 @@ void update(Instance* instance, float dt);
  */
 bool requiresContinuousWorldPose(const Skeleton* skeleton);
 
+/** How long one animation runs, so a scan over it can know when it is done
+ *  rather than sampling for a while and hoping. Negative if there is no such
+ *  animation. */
+float animationDuration(const Skeleton* skeleton, const char* animation);
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track);
 bool addAnimation(Instance* instance, const char* animation, bool loop, float delay, int track);
 /** Null or empty restores the default skin. */

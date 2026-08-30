@@ -95,6 +95,9 @@ void spine_advanceAndApply(int instanceId, float dt);
 // Resolve the world transforms the local pose implies.
 void spine_materializeWorldPose(int instanceId, float dt);
 
+// How long one animation runs; negative where there is no such animation.
+float spine_getAnimationDuration(int skeletonHandle, const char* animation);
+
 // 1 where this skeleton's world pose carries state and may not be deferred.
 int spine_requiresContinuousWorldPose(int skeletonHandle);
 

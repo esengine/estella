@@ -46,6 +46,10 @@ export interface SyntheticOptions {
      * turns calls it convex. It is not: the edges cross.
      */
     selfIntersecting?: boolean;
+    /** A second skin whose mesh is four times the size of the default's. */
+    hugeSkin?: boolean;
+    /** A second animation that carries the strip far from where the first does. */
+    farAnimation?: boolean;
     /** An animation that deforms the polygon from convex to concave at 0.5s. */
     deformToConcave?: boolean;
 }
@@ -181,24 +185,38 @@ export function syntheticSkeleton(options: SyntheticOptions): SyntheticSkeleton 
             { name: 'clip', bone: 'root', attachment: 'clip' },
             { name: 'mesh', bone: 'root', attachment: 'mesh' },
         ],
-        skins: [{
-            name: 'default',
-            attachments: {
-                clip: {
-                    clip: { type: 'clipping', end: 'mesh', vertexCount: clip.length / 2, vertices: clip },
-                },
-                mesh: {
-                    mesh: {
-                        type: 'mesh', path: 'white',
-                        uvs: mesh.uvs, triangles: mesh.triangles, vertices: mesh.vertices,
-                        hull: mesh.hull, width: STRIP_WIDTH, height: STRIP_HEIGHT,
-                    },
-                },
-            },
-        }],
-        animations: { idle: options.deformToConcave ? concaveDeform(clip) : {} },
+        skins: skinsOf(options, mesh, clip),
+        animations: options.deformToConcave ? { idle: concaveDeform(clip) }
+            : options.farAnimation ? { near: {}, far: farTravel() } : { idle: {} },
     };
     return { json: JSON.stringify(json), atlas: ATLAS };
+}
+
+/** The default skin, and optionally a second one carrying a far bigger mesh. */
+function skinsOf(options: SyntheticOptions, mesh: ReturnType<typeof strip>,
+                 clip: number[]): unknown[] {
+    const meshAttachment = (scale: number) => ({
+        type: 'mesh', path: 'white',
+        uvs: mesh.uvs, triangles: mesh.triangles,
+        vertices: mesh.vertices.map((v) => v * scale),
+        hull: mesh.hull, width: STRIP_WIDTH * scale, height: STRIP_HEIGHT * scale,
+    });
+    const skins: unknown[] = [{
+        name: 'default',
+        attachments: { clip: { clip: { type: 'clipping', end: 'mesh', vertexCount: clip.length / 2, vertices: clip } },
+                       mesh: { mesh: meshAttachment(1) } },
+    }];
+    if (options.hugeSkin) {
+        skins.push({ name: 'huge', attachments: { mesh: { mesh: meshAttachment(4) } } });
+    }
+    return skins;
+}
+
+/** A bone translation that takes the whole strip well outside the setup pose. */
+function farTravel(): Record<string, unknown> {
+    return {
+        bones: { root: { translate: [{ time: 0, x: 0, y: 0 }, { time: 0.5, x: STRIP_WIDTH, y: STRIP_HEIGHT * 4 }] } },
+    };
 }
 
 /**
