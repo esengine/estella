@@ -38,6 +38,8 @@ void spine_setAtlasPageTexture(int handle, int pageIndex, uint32_t textureId, in
 int spine_createInstance(int skeletonHandle);
 void spine_destroyInstance(int instanceId);
 int spine_playAnimation(int instanceId, const char* name, int loop, int track);
+/** Back to the data's own starting pose, tracks cleared — what a replay starts from. */
+void spine_setToSetupPose(int instanceId);
 int spine_addAnimation(int instanceId, const char* name, int loop, float delay, int track);
 void spine_setSkin(int instanceId, const char* name);
 void spine_update(int instanceId, float dt);

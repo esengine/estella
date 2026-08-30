@@ -206,6 +206,15 @@ bool requiresContinuousWorldPose(const Skeleton* skeleton);
  *  animation. */
 float animationDuration(const Skeleton* skeleton, const char* animation);
 
+/**
+ * Put the skeleton back where its data says it starts, and clear every track.
+ *
+ * `playAnimation` resets nothing, so a bone the new animation does not key keeps
+ * what the last pose left — and replaying to one time twice gives two poses.
+ * This is the one state a run is reproducible from.
+ */
+void setToSetupPose(Instance* instance);
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track);
 bool addAnimation(Instance* instance, const char* animation, bool loop, float delay, int track);
 /** Null or empty restores the default skin. */

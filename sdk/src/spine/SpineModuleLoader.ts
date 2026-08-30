@@ -18,6 +18,7 @@ export interface SpineWasmModule {
     _spine_destroyInstance(instanceId: number): void;
 
     _spine_playAnimation(instanceId: number, name: number, loop: number, track: number): number;
+    _spine_setToSetupPose(instanceId: number): void;
     _spine_addAnimation(instanceId: number, name: number, loop: number, delay: number, track: number): number;
     _spine_setSkin(instanceId: number, name: number): void;
     _spine_update(instanceId: number, dt: number): void;
@@ -94,6 +95,8 @@ export interface SpineWrappedAPI {
     createInstance(skeletonHandle: number): number;
     destroyInstance(instanceId: number): void;
     playAnimation(instanceId: number, name: string, loop: boolean, track: number): boolean;
+    /** Back to the data's own starting pose, tracks cleared — what a replay starts from. */
+    setToSetupPose(instanceId: number): void;
     addAnimation(instanceId: number, name: string, loop: boolean, delay: number, track: number): boolean;
     setSkin(instanceId: number, name: string): void;
     update(instanceId: number, dt: number): void;
@@ -178,6 +181,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         createInstance: cw('spine_createInstance', 'number', ['number']) as SpineWrappedAPI['createInstance'],
         destroyInstance: cw('spine_destroyInstance', null, ['number']) as SpineWrappedAPI['destroyInstance'],
         playAnimation: cw('spine_playAnimation', 'number', ['number', 'string', 'number', 'number']) as SpineWrappedAPI['playAnimation'],
+        setToSetupPose: cw('spine_setToSetupPose', null, ['number']) as SpineWrappedAPI['setToSetupPose'],
         addAnimation: cw('spine_addAnimation', 'number', ['number', 'string', 'number', 'number', 'number']) as SpineWrappedAPI['addAnimation'],
         setSkin: cw('spine_setSkin', null, ['number', 'string']) as SpineWrappedAPI['setSkin'],
         update: cw('spine_update', null, ['number', 'number']) as SpineWrappedAPI['update'],

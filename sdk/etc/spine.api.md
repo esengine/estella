@@ -251,6 +251,7 @@ setPathConstraintMix: (instanceId: number, name: string, mix: PathMixData) => bo
 setSkeletonColor: (instanceId: number, r: number, g: number, b: number, a: number) => boolean
 setSkin: (instanceId: number, skinName: string) => void
 setSlotColor: (instanceId: number, slotName: string, r: number, g: number, b: number, a: number) => boolean
+setToSetupPose: (instanceId: number) => void
 setTrackAlpha: (instanceId: number, track: number, alpha: number) => void
 setTransformConstraintMix: (instanceId: number, name: string, mix: TransformMixData) => boolean
 skeletonBounds: (skeletonHandle: number) => SpineAABB | null

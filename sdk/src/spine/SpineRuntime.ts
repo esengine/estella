@@ -438,6 +438,10 @@ export class SpineRuntime {
             skins: () => (open ? controller.getSkins(instanceId) : []),
             play: (animation) => {
                 if (!open) return;
+                // From the setup pose, every time. Without it a bone this
+                // animation does not key keeps what the last one left, and two
+                // replays of one time are two different poses.
+                controller.setToSetupPose(instanceId);
                 controller.play(instanceId, animation, false);
                 pendingDt = 0;
                 owed = true;

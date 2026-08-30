@@ -131,6 +131,17 @@ export class SpineModuleController {
     // Animation Control
     // =========================================================================
 
+    /**
+     * Back to where the skeleton's data says it starts, every track cleared.
+     *
+     * The one state a replay is reproducible from: `play` resets nothing, so a
+     * bone the next animation does not key keeps whatever the last pose left it
+     * at, and seeking twice to one time gives two poses.
+     */
+    setToSetupPose(instanceId: number): void {
+        this.api_.setToSetupPose(instanceId);
+    }
+
     play(instanceId: number, animation: string, loop: boolean = true, track: number = 0): boolean {
         return !!this.api_.playAnimation(instanceId, animation, loop, track);
     }

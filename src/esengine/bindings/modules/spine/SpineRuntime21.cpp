@@ -364,6 +364,12 @@ bool requiresContinuousWorldPose(const Skeleton*) {
     return false;
 }
 
+void setToSetupPose(Instance* instance) {
+    if (!instance) return;
+    spAnimationState_clearTracks(instance->state);
+    spSkeleton_setToSetupPose(instance->skeleton);
+}
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {
     if (!instance) return false;
     if (!spSkeletonData_findAnimation(instance->skeleton->data, animation)) return false;

@@ -260,6 +260,13 @@ bool requiresContinuousWorldPose(const Skeleton* skeleton) {
     return false;
 }
 
+void setToSetupPose(Instance* instance) {
+    if (!instance) return;
+    instance->state->clearTracks();
+    // 4.3 renamed it; this file is the 4.3 backend.
+    instance->skeleton->setupPose();
+}
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {
     if (!instance) return false;
     // setAnimation takes a reference and asserts on a missing name, so look first.

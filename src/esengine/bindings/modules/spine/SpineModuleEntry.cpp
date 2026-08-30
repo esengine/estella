@@ -192,6 +192,13 @@ void spine_destroyInstance(int instanceId) {
 // Animation Control
 // =============================================================================
 
+/** Back to where the data says the skeleton starts — the one state a replay can
+ *  be reproduced from. See es::spine::setToSetupPose. */
+EMSCRIPTEN_KEEPALIVE
+void spine_setToSetupPose(int instanceId) {
+    es::spine::setToSetupPose(g_ctx.instanceOf(instanceId));
+}
+
 EMSCRIPTEN_KEEPALIVE
 int spine_playAnimation(int instanceId, const char* name, int loop, int track) {
     return es::spine::playAnimation(g_ctx.instanceOf(instanceId), name, loop != 0, track) ? 1 : 0;

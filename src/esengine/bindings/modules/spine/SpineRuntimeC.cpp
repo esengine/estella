@@ -383,6 +383,12 @@ bool poseStage(Instance* instance, float dt, int stage, PoseCounts* counts) {
     return true;
 }
 
+void setToSetupPose(Instance* instance) {
+    if (!instance) return;
+    spAnimationState_clearTracks(instance->state);
+    spSkeleton_setToSetupPose(instance->skeleton);
+}
+
 bool playAnimation(Instance* instance, const char* animation, bool loop, int track) {
     if (!instance) return false;
     // Resolved HERE: spine-c builds a track entry around a null animation and
