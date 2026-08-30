@@ -287,6 +287,15 @@ export interface ESEngineModule {
      * Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
      * vertex, drawn as `entity`'s, with `materialId` resolved as a Sprite's is.
      */
+    /**
+     * Whether the camera being rendered right now would draw this entity's
+     * geometry at the local extent it promises to stay inside. The frame's own
+     * frustum and culling mask — a fact, not a permission.
+     */
+    renderer_entityVisibleToCamera?(
+        registry: CppRegistry, entity: number, layer: number,
+        minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
+
     renderer_submitSkeletalBatchByEntity?(
         registry: CppRegistry,
         verticesPtr: number, vertexCount: number,

@@ -348,6 +348,7 @@ renderer_captureNextFrame: () => void
 renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_diagnose: () => void
 renderer_end: () => void
+renderer_entityVisibleToCamera: ((registry: CppRegistry, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number) => void) | undefined
 renderer_flush: () => void
 renderer_getCapturedCameraCount: () => number
 renderer_getCapturedEntities: () => number

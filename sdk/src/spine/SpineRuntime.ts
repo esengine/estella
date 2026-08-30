@@ -29,6 +29,7 @@ import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitM
 import type { SpineClipBudget } from './spineMetrics';
 import { mayDeferWorldPose } from './spineBounds';
 import type { SpineCullingEnvelope } from './spineBounds';
+import { withScratch } from '../wasm/wasmScratch';
 
 interface EntityInfo {
     skelHandle: number;
@@ -324,6 +325,37 @@ export class SpineRuntime {
     }
 
     /**
+     * Whether the camera in hand would draw this entity, or null where the
+     * question cannot be asked — no certified extent, or a core without the
+     * entry point. Null is not "invisible": an unknown extent makes visibility
+     * unknown, and the only answer a caller may act on is `false`.
+     */
+    private cameraWouldDraw_(
+        core: NonNullable<EngineApi>, registry: CppRegistry, entity: Entity, info: EntityInfo,
+    ): boolean | null {
+        const ask = (core as { renderer_entityVisibleToCamera?: unknown })
+            .renderer_entityVisibleToCamera as
+            | ((r: CppRegistry, e: number, layer: number,
+                minX: number, minY: number, maxX: number, maxY: number, out: number) => void)
+            | undefined;
+        if (!ask) return null;
+        const residency = this.skeletons_.get(info.era);
+        if (!residency || residency.culling.kind !== 'certified') return null;
+
+        const { bounds } = residency.culling;
+        const scale = info.skeletonScale;
+        const heap = core.HEAPU32;
+        if (!heap || !core._malloc || !core._free) return null;
+        return withScratch({ _malloc: core._malloc, _free: core._free }, (alloc) => {
+            const ptr = alloc(4);
+            ask(registry, entity as unknown as number, info.layer,
+                bounds.minX * scale, bounds.minY * scale,
+                bounds.maxX * scale, bounds.maxY * scale, ptr);
+            return heap[ptr >> 2] !== 0;
+        });
+    }
+
+    /**
      * Whether this entity's world pose may be left owed when nothing wants it —
      * both proofs, settled when its residency was made. The scheduler that will
      * use it does not exist yet; a diagnostic asking why can already read the
@@ -415,6 +447,12 @@ export class SpineRuntime {
         const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
+            // What this camera would do with it, asked of the renderer rather
+            // than worked out here. Nothing acts on the answer yet: this pass
+            // still resolves, extracts and submits exactly what it did before.
+            if (m && this.cameraWouldDraw_(core, registry, entity, info) === false) {
+                m.pose.renderCulled++;
+            }
             // The renderer is a consumer of the world pose like any other, and
             // asks for it the same way. Today it is already resolved.
             this.ensurePose(entity);

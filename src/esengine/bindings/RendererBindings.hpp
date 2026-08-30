@@ -34,6 +34,12 @@ void renderer_end();
 #endif
 /// Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
 /// vertex, drawn as @p entity's, with its material resolved as a Sprite's is.
+// Whether the camera being rendered right now would draw this entity's geometry
+// at the local extent it promises to stay inside. A fact, not a permission.
+void renderer_entityVisibleToCamera(
+    ecs::Registry& registry, u32 entity, i32 layer,
+    f32 minX, f32 minY, f32 maxX, f32 maxY, uintptr_t outVisiblePtr);
+
 void renderer_submitSkeletalBatchByEntity(
     ecs::Registry& registry,
     uintptr_t verticesPtr, i32 vertexCount,

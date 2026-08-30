@@ -253,6 +253,16 @@ public:
     void collectAll(ecs::Registry& registry);
 
     /**
+     * @brief Whether the camera being rendered right now would draw something of
+     *        @p layer at these world bounds.
+     *
+     * @details The frame's OWN frustum and culling mask, both set by `begin`
+     *          for the camera in hand — asked rather than reimplemented, so
+     *          geometry from outside `collect` is culled by the same fact.
+     */
+    bool visibleToCamera(i32 layer, const glm::vec3& center, const glm::vec3& halfExtents) const;
+
+    /**
      * Compiled program id for a batch-shader feature variant, compiled+cached on
      * first use. `{}` is the default batch program; `{"SDF"}`
      * is the glyph-atlas SDF text variant. Same vertex layout + sampler/UBO setup

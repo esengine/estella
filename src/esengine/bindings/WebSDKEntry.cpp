@@ -518,6 +518,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     // Every skeletal runtime is a side module; this is the one door their posed
     // geometry comes through, so it belongs to neither of their build flags.
     emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
+    emscripten::function("renderer_entityVisibleToCamera", &esengine::renderer_entityVisibleToCamera);
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);

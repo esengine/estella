@@ -1359,6 +1359,12 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
                       BATCH_QUAD_INDICES, 6, key);
 }
 
+bool RenderFrame::visibleToCamera(i32 layer, const glm::vec3& center,
+                                  const glm::vec3& halfExtents) const {
+    if (!draw_list_.layerVisible(DrawList::layerBit(layer))) return false;
+    return frustum_.intersectsAABB(center, halfExtents);
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
     buildClipState();

@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include "RendererBindings.hpp"
+
+#include <limits>
 #include "../resource/ShaderParser.hpp"
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
@@ -112,6 +114,42 @@ void renderer_submitSkeletalBatchByEntity(
     g_renderFrame->submitSkeletalBatch(
         vertices, vertexCount, indices, indexCount,
         textureId, blendMode, &model[0][0], ent, layer, depth, materialId);
+}
+
+/**
+ * Whether the camera being rendered right now would draw this entity, given the
+ * local extent it promises to stay inside. All four corners are transformed,
+ * because under rotation the result's corners are not the input's. The frustum
+ * and mask are the frame's own — a fact, not a permission.
+ */
+void renderer_entityVisibleToCamera(
+    ecs::Registry& registry, u32 entity, i32 layer,
+    f32 minX, f32 minY, f32 maxX, f32 maxY, uintptr_t outVisiblePtr
+) {
+    auto* out = reinterpret_cast<i32*>(outVisiblePtr);
+    if (!out) return;
+    *out = 1;
+    if (!g_initialized || !g_renderFrame) return;
+    const Entity ent = Entity::fromRaw(entity);
+    if (!registry.has<ecs::Transform>(ent)) return;
+
+    auto& t = registry.get<ecs::Transform>(ent);
+    t.ensureDecomposed();
+    const glm::mat4 model = glm::translate(glm::mat4(1.0f), t.worldPosition)
+                          * glm::mat4_cast(t.worldRotation)
+                          * glm::scale(glm::mat4(1.0f), t.worldScale);
+
+    const glm::vec2 corners[4] = {
+        { minX, minY }, { maxX, minY }, { maxX, maxY }, { minX, maxY },
+    };
+    glm::vec3 lo{std::numeric_limits<f32>::max()};
+    glm::vec3 hi{-std::numeric_limits<f32>::max()};
+    for (const glm::vec2& corner : corners) {
+        const glm::vec4 world = model * glm::vec4(corner.x, corner.y, 0.0f, 1.0f);
+        lo = glm::min(lo, glm::vec3(world));
+        hi = glm::max(hi, glm::vec3(world));
+    }
+    *out = g_renderFrame->visibleToCamera(layer, (lo + hi) * 0.5f, (hi - lo) * 0.5f) ? 1 : 0;
 }
 
 // TS lays out glyph quads against the dynamic SDF atlas and
