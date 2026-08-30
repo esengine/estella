@@ -41,6 +41,29 @@ if (noEditor.length) {
   console.log(`  no editor checkout — not running ${noEditor.length} editor gate(s): ${noEditor.map((g) => g.id).join(', ')}`);
 }
 
+/** What this scope WOULD run, without running it — so the plan can be inspected
+ *  (and checked) without paying for the suite. */
+if (argv.includes('--plan')) {
+  for (const gate of gates) console.log(`  ${gate.id}`);
+  reportSuites();
+  for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`);
+  process.exit(0);
+}
+
+/**
+ * Name the SUITES, not just the count. A line reading "76/76 gates" is heard as
+ * static checks — which is how four broken SDK suites sat behind a green run for
+ * as long as no gate invoked them (see check-verification-authority).
+ */
+function reportSuites() {
+  const suites = gates.filter((g) => g.covers?.length);
+  if (suites.length) console.log(`  test suites run: ${suites.map((g) => g.id).join(', ')}`);
+  const unrun = noEditor.filter((g) => g.covers?.length);
+  if (unrun.length) {
+    console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);
+  }
+}
+
 for (const gate of gates) {
   const r = spawnSync('sh', ['-c', gate.run], { cwd: ROOT, stdio: 'inherit' });
   // A shell that would not start is not a gate that failed. Reported as one it
@@ -62,4 +85,5 @@ for (const gate of gates) {
 
 console.log(`\ngates ${SCOPE}: ${gates.length}/${gates.length} green`
   + (noEditor.length ? ` (${noEditor.length} editor gate(s) had no checkout to run against)` : ''));
+reportSuites();
 for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`);

@@ -26,6 +26,11 @@ export const SCOPES = ['local', 'ci'];
  * `needs: 'editor'` marks a gate whose SUBJECT is the editor. The editor is an
  * optional submodule, so those cannot run in a checkout without one — and a
  * skipped gate has to say so, since silence there reads as a clean bill.
+ *
+ * `covers` names the test directories a gate actually runs, which is what makes
+ * "the full gate suite is green" mean something: check-verification-authority
+ * compares the claim against the directories that HOLD tests, so a suite nothing
+ * invokes is a finding rather than a silence.
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
@@ -74,20 +79,27 @@ export const GATES = [
   // prints "No projects matched the filters" and exits 0, so without a checkout
   // this gate reported success having type-checked nothing at all.
   { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit', needs: 'editor' },
+  { id: 'editor-tests', run: 'pnpm --filter @estella/editor test',
+    needs: 'editor', covers: ['desktop/tests'] },
   // The shipped plugins type-check against the editor's LIVE plugin API surface
   // (types.ts, the file authors are handed), so a change to it that no plugin
   // could survive fails here rather than in someone else's project.
   { id: 'tsc-plugins', run: 'pnpm -r --filter "./plugins/*" exec tsc --noEmit' },
-  { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test' },
+  { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test',
+    covers: ['plugins/audio-mixer/tests', 'plugins/ldtk/tests', 'plugins/minigame-services/tests'] },
   // The engine's own TS suites (pipeline + tooling). They lived in desktop/tests
   // until the editor split, where a checkout without the editor ran none of them.
-  { id: 'engine-tests', run: 'pnpm run test' },
+  { id: 'engine-tests', run: 'pnpm run test', covers: ['pipeline/tests', 'tools/tests'] },
+  // The SDK's own suites. They were run by NOTHING until 2026-08-30: the gate
+  // list said 76/76 while four of them did not compile against the source they
+  // test, and only a hand-run vitest found it.
+  { id: 'sdk-tests', run: 'pnpm --filter ./sdk test', covers: ['sdk/tests'] },
   // The AOT compiler carries its own oracle: a real example system lowered to
   // EIR must move a world exactly the way node moves it.
   // It also compiles the emitted C and requires the same bytes back: natively
   // with any C compiler, and as wasm where emsdk is unpacked. Without either it
   // still passes and PRINTS that the differential did not run — read the log.
-  { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test' },
+  { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test', covers: ['compiler/tests'] },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   // Same shape of rule, other direction: what builds a project may not need the
@@ -102,6 +114,8 @@ export const GATES = [
   // escape hatch has to say what it reaches for or the schedule knows nothing.
   { id: 'system-access', run: 'node tools/check-system-access.mjs' },
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs', needs: 'editor' },
+  // "The full gate suite is green" only means something if every suite is in it.
+  { id: 'verification-authority', run: 'node tools/check-verification-authority.mjs' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-spawn', run: 'node tools/check-tool-spawn.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs', needs: 'editor' },
