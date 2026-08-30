@@ -18,7 +18,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import { spineSceneDiagnostics, formatSpineDiagnostics } from '../src/spine/spineSceneDiagnostics';
-import type { SpineFindingCode } from '../src/spine/spineSceneDiagnostics';
+import type { SpineFindingCode, SpineDiagnosticRuntime } from '../src/spine/spineSceneDiagnostics';
+import { newSpineFrameMetrics, SpineTimeWindow } from '../src/spine/spineMetrics';
+import type { SpineVersion } from '../src/spine/SpineManager';
 import { certifyBounds } from '../src/spine/spineBounds';
 import type { SpineCullingEnvelope } from '../src/spine/spineBounds';
 import { fakeSpineModule, fakeSpineEra } from './helpers/fakeSpineModule';
@@ -267,6 +269,76 @@ describe('a scene is every runtime it loaded', () => {
         expect(d.time.total).toBe(13);
         expect(d.pose.logicalUpdates).toBe(7);
         expect(d.assets.map(a => a.version)).toEqual(['4.2', '3.8']);
+        dispose(runtimes);
+    });
+
+    it('keeps each runtime\'s window to itself, because a percentile does not add', () => {
+        const runtimes = scene([
+            { era: 'hero#1', entities: 1, culling: CERTIFIED },
+            { era: 'rope#1', entities: 1, culling: CERTIFIED, stateful: true },
+        ]);
+        for (let i = 0; i < 4; i++) {
+            for (const runtime of runtimes) {
+                runtime.updateAll(DT);
+                runtime.extractAndSubmitMeshes(ALWAYS, {} as never);
+            }
+        }
+
+        const d = spineSceneDiagnostics(runtimes, true);
+        expect(d.runtimes.map(t => t.version)).toEqual(['3.8', '4.2']);
+        // Four frames begun, three of them completed: the one in hand is not a
+        // frame yet, and a window over frames may not contain it.
+        for (const t of d.runtimes) expect(t.frames).toBe(3);
+        dispose(runtimes);
+    });
+});
+
+/** A runtime as the report reads one — the whole seam, so what a frame moved
+ *  can be driven to KNOWN and different numbers. Zeros on both sides would sum
+ *  to zero however the summing was written. */
+function stub(version: SpineVersion, at: number): SpineDiagnosticRuntime {
+    const m = newSpineFrameMetrics();
+    m.frame = at;
+    m.meshBatches = at; m.vertices = at * 10; m.indices = at * 100;
+    m.abi.pose = at * 2; m.abi.world = at * 3; m.abi.batchData = at * 4; m.abi.submit = at * 5;
+    m.abi.batchCount = at * 6; m.abi.vertexCount = at * 7; m.abi.indexCount = at * 8;
+    m.abi.malloc = at * 9; m.abi.free = at * 11;
+    m.bytes.wasmRead = at * 1000; m.bytes.coreWrite = at * 2000; m.bytes.scratchAllocated = at * 3000;
+    m.pose.logicalUpdates = at;
+    const window = () => { const w = new SpineTimeWindow(); w.push(at); return w; };
+    return {
+        version, entityCount: 0,
+        worldPoseDebt: () => 0,
+        residencies: () => [],
+        metrics: () => m,
+        windows: () => ({ pose: window(), readback: window(), total: window() }),
+    };
+}
+
+describe('what a frame moved, not only what it decided', () => {
+    it('sums the crossings and the bytes, so the report needs no second door', () => {
+        // Retiring SpineManager.frameMetrics() is only honest if these survive:
+        // the batch-storage work was argued entirely in bytes moved.
+        const d = spineSceneDiagnostics([stub('3.8', 1), stub('4.2', 2)], true);
+
+        expect(d.geometry).toEqual({ meshBatches: 3, vertices: 30, indices: 300 });
+        expect(d.bytes).toEqual({ wasmRead: 3000, coreWrite: 6000, scratchAllocated: 9000 });
+        expect(d.abi).toEqual({
+            pose: 6, world: 9, batchCount: 18, vertexCount: 21, indexCount: 24,
+            batchData: 12, malloc: 27, free: 33, submit: 15,
+        });
+        expect(d.frame, 'the newest frame any runtime reached').toBe(2);
+        expect(d.runtimes.map(t => t.total.last)).toEqual([1, 2]);
+    });
+
+    it('reports the crossings a real runtime actually made', () => {
+        const runtimes = scene([{ era: 'hero#1', entities: 3, culling: CERTIFIED }]);
+        runtimes[0].updateAll(DT);
+        runtimes[0].extractAndSubmitMeshes(ALWAYS, {} as never);
+
+        const d = spineSceneDiagnostics(runtimes, true);
+        expect(d.abi.pose, 'the advance crossings went missing').toBe(3);
+        expect(d.abi.world, 'the world crossings went missing').toBe(3);
         dispose(runtimes);
     });
 });

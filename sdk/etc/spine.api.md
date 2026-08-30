@@ -107,6 +107,7 @@ entityCount: number
 metrics: () => SpineFrameMetrics | null
 residencies: () => SpineResidencyFacts[]
 version: SpineVersion
+windows: () => { pose: SpineTimeWindow; readback: SpineTimeWindow; total: SpineTimeWindow; }
 worldPoseDebt: () => number
 ```
 
@@ -159,14 +160,12 @@ entities: number
 
 ## SpineManager — class @experimental
 ```
-@internal runtimeForDiagnostics: (version: SpineVersion) => SpineRuntime | undefined
 boundEntities: () => Iterable<Entity>
 clipBudget: (entity: Entity) => SpineClipBudget | null
 collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 diagnostics: () => SpineSceneDiagnostics
 dispose: () => void
 enableEvents: (entity: Entity) => void
-frameMetrics: () => Array<{ version: SpineVersion; metrics: SpineFrameMetrics; }>
 getAnimations: (entity: Entity) => string[]
 getBounds: (entity: Entity) => { x: number; y: number; width: number; height: number; } | null
 getEntityVersion: (entity: Entity) => SpineVersion | undefined
@@ -333,13 +332,17 @@ skins: number
 
 ## SpineSceneDiagnostics — interface @experimental
 ```
+abi: SpineAbiCounts
 assets: SpineAssetDiagnostic[]
+bytes: SpineByteCounts
 deferrable: number
 entities: number
 findings: SpineFinding[]
 frame: number
+geometry: { meshBatches: number; vertices: number; indices: number; }
 observing: boolean
 pose: SpinePoseTotals
+runtimes: SpineRuntimeTiming[]
 time: { pose: number; readback: number; total: number; }
 worldPoseDebt: number
 ```

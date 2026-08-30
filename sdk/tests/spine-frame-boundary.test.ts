@@ -92,6 +92,20 @@ describe('a frame drawn by more than one camera', () => {
         runtime.dispose();
     });
 
+    it('feeds all three windows at one boundary, so they describe one set of frames', () => {
+        const runtime = watched();
+        for (let i = 0; i < 5; i++) {
+            runtime.updateAll(DT);
+            runtime.extractAndSubmitMeshes(camera(), {} as never);
+        }
+
+        const { pose, readback, total } = runtime.windows();
+        expect([pose.size, readback.size, total.size],
+            'a window holds a different set of frames from the one beside it')
+            .toEqual([4, 4, 4]);
+        runtime.dispose();
+    });
+
     it('starts the next frame\'s counts over, however the last one ended', () => {
         const runtime = watched();
         runtime.updateAll(DT);

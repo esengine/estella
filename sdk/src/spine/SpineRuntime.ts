@@ -468,6 +468,7 @@ export class SpineRuntime {
             // extract runs once per camera and no camera knows it was the last,
             // so the window is fed the previous frame, once, from the next one.
             if (m.frame > 0) {
+                this.poseWindow_.push(m.time.pose);
                 this.readbackWindow_.push(m.time.readback);
                 this.totalWindow_.push(m.time.total);
             }
@@ -497,7 +498,6 @@ export class SpineRuntime {
         m.time.pose = performance.now() - started;
         m.entities = this.entities_.size;
         m.residencies = this.skeletons_.size;
-        this.poseWindow_.push(m.time.pose);
     }
 
     /** @param core whichever engine core is present (see ecs/engineApi.ts) — the
@@ -556,8 +556,9 @@ export class SpineRuntime {
         return this.metrics_;
     }
 
-    /** The last 120 frames of each timed phase. A mean hides the frame that
-     *  missed; these say whether one did. */
+    /** The last 120 COMPLETED frames of each timed phase — all three fed at the
+     *  same boundary, so they always describe the same frames. A mean hides the
+     *  frame that missed; these say whether one did. */
     windows(): { pose: SpineTimeWindow; readback: SpineTimeWindow; total: SpineTimeWindow } {
         return { pose: this.poseWindow_, readback: this.readbackWindow_, total: this.totalWindow_ };
     }

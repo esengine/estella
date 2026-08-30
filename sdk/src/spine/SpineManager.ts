@@ -8,7 +8,7 @@ import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } fro
 import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
-import type { SpineClipBudget, SpineFrameMetrics } from './spineMetrics';
+import type { SpineClipBudget } from './spineMetrics';
 import { spineSceneDiagnostics } from './spineSceneDiagnostics';
 import type { SpineSceneDiagnostics } from './spineSceneDiagnostics';
 import type { SpineCullingEnvelope } from './spineBounds';
@@ -155,13 +155,6 @@ export class SpineManager {
         return this.runtimes_.has(version);
     }
 
-    /** @internal One version's runtime, for a diagnostic that has to look at
-     *  what it holds. Not a door into it: an entity's binding is this manager's,
-     *  and reaching a runtime directly is how one gets posed by two of them. */
-    runtimeForDiagnostics(version: SpineVersion): SpineRuntime | undefined {
-        return this.runtimes_.get(version);
-    }
-
     /**
      * Start or stop reporting what frames cost, on every runtime this app has
      * and every one it loads later. Off by default.
@@ -183,19 +176,6 @@ export class SpineManager {
      */
     diagnostics(): SpineSceneDiagnostics {
         return spineSceneDiagnostics(this.runtimes_.values(), this.observing_);
-    }
-
-    /**
-     * What the last frame cost, per runtime — the unit anything is done about.
-     * Empty while not observing.
-     */
-    frameMetrics(): Array<{ version: SpineVersion; metrics: SpineFrameMetrics }> {
-        const out: Array<{ version: SpineVersion; metrics: SpineFrameMetrics }> = [];
-        for (const runtime of this.runtimes_.values()) {
-            const metrics = runtime.metrics();
-            if (metrics) out.push({ version: runtime.version, metrics });
-        }
-        return out;
     }
 
     setAnimation(entity: Entity, animation: string, loop: boolean): void {

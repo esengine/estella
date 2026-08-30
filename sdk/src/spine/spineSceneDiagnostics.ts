@@ -27,7 +27,8 @@
  */
 import type { SpineVersion } from '../sideModules/registry';
 import type { SpineCullingEnvelope } from './spineBounds';
-import type { SpineFrameMetrics } from './spineMetrics';
+import type { SpineAbiCounts, SpineByteCounts, SpineFrameMetrics,
+              SpineTimeWindow } from './spineMetrics';
 
 /**
  * One residency as a diagnostic reads it: the two proofs AND what they came to.
@@ -56,6 +57,7 @@ export interface SpineDiagnosticRuntime {
     worldPoseDebt(): number;
     residencies(): SpineResidencyFacts[];
     metrics(): SpineFrameMetrics | null;
+    windows(): { pose: SpineTimeWindow; readback: SpineTimeWindow; total: SpineTimeWindow };
 }
 
 /** A proof a residency is missing. Both absent is possible; neither is `mayDefer`. */
@@ -84,6 +86,28 @@ export interface SpinePoseTotals {
     meshExtractions: number;
     /** Per (entity, CAMERA) too — camera declines, not entities culled. */
     renderCulled: number;
+}
+
+/** One phase over the frames behind it. */
+export interface SpineWindowStats {
+    last: number;
+    p50: number;
+    p95: number;
+    max: number;
+}
+
+/**
+ * One runtime's recent frames. PER RUNTIME rather than summed, because a
+ * percentile does not add: the p95 of two runtimes' totals is not the sum of
+ * their p95s, and printing it as one would be a number nobody's frame had.
+ */
+export interface SpineRuntimeTiming {
+    version: SpineVersion;
+    /** Completed frames behind these numbers. */
+    frames: number;
+    pose: SpineWindowStats;
+    readback: SpineWindowStats;
+    total: SpineWindowStats;
 }
 
 export type SpineFindingCode =
@@ -122,10 +146,22 @@ export interface SpineSceneDiagnostics {
     /** Entities whose residency permits owing one at all. */
     deferrable: number;
     assets: SpineAssetDiagnostic[];
+    /** What the frames behind this one cost, per runtime. */
+    runtimes: SpineRuntimeTiming[];
     pose: SpinePoseTotals;
+    /** What the frame drew, summed across runtimes. */
+    geometry: { meshBatches: number; vertices: number; indices: number };
+    /** Crossings into the modules, and the bytes they moved. */
+    abi: SpineAbiCounts;
+    bytes: SpineByteCounts;
     /** Milliseconds, summed across runtimes; `readback` covers every camera. */
     time: { pose: number; readback: number; total: number };
     findings: SpineFinding[];
+}
+
+function windowStats(window: SpineTimeWindow): SpineWindowStats {
+    const { last, p50, p95, max } = window.stats();
+    return { last, p50, p95, max };
 }
 
 function blockersOf(facts: SpineResidencyFacts): SpineDeferralBlocker[] {
@@ -146,10 +182,17 @@ export function spineSceneDiagnostics(
     runtimes: Iterable<SpineDiagnosticRuntime>, observing: boolean,
 ): SpineSceneDiagnostics {
     const assets: SpineAssetDiagnostic[] = [];
+    const timings: SpineRuntimeTiming[] = [];
     const pose: SpinePoseTotals = {
         logicalUpdates: 0, worldMaterializations: 0, worldAlreadyCurrent: 0,
         meshExtractions: 0, renderCulled: 0,
     };
+    const geometry = { meshBatches: 0, vertices: 0, indices: 0 };
+    const abi: SpineAbiCounts = {
+        pose: 0, world: 0, batchCount: 0, vertexCount: 0, indexCount: 0,
+        batchData: 0, malloc: 0, free: 0, submit: 0,
+    };
+    const bytes: SpineByteCounts = { wasmRead: 0, coreWrite: 0, scratchAllocated: 0 };
     const time = { pose: 0, readback: 0, total: 0 };
     let frame = 0;
     let entities = 0;
@@ -169,12 +212,25 @@ export function spineSceneDiagnostics(
         }
         const m = runtime.metrics();
         if (!m) continue;
+        const w = runtime.windows();
+        timings.push({
+            version: runtime.version, frames: w.total.size,
+            pose: windowStats(w.pose), readback: windowStats(w.readback),
+            total: windowStats(w.total),
+        });
         frame = Math.max(frame, m.frame);
         pose.logicalUpdates += m.pose.logicalUpdates;
         pose.worldMaterializations += m.pose.worldMaterializations;
         pose.worldAlreadyCurrent += m.pose.worldAlreadyCurrent;
         pose.meshExtractions += m.pose.meshExtractions;
         pose.renderCulled += m.pose.renderCulled;
+        geometry.meshBatches += m.meshBatches;
+        geometry.vertices += m.vertices;
+        geometry.indices += m.indices;
+        for (const key of Object.keys(abi) as Array<keyof SpineAbiCounts>) abi[key] += m.abi[key];
+        for (const key of Object.keys(bytes) as Array<keyof SpineByteCounts>) {
+            bytes[key] += m.bytes[key];
+        }
         time.pose += m.time.pose;
         time.readback += m.time.readback;
         time.total += m.time.total;
@@ -182,7 +238,8 @@ export function spineSceneDiagnostics(
 
     assets.sort((a, b) => b.entities - a.entities || (a.era < b.era ? -1 : a.era > b.era ? 1 : 0));
     return {
-        observing, frame, entities, worldPoseDebt, deferrable, assets, pose, time,
+        observing, frame, entities, worldPoseDebt, deferrable, assets,
+        runtimes: timings, pose, geometry, abi, bytes, time,
         findings: findingsOf(observing, entities, worldPoseDebt, deferrable, assets),
     };
 }
@@ -232,6 +289,12 @@ function findingsOf(
 
 function ms(value: number): string {
     return `${value.toFixed(2)}ms`;
+}
+
+function bytesOf(value: number): string {
+    if (value < 1024) return `${value}B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)}KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 function count(n: number, one: string, many = `${one}s`): string {
@@ -291,14 +354,26 @@ function wrapped(prefix: string, text: string, width = 78): string[] {
 export function formatSpineDiagnostics(d: SpineSceneDiagnostics): string {
     const lines: string[] = [
         `spine — frame ${d.frame}, ${entities(d.entities)} across ${count(d.assets.length, 'asset')}`,
-        `  time     pose ${ms(d.time.pose)}   readback ${ms(d.time.readback)}`
+        `  time      pose ${ms(d.time.pose)}   readback ${ms(d.time.readback)}`
         + `   total ${ms(d.time.total)}`,
-        `  world    ${d.pose.worldMaterializations} resolved, ${d.worldPoseDebt} unresolved,`
+        `  world     ${d.pose.worldMaterializations} resolved, ${d.worldPoseDebt} unresolved,`
         + ` ${d.pose.worldAlreadyCurrent} already current`,
-        `  logical  ${d.pose.logicalUpdates} advances`,
-        `  draw     ${d.pose.meshExtractions} extracted, ${d.pose.renderCulled} camera declines`,
-        '',
+        `  logical   ${d.pose.logicalUpdates} advances`,
+        `  draw      ${d.pose.meshExtractions} extracted, ${d.pose.renderCulled} camera declines`,
+        `  geometry  ${d.geometry.meshBatches} batches, ${d.geometry.vertices} vertices,`
+        + ` ${d.geometry.indices} indices`,
+        `  bytes     ${bytesOf(d.bytes.wasmRead)} out of the modules,`
+        + ` ${bytesOf(d.bytes.coreWrite)} into the core`,
+        `  crossings ${d.abi.pose} pose, ${d.abi.world} world, ${d.abi.batchData} batch data,`
+        + ` ${d.abi.submit} submit`,
     ];
+    // A single frame is a sample; the window is what says whether it was a
+    // typical one, which is the difference between a report and an anecdote.
+    for (const t of d.runtimes) {
+        lines.push(`  ${t.version.padEnd(9)} ${t.frames} frames — total`
+                 + ` p50 ${ms(t.total.p50)}  p95 ${ms(t.total.p95)}  max ${ms(t.total.max)}`);
+    }
+    lines.push('');
     for (const asset of d.assets) {
         const why = asset.mayDefer ? 'may defer' : `always resolves — ${asset.blockedBy.join(', ')}`;
         lines.push(`  ${asset.era.padEnd(28)} ${String(asset.entities).padStart(6)}`
