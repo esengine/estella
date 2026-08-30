@@ -121,12 +121,106 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 | `complete` | 一个动画循环/播放完成。 |
 | `event` | 用户编辑的事件关键帧触发(`eventName` + 值)。 |
 
+## 剔除契约与延迟的世界姿势
+
+摆一个骨骼是两件事。**推进**动画很便宜,而且从不跳过——跳过它动画就会漂移、事件停止触发,
+角色再次被看见的那一刻姿势是错的。**解算世界变换**才是贵的那一半,Estella 会为任何相机都
+画不到的实体跳过它。
+
+只有在能证明「跳过是安全的」时才跳,这需要关于该资产的两个事实:
+
+- **一份剔除契约**——骨骼自身空间里的一个矩形,你承诺任何姿势都不会越出它。由你记录,
+  没有任何东西会替你记录。
+- **无状态的世界约束**——已加载运行时对「它的世界姿势是否跨帧携带状态」的自述。不可配置。
+
+缺任何一个,世界姿势就每帧都解算,不论在不在屏幕上。
+
+### 记录一份契约
+
+选中骨骼资产,使用 Details 面板的 **固定剔除范围** 一行。
+
+**扫描动画** 会在每个皮肤下把每个动画完整播一遍,把看到的报告为 **扫描所见范围**。那是一次
+测量,不是承诺:两个动画的混合并不等于它们范围的并集,游戏代码能把骨头移到导出从未去过的
+地方,而两个采样点之间的极值根本没被采到。**用作固定剔除范围** 把它写进契约——先留一点余量
+是常态,而接受它是**你**的承诺,不是扫描的。
+
+**移除固定范围** 写入的是一个零面积矩形,那就是这里的「无契约」:刚导入的资产本来就带着一个,
+而被删掉的键会在下次导入时回来。
+
+<Aside type="caution">
+  契约覆盖的是**每一个**姿势,包括你的游戏代码在运行时驱动出来的那些。矩形太小,角色会在
+  屏幕边缘凭空消失;太大只是多花一点工作。留余量。
+</Aside>
+
+### 它买到了什么
+
+1000 个骨骼,测的是 pose + extract + submit:
+
+| 可见 | 每帧都摆 | 有契约 |
+|---|---|---|
+| 1000 / 1000 | 3.39 ms | 3.36 ms |
+| 200 / 1000 | 3.29 ms | 1.06 ms |
+| 0 / 1000 | 3.26 ms | 0.49 ms |
+
+第一行才是关键:并没有为了后两行牺牲掉什么。被跳过的是没有任何人会消费的工作。
+
+## 为什么这个场景的 Spine 还是贵?
+
+`Spine` 能报告一帧到底做了什么、每一部分为什么被付掉——不需要 profiler。计数默认关闭,
+所以没人在看的运行时每个实体只多一个分支,别的什么都不付。
+
+```ts
+import { Res } from 'esengine';
+import { Spine, formatSpineDiagnostics } from 'esengine/spine';
+
+// 在一个取 Res(Spine) 的系统里——先开一次,之后任何一帧都可以读:
+spine.observe(true);
+console.log(formatSpineDiagnostics(spine.diagnostics()));
+```
+
+```text
+spine — frame 412, 1000 entities across 3 assets
+  time      pose 2.31ms   readback 0.98ms   total 3.29ms
+  world     400 resolved, 600 unresolved, 150 already current
+  logical   1000 advances
+  draw      350 extracted, 650 camera declines
+  geometry  350 batches, 112000 vertices, 168000 indices
+  bytes     3.4MB out of the modules, 3.4MB into the core
+  crossings 1000 pose, 400 world, 350 batch data, 350 submit
+  3.8       120 frames — total p50 3.28ms  p95 4.01ms  max 5.66ms
+
+  hero.skel#gen1                  800  3.8  may defer
+  boss.skel#gen1                  150  3.8  always resolves — no-certificate
+  rope.skel#gen1                   50  4.2  always resolves — stateful-constraints
+
+  * 150 entities across 1 asset (boss.skel#gen1) resolve a world pose every
+    frame because nothing certified their extent. Scan the asset and record a
+    culling contract to let them skip it while no camera wants them.
+  * 50 entities across 1 asset (rope.skel#gen1) can never defer: their world
+    pose carries state across frames, which no culling contract changes.
+  * 600 world poses went unresolved — work this frame did not do.
+```
+
+怎么读:
+
+- **`world … unresolved`** 是这一帧省掉的。明明有实体在屏幕外它却是 0,说明没有任何东西
+  被允许跳过——原因在下面的资产行里。
+- **`always resolves — no-certificate`** 是可行动的那一条:该资产没有剔除契约,所以不管它
+  站在哪里,每帧都要付一次世界姿势。
+- **`always resolves — stateful-constraints`** 不可行动。没有契约能改变它——findings 把这类
+  资产单独列出,正是为了不把你派去做一件不会有帮助的事。
+- **`p50 / p95 / max`** 是这一帧背后的那些帧。单帧只是一次采样,这几个数才说得出它是否典型。
+
+`diagnostics()` 也以数据形式(`SpineSceneDiagnostics`)返回同一份报告,供你自己的面板或
+overlay 使用——`formatSpineDiagnostics` 只是它的一种渲染。
+
 ## 最佳实践
 
 - **设一个默认混合**(`setDefaultMix`)让转移交叉淡入而非硬切;热点路径用 `setMixDuration` 覆盖。
 - **用轨道 + `setTrackAlpha` 分层**(例如在轨道 1 放一个瞄准/叠加,混合在轨道 0 的移动之上)。
 - **跨实体共享骨骼 + 图集**——它们引用计数同一份已加载骨骼。
 - **用 [Animator](/docs/zh-cn/animation/overview/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
+- **给每个会成规模出现的骨骼记录剔除契约**——它决定了你付的是「屏幕上那些角色」还是「全部角色」。
 
 <Aside type="note">
   Estella 支持 Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3**——每个骨骼版本按需加载自己的

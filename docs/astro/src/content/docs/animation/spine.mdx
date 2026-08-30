@@ -129,6 +129,111 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 | `complete` | An animation loop/playthrough completes. |
 | `event` | A user-authored event keyframe fires (`eventName` + values). |
 
+## Culling contracts & deferred world poses
+
+Posing a skeleton is two jobs. **Advancing** the animation is cheap and never
+skipped — skip it and the animation drifts, events stop firing, and the pose is
+wrong the moment the character is seen again. **Resolving world transforms** is
+the expensive half, and Estella skips that for entities no camera can draw.
+
+It only skips when it can prove skipping is safe, which takes two facts about the
+asset:
+
+- **A culling contract** — a rectangle in the skeleton's own space that you
+  promise no pose ever leaves. You record it; nothing records it for you.
+- **Stateless world constraints** — the loaded runtime's own answer about whether
+  its world pose carries state between frames. Not something you configure.
+
+Missing either, the world pose is resolved every frame, on screen or off.
+
+### Recording a contract
+
+Select the skeleton asset and use the **Fixed Culling Bounds** row of the Details
+panel.
+
+**Scan Animations** plays every animation over its full duration in every skin and
+reports what it saw as **Observed Bounds**. That is a measurement, not a promise:
+a blend of two animations is not the union of their extents, game code can move a
+bone the export never did, and an extreme between two samples is simply not
+sampled. **Use as Fixed Culling Bounds** copies it into the contract — padding it
+first is normal, and accepting it is *your* promise, not the scan's.
+
+**Remove Fixed Bounds** writes a rectangle of zero area, which is what "no
+contract" is here: a freshly imported asset carries one, and a deleted key would
+come back at the next import.
+
+<Aside type="caution">
+  The contract covers **every** pose, including ones your game code drives at
+  runtime. Too small a rectangle makes a character vanish near the screen edge;
+  too large only costs a little work. Pad it.
+</Aside>
+
+### What it buys
+
+1000 skeletons, measuring pose + extract + submit:
+
+| Visible | Posed every frame | With contracts |
+|---|---|---|
+| 1000 / 1000 | 3.39 ms | 3.36 ms |
+| 200 / 1000 | 3.29 ms | 1.06 ms |
+| 0 / 1000 | 3.26 ms | 0.49 ms |
+
+The first row is the important one: nothing was traded away to get the other two.
+What is skipped is work nobody was going to consume.
+
+## Why is Spine expensive here?
+
+`Spine` can report what a frame did and why each part of it was paid — no
+profiler needed. Counting is off by default, so a runtime nobody is watching pays
+a branch per entity and nothing else.
+
+```ts
+import { Res } from 'esengine';
+import { Spine, formatSpineDiagnostics } from 'esengine/spine';
+
+// In a system taking Res(Spine) — once, then after any later frame:
+spine.observe(true);
+console.log(formatSpineDiagnostics(spine.diagnostics()));
+```
+
+```text
+spine — frame 412, 1000 entities across 3 assets
+  time      pose 2.31ms   readback 0.98ms   total 3.29ms
+  world     400 resolved, 600 unresolved, 150 already current
+  logical   1000 advances
+  draw      350 extracted, 650 camera declines
+  geometry  350 batches, 112000 vertices, 168000 indices
+  bytes     3.4MB out of the modules, 3.4MB into the core
+  crossings 1000 pose, 400 world, 350 batch data, 350 submit
+  3.8       120 frames — total p50 3.28ms  p95 4.01ms  max 5.66ms
+
+  hero.skel#gen1                  800  3.8  may defer
+  boss.skel#gen1                  150  3.8  always resolves — no-certificate
+  rope.skel#gen1                   50  4.2  always resolves — stateful-constraints
+
+  * 150 entities across 1 asset (boss.skel#gen1) resolve a world pose every
+    frame because nothing certified their extent. Scan the asset and record a
+    culling contract to let them skip it while no camera wants them.
+  * 50 entities across 1 asset (rope.skel#gen1) can never defer: their world
+    pose carries state across frames, which no culling contract changes.
+  * 600 world poses went unresolved — work this frame did not do.
+```
+
+Reading it:
+
+- **`world … unresolved`** is what the frame skipped. Zero here with entities off
+  screen means nothing was allowed to skip — look at the asset rows for why.
+- **`always resolves — no-certificate`** is the actionable one: that asset has no
+  culling contract, so it pays a world pose every frame wherever it stands.
+- **`always resolves — stateful-constraints`** is not actionable. No contract
+  changes it, which is why the findings list those assets separately instead of
+  sending you to certify something that would not help.
+- **`p50 / p95 / max`** are the frames behind this one. A single frame is a
+  sample; these say whether it was a typical one.
+
+`diagnostics()` returns the same report as data (`SpineSceneDiagnostics`) for your
+own panel or overlay — `formatSpineDiagnostics` is just one renderer of it.
+
 ## Best practices
 
 - **Set a default mix** (`setDefaultMix`) so transitions crossfade instead of
@@ -139,6 +244,9 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   skeleton.
 - **Drive whole characters from the [Animator](/docs/animation/overview/) state
   machine**, which can target Spine as well as sprites.
+- **Record a culling contract** on every skeleton that appears in numbers — it is
+  the difference between paying for the characters on screen and paying for all
+  of them.
 
 <Aside type="note">
   Estella supports Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3** — each skeleton version loads
