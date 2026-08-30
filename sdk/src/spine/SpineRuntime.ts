@@ -31,6 +31,7 @@ import { mayDeferWorldPose, scanObservedBounds } from './spineBounds';
 import type { SpineBoundsSource } from './spineBounds';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { withScratch } from '../wasm/wasmScratch';
+import type { SpineResidencyFacts } from './spineSceneDiagnostics';
 
 /**
  * What a camera said about an entity. `unknown` is not a no — it is the absence
@@ -400,6 +401,35 @@ export class SpineRuntime {
             culling: residency.culling,
             requiresContinuousWorldPose: residency.requiresContinuousWorldPose,
         };
+    }
+
+    /** Every residency this runtime holds, for a scene-level diagnostic. */
+    residencies(): SpineResidencyFacts[] {
+        const out: SpineResidencyFacts[] = [];
+        for (const [era, residency] of this.skeletons_) {
+            out.push({
+                era, entities: residency.refcount, culling: residency.culling,
+                requiresContinuousWorldPose: residency.requiresContinuousWorldPose,
+                mayDefer: residencyMayDefer(residency),
+            });
+        }
+        return out;
+    }
+
+    /**
+     * Entities owing a world pose, disabled ones aside — those are out of the
+     * frame, so posing every frame would not have resolved them either.
+     *
+     * A STATE and not a tally, which is what makes it exact: read after a
+     * frame's submit it is the world-transform resolves that frame did not do.
+     */
+    worldPoseDebt(): number {
+        let owed = 0;
+        for (const [entity, info] of this.entities_) {
+            if (this.disabledEntities_.has(entity)) continue;
+            if (info.worldRevision !== info.logicalRevision) owed++;
+        }
+        return owed;
     }
 
     /**

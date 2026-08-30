@@ -18,6 +18,11 @@ export {
 } from './spineBounds';
 export { SpineCertificates, projectSpineCertificates, NO_CERTIFICATES } from './spineCertificates';
 export type { SpineCertificateSource } from './spineCertificates';
+export { spineSceneDiagnostics, formatSpineDiagnostics } from './spineSceneDiagnostics';
+export type {
+    SpineSceneDiagnostics, SpineAssetDiagnostic, SpineFinding, SpineFindingCode,
+    SpineDeferralBlocker, SpinePoseTotals, SpineResidencyFacts, SpineDiagnosticRuntime,
+} from './spineSceneDiagnostics';
 // Shared spine scene loader — the editor loads spine entities through the same
 // single implementation the builder runtime uses (see ./loadSpineScene).
 export { loadSpineSceneEntities, loadSpineAssets, applySpineEntities, spineEntityProps } from './loadSpineScene';

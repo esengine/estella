@@ -9,6 +9,8 @@ import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
 import type { SpineClipBudget, SpineFrameMetrics } from './spineMetrics';
+import { spineSceneDiagnostics } from './spineSceneDiagnostics';
+import type { SpineSceneDiagnostics } from './spineSceneDiagnostics';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { log } from '../util/logger';
 
@@ -167,6 +169,20 @@ export class SpineManager {
     observe(on: boolean): void {
         this.observing_ = on;
         for (const runtime of this.runtimes_.values()) runtime.observe(on);
+    }
+
+    /** Whether anything is counting. */
+    get observing(): boolean {
+        return this.observing_;
+    }
+
+    /**
+     * Why this scene's spine costs what it does — the frame's numbers joined to
+     * the per-asset reason each of them was paid. Derived on the spot from what
+     * the runtimes already know; see spineSceneDiagnostics.
+     */
+    diagnostics(): SpineSceneDiagnostics {
+        return spineSceneDiagnostics(this.runtimes_.values(), this.observing_);
     }
 
     /**
