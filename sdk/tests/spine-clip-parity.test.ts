@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
@@ -31,7 +31,7 @@ const OVERRIDE = process.env.SPINE_WASM_OVERRIDE;
 const SPINE38_JS = OVERRIDE ? `${OVERRIDE}.js` : resolve(WASM_DIR, 'spine38.js');
 const SPINE38_WASM = OVERRIDE ? `${OVERRIDE}.wasm` : resolve(WASM_DIR, 'spine38.wasm');
 const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine');
-const HAS_WASM = existsSync(SPINE38_WASM);
+const HAS_WASM = hasSideModule('spine38');
 const QUADS = 16;
 
 /** FNV-1a over every triangle's three vertices, in draw order. */

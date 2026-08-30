@@ -22,7 +22,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule, type SpineWasmModule } from '../src/spine/SpineModuleLoader';
 import { SpineModuleController } from '../src/spine/SpineController';
 
@@ -31,7 +31,7 @@ const SPINE42_WASM = resolve(WASM_DIR, 'spine42.wasm');
 const ASSET_DIR = resolve(__dirname, '../../third_party/spine-runtimes-4.2/examples/tank/export');
 const SKEL = resolve(ASSET_DIR, 'tank-pro.skel');
 const ATLAS = resolve(ASSET_DIR, 'tank.atlas');
-const HAS_ASSETS = existsSync(SPINE42_WASM) && existsSync(SKEL) && existsSync(ATLAS);
+const HAS_ASSETS = hasSideModule('spine42') && existsSync(SKEL) && existsSync(ATLAS);
 
 interface Mesh { verts: number[]; tris: number; batches: number; }
 

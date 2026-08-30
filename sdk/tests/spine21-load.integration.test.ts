@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule, type SpineWasmModule } from '../src/spine/SpineModuleLoader';
 import { SpineModuleController } from '../src/spine/SpineController';
 
@@ -28,7 +28,7 @@ const BOY_JSON = resolve(ROOT, 'spine-c/data/spineboy.json');
 const BOY_ATLAS = resolve(ROOT, 'spine-c/data/spineboy.atlas');
 const GOBLINS_JSON = resolve(ROOT, 'spine-as3/spine-as3-example/src/goblins-mesh.json');
 const GOBLINS_ATLAS = resolve(ROOT, 'spine-as3/spine-as3-example/src/goblins-mesh.atlas');
-const HAS_ASSETS = existsSync(SPINE21_WASM) && existsSync(BOY_JSON);
+const HAS_ASSETS = hasSideModule('spine21') && existsSync(BOY_JSON);
 
 interface Batch {
     vertexCount: number;

@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
@@ -34,7 +34,7 @@ const ASSETS = [
     { name: 'raptor', skel: 'raptor-38/raptor-pro.skel', atlas: 'raptor-38/raptor.atlas' },
     { name: 'coin', skel: 'coin-38/coin-pro.skel', atlas: 'coin-38/coin.atlas' },
 ];
-const HAS_ASSETS = existsSync(SPINE38_WASM)
+const HAS_ASSETS = hasSideModule('spine38')
     && ASSETS.every((a) => existsSync(resolve(FIXTURES, a.skel)));
 
 /** The nine counters `spine_probe_counts` writes, in order. */

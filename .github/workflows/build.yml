@@ -149,11 +149,14 @@ jobs:
     # Every static gate, from the one list in tools/gates.mjs. CI and the
     # pre-push hook used to enumerate their own — seventeen gates ran only on a
     # machine with the hook installed, and five only here.
-    - name: Static gates
+    # This job is the FAST feedback and deliberately does not wait for
+    # Emscripten, so it cannot cover the engine boundary. It says so: without the
+    # declaration the SDK suite now refuses to run rather than reporting 300
+    # unreachable tests as skipped. `test-engine` covers them where the wasm is.
+    - name: Static gates (incl. the SDK, editor, plugin and compiler suites)
+      env:
+        SDK_TEST_MODE: no-wasm
       run: node tools/run-gates.mjs --scope ci
-
-    - name: Run SDK tests
-      run: pnpm --filter ./sdk exec vitest run
 
     # The Android packaging tests check what we write against implementations that
     # are not ours. androguard decodes the binary manifest; bundletool is the App

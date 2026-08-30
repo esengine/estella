@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import type { SpineWasmModule } from '../src/spine/SpineModuleLoader';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import type { SpineEraBinding } from '../src/spine/prepareSpine';
@@ -26,7 +26,7 @@ import type { Entity } from '../src/types';
 const SPINE38_JS = resolve(WASM_DIR, 'spine38.js');
 const SPINE38_WASM = resolve(WASM_DIR, 'spine38.wasm');
 const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine');
-const HAS_WASM = existsSync(SPINE38_WASM)
+const HAS_WASM = hasSideModule('spine38')
     && existsSync(resolve(FIXTURES, 'spineboy-38/spineboy-pro.skel'));
 
 let raw: SpineWasmModule;

@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
@@ -37,7 +37,7 @@ const ASSETS = [
     { name: 'coin (clipped)', skel: 'coin-38/coin-pro.skel', atlas: 'coin-38/coin.atlas', animation: 'animation' },
     { name: 'tank (concave clip)', skel: 'tank-38/tank-pro.skel', atlas: 'tank-38/tank.atlas', animation: 'shoot' },
 ];
-const HAS_WASM = existsSync(SPINE38_WASM)
+const HAS_WASM = hasSideModule('spine38')
     && ASSETS.every((a) => existsSync(resolve(FIXTURES, a.skel)));
 const DT = 1 / 60;
 

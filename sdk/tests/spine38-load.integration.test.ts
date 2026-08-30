@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule, type SpineWasmModule } from '../src/spine/SpineModuleLoader';
 import { SpineModuleController } from '../src/spine/SpineController';
 
@@ -23,7 +23,7 @@ const SPINE38_WASM = resolve(WASM_DIR, 'spine38.wasm');
 const ASSET_DIR = resolve(__dirname, '../../third_party/spine-runtimes-3.8/examples/spineboy/export');
 const SKEL = resolve(ASSET_DIR, 'spineboy-pro.skel');
 const ATLAS = resolve(ASSET_DIR, 'spineboy.atlas');
-const HAS_SPINE38 = existsSync(SPINE38_WASM) && existsSync(SKEL);
+const HAS_SPINE38 = hasSideModule('spine38') && existsSync(SKEL);
 
 describe.skipIf(!HAS_SPINE38)('Spine 3.8 side module loads + animates a real 3.8 asset', () => {
     let controller: SpineModuleController;

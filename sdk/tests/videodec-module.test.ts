@@ -6,14 +6,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import type { VideoWasmModule } from '../src/video/WasmVideoBackend';
 
 const GLUE = resolve(WASM_DIR, 'videodec.js');
 const BINARY = resolve(WASM_DIR, 'videodec.wasm');
 const FIXTURE = resolve(__dirname, 'fixtures/rgb-64x32.esv');
 const FLIP_FIXTURE = resolve(__dirname, 'fixtures/topwhite-64x32.esv');
-const HAS_VIDEODEC = existsSync(BINARY);
+const HAS_VIDEODEC = hasSideModule('videodec');
 
 const W = 64, H = 32;
 

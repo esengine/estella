@@ -38,20 +38,26 @@ export const WASM_DIR = resolveWasmDir();
 /** Absolute path to the built esengine.wasm binary. */
 export const WASM_FILE = resolve(WASM_DIR, 'esengine.wasm');
 
-/** True when a built WASM SDK is available to run boundary integration tests. */
-export const HAS_WASM = existsSync(WASM_FILE);
+/**
+ * The side modules the SDK's suites load, beside the engine itself. Declared so
+ * one place can say what a run will and will not cover.
+ */
+export const SIDE_MODULES = [
+    'physics', 'physics3d', 'dragonbones', 'basis', 'videodec',
+    'spine21', 'spine38', 'spine41', 'spine42', 'spine43',
+] as const;
 
-// A skip is the right answer on a machine that has not built the engine, and the
-// WRONG one in CI: a job meant to cover these tests would report success having
-// run none of them, which is how 25 files stayed green-by-absence while the code
-// under them changed. The job that provides the wasm sets ESTELLA_REQUIRE_WASM,
-// and here that turns a silent skip into a loud failure.
-if (!HAS_WASM && process.env.ESTELLA_REQUIRE_WASM) {
-    throw new Error(
-        `ESTELLA_REQUIRE_WASM is set but no engine build was found at ${WASM_FILE}. ` +
-        'The wasm artifact did not reach this job — these tests would have been skipped.',
-    );
-}
+/**
+ * Whether this run DECLARED that it has no engine build — the only reason a
+ * boundary suite may skip.
+ *
+ * Inferred from the filesystem, "missing" and "unreachable" both came out as
+ * `skipped`, which reads as "not applicable" rather than "unavailable".
+ */
+export const NO_WASM_MODE = process.env.SDK_TEST_MODE === 'no-wasm';
+
+/** True unless this run declared it has no engine build. */
+export const HAS_WASM = !NO_WASM_MODE;
 
 
 let cachedModule: ESEngineModule | null = null;
@@ -79,6 +85,7 @@ export async function loadSideModule<T>(name: string): Promise<T> {
     return await factory({ wasmBinary }) as T;
 }
 
-/** Whether a side module was built alongside the engine. */
+/** Whether a side module was built alongside the engine. False for every module
+ *  in a declared no-wasm run, so one flag turns the whole corpus off. */
 export const hasSideModule = (name: string): boolean =>
-    existsSync(resolve(WASM_DIR, `${name}.wasm`));
+    !NO_WASM_MODE && existsSync(resolve(WASM_DIR, `${name}.wasm`));

@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, vi, afterEach } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import type { SpineWasmModule } from '../src/spine/SpineModuleLoader';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import { SpineTimeWindow } from '../src/spine/spineMetrics';
@@ -27,7 +27,7 @@ const SPINE38_WASM = resolve(WASM_DIR, 'spine38.wasm');
 const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine/spineboy-38');
 const SKEL = resolve(FIXTURES, 'spineboy-pro.skel');
 const ATLAS = resolve(FIXTURES, 'spineboy.atlas');
-const HAS_ASSETS = existsSync(SPINE38_WASM) && existsSync(SKEL) && existsSync(ATLAS);
+const HAS_ASSETS = hasSideModule('spine38') && existsSync(SKEL) && existsSync(ATLAS);
 
 let module38: SpineWasmModule;
 let skelData: Uint8Array;

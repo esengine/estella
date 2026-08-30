@@ -21,7 +21,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
@@ -53,7 +53,7 @@ const ASSETS = [
     },
 ] as const;
 
-const HAS_ASSETS = existsSync(SPINE38_WASM)
+const HAS_ASSETS = hasSideModule('spine38')
     && ASSETS.every((a) => existsSync(resolve(FIXTURES, a.skel)));
 
 /** The four u32 counters `spine_probe_storage` writes, in order. */

@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
@@ -27,7 +27,7 @@ const SPINE38_WASM = resolve(WASM_DIR, 'spine38.wasm');
 const FIXTURES = resolve(__dirname, '../benchmarks/fixtures/spine');
 const SKEL = 'spineboy-38/spineboy-pro.skel';
 const ATLAS = 'spineboy-38/spineboy.atlas';
-const HAS_ASSETS = existsSync(SPINE38_WASM) && existsSync(resolve(FIXTURES, SKEL));
+const HAS_ASSETS = hasSideModule('spine38') && existsSync(resolve(FIXTURES, SKEL));
 
 /** The nine counters `spine_probe_pose_counts` writes, in order. */
 const COUNTERS = [

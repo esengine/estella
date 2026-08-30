@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { DragonBonesManager } from '../src/dragonbones/DragonBonesManager';
 import { DragonBonesModuleController } from '../src/dragonbones/DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModuleLoader';
@@ -20,7 +20,7 @@ const DB_WASM = resolve(WASM_DIR, 'dragonbones.wasm');
 const ASSET_DIR = resolve(__dirname, 'assets/dragonbones');
 const SKE = resolve(ASSET_DIR, 'DragonBoy_ske.json');
 const TEX = resolve(ASSET_DIR, 'DragonBoy_tex.json');
-const HAS_ASSETS = existsSync(DB_WASM) && existsSync(SKE);
+const HAS_ASSETS = hasSideModule('dragonbones') && existsSync(SKE);
 
 const e = (n: number): Entity => n as unknown as Entity;
 

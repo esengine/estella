@@ -58,6 +58,11 @@ if (argv.includes('--plan')) {
 function reportSuites() {
   const suites = gates.filter((g) => g.covers?.length);
   if (suites.length) console.log(`  test suites run: ${suites.map((g) => g.id).join(', ')}`);
+  // A declared profile narrows what a suite covered, and the summary is where
+  // that has to be said — otherwise "green" quietly means "green minus 300".
+  if (process.env.SDK_TEST_MODE === 'no-wasm') {
+    console.log('  SDK_TEST_MODE=no-wasm — sdk-tests did NOT cover the engine boundary');
+  }
   const unrun = noEditor.filter((g) => g.covers?.length);
   if (unrun.length) {
     console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);

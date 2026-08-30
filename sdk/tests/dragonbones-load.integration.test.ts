@@ -9,14 +9,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WASM_DIR } from './helpers/loadWasm';
+import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 
 const DB_JS = resolve(WASM_DIR, 'dragonbones.js');
 const DB_WASM = resolve(WASM_DIR, 'dragonbones.wasm');
 const ASSET_DIR = resolve(__dirname, 'assets/dragonbones');
 const SKE = resolve(ASSET_DIR, 'DragonBoy_ske.json');
 const TEX = resolve(ASSET_DIR, 'DragonBoy_tex.json');
-const HAS_ASSETS = existsSync(DB_WASM) && existsSync(SKE);
+const HAS_ASSETS = hasSideModule('dragonbones') && existsSync(SKE);
 
 interface DbModule {
     ccall(name: string, ret: string | null, sig: string[], args: unknown[]): never;
