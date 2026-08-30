@@ -10,6 +10,7 @@ export type { ConstraintList, TransformMixData, PathMixData } from './SpineContr
 export type { SpineModuleFactory } from './SpineModuleLoader';
 export { wrapSpineModule } from './SpineModuleLoader';
 export type { SpinePair } from './prepareSpine';
+export type { SpineClipBudget } from './spineMetrics';
 export type {
     SpineAABB, SpineCullingEnvelope, SpineScanCoverage, SpineBoundsSource,
 } from './spineBounds';

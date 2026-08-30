@@ -88,6 +88,32 @@ describe.skipIf(!HAS_WASM)('the clip budget charges what is still being paid', (
         expect(budget.edgeWork, 'work was charged for triangles nothing ran on').toBe(0);
     });
 
+    it('asking costs the instance nothing — it is a diagnosis, not a step', () => {
+        // The inspector reads this off the LIVE entity somebody is looking at.
+        // A counted walk that advanced the clock, or left the clipper's state
+        // behind, would make the panel change the thing it is describing.
+        const handle = controller.loadSkeleton(
+            new Uint8Array(readFileSync(resolve(FIXTURES, 'coin-38/coin-pro.skel'))),
+            readFileSync(resolve(FIXTURES, 'coin-38/coin.atlas'), 'utf-8'), true);
+        for (let i = 0, pages = controller.getAtlasPageCount(handle); i < pages; i++) {
+            controller.setAtlasPageTexture(handle, i, 1, 2048, 2048);
+        }
+        const instanceId = controller.createInstance(handle);
+        controller.play(instanceId, 'animation', true);
+        controller.update(instanceId, 0.35);
+
+        const before = controller.getBounds(instanceId);
+        const first = controller.clipBudget(instanceId)!;
+        const second = controller.clipBudget(instanceId)!;
+        const after = controller.getBounds(instanceId);
+
+        expect(second, 'a second scan of an unmoved pose disagreed with the first')
+            .toEqual(first);
+        expect(after, 'the scan moved the pose it was measuring').toEqual(before);
+        controller.destroyInstance(instanceId);
+        controller.unloadSkeleton(handle);
+    });
+
     it('a skeleton that really crosses is charged for all of it', () => {
         const budget = budgetOfAsset('coin-38/coin-pro.skel', 'coin-38/coin.atlas', 'animation', 0.35);
         expect(budget.rejectedTriangles + budget.bypassedTriangles + budget.chargedTriangles)

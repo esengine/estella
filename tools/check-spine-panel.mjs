@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  check-spine-panel.mjs — the profiler's spine section renders a report
- *        and never becomes a second one.
+ * @file  check-spine-panel.mjs — the spine diagnostic surfaces render facts and
+ *        never manufacture them.
  *
  * The whole value of the spine diagnostics is that ONE side computes them: the
  * realm that ran the frame. An editor panel that starts a clock, keeps a
@@ -25,7 +25,9 @@ const VIEW = 'desktop/src/panels/spineDiagnosticsView.ts';
 const SECTION = 'desktop/src/panels/SpineDiagnosticsSection.tsx';
 const HOLDER = 'desktop/src/engine/spineDiagnosticsStore.ts';
 const REALM = 'desktop/src/playHost.ts';
-const FILES = [VIEW, SECTION, HOLDER, REALM];
+const CLIP = 'desktop/src/spine/clipComplexity.ts';
+const DETAILS = 'desktop/src/panels/Details.tsx';
+const FILES = [VIEW, SECTION, HOLDER, REALM, CLIP, DETAILS];
 
 // The panel IS the subject, so an absent editor is refused rather than passed:
 // an empty scan finds nothing wrong with nothing. run-gates skips it by
@@ -47,6 +49,16 @@ const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const strip = (text) => text
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/[^\n]*/g, '');
+
+/** One function's body, to the next top-level `function` — enough to judge it. */
+function component(file, signature) {
+    const text = strip(read(file));
+    const at = text.indexOf(signature);
+    if (at < 0) return null;
+    const rest = text.slice(at + signature.length);
+    const end = rest.indexOf('\nfunction ');
+    return end < 0 ? rest : rest.slice(0, end);
+}
 
 /** What the realm's answer to `query { kind: 'spine' }` is made of. */
 function realmAnswer() {
@@ -125,6 +137,54 @@ const RULES = [
             const section = strip(read(SECTION));
             return /useAsFixedBounds|removeFixedBounds|observedSpineBounds/.test(section)
                 ? 'the section authors a culling contract' : null;
+        },
+    },
+    {
+        rule: 'The clipping scan runs when somebody asks and at no other time. The counted walk IS a clip pass, so a panel that ran it to fill itself in would be paying the exact cost it exists to explain.',
+        holds: () => {
+            const body = component(DETAILS, 'function SpineClipComplexity');
+            if (!body) return 'Details has no SpineClipComplexity section';
+            if (/useEffect|useMemo|useLayoutEffect/.test(body)) {
+                return 'the clipping section scans from a hook rather than from a click';
+            }
+            const calls = body.match(/spineClipComplexity\s*\(/g) ?? [];
+            return calls.length === 1 ? null
+                : `the clipping section scans ${calls.length} time(s) — it may ask once, when asked`;
+        },
+    },
+    {
+        rule: 'A clipping scan diagnoses; it does not author. It stores nothing, writes no `.meta`, and proposes no import edit — unlike the culling contract beside it, which is a promise somebody makes.',
+        holds: () => {
+            const body = component(DETAILS, 'function SpineClipComplexity');
+            if (!body) return 'Details has no SpineClipComplexity section';
+            const authoring = /\bwrite\s*\(|useAsFixedBounds|removeFixedBounds|setImportSettings/;
+            return authoring.test(body) ? 'the clipping section authors an asset' : null;
+        },
+    },
+    {
+        rule: 'Clipping notes fire on STRUCTURE, never on size. Nothing here has been calibrated across real projects, so a number crossing a line somebody picked would be an opinion wearing a measurement\'s clothes.',
+        holds: () => {
+            const text = strip(read(CLIP));
+            if (/\b(score|grade|poor|excellent|rating)\b/i.test(text)) {
+                return 'the clipping diagnosis grades the asset';
+            }
+            // A threshold is always a literal. 0 and 1 are structural boundaries
+            // — "is there a region", "did it decompose" — and nothing else is.
+            const thresholds = [...text.matchAll(/[<>]=?\s*(\d+)/g)]
+                .map((m) => Number(m[1])).filter((n) => n > 1);
+            return thresholds.length === 0 ? null
+                : `the clipping diagnosis compares against ${thresholds.join(', ')} — a threshold, not a structure`;
+        },
+    },
+    {
+        rule: 'The scene report never computes a clip budget. Pricing clipping means posing and extracting, so a profiler that did it to explain extraction would be manufacturing the extraction it is explaining.',
+        holds: () => {
+            for (const file of [VIEW, SECTION, HOLDER]) {
+                if (/clipBudget|spineClipComplexity/.test(strip(read(file)))) {
+                    return `${file} prices clipping from the scene report`;
+                }
+            }
+            return null;
         },
     },
 ];

@@ -16,42 +16,36 @@
 import { describe, it, expect } from 'vitest';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import { fakeSpineModule, fakeSpineEra } from './helpers/fakeSpineModule';
-import { SpineCertificates, NO_CERTIFICATES } from '../src/spine/spineCertificates';
+import { spineCertificatesFrom, NO_CERTIFICATES } from '../src/spine/spineCertificates';
 import { certifyBounds, scanObservedBounds, mayDeferWorldPose } from '../src/spine/spineBounds';
 import type { SpineAABB, SpineCullingEnvelope } from '../src/spine/spineBounds';
-import { spinePairKey } from '../src/spine/prepareSpine';
 import type { Entity } from '../src/types';
 
 const PROMISE: SpineAABB = { minX: -200, minY: -100, maxX: 200, maxY: 400 };
+/** The same promise as a manifest stores one. */
+const RECT = { x: -200, y: -100, width: 400, height: 500 };
 
 function certified(): SpineCullingEnvelope {
     return certifyBounds(PROMISE);
 }
 
 describe('a promise about a pair, carried to the residency that needs it', () => {
-    it('is recorded against the pair, and another atlas is another asset', () => {
-        const certificates = new SpineCertificates();
-        const withA = spinePairKey('hero.skel', 'hero.atlas');
-        const withB = spinePairKey('hero.skel', 'winter.atlas');
-        certificates.certify(withA, PROMISE);
-
-        expect(certificates.envelopeFor(withA).kind).toBe('certified');
-        expect(certificates.envelopeFor(withB).kind,
+    it('is read for the pair asked about, and another atlas is another asset', () => {
+        // The source answers about BOTH refs; there is no way to ask about a
+        // skeleton alone, which is what kept a second atlas from inheriting one.
+        const certificates = spineCertificatesFrom({
+            spineCulling: (skeleton, atlas) =>
+                (skeleton === 'hero.skel' && atlas === 'hero.atlas' ? RECT : undefined),
+        });
+        expect(certificates.envelopeFor('hero.skel', 'hero.atlas').kind).toBe('certified');
+        expect(certificates.envelopeFor('hero.skel', 'winter.atlas').kind,
             'a promise about one atlas was read for another').toBe('unknown');
     });
 
-    it('a realm with nothing recorded promises nothing', () => {
-        expect(NO_CERTIFICATES.envelopeFor(spinePairKey('hero.skel', 'hero.atlas')).kind)
+    it('a realm whose source answers nothing promises nothing', () => {
+        expect(NO_CERTIFICATES.envelopeFor('hero.skel', 'hero.atlas').kind).toBe('unknown');
+        expect(spineCertificatesFrom({}).envelopeFor('hero.skel', 'hero.atlas').kind)
             .toBe('unknown');
-        expect(new SpineCertificates().envelopeFor('anything').kind).toBe('unknown');
-    });
-
-    it('a withdrawn promise is not a promise', () => {
-        const certificates = new SpineCertificates();
-        const key = spinePairKey('hero.skel', 'hero.atlas');
-        certificates.certify(key, PROMISE);
-        certificates.revoke(key);
-        expect(certificates.envelopeFor(key).kind).toBe('unknown');
     });
 
     it('the residency settles both facts, and asks the runtime exactly once', () => {
@@ -132,13 +126,11 @@ describe('a promise about a pair, carried to the residency that needs it', () =>
 
     it('the promise survives the generation the asset was read at', () => {
         // What the certificate is ABOUT is the asset, so reloading its bytes
-        // does not withdraw it — the pair key is the same one.
-        const certificates = new SpineCertificates();
-        const key = spinePairKey('hero.skel', 'hero.atlas');
-        certificates.certify(key, PROMISE);
+        // does not withdraw it — the pair is the same pair.
+        const certificates = spineCertificatesFrom({ spineCulling: () => RECT });
         for (const generation of [17, 18, 19]) {
-            const envelope = certificates.envelopeFor(key);
-            expect(envelope.kind, `generation ${generation} lost the promise`).toBe('certified');
+            expect(certificates.envelopeFor('hero.skel', 'hero.atlas').kind,
+                `generation ${generation} lost the promise`).toBe('certified');
         }
     });
 
