@@ -88,8 +88,25 @@ const TEXTURE: ImporterFieldSpec[] = [
   { key: 'sliceBorder.bottom', label: 'Border Bottom', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
 ];
 
+// `cullingBounds` promises no pose of this skeleton leaves it. The runtime's
+// demand-driven posing reads it: with a promise, a skeleton no camera can see
+// may be left unposed. A rectangle of no area is the absence of one.
 const SPINE: ImporterFieldSpec[] = [
   { key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0, step: 0.01, category: 'Spine' },
+  {
+    key: 'cullingBounds.x', label: 'Culling X', type: 'number', default: 0,
+    category: 'Culling', advanced: true,
+    tooltip: 'Left edge of the area this skeleton promises to stay inside, in its own space. '
+      + 'Width or height of zero means no promise, and the skeleton is posed every frame.',
+  },
+  { key: 'cullingBounds.y', label: 'Culling Y', type: 'number', default: 0, category: 'Culling', advanced: true },
+  {
+    key: 'cullingBounds.width', label: 'Culling Width', type: 'number', default: 0, min: 0,
+    category: 'Culling', advanced: true,
+    tooltip: 'Zero means no promise. A skeleton that leaves this area while it is '
+      + 'in view can be culled while visible.',
+  },
+  { key: 'cullingBounds.height', label: 'Culling Height', type: 'number', default: 0, min: 0, category: 'Culling', advanced: true },
 ];
 
 // Which armature and animation an entity gets are DragonBonesAnimation fields

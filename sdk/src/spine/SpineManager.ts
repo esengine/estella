@@ -9,6 +9,7 @@ import type { SpineModuleFactory } from './SpineModuleLoader';
 import { SpineRuntime } from './SpineRuntime';
 import type { SpineEraBinding } from './prepareSpine';
 import type { SpineClipBudget, SpineFrameMetrics } from './spineMetrics';
+import type { SpineCullingEnvelope } from './spineBounds';
 import { log } from '../util/logger';
 
 import type { SpineVersion } from '../sideModules/registry';
@@ -198,6 +199,14 @@ export class SpineManager {
 
     getBounds(entity: Entity): { x: number; y: number; width: number; height: number } | null {
         return this.runtimeOf_(entity)?.getBounds(entity) ?? null;
+    }
+
+    /**
+     * What a scan of this entity's skeleton saw — an OBSERVATION, for authoring
+     * to propose a culling contract from. Never an authority: see spineBounds.
+     */
+    observedBounds(entity: Entity, sampleStep?: number): SpineCullingEnvelope | null {
+        return this.runtimeOf_(entity)?.observedBounds(entity, sampleStep) ?? null;
     }
 
     clipBudget(entity: Entity): SpineClipBudget | null {

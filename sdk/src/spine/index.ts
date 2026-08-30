@@ -9,6 +9,15 @@ export { SpineModuleController } from './SpineController';
 export type { ConstraintList, TransformMixData, PathMixData } from './SpineController';
 export type { SpineModuleFactory } from './SpineModuleLoader';
 export { wrapSpineModule } from './SpineModuleLoader';
+export type {
+    SpineAABB, SpineCullingEnvelope, SpineScanCoverage, SpineBoundsSource,
+} from './spineBounds';
+export {
+    setupBounds, scanObservedBounds, certifyBounds, envelopeFor, mayDeferWorldPose,
+    worldBounds, contains,
+} from './spineBounds';
+export { SpineCertificates, projectSpineCertificates, NO_CERTIFICATES } from './spineCertificates';
+export type { SpineCertificateSource } from './spineCertificates';
 // Shared spine scene loader — the editor loads spine entities through the same
 // single implementation the builder runtime uses (see ./loadSpineScene).
 export { loadSpineSceneEntities, loadSpineAssets, applySpineEntities, spineEntityProps } from './loadSpineScene';

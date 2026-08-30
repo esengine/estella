@@ -27,7 +27,8 @@ import type { SpineVersion } from '../sideModules/registry';
 import { log } from '../util/logger';
 import { submitEntityMeshes, type SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { SpineClipBudget } from './spineMetrics';
-import { mayDeferWorldPose } from './spineBounds';
+import { mayDeferWorldPose, scanObservedBounds } from './spineBounds';
+import type { SpineBoundsSource } from './spineBounds';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { withScratch } from '../wasm/wasmScratch';
 
@@ -372,6 +373,20 @@ export class SpineRuntime {
         const info = this.entities_.get(entity);
         const residency = info ? this.skeletons_.get(info.era) : undefined;
         return residency ? residencyMayDefer(residency) : false;
+    }
+
+    /**
+     * Scan this entity's SKELETON — every animation over its whole duration, in
+     * every skin — on a scratch instance, so the entity asking keeps its pose.
+     * An OBSERVATION whatever it finds: authoring proposes contracts from it and
+     * the runtime may never act on it. See spineBounds.
+     */
+    observedBounds(entity: Entity, sampleStep?: number): SpineCullingEnvelope | null {
+        const info = this.entities_.get(entity);
+        if (!info) return null;
+        return scanObservedBounds(
+            this.controller_ as unknown as SpineBoundsSource,
+            info.skelHandle, info.era, sampleStep);
     }
 
     /** Why, for a diagnostic: the promise, and what the runtime says of itself. */
