@@ -92,6 +92,11 @@ export {
     type AssetRefInfo,
     textureImportSettingsFrom,
     type ParsedTextureImportSettings,
+    spineCullingContractFrom,
+    spineManifestContractFrom,
+    type SpineCullingRect,
+    type SpineCullingContract,
+    type SpineManifestContract,
 } from './asset';
 
 /** When the live bindings that READ the asset graph have caught up with it —

@@ -344,8 +344,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // instead of uploading its pages again.
     const spineAssetInfo = app.sideModules
         ? await loadSpineAssets(module, source, spineManager, discovered.spines, transcoderProvider,
-                                { assets: sceneAssets, scope: assetResult.scope },
-                                sceneAssets.spineCertificates)
+                                { assets: sceneAssets, scope: assetResult.scope })
         : new Map<string, SpineAssetInfo>();
 
     // DragonBones, the same two phases. The manager is acquired only when the

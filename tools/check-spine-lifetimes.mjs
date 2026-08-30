@@ -147,6 +147,54 @@ const INVARIANTS = [
                 : `${holders.join(', ')} holds a SpineRuntime; entity binding is the manager's`;
         },
     },
+    {
+        rule: 'A culling contract reaches a runtime through the manifest that ships the asset, and through nothing else. It arrived through an AssetRegistry once, which nothing in any realm ever attached — so no contract authorised a single deferred pose, in any build, for as long as the feature existed.',
+        proof: 'arrives certified at the era a uuid-referencing scene loads',
+        holds: () => {
+            const found = [];
+            const walk = (dir) => {
+                for (const entry of readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+                    const rel = `${dir}/${entry.name}`;
+                    if (entry.isDirectory()) walk(rel);
+                    else if (entry.name.endsWith('.ts')) {
+                        const text = strip(read(rel));
+                        if (/projectSpineCertificates|setAssetRegistry/.test(text)) found.push(rel);
+                    }
+                }
+            };
+            walk(SRC);
+            return found.length === 0 ? null
+                : `${found.join(', ')} revives the AssetRegistry contract transport`;
+        },
+    },
+    {
+        rule: 'The cook and the editor\'s play manifest write a contract through ONE function. Two writers is how "works in Play, not in the build" is born — and the promise a player never gets is the one nobody notices.',
+        proof: 'is named by uuid the whole way, because that is how the delivery failed',
+        holds: () => {
+            const writers = ['pipeline/src/assets/addressableManifest.ts',
+                             'desktop/src/project/ProjectStore.ts'];
+            const missing = writers
+                .filter((f) => existsSync(path.join(ROOT, f)))
+                // A CALL, not a mention: an import the file no longer uses is
+                // exactly how one writer quietly grew its own way of doing this.
+                .filter((f) => !/spineManifestContractFrom\s*\(/.test(strip(read(f))));
+            return missing.length === 0 ? null
+                : `${missing.join(', ')} writes a spine contract its own way`;
+        },
+    },
+    {
+        rule: 'The delivery criterion may not manufacture the thing it is checking for. Handing it a certificate turns it back into what it replaced: a test green on both sides of a seam nobody crosses.',
+        proof: 'and costs nothing while no camera wants it',
+        holds: () => {
+            const file = `${TESTS}/spine-contract-delivery.test.ts`;
+            if (!existsSync(path.join(ROOT, file))) return 'the delivery criterion is gone';
+            const text = strip(read(file));
+            const injected = ['certifyBounds', 'setAssetRegistry']
+                .filter((name) => new RegExp(`\\b${name}\\b`).test(text));
+            return injected.length === 0 ? null
+                : `the delivery criterion injects its own authority (${injected.join(', ')})`;
+        },
+    },
 ];
 
 const titles = judgments();

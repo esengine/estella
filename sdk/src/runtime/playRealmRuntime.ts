@@ -141,6 +141,19 @@ export function resolvePlayAssetRef(
     return base ? `${base}/${ref.replace(/^\//, '')}` : ref;
 }
 
+/**
+ * What a manifest tells a realm about its assets, in one place: two lookups a
+ * packaged build and an editor Play session read identically. Assembled once per
+ * source — rebuilding a spelling map per ref would walk the manifest on every
+ * asset a scene preloads.
+ */
+function manifestBackedSettings(model: ManifestModel): Partial<RuntimeAssetSource> {
+    return {
+        textureImportSettings: model.textureImportLookup(),
+        spineCulling: model.spineCullingLookup(),
+    };
+}
+
 function createPlayRealmSource(
     manifest: Record<string, string>,
     assetBaseUrl?: string,
@@ -156,12 +169,10 @@ function createPlayRealmSource(
         // manifest's resolved URLs — both keep the real extension, which is all
         // the .eslocale discovery filters on.
         listAssetPaths: () => (pathMap ? Object.keys(pathMap) : Object.values(manifest)),
-        // Sampling and the 9-slice border come off the addressable manifest, the
-        // same field a cooked build reads — Play and ship cannot disagree about
-        // an asset when they are looking at one description of it.
-        ...(addressable
-            ? { textureImportSettings: ManifestModel.fromJson(addressable).textureImportLookup() }
-            : {}),
+        // Sampling, and the spine culling contract, both come off the addressable
+        // manifest — the same fields a cooked build reads, so Play and ship
+        // cannot disagree about what an author promised.
+        ...(addressable ? manifestBackedSettings(ManifestModel.fromJson(addressable)) : {}),
     };
 }
 

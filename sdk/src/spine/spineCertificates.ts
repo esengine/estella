@@ -7,78 +7,54 @@
  * @details A certified envelope is a statement somebody made about an asset, so
  *          it belongs to the asset and not to a generation of its bytes: a hot
  *          reload replaces what the skeleton does, not what was promised about
- *          it. That makes the key the PAIR — skeleton and atlas, the identity
- *          spine assets already have — and never a path on its own, because an
- *          atlas decides how its regions were trimmed and so what geometry the
- *          attachments end up with.
+ *          it. And it is about the PAIR — an atlas decides how its regions were
+ *          trimmed and so what geometry the attachments end up with — which is
+ *          why nothing here answers about a skeleton alone.
  *
- *          This is the read seam and nothing more. Where the promises are
- *          persisted is the project's business — import metadata today, an
- *          inspector writing that metadata later — and neither of them may
- *          reach past this to hand a runtime an envelope it did not certify.
+ *          It is a READ, not a table. This was a mutable projection somebody had
+ *          to remember to fill, and the thing that went wrong with it is the
+ *          only thing that can: nobody filled it, in any realm, ever. So the
+ *          question now goes straight to the authority a realm already ships —
+ *          the manifest the cook wrote from the `.meta` — and there is no moment
+ *          at which the projection can be out of date with it, because there is
+ *          no projection.
  */
-import type { SpineAABB, SpineCullingEnvelope } from './spineBounds';
+import type { SpineCullingEnvelope } from './spineBounds';
 import { certifyBounds } from './spineBounds';
-import { spineImportSettingsFrom } from '../asset/spineImportSettings';
-import { spinePairKey } from './prepareSpine';
 
 /** What a runtime asks when it is about to make a residency. */
 export interface SpineCertificateSource {
-    /** The promise recorded for this pair, or unknown where there is none. */
-    envelopeFor(pairKey: string): SpineCullingEnvelope;
+    /** The promise recorded for this PAIR, or unknown where there is none. */
+    envelopeFor(skeleton: string, atlas: string): SpineCullingEnvelope;
+}
+
+/** The slice of a realm's asset source a certificate is read from. */
+export interface SpineCullingProvider {
+    spineCulling?(skeleton: string, atlas: string):
+        { x: number; y: number; width: number; height: number } | undefined;
 }
 
 /**
- * The promises a realm knows about, by pair.
+ * The promises a realm ships, read from the source that serves its assets.
  *
- * Only `certify` puts one in, and it takes a rectangle: an observation cannot
- * become a promise by being stored somewhere that returns promises.
+ * A realm whose source answers nothing certifies nothing — which is what makes
+ * an unconfigured project behave exactly as it did, and what makes an editor
+ * preview (not a product runtime) simply not defer.
  */
-export class SpineCertificates implements SpineCertificateSource {
-    private byPair_ = new Map<string, SpineAABB>();
-
-    /** Record that nothing this pair can pose leaves `bounds`. */
-    certify(pairKey: string, bounds: SpineAABB): void {
-        this.byPair_.set(pairKey, { ...bounds });
-    }
-
-    /** Withdraw a promise: a pair with no contract has no envelope. */
-    revoke(pairKey: string): void {
-        this.byPair_.delete(pairKey);
-    }
-
-    /** Forget every promise — what a rebuild from metadata starts with. */
-    clear(): void {
-        this.byPair_.clear();
-    }
-
-    envelopeFor(pairKey: string): SpineCullingEnvelope {
-        const bounds = this.byPair_.get(pairKey);
-        return bounds ? certifyBounds(bounds) : { kind: 'unknown' };
-    }
-}
-
-/**
- * Rebuild the projection from what the project persists — the ONLY way promises
- * get in, and everything absent from `entries` loses its permission. `atlasOf`
- * names the atlas a skeleton pairs with, because the promise is about the pair:
- * the same skeleton against another atlas inherits nothing.
- */
-export function projectSpineCertificates(
-    into: SpineCertificates,
-    entries: ReadonlyArray<{ path: string; importer?: Record<string, unknown> }>,
-    atlasOf: (skeletonPath: string) => string | null,
-): void {
-    into.clear();
-    for (const entry of entries) {
-        const settings = spineImportSettingsFrom(entry.importer);
-        if (!settings?.cullingBounds) continue;
-        const atlas = atlasOf(entry.path);
-        if (!atlas) continue;
-        const { x, y, width, height } = settings.cullingBounds;
-        into.certify(spinePairKey(entry.path, atlas),
-                     { minX: x, minY: y, maxX: x + width, maxY: y + height });
-    }
+export function spineCertificatesFrom(source: SpineCullingProvider): SpineCertificateSource {
+    const read = source.spineCulling?.bind(source);
+    if (!read) return NO_CERTIFICATES;
+    return {
+        envelopeFor(skeleton, atlas) {
+            const bounds = read(skeleton, atlas);
+            return bounds
+                ? certifyBounds({
+                    minX: bounds.x, minY: bounds.y,
+                    maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height,
+                })
+                : { kind: 'unknown' };
+        },
+    };
 }
 
 /** A realm with no recorded promises: everything materialises. */

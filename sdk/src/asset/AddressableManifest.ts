@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AddressableAssetType } from '../assetTypes';
 import { indexTextureImportSettings, type ParsedTextureImportSettings } from './textureImportSettings';
+import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
 
 export type { AddressableAssetType };
@@ -30,6 +31,14 @@ export interface AddressableManifestAsset {
      * texture or its importer says nothing the renderer acts on.
      */
     textureImport?: ParsedTextureImportSettings;
+    /**
+     * A spine skeleton's culling promise: the rectangle, and the ATLAS it was
+     * promised against as this manifest's own KEY, not a build locator.
+     *
+     * It ships rather than being re-derived, which would honour the promise
+     * after a skeleton was re-pointed at another atlas.
+     */
+    spineImport?: SpineManifestContract;
     metadata?: {
         atlas?: string;
         atlasPage?: number;
@@ -110,6 +119,17 @@ export function normalizeBundleMode(mode: string | undefined | null): BundleMode
  * / bundle-mode questions, so loaders and exporters never re-walk `groups` by
  * hand and never re-interpret the bare `bundleMode` string.
  */
+/** Every way a manifest entry can be named — the spellings a ref may arrive as. */
+function spellingsOf(key: string, path: string, address: string | undefined): string[] {
+    const out: string[] = [];
+    for (const spelling of [key, `@uuid:${key}`, path, address]) {
+        if (!spelling) continue;
+        out.push(spelling);
+        if (!spelling.startsWith('/')) out.push(`/${spelling}`);
+    }
+    return out;
+}
+
 export class ManifestModel {
     private constructor(private readonly manifest: AddressableManifest) {}
 
@@ -186,6 +206,32 @@ export class ManifestModel {
                 settings: asset.textureImport,
             })),
         );
+    }
+
+    /**
+     * The culling contract this build ships for a spine PAIR, or undefined.
+     *
+     * Both refs, because there is no useful answer about a skeleton alone. The
+     * atlas is compared as an IDENTITY — `@uuid:…`, a path and an address all
+     * agree — so one the contract was not made against inherits nothing.
+     */
+    spineCullingLookup(): (skeleton: string, atlas: string) => SpineCullingRect | undefined {
+        const contracts = new Map<string, SpineManifestContract>();
+        const identity = new Map<string, string>();
+        for (const { key, asset } of this.entries()) {
+            for (const spelling of spellingsOf(key, asset.path, asset.address)) {
+                identity.set(spelling, key);
+                if (asset.spineImport) contracts.set(spelling, asset.spineImport);
+            }
+        }
+        if (contracts.size === 0) return () => undefined;
+        return (skeleton, atlas) => {
+            const contract = contracts.get(skeleton);
+            if (!contract) return undefined;
+            // Identity settles it, and unknown is a no. `contract.atlas` is
+            // already a key, so only the ref in hand is canonicalised.
+            return identity.get(atlas) === contract.atlas ? contract.cullingBounds : undefined;
+        };
     }
 
     /** The manifest's build content revision (see {@link deriveManifestRevision}),

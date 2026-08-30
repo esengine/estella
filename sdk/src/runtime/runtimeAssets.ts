@@ -63,6 +63,11 @@ export interface RuntimeAssetSource {
      * the `importer` block the cook copies into the ship manifest.
      */
     textureImportSettings?(ref: string): ParsedTextureImportSettings | undefined;
+    /** The rectangle no pose of this spine PAIR leaves, in the skeleton's own
+     *  space. Both refs, since an atlas the promise was not recorded against
+     *  inherits nothing; a realm without this certifies nothing. */
+    spineCulling?(skeleton: string, atlas: string):
+        { x: number; y: number; width: number; height: number } | undefined;
 }
 
 export interface TextureParams {

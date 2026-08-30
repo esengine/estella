@@ -19,6 +19,7 @@ import { ManifestModel, type AddressableManifest } from '../asset/AddressableMan
 import { Catalog, atlasCatalogFields, type CatalogEntry } from '../asset/Catalog';
 import { FileSystemBackend, type Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
+import type { SpineCullingRect } from '../asset/spineImportSettings';
 import { Audio } from '../audio/Audio';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
@@ -114,6 +115,8 @@ export interface PackagedAssetIndex {
     assetPaths(): string[];
     /** How a texture is sampled and 9-sliced, for any ref spelling. */
     textureImport(ref: string): ParsedTextureImportSettings | undefined;
+    /** The culling contract shipped for a spine PAIR, for any ref spelling. */
+    spineCulling(skeleton: string, atlas: string): SpineCullingRect | undefined;
 }
 
 /**
@@ -265,6 +268,7 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         // and rebuilding the spelling map per ref would walk the whole manifest
         // each time.
         textureImport: model.textureImportLookup(),
+        spineCulling: model.spineCullingLookup(),
     };
 }
 
@@ -295,6 +299,7 @@ export function createPackagedAssetSource(
         resolveAddress: index.addressOf,
         listAssetPaths: index.assetPaths,
         textureImportSettings: index.textureImport,
+        spineCulling: index.spineCulling,
     };
 }
 

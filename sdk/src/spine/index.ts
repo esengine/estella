@@ -17,8 +17,8 @@ export {
     setupBounds, scanObservedBounds, certifyBounds, envelopeFor, mayDeferWorldPose,
     worldBounds, contains,
 } from './spineBounds';
-export { SpineCertificates, projectSpineCertificates, NO_CERTIFICATES } from './spineCertificates';
-export type { SpineCertificateSource } from './spineCertificates';
+export { spineCertificatesFrom, NO_CERTIFICATES } from './spineCertificates';
+export type { SpineCertificateSource, SpineCullingProvider } from './spineCertificates';
 export { spineSceneDiagnostics, formatSpineDiagnostics } from './spineSceneDiagnostics';
 export type {
     SpineSceneDiagnostics, SpineAssetDiagnostic, SpineFinding, SpineFindingCode,

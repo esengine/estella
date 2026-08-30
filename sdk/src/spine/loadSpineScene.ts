@@ -31,8 +31,7 @@ import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runt
 import type { BasisTranscoder } from '../asset/compressed';
 import type { AssetsData } from '../asset/AssetPlugin';
 import type { AssetScope } from '../asset/AssetLease';
-import { NO_CERTIFICATES } from './spineCertificates';
-import type { SpineCertificateSource } from './spineCertificates';
+import { spineCertificatesFrom } from './spineCertificates';
 
 /**
  * The in-place editable spine props from a SpineAnimation component's data — the
@@ -102,11 +101,11 @@ export async function loadSpineAssets(
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     transcoderProvider?: TranscoderProvider,
     owner?: SpineAssetOwner,
-    /** The promises this realm has recorded about spine assets' extents. Absent
-     *  means none, which is what makes an unconfigured project behave exactly as
-     *  it did: nothing is certified, so nothing may defer a world pose. */
-    certificates: SpineCertificateSource = NO_CERTIFICATES,
 ): Promise<Map<string, SpineAssetInfo>> {
+    // Read from the SOURCE that serves the assets, not handed in: a promise
+    // about an asset travels with the asset, and a caller that could pass a
+    // different set is a second place a contract can come from.
+    const certificates = spineCertificatesFrom(source);
     const assetInfoMap = new Map<string, SpineAssetInfo>();
 
     for (const pair of spinePairs) {
@@ -120,7 +119,8 @@ export async function loadSpineAssets(
                 // scene's, so the pages go back when the scene does.
                 const lease = await owner.assets.acquireSpine(pair.skeleton, pair.atlas);
                 owner.scope.add(lease);
-                era = spineEraOf(pair, lease as never, certificates.envelopeFor(key));
+                era = spineEraOf(pair, lease as never,
+                                 certificates.envelopeFor(pair.skeleton, pair.atlas));
             } else {
                 const pages: number[] = [];
                 const value = await prepareSpine(

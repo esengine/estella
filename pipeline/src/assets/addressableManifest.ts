@@ -19,6 +19,7 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { deriveManifestRevision, type AddressableManifest } from '../../../sdk/src/asset/AddressableManifest';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
+import { spineManifestContractFrom, type SpineManifestContract } from '../../../sdk/src/asset/spineImportSettings';
 
 /** The flat v1.0 cook manifest this reads (see cookAssets `CookManifestEntry`). */
 interface FlatManifest {
@@ -60,10 +61,22 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
     compressedFormats?: string[];
     textureImport?: ParsedTextureImportSettings;
+    spineImport?: SpineManifestContract;
     metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
   };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
   const groups: Record<string, Group> = {};
+  // Every spelling this build knows an asset by → its key. A spine contract
+  // names the atlas it was promised against however the author's metadata
+  // spelled it; what ships is this build's key for that asset.
+  const keyOfRef = new Map<string, string>();
+  for (const e of flat.entries) {
+    const key = e.uuid.toLowerCase();
+    for (const spelling of [e.uuid, e.uuid.toLowerCase(), `@uuid:${e.uuid}`,
+                            `@uuid:${e.uuid.toLowerCase()}`, e.path, e.sourcePath]) {
+      if (spelling) keyOfRef.set(spelling, key);
+    }
+  }
   for (const e of flat.entries) {
     let size = e.size ?? 0;
     if (e.size == null) { try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing → 0 */ } }
@@ -84,6 +97,10 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     // editor.
     const textureImport = textureImportSettingsFrom(e.importer);
     if (textureImport) entry.textureImport = textureImport;
+    // Same channel and the same reason: without it a shipped game poses every
+    // skeleton every frame while the editor honoured the author's promise.
+    const spineImport = spineManifestContractFrom(e.importer, (ref) => keyOfRef.get(ref));
+    if (spineImport) entry.spineImport = spineImport;
     // The logical source path rides as the asset's address: path-style refs
     // resolve through it. Only meaningful when staging renamed the file.
     if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;

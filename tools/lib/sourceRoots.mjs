@@ -24,7 +24,12 @@ export function hasEditor() {
 
 function ls(cwd, args) {
     if (!args.length) return [];
-    return execFileSync('git', ['ls-files', ...args], { cwd, encoding: 'utf8' }).split('\n').filter(Boolean);
+    const tracked = execFileSync('git', ['ls-files', ...args], { cwd, encoding: 'utf8' })
+        .split('\n').filter(Boolean);
+    // The index still lists a file deleted from the working tree until the
+    // deletion is staged, and every caller goes on to READ what it is handed —
+    // so a gate run mid-edit died on ENOENT instead of reporting a finding.
+    return tracked.filter((rel) => existsSync(path.join(cwd, rel)));
 }
 
 /**

@@ -142,6 +142,7 @@ decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: 
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
+spineCulling: ((skeleton: string, atlas: string) => { x: number; y: number; width: number; height: number; } | undefined) | undefined
 textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined) | undefined
 ```
 

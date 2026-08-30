@@ -31,6 +31,7 @@ decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: 
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
+spineCulling: ((skeleton: string, atlas: string) => { x: number; y: number; width: number; height: number; } | undefined) | undefined
 textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined) | undefined
 ```
 
@@ -74,17 +75,7 @@ update: (instanceId: number, dt: number) => void
 
 ## SpineCertificateSource — interface @experimental
 ```
-envelopeFor: (pairKey: string) => SpineCullingEnvelope
-```
-
-## SpineCertificates — class @experimental
-```
-certify: (pairKey: string, bounds: SpineAABB) => void
-clear: () => void
-envelopeFor: (pairKey: string) => SpineCullingEnvelope
-revoke: (pairKey: string) => void
-static new (): SpineCertificates
-static prototype: SpineCertificates
+envelopeFor: (skeleton: string, atlas: string) => SpineCullingEnvelope
 ```
 
 ## SpineCullingEnvelope — type @experimental
@@ -95,6 +86,11 @@ static prototype: SpineCertificates
         sampleStep: number; era: string; coverage: SpineScanCoverage;
     }
     | { kind: 'unknown' }
+```
+
+## SpineCullingProvider — interface @experimental
+```
+spineCulling: ((skeleton: string, atlas: string) => { x: number; y: number; width: number; height: number; } | undefined) | undefined
 ```
 
 ## SpineDeferralBlocker — type @experimental
@@ -397,7 +393,7 @@ mixY: number
 
 ## loadSpineAssets — function @experimental
 ```
-(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner, certificates?: SpineCertificateSource): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function @experimental
@@ -410,11 +406,6 @@ mixY: number
 (envelope: SpineCullingEnvelope, requiresContinuousWorldPose: boolean): boolean
 ```
 
-## projectSpineCertificates — function @experimental
-```
-(into: SpineCertificates, entries: ReadonlyArray<{ path: string; importer?: Record<string, unknown>; }>, atlasOf: (skeletonPath: string) => string | null): void
-```
-
 ## scanObservedBounds — function @experimental
 ```
 (source: SpineBoundsSource, skeletonHandle: number, era: string, sampleStep?: number): SpineCullingEnvelope
@@ -423,6 +414,11 @@ mixY: number
 ## setupBounds — function @experimental
 ```
 (source: SpineBoundsSource, skeletonHandle: number): SpineAABB | null
+```
+
+## spineCertificatesFrom — function @experimental
+```
+(source: SpineCullingProvider): SpineCertificateSource
 ```
 
 ## spineEntityProps — function @experimental

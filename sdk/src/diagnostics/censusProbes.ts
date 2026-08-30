@@ -160,7 +160,6 @@ export function installBuiltinCensusProbes(): void {
                 counter('asset.textureCached', s.textureCached, 'bounded'),
                 counter('asset.genericCached', s.genericCached, 'bounded'),
                 counter('asset.genericCaches', s.genericCaches, 'bounded'),
-                counter('asset.registryEntries', s.registryEntries, 'info'),
             ];
         },
     });

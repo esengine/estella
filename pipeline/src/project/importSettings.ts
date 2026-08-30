@@ -107,6 +107,13 @@ const SPINE: ImporterFieldSpec[] = [
       + 'in view can be culled while visible.',
   },
   { key: 'cullingBounds.height', label: 'Culling Height', type: 'number', default: 0, min: 0, category: 'Culling', advanced: true },
+  {
+    key: 'cullingAtlas', label: 'Culling Atlas', type: 'string', default: '',
+    category: 'Culling', advanced: true,
+    tooltip: 'The atlas this promise was made against — written by "Use as Fixed Culling '
+      + 'Bounds", not by hand. A spine asset is a skeleton AND an atlas, so the same '
+      + 'skeleton drawn with a different atlas inherits no promise. Empty means no promise.',
+  },
 ];
 
 // Which armature and animation an entity gets are DragonBonesAnimation fields
