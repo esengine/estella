@@ -819,6 +819,7 @@ onInvalidate: (listener: InvalidateListener) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
 preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; }) => Promise<SceneAssetResult>
+projectSpineCertificates: () => void
 recoverFromDeviceLoss: () => Promise<boolean>
 register: <T>(loader: AssetLoader<T>) => void
 releaseAll: () => void
@@ -844,6 +845,7 @@ setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
 setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
 setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
+spineCertificates: SpineCertificates
 texturesAwaitingReupload: () => { handle: number; path: string; }[]
 static create: (options: AssetsOptions) => AssetsClass
 static new (options: AssetsOptions): AssetsClass

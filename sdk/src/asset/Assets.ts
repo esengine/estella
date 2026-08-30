@@ -54,6 +54,7 @@ import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../util/logger';
 import { recoverDevice, finishDeviceRecovery } from '../render/renderer';
+import { SpineCertificates, projectSpineCertificates } from '../spine/spineCertificates';
 
 /**
  * One asset generation ending: which ref, what kind of asset it was, and what
@@ -2012,6 +2013,34 @@ export class Assets {
     setAssetRegistry(registry: AssetRegistry): void {
         this.assetRegistry_ = registry;
         this.assetRefResolver_ = (ref) => registry.resolveRef(ref);
+        this.projectSpineCertificates();
+    }
+
+    /**
+     * The spine culling promises this realm knows about — a PROJECTION of what
+     * the project persists, never a store of its own. Rebuilt on every ask, so
+     * a deleted contract disappears rather than outliving the metadata that
+     * granted it, and a manifest loaded later is not missed.
+     */
+    get spineCertificates(): SpineCertificates {
+        this.projectSpineCertificates();
+        return this.spineCertificates_;
+    }
+
+    /** Rebuild that projection from what the registry currently holds. */
+    projectSpineCertificates(): void {
+        const registry = this.assetRegistry_;
+        if (!registry) {
+            this.spineCertificates_.clear();
+            return;
+        }
+        projectSpineCertificates(
+            this.spineCertificates_,
+            registry.getAllByType('spine'),
+            (skeleton) => {
+                const deps = this.catalog.getDeps(skeleton);
+                return deps.length > 0 ? deps[0] : null;
+            });
     }
 
     getAssetRegistry(): AssetRegistry | null {
@@ -2027,6 +2056,8 @@ export class Assets {
      * "does anything still need this asset?". Optional; null means no
      * tracking (default, zero overhead).
      */
+    private readonly spineCertificates_ = new SpineCertificates();
+
     setRefCounter(counter: AssetRefCounter): void {
         this.refCounter_ = counter;
     }

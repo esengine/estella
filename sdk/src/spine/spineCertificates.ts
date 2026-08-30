@@ -19,6 +19,8 @@
  */
 import type { SpineAABB, SpineCullingEnvelope } from './spineBounds';
 import { certifyBounds } from './spineBounds';
+import { spineImportSettingsFrom } from '../asset/spineImportSettings';
+import { spinePairKey } from './prepareSpine';
 
 /** What a runtime asks when it is about to make a residency. */
 export interface SpineCertificateSource {
@@ -45,9 +47,37 @@ export class SpineCertificates implements SpineCertificateSource {
         this.byPair_.delete(pairKey);
     }
 
+    /** Forget every promise — what a rebuild from metadata starts with. */
+    clear(): void {
+        this.byPair_.clear();
+    }
+
     envelopeFor(pairKey: string): SpineCullingEnvelope {
         const bounds = this.byPair_.get(pairKey);
         return bounds ? certifyBounds(bounds) : { kind: 'unknown' };
+    }
+}
+
+/**
+ * Rebuild the projection from what the project persists — the ONLY way promises
+ * get in, and everything absent from `entries` loses its permission. `atlasOf`
+ * names the atlas a skeleton pairs with, because the promise is about the pair:
+ * the same skeleton against another atlas inherits nothing.
+ */
+export function projectSpineCertificates(
+    into: SpineCertificates,
+    entries: ReadonlyArray<{ path: string; importer?: Record<string, unknown> }>,
+    atlasOf: (skeletonPath: string) => string | null,
+): void {
+    into.clear();
+    for (const entry of entries) {
+        const settings = spineImportSettingsFrom(entry.importer);
+        if (!settings?.cullingBounds) continue;
+        const atlas = atlasOf(entry.path);
+        if (!atlas) continue;
+        const { x, y, width, height } = settings.cullingBounds;
+        into.certify(spinePairKey(entry.path, atlas),
+                     { minX: x, minY: y, maxX: x + width, maxY: y + height });
     }
 }
 
