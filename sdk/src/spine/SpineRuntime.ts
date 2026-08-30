@@ -31,6 +31,12 @@ import { mayDeferWorldPose } from './spineBounds';
 import type { SpineCullingEnvelope } from './spineBounds';
 import { withScratch } from '../wasm/wasmScratch';
 
+/**
+ * What a camera said about an entity. `unknown` is not a no — it is the absence
+ * of an answer, and only an answer may remove work.
+ */
+type RenderVisibility = 'visible' | 'culled' | 'unknown';
+
 interface EntityInfo {
     skelHandle: number;
     instanceId: number;
@@ -170,7 +176,8 @@ export class SpineRuntime {
         // belongs to the skeleton this handle is, not to the name it came under.
         this.skeletons_.set(era.id, {
             skelHandle, refcount: 1, claim,
-            culling: era.culling,
+            // A binding that carries no envelope promised nothing.
+            culling: era.culling ?? { kind: 'unknown' },
             requiresContinuousWorldPose: this.controller_.requiresContinuousWorldPose(skelHandle),
         });
         return skelHandle;
@@ -332,26 +339,26 @@ export class SpineRuntime {
      */
     private cameraWouldDraw_(
         core: NonNullable<EngineApi>, registry: CppRegistry, entity: Entity, info: EntityInfo,
-    ): boolean | null {
+    ): RenderVisibility {
         const ask = (core as { renderer_entityVisibleToCamera?: unknown })
             .renderer_entityVisibleToCamera as
             | ((r: CppRegistry, e: number, layer: number,
                 minX: number, minY: number, maxX: number, maxY: number, out: number) => void)
             | undefined;
-        if (!ask) return null;
+        if (!ask) return 'unknown';
         const residency = this.skeletons_.get(info.era);
-        if (!residency || residency.culling.kind !== 'certified') return null;
+        if (!residency || residency.culling.kind !== 'certified') return 'unknown';
 
         const { bounds } = residency.culling;
         const scale = info.skeletonScale;
         const heap = core.HEAPU32;
-        if (!heap || !core._malloc || !core._free) return null;
+        if (!heap || !core._malloc || !core._free) return 'unknown';
         return withScratch({ _malloc: core._malloc, _free: core._free }, (alloc) => {
             const ptr = alloc(4);
             ask(registry, entity as unknown as number, info.layer,
                 bounds.minX * scale, bounds.minY * scale,
                 bounds.maxX * scale, bounds.maxY * scale, ptr);
-            return heap[ptr >> 2] !== 0;
+            return heap[ptr >> 2] !== 0 ? 'visible' : 'culled';
         });
     }
 
@@ -390,7 +397,7 @@ export class SpineRuntime {
         const info = this.entities_.get(entity);
         if (!info || this.disabledEntities_.has(entity)) return false;
         if (info.worldRevision === info.logicalRevision) {
-            if (this.metrics_) this.metrics_.pose.worldDeferred++;
+            if (this.metrics_) this.metrics_.pose.worldAlreadyCurrent++;
             return false;
         }
         this.controller_.materializeWorldPose(info.instanceId, info.pendingDt);
@@ -426,10 +433,11 @@ export class SpineRuntime {
                 info.pendingDt += step;
                 if (m) { m.abi.pose++; m.pose.logicalUpdates++; }
             }
-            // Every entity's world pose is demanded here for now. Which of them
-            // could be left owed is the next cut's question; this one is only
-            // about the debt existing.
-            this.ensurePose(entity);
+            // Whoever may not defer pays here: a skeleton whose world pose
+            // carries state, or one nothing promised an extent for. The rest
+            // keep the debt until a camera asks.
+            const residency = this.skeletons_.get(info.era);
+            if (!residency || !residencyMayDefer(residency)) this.ensurePose(entity);
         }
         if (!m) return;
         m.time.pose = performance.now() - started;
@@ -447,14 +455,16 @@ export class SpineRuntime {
         const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             if (this.disabledEntities_.has(entity)) continue;
-            // What this camera would do with it, asked of the renderer rather
-            // than worked out here. Nothing acts on the answer yet: this pass
-            // still resolves, extracts and submits exactly what it did before.
-            if (m && this.cameraWouldDraw_(core, registry, entity, info) === false) {
-                m.pose.renderCulled++;
+            // Only a NO from the renderer, about an extent somebody certified,
+            // removes work. Unknown is not a no: an entity whose extent nobody
+            // promised has unknown visibility and is drawn.
+            if (this.cameraWouldDraw_(core, registry, entity, info) === 'culled') {
+                if (m) m.pose.renderCulled++;
+                continue;
             }
             // The renderer is a consumer of the world pose like any other, and
-            // asks for it the same way. Today it is already resolved.
+            // asks for it the same way — the first camera that wants it pays,
+            // and the rest of this frame's cameras find the debt settled.
             this.ensurePose(entity);
             if (m) m.pose.meshExtractions++;
             // Shared with every skeletal runtime (skeletal/submitMeshes): the core's

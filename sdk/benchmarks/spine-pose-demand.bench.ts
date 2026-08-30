@@ -42,6 +42,21 @@
  *          meaning — events, mixes, track positions — costs 15% of the win,
  *          which is what says the thing worth skipping is the world transform
  *          and never the animation state.
+ *
+ *          SHIPPED. The path exists now: a certified stateless skeleton keeps
+ *          its world-pose debt until a camera asks. Measured against resolving
+ *          every frame, ms per frame at a thousand entities, min of five:
+ *
+ *              scene                  eager  demand-driven
+ *              all visible             3.39           3.36
+ *              200 visible, 800 not    3.29           1.06
+ *              none visible            3.26           0.49
+ *
+ *          The row that had to be checked is the first: a scene where every
+ *          entity is visible pays for the culling authority and saves nothing.
+ *          It does not measurably. The per-entity visibility question is one
+ *          crossing, and a bare crossing is 0.006 ms per frame per thousand
+ *          entities by the ladder in spine-extract-stages — 0.2% of this frame.
  */
 import { describe, bench, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';

@@ -83,15 +83,16 @@ export interface SpineByteCounts {
 /**
  * A frame's posing, as what was asked for rather than what was called.
  *
- * `worldDeferred` is a demand that found the world already current — which is
- * how "at most one materialization per revision" reads from the outside.
+ * Each counts ONE thing. `renderCulled` is per (entity, CAMERA): an entity four
+ * cameras declined was declined four times and owes one world pose, so it is not
+ * a count of deferrals and is not reported as one — that would need somewhere
+ * that knows the frame ended, and there is no such place yet.
  */
 export interface SpinePoseCounts {
     logicalUpdates: number;
     worldMaterializations: number;
-    worldDeferred: number;
+    worldAlreadyCurrent: number;
     meshExtractions: number;
-    /** Extractions the camera in hand would not have drawn. Counted, not acted on. */
     renderCulled: number;
 }
 
@@ -115,7 +116,7 @@ export function newSpineFrameMetrics(): SpineFrameMetrics {
     return {
         frame: 0, entities: 0, residencies: 0, meshBatches: 0, vertices: 0, indices: 0,
         abi: { pose: 0, world: 0, batchCount: 0, vertexCount: 0, indexCount: 0, batchData: 0, malloc: 0, free: 0, submit: 0 },
-        pose: { logicalUpdates: 0, worldMaterializations: 0, worldDeferred: 0, meshExtractions: 0, renderCulled: 0 },
+        pose: { logicalUpdates: 0, worldMaterializations: 0, worldAlreadyCurrent: 0, meshExtractions: 0, renderCulled: 0 },
         bytes: { wasmRead: 0, coreWrite: 0, scratchAllocated: 0 },
         time: { pose: 0, readback: 0, total: 0 },
     };
@@ -129,7 +130,7 @@ export function beginSpineFrame(m: SpineFrameMetrics): void {
     m.abi.batchData = 0; m.abi.malloc = 0; m.abi.free = 0; m.abi.submit = 0;
     m.bytes.wasmRead = 0; m.bytes.coreWrite = 0; m.bytes.scratchAllocated = 0;
     m.pose.logicalUpdates = 0; m.pose.worldMaterializations = 0;
-    m.pose.worldDeferred = 0; m.pose.meshExtractions = 0; m.pose.renderCulled = 0;
+    m.pose.worldAlreadyCurrent = 0; m.pose.meshExtractions = 0; m.pose.renderCulled = 0;
     m.time.pose = 0; m.time.readback = 0; m.time.total = 0;
 }
 

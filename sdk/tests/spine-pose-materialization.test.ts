@@ -165,7 +165,7 @@ describe.skipIf(!HAS_WASM)('a world pose is owed, and paid once', () => {
         const m = runtime.metrics()!;
         expect(m.pose.logicalUpdates).toBe(5);
         expect(m.pose.worldMaterializations).toBe(5);
-        expect(m.pose.worldDeferred, 'the extraction found five debts already paid').toBe(5);
+        expect(m.pose.worldAlreadyCurrent, 'the extraction found five debts already paid').toBe(5);
         expect(m.pose.meshExtractions).toBe(5);
         runtime.dispose();
     });

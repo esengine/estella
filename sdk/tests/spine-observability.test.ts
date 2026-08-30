@@ -165,7 +165,7 @@ describe.skipIf(!HAS_ASSETS)('a frame can say what it cost', () => {
         // what had to be resolved, and what asked and found it already was.
         expect(m.pose.logicalUpdates).toBe(100);
         expect(m.pose.worldMaterializations, 'a world pose was resolved twice').toBe(100);
-        expect(m.pose.worldDeferred, 'the extraction re-resolved what it asked for').toBe(100);
+        expect(m.pose.worldAlreadyCurrent, 'the extraction re-resolved what it asked for').toBe(100);
         runtime.dispose();
     });
 });

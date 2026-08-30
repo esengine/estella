@@ -75,18 +75,17 @@ describe('what this camera would draw, asked of the renderer', () => {
         runtime.dispose();
     });
 
-    it('an entity this camera cannot see is counted, not skipped', () => {
-        // The whole point of this cut landing before the next one: the fact is
-        // available and changes nothing.
+    it('an entity this camera cannot see costs it nothing', () => {
         const { runtime } = runtimeWith();
         const { core: engine } = core(() => false);
         runtime.updateAll(1 / 60);
         runtime.extractAndSubmitMeshes(engine, {} as never);
 
         const m = runtime.metrics()!;
-        expect(m.pose.renderCulled, 'the camera fact was not recorded').toBe(1);
-        expect(m.pose.worldMaterializations, 'a world pose was skipped already').toBe(1);
-        expect(m.pose.meshExtractions, 'an extraction was skipped already').toBe(1);
+        expect(m.pose.renderCulled).toBe(1);
+        expect(m.pose.logicalUpdates, 'the animation stopped advancing').toBe(1);
+        expect(m.pose.worldMaterializations, 'a pose nobody wanted was resolved').toBe(0);
+        expect(m.pose.meshExtractions).toBe(0);
         runtime.dispose();
     });
 
@@ -149,21 +148,21 @@ describe('what this camera would draw, asked of the renderer', () => {
         runtime.dispose();
     });
 
-    it('two cameras are two passes, and the second finds the pose paid', () => {
+    it('two cameras are two passes, and the one that wants it pays', () => {
         // The union, without a bitmask: each camera runs its own submit, and the
         // revision model means only the first one that wants it pays.
         const { runtime } = runtimeWith();
         const invisible = core(() => false);
         const visible = core(() => true);
         runtime.updateAll(1 / 60);
-        const before = runtime.metrics()!.pose.worldMaterializations;
 
         runtime.extractAndSubmitMeshes(invisible.core, {} as never);
         runtime.extractAndSubmitMeshes(visible.core, {} as never);
 
         const m = runtime.metrics()!;
-        expect(m.pose.worldMaterializations, 'a second camera re-resolved the pose').toBe(before);
         expect(m.pose.renderCulled, 'only one of the two cameras declined it').toBe(1);
+        expect(m.pose.worldMaterializations, 'the camera that wanted it did not pay once').toBe(1);
+        expect(m.pose.meshExtractions).toBe(1);
         runtime.dispose();
     });
 });
