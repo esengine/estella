@@ -433,7 +433,16 @@ export class SpineRuntime {
 
     updateAll(dt: number): void {
         const m = this.metrics_;
-        if (m) beginSpineFrame(m);
+        if (m) {
+            // The frame that ends HERE is the only place its readback is whole:
+            // extract runs once per camera and no camera knows it was the last,
+            // so the window is fed the previous frame, once, from the next one.
+            if (m.frame > 0) {
+                this.readbackWindow_.push(m.time.readback);
+                this.totalWindow_.push(m.time.total);
+            }
+            beginSpineFrame(m);
+        }
         const started = m ? performance.now() : 0;
         for (const [entity, info] of this.entities_) {
             // Disabled means out of the frame entirely, so it costs no posing
@@ -495,10 +504,11 @@ export class SpineRuntime {
         // ONE clock pair for the whole pass. What it is made of — discovering
         // batches, extracting them, copying them across — is counted rather than
         // timed here; see benchmarks/spine-readback-phases for the split.
-        m.time.readback = performance.now() - started;
+        //
+        // ACCUMULATED, because a frame drawn by two cameras runs this twice: an
+        // assignment here would report the last camera's pass as the frame's.
+        m.time.readback += performance.now() - started;
         m.time.total = m.time.pose + m.time.readback;
-        this.readbackWindow_.push(m.time.readback);
-        this.totalWindow_.push(m.time.total);
     }
 
     /**
