@@ -960,7 +960,10 @@ export class Assets {
         // swaps it to the freshly-fetched content in live components.
         const oldHandles = new Map<string, number>();
         for (const c of changed) {
-            const tex = this.getTexture(c.key);
+            // A manifest names an asset by its bare key and a scene serializes it as
+            // `@uuid:<key>`; the two resolve down different routes. Ask both, or the
+            // handle a scene is holding is invisible from here.
+            const tex = this.getTexture(c.key) ?? this.getTexture(`${UUID_REF_PREFIX}${c.key}`);
             if (tex) oldHandles.set(c.key, tex.handle);
         }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
@@ -971,8 +974,9 @@ export class Assets {
         // the old pixels while the caller is told `applied: true, failed: 0`. With
         // the keys, because a key the cache never saw is what that looks like.
         if (changed.length > 0 && oldHandles.size === 0) {
-            log.warn('asset', 'applyUpdate: nothing will rebind — no changed asset is bound to a live'
-                + ` texture. ${changed.map((c) => `${c.type} ${c.key} -> ${this.resolveLoadPath_(c.key)}`).join('; ')}`);
+            log.warn('asset', 'applyUpdate: no changed asset is bound to a live texture, so this'
+                + ` update will rebind nothing. ${changed.map((c) => `${c.type} ${c.key}`
+                + ` -> ${this.resolveLoadPath_(c.key)}`).join('; ')}`);
         }
         for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
         // A changed asset is content-addressed, so its next load finds the update
