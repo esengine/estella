@@ -1,12 +1,21 @@
 #!/bin/sh
-# Pre-push guard: run the cheap CI static gates locally so a public-API surface
-# drift (a changed export without a refreshed sdk/etc/*.api.md snapshot) is caught
-# before it reddens master — not after, as a follow-up fix commit. Mirrors the
-# fast checks in the CI "Tests" job; keep it to seconds so pushing stays cheap.
-if ! pnpm run verify; then
+# Pre-push guard: run the STATIC gates locally so a public-API surface drift (a
+# changed export without a refreshed sdk/etc/*.api.md snapshot) is caught before
+# it reddens master — not after, as a follow-up fix commit.
+#
+# Not the test suites. `verify:push` is `verify --no-suites`: the same one ordered
+# list in tools/gates.mjs, minus the five gates that RUN a suite, which CI runs on
+# this very push and which cost minutes here to answer a question that is about to
+# be answered anyway. The suites also fail on a stale local build/wasm/web — an
+# artifact CI builds fresh — so on this path they reported the machine, not the
+# push, and being early in the list they stranded every gate behind them.
+#
+# `pnpm run verify` still means everything; only the hook stopped paying for it.
+if ! pnpm run verify:push; then
   echo ''
   echo '✗ push blocked by pre-push verify.'
   echo '  API surface drifted?  node tools/api-surface.mjs --update   (then commit the refreshed sdk/etc/*.api.md)'
+  echo '  Suites are not in this hook — run `pnpm run verify` for the full list.'
   echo '  To bypass in a real emergency:  git push --no-verify'
   exit 1
 fi

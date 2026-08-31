@@ -33,8 +33,14 @@ if (!SCOPES.includes(SCOPE)) {
 // cannot run without it. Named below rather than silently dropped — a gate that
 // disappears quietly is the same as one that always passes.
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
-const gates = gatesFor(SCOPE, HAS_EDITOR);
+// --no-suites drops the gates that RUN a suite (the `covers` ones), for a caller
+// that is not paying minutes right now — the pre-push hook. Everything else,
+// including the builds the later gates read, still runs.
+const SUITES = !argv.includes('--no-suites');
+const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES });
 const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
+/** Suites this run is not paying for — named, never silently absent. */
+const unpaid = SUITES ? [] : gatesFor(SCOPE, HAS_EDITOR).filter((g) => g.covers?.length);
 const noEditor = HAS_EDITOR ? [] : GATES.filter((g) => g.needs === 'editor' && (!g.where || g.where === SCOPE));
 console.log(`gates ${SCOPE}: ${gates.length} of ${GATES.length}`);
 if (noEditor.length) {
@@ -67,10 +73,20 @@ function reportSuites() {
   if (unrun.length) {
     console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);
   }
+  // The whole point of --no-suites is that it is CHEAP, not that it is quiet.
+  if (unpaid.length) {
+    console.log(`  test suites NOT run: ${unpaid.map((g) => g.id).join(', ')} — --no-suites; CI runs them`);
+  }
 }
 
+/** What each gate cost, so the expensive ones are a measurement rather than a
+ *  hunch — this list is ordered by hand and nothing was timing it. */
+const spent = [];
+
 for (const gate of gates) {
+  const began = Date.now();
   const r = spawnSync('sh', ['-c', gate.run], { cwd: ROOT, stdio: 'inherit' });
+  spent.push({ id: gate.id, ms: Date.now() - began });
   // A shell that would not start is not a gate that failed. Reported as one it
   // sends the reader after the first gate's subject, which said nothing at all.
   if (r.error) {
@@ -89,6 +105,11 @@ for (const gate of gates) {
 }
 
 console.log(`\ngates ${SCOPE}: ${gates.length}/${gates.length} green`
+  + ` in ${(spent.reduce((t, g) => t + g.ms, 0) / 1000).toFixed(0)}s`
   + (noEditor.length ? ` (${noEditor.length} editor gate(s) had no checkout to run against)` : ''));
+// Name the costliest: "the gates are slow" is not something anyone can act on,
+// and "sdk-tests took 78 of the 210 seconds" is.
+const dear = [...spent].sort((x, y) => y.ms - x.ms).slice(0, 5);
+console.log(`  costliest: ${dear.map((g) => `${g.id} ${(g.ms / 1000).toFixed(0)}s`).join(', ')}`);
 reportSuites();
 for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`);

@@ -3,7 +3,7 @@
 /**
  * @file  gates.mjs — the static gates, in order, and where each one runs.
  *
- * There were two lists again. `pnpm run verify` (what the pre-push hook runs)
+ * There were two lists again. `pnpm run verify` (which the pre-push hook ran)
  * held eighteen gates and CI's Tests job held six, overlapping in one. So
  * seventeen gates only ever ran on a machine with the hook installed, and five
  * only ran in CI — which is how a push went out green and CI failed on
@@ -31,6 +31,11 @@ export const SCOPES = ['local', 'ci'];
  * "the full gate suite is green" mean something: check-verification-authority
  * compares the claim against the directories that HOLD tests, so a suite nothing
  * invokes is a finding rather than a silence.
+ *
+ * `covers` is also the COST dimension: the gates that run a suite are the ones
+ * that cost minutes, so `--no-suites` drops exactly those. Orthogonal to `where`
+ * — that says a gate CANNOT run here, this says a caller is not paying now — so
+ * the list above stays the only list, and a dropped suite is still named.
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
@@ -219,7 +224,9 @@ export const GATES = [
 ];
 
 /** The gates a scope runs, in declaration order. `hasEditor` gates the editor ones. */
-export function gatesFor(scope, hasEditor = true) {
+export function gatesFor(scope, hasEditor = true, { suites = true } = {}) {
   if (!SCOPES.includes(scope)) throw new Error(`unknown scope "${scope}" (have: ${SCOPES.join(', ')})`);
-  return GATES.filter((g) => (!g.where || g.where === scope) && (hasEditor || g.needs !== 'editor'));
+  return GATES.filter((g) => (!g.where || g.where === scope)
+    && (hasEditor || g.needs !== 'editor')
+    && (suites || !g.covers?.length));
 }
