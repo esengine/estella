@@ -59,8 +59,8 @@ export const CRITERIA = [
   },
   {
     id: 'launch-smoke-every-platform',
-    host: 'android',
-    why: 'verify-native-boot boots the package on an emulator, which needs the Android SDK',
+    host: 'desktop-and-android',
+    why: 'its command chains three verifiers across two environments — desktop render wants clang, Dawn, Vulkan and xvfb, the boot wants an emulator — so no one CI job answers it; note golden and the desktop pixels are already criteria and jobs of their own',
     says: 'every shipping platform launches a package and draws',
     answeredBy: 'node tools/verify-golden.mjs --tier release'
       + ' && node tools/verify-desktop-render.mjs --tier pr'
@@ -192,7 +192,7 @@ export const CRITERIA = [
   {
     id: 'a-crash-leaves-something-the-player-can-send',
     host: 'device',
-    why: '--require-device: a boot record surviving a crash is a claim about real hardware, and a simulator cannot make it',
+    why: '--require-device reads `adb devices` on the machine it runs on, and the Device Farm path uploads a bundle rather than attaching one — so no runner here can answer it; a release captain with a phone plugged in and `pnpm run gate:run --host device` can',
     says: 'the boot record survives a crash on a real device, with the phase and a backtrace',
     // `--require-device` on purpose: without it the tool skips where there is no
     // phone, which is right on a laptop and is a false pass under a release.

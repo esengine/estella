@@ -54,7 +54,7 @@ for (const c of CRITERIA) {
   // A criterion that can only be answered somewhere particular owes the reason,
   // exactly as a gate's `where` owes its `why`: unexplained, it reads as a
   // criterion somebody quietly stopped running.
-  const HOSTS = ['linux', 'macos', 'android', 'device'];
+  const HOSTS = ['linux', 'macos', 'android', 'device', 'desktop-and-android'];
   if (c.host !== undefined) {
     if (!HOSTS.includes(c.host)) fail(`"${c.id}" declares host "${c.host}" (have: ${HOSTS.join(', ')})`);
     if (!c.why?.trim()) fail(`"${c.id}" narrows to one host without saying why the others cannot answer it`);
