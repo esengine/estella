@@ -90,10 +90,13 @@ const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
 
 剪辑是 `.esanim` 资产,全程可视化创作——不用手写 JSON:
 
-1. 在内容浏览器中**右键纹理**,选择**创建精灵动画**。Flipbook 编辑器打开,
-   精灵表上覆盖切片网格(格子尺寸按图片猜测;在工具栏调整格宽/格高/边距/间距)。
-2. **点击或拖选格子**追加帧。下方帧条显示每帧缩略图与可编辑时长
-   (毫秒;留空 = `1000 / 帧率`),可拖拽重排,并带实时循环预览。
+1. 两条路:**右键一张纹理**选**创建精灵动画**——Flipbook 编辑器打开,精灵表上
+   覆盖切片网格(格子尺寸按图片猜测;在工具栏调整格宽/格高/边距/间距);或者
+   **选中多张图片**,选**用 N 张图片创建精灵动画**,按文件名顺序排好
+   (按数字比较,所以 `run_2` 排在 `run_10` 前面)。
+2. **点击或拖选格子**追加帧,或**把图片拖到时间轴上**插入。时间轴上一个块有多宽
+   就代表这帧有多长:拖它的右边缘改时长,拖块本身重排。视口把当前帧按真实尺寸
+   画在剪辑锚点上,相邻帧则各就各位地叠印在后面。
 3. **保存**,然后**右键 `.esanim` → 创建动画精灵**(或直接拖进视口)。
    得到一个定格在第 0 帧的 `Sprite` + `SpriteAnimator` 实体——进 Play 零代码播放。
 
@@ -102,6 +105,40 @@ const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
 
 重新切片时所有帧一致跟随——帧引用的是网格格子,不是像素矩形。
 超出当前网格的帧会在帧条中标红。
+
+**播放头所在的那一帧**在检视器里有自己的一节——时长、尺寸、偏移、锚点,
+和剪辑的帧率、循环模式以及下面这两个开关并排。
+
+### 逐帧尺寸与偏移
+
+精灵表的格子都一样大,所以整段剪辑共用一个 `Sprite.size` 是对的。多张独立
+图片不是:96×64 的攻击帧和 48×96 的待机帧按同一个尺寸画,两个都是错的。
+勾上**逐帧尺寸**,播放期间 `Sprite.size` 就归剪辑管——每帧按自己的自然尺寸
+(纹理像素,或所在格子)绘制,也可以给某帧写一个 `size` 覆盖。
+
+这同时解锁了**偏移**。偏移把某帧的画面挪开,单位与尺寸相同,加载时被折进
+该帧的锚点——所以下游没有任何一层需要认识这个字段。用单位而不是直接改锚点
+来表达位移,正是关键:同一个偏移在任意尺寸的帧上都是同样的视觉位移,
+归一化的锚点做不到这点。在视口里拖动这一帧即可设定,也可以在检视器里输入。
+
+```jsonc
+// step.esanim —— 三张尺寸不同的图片,其中一张往右挪
+{
+  "version": "1.5",
+  "fps": 6,
+  "frameSizing": "frame",
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "texture": "@uuid:…" },
+    { "texture": "@uuid:…", "offset": { "x": 20, "y": 0 } },
+    { "texture": "@uuid:…", "duration": 0.35 }
+  ]
+}
+```
+
+两者都没声明的剪辑会原封不动地保留实体自己设的 `Sprite.size`,所以在这个能力
+出现之前写的剪辑播放起来完全一样。取消勾选会清除该模式以及所有逐帧尺寸与偏移,
+回到这种「不插手」的行为。
 
 ### 逐帧锚点
 
@@ -165,11 +202,14 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 | 辅助函数 | 说明 |
 |---|---|
 | `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | 一个全新的按网格切片的 `AnimClipAssetData`(fps `12`、`loop: true`、边距/间距 `0`、暂无帧)。 |
-| `parseAnimClipData(name, data, textureHandles)` | 把资产数据解析成运行时 `SpriteAnimClip`——每个格子帧得到纹理句柄与 UV 窗口。 |
+| `createAnimClipFromTextures(textures)` | 一个全新的逐帧贴图剪辑——没有精灵表,且一开始就接管尺寸。 |
+| `parseAnimClipData(name, data, textureHandles, textureSizes?)` | 把资产数据解析成运行时 `SpriteAnimClip`——每帧得到纹理句柄、UV 窗口,以及(剪辑接管尺寸时)它的绘制尺寸。传 `textureSizes` 好让逐帧贴图有自然尺寸可回落。 |
 | `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | 解析 / 写出 `.esanim` JSON 文档(两者可往返)。 |
 | `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | 网格格子的像素矩形 / UV 窗口——即该帧 `Sprite` 显示的内容。 |
-| `animClipFramePivot(data, frame)` | 该帧实际渲染用的锚点——帧自己的 → 剪辑的 → 居中。剪辑没有声明锚点时返回 `null`(表示不要动 `Sprite.pivot`)。 |
+| `animClipFramePivot(data, frame, size?)` | 该帧实际渲染用的锚点——帧自己的 → 剪辑的 → 居中;给了 `size` 时把该帧的偏移折进去。剪辑没有声明锚点时返回 `null`(表示不要动 `Sprite.pivot`)。 |
 | `animClipDrivesPivot(data)` | 该剪辑是否声明了锚点。 |
+| `animClipFrameSize(data, frame, natural?)` | 该帧的绘制尺寸——帧自己的 → 你传入的自然尺寸。剪辑不接管尺寸时返回 `null`(表示不要动 `Sprite.size`)。 |
+| `animClipDrivesSize(data)` | 该剪辑是否接管 `Sprite.size`——直接设定,或由任一帧的尺寸/偏移隐含。 |
 
 ### 用状态机驱动剪辑——零代码
 

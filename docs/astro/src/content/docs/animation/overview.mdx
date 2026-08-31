@@ -94,13 +94,17 @@ const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
 
 Clips are `.esanim` assets you author visually — no JSON by hand:
 
-1. **Right-click a texture** in the Content Browser and choose **Create Sprite
-   Animation**. The Flipbook editor opens with the sheet under a slicing grid
-   (the cell size is guessed from the image; adjust cell width/height, margin,
-   and spacing in the toolbar).
-2. **Click or drag across cells** to append frames. The frame strip below shows
-   each frame's thumbnail with an editable duration (ms; empty = `1000 / FPS`),
-   drag to reorder, and a live looping preview.
+1. Either **right-click a texture** and choose **Create Sprite Animation** —
+   the Flipbook editor opens with the sheet under a slicing grid (the cell size
+   is guessed from the image; adjust cell width/height, margin, and spacing in
+   the toolbar) — or **select several images** and choose **Create Sprite
+   Animation from N Images**, which lines them up in file-name order (counting
+   numerically, so `run_2` precedes `run_10`).
+2. **Click or drag across cells** to append frames, or **drop images onto the
+   timeline** to insert them. A block on the timeline is as wide as its frame is
+   long: drag its right edge to retime, drag the block itself to reorder. The
+   viewport draws the current frame at its true size against the clip's anchor,
+   with the neighbouring frames ghosted in their own places.
 3. **Save**, then **right-click the `.esanim` → Create Animated Sprite** (or
    drag it into the viewport). You get a `Sprite` + `SpriteAnimator` entity
    posed at frame 0 — it plays in Play mode with zero code.
@@ -112,6 +116,44 @@ Flipbook editor at the same time, frame edits animate live as you make them.
 Re-slicing the grid moves every frame consistently — frames reference grid
 cells, not pixel rectangles. Frames that fall outside the current grid are
 flagged red in the strip.
+
+The **frame under the playhead** has its own section in the Details inspector —
+duration, size, offset, anchor — alongside the clip's fps, loop mode, and the
+two switches below.
+
+### Per-frame sizes and offsets
+
+A sheet's cells are all the same size, so one `Sprite.size` fits every frame of
+it. Separate images are not: a 96×64 attack frame and a 48×96 idle frame drawn
+at one size are both wrong. Tick **Frame Sizes** and the clip owns `Sprite.size`
+during playback — each frame draws at its own natural size (its texture's
+pixels, or its sheet cell), or at a `size` you give it.
+
+That also unlocks **offsets**. An offset shifts a frame's artwork, in the same
+units as the size, and is folded into the frame's anchor when the clip loads —
+so nothing downstream has to know about it. Authoring the shift in units rather
+than as a raw anchor is the point: the same offset is the same visual shift on
+frames of any size, which a normalized anchor cannot be. Drag the frame in the
+viewport to set one, or type it in the inspector.
+
+```jsonc
+// step.esanim — three images of different sizes, one of them nudged right
+{
+  "version": "1.5",
+  "fps": 6,
+  "frameSizing": "frame",
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "texture": "@uuid:…" },
+    { "texture": "@uuid:…", "offset": { "x": 20, "y": 0 } },
+    { "texture": "@uuid:…", "duration": 0.35 }
+  ]
+}
+```
+
+A clip that declares neither leaves `Sprite.size` exactly as the entity set it,
+so clips written before this existed play unchanged. Unticking the switch drops
+the mode and every per-frame size and offset, which is the way back to that.
 
 ### Per-frame anchors
 
@@ -179,11 +221,14 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 | Helper | Description |
 |---|---|
 | `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | A fresh sheet-sliced `AnimClipAssetData` (fps `12`, `loop: true`, margin/spacing `0`, no frames yet). |
-| `parseAnimClipData(name, data, textureHandles)` | Resolve asset data into a runtime `SpriteAnimClip` — each cell frame gets its texture handle and UV window. |
+| `createAnimClipFromTextures(textures)` | A fresh clip over a sequence of per-frame textures — no sheet, and owning size from the start. |
+| `parseAnimClipData(name, data, textureHandles, textureSizes?)` | Resolve asset data into a runtime `SpriteAnimClip` — each frame gets its texture handle, UV window, and (for a clip that owns size) the size it draws at. Pass `textureSizes` so a per-texture frame has a natural size to fall back on. |
 | `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | Parse / write the `.esanim` JSON document (the pair round-trips). |
 | `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | Pixel rect / UV window of a grid cell — what a `Sprite` shows for that frame. |
-| `animClipFramePivot(data, frame)` | The anchor a frame renders with — its own, else the clip's, else centered. `null` when the clip authors none (leave `Sprite.pivot` alone). |
+| `animClipFramePivot(data, frame, size?)` | The anchor a frame renders with — its own, else the clip's, else centered, with the frame's offset folded in when a `size` is given. `null` when the clip authors none (leave `Sprite.pivot` alone). |
 | `animClipDrivesPivot(data)` | Whether the clip authors anchors at all. |
+| `animClipFrameSize(data, frame, natural?)` | The size a frame draws at — its own, else the natural one you pass. `null` when the clip does not own size (leave `Sprite.size` alone). |
+| `animClipDrivesSize(data)` | Whether the clip owns `Sprite.size` — set outright, or implied by any frame's size or offset. |
 
 ### Driving clips from a state machine — no code
 
