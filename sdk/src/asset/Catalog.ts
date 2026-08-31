@@ -60,6 +60,8 @@ export class Catalog {
     private entries_: Map<string, CatalogEntry>;
     private addresses_: Map<string, string>;
     private labels_: Map<string, string[]>;
+    /** Built on first ask; a pack has thousands of entries and most callers never ask. */
+    private addressByBuildPath_: Map<string, string> | null = null;
 
     private constructor(
         entries: Map<string, CatalogEntry>,
@@ -103,6 +105,27 @@ export class Catalog {
             uvScale: entry.uv.scale,
             trim: entry.trim,
         };
+    }
+
+    /**
+     * The authored logical address a staged path came from, or null. A document
+     * that names a SIBLING — a spine atlas page, a font page — resolves it against
+     * where the document was AUTHORED, and content-addressed staging renames every
+     * asset to a hash under one flat directory, which loses that.
+     */
+    addressOf(path: string): string | null {
+        if (!this.addressByBuildPath_) {
+            const byBuild = new Map<string, string>();
+            for (const [key, entry] of this.entries_) {
+                // `@uuid:` and the "/"-rooted spelling are alternative keys for the
+                // same asset; the bare address is the authored one.
+                if (key.startsWith('@uuid:') || key.startsWith('/')) continue;
+                const built = entry.buildPath;
+                if (built && built !== key && !byBuild.has(built)) byBuild.set(built, key);
+            }
+            this.addressByBuildPath_ = byBuild;
+        }
+        return this.addressByBuildPath_.get(path) ?? null;
     }
 
     getBuildPath(path: string): string {

@@ -10,6 +10,7 @@
  *          here: it is per Spine version, per App, and dies with the entities
  *          posing it.
  */
+import { log } from '../../util/logger';
 import type { AssetLoader, LoadContext } from '../AssetLoader';
 import { getAssetTypeEntry } from '../../assetTypes';
 import { prepareSpine, type SpineAssetValue, type SpineIO } from '../../spine/prepareSpine';
@@ -39,7 +40,11 @@ export class SpineAssetLoader implements AssetLoader<SpineAssetValue> {
 /** The asset layer as a spine transport: documents through the source door,
  *  pages through the acquisition door — so the era holds every page receipt. */
 function spineIo(ctx: LoadContext, atlasRef: string): SpineIO {
-    const dir = atlasRef.substring(0, atlasRef.lastIndexOf('/'));
+    // Pages are named relative to where the atlas was AUTHORED, not where staging
+    // put it — content-addressing renames it to a hash under one flat directory,
+    // and a sibling resolved against THAT is a file nobody shipped.
+    const logical = ctx.catalog.addressOf(atlasRef) ?? atlasRef;
+    const dir = logical.substring(0, logical.lastIndexOf('/'));
     return {
         // Read, not loaded: what these bytes say decides what the asset becomes,
         // which is exactly when a change to them must rebuild it.

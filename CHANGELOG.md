@@ -14,6 +14,72 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A sprite frame draws at its own size, so one clip can hold different
+  pictures.** A clip owned the UV window and, since 1.4, the anchor — never the
+  size. Every frame therefore drew at the one size the entity carried, which is
+  right for a sheet whose cells are all alike and wrong for a flipbook built from
+  separate images: they came out stretched to a common box. Three of the engine's
+  own examples are that shape.
+
+  `.esanim` 1.5 gives a frame `size` and `offset`, and the clip `frameSizing`.
+  Absent size means the frame's natural one — its sheet cell, or its texture's
+  pixels, which the loader already held and threw away. An offset is a shift in
+  the same units, folded into the frame's anchor at load, so nothing downstream
+  learns a new field: the runtime writes `Sprite.size` and `Sprite.pivot` and
+  that is all.
+
+  Authoring the shift in units rather than as a normalized anchor is the point.
+  The same offset is the same visual shift on frames of any size; the same anchor
+  is not. That is also why an offset makes the clip own size — there is no
+  fraction to express a shift as until something says what it is a fraction of.
+  Clips written before 1.5 own neither, so they play exactly as before.
+
+- **A flipbook editor that reads in frames, sizes and offsets.** The panel was a
+  strip of equal-width thumbnails with a bare number in each, and a preview that
+  scaled every frame into one square. Time was a field to type in, geometry had
+  nowhere to live, and a clip of separate images could not be authored at all —
+  the only way to make one was to slice a sheet, and the only way to add a frame
+  was to click a grid cell.
+
+  It is now a viewport that draws the frame at its true size against the clip's
+  anchor, with the neighbours ghosted in THEIR places (a frame that does not line
+  up shows it, which is the entire job of onion skin); a timeline whose blocks
+  are as wide as their frames are long, with a frame ruler, a playhead, and a
+  right edge to drag for retiming; and the frame's own properties — duration,
+  size, offset, anchor — in the Details inspector, through the same
+  ComponentSection engine as entities and materials. Frames come from separate
+  images too: multi-select in the Content Browser (file-name order, counting
+  numerically, so `run_2` precedes `run_10`), or drop images onto the timeline.
+  Edit-mode preview and the spawn path handle texture frames as well now; both
+  used to skip them.
+
+  The lane mapping is the Sequencer's, extracted and covered by criteria first —
+  a lane that draws at one inset and reads a scrub back at another puts every
+  keyframe beside the pointer that placed it, and nothing said so.
+
+### Fixed
+
+- **Every spine in a released build drew nothing.** A spine atlas names its page
+  images as siblings — `spineboy.png` — and a content-addressed pack renames every
+  asset to a hash under one flat directory, so resolving that sibling against the
+  STAGED path asked for `assets/spineboy.png` and got a 404. The skeleton then
+  posed with no texture: a package that starts, paints, and shows nothing.
+
+  The scene-loading door had been fixed for exactly this and the registry door
+  had not, with the regression test covering only the first of the two. Both now
+  resolve pages against the atlas's AUTHORED address, and the test asks the
+  question of both. Only content-addressed packs were affected — which is what a
+  release build is, and why no `pr`-tier run ever saw it.
+
+- **A box that mounts after a panel's empty state was measured as 0×0.**
+  `useElementSize` bound its observer on mount and never again, so a panel that
+  returns an empty state first — every asset editor does — attached to a null ref
+  and reported nothing for the rest of the session. Anything placed against the
+  box then landed at 0,0: the rebuilt Flipbook viewport drew its frame in the
+  top-left corner instead of on the anchor, which is how this was found.
+
 ## [0.59.0] - 2026-08-28
 
 ### Changed

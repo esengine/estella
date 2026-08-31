@@ -26,6 +26,8 @@ vi.mock('../src/wasm/resourceManager', () => ({
 }));
 
 import { loadSpineAssets } from '../src/spine/loadSpineScene';
+import { SpineAssetLoader } from '../src/asset/loaders/SpineAssetLoader';
+import { Catalog } from '../src/asset/Catalog';
 import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
 import type { BasisTranscoder } from '../src/asset/compressed';
 
@@ -128,5 +130,56 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const info = await loadSpineAssets({} as never, source, null, PAIR, async () => null);
         expect(info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.size).toBe(0);
+    });
+});
+
+/**
+ * The SAME question of the OTHER door. A registry acquisition goes through
+ * SpineAssetLoader, which resolved page siblings against the STAGED directory —
+ * so every spine in a content-addressed build drew nothing.
+ */
+describe('SpineAssetLoader page paths', () => {
+    /** A pack as staging leaves it: every asset a hash under one flat directory,
+     *  addressable by the path it was authored at. */
+    function stagedCatalog() {
+        return Catalog.fromJson({
+            version: 1,
+            entries: {
+                'assets/spine/boy.atlas': { type: 'spine', buildPath: 'assets/079064052ce23797.atlas' },
+                'assets/spine/boy.skel': { type: 'spine', buildPath: 'assets/2f68d725077a3ab0.skel' },
+                'assets/spine/spineboy.png': { type: 'texture', buildPath: 'assets/97fac9903b799107.png' },
+            },
+        });
+    }
+
+    function ctxOver(catalog: Catalog, acquired: string[]) {
+        return {
+            catalog,
+            loadText: async () => ATLAS,
+            loadBinary: async () => new Uint8Array([1, 2, 3]).buffer,
+            acquireTexture: async (path: string) => {
+                acquired.push(path);
+                return { value: { handle: 5, width: 8, height: 8 } };
+            },
+        } as never;
+    }
+
+    it('names a page where the atlas was AUTHORED, not where staging put it', async () => {
+        const acquired: string[] = [];
+        await new SpineAssetLoader().prepare(
+            'assets/2f68d725077a3ab0.skel', 'assets/079064052ce23797.atlas',
+            ctxOver(stagedCatalog(), acquired),
+        );
+        expect(acquired).toEqual(['assets/spine/spineboy.png']);
+    });
+
+    it('falls back to the ref itself when nothing staged it', async () => {
+        // Editor and dev realms hand over authored paths and carry no catalog.
+        const acquired: string[] = [];
+        await new SpineAssetLoader().prepare(
+            'assets/spine/boy.skel', 'assets/spine/boy.atlas',
+            ctxOver(Catalog.empty(), acquired),
+        );
+        expect(acquired).toEqual(['assets/spine/spineboy.png']);
     });
 });

@@ -1828,6 +1828,7 @@ triangles: number | undefined
 
 ## Catalog — class @experimental
 ```
+addressOf: (path: string) => string | null
 getAllLabels: () => string[]
 getAtlasFrame: (path: string) => AtlasFrameInfo | null
 getBuildPath: (path: string) => string
