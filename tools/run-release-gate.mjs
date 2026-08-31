@@ -29,9 +29,16 @@ const flag = (name) => {
   return i >= 0 ? argv[i + 1] : null;
 };
 const ONLY = flag('only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
+// Where this runner is standing. A criterion says which host can answer it; the
+// default is a plain Linux runner, which is 27 of the 31.
+const HOST = flag('host') ?? 'linux';
 
-const automated = CRITERIA.filter((c) => c.answeredBy)
+const runnable = CRITERIA.filter((c) => c.answeredBy);
+const automated = runnable
+  .filter((c) => (c.host ?? 'linux') === HOST)
   .filter((c) => !ONLY || ONLY.some((o) => c.id.includes(o)));
+/** Answerable, but not from here — named below, never silently absent. */
+const elsewhere = runnable.filter((c) => (c.host ?? 'linux') !== HOST);
 const manual = CRITERIA.filter((c) => c.manual);
 
 /**
@@ -48,12 +55,22 @@ for (const c of automated) {
 }
 
 console.log(`release gate ${RELEASE}: ${automated.length} criteria in ${jobs.length} command(s)`
-  + (ONLY ? ` (--only ${ONLY.join(',')})` : ''));
+  + ` on host ${HOST}` + (ONLY ? ` (--only ${ONLY.join(',')})` : ''));
 
 if (argv.includes('--plan')) {
   for (const j of jobs) console.log(`  ${j.ids.join(', ')}\n      ${j.run}`);
   for (const m of manual) console.log(`  BY HAND  ${m.id} — ${m.manual}`);
+  reportElsewhere();
   process.exit(0);
+}
+
+/** What another host owes, so a green run here is never read as a green release.
+ *  Only a NARROWED criterion carries a why; the default host is not a narrowing
+ *  and has nothing to explain. */
+function reportElsewhere() {
+  for (const c of elsewhere) {
+    console.log(`  not on this host: ${c.id} (${c.host ?? 'linux'})${c.why ? ` — ${c.why}` : ''}`);
+  }
 }
 
 // Every criterion, not the first failure: which of them a release is short of is
@@ -83,4 +100,5 @@ for (const j of failed) console.log(`  ✗ ${j.ids.join(', ')} — ${j.why}`);
 // summary that omits the four nobody can automate reads as though it is.
 console.log(`  ${manual.length} criteria are BY HAND and this cannot answer them:`);
 for (const m of manual) console.log(`      ${m.id} — ${m.manual}`);
+reportElsewhere();
 process.exit(short.length ? 1 : 0);

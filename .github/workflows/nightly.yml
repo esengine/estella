@@ -1,0 +1,89 @@
+name: Nightly
+
+# The exit criteria, run by a machine.
+#
+# releaseGate.mjs holds 31 automated criteria and nothing ever ran them: the only
+# runner was a release captain typing 27 commands, so a criterion could be red for
+# weeks with every push green. hot-update-lands-or-rolls-back was, and the pixel
+# gates at the `nightly` tier — declared, named, and invoked by nothing at all.
+#
+# The list is NOT repeated here. Each job calls run-release-gate.mjs for the host
+# it is standing on, because a workflow that named the commands itself would be
+# the second list gates.mjs exists to prevent. `host` lives on the criterion.
+on:
+  schedule:
+    # 04:00 UTC, after the day's pushes have settled.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  # The criteria read a real engine, and the render host takes the artifact from
+  # THIS run — so the nightly builds its own rather than reaching for a push's.
+  build-emscripten:
+    name: Web (Emscripten)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - uses: ./.github/actions/setup
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ${{ runner.os }}-emscripten
+        max-size: 500M
+
+    - name: Build every target
+      run: node build-tools/cli.js build -t all --no-sync
+
+    - name: Upload web wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+        retention-days: 3
+
+  # 27 of the 31. The runner names the four it cannot answer from here and the
+  # four nobody can automate, so a green job is never read as a green release.
+  linux:
+    name: Exit criteria (linux)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    timeout-minutes: 90
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - uses: ./.github/actions/setup
+    - uses: ./.github/actions/render-host
+
+    - name: Run the exit criteria
+      run: node tools/run-release-gate.mjs --host linux
+
+  # every-pixel-gate-runs, whose second half needs a GPU: a Linux runner ships no
+  # graphics driver and every webgpu run there died in requestDevice. The
+  # criterion says so itself, in its `why`.
+  macos:
+    name: Exit criteria (macos)
+    runs-on: macos-latest
+    needs: build-emscripten
+    timeout-minutes: 90
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - uses: ./.github/actions/setup
+    - uses: ./.github/actions/render-host
+
+    - name: Run the exit criteria
+      run: node tools/run-release-gate.mjs --host macos

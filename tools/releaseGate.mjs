@@ -32,6 +32,11 @@ export const RELEASE = JSON.parse(readFileSync(
 /**
  * `answeredBy` is a shell command run from the repo root; `needs` are the files
  * it lives in, so deleting a verifier fails the gate rather than the release.
+ *
+ * `host` says where a criterion CAN be answered — the same dimension gates.mjs
+ * spells `where`, and it owes a `why` for the same reason. Absent means a plain
+ * Linux runner, which is most of them; the four that say otherwise need a GPU,
+ * an Android toolchain, or a phone somebody is holding.
  */
 export const CRITERIA = [
   {
@@ -54,6 +59,8 @@ export const CRITERIA = [
   },
   {
     id: 'launch-smoke-every-platform',
+    host: 'android',
+    why: 'verify-native-boot boots the package on an emulator, which needs the Android SDK',
     says: 'every shipping platform launches a package and draws',
     answeredBy: 'node tools/verify-golden.mjs --tier release'
       + ' && node tools/verify-desktop-render.mjs --tier pr'
@@ -67,6 +74,8 @@ export const CRITERIA = [
   },
   {
     id: '3d-runs-where-it-ships',
+    host: 'android',
+    why: 'the same emulator boot, for the 3D corpus',
     says: 'a game whose world is 3D packages, launches and answers input — on the web and on a device',
     // Two ways for the solver to be absent — a side module fetched beside the
     // engine, a library compiled into a native host — and both leave a game
@@ -77,6 +86,8 @@ export const CRITERIA = [
   },
   {
     id: 'every-pixel-gate-runs',
+    host: 'macos',
+    why: 'the second backend needs a real GPU — a Linux runner ships no graphics driver and every webgpu run there died in requestDevice',
     says: 'every declared pixel gate has run, not just the ones CI happens to list',
     // CI pays for the pr tier on each push. The rest — spine, video, particles,
     // every material scene, text, ktx2 — was declared and run by nothing at all
@@ -180,6 +191,8 @@ export const CRITERIA = [
   },
   {
     id: 'a-crash-leaves-something-the-player-can-send',
+    host: 'device',
+    why: '--require-device: a boot record surviving a crash is a claim about real hardware, and a simulator cannot make it',
     says: 'the boot record survives a crash on a real device, with the phase and a backtrace',
     // `--require-device` on purpose: without it the tool skips where there is no
     // phone, which is right on a laptop and is a false pass under a release.

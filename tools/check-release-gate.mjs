@@ -51,6 +51,15 @@ for (const c of CRITERIA) {
   if (c.manual !== undefined && !(typeof c.manual === 'string' && c.manual.trim())) {
     fail(`"${c.id}" is manual without saying who does it and why a machine cannot`);
   }
+  // A criterion that can only be answered somewhere particular owes the reason,
+  // exactly as a gate's `where` owes its `why`: unexplained, it reads as a
+  // criterion somebody quietly stopped running.
+  const HOSTS = ['linux', 'macos', 'android', 'device'];
+  if (c.host !== undefined) {
+    if (!HOSTS.includes(c.host)) fail(`"${c.id}" declares host "${c.host}" (have: ${HOSTS.join(', ')})`);
+    if (!c.why?.trim()) fail(`"${c.id}" narrows to one host without saying why the others cannot answer it`);
+  }
+  if (c.why && c.host === undefined) fail(`"${c.id}" gives a why for a host it does not declare`);
   // The point of `needs`: a verifier that is deleted or renamed fails HERE,
   // loudly, rather than at whatever moment somebody trusts the list next.
   if (c.answeredBy && !c.needs?.length) fail(`"${c.id}" names a command but no file it lives in`);
