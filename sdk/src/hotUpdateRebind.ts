@@ -101,7 +101,12 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
             // `ready` a frame or two later, each with the scope it is for.
             while (pending.length > 0) {
                 const { ref, type, oldValue } = pending.shift()!;
+                // Nobody holding it is the other silent end: the update committed,
+                // the pixels did not move, nothing said why. Usually two cache
+                // entries for one image, under two spellings of the same asset.
+                let owners = 0;
                 for (const scope of ownerScopesOf(world, type, oldValue, ownerScopeOf)) {
+                    owners++;
                     reloading++;
                     void acquire(assets, type, ref).then(
                         (lease) => { ready.push({ type, oldValue, scope, lease }); },
@@ -109,6 +114,10 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
                             log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, e);
                         },
                     ).finally(() => { reloading--; });
+                }
+                if (owners === 0) {
+                    log.warn('asset', `hot-update rebind: nothing holds "${ref}" (${type}) at ${String(oldValue)}`
+                        + ' — the update landed and no live binding moved');
                 }
             }
             while (ready.length > 0) {

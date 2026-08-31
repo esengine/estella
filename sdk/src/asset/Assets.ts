@@ -967,6 +967,13 @@ export class Assets {
         this.setManifest(pending.model);
         // The manifest record already says what kind each changed asset is; the
         // notification carries it rather than collapsing to "maybe a texture".
+        // Changing content and rebinding nothing had no words: every holder keeps
+        // the old pixels while the caller is told `applied: true, failed: 0`. With
+        // the keys, because a key the cache never saw is what that looks like.
+        if (changed.length > 0 && oldHandles.size === 0) {
+            log.warn('asset', `applyUpdate: ${changed.length} asset(s) changed and none was bound to a live texture`
+                + ` — nothing will rebind. keys: ${changed.map((c) => `${c.key} (${c.type})`).join(', ')}`);
+        }
         for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
         // A changed asset is content-addressed, so its next load finds the update
         // on its own. An era already BUILT from one cannot: it holds what it read

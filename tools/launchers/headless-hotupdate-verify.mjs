@@ -95,7 +95,7 @@ function serve(buildDir, cdnDir, broken) {
 app.whenReady().then(async () => {
   let server;
   const diag = [];
-  let before = null, after = null, changed = 0;
+  let before = null, after = null, changed = 0, good = null;
   let failed = true;
   const refused = [];
   try {
@@ -119,6 +119,10 @@ app.whenReady().then(async () => {
     before = await exec(center);
 
     const upd = await exec(`window.__estellaCooked.applyRemoteUpdate(${JSON.stringify(`${base}/cdn/asset-manifest.json`)}, ${JSON.stringify(`${base}/cdn`)})`);
+    // The WHOLE verdict, not just the count. Reporting `changed` alone made a
+    // refused update and an applied-but-unrebound one read identically — the
+    // pixel is green either way, and which of the two it is is the diagnosis.
+    good = upd ?? null;
     changed = upd && typeof upd.changed === 'number' ? upd.changed : 0;
     await sleep(1800);
     after = await exec(center);
@@ -147,7 +151,7 @@ app.whenReady().then(async () => {
     const ok = isGreen(before) && isRed(after) && changed >= 1 && refused.every((r) => r.ok);
 
     console.log(`\n[verify:render:hotupdate] ${ok ? 'PASS' : 'FAIL'}`);
-    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, changed, greenBefore: isGreen(before), redAfter: isRed(after), refused, diag: diag.slice(0, 8) }));
+    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, changed, good, greenBefore: isGreen(before), redAfter: isRed(after), refused, diag: diag.slice(0, 8) }));
     failed = !ok;
   } catch (e) {
     console.log('\n[verify:render:hotupdate] FAIL — ' + (e?.message ?? e));
