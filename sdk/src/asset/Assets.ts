@@ -971,8 +971,8 @@ export class Assets {
         // the old pixels while the caller is told `applied: true, failed: 0`. With
         // the keys, because a key the cache never saw is what that looks like.
         if (changed.length > 0 && oldHandles.size === 0) {
-            log.warn('asset', `applyUpdate: ${changed.length} asset(s) changed and none was bound to a live texture`
-                + ` — nothing will rebind. keys: ${changed.map((c) => `${c.key} (${c.type})`).join(', ')}`);
+            log.warn('asset', 'applyUpdate: nothing will rebind — no changed asset is bound to a live'
+                + ` texture. ${changed.map((c) => `${c.type} ${c.key} -> ${this.resolveLoadPath_(c.key)}`).join('; ')}`);
         }
         for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
         // A changed asset is content-addressed, so its next load finds the update

@@ -122,10 +122,24 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
             }
             while (ready.length > 0) {
                 const { type, oldValue, scope, lease } = ready.shift()!;
-                migrateScopeBindings(
+                // Re-acquiring and getting the era the update just ended places the
+                // same pixels back and reads as success everywhere. The cache
+                // answered for a key the revision did not move.
+                if (boundValueOf(lease) === oldValue) {
+                    log.warn('asset', `hot-update rebind: re-acquiring "${type}" returned the same value`
+                        + ` (${String(oldValue)}) — the update ended an era the cache still serves`);
+                }
+                // It returns whether it placed anything, and the answer was being
+                // dropped: false means the scope held no binding after all, which
+                // is a rebind that did nothing and said nothing.
+                const moved = migrateScopeBindings(
                     world, scope, type, oldValue,
                     { lease, boundValue: boundValueOf }, ownerScopeOf,
                 );
+                if (!moved) {
+                    log.warn('asset', `hot-update rebind: placed nothing for "${type}" at ${String(oldValue)}`
+                        + ' — the scope holds no live binding of it, so the old content stays on screen');
+                }
             }
             if (converged()) for (const wake of waiting.splice(0)) wake();
         },
