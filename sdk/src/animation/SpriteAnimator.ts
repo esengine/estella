@@ -27,6 +27,13 @@ export interface SpriteAnimFrame {
      * touching a pivot the entity owns.
      */
     pivot?: { x: number; y: number };
+    /**
+     * The size this frame renders at, in world units — resolved at load time from
+     * the clip's sizing mode and the frame's natural size. Absent on EVERY frame of
+     * a clip that does not own size, which is what keeps playback from resizing a
+     * sprite the entity sized itself.
+     */
+    size?: { x: number; y: number };
 }
 
 export interface SpriteAnimEvent {
@@ -236,9 +243,12 @@ export class SpriteAnimationAPI {
                     sprite.uvOffset = { x: 0, y: 0 };
                     sprite.uvScale = { x: 1, y: 1 };
                 }
-                // No reset branch: the loader gives EVERY frame of an anchor-authoring
-                // clip a pivot, so absent here means the clip authors none at all and
-                // the entity's own pivot stands.
+                // No reset branch on either: the loader gives EVERY frame of an
+                // owning clip both, so absent here means the clip owns neither and
+                // what the entity authored stands.
+                if (frame.size) {
+                    sprite.size = { x: frame.size.x, y: frame.size.y };
+                }
                 if (frame.pivot) {
                     sprite.pivot = { x: frame.pivot.x, y: frame.pivot.y };
                 }

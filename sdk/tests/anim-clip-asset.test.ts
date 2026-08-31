@@ -16,7 +16,10 @@ import {
     animClipSheetRows,
     animClipCellRect,
     animClipDrivesPivot,
+    animClipDrivesSize,
     animClipFramePivot,
+    animClipFrameSize,
+    createAnimClipFromTextures,
     ANIM_CLIP_FORMAT_VERSION,
     DEFAULT_ANIM_CLIP_PIVOT,
     type AnimClipAssetData,
@@ -423,5 +426,131 @@ describe('parseAnimClipAsset (tolerant parse)', () => {
             texture: 't.png', cellWidth: 32, cellHeight: 32,
             margin: 0, spacing: 0, pageWidth: 1, pageHeight: 1,
         });
+    });
+
+    // =========================================================================
+    // Frame size + offset (format 1.5)
+    // =========================================================================
+
+    it('round-trips per-frame size, offset and the sizing mode', () => {
+        const parsed = parseAnimClipAsset({
+            version: '1.5', frameSizing: 'frame',
+            frames: [
+                { texture: 'a.png', size: { x: 96, y: 64 }, offset: { x: 12, y: -5 } },
+                { texture: 'b.png' },
+            ],
+        });
+        expect(parsed.frameSizing).toBe('frame');
+        expect(parsed.frames[0].size).toEqual({ x: 96, y: 64 });
+        expect(parsed.frames[0].offset).toEqual({ x: 12, y: -5 });
+        expect(parsed.frames[1].size).toBeUndefined();
+
+        const round = parseAnimClipAsset(serializeAnimClip(parsed));
+        expect(round.frameSizing).toBe('frame');
+        expect(round.frames[0].size).toEqual({ x: 96, y: 64 });
+        expect(round.frames[0].offset).toEqual({ x: 12, y: -5 });
+    });
+
+    it('carries size and offset on sheet-cell frames too', () => {
+        const parsed = parseAnimClipAsset({
+            sheet: { texture: 't.png', cellWidth: 32, cellHeight: 32, pageWidth: 64, pageHeight: 64 },
+            frames: [{ cell: 1, size: { x: 48, y: 24 }, offset: { x: 4, y: 2 } }],
+        });
+        expect(parsed.frames[0].size).toEqual({ x: 48, y: 24 });
+        expect(parsed.frames[0].offset).toEqual({ x: 4, y: 2 });
+    });
+
+    it('rejects a non-positive size but keeps a negative offset', () => {
+        // A zero size would divide an offset by nothing; a negative offset is just
+        // a shift the other way.
+        const parsed = parseAnimClipAsset({
+            frames: [
+                { texture: 'a.png', size: { x: 0, y: 10 } },
+                { texture: 'b.png', size: { x: -8, y: 10 } },
+                { texture: 'c.png', offset: { x: -12, y: -5 } },
+                { texture: 'd.png', offset: { x: NaN, y: 0 } },
+            ],
+        });
+        expect(parsed.frames[0].size).toBeUndefined();
+        expect(parsed.frames[1].size).toBeUndefined();
+        expect(parsed.frames[2].offset).toEqual({ x: -12, y: -5 });
+        expect(parsed.frames[3].offset).toBeUndefined();
+    });
+
+    it('does not own size for a clip written before 1.5', () => {
+        const parsed = parseAnimClipAsset({ version: '1.4', frames: [{ texture: 'a.png' }] });
+        expect(animClipDrivesSize(parsed)).toBe(false);
+        expect(animClipFrameSize(parsed, parsed.frames[0], { x: 96, y: 64 })).toBeNull();
+    });
+
+    it('owns size as soon as ANY frame authors a size or an offset', () => {
+        const sized = parseAnimClipAsset({ frames: [{ texture: 'a.png', size: { x: 8, y: 8 } }, { texture: 'b.png' }] });
+        expect(animClipDrivesSize(sized)).toBe(true);
+        // The plain frame follows: an offset needs a size to be a fraction of, and a
+        // clip that sized only some frames would leave the last one standing.
+        expect(animClipFrameSize(sized, sized.frames[1], { x: 96, y: 64 })).toEqual({ x: 96, y: 64 });
+
+        const shifted = parseAnimClipAsset({ frames: [{ texture: 'a.png', offset: { x: 3, y: 0 } }] });
+        expect(animClipDrivesSize(shifted)).toBe(true);
+        expect(animClipDrivesPivot(shifted)).toBe(true);
+    });
+
+    it('prefers an authored size over the natural one', () => {
+        const parsed = parseAnimClipAsset({
+            frameSizing: 'frame',
+            frames: [{ texture: 'a.png', size: { x: 20, y: 10 } }],
+        });
+        expect(animClipFrameSize(parsed, parsed.frames[0], { x: 96, y: 64 })).toEqual({ x: 20, y: 10 });
+    });
+
+    it('folds an offset into the anchor, in the frame’s own size', () => {
+        const parsed = parseAnimClipAsset({
+            frameSizing: 'frame',
+            pivot: { x: 0.5, y: 0 },
+            frames: [{ texture: 'a.png', offset: { x: 12, y: -5 } }],
+        });
+        const size = animClipFrameSize(parsed, parsed.frames[0], { x: 96, y: 64 })!;
+        expect(animClipFramePivot(parsed, parsed.frames[0], size)).toEqual({
+            x: 0.5 - 12 / 96,
+            y: 0 - -5 / 64,
+        });
+    });
+
+    it('drops an offset it has no size to divide by, rather than guessing', () => {
+        const parsed = parseAnimClipAsset({
+            frames: [{ texture: 'a.png', pivot: { x: 0.25, y: 0.75 }, offset: { x: 12, y: -5 } }],
+        });
+        expect(animClipFramePivot(parsed, parsed.frames[0], null)).toEqual({ x: 0.25, y: 0.75 });
+    });
+
+    it('bakes each frame size into the runtime clip from the texture sizes', () => {
+        const parsed = parseAnimClipAsset({
+            frameSizing: 'frame',
+            frames: [{ texture: 'a.png' }, { texture: 'b.png' }],
+        });
+        const clip = parseAnimClipData('seq.esanim', parsed,
+            new Map([['a.png', 1], ['b.png', 2]]),
+            new Map([['a.png', { x: 96, y: 64 }], ['b.png', { x: 48, y: 80 }]]));
+        expect(clip.frames[0].size).toEqual({ x: 96, y: 64 });
+        expect(clip.frames[1].size).toEqual({ x: 48, y: 80 });
+    });
+
+    it('bakes a sheet cell frame at the cell size', () => {
+        const parsed = parseAnimClipAsset({
+            frameSizing: 'frame',
+            sheet: { texture: 't.png', cellWidth: 32, cellHeight: 24, pageWidth: 64, pageHeight: 48 },
+            frames: [{ cell: 0 }],
+        });
+        const clip = parseAnimClipData('sheet.esanim', parsed, new Map([['t.png', 7]]));
+        expect(clip.frames[0].size).toEqual({ x: 32, y: 24 });
+    });
+
+    it('creates an image-sequence clip that owns size', () => {
+        const clip = createAnimClipFromTextures(['a.png', 'b.png']);
+        expect(clip.version).toBe(ANIM_CLIP_FORMAT_VERSION);
+        expect(clip.frameSizing).toBe('frame');
+        expect(clip.frames).toEqual([{ texture: 'a.png' }, { texture: 'b.png' }]);
+        expect(clip.sheet).toBeUndefined();
+        expect(animClipDrivesSize(clip)).toBe(true);
     });
 });

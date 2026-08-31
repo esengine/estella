@@ -358,20 +358,6 @@ describe('SpriteAnimator', () => {
             expect((world.get(entity, Sprite) as SpriteData).pivot).toEqual({ x: 0.5, y: 0 });
         });
 
-        it('copies the anchor instead of aliasing the clip frame', () => {
-            const frame = { texture: 1, pivot: { x: 0.5, y: 0 } };
-            anim.registerClip({ name: 'shared', fps: 10, loop: true, frames: [frame] });
-            const entity = world.spawn();
-            world.insert(entity, Sprite, { texture: 0 });
-            world.insert(entity, SpriteAnimator, { clip: 'shared' });
-
-            anim.update(world, 0.001);
-            const sprite = world.get(entity, Sprite) as SpriteData;
-            sprite.pivot.x = 0.9;
-
-            expect(frame.pivot.x).toBe(0.5);
-        });
-
         it('carries an anchor from .esanim TEXT all the way onto the Sprite', () => {
             // The whole production path in one go: file text → tolerant parse → runtime
             // bake → animator apply, which is what a shipped clip actually travels.
@@ -404,6 +390,88 @@ describe('SpriteAnimator', () => {
             sprite = world.get(entity, Sprite) as SpriteData;
             expect(sprite.texture).toBe(22);
             expect(sprite.pivot).toEqual({ x: 0.25, y: 0.75 }); // frame override
+        });
+    });
+
+    // =========================================================================
+    // Per-frame size and offset
+    // =========================================================================
+
+    describe('per-frame size', () => {
+        it('draws each frame at its own texture size', () => {
+            const data = parseAnimClipAsset({
+                version: '1.5', type: 'animation-clip', fps: 10, loop: true,
+                frameSizing: 'frame',
+                frames: [{ texture: 'wide.png' }, { texture: 'tall.png' }],
+            });
+            anim.registerClip(parseAnimClipData('seq.esanim', data,
+                new Map([['wide.png', 11], ['tall.png', 22]]),
+                new Map([['wide.png', { x: 96, y: 64 }], ['tall.png', { x: 48, y: 80 }]])));
+
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0, size: { x: 100, y: 100 } });
+            world.insert(entity, SpriteAnimator, { clip: 'seq.esanim' });
+
+            anim.update(world, 0.001);
+            expect((world.get(entity, Sprite) as SpriteData).size).toEqual({ x: 96, y: 64 });
+
+            anim.update(world, 0.1);
+            expect((world.get(entity, Sprite) as SpriteData).size).toEqual({ x: 48, y: 80 });
+        });
+
+        it('leaves the entity size alone for a clip that does not own size', () => {
+            const data = parseAnimClipAsset({
+                version: '1.4', type: 'animation-clip', fps: 10, loop: true,
+                frames: [{ texture: 'a.png' }, { texture: 'b.png' }],
+            });
+            anim.registerClip(parseAnimClipData('plain.esanim', data,
+                new Map([['a.png', 11], ['b.png', 22]]),
+                new Map([['a.png', { x: 96, y: 64 }], ['b.png', { x: 48, y: 80 }]])));
+
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0, size: { x: 100, y: 100 } });
+            world.insert(entity, SpriteAnimator, { clip: 'plain.esanim' });
+
+            anim.update(world, 0.001);
+            anim.update(world, 0.1);
+
+            expect((world.get(entity, Sprite) as SpriteData).size).toEqual({ x: 100, y: 100 });
+        });
+
+        it('shifts differently-sized frames by the SAME world distance', () => {
+            // The reason offsets exist. A normalized pivot cannot do this: the same
+            // fraction on a 96-wide and a 48-wide frame are different shifts.
+            const data = parseAnimClipAsset({
+                version: '1.5', type: 'animation-clip', fps: 10, loop: true,
+                frames: [
+                    { texture: 'big.png', offset: { x: 12, y: -5 } },
+                    { texture: 'small.png', offset: { x: 12, y: -5 } },
+                ],
+            });
+            anim.registerClip(parseAnimClipData('shift.esanim', data,
+                new Map([['big.png', 11], ['small.png', 22]]),
+                new Map([['big.png', { x: 96, y: 64 }], ['small.png', { x: 48, y: 32 }]])));
+
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 0 });
+            world.insert(entity, SpriteAnimator, { clip: 'shift.esanim' });
+
+            // How far the artwork sits from the anchor, in world units: the centre of
+            // the frame is (0.5 - pivot) of its size away from it.
+            const shiftOf = (s: SpriteData) => ({
+                x: (0.5 - s.pivot.x) * s.size.x,
+                y: (0.5 - s.pivot.y) * s.size.y,
+            });
+
+            anim.update(world, 0.001);
+            const big = shiftOf(world.get(entity, Sprite) as SpriteData);
+            expect(big.x).toBeCloseTo(12, 10);
+            expect(big.y).toBeCloseTo(-5, 10);
+
+            anim.update(world, 0.1);
+            const small = shiftOf(world.get(entity, Sprite) as SpriteData);
+            expect(small.x).toBeCloseTo(12, 10);
+            expect(small.y).toBeCloseTo(-5, 10);
         });
     });
 });

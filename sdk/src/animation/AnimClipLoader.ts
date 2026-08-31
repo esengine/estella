@@ -13,7 +13,7 @@ import { log } from '../util/logger';
 // .esanim File Format
 // =============================================================================
 
-export const ANIM_CLIP_FORMAT_VERSION = '1.4';
+export const ANIM_CLIP_FORMAT_VERSION = '1.5';
 
 /**
  * A frame's anchor, normalized inside the frame's own rect — EXACTLY the space
@@ -29,6 +29,21 @@ export interface AnimClipPivotData {
 
 /** The anchor a clip that authors pivots falls back to — the `Sprite.pivot` default. */
 export const DEFAULT_ANIM_CLIP_PIVOT: AnimClipPivotData = { x: 0.5, y: 0.5 };
+
+/** A pair in the clip's own units — world units, which the engine authors at 1 = 1
+ *  design pixel. Frame sizes and offsets are both in it. */
+export interface AnimClipVec2 {
+    x: number;
+    y: number;
+}
+
+/**
+ * Who owns `Sprite.size` while the clip plays. `'entity'` — the default, and what
+ * every clip written before format 1.5 does — leaves the entity's size alone, so
+ * every frame draws at that one size. `'frame'` hands size to the clip and each
+ * frame draws at its own, which is what lets frames of DIFFERENT sizes share a clip.
+ */
+export type AnimClipSizing = 'entity' | 'frame';
 
 /**
  * Sprite-sheet slicing grid. When present, frames may reference grid cells
@@ -58,6 +73,18 @@ export interface AnimClipFrameData {
      * inside the cell from frame to frame.
      */
     pivot?: AnimClipPivotData;
+    /**
+     * What this frame draws at. Absent = its own natural size (its sheet cell, or
+     * its texture's pixels), which is what an author almost always means.
+     */
+    size?: AnimClipVec2;
+    /**
+     * Shifts this frame's artwork away from the clip's anchor, in {@link size}'s
+     * units, and folded into the frame's pivot at load. Units rather than a
+     * normalized pivot because the same offset is the same visual shift on frames
+     * of any size — a pivot is not.
+     */
+    offset?: AnimClipVec2;
     atlasFrame?: {
         x: number;
         y: number;
@@ -91,6 +118,8 @@ export interface AnimClipAssetData {
      * exactly as the entity authored it.
      */
     pivot?: AnimClipPivotData;
+    /** Who owns `Sprite.size` — see {@link AnimClipSizing}. Absent = `'entity'`. */
+    frameSizing?: AnimClipSizing;
     sheet?: AnimClipSheetData;
     frames: AnimClipFrameData[];
     events?: AnimClipEventData[];
@@ -149,7 +178,7 @@ export function animClipCellUv(
 }
 
 // =============================================================================
-// Frame anchors
+// Frame geometry — size and anchor
 // =============================================================================
 
 /**
@@ -157,9 +186,38 @@ export function animClipCellUv(
  * frame declares one. All-or-nothing on purpose: a clip that anchored only some
  * frames would leave the last override standing on the plain ones — the same
  * staleness the UV window has to reset away.
+ *
+ * An offset counts: it IS an anchor, written in units instead of fractions.
  */
 export function animClipDrivesPivot(data: AnimClipAssetData): boolean {
-    return data.pivot !== undefined || data.frames.some(f => f.pivot !== undefined);
+    return data.pivot !== undefined
+        || data.frames.some(f => f.pivot !== undefined || f.offset !== undefined);
+}
+
+/**
+ * Does this clip own `Sprite.size`? The mode says so outright, an authored frame
+ * size says so by existing — and so does an offset, which needs the size it is a
+ * fraction of. Left to the entity, one clip on two entities would shift by two
+ * different amounts, the very drift offsets exist to remove.
+ */
+export function animClipDrivesSize(data: AnimClipAssetData): boolean {
+    return data.frameSizing === 'frame'
+        || data.frames.some(f => f.size !== undefined || f.offset !== undefined);
+}
+
+/**
+ * The size a frame renders at: its own override, else its natural size (the
+ * caller's — a sheet cell, or the texture's pixels) — or `null` when the clip
+ * does not own size, which leaves `Sprite.size` as the entity authored it.
+ */
+export function animClipFrameSize(
+    data: AnimClipAssetData,
+    frame: AnimClipFrameData,
+    natural?: AnimClipVec2 | null,
+): AnimClipVec2 | null {
+    if (frame.size) return { x: frame.size.x, y: frame.size.y };
+    if (!animClipDrivesSize(data)) return null;
+    return natural ? { x: natural.x, y: natural.y } : null;
 }
 
 /**
@@ -173,11 +231,17 @@ export function animClipDrivesPivot(data: AnimClipAssetData): boolean {
 export function animClipFramePivot(
     data: AnimClipAssetData,
     frame: AnimClipFrameData,
+    size?: AnimClipVec2 | null,
 ): AnimClipPivotData | null {
-    if (frame.pivot) return { x: frame.pivot.x, y: frame.pivot.y };
-    if (!animClipDrivesPivot(data)) return null;
-    const p = data.pivot ?? DEFAULT_ANIM_CLIP_PIVOT;
-    return { x: p.x, y: p.y };
+    const base = frame.pivot
+        ?? (animClipDrivesPivot(data) ? (data.pivot ?? DEFAULT_ANIM_CLIP_PIVOT) : null);
+    if (!frame.offset) return base ? { x: base.x, y: base.y } : null;
+    // Moving the artwork one way is the anchor moving the other. With no size to
+    // divide by the shift is dropped rather than guessed; animClipDrivesSize is
+    // what keeps that from happening on a clip that authors offsets.
+    if (!size || size.x <= 0 || size.y <= 0) return base ? { x: base.x, y: base.y } : null;
+    const b = base ?? DEFAULT_ANIM_CLIP_PIVOT;
+    return { x: b.x - frame.offset.x / size.x, y: b.y - frame.offset.y / size.y };
 }
 
 // =============================================================================
@@ -203,6 +267,16 @@ function pivotOf(v: unknown): AnimClipPivotData | undefined {
     return { x: p.x, y: p.y };
 }
 
+/** A `{x,y}` in clip units, or undefined. `positive` rejects a zero/negative size,
+ *  which would divide an offset by nothing and blank the sprite. */
+function vec2Of(v: unknown, positive: boolean): AnimClipVec2 | undefined {
+    const p = v as { x?: unknown; y?: unknown } | null | undefined;
+    if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') return undefined;
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return undefined;
+    if (positive && (p.x <= 0 || p.y <= 0)) return undefined;
+    return { x: p.x, y: p.y };
+}
+
 /** Parse arbitrary JSON into a normalized {@link AnimClipAssetData} (tolerant of missing fields). */
 export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
     const raw = rawJson as Record<string, any> | null | undefined;
@@ -224,16 +298,22 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
         if (!f) continue;
         const duration = typeof f.duration === 'number' && f.duration > 0 ? f.duration : undefined;
         const framePivot = pivotOf(f.pivot);
+        const frameSize = vec2Of(f.size, true);
+        const frameOffset = vec2Of(f.offset, false);
         if (sheet && typeof f.cell === 'number' && Number.isInteger(f.cell) && f.cell >= 0) {
             frames.push({
                 cell: f.cell,
                 ...(duration !== undefined ? { duration } : {}),
                 ...(framePivot ? { pivot: framePivot } : {}),
+                ...(frameSize ? { size: frameSize } : {}),
+                ...(frameOffset ? { offset: frameOffset } : {}),
             });
         } else if (typeof f.texture === 'string' && f.texture) {
             const frame: AnimClipFrameData = { texture: f.texture };
             if (duration !== undefined) frame.duration = duration;
             if (framePivot) frame.pivot = framePivot;
+            if (frameSize) frame.size = frameSize;
+            if (frameOffset) frame.offset = frameOffset;
             const af = f.atlasFrame;
             if (af && [af.x, af.y, af.width, af.height, af.pageWidth, af.pageHeight]
                 .every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) {
@@ -253,12 +333,15 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
         }
     }
     const clipPivot = pivotOf(raw?.pivot);
+    const sizing: AnimClipSizing | undefined = raw?.frameSizing === 'frame' ? 'frame'
+        : raw?.frameSizing === 'entity' ? 'entity' : undefined;
     return {
         version: typeof raw?.version === 'string' ? raw.version : ANIM_CLIP_FORMAT_VERSION,
         type: 'animation-clip',
         fps: posInt(raw?.fps, DEFAULT_FPS),
         loop: typeof raw?.loop === 'boolean' ? raw.loop : true,
         ...(clipPivot ? { pivot: clipPivot } : {}),
+        ...(sizing ? { frameSizing: sizing } : {}),
         ...(sheet ? { sheet } : {}),
         frames,
         ...(events.length ? { events } : {}),
@@ -278,8 +361,14 @@ export function serializeAnimClip(asset: AnimClipAssetData): Record<string, unkn
         fps: asset.fps ?? DEFAULT_FPS,
         loop: asset.loop ?? true,
         ...(asset.pivot ? { pivot: { ...asset.pivot } } : {}),
+        ...(asset.frameSizing ? { frameSizing: asset.frameSizing } : {}),
         ...(asset.sheet ? { sheet: { ...asset.sheet } } : {}),
-        frames: asset.frames.map(f => ({ ...f, ...(f.pivot ? { pivot: { ...f.pivot } } : {}) })),
+        frames: asset.frames.map(f => ({
+            ...f,
+            ...(f.pivot ? { pivot: { ...f.pivot } } : {}),
+            ...(f.size ? { size: { ...f.size } } : {}),
+            ...(f.offset ? { offset: { ...f.offset } } : {}),
+        })),
         ...(asset.events && asset.events.length ? { events: asset.events.map(e => ({ ...e })) } : {}),
     };
 }
@@ -299,6 +388,22 @@ export function createAnimClip(
         loop: true,
         sheet: { texture, cellWidth, cellHeight, margin: 0, spacing: 0, pageWidth, pageHeight },
         frames: [],
+    };
+}
+
+/**
+ * A fresh clip over a sequence of per-frame textures — the shape a flipbook of
+ * separate images is. Owns size from the start: images drawn at one shared size
+ * is the thing an image sequence is authored to avoid.
+ */
+export function createAnimClipFromTextures(textures: string[]): AnimClipAssetData {
+    return {
+        version: ANIM_CLIP_FORMAT_VERSION,
+        type: 'animation-clip',
+        fps: DEFAULT_FPS,
+        loop: true,
+        frameSizing: 'frame',
+        frames: textures.filter(t => !!t).map(texture => ({ texture })),
     };
 }
 
@@ -336,22 +441,36 @@ function uvFromRect(
     };
 }
 
+/**
+ * Bake a parsed clip into what the runtime plays. @p textureSizes carries each
+ * frame texture's pixel size, which is the natural size of a per-texture frame —
+ * without it a clip that owns size has nothing to fall back to and says so.
+ */
 export function parseAnimClipData(
     clipPath: string,
     data: AnimClipAssetData,
     textureHandles: Map<string, number>,
+    textureSizes?: Map<string, AnimClipVec2>,
 ): SpriteAnimClip {
     const sheet = data.sheet;
     const cellCount = sheet ? animClipSheetCols(sheet) * animClipSheetRows(sheet) : 0;
-    return {
+    const drivesSize = animClipDrivesSize(data);
+    let missingNatural = 0;
+    const clip: SpriteAnimClip = {
         name: clipPath,
         fps: data.fps ?? DEFAULT_FPS,
         loop: data.loop ?? true,
         ...(data.events?.length ? { events: data.events.map(e => ({ frame: e.frame, name: e.name, data: e.data })) } : {}),
         frames: data.frames.map(f => {
-            // Resolved once at load: at runtime a frame either carries the anchor it
-            // renders with, or the clip authors none and playback leaves pivot alone.
-            const pivot = animClipFramePivot(data, f);
+            // Resolved once at load: at runtime a frame either carries the size and
+            // anchor it renders with, or the clip authors none and playback leaves
+            // the entity's own standing.
+            const natural = sheet && f.cell !== undefined
+                ? { x: sheet.cellWidth, y: sheet.cellHeight }
+                : textureSizes?.get(f.texture ?? '');
+            const size = animClipFrameSize(data, f, natural);
+            if (drivesSize && !size) missingNatural++;
+            const pivot = animClipFramePivot(data, f, size);
             if (sheet && f.cell !== undefined) {
                 if (f.cell >= cellCount) {
                     log.warn('asset', `${clipPath}: frame cell ${f.cell} outside the ${cellCount}-cell sheet grid; clamped`);
@@ -360,6 +479,7 @@ export function parseAnimClipData(
                     texture: textureHandles.get(sheet.texture) ?? 0,
                     duration: f.duration,
                     ...(pivot ? { pivot } : {}),
+                    ...(size ? { size } : {}),
                     ...animClipCellUv(sheet, f.cell),
                 };
                 return frame;
@@ -368,6 +488,7 @@ export function parseAnimClipData(
                 texture: textureHandles.get(f.texture ?? '') ?? 0,
                 duration: f.duration,
                 ...(pivot ? { pivot } : {}),
+                ...(size ? { size } : {}),
             };
             if (f.atlasFrame) {
                 const af = f.atlasFrame;
@@ -376,4 +497,8 @@ export function parseAnimClipData(
             return frame;
         }),
     };
+    if (missingNatural > 0) {
+        log.warn('asset', `${clipPath}: ${missingNatural} frame(s) own their size but no natural size was available; they draw at the entity's`);
+    }
+    return clip;
 }

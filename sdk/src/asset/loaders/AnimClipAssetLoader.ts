@@ -23,18 +23,24 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const data = parseAnimClipAsset(JSON.parse(text));
             const textureHandles = new Map<string, number>();
+            // Pixel size travels with the handle: it is the natural size of a
+            // per-texture frame, and the only place it is free to know.
+            const textureSizes = new Map<string, { x: number; y: number }>();
 
             for (const texPath of extractAnimClipTexturePaths(data)) {
                 try {
                     const lease = await ctx.acquireTexture(texPath, true);
                     textureHandles.set(texPath, lease.value.handle);
+                    if (lease.value.width > 0 && lease.value.height > 0) {
+                        textureSizes.set(texPath, { x: lease.value.width, y: lease.value.height });
+                    }
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
                     textureHandles.set(texPath, 0);
                 }
             }
             return {
-                published: parseAnimClipData(path, data, textureHandles),
+                published: parseAnimClipData(path, data, textureHandles, textureSizes),
                 value: { clipId: path },
             };
         },
