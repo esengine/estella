@@ -37,6 +37,14 @@ const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
 // that is not paying minutes right now — the pre-push hook. Everything else,
 // including the builds the later gates read, still runs.
 const SUITES = !argv.includes('--no-suites');
+/**
+ * Whether every DECLARED gate has to have run, not just every gate that could.
+ *
+ * The release criterion took this list's exit code for "the contracts hold", and
+ * a checkout without the editor drops eleven gates and a whole suite while still
+ * leaving 0 — so the nightly read 69/69 green as an answer about 80.
+ */
+const COMPLETE = argv.includes('--complete');
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES });
 const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
 /** Suites this run is not paying for — named, never silently absent. */
@@ -113,3 +121,14 @@ const dear = [...spent].sort((x, y) => y.ms - x.ms).slice(0, 5);
 console.log(`  costliest: ${dear.map((g) => `${g.id} ${(g.ms / 1000).toFixed(0)}s`).join(', ')}`);
 reportSuites();
 for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`);
+
+// A gate narrowed to another scope is owned there and is not this run's hole;
+// one dropped for a missing checkout or an unpaid minute is exactly that.
+if (COMPLETE) {
+  const absent = [...noEditor, ...unpaid];
+  if (absent.length) {
+    console.error(`\n${absent.length} declared gate(s) never ran here: ${absent.map((g) => g.id).join(', ')}`);
+    console.error('  --complete was asked for, so this cannot say the list is green.');
+    process.exit(2);
+  }
+}

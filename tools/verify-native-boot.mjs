@@ -763,11 +763,15 @@ try {
 if (!device) {
     const what = `no ${driver.name} device or simulator is available`;
     if (opts.allowSkip) {
+        // caller-asked-to-skip: --allow-skip is for a workflow that may have no
+        // emulator; the criterion does not pass it.
         console.log(`— skipped: ${what} (nothing was checked)`);
         process.exit(0);
     }
+    // 2 says the machine could not answer, which is what an absent emulator is —
+    // reading it as ✗ blamed the game for a runner that never booted one.
     console.error(`✗ ${what}. This check is a gate; pass --allow-skip to run it where one may be absent.`);
-    process.exit(1);
+    process.exit(2);
 }
 console.log(`device: ${device}\n`);
 driver.prepare();

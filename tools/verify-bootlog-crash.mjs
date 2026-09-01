@@ -64,10 +64,14 @@ function device(adb) {
 const REQUIRE_DEVICE = process.argv.includes('--require-device');
 function unavailable(why) {
     if (REQUIRE_DEVICE) {
+        // 2, not 1: a release is short either way, but no phone here is not a
+        // finding about the boot record, and the two want different people.
         console.error(`verify-bootlog-crash: CANNOT RUN — ${why}. This was asked for with`
-            + ' --require-device, so it is a failure and not a pass.');
-        process.exit(1);
+            + ' --require-device, so it is not a pass.');
+        process.exit(2);
     }
+    // caller-asked-to-skip: right on a laptop; the criterion passes
+    // --require-device precisely so it never reaches here.
     console.log(`verify-bootlog-crash: SKIP — ${why}`);
     process.exit(0);
 }

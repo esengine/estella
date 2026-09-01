@@ -225,7 +225,10 @@ export const CRITERIA = [
   {
     id: 'static-gates',
     says: 'every declared contract still holds (api surface, layers, corpus, host shim…)',
-    answeredBy: 'pnpm run verify',
+    // --complete, because `pnpm run verify` answers "the gates that could run
+    // are green" — which on a checkout without the editor was 69 of 80, and
+    // exited 0 all the same.
+    answeredBy: 'node tools/run-gates.mjs --scope local --complete',
     needs: ['tools/check-golden.mjs', 'tools/check-minigame-host.mjs'],
   },
   {
