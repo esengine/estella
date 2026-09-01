@@ -391,13 +391,20 @@ jobs:
         # and an unlinked file a live process still holds does exactly: du and find
         # cannot see one, df can, and the kernel reclaims it at exit. Hence lsof and
         # the /proc fd sweep — the two readings that name a file with no name left.
+    #
+    # The trigger is a DROP from where the job started, not a floor: measured, the
+    # fill is gradual — 104G to 78G over two minutes at ~220MB/s, still falling
+    # into the step after — so a run whose pixel gates take 35s never reaches a
+    # floor at all, and only the slow ones ever hit zero. Fifteen gigabytes gone
+    # is the same event either way, and it fires while the writer is still alive.
     - name: Watch the disk, since a spike between readings is invisible
       run: |
-        nohup bash -c 'while :; do
+        base=$(df -B1G / | awk "NR==2{print \$4}")
+        BASE=$base nohup bash -c 'while :; do
           a=$(df -B1G / | awk "NR==2{print \$4}")
           i=$(df -i / | awk "NR==2{print \$5}")
           echo "$(date -u +%H:%M:%S) availG=$a inodes=$i" >> /tmp/disk-watch.log
-          if [ "${a:-99}" -lt 10 ] 2>/dev/null && [ ! -f /tmp/disk-culprit.log ]; then
+          if [ "${a:-999}" -lt "$((BASE-15))" ] && [ ! -f /tmp/disk-culprit.log ]; then
             { echo "caught at $(date -u +%H:%M:%S) with availG=$a"
               df -B1G /
               ls -l /var/lib/systemd/coredump /var/crash /cores 2>/dev/null
@@ -405,6 +412,7 @@ jobs:
                 | head -10 | xargs -r ls -lh
               lsof +L1 2>/dev/null | head -20
               ls -l /proc/[0-9]*/fd/ 2>/dev/null | grep -i deleted | head -20
+              ps -eo pid,etimes,rss,args --sort=-rss 2>/dev/null | head -15
             } > /tmp/disk-culprit.log 2>&1
           fi
           sleep 5
