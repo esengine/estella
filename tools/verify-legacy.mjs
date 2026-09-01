@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { legacyAtTier, ROOT } from './goldenProjects.mjs';
-import { runTool } from './lib/runTool.mjs';
+import { runElectron } from './lib/electronRun.mjs';
 
 // The migration's own tables, not a copy: a renamed component is not a lost one
 // and a retired one is deliberately dropped, so comparing released spellings
@@ -126,11 +126,11 @@ for (const { tag, id } of cases) {
       }
       return JSON.stringify(shape);
     })()`;
-    const run = runTool('npx', ['electron', '.'], {
+    const run = runElectron(['.'], {
+      via: 'npx',
       encoding: 'utf8',
       cwd: DESKTOP,
       env: {
-        ...process.env,
         ESTELLA_SHOT: path.join(work, 'open.png'),
         ESTELLA_SHOT_PROJECT: work,
         ESTELLA_SHOT_EVAL: probe,

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, resultMeasured } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
+import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,9 +38,7 @@ const ONLY = flag('only', '');
 const BACKEND = flag('backend', 'webgl2');
 const BUDGET = flag('budget', '');
 const NO_BUILD = argv.includes('--no-build');
-// CI runners cannot use the SUID sandbox helper (not root-owned in
-// node_modules), and a pixel check does not need it.
-const XVFB = process.platform === 'linux' && !argv.includes('--no-xvfb');
+if (argv.includes('--no-xvfb')) process.env.ESTELLA_NO_XVFB = '1';
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
 if (only) {
@@ -163,17 +162,12 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
 function runScene(scene) {
   const RUNNER = 'tools/render-host/run.mjs';
   const watchdog = watchdogFor(scene.host);
-  const args = XVFB
-    ? ['-a', 'pnpm', 'exec', 'electron', RUNNER]
-    : ['exec', 'electron', RUNNER];
   const at = Date.now();
-  const r = runTool(XVFB ? 'xvfb-run' : 'pnpm', args, {
+  const r = runElectron([RUNNER], {
     cwd: ROOT,
     encoding: 'utf8',
     timeout: watchdog + LAUNCH_MARGIN_MS,
     env: {
-      ...process.env,
-      ELECTRON_DISABLE_SANDBOX: '1',
       ESTELLA_VERIFY_TIMEOUT_MS: String(watchdog),
       ESTELLA_VERIFY_HOST: scene.host,
       ...scene.env,

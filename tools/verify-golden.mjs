@@ -22,7 +22,7 @@ import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
-import { runTool } from './lib/runTool.mjs';
+import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const argv = process.argv.slice(2);
@@ -100,11 +100,11 @@ function captureEditorFrame(id, out) {
   const attempt = () => {
     // A partial file from the attempt before would be read as this attempt's frame.
     rmSync(out, { force: true });
-    const r = runTool('npx', ['electron', '.'], {
+    const r = runElectron(['.'], {
+      via: 'npx',
       encoding: 'utf8',
       cwd: DESKTOP,
       env: {
-        ...process.env,
         ESTELLA_SHOT: out,
         ESTELLA_SHOT_PROJECT: projectDir(id),
         // The scene the PACKAGE ships, named rather than inherited: opening a
@@ -191,8 +191,7 @@ function launchPackage(id, target, args) {
     () => {
       // Opening a PACKAGE needs no editor — the launchers are engine-side, so a
       // checkout without one can still judge what it shipped.
-      const r = runTool('pnpm', ['exec', 'electron', LAUNCHER(target), ...args],
-        { encoding: 'utf8', cwd: ROOT });
+      const r = runElectron([LAUNCHER(target), ...args], { encoding: 'utf8', cwd: ROOT });
       // The launcher prints a ✓/✗ line once it has looked at the frame; that
       // line existing is what says a measurement happened.
       const verdictLine = (r.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗'));

@@ -26,7 +26,7 @@ import path from 'node:path';
 import { GOLDEN, projectDir, parityFor, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
-import { runTool } from './lib/runTool.mjs';
+import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const argv = process.argv.slice(2);
@@ -108,7 +108,7 @@ function carriesModule(out) {
 function launch(id, out, png, timeoutMs) {
   const run = retryOnDeadGpu(
     () => {
-      const r = runTool('pnpm', ['exec', 'electron', LAUNCHER,
+      const r = runElectron([LAUNCHER,
         '--dir', out, '--out', png, '--w', String(SURFACE.w), '--h', String(SURFACE.h),
         ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
       ], { encoding: 'utf8', cwd: ROOT });

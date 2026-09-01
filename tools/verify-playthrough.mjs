@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runTool } from './lib/runTool.mjs';
+import { runElectron } from './lib/electronRun.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -61,8 +61,8 @@ if (exported.status !== 0) {
   process.exit(1);
 }
 
-const played = runTool('pnpm', [
-  'exec', 'electron', path.join(ROOT, 'tools', 'launchers', 'play-through.mjs'),
+const played = runElectron([
+  path.join(ROOT, 'tools', 'launchers', 'play-through.mjs'),
   '--dir', out, '--route', ROUTE,
   '--out', path.join(WORK, `${PROJECT}.png`),
   '--budget', '26000',
@@ -73,6 +73,10 @@ if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true });
 
 if (played.status !== 0) {
   console.error(`✗ ${PROJECT} cannot be played to the end of its route`);
+  // Only stdout was reported, so a driver that never launched left this saying
+  // the route failed — which is a verdict about the game, not about the runner.
+  const why = (played.stderr || '').trim();
+  if (why) console.error(why.slice(-800));
   process.exit(1);
 }
 console.log(`verify-playthrough: ${PROJECT} plays through — ok`);

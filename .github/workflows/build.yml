@@ -480,9 +480,7 @@ jobs:
     # step with no ceiling spent the job's whole 30 minutes and was killed with
     # nothing written. A budget reports what it measured and names what it did not.
     - name: Run the editor's pixel gates
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a --server-args="-screen 0 1920x1080x24" node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
+      run: node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
 
     # A run that dies of ENOSPC uploads NO log — this job's last failure lost every
     # line of it, including the snapshot that would have said what filled the disk.
@@ -588,42 +586,32 @@ jobs:
     # the engine was checked; the package never was — and "it launched" is not the
     # claim, since a build that boots to its rotate-to-portrait gate launches fine.
     - name: Launch the golden packages and compare them to the editor (PR tier)
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a node tools/verify-golden.mjs --tier pr
+      run: node tools/verify-golden.mjs --tier pr
 
     # The same game packaged twice from one tree, compiled and interpreted, and
     # the two frames held against each other — the only check that sees what a
     # compiled system does to a PIXEL.
     - name: Compare a compiled game's frame to an interpreted one (PR tier)
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a node tools/verify-aot-parity.mjs
+      run: node tools/verify-aot-parity.mjs
 
     # Does a real exported WEB package DISPATCH to its compiled systems — the
     # claim verify-aot-native makes for the desktop road, which the web road had
     # nobody making. A twin that loads and is never called changes no pixel and
     # raises no error, so parity below cannot see it either.
     - name: Check an exported web game runs its systems compiled
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a pnpm run verify:aot
+      run: pnpm run verify:aot
 
     # And the exact half: one fixture packaged both ways, stepped by a fixed dt
     # rather than by elapsed time, and the two displacements compared. This is
     # the check a twin reading the wrong offset cannot survive.
     - name: Check a cooked build's compiled systems against the interpreter
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a pnpm run verify:cooked
+      run: pnpm run verify:cooked
 
     # Projects as they were RELEASED, opened by the editor of today. The golden
     # corpus is re-saved by whoever last touched it, so it can only say that this
     # version opens its own files; a person's project is not re-saved by anybody.
     - name: Open released projects (PR tier)
-      env:
-        ELECTRON_DISABLE_SANDBOX: '1'
-      run: xvfb-run -a node tools/verify-legacy.mjs --tier pr
+      run: node tools/verify-legacy.mjs --tier pr
 
   # The same scenes on the second backend, on a runner of its own.
   #

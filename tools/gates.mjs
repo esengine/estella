@@ -206,6 +206,7 @@ export const GATES = [
   // other direction — every checker has something RUNNING it. `verify:aot` spent
   // two releases broken because nothing did.
   { id: 'verifier-owners', run: 'node tools/check-verifier-owners.mjs' },
+  { id: 'electron-preconditions', run: 'node tools/check-electron-preconditions.mjs' },
   { id: 'component-reference', run: 'node tools/component-reference.mjs --check' },
   { id: 'api-stability-page', run: 'node tools/api-stability.mjs --check' },
   // The per-symbol tiers say what is frozen; this says what a creator can build
