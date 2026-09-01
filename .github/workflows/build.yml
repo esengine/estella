@@ -97,6 +97,16 @@ jobs:
         path: build/wasm/web/
         retention-days: 3
 
+    # `-t all` builds this and nothing carried it, so every wechat package after
+    # it said "wechat engine runtime not found" — a whole platform's packaging
+    # answered by an artifact that was built and dropped.
+    - name: Upload wechat wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-wechat
+        path: build/wasm/wechat/
+        retention-days: 3
+
   # The same harnesses, instrumented. An out-of-bounds read that lands in
   # allocation slack (or in the next allocation) is silent in the plain build and
   # is exactly what these gates cannot otherwise see. Findings are fatal —

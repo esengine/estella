@@ -13,6 +13,14 @@ runs:
         name: wasm-web
         path: build/wasm/web/
 
+    # The editor packages for every platform it offers, and wechat's runtime is a
+    # separate build target with its own output tree.
+    - name: Download wechat wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat
+        path: build/wasm/wechat/
+
     - name: Build SDK
       shell: bash
       run: pnpm --filter ./sdk build
@@ -20,8 +28,9 @@ runs:
     - name: Stage wasm for the editor host
       shell: bash
       run: |
-        mkdir -p desktop/public/wasm
+        mkdir -p desktop/public/wasm desktop/public/wasm-wechat
         cp build/wasm/web/* desktop/public/wasm/
+        cp build/wasm/wechat/* desktop/public/wasm-wechat/
 
     - name: Build editor renderer bundle
       shell: bash

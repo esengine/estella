@@ -38,14 +38,18 @@ runs:
           TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           echo "no tag given — taking the $PLATFORM template from $TAG"
         fi
+        # NOT `templates/`, which the checkout already uses for the eight project
+        # starters: downloading into it works only while nothing else there is a
+        # zip, and `unzip templates/*.zip` would then take whichever came first.
+        rm -rf .native-template-dl
         gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-          -p "estella-native-$PLATFORM-*.zip" -D templates
+          -p "estella-native-$PLATFORM-*.zip" -D .native-template-dl
         # Under release strictness, so nothing is packaged around an archive the
         # publish gate would reject anyway.
-        node build-tools/cli.js verify-template templates/*.zip
-        mkdir -p template
-        unzip -q templates/*.zip -d template
+        node build-tools/cli.js verify-template .native-template-dl/*.zip
+        rm -rf template && mkdir -p template
+        unzip -q .native-template-dl/*.zip -d template
         # `mkdir -p` already made the directory, so its existence proves nothing;
         # what the next step needs is that the archive put something in it.
         [ -n "$(ls -A template)" ] || { echo "::error::$PLATFORM template unpacked to nothing"; exit 1; }
-        echo "unpacked $(ls templates) into template/ ($(ls -A template | wc -l) entries)"
+        echo "unpacked $(ls .native-template-dl) into template/ ($(ls -A template | wc -l) entries)"
