@@ -385,8 +385,12 @@ jobs:
     # 104G free to ZERO at 07:01:23 and back at 07:01:33 — inside the pixel gates,
     # ten seconds before that step ended, which is where all three ENOSPC deaths
     # happened. So the sampler also catches the spike in the act: the first time
-    # free space falls under 10G it writes one snapshot and never again, which is
-    # what keeps the catch from costing anything on a run that does not spike.
+        # free space falls under 10G it writes one snapshot and never again.
+        #
+        # The space comes back the SECOND the step ends, which no delete explains
+        # and an unlinked file a live process still holds does exactly: du and find
+        # cannot see one, df can, and the kernel reclaims it at exit. Hence lsof and
+        # the /proc fd sweep — the two readings that name a file with no name left.
     - name: Watch the disk, since a spike between readings is invisible
       run: |
         nohup bash -c 'while :; do
@@ -399,6 +403,8 @@ jobs:
               ls -l /var/lib/systemd/coredump /var/crash /cores 2>/dev/null
               find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
                 | head -10 | xargs -r ls -lh
+              lsof +L1 2>/dev/null | head -20
+              ls -l /proc/[0-9]*/fd/ 2>/dev/null | grep -i deleted | head -20
             } > /tmp/disk-culprit.log 2>&1
           fi
           sleep 5
@@ -455,7 +461,9 @@ jobs:
         # The low-water mark the sampler saw, which is the only reading that can
         # catch what a step gives back before it ends.
         awk '{gsub(/availG=/,"",$2); if (min=="" || $2+0 < min+0) {min=$2; at=$0}} END{print "lowest free seen: " (at=="" ? "no samples" : at)}' /tmp/disk-watch.log 2>/dev/null || true
+        awk 'NR%12==1' /tmp/disk-watch.log 2>/dev/null | tail -40 || true
         tail -3 /tmp/disk-watch.log 2>/dev/null || true
+        cat /tmp/disk-culprit.log 2>/dev/null || echo 'no spike caught'
         echo "samples: $(wc -l < /tmp/disk-watch.log 2>/dev/null || echo 0)"
 
     # Both are DEEPER oracles the Android tests skip when absent, so fetching them
