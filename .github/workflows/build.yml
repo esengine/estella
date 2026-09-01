@@ -402,7 +402,13 @@ jobs:
     # 15G spent and found no file over 1GB, because at that depth there is not one
     # yet. It DID find eleven electron processes alive at once, aged 657s to 1792s,
     # two of them `. --mcp` mains — so the authoring checks leak their editors, and
-    # the pixel gates start on a machine already carrying them.
+    # the pixel gates start on a machine already carrying them. Measured since:
+    # SEVENTY-SIX of them at once, 39 still alive when the job ends.
+    #
+    # And at 109G used, du over /home/runner, /tmp and /var finds 4G, find finds no
+    # file over 1GB and lsof no deleted one — 105G unaccounted. Every probe so far
+    # named a directory; none has looked at / itself, where a swap file would sit,
+    # and 76 electrons on a 16GB runner is the memory pressure that grows one.
     - name: Watch the disk, since a spike between readings is invisible
       run: |
         base=$(df -B1G / | awk "NR==2{print \$4}")
@@ -427,7 +433,8 @@ jobs:
               find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
                 | head -10 | xargs -r ls -lh
               lsof +L1 2>/dev/null | awk "\$7 > 1000000000" | head -10
-              du -x -B1G -d 1 /var /home/runner /tmp 2>/dev/null | sort -rn | head -12
+              du -x -B1G -d 1 / 2>/dev/null | sort -rn | head -12
+              swapon --show 2>/dev/null; free -g 2>/dev/null
               echo "electron processes: $(pgrep -c electron 2>/dev/null || echo 0)"
             } > /tmp/disk-deep.log 2>&1
           fi
