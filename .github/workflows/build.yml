@@ -472,6 +472,24 @@ jobs:
         # a watchdog that made the leak WORSE read as an improvement.
         echo "electron after the checks: $(pgrep -c electron 2>/dev/null || echo 0)"
 
+    # Measured by the step above: 76 editors alive at once, 39 still there when the
+    # job ends. The gates below then start on a machine already carrying them, and
+    # three ENOSPC deaths have landed inside them.
+    #
+    # BETWEEN the steps, not during: the watchdog that reaped an editor while a
+    # check was still driving it cost two checks and was reverted (57f25d08e).
+    # Here the checks are over, so every editor left is one nobody is reading.
+    - name: Reap the editors the authoring checks left behind
+      if: always()
+      run: |
+        left=$(pgrep -c electron 2>/dev/null || echo 0)
+        pkill -f electron 2>/dev/null || true
+        sleep 3
+        pkill -9 -f electron 2>/dev/null || true
+        sleep 1
+        echo "reaped $left electron process(es); $(pgrep -c electron 2>/dev/null || echo 0) still up"
+        df -h / | tail -1
+
     # The pixel gates whose subject is an editor door — the reference grid, hit
     # testing, the editor eye, preview renders. They cannot run on the engine's
     # host, which deliberately has none of those.
