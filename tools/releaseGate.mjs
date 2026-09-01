@@ -43,7 +43,8 @@ export const CRITERIA = [
     id: 'golden-packages',
     says: 'every golden project packages and launches on every target it declares',
     answeredBy: 'node tools/verify-golden.mjs --tier release',
-    needs: ['tools/verify-golden.mjs', 'tools/goldenProjects.mjs'],
+    needs: ['tools/verify-golden.mjs', 'tools/goldenProjects.mjs',
+            'tools/launchers/launch-export.mjs', 'tools/launchers/launch-minigame.mjs'],
   },
   {
     id: 'package-matches-editor',
@@ -58,30 +59,14 @@ export const CRITERIA = [
     needs: ['tools/launchers/inputScript.mjs'],
   },
   {
-    id: 'launch-smoke-every-platform',
-    host: 'desktop-and-android',
-    why: 'its command chains three verifiers across two environments — desktop render wants clang, Dawn, Vulkan and xvfb, the boot wants an emulator — so no one CI job answers it; note golden and the desktop pixels are already criteria and jobs of their own',
-    says: 'every shipping platform launches a package and draws',
-    answeredBy: 'node tools/verify-golden.mjs --tier release'
-      + ' && node tools/verify-desktop-render.mjs --tier pr'
-      + ' && node tools/verify-native-boot.mjs --platform android --examples all',
-    needs: [
-      'tools/launchers/launch-export.mjs',
-      'tools/launchers/launch-minigame.mjs',
-      'tools/verify-desktop-render.mjs',
-      'tools/verify-native-boot.mjs',
-    ],
-  },
-  {
     id: '3d-runs-where-it-ships',
     host: 'android',
     why: 'the same emulator boot, for the 3D corpus',
-    says: 'a game whose world is 3D packages, launches and answers input — on the web and on a device',
-    // Two ways for the solver to be absent — a side module fetched beside the
-    // engine, a library compiled into a native host — and both leave a game
-    // that starts and draws an empty room.
-    answeredBy: 'node tools/verify-golden.mjs --tier release'
-      + ' && node tools/verify-native-boot.mjs --platform android --examples all',
+    says: 'a game whose world is 3D boots and draws on a device',
+    // The web half is golden-packages' own command, and was run twice for one
+    // verdict. Only an emulator answers this: a solver that never compiled into
+    // the native host leaves a game that starts and draws an empty room.
+    answeredBy: 'node tools/verify-native-boot.mjs --platform android --examples all',
     needs: ['examples/physics-3d/project.esproject', 'tools/verify-native-boot.mjs'],
   },
   {
