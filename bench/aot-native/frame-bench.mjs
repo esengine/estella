@@ -132,11 +132,12 @@ const version = JSON.parse(spawnSync(process.execPath, ['-p', 'JSON.stringify(re
     { cwd: ROOT, encoding: 'utf8' }).stdout || '{}').version;
 const template = installedTemplateDir(version, os);
 if (!template || !existsSync(template)) {
-    // Loud, not silent: a bench that skipped without saying so reads as a bench
-    // that ran and found nothing.
+    // Saying so was not enough: this exited 0, so the release gate read three
+    // criteria as answered on every runner that never had a template. 2 is the
+    // convention for a machine that cannot answer, which is not a verdict.
     console.log(`aot native bench: no ${os} runtime template for v${version} — did NOT run.`);
     console.log(`  build one with: node build-tools/cli.js native --target ${os}`);
-    process.exit(0);
+    process.exit(2);
 }
 
 // ---------------------------------------------------------------- the project

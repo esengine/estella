@@ -73,10 +73,20 @@ function reportElsewhere() {
   }
 }
 
+/**
+ * A verifier missing what it needs exits 2, and that is not a verdict.
+ *
+ * Four criteria read PASS on the nightly while their own output said "did NOT
+ * run": exiting 0 having done nothing is, to a runner, exiting 0. Counted apart
+ * from a failure here, and still not counted as answered.
+ */
+const CANNOT_ANSWER = 2;
+
 // Every criterion, not the first failure: which of them a release is short of is
 // the useful answer, and stopping early turns the rest into silence — the same
 // reason verify-render reports its whole matrix.
 const failed = [];
+const unanswered = [];
 for (const j of jobs) {
   const began = Date.now();
   process.stdout.write(`\n=== ${j.ids.join(', ')}\n    ${j.run}\n`);
@@ -85,6 +95,9 @@ for (const j of jobs) {
   if (r.error) {
     console.error(`✗ could not run it: ${r.error.message}`);
     failed.push({ ...j, secs, why: 'would not start' });
+  } else if (r.status === CANNOT_ANSWER) {
+    console.error(`— UNANSWERED (${secs}s): this machine is missing what it needs`);
+    unanswered.push({ ...j, secs });
   } else if (r.status !== 0) {
     console.error(`✗ FAIL (${secs}s)`);
     failed.push({ ...j, secs, why: `exit ${r.status}` });
@@ -93,9 +106,14 @@ for (const j of jobs) {
   }
 }
 
-const short = failed.flatMap((j) => j.ids);
+const short = [...failed, ...unanswered].flatMap((j) => j.ids);
 console.log(`\nrelease gate ${RELEASE}: ${automated.length - short.length}/${automated.length} criteria answered`);
 for (const j of failed) console.log(`  ✗ ${j.ids.join(', ')} — ${j.why}`);
+// Named apart, because the fix is not the same one: a FAIL is the engine's to
+// answer and this is the runner's, and a release is short either way.
+for (const j of unanswered) {
+  console.log(`  — ${j.ids.join(', ')} — nothing on this machine could answer it (see its output above)`);
+}
 // Named, always: a release is not ready because 27 commands went green, and a
 // summary that omits the four nobody can automate reads as though it is.
 console.log(`  ${manual.length} criteria are BY HAND and this cannot answer them:`);
