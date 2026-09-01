@@ -96,6 +96,19 @@ jobs:
       with:
         version: 5.0.0
 
+    # electron-preconditions: job-wide. play-stop-conserves and scene-churn-flat
+    # run the EDITOR's own check scripts, which live in the private submodule and
+    # cannot import electronRun — so both aborted in the SUID sandbox helper and
+    # reported "timeout initialize" about the editor. One display for every step,
+    # rather than a prefix on a command that lives in releaseGate.mjs.
+    - name: A display for the whole job
+      run: |
+        Xvfb :99 -screen 0 1920x1080x24 &
+        for _ in $(seq 1 30); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 1; done
+        test -e /tmp/.X11-unix/X99
+        echo "DISPLAY=:99" >> "$GITHUB_ENV"
+        echo "ELECTRON_DISABLE_SANDBOX=1" >> "$GITHUB_ENV"
+
     - name: Run the exit criteria
       run: node tools/run-release-gate.mjs --host linux
 

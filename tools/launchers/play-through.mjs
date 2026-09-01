@@ -42,6 +42,10 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 
+// Every other launcher has this and this one did not, so on a runner with no GPU
+// Chromium blocklisted WebGL2, the game drew nothing, and the flagship criterion
+// reported that its route could not be played.
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
 const argv = process.argv.slice(2);

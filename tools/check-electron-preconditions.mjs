@@ -14,12 +14,16 @@
  * that supplies by hand what electronRun now supplies for every caller.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLS = path.join(ROOT, 'tools');
 const WORKFLOWS = path.join(ROOT, '.github', 'workflows');
+
+const tracked = (glob) => execFileSync('git', ['ls-files', glob], { cwd: ROOT, encoding: 'utf8' })
+  .split('\n').filter(Boolean);
 
 /**
  * Not every Electron on a runner is ours to condition. The desktop scripts live
@@ -60,6 +64,22 @@ for (const file of sources(TOOLS)) {
 // broke — the first version of this file said 0 and passed.
 if (!launchers) problems.push('tools/ — found no electron launcher at all; this scan is broken');
 
+// The other half: a runner has no GPU, and Chromium blocklists WebGL2 rather
+// than falling back. Six launchers said so and the seventh did not, so the
+// flagship blamed its route for a machine where nothing could draw.
+let mains = 0;
+for (const rel of tracked('tools/launchers/*.mjs').concat(tracked('tools/render-host/*.mjs'))) {
+  const src = readFileSync(path.join(ROOT, rel), 'utf8');
+  // An Electron MAIN process is the one that can set a command-line switch; the
+  // shared modules beside them run in the page and have no say.
+  if (!/app\.(commandLine|whenReady)/.test(src)) continue;
+  mains++;
+  if (!/enable-unsafe-swiftshader/.test(src)) {
+    problems.push(`${rel} — launches Electron without the software-GL fallback`);
+  }
+}
+if (!mains) problems.push('tools/launchers — found no Electron main at all; this scan is broken');
+
 // And the other direction: a workflow that still hands a verifier the display
 // it now brings itself, which is the second list growing back.
 for (const name of readdirSync(WORKFLOWS)) {
@@ -73,6 +93,10 @@ for (const name of readdirSync(WORKFLOWS)) {
     // command below it — near enough that reading a few lines on finds it.
     const near = lines.slice(i, i + 4).join('\n');
     if (NOT_OURS.some((re) => re.test(near))) return;
+    // A job-wide display, declared. The private editor's scripts cannot import
+    // electronRun, so a job that runs them has to stand one up for everybody —
+    // which is not the same as writing the prefix beside a verifier that owns it.
+    if (/electron-preconditions: job-wide/.test(lines.slice(Math.max(0, i - 16), i + 2).join('\n'))) return;
     problems.push(`${rel}:${i + 1} — supplies what electronRun supplies: ${line.trim().slice(0, 80)}`);
   });
 }
@@ -82,5 +106,5 @@ if (problems.length) {
   for (const p of problems) console.error(`  ${p}`);
   process.exit(1);
 }
-console.log(`check-electron-preconditions: ${launchers} verifier(s) launch electron, all through electronRun;`
-  + ' no workflow supplies its conditions by hand.');
+console.log(`check-electron-preconditions: ${launchers} verifier(s) launch electron through electronRun,`
+  + ` ${mains} Electron main(s) carry the software-GL fallback, and no workflow supplies either by hand.`);

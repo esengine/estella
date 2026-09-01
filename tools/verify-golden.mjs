@@ -251,7 +251,11 @@ for (const { id, target } of pairs) {
 
   if (exported.status !== 0) {
     results.push({ id, target, stage: 'package', ok: false, why: (exported.stderr || exported.stdout || '').trim().slice(-300) });
+    // The reason was recorded and never printed, so the whole account of a
+    // failed export was two words. It is the only place the exporter speaks.
+    const why = (exported.stderr || exported.stdout || '').trim();
     console.log(`✗ ${id} ${target} — package failed`);
+    for (const l of why.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
     continue;
   }
 
@@ -545,6 +549,8 @@ const bad = results.filter((r) => !r.ok);
 console.log(`\ngolden ${TIER}: ${results.length - bad.length}/${results.length} pair(s) packaged and launched`);
 for (const d of deferred) console.log(`  deferred: ${d}`);
 if (bad.length) {
-  for (const b of bad) console.log(`  ✗ ${b.id} ${b.target} (${b.stage})`);
+  for (const b of bad) {
+    console.log(`  ✗ ${b.id} ${b.target} (${b.stage})${b.why ? ` — ${b.why.split('\n').pop()}` : ''}`);
+  }
   process.exit(1);
 }

@@ -23,7 +23,10 @@ import { runTool } from './runTool.mjs';
  *  golden asks for and shallower than a pixel judgement should be read from. */
 const SCREEN = '-screen 0 1920x1080x24';
 
-export const NEEDS_XVFB = process.platform === 'linux' && !process.env.ESTELLA_NO_XVFB;
+// A job that already stands up one display for every step (because the private
+// editor's scripts cannot import this file) has given us one too.
+export const NEEDS_XVFB = process.platform === 'linux'
+  && !process.env.DISPLAY && !process.env.ESTELLA_NO_XVFB;
 
 /**
  * Run Electron with a script and its arguments, under whatever this host needs.
