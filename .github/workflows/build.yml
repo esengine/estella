@@ -397,6 +397,12 @@ jobs:
     # into the step after — so a run whose pixel gates take 35s never reaches a
     # floor at all, and only the slow ones ever hit zero. Fifteen gigabytes gone
     # is the same event either way, and it fires while the writer is still alive.
+    #
+    # Twice, at fifteen gigabytes gone and at sixty: the first catch fired with only
+    # 15G spent and found no file over 1GB, because at that depth there is not one
+    # yet. It DID find eleven electron processes alive at once, aged 657s to 1792s,
+    # two of them `. --mcp` mains — so the authoring checks leak their editors, and
+    # the pixel gates start on a machine already carrying them.
     - name: Watch the disk, since a spike between readings is invisible
       run: |
         base=$(df -B1G / | awk "NR==2{print \$4}")
@@ -414,6 +420,16 @@ jobs:
               ls -l /proc/[0-9]*/fd/ 2>/dev/null | grep -i deleted | head -20
               ps -eo pid,etimes,rss,args --sort=-rss 2>/dev/null | head -15
             } > /tmp/disk-culprit.log 2>&1
+          fi
+          if [ "${a:-999}" -lt "$((BASE-60))" ] && [ ! -f /tmp/disk-deep.log ]; then
+            { echo "deep at $(date -u +%H:%M:%S) with availG=$a"
+              df -B1G /
+              find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
+                | head -10 | xargs -r ls -lh
+              lsof +L1 2>/dev/null | awk "\$7 > 1000000000" | head -10
+              du -x -B1G -d 1 /var /home/runner /tmp 2>/dev/null | sort -rn | head -12
+              echo "electron processes: $(pgrep -c electron 2>/dev/null || echo 0)"
+            } > /tmp/disk-deep.log 2>&1
           fi
           sleep 5
         done' >/dev/null 2>&1 &
@@ -472,6 +488,9 @@ jobs:
         awk 'NR%12==1' /tmp/disk-watch.log 2>/dev/null | tail -40 || true
         tail -3 /tmp/disk-watch.log 2>/dev/null || true
         cat /tmp/disk-culprit.log 2>/dev/null || echo 'no spike caught'
+        cat /tmp/disk-deep.log 2>/dev/null || echo 'never got deep'
+        echo "core_pattern: $(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
+        echo "electron still alive: $(pgrep -c electron 2>/dev/null || echo 0)"
         echo "samples: $(wc -l < /tmp/disk-watch.log 2>/dev/null || echo 0)"
 
     # Both are DEEPER oracles the Android tests skip when absent, so fetching them
