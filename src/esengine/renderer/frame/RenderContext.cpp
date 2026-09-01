@@ -164,6 +164,21 @@ void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
     uploadFrameConstants(viewProjection, viewProjection);
 }
 
+u32 RenderContext::frameConstantsSize() {
+    return static_cast<u32>(sizeof(FrameConstants));
+}
+
+void RenderContext::useFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection) {
+    if (ubo == BufferHandle::Invalid) return;
+    const FrameConstants frame{viewProjection, cameraFromViewProjection(viewProjection),
+                               glm::inverse(viewProjection)};
+    device_.updateBuffer(ubo, 0, &frame, sizeof(FrameConstants));
+    device_.setUniformBuffer(FRAME_CONSTANTS_BINDING, ubo);
+    // Same re-arm the frame's own upload does: a previous pass may have left a
+    // differently sized params buffer on the shared slot.
+    device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
+}
+
 // `engine` is the projection in the engine's own convention, which is what the
 // viewpoint is read from: the two agree on it, but only one of them is the answer
 // to "where is the eye" that the rest of the engine also holds.
@@ -174,6 +189,10 @@ void RenderContext::uploadFrameConstants(const glm::mat4& upload, const glm::mat
     // space a shader will hand back.
     const FrameConstants frame{upload, cameraFromViewProjection(engine), glm::inverse(upload)};
     device_.updateBuffer(frameUbo_, 0, &frame, sizeof(FrameConstants));
+    // Take the binding back. A pass that draws several views points this slot at
+    // one buffer per view; without this the scene would keep reading whichever
+    // view was bound last, having uploaded its own camera to a buffer nothing reads.
+    device_.setUniformBuffer(FRAME_CONSTANTS_BINDING, frameUbo_);
     // Re-arm the params fallback for this pass: a post-process or custom-draw
     // commit from the previous pass left its own (differently sized) buffer on
     // the shared slot.

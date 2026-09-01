@@ -489,6 +489,12 @@ private:
     /// The shadow pass's body: for each planned square, collect the occluders it can
     /// see and draw them. The graph has bound and cleared the atlas.
     void executeShadowPass(ecs::Registry& registry);
+
+    /// Grows the per-view frame-constant buffers to @p count and no further.
+    void ensureShadowFrameUbos(u32 count);
+
+    /// Deletes them. Device loss and shutdown: the handles name nothing afterwards.
+    void releaseShadowFrameUbos();
     /// The scene pass's body: the draw, and the constants it needs current.
     void drawScene();
     /// Drops the atlas texture id the frame published; its target is the graph's
@@ -583,7 +589,13 @@ private:
      *          vertices the scene is about to draw from.
      */
     TransientBufferPool shadow_pool_;
-    DrawList shadow_draw_list_;
+    /// One per view, kept across frames for the capacity. The whole pass is collected
+    /// before any of it is drawn, so a view's commands have to outlive its collect.
+    std::vector<DrawList> shadow_view_lists_;
+    /// One FrameConstants buffer per view, grown to the busiest frame and never shrunk.
+    /// A buffer write lands on the queue, not between two draws already recorded into
+    /// an open pass — so what tells one view from another is which buffer is BOUND.
+    std::vector<BufferHandle> shadow_frame_ubos_;
     /// Who owns which square of the atlas. Rebuilt every frame: a tile means
     /// nothing once the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};

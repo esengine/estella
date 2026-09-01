@@ -137,6 +137,18 @@ public:
      */
     void updateFrameConstants(const glm::mat4& viewProjection);
 
+    /**
+     * @brief Frame constants for @p viewProjection in a buffer the CALLER owns, bound.
+     * @details For a pass that draws several views. A buffer write is a queue
+     *          operation and does not land between draws already recorded into an
+     *          open pass, so views sharing one UBO all read the last write. One
+     *          buffer each makes the BINDING, an encoder command, what varies.
+     */
+    void useFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection);
+
+    /** @brief Bytes a buffer passed to useFrameConstants must hold. */
+    static u32 frameConstantsSize();
+
     /** @brief Uploads the frame clock + canvas size into the injected TimeConstants UBO. */
     void setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH);
 

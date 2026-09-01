@@ -180,6 +180,7 @@ void RenderFrame::shutdown() {
     plugins_.clear();
     pool_.shutdown();
     shadow_pool_.shutdown();
+    releaseShadowFrameUbos();
     releaseFrameTargets();
     target_pool_.clear();
 
@@ -196,6 +197,10 @@ void RenderFrame::shutdown() {
 void RenderFrame::recreateGpuResources() {
     pool_.recreateGpuResources();
     shadow_pool_.recreateGpuResources();
+    // The buffers behind these died with the device; the next pass makes as many
+    // as it needs. Kept here rather than recreated eagerly: how many is a property
+    // of the frame that has not been collected yet.
+    releaseShadowFrameUbos();
     target_manager_.recreateGpuResources();
     // The framebuffers the pool is holding died with the device: the loans go
     // back and the memory behind them goes with it, or the next frame would draw
@@ -1372,6 +1377,23 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     graph_.addPass(std::move(shadow));
 }
 
+void RenderFrame::ensureShadowFrameUbos(u32 count) {
+    const u32 bytes = RenderContext::frameConstantsSize();
+    while (shadow_frame_ubos_.size() < count) {
+        const BufferHandle ubo = device_.createBuffer(
+            {GfxBufferUsage::Uniform, bytes, /*dynamic=*/true}, nullptr);
+        if (ubo == BufferHandle::Invalid) break;
+        shadow_frame_ubos_.push_back(ubo);
+    }
+}
+
+void RenderFrame::releaseShadowFrameUbos() {
+    for (BufferHandle ubo : shadow_frame_ubos_) {
+        if (ubo != BufferHandle::Invalid) device_.deleteBuffer(ubo);
+    }
+    shadow_frame_ubos_.clear();
+}
+
 void RenderFrame::executeShadowPass(ecs::Registry& registry) {
     // What the pass cost, for a profiler and the gates that pin it: the maps it
     // actually rendered and the draws they took. Neither shows in a pixel, and a
@@ -1379,12 +1401,21 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
     u32 shadowTiles = 0;
     u32 shadowDraws = 0;
 
-    for (const ShadowView& view : shadow_views_) {
-        // Its own pool and list. The scene's are finalized and uploaded by now and
-        // its pass is still to come, so collecting through them here would overwrite
-        // the vertices the scene is about to draw from.
-        shadow_pool_.beginFrame();
-        shadow_draw_list_.clear();
+    const usize viewCount = shadow_views_.size();
+    // Reset once for the pass, NOT once per view: a draw carries an offset rather
+    // than the bytes behind it, so six faces reset to zero are six draws reading
+    // whatever landed at zero last.
+    shadow_pool_.beginFrame();
+    ensureShadowFrameUbos(static_cast<u32>(viewCount));
+    if (shadow_view_lists_.size() < viewCount) shadow_view_lists_.resize(viewCount);
+
+    // Collect every view before any is drawn, so the pool uploads once and then
+    // stays still: growth re-creates the buffer behind the handle, and a recorded
+    // draw names the buffer it was recorded with.
+    for (usize vi = 0; vi < viewCount; ++vi) {
+        const ShadowView& view = shadow_views_[vi];
+        DrawList& list = shadow_view_lists_[vi];
+        list.clear();
 
         // What this looks through is the view's, held here rather than swapped into
         // the frame's own: the scene pass after this one still reads the camera it
@@ -1397,31 +1428,40 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         // Only the plugins that cast are asked: a map holds depth, and everything
         // else would write colour into a texture every receiver reads back as one.
         RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, shadow_pool_,
-                                        shadow_draw_list_, ctx,
+                                        list, ctx,
                                         computeCameraView(view.view_projection)};
         for (auto& plugin : plugins_) {
             if (plugin->castsShadows()) plugin->collect(collectCtx);
         }
-        shadow_draw_list_.finalize(shadow_pool_);
+        list.finalize(shadow_pool_);
+    }
+    shadow_pool_.upload();
+
+    for (usize vi = 0; vi < viewCount; ++vi) {
+        const ShadowView& view = shadow_views_[vi];
+        DrawList& list = shadow_view_lists_[vi];
         // A cube face pointing away from every mesh collects nothing, and a point
         // light has six chances at that. The square already holds what the atlas was
         // cleared to — depth 1, nothing here — so drawing it would agree at cost.
-        if (shadow_draw_list_.commandCount() == 0) continue;
+        if (list.commandCount() == 0) continue;
 
         device_.setViewport(view.x, view.y, view.size, view.size);
-        shadow_pool_.upload();
         // Not a camera's: this projection spans exactly the occluders it draws, so
         // it sits inside either clip volume as built, and the depths it writes are
         // compared against the copy of it the receiving shader holds.
-        context_.updateFrameConstants(view.view_projection);
+        //
+        // One buffer per view, not one written per view: the write reaches the GPU
+        // on the queue, never between draws already recorded into this open pass.
+        // Binding IS an encoder command, so that is what tells the faces apart.
+        context_.useFrameConstants(shadow_frame_ubos_[vi], view.view_projection);
         // The depth variant is still a Lit shader and still declares the light block,
         // and a draw whose declared UBO is unbound is undefined behaviour that draws
         // nothing — the whole pass came back empty for exactly this.
         context_.lights().uploadAndBind();
-        shadow_draw_list_.execute(device_, shadow_pool_, context_.materials(),
-                                  context_.getWhiteTextureId(), nullptr, context_.skinUbo());
+        list.execute(device_, shadow_pool_, context_.materials(),
+                     context_.getWhiteTextureId(), nullptr, context_.skinUbo());
         ++shadowTiles;
-        shadowDraws += shadow_draw_list_.mergedDrawCallCount();
+        shadowDraws += list.mergedDrawCallCount();
     }
 
     ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
