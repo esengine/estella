@@ -519,12 +519,20 @@ jobs:
 
   # The same scenes on the second backend, on a runner of its own.
   #
-  # Informational is a statement about the VERDICT, not about the cost: sixty-four
-  # scenes on a software Vulkan cost more than half an hour, and spending that
-  # inside the gate job spends the budget the gates need — the editor, golden and
-  # released-project checks are what stopped running for it. Its own job answers
-  # the same question in parallel, and the runner keeps its own budget so the
-  # answer is a report rather than a runner killed at the ceiling.
+  # Its own runner is about COST: sixty-four scenes on a software Vulkan cost more
+  # than half an hour, and spending that inside the gate job spends the budget the
+  # gates need — the editor, golden and released-project checks are what stopped
+  # running for it. Answering in parallel keeps the report from being a runner
+  # killed at the ceiling.
+  #
+  # Its verdict BLOCKS, since 065e9a60c. It was informational, and for months it
+  # was the only job running the WGSL path at all: six shadow scenes stayed red
+  # under a green run, because a queue write does not land between draws inside an
+  # open pass and nothing else sampled that. Every failure it ever reported was
+  # that same deterministic bug — six for six, identical scene lists, 124-228s and
+  # a full verdict each time, no GPU death on this runner. A run that genuinely
+  # never gets a GPU is told from a wrong pixel by tools/lib/deadGpu.mjs, not by
+  # this flag; making the flag carry it would go on hiding real ones.
   verify-render-webgpu:
     name: Render verify (second backend)
     # macOS, for the GPU. The Linux runner ships no graphics driver, and every run
@@ -536,7 +544,6 @@ jobs:
     runs-on: macos-latest
     needs: build-emscripten
     timeout-minutes: 75
-    continue-on-error: true
 
     steps:
     - uses: actions/checkout@v7
