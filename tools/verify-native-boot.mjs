@@ -751,6 +751,17 @@ function packageExample(driver, name, opts) {
 
 const opts = parseArgs(process.argv.slice(2));
 const driver = opts.platform === 'ios' ? iosDriver(opts) : androidDriver(opts);
+
+// The template is what a game is packaged INTO, and its default is a directory a
+// plain checkout does not have. Unchecked, every export failed with an empty
+// reason: 47 examples, one after another, six minutes to say nothing.
+if (!existsSync(opts.template)) {
+    console.error(`✗ no ${driver.name} runtime template at ${path.relative(ROOT, opts.template)}`);
+    console.error('  take one from a release (as native-smoke does) or build it:'
+        + `  node build-tools/cli.js native --target ${driver.name}`);
+    process.exit(2);
+}
+
 mkdirSync(opts.out, { recursive: true });
 
 let device;

@@ -1,0 +1,51 @@
+name: Runtime template from a release
+description: Download and unpack a published native runtime template into template/.
+
+# What a game is packaged INTO. verify-native-boot defaults to <root>/template,
+# which a plain checkout does not have — and unchecked, every one of 47 exports
+# failed with an empty reason before it learned to say so.
+#
+# The RELEASE template on purpose, not this branch's: building one costs ~40
+# minutes, which a nightly cannot pay daily. What that answers is the half a
+# creator lives in — today's game content on the host they already installed.
+# HEAD's own template is native-smoke's question, and the release pipeline calls
+# it. Two halves, not two copies.
+
+inputs:
+  platform:
+    description: android or ios.
+    required: true
+  tag:
+    description: Release tag to take it from (blank = the latest release).
+    required: false
+    default: ''
+  token:
+    description: Token for `gh release download`.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Take the template from the release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TAG: ${{ inputs.tag }}
+        PLATFORM: ${{ inputs.platform }}
+      run: |
+        set -euo pipefail
+        if [ -z "$TAG" ]; then
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "no tag given — taking the $PLATFORM template from $TAG"
+        fi
+        gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+          -p "estella-native-$PLATFORM-*.zip" -D templates
+        # Under release strictness, so nothing is packaged around an archive the
+        # publish gate would reject anyway.
+        node build-tools/cli.js verify-template templates/*.zip
+        mkdir -p template
+        unzip -q templates/*.zip -d template
+        # `mkdir -p` already made the directory, so its existence proves nothing;
+        # what the next step needs is that the archive put something in it.
+        [ -n "$(ls -A template)" ] || { echo "::error::$PLATFORM template unpacked to nothing"; exit 1; }
+        echo "unpacked $(ls templates) into template/ ($(ls -A template | wc -l) entries)"

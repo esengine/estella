@@ -14,6 +14,9 @@ name: Nightly
 # A release tag runs the same thing: an exit criterion is what a RELEASE has to
 # be able to say, so the list is answered again against the commit being shipped
 # rather than trusted from whatever the cron last saw.
+permissions:
+  contents: read
+
 on:
   schedule:
     # 04:00 UTC, after the day's pushes have settled.
@@ -146,6 +149,14 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+
+    # A game is packaged INTO a template, and this job never had one: the default
+    # path is a directory a checkout does not carry, so all 47 exports failed at
+    # once. The action's own comment says why this takes the released one.
+    - uses: ./.github/actions/native-template
+      with:
+        platform: android
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     # Nested virtualisation for the emulator, as the compat matrix does.
     - name: Enable KVM
