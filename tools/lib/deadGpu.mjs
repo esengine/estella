@@ -37,6 +37,22 @@ export function gpuNeverCameUp(output) {
 }
 
 /**
+ * Electron never started: no display, a sandbox helper that is not setuid root,
+ * a binary that is not there. Not the GPU, and not worth six retries — a nightly
+ * spent 24 minutes on eleven projects that never launched, and called it a dead GPU.
+ */
+export function launchNeverHappened(output) {
+    return /did not start:|Missing X server or \$DISPLAY|chrome-sandbox is owned by root|signal SIGTRAP/
+        .test(output);
+}
+
+/** What to report when the process never started. Shared for the same reason the
+ *  detection is: the runners each named this differently, and none named it. */
+export function launchNeverHappenedVerdict(subject) {
+    return `electron never started on this machine — this says nothing about ${subject}`;
+}
+
+/**
  * What to report when a measurement never happened because the GPU never came up.
  * Shared for the same reason the detection is: the two runners described the same
  * failure differently, and one of them described it as the game's fault.
@@ -116,6 +132,9 @@ export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         last = attempt();
         if (last.ok) return { ...last, retried: i > 0 };
+        // A launch that never happened will not happen on the sixth try either,
+        // and every retry buries the reason further under identical output.
+        if (launchNeverHappened(last.output ?? '')) return { ...last, retried: i > 0, launchFailed: true };
 
         const noVerdict = reachedNoVerdict(last);
         if (noVerdict) sawOutage = true;

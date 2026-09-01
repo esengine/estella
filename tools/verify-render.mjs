@@ -15,7 +15,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
-import { retryOnDeadGpu, deadGpuVerdict, resultMeasured } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, resultMeasured } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
@@ -246,8 +246,10 @@ for (const [index, scene] of scenes.entries()) {
   }
   if (run.ok) drewSomething = true; else failed.push(scene.id);
   deadInARow = run.gpuDied ? deadInARow + 1 : 0;
-  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${seconds(run.ms).padStart(7)}  `
-    + `${run.gpuDied ? deadGpuVerdict('the scene') : run.verdict}`);
+  const verdict = run.launchFailed ? launchNeverHappenedVerdict('the scene')
+    : run.gpuDied ? deadGpuVerdict('the scene')
+      : run.verdict;
+  console.log(`${run.ok ? '✓' : '✗'} ${scene.id.padEnd(28)} ${seconds(run.ms).padStart(7)}  ${verdict}`);
   if (!run.ok) {
     for (const l of run.out.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
   }

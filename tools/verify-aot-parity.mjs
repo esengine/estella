@@ -25,7 +25,7 @@ import { mkdirSync, rmSync, readFileSync, existsSync, readdirSync, statSync } fr
 import path from 'node:path';
 import { GOLDEN, projectDir, parityFor, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance } from './frameCompare.mjs';
-import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
@@ -117,7 +117,7 @@ function launch(id, out, png, timeoutMs) {
     },
     () => console.log(`↻ ${id} — the GPU process died before it drew; launching again`),
   );
-  return { ...run.r, gpuDied: Boolean(run.gpuDied) };
+  return { ...run.r, gpuDied: Boolean(run.gpuDied), launchFailed: Boolean(run.launchFailed) };
 }
 
 const results = [];
@@ -163,9 +163,11 @@ for (const g of subjects) {
     const r = launch(id, dirs[kind], png, timeoutMs);
     const line = (r.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
     if (r.status !== 0 || !existsSync(png)) {
-      const why = r.gpuDied
-        ? `${deadGpuVerdict(`the ${kind} package`)} (${line || 'no frame'})`
-        : line || 'launch failed';
+      const why = r.launchFailed
+        ? `${launchNeverHappenedVerdict(`the ${kind} package`)} (${(r.stderr || '').trim().slice(-200)})`
+        : r.gpuDied
+          ? `${deadGpuVerdict(`the ${kind} package`)} (${line || 'no frame'})`
+          : line || 'launch failed';
       results.push({ id, stage: `launch-${kind}`, ok: false, why });
       console.log(`✗ ${id} ${kind} — ${why}`);
       broke = true;

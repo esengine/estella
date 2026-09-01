@@ -10,7 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured } from '../lib/deadGpu.mjs';
+import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured,
+    launchNeverHappened } from '../lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
 const BLANK = 'painted=true live=false errors=0';
@@ -227,5 +228,35 @@ describe('retryOnDeadGpu', () => {
         expect(r.ok).toBe(false);
         expect(r.attempts).toBe(6);
         expect(r.gpuDied).toBe(true);
+    });
+
+    // golden reports measured:false when a launch fails, which is exactly what a
+    // dead GPU looks like — so a nightly with no xvfb retried eleven projects
+    // six times each and spent 24 minutes calling it a GPU that died.
+    it('does not retry a launch that never happened', () => {
+        const r = runReporting([{ ok: false, measured: false, output: 'pnpm did not start: ENOENT' }]);
+        expect(r.attempts).toBe(1);
+        expect(r.launchFailed).toBe(true);
+        expect(r.gpuDied).toBeFalsy();
+    });
+
+    it('still retries a dead GPU, which is not a launch that never happened', () => {
+        const r = run([DEAD]);
+        expect(r.launchFailed).toBeFalsy();
+        expect(r.gpuDied).toBe(true);
+    });
+});
+
+describe('launchNeverHappened', () => {
+    it('recognises the ways electron does not start', () => {
+        expect(launchNeverHappened('npx did not start: ENOENT')).toBe(true);
+        expect(launchNeverHappened('Missing X server or $DISPLAY')).toBe(true);
+        expect(launchNeverHappened('chrome-sandbox is owned by root and has mode 4755')).toBe(true);
+        expect(launchNeverHappened('electron exited with signal SIGTRAP')).toBe(true);
+    });
+
+    it('is not what a dead GPU or a blank frame looks like', () => {
+        expect(launchNeverHappened(DEAD)).toBe(false);
+        expect(launchNeverHappened(BLANK)).toBe(false);
     });
 });

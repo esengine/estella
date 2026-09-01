@@ -21,7 +21,7 @@ import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
-import { retryOnDeadGpu, deadGpuVerdict } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
@@ -139,9 +139,11 @@ function captureEditorFrame(id, out) {
   if (!run.ok) {
     return {
       ok: false,
-      why: run.gpuDied
-        ? `${deadGpuVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
-        : run.output.trim().slice(-300),
+      why: run.launchFailed
+        ? `${launchNeverHappenedVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
+        : run.gpuDied
+          ? `${deadGpuVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
+          : run.output.trim().slice(-300),
     };
   }
   return { ok: true, w: run.w, h: run.h };
@@ -210,7 +212,7 @@ function launchPackage(id, target, args) {
   // gpuDied travels with the result: without it a runner whose GPU never came up
   // is reported as a game that draws nothing, which is the one confusion this
   // whole retry exists to prevent.
-  return { ...run.r, gpuDied: Boolean(run.gpuDied) };
+  return { ...run.r, gpuDied: Boolean(run.gpuDied), launchFailed: Boolean(run.launchFailed) };
 }
 
 const fmtMB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)}MB`;
@@ -334,9 +336,11 @@ for (const { id, target } of pairs) {
 
   const line = (launch.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗')) ?? '';
   if (launch.status !== 0) {
-    const why = launch.gpuDied
-      ? `${deadGpuVerdict('the game')} (${line || 'no frame'})`
-      : line || 'launch failed';
+    const why = launch.launchFailed
+      ? `${launchNeverHappenedVerdict('the game')} (${(launch.stderr || '').trim().slice(-200)})`
+      : launch.gpuDied
+        ? `${deadGpuVerdict('the game')} (${line || 'no frame'})`
+        : line || 'launch failed';
     results.push({ id, target, stage: 'launch', ok: false, why });
     console.log(`✗ ${id} ${target} — ${why}`);
     // Deep enough to carry the launcher's own diagnosis of a package that never
