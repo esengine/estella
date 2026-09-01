@@ -465,7 +465,12 @@ jobs:
     # run too, so the next run answers it either way.
     - name: How much is left, after the authoring checks
       if: always()
-      run: df -h / && df -i /
+      run: |
+        df -h / && df -i /
+        # HERE, not only at the end: the count after the gates is a different
+        # number (they kill their own), and comparing the two across runs is how
+        # a watchdog that made the leak WORSE read as an improvement.
+        echo "electron after the checks: $(pgrep -c electron 2>/dev/null || echo 0)"
 
     # The pixel gates whose subject is an editor door — the reference grid, hit
     # testing, the editor eye, preview renders. They cannot run on the engine's
