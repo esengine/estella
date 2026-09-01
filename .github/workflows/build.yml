@@ -381,16 +381,26 @@ jobs:
         sudo docker image prune -af || true
         df -h / && df -i /
 
-    # ENOSPC killed this job three times in seven runs, and the reports around it
-    # measure ~1GB used with 104G free — so what fills the disk does it INSIDE a
-    # step and gives it back, which no reading at a step boundary can see. Five
-    # seconds apart, kept to one file, and the worst line is printed at the end.
+    # Measured: this job uses ~1GB and inodes never pass 5%, and yet / went from
+    # 104G free to ZERO at 07:01:23 and back at 07:01:33 — inside the pixel gates,
+    # ten seconds before that step ended, which is where all three ENOSPC deaths
+    # happened. So the sampler also catches the spike in the act: the first time
+    # free space falls under 10G it writes one snapshot and never again, which is
+    # what keeps the catch from costing anything on a run that does not spike.
     - name: Watch the disk, since a spike between readings is invisible
       run: |
         nohup bash -c 'while :; do
           a=$(df -B1G / | awk "NR==2{print \$4}")
           i=$(df -i / | awk "NR==2{print \$5}")
           echo "$(date -u +%H:%M:%S) availG=$a inodes=$i" >> /tmp/disk-watch.log
+          if [ "${a:-99}" -lt 10 ] 2>/dev/null && [ ! -f /tmp/disk-culprit.log ]; then
+            { echo "caught at $(date -u +%H:%M:%S) with availG=$a"
+              df -B1G /
+              ls -l /var/lib/systemd/coredump /var/crash /cores 2>/dev/null
+              find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
+                | head -10 | xargs -r ls -lh
+            } > /tmp/disk-culprit.log 2>&1
+          fi
           sleep 5
         done' >/dev/null 2>&1 &
         echo started
