@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-09-02
+
 ### Added
 
 - **A sprite frame draws at its own size, so one clip can hold different
@@ -59,6 +61,292 @@ published separately; it ships inside the editor.
   a lane that draws at one inset and reads a scrub back at another puts every
   keyframe beside the pointer that placed it, and nothing said so.
 
+- **A spine skeleton nobody can see costs an advance and nothing else.** Posing
+  a skeleton is two jobs that were one call: advancing the animation — track
+  time, mixing, events, attachment and draw-order timelines, all of it local —
+  and resolving those local transforms into world ones with every constraint
+  solved. The second is most of the cost and the only one an off-screen entity
+  has no use for.
+
+  It is now demanded rather than computed. A world pose is a DEBT, owed against
+  a revision that moves when an advance happens or when something changes what
+  the pose would come out as (a retargeted constraint, a swapped attachment) —
+  not against a frame, which would be right almost always and wrong exactly
+  where it matters. Consumers ask, the first asker pays, and the rest find it
+  settled. A `playing=false` entity keeps its world across as many frames as it
+  likes, because its revision never moves.
+
+  What may be skipped needs two proofs and neither is a heuristic. The runtime
+  answers whether its constraints carry state across a pose — physics ones do,
+  IK/transform/path ones do not — and a person answers with a CERTIFIED extent:
+  a rectangle somebody promises the skeleton never leaves, recorded as the
+  `cullingBounds` import setting, carried to the runtime by the manifest that
+  already delivers texture settings. A scan over every animation of every skin
+  is how you propose one, and its result is typed as an OBSERVATION that no
+  function can turn into a promise: a mix of two animations is not the union of
+  their extents, and the failure mode of guessing here is geometry silently
+  disappearing. An asset with no contract behaves exactly as it did.
+
+  Visibility is asked of the renderer rather than of a second vocabulary —
+  `RenderFrame::visibleToCamera`, the frame's own frustum and culling mask, with
+  the certified extent transformed through all four of its corners. Only a NO
+  removes work; an entity whose extent is unknown has unknown visibility and is
+  drawn.
+
+  Milliseconds per frame at a thousand entities, against resolving every frame:
+
+        scene                  eager  demand-driven
+        all visible             3.39           3.36
+        200 visible, 800 not    3.29           1.06
+        none visible            3.26           0.49
+
+  The first row is the one that had to be checked — a fully visible scene pays
+  for the culling authority and saves nothing — and the cost is one ABI crossing,
+  0.2% of that frame. Sixty unseen frames followed by a camera that wants the
+  entity draw byte-for-byte what never deferring draws.
+
+- **A spine frame that can say what it cost, and which asset to act on.** The
+  runtime had good facts and no way to ask it anything: `frameMetrics()` had
+  zero callers and the per-asset half was reachable one entity at a time, so a
+  scene that felt expensive still needed a profiler to say why.
+
+  The report is entirely DERIVED — the frame's metrics joined to the
+  residencies' facts, read at the moment somebody asks, with no counter added
+  and nothing remembered between calls. A diagnostic that kept its own tally
+  would be a second authority about the same frame, and the first thing to go
+  wrong with one is that it disagrees with what it is explaining.
+
+  Two things it can say that neither half said alone. `worldPoseDebt` is a
+  STATE, not a tally — enabled entities owing a world pose, read after a submit,
+  which is exactly the resolves the frame did not do with no counterfactual
+  accounting. And the findings split the two blockers: an asset whose world pose
+  carries state is never reported as wanting a certificate, because certifying
+  it would change nothing. Only the assets a promise would actually unlock are
+  named as work, each by the (skeleton, atlas) PAIR it is, so a panel can open
+  the right one.
+
+  It carries the 120-frame windows too (last/mean/p50/p95/max, per runtime, since
+  a percentile does not add) — a single frame's clock is a sample, and a report
+  built on one is an anecdote. Counted-fine, timed-coarse: every count is exact
+  and free, and the clock is read twice per runtime per frame whatever the entity
+  count, because eleven clock reads per entity is the observer becoming the thing
+  worth observing. `spine-demo` prints the report on D.
+
+  A clip budget comes with it, charged for what the engine still pays: three
+  quantities rather than one score (`rawVertices` prices opening a region,
+  `edgeWork` prices the cut, amplification is what clipping hands the stages
+  after it), taken AFTER the fast paths so an artist is never sent after a cost
+  nothing pays any more.
+
+- **A skeleton an editor can pose without the frame posing it.** `openPreview`
+  makes an instance outside the map the frame's tick and the frame's submit both
+  walk, and hands back the same batch walk a scene entity gets — a preview that
+  posed a skeleton its own way would be showing something the game will not draw.
+
+  Two things it needed, both of which were missing for everyone. `playAnimation`
+  reset nothing, so a bone the next animation does not key kept whatever the last
+  pose left it at and replaying to a time gave a pose that depended on where you
+  had been; `setToSetupPose` is the missing state and it belongs to the side
+  module, since only the runtime that owns the skeleton can put it back where its
+  data says it starts. And the preview owed a world pose like everything else
+  does — asking for the geometry is the demand that resolves it. Without that the
+  editor drew a pose one seek behind, which looks like a lagging canvas rather
+  than an unresolved transform.
+
+- **A hot update reaches what was built from what it changed.** `applyUpdate`
+  swapped the manifest and told the rebinder which handles ended. That is enough
+  for the changed asset itself — it is content-addressed, so its next load finds
+  the update — and nothing at all for an era already built from it: a tilemap
+  that folded in a tileset, a material's parent, a texture composed into an
+  atlas. Updated on the CDN, stale on screen, for the life of the app.
+
+  The graph that answers this is recorded by the doors rather than declared
+  beside the work. One recorder per preparation wraps its load context:
+  `acquireTexture`/`acquireAsset`/`createOwnedTexture` record an OWNED edge and
+  hold the receipt, `readSource` records a SOURCE edge and holds nothing — the
+  `.tsj` folded into a map is causality, not ownership, and destroying anything
+  on its behalf would be wrong. A loader cannot have the ownership without the
+  edge, because sealing them together is the only way to get either.
+
+  The reverse direction is computed, never tabled: `dependentsOf` walks the live
+  eras and reads the receipts that are already there, so there is no map to be
+  silently wrong the first time an update path forgets it. What comes out is a
+  PLAN, not a loop — read before anything is dropped (invalidating the first
+  asset retires the era whose receipts name the second), deepest dependency
+  first with each group awaiting the one before it (a parent re-prepared too
+  early acquires the child era it already had), and cycles as groups rather than
+  errors, since `A imports B` while B's metadata names A is a real project.
+
+  `applyUpdate` now has two barriers because there are genuinely two things to
+  wait for. The ASSET graph settles with no frames involved, so it is safe to
+  await from anywhere and `applyUpdate` resolves only once the manifest and the
+  graph agree. The LIVE BINDINGS that read it converge on a frame, so awaiting
+  them inside `applyUpdate` would hang exactly the app showing an update screen:
+  they are the `LiveBindings` resource's `settled()` instead.
+
+- **A live binding follows the asset, whatever kind it is.** The rebinder opened
+  with `if (event.type !== 'texture') return`, so a material, a font, a mesh or
+  an environment ending its era left every component bound to the handle from
+  before the update, with nothing reporting a failure.
+
+  The distinction that makes it general is worth stating: a RECEIPT is
+  exact-generation ownership and never becomes another era under its holder,
+  while a live BINDING is a field that names an asset and follows what that name
+  means now. Only the second is migrated. Which kinds those are is read rather
+  than listed — an asset held by handle has a `load` door, one held by ref has a
+  slot that swaps under the name the field already carries — so a project's own
+  loader is covered the day it is registered.
+
+- **A persistent entity owns what it carries out of its scene.** A persistent
+  entity outlives its scene and keeps rendering, and neither owner that existed
+  could answer for what it is bound to: the scene's scope is given back a line
+  later, and the app's ownership never ends. The documented answer was for the
+  game to preload the asset itself, or keep an additive scene loaded forever —
+  engine lifetime, charged to the user.
+
+  Promotion now SPLITS the scene's acquisition. `retain` joins the era the
+  entity's fields actually hold — after a hot update this scene did not follow,
+  that is not the one its path resolves to, so re-acquiring by path would
+  receipt an instance nothing on screen is using and free the one that is. One
+  receipt per source lease rather than per field, because a scene acquires a
+  shared texture once. Ref-bound fields come out too: a ref names a SLOT, and a
+  slot receipt carries the names it answers to, so the match is exact without
+  resolving anything. The scope ends at `World.onDespawn`, including when the
+  entity goes down as part of a subtree, so per-entity ownership never quietly
+  becomes app lifetime.
+
+- **A ref-bound asset is owned as a slot, not as a generation.** Two asset
+  models had one ownership vocabulary between them. A sprite holds
+  `texture = 17` — the field names an exact instance, so its owner holds a
+  receipt for that generation. A `SpriteAnimator` holds `clip = "walk.esanim"` —
+  the field names an ASSET, and every lookup asks what that name means now. Such
+  a holder never had a generation to own: give it one and the moment a hot update
+  republishes, ownership says one era while the component is using another.
+
+  So what it owns is the slot: the stable identity, however many eras pass under
+  it. An era owns what it acquired for itself, publication belongs to the SLOT,
+  and a retiring era therefore cannot unpublish the newer one that replaced it.
+  A slot is keyed by what the asset IS — the three spellings a manifest gives
+  one asset folded together — and not by the load path, which for a remote,
+  content-addressed asset carries the revision and would make it one slot per
+  revision.
+
+- **A render-graph pass can name a resource the graph must not bind.** A `reads`
+  entry is wired to a texture unit, which is right for a fullscreen pass whose
+  shader samples input N and wrong for a geometry pass: a scene reaches the
+  shadow atlas through the material each draw already carries, so binding it
+  would claim unit 0 out from under the batch. Declaring it nowhere is not an
+  option either — culling walks back from the final target through what passes
+  name. `dependencies` is counted by culling and by the last-read that recycles a
+  target, exactly as `reads` is, and never bound. `clearDepth` comes with it.
+
+- **An offscreen preview is addressed by its handle, never entered.** Reading
+  `renderToTarget` settled the API shape by removing the alternative: it clears
+  the draw list on the way in, so a begin/submit/end protocol over the shared
+  frame could never have worked. A preview HOLDS its batches and they are
+  replayed after the collect. The five loose fields that made up the existing
+  seam — target, readback, pixels and two dimensions, kept consistent by whoever
+  remembered to — are one `PreviewSurface` now, so a caller that needs its own
+  preview owns one instead of overwriting the material preview's.
+
+### Changed
+
+- **The shadow atlas is filled by a declared graph pass, not during collect.**
+  The maps were rendered from inside `collectAll`: a render pass opened there,
+  drawn through the frame's own camera, frustum, draw list and buffer pool, and
+  every one of those put back by hand afterwards. Two shipped bugs came out of
+  that restore rather than out of any shadow maths — a packaged game whose scene
+  was drawn into the atlas because the target was not put back, and a WebGPU
+  frame rejected for sampling an attachment it was writing.
+
+  Planning, declaring and executing are three things now: the plan allocates the
+  squares and drops the views whose frustum misses the scene (CPU only), the
+  declaration puts the pass in the graph so the scene naming the atlas is what
+  orders the two, and the execution draws through its own pool, its own list and
+  its own frustum — so there is nothing to put back. The atlas is a graph
+  resource borrowed from the same pool as every other target, and its lifetime
+  ends after the pass that reads it rather than at the end of the frame, so a
+  second camera reuses the same physical target. `ctx.shadow_pass` becomes
+  `ctx.purpose`: the phase a collect is for, not a feature its geometry has.
+
+- **A spine asset is a preparation, and one runtime is one Spine version.**
+  Spine had an asset system of its own — `loadSpine` bypassed the typed door,
+  kept its own caches, took atlas pages through the plain load door without
+  acquiring them, built native skeletons the asset layer could answer no
+  questions about, and left `AssetBundle` unable to release a spine at all
+  because it could not tell whether a live entity was still using one.
+
+  A spine asset is now the PAIR (a skeleton and the atlas it is drawn with — the
+  component authors both fields, so a scene can say so), its preparation reads
+  the two documents and acquires the pages, and the ordinary rules apply to it
+  unchanged: a failed preparation gives the pages back, an era holds them until
+  its last holder lets go, and a change to the atlas or a page reaches the pair
+  through the graph. One algorithm, two transports — the asset layer's recording
+  context and a host's own file access run the same `prepareSpine`.
+
+  The runtime side lost a layer with no lifetime of its own. `SpineManager` is
+  the App-level authority over which runtime poses which entity, `SpineRuntime`
+  IS one loaded Spine version, and the ABI adapter is private to it. With the
+  assembly went `getModuleBackend` as a door (it is a diagnostic and says so),
+  the adapter's second, never-dispatched `SpineEvent` vocabulary, and the two
+  names for one teardown. `frameMetrics()` and `runtimeForDiagnostics()` are
+  absorbed by the frame report, which is what they were built for and what
+  neither had a caller of.
+
+- **A registry-backed asset belongs to the realm that loaded it.** Clips,
+  animator controllers, timelines, FSMs, behaviour trees, tilemaps and tilesets
+  were published into module-global stores, so two Apps in one process — an
+  editor world beside a play world — shared them: whichever loaded a key last
+  decided what BOTH ran. Worse than reading the wrong graph, `fsmTouches` and
+  `btTouches` derive what a system reaches by walking every loaded graph, so one
+  app's asset was deciding what another app's system declared it touches.
+
+  Publication is the realm's slot table now, read through the ref the component
+  carries or the path the realm resolved it to — two names of one slot, so no
+  lookup site re-derives a resolved key. Code registrations are untouched:
+  `registerFsm('patrol', …)` is not an asset, has no realm, and every app still
+  sees it. Migration for the doors that moved:
+
+      getTilemapSource(path)              -> tilemapSource(assets, ref)
+      registerTimelineAsset(path, asset)  -> Timeline resource, per app
+      TimelineAssetRegistry               -> removed with the pointer it held
+      AnimatorControllerAPI.update(world, resolveKey?)  -> update(world)
+
+  `TilemapPlugin` is a stateless installer; the thirteen entity-keyed
+  collections it held are a `TilemapRuntime` per app, since two apps count
+  entities from 1 and were writing each other's entries.
+
+- **Ownership is a receipt, not a path.** Two generations of one path are live
+  at once after an `invalidate()` — the holders of the outgoing one still owe a
+  release — and a path-addressed release cannot tell them apart, so it took the
+  oldest, which is somebody else's. An acquire hands back a LEASE and releasing
+  means giving the receipt back; the generation id is minted by the ledger rather
+  than taken from the value, because a loader may hand out an `===` equal value
+  for a later era and two eras must never merge.
+
+  `releaseValue(key, value)` is gone — value equality was not a strong enough
+  identity to keep. The path-addressed doors stay for callers that only ever knew
+  a path, now named `releaseOldest()`, which is exact while a key has one
+  generation and says so out loud when it had to guess. `LoadContext` gains
+  `acquireTexture` and `acquireAsset`; `releaseTexture` stays documented as the
+  compatibility door, and `unload`'s context parameter is gone with the sub-asset
+  releasing it existed for — a loader destroys what it MADE, and the era gives
+  back what it TOOK.
+
+  `Assets.setAssetRegistry` is retired along with the path it fed. Asset metadata
+  reaches a realm through the MANIFEST, which is how texture import settings have
+  always arrived; spine's culling contract now travels that road with them.
+
+- **A run that cannot reach an engine build fails instead of skipping.** A skip
+  says "this does not apply to how you are configured"; it was also saying "I
+  could not get at the thing this needs", and the two read identically — one SDK
+  invocation reported 5110 passed and 309 skipped with no failures while 43
+  suites had not collected at all. The requirement is decided once at the entry
+  now, and reachability is a property of the working directory rather than of
+  `--root`. A skip is a declaration (`SDK_TEST_MODE=no-wasm`) and nothing else,
+  and CI's fast job prints the caveat beside its green line so "79/79" cannot
+  quietly mean "79/79 minus 300".
+
 ### Fixed
 
 - **Every spine in a released build drew nothing.** A spine atlas names its page
@@ -72,6 +360,193 @@ published separately; it ships inside the editor.
   resolve pages against the atlas's AUTHORED address, and the test asks the
   question of both. Only content-addressed packs were affected — which is what a
   release build is, and why no `pr`-tier run ever saw it.
+
+- **Every point-light and cascaded shadow drew through the wrong view matrix.**
+  Six cube faces and every cascade past the first drew with whichever view was
+  set up last, so a point light shadowed the wrong half of its scene and a
+  cascaded sun shadowed too much. Four of the four point-light pixel gates and
+  two cascade ones had never passed on WebGPU.
+
+  The pass renders every view inside ONE render pass, and between views it wrote
+  the view matrix to one uniform buffer and reset one vertex pool. Both writes
+  reach the GPU on the queue, which does not interleave with draws already
+  recorded into an open pass: six writes to one buffer leave the sixth, and six
+  pool resets hand six draws the same offsets. Only the viewport, an encoder
+  command, varied — which is why the atlas held six correctly placed squares of
+  one face's depth. Each view has its own frame-constants buffer now, and the
+  pool is reset once for the pass so each view claims a range of its own. Not a
+  Metal defect: the failures reproduce bit-identically on D3D12, and the WGSL
+  receiver was correct all along. WebGPU's pixel tier goes 96/102 to 102/102.
+
+- **A hot update rebound two fields out of seven, and nothing else at all.** The
+  rebinder named `Sprite.texture` and `MeshRenderer.texture`, so
+  `MeshRenderer.normalMap`, `UIVisual.texture`, `TilemapLayer.tileset`,
+  `ParticleEmitter.texture` and `TrailRenderer.texture` kept drawing the
+  pre-update image, along with every project and plugin component. Which fields
+  carry an asset is already authored in one place, `assetFields`, and the walk
+  reads it now — derived when asked rather than kept as state a plain field write
+  can invalidate. The system's `touches` comes from the same source, so its
+  declared reach cannot drift from what it walks.
+
+- **A hot update that changed the bytes and moved no pixel.** An update names its
+  changed asset by the manifest's bare key; a scene serializes the same asset as
+  `@uuid:<key>`, and the two went down different routes — the prefixed spelling
+  through the remote index, the bare one through the catalog — answering with two
+  different paths. The pre-swap handle capture therefore looked in a cache slot
+  nothing had ever written, the invalidation carried `oldValue: undefined`, the
+  rebinder dropped it, and no live binding was ever queued. The caller was told
+  `applied: true, failed: 0`, which was true. Only the screen disagreed.
+
+  Every stage of that was silent, and four hypotheses died against the silence
+  before any of it said anything: the verifier now separates a REFUSED update
+  from one that landed and rebound nothing, `applyUpdate` warns when assets
+  changed and none was bound to a live texture (naming the keys and what they
+  resolved to), and the rebinder warns when it is told to move a binding and
+  finds nobody holding it. The capture asks both spellings, and `verify:hotupdate`
+  goes green for the first time. The 31 unit tests over this path were green
+  throughout — they build an `Assets` whose two spellings already agree, which is
+  the gap that verifier exists to cover.
+
+- **Five loaders published assets and released nothing.** A clip, a timeline, an
+  FSM, a tree, a controller — and every frame texture an anim clip or timeline
+  had resolved — stayed loaded for the life of the app, because `unload()` was a
+  comment saying the asset is registered globally. A hot update reached none of
+  them. They go through the slot now: the last holder takes the publication with
+  it and the era's dependencies with that, and `invalidate` publishes a NEW era
+  under the same names rather than dropping a cache entry, which is what a hot
+  update means for an asset a component holds by ref.
+
+- **Tilemaps and tilesets leaked every texture they resolved.** Both loaders
+  called `loadTexture` and released nothing, so a tileset atlas and every Tiled
+  tileset image stayed on the GPU for the life of the app, while one realm's
+  unregister deleted the other's cache entry. The folded image-collection atlas
+  needed something new: it is composed here — decoded, packed, uploaded, with no
+  path and no reference row — so there was no receipt to take and nothing could
+  ever give it back. `createOwnedTexture` hands out one whose release destroys
+  it, and the era holds it like any other dependency.
+
+- **A packaged scene leaked every material it acquired.** The runtime scene
+  loader preloads through `preloadSceneAssets`, which hands back a receipt per
+  successful acquire, and then reported the discovered path list to the scene
+  instead — so unload released by path, materials are skipped by the path door,
+  and after a hot update a path-addressed release gave back the OLDEST
+  generation, which by then belongs to a scene that loaded before the update.
+  Ownership transfers as a scope now.
+
+- **A scene released what it declared, not what it acquired.** `SceneInstance`
+  owned a set of paths seeded from discovery, which is not what it holds three
+  ways over: a declared asset whose load failed was never acquired, a path
+  resolves to a different instance once an invalidate has minted a new
+  generation, and only material handles were ever written back. Ownership is the
+  scope of receipts the preload produced.
+
+- **A group bundle released what the manifest says now.** `releaseGroup(name)`
+  re-read the manifest to decide what to give back, so with atomic manifest
+  updates and content-addressed remote assets it released keys nobody holds while
+  stranding the ones it does — and both halves look exactly like a working
+  release. The bundle carries its receipts and a `release()` of its own.
+
+- **A live replacement moved two owners onto one acquisition.** The rebinder
+  acquired the replacement once and swapped the handle world-wide. Ownership is
+  per scope — two scenes holding one texture hold two receipts — so the other
+  scope's receipt named an era nothing was drawing while the era both were
+  drawing had one holder where two were needed, and every successful rebind
+  leaked one acquisition besides. It is one acquisition per owning scope now,
+  all of a scope's bindings or none, with a rollback that puts back EVERY
+  binding rather than the ones whose write returned. Who owns what an entity
+  holds is one function, entity → scene → app.
+
+- **A load that threw left its scene behind.** A successful unload was a complete
+  teardown; a failed load rolled back the entities and the registry slot and
+  nothing else, so a scene whose `setup` threw left its preload's receipts held,
+  its systems registered, its draw callbacks and post-process bindings live — all
+  under a scene that does not exist. The retry then looked like it worked, on top
+  of a ghost whose system ran too. Both doors share one idempotent teardown
+  protocol now, and rollback keeps nothing persistent: persistence is a property
+  of a COMMITTED scene, so an entity marked persistent inside a setup that then
+  threw must not escape the failed transaction as a global one.
+
+- **A persistent entity died at its parent's turn in the loop.** `despawn` takes
+  the whole subtree with it and unload walked the scene's entities destroying as
+  it went, so whether a persistent entity under a non-persistent parent survived
+  came down to which of the two the iteration reached first. Unload now decides
+  who lives before it destroys anything: partition, extract every survivor whose
+  parent is doomed — preserving the world transform, because a local position
+  relative to a parent that is no longer there is not where the thing was — and
+  only then despawn.
+
+- **An entity promoted out of a sleeping scene came out invisible.** `sleep()`
+  disables every entity and keeps the record of what each one looked like awake
+  on the instance; unloading with `keepPersistent` promoted them still carrying
+  `Disabled`, and the instance holding the record was dropped a line later. A
+  persistent camera or HUD survived its scene as a permanently invisible entity
+  with no state left anywhere to explain why.
+
+- **A preparation that failed kept what it took.** The recorder held the receipts
+  for everything a preparation acquired and only the era it produced could give
+  them back, so a load that acquired two textures and then threw while parsing
+  left both held by an object that never existed — and nothing in the realm could
+  name those textures again. The recorder IS the transaction now: it settles
+  exactly once, and an acquisition that lands after the settlement is released
+  rather than thrown over.
+
+- **A preparation published into a world that had stopped asking.** A republish
+  took whatever came back and installed it, so with two updates in flight — which
+  propagation makes ordinary — the older preparation landing last won, leaving
+  the newer era published nowhere and its receipts held forever. A realm torn
+  down mid-load handed the caller a claim nobody could ever release. Slots count
+  their refreshes, and a preparation that is not the current one gives itself
+  back.
+
+- **A material instance built its parent instead of acquiring it.** The loader
+  called its own `load` for the parent and kept the raw handle in a field, so the
+  parent was not an asset of the realm at all: two instances of one parent built
+  it twice, a hot update to the parent could never reach the instances that diff
+  against it, and the dependency graph stopped at the instance.
+
+- **Two spine entities on one asset both reloaded to the old bytes.** The runtime
+  shared one native skeleton per asset REF, so an update to a spine asset two
+  entities were using dropped the refcount to one on the first reload, kept the
+  entry, and handed back the skeleton parsed from the old bytes — twice. Both
+  entities reloaded successfully, the new data was passed in and dropped on the
+  floor, and nothing reported anything. Sharing is by ERA now, which is the
+  identity of one preparation of the pair.
+
+- **An entity that changed Spine runtime version was posed by both.** A version
+  backend can only see its own entities, so when an entity moved from the 4.1
+  runtime to the 4.2 one the instance in 4.1 was left behind — updated every
+  frame, submitted every frame, and unreachable by a despawn, which routes
+  through the entity's current version. The manager keeps the binding rather than
+  the version name and retires the old one itself. Replacing a binding is also
+  commit-after-success now: a skeleton that failed to parse used to leave the
+  entity with no binding at all.
+
+- **A scene could free the atlas pages under a live skeleton.** "Despawn the
+  spine entities before the scene gives its assets back" was a protocol nothing
+  enforced, and the only reason it had never happened is that teardown happens to
+  run in the right order. A residency holds a claim on its era — one per
+  residency, taken before anything is parsed and given back after the native
+  object is unloaded, with every failure path in between putting it back.
+
+- **`playAnimation` returned true for an animation that does not exist.** The C
+  backends built a track entry around a null lookup, and the entry is not null,
+  so the check was vacuous: the track then posed a null animation every frame,
+  reading address zero — which on wasm is mapped, so it neither crashed nor drew.
+  What it hid is that three benchmark harnesses had been splitting the animation
+  list on a comma and taking `["walk"` as a name, so every extraction figure in
+  that file's history was measured on a SETUP pose.
+
+- **Spine 4.1 and later did not build.** `spAnimation::timelinesCount` is 3.8's
+  spelling; from 4.1 the list is an array type, so a counter added for the pose
+  work compiled for spine38 and broke `build -t all`.
+
+- **A split screen reported its last camera's pass as the whole frame.**
+  Extraction runs once per camera and posing runs once, so the pass that measures
+  itself is not the one that can close the frame — it was closing it anyway, and
+  the 120-frame windows took one sample per camera rather than one per frame.
+  Both are invisible at one camera, which is why they survived. The clock
+  accumulates now, and the windows are fed from the START of the next frame,
+  which is the first moment the last one is whole.
 
 - **A box that mounts after a panel's empty state was measured as 0×0.**
   `useElementSize` bound its observer on mount and never again, so a panel that
@@ -9904,7 +10379,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.59.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.60.0...HEAD
+[0.60.0]: https://github.com/esengine/estella/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/esengine/estella/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/esengine/estella/compare/v0.57.0...v0.58.0
 [0.57.0]: https://github.com/esengine/estella/compare/v0.56.0...v0.57.0
