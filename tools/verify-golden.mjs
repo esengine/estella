@@ -76,6 +76,8 @@ console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair
  * what a project asks for, not by count — celestial-heights alone is a third.
  */
 const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
+/** How many launches share this runner's rasterizer: a worker's, or one. */
+const SHARE = argv.includes('--worker') ? JOBS : 1;
 if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
   const weight = (g) => g.targets.filter((t) => OWNED.has(t)).length
     * (1 + [interactFor(g), audioFor(g), safeAreaFor(g), atlasFor(g)].filter(Boolean).length + (suspendFor(g) ? 3 : 0));
@@ -85,7 +87,9 @@ if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
     bin.ids.push(g.id);
     bin.load += weight(g);
   }
-  const own = new Set(['--only', '--jobs']);
+  // `--jobs` goes through: a worker does not fork again (`--worker`), and it
+  // needs the count to know what it shares the rasterizer with — see SHARE.
+  const own = new Set(['--only']);
   const passthrough = argv.filter((a, i) => !own.has(a) && !own.has(argv[i - 1]));
   const outcomes = await Promise.all(bins.map((bin, i) => new Promise((resolve) => {
     const tag = `[${i + 1}/${bins.length}]`;
@@ -236,11 +240,18 @@ function probePositions(target, dir, w, h, names, extra = []) {
  * per-call-site answer means some launches retry and others report a broken game.
  */
 function launchPackage(id, target, args) {
+  // Three launches on one rasterizer each get the wait three would: alone,
+  // model-import settles 30 frames inside its 30 s; beside two workers it made 22.
+  const at = args.indexOf('--timeout');
+  const timeoutMs = (at >= 0 ? Number(args[at + 1]) : 30_000) * SHARE;
+  const patient = at >= 0
+    ? [...args.slice(0, at + 1), String(timeoutMs), ...args.slice(at + 2)]
+    : [...args, '--timeout', String(timeoutMs)];
   const run = retryOnDeadGpu(
     () => {
       // Opening a PACKAGE needs no editor — the launchers are engine-side, so a
       // checkout without one can still judge what it shipped.
-      const r = runElectron([LAUNCHER(target), ...args], { encoding: 'utf8', cwd: ROOT });
+      const r = runElectron([LAUNCHER(target), ...patient], { encoding: 'utf8', cwd: ROOT });
       // The launcher prints a ✓/✗ line once it has looked at the frame; that
       // line existing is what says a measurement happened.
       const verdictLine = (r.stdout || '').split('\n').find((l) => l.startsWith('✓') || l.startsWith('✗'));
