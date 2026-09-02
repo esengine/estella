@@ -94,6 +94,10 @@ function serve(root) {
  * The page-side half: hold a set of keys for `frames` frames, then release.
  * Keys go in as real DOM events, which is what the engine's input actually
  * listens to — a driver that pokes state instead would be testing itself.
+ *
+ * The frames are the ENGINE's, one fixed dt at a time. Counted with
+ * requestAnimationFrame a "frame" was whatever wall time the runner had spare —
+ * one leg took 156 of them on a laptop and 36 on CI, with jump arcs to match.
  */
 const stepScript = (keys, frames, tapKey) => `
 (() => {
@@ -104,21 +108,18 @@ const stepScript = (keys, frames, tapKey) => `
     if (target !== window) window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
   };
   const held = ${JSON.stringify(keys)};
+  const step = (n) => window.__estellaCooked.step(n, 1 / 60);
   for (const k of held) send('keydown', k);
   ${tapKey ? `send('keydown', ${JSON.stringify(tapKey)});` : ''}
-  return new Promise((resolve) => {
-    let n = 0;
-    const tick = () => {
-      n++;
-      ${tapKey ? `if (n === 2) send('keyup', ${JSON.stringify(tapKey)});` : ''}
-      if (n >= ${frames}) {
-        for (const k of held) send('keyup', k);
-        return resolve(true);
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
+  return (async () => {
+    ${tapKey
+      ? `await step(Math.min(2, ${frames}));
+    send('keyup', ${JSON.stringify(tapKey)});
+    if (${frames} > 2) await step(${frames} - 2);`
+      : `await step(${frames});`}
+    for (const k of held) send('keyup', k);
+    return true;
+  })();
 })()
 `;
 
@@ -185,6 +186,20 @@ async function main() {
     return;
   }
 
+  // From here the only frames are the ones this driver asks for. Without it the
+  // world still advances between two steps by however long the round trip took,
+  // which is the runner's load — the thing this route must not be a function of.
+  const owned = await exec(`(() => {
+    if (typeof window.__estellaCooked.setPaused !== 'function') return false;
+    window.__estellaCooked.setPaused(true);
+    return true;
+  })()`).catch(() => false);
+  if (!owned) {
+    console.log('✗ this package cannot hand over its clock (no __estellaCooked.setPaused)');
+    stop(); server.close(); app.exit(2);
+    return;
+  }
+
   // Read on a frame boundary. Poked from outside the loop, a read can land
   // between the systems that despawn something and the ones that replace it,
   // and every such read is a world nobody was ever in.
@@ -228,6 +243,11 @@ async function main() {
     let plan = [];
     let replan = 0;
     let last = null;
+    // Frames spent waiting for a scene to hand out its entities — disk and decode,
+    // not walking, and charging the walk for it made one door cost 104 frames on
+    // one run and 704 on the next. Capped: a door that never opens still fails.
+    let waited = 0;
+    const WAIT_CAP = 1800;
 
     // Something picked up on the way to somewhere else is still picked up. A
     // leg whose goal is already gone before it starts is a leg already walked —
@@ -239,10 +259,10 @@ async function main() {
       continue;
     }
 
-    while (spent < timeout && frames < BUDGET) {
+    while (spent < timeout && frames < BUDGET && waited < WAIT_CAP) {
       const state = await probe([leg.goal, 'Lyra_Player']);
       // Nothing is true about a world that is halfway through being replaced.
-      if (state.transitioning) { await exec(stepScript([], STEP, null)); spent += STEP; frames += STEP; continue; }
+      if (state.transitioning) { await exec(stepScript([], STEP, null)); waited += STEP; frames += STEP; continue; }
       if (state.scene === leg.area) sawArea = true;
       // The leg is over when the area it was aiming for has been left behind:
       // walking into a door IS the arrival, and the door is gone by the time
@@ -309,13 +329,17 @@ async function main() {
       } else {
         // Between areas: the next scene has not handed out its entities yet.
         await exec(stepScript([], STEP, null));
+        waited += STEP;
+        frames += STEP;
+        continue;
       }
       spent += STEP;
       frames += STEP;
     }
 
     if (!arrived) {
-      failure = `${label} — ${spent >= timeout ? 'ran out of leg budget' : 'ran out of run budget'} after ${spent} frames`
+      failure = `${label} — ${waited >= WAIT_CAP ? 'the scene never handed out its entities'
+        : spent >= timeout ? 'ran out of leg budget' : 'ran out of run budget'} after ${spent} frames`
         + (last ? `; last seen ${Math.round(last.me.x)},${Math.round(last.me.y)} with the goal at `
           + `${Math.round(last.goal.x)},${Math.round(last.goal.y)} (${Math.round(last.gap)} away)` : '; never saw both')
         + (deaths ? `; died ${deaths}x on this leg` : '');

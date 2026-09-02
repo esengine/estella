@@ -180,6 +180,15 @@ async function boot(): Promise<void> {
         await app.stepFrames(frames, dt);
       },
       /**
+       * Hand the clock to the driver. `step` alone is not enough: it pauses the
+       * loop only while it runs, so between two calls the world still advances by
+       * whatever wall time the round trip took — which is the runner's load, not
+       * the game's. Paused, the only frames are the ones a driver asks for.
+       */
+      setPaused(paused: boolean): void {
+        app.setPaused(paused);
+      },
+      /**
        * A way from one named entity to another, over the same navigation grid
        * the game's own enemies walk. A driver that steers straight at its goal
        * is a driver that walks into the first wall between them; asking the
