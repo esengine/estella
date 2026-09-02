@@ -71,12 +71,81 @@ jobs:
         path: build/wasm/wechat/
         retention-days: 3
 
+  # The four criteria that ask what a COMPILED system does on a host with no JIT
+  # can only be answered against a template — and against THIS branch's, not a
+  # release's: the host is half of what they measure, so answering with a
+  # published binary would be answering about an engine this commit is not.
+  # Its own job, because a cold Dawn is tens of minutes and the criteria list
+  # should not be waiting behind it inside one timeout.
+  linux-template:
+    name: Linux runtime template (HEAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CC: clang
+      CXX: clang++
+      ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - uses: ./.github/actions/setup
+
+    # The SDK bundle is compiled into the host binary.
+    - name: Build SDK
+      run: pnpm --filter ./sdk build
+
+    - name: Read the native dependency pins
+      id: pins
+      run: node build-tools/cli.js native --deps-cache-key linux >> "$GITHUB_OUTPUT"
+
+    # The same key build.yml's desktop job writes, so whichever ran last warms
+    # the other and a nightly rarely pays for Dawn.
+    - name: Cache the pinned checkouts + Dawn build
+      uses: actions/cache@v4
+      with:
+        path: build/native-deps
+        key: ${{ steps.pins.outputs.key }}
+
+    - name: Set up the Linux desktop dependencies
+      run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
+
+    - name: Fetch Dawn + QuickJS + SDL at their pinned commits
+      run: node build-tools/cli.js native --fetch-deps
+
+    - name: Build the Linux host and its runtime template
+      run: node build-tools/cli.js native --target linux
+
+    # Through tar, because an artifact is a zip and a zip does not carry the
+    # executable bit — and what this ships is a host binary.
+    - name: Upload the template
+      run: tar -czf native-template-linux.tgz -C .native-templates .
+    - uses: actions/upload-artifact@v7
+      with:
+        name: native-template-linux
+        path: native-template-linux.tgz
+        retention-days: 3
+
   # 27 of the 31. The runner names the four it cannot answer from here and the
   # four nobody can automate, so a green job is never read as a green release.
   linux:
     name: Exit criteria (linux)
     runs-on: ubuntu-latest
-    needs: build-emscripten
+    needs: [build-emscripten, linux-template]
+    # A template that failed to build costs four criteria, not twenty-seven: they
+    # report a machine that cannot answer, and the rest of the list still does.
+    if: always() && needs.build-emscripten.result == 'success'
+    env:
+      ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
     # 90 was measured against criteria that failed in seconds. Answering them
     # costs what the work costs: golden alone is 32 minutes, and the run that
     # first got this far was cut at 90 with the flagship still going.
@@ -121,6 +190,33 @@ jobs:
         test -e /tmp/.X11-unix/X99
         echo "DISPLAY=:99" >> "$GITHUB_ENV"
         echo "ELECTRON_DISABLE_SANDBOX=1" >> "$GITHUB_ENV"
+
+    # What the AOT criteria package into, built by this run from this commit.
+    - name: Take this run's linux template
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: native-template-linux
+
+    - name: Unpack the template
+      continue-on-error: true
+      run: |
+        mkdir -p .native-templates
+        tar -xzf native-template-linux.tgz -C .native-templates
+        ls -R .native-templates | head -20
+
+    # A packaged desktop game is SDL + Dawn: the four AOT criteria launch one,
+    # so the runner needs what it links against and a software Vulkan to draw on.
+    - name: Set up what a packaged desktop game runs on
+      run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
 
     - name: Run the exit criteria
       run: node tools/run-release-gate.mjs --host linux
