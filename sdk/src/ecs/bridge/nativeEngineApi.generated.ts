@@ -109,9 +109,12 @@ export interface NativeEngineApi {
     renderer_beginFrame?(elapsedSec: number): void;
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
+    renderer_createSkeletalPreview?(w: number, h: number): number;
     renderer_createTarget?(width: number, height: number, flags: number): number;
+    renderer_destroySkeletalPreview?(preview: number): void;
     renderer_diagnose?(): void;
     renderer_end?(): void;
+    renderer_entityVisibleToCamera?(registry: unknown, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
     renderer_flush?(): void;
     renderer_getCapturedCameraCount?(): number;
     renderer_getCapturedEntityCount?(): number;
@@ -124,6 +127,9 @@ export interface NativeEngineApi {
     renderer_getPreviewSize?(): number;
     renderer_getPreviewWidth?(): number;
     renderer_getSkeletal?(): number;
+    renderer_getSkeletalPreviewHeight?(preview: number): number;
+    renderer_getSkeletalPreviewSize?(preview: number): number;
+    renderer_getSkeletalPreviewWidth?(preview: number): number;
     renderer_getSnapshotHeight?(): number;
     renderer_getSnapshotSize?(): number;
     renderer_getSnapshotWidth?(): number;
@@ -137,10 +143,12 @@ export interface NativeEngineApi {
     renderer_init?(width: number, height: number): void;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
+    renderer_pollSkeletalPreview?(preview: number): number;
     renderer_pollSnapshotReadback?(): number;
     renderer_releaseTarget?(handle: number): void;
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number): void;
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
+    renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_resize?(width: number, height: number): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
@@ -154,6 +162,7 @@ export interface NativeEngineApi {
     renderer_setYSortLayers?(mask: number): void;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
+    renderer_submitSkeletalPreviewBatch?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number): number;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_updateTransforms?(registry: unknown): void;
@@ -336,9 +345,12 @@ export function createNativeEngineApi(
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
+    bind('renderer_createSkeletalPreview', 'es_renderer_createSkeletalPreview', false);
     bind('renderer_createTarget', 'es_renderer_createTarget', false);
+    bind('renderer_destroySkeletalPreview', 'es_renderer_destroySkeletalPreview', false);
     bind('renderer_diagnose', 'es_renderer_diagnose', false);
     bind('renderer_end', 'es_renderer_end', false);
+    bind('renderer_entityVisibleToCamera', 'es_renderer_entityVisibleToCamera', true);
     bind('renderer_flush', 'es_renderer_flush', false);
     bind('renderer_getCapturedCameraCount', 'es_renderer_getCapturedCameraCount', false);
     bind('renderer_getCapturedEntityCount', 'es_renderer_getCapturedEntityCount', false);
@@ -351,6 +363,9 @@ export function createNativeEngineApi(
     bind('renderer_getPreviewSize', 'es_renderer_getPreviewSize', false);
     bind('renderer_getPreviewWidth', 'es_renderer_getPreviewWidth', false);
     bind('renderer_getSkeletal', 'es_renderer_getSkeletal', false);
+    bind('renderer_getSkeletalPreviewHeight', 'es_renderer_getSkeletalPreviewHeight', false);
+    bind('renderer_getSkeletalPreviewSize', 'es_renderer_getSkeletalPreviewSize', false);
+    bind('renderer_getSkeletalPreviewWidth', 'es_renderer_getSkeletalPreviewWidth', false);
     bind('renderer_getSnapshotHeight', 'es_renderer_getSnapshotHeight', false);
     bind('renderer_getSnapshotSize', 'es_renderer_getSnapshotSize', false);
     bind('renderer_getSnapshotWidth', 'es_renderer_getSnapshotWidth', false);
@@ -364,10 +379,12 @@ export function createNativeEngineApi(
     bind('renderer_init', 'es_renderer_init', false);
     bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
+    bind('renderer_pollSkeletalPreview', 'es_renderer_pollSkeletalPreview', false);
     bind('renderer_pollSnapshotReadback', 'es_renderer_pollSnapshotReadback', false);
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
     bind('renderer_renderMaterialPreview', 'es_renderer_renderMaterialPreview', false);
     bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);
+    bind('renderer_renderSkeletalPreview', 'es_renderer_renderSkeletalPreview', false);
     bind('renderer_replayToDrawCall', 'es_renderer_replayToDrawCall', false);
     bind('renderer_resize', 'es_renderer_resize', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
@@ -381,6 +398,7 @@ export function createNativeEngineApi(
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);
+    bind('renderer_submitSkeletalPreviewBatch', 'es_renderer_submitSkeletalPreviewBatch', false);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
