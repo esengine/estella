@@ -42,20 +42,20 @@ export const CRITERIA = [
   {
     id: 'golden-packages',
     says: 'every golden project packages and launches on every target it declares',
-    answeredBy: 'node tools/verify-golden.mjs --tier release',
+    answeredBy: 'node tools/verify-golden.mjs --tier release --jobs 3',
     needs: ['tools/verify-golden.mjs', 'tools/goldenProjects.mjs',
             'tools/launchers/launch-export.mjs', 'tools/launchers/launch-minigame.mjs'],
   },
   {
     id: 'package-matches-editor',
     says: 'a packaged game shows what the editor showed',
-    answeredBy: 'node tools/verify-golden.mjs --tier release',
+    answeredBy: 'node tools/verify-golden.mjs --tier release --jobs 3',
     needs: ['tools/frameCompare.mjs'],
   },
   {
     id: 'package-answers-input',
     says: 'a packaged game visibly answers the input its project declares',
-    answeredBy: 'node tools/verify-golden.mjs --tier release',
+    answeredBy: 'node tools/verify-golden.mjs --tier release --jobs 3',
     needs: ['tools/launchers/inputScript.mjs'],
   },
   {

@@ -16,7 +16,8 @@
  *   node tools/verify-golden.mjs --tier nightly --only platformer,spine-demo
  *   node tools/verify-golden.mjs --tier pr --shots <dir>
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
@@ -67,6 +68,52 @@ const deferred = projects.flatMap((g) => g.targets.filter((t) => !OWNED.has(t)).
 
 console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair(s) here`
   + (deferred.length ? `, ${deferred.length} left to the platform verifiers` : ''));
+
+/**
+ * `--jobs N`: the projects, N at a time, each worker this script over its share.
+ * The release tier's seventeen took 33 minutes in a row with three cores idle.
+ * A project stays whole (a worker's `--only` is by id); shares are balanced by
+ * what a project asks for, not by count — celestial-heights alone is a third.
+ */
+const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
+if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
+  const weight = (g) => g.targets.filter((t) => OWNED.has(t)).length
+    * (1 + [interactFor(g), audioFor(g), safeAreaFor(g), atlasFor(g)].filter(Boolean).length + (suspendFor(g) ? 3 : 0));
+  const bins = Array.from({ length: Math.min(JOBS, projects.length) }, () => ({ ids: [], load: 0 }));
+  for (const g of [...projects].sort((a, b) => weight(b) - weight(a))) {
+    const bin = bins.reduce((least, b) => (b.load < least.load ? b : least));
+    bin.ids.push(g.id);
+    bin.load += weight(g);
+  }
+  const own = new Set(['--only', '--jobs']);
+  const passthrough = argv.filter((a, i) => !own.has(a) && !own.has(argv[i - 1]));
+  const outcomes = await Promise.all(bins.map((bin, i) => new Promise((resolve) => {
+    const tag = `[${i + 1}/${bins.length}]`;
+    const child = spawn(process.execPath,
+      [fileURLToPath(import.meta.url), ...passthrough, '--worker', '--only', bin.ids.join(',')],
+      { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Relayed as they come, tagged: a worker's line is only readable if it says
+    // whose it is, and a runner staring at nothing for ten minutes kills the job.
+    let rest = '';
+    const relay = (chunk) => {
+      rest += chunk;
+      const lines = rest.split('\n');
+      rest = lines.pop();
+      for (const l of lines) console.log(`${tag} ${l}`);
+    };
+    child.stdout.on('data', relay);
+    child.stderr.on('data', relay);
+    child.on('close', (code) => {
+      if (rest) console.log(`${tag} ${rest}`);
+      resolve({ tag, code, ids: bin.ids });
+    });
+  })));
+  const failed = outcomes.filter((o) => o.code !== 0);
+  console.log(`\ngolden ${TIER}: ${bins.length} worker(s) over ${projects.length} project(s) — `
+    + (failed.length ? `${failed.length} did not pass` : 'all packaged and launched'));
+  for (const f of failed) console.log(`  ✗ ${f.tag} exit ${f.code}: ${f.ids.join(', ')}`);
+  process.exit(failed.length ? 1 : 0);
+}
 
 /** What the project declares: the shape it is authored for, and the scene a
  *  package will ship as its entry. */

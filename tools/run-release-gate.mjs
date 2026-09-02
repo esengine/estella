@@ -16,6 +16,7 @@
  *   node tools/run-release-gate.mjs           # run them
  *   node tools/run-release-gate.mjs --plan    # what would run, and what cannot
  *   node tools/run-release-gate.mjs --only golden,aot
+ *   node tools/run-release-gate.mjs --except flagship,golden     # the rest
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -29,14 +30,25 @@ const flag = (name) => {
   return i >= 0 ? argv[i + 1] : null;
 };
 const ONLY = flag('only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
+// The complement, for the shard that takes everything the named ones did not:
+// a criterion added tomorrow lands here rather than in no job at all.
+const EXCEPT = flag('except')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 // Where this runner is standing. A criterion says which host can answer it; the
 // default is a plain Linux runner, which is 27 of the 31.
 const HOST = flag('host') ?? 'linux';
 
 const runnable = CRITERIA.filter((c) => c.answeredBy);
+// Whole by COMMAND: five criteria share one verify-golden run, and naming one
+// of them names the run — a shard that took the command answers all five, and
+// the shard that left it out answers none of them.
+const commandsOf = (names) => new Set(runnable
+  .filter((c) => names.some((o) => c.id.includes(o))).map((c) => c.answeredBy));
+const taken = ONLY ? commandsOf(ONLY) : null;
+const left = EXCEPT ? commandsOf(EXCEPT) : null;
 const automated = runnable
   .filter((c) => (c.host ?? 'linux') === HOST)
-  .filter((c) => !ONLY || ONLY.some((o) => c.id.includes(o)));
+  .filter((c) => !taken || taken.has(c.answeredBy))
+  .filter((c) => !left || !left.has(c.answeredBy));
 /** Answerable, but not from here — named below, never silently absent. */
 const elsewhere = runnable.filter((c) => (c.host ?? 'linux') !== HOST);
 const manual = CRITERIA.filter((c) => c.manual);
@@ -55,7 +67,8 @@ for (const c of automated) {
 }
 
 console.log(`release gate ${RELEASE}: ${automated.length} criteria in ${jobs.length} command(s)`
-  + ` on host ${HOST}` + (ONLY ? ` (--only ${ONLY.join(',')})` : ''));
+  + ` on host ${HOST}` + (ONLY ? ` (--only ${ONLY.join(',')})` : '')
+  + (EXCEPT ? ` (--except ${EXCEPT.join(',')})` : ''));
 
 if (argv.includes('--plan')) {
   for (const j of jobs) console.log(`  ${j.ids.join(', ')}\n      ${j.run}`);

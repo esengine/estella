@@ -166,7 +166,16 @@ async function main() {
   });
 
   await win.loadURL(base);
-  const exec = (js) => win.webContents.executeJavaScript(js);
+  // Where the wall time goes, by what was asked of the page: a route that
+  // takes 40 minutes on a runner is a driver question before it is an engine one.
+  const spentOn = { probe: [0, 0], step: [0, 0], path: [0, 0], other: [0, 0] };
+  const exec = (js, kind = 'other') => {
+    const t = performance.now();
+    return win.webContents.executeJavaScript(js).finally(() => {
+      spentOn[kind][0] += performance.now() - t;
+      spentOn[kind][1]++;
+    });
+  };
 
   // The handle appears as soon as the host builds it, which is before the first
   // scene has spawned anything — asking then is asking an empty world.
@@ -200,13 +209,11 @@ async function main() {
     return;
   }
 
-  // Read on a frame boundary. Poked from outside the loop, a read can land
-  // between the systems that despawn something and the ones that replace it,
-  // and every such read is a world nobody was ever in.
-  const probe = (names) => exec(
-    `new Promise((r) => requestAnimationFrame(() => r(window.__estellaCooked.probe(${JSON.stringify(names)}))))`,
-  );
-  const pathTo = (goal) => exec(`window.__estellaCooked.pathBetween("Lyra_Player", ${JSON.stringify(goal)})`);
+  // Read where `step` left the world: it resolves on a frame boundary, and the
+  // driver holds the clock. Waiting for requestAnimationFrame first cost a
+  // second per read in a hidden window — 407 s of a 412 s walk whose steps took 3.
+  const probe = (names) => exec(`window.__estellaCooked.probe(${JSON.stringify(names)})`, 'probe');
+  const pathTo = (goal) => exec(`window.__estellaCooked.pathBetween("Lyra_Player", ${JSON.stringify(goal)})`, 'path');
   // Every goal the route names, before a step is taken: a leg whose goal never
   // existed would otherwise report as "already done" and the run would fail
   // later, somewhere else, for a reason that is not the reason.
@@ -262,7 +269,7 @@ async function main() {
     while (spent < timeout && frames < BUDGET && waited < WAIT_CAP) {
       const state = await probe([leg.goal, 'Lyra_Player']);
       // Nothing is true about a world that is halfway through being replaced.
-      if (state.transitioning) { await exec(stepScript([], STEP, null)); waited += STEP; frames += STEP; continue; }
+      if (state.transitioning) { await exec(stepScript([], STEP, null), 'step'); waited += STEP; frames += STEP; continue; }
       if (state.scene === leg.area) sawArea = true;
       // The leg is over when the area it was aiming for has been left behind:
       // walking into a door IS the arrival, and the door is gone by the time
@@ -280,7 +287,7 @@ async function main() {
         // it costs the run a pickup it never took.
         let gone = true;
         for (let i = 0; i < 3 && gone; i++) {
-          await exec(stepScript([], 4, null));
+          await exec(stepScript([], 4, null), 'step');
           spent += 4;
           frames += 4;
           gone = !(await probe([leg.goal])).at[leg.goal];
@@ -325,10 +332,10 @@ async function main() {
           console.log(`  ${label} @${spent}: at ${Math.round(me.x)},${Math.round(me.y)} `
             + `aim ${Math.round(aim.x)},${Math.round(aim.y)} (${plan.length} waypoints) keys ${keys.join('+') || 'none'} gap ${Math.round(gap)}`);
         }
-        await exec(stepScript(keys, STEP, leg.swing ? 'Space' : null));
+        await exec(stepScript(keys, STEP, leg.swing ? 'Space' : null), 'step');
       } else {
         // Between areas: the next scene has not handed out its entities yet.
-        await exec(stepScript([], STEP, null));
+        await exec(stepScript([], STEP, null), 'step');
         waited += STEP;
         frames += STEP;
         continue;
@@ -358,6 +365,8 @@ async function main() {
   console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} — ${done.length}/${route.legs.length} legs, `
     + `${frames} frames, ended in ${final.scene ?? '(nothing)'}, errors=${errors.length}`);
   if (failure) console.log(`    ${failure}`);
+  const secs = (k) => `${(spentOn[k][0] / 1000).toFixed(0)}s/${spentOn[k][1]}`;
+  console.log(`    wall: step ${secs('step')}, probe ${secs('probe')}, path ${secs('path')}, other ${secs('other')}`);
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
   app.exit(ok ? 0 : 1);
 }

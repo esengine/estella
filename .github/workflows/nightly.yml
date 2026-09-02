@@ -135,21 +135,39 @@ jobs:
         path: native-template-linux.tgz
         retention-days: 3
 
-  # 27 of the 31. The runner names the four it cannot answer from here and the
+  # 26 of the 33. The runner names the ones it cannot answer from here and the
   # four nobody can automate, so a green job is never read as a green release.
+  #
+  # One job per SHARD of the list, not one job for the list: run in a row the
+  # 26 took 94 minutes, and 73 of those were two criteria. A shard is whole by
+  # command (naming golden-packages takes the verify-golden run and every
+  # criterion it answers), and `--except` takes what the named shards did not,
+  # so a criterion added tomorrow runs in `rest` rather than nowhere.
   linux:
-    name: Exit criteria (linux)
+    name: Exit criteria (linux, ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: [build-emscripten, linux-template]
-    # A template that failed to build costs four criteria, not twenty-seven: they
+    # A template that failed to build costs three criteria, not twenty-six: they
     # report a machine that cannot answer, and the rest of the list still does.
     if: always() && needs.build-emscripten.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: flagship
+            criteria: --only flagship-plays-through
+          - shard: golden
+            criteria: --only golden-packages
+          - shard: perf
+            criteria: --only performance-ceilings
+          - shard: static
+            criteria: --only static-gates
+          - shard: rest
+            criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates
     env:
       ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
-    # 90 was measured against criteria that failed in seconds. Answering them
-    # costs what the work costs: golden alone is 32 minutes, and the run that
-    # first got this far was cut at 90 with the flagship still going.
-    timeout-minutes: 150
+    # The longest shard is golden at about a quarter of an hour.
+    timeout-minutes: 60
 
     steps:
     # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0 …),
@@ -219,7 +237,7 @@ jobs:
             libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
 
     - name: Run the exit criteria
-      run: node tools/run-release-gate.mjs --host linux
+      run: node tools/run-release-gate.mjs --host linux ${{ matrix.criteria }}
 
   # every-pixel-gate-runs, whose second half needs a GPU: a Linux runner ships no
   # graphics driver and every webgpu run there died in requestDevice. The
