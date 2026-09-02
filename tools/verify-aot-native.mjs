@@ -28,7 +28,12 @@ import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The example whose system carries the marker. */
 const PROJECT = path.join(ROOT, 'examples', 'ecs-basics');
-/** Frames to let run before the shot: enough for a pool to exist and be bound. */
+/**
+ * Frames to let run before the shot: enough for a pool to exist and be bound.
+ * Engine frames, at the host's fixed shot step (Shot.hpp): ecs-basics spawns its
+ * first `Mover` 0.8 s into the game, and 90 frames of wall time on a runner with
+ * no display to wait for is a third of that.
+ */
 const SHOT_FRAME = '90';
 
 const version = JSON.parse(
@@ -93,7 +98,10 @@ try {
 
   if (problems.length > 0) {
     console.error('✗ aot native: ' + problems.join('; '));
-    for (const line of log.split('\n').filter((l) => /aot|AOT|error|ERROR/.test(l)).slice(0, 10)) {
+    // ALSA says "error" a dozen times on a runner with no sound card, and those
+    // took every one of these ten lines the first time this ran on one.
+    const telling = (l) => /aot|AOT|error|ERROR/.test(l) && !/^ALSA lib /.test(l);
+    for (const line of log.split('\n').filter(telling).slice(0, 10)) {
       console.error(`    ${line.trim()}`);
     }
     process.exit(1);

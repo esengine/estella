@@ -89,6 +89,8 @@ struct BenchState {
      *  number in the report reads that wait as cost. */
     double busyCpuMs = 0.0, busyWallMs = 0.0, cpuAtSpanBegin = -1.0;
     unsigned draws = 0, sprites = 0;
+    /** The adapter class Dawn reported, see benchNoteAdapter. */
+    std::string adapter = "unknown";
     /** This frame's running totals, and the last timed frame's — the same shape
      *  `draws` has, so the report reads one frame rather than an average that
      *  hides a system which stopped being dispatched to halfway through. */
@@ -163,7 +165,7 @@ void report() {
                 "\"cpu\":{\"min\":%.4f,\"p50\":%.4f,\"p90\":%.4f},"
                 "\"frame\":{\"min\":%.4f,\"p50\":%.4f,\"p90\":%.4f},"
                 "\"draws\":%u,\"sprites\":%u,\"aotCandidates\":%u,\"aotPacked\":%u,"
-                "\"tickShareOfCpu\":%.4f,\"busy\":%.4f}",
+                "\"tickShareOfCpu\":%.4f,\"busy\":%.4f,\"adapter\":\"%s\"}",
                 // The FRAME span's count is the authority on how many frames were
                 // sampled: a frame can be abandoned after it began and reach no other span.
                 s.label.c_str(), s.warmup, s.frame.ms.size(), s.dt,
@@ -171,7 +173,8 @@ void report() {
                 at(s.pump.ms, 0.0), p50, at(s.pump.ms, 0.9),
                 at(s.cpu.ms, 0.0), c50, at(s.cpu.ms, 0.9),
                 at(s.frame.ms, 0.0), at(s.frame.ms, 0.5), at(s.frame.ms, 0.9),
-                s.draws, s.sprites, s.aotCandidatesFrame, s.aotPackedFrame, share, busy);
+                s.draws, s.sprites, s.aotCandidatesFrame, s.aotPackedFrame, share, busy,
+                s.adapter.c_str());
 }
 
 }  // namespace
@@ -219,6 +222,12 @@ void benchNoteDraws(unsigned draws, unsigned sprites) {
     if (!timing()) return;
     state().draws = draws;
     state().sprites = sprites;
+}
+
+void benchNoteAdapter(const char* kind) {
+    // Whether or not a bench was asked for: the adapter is known long before the
+    // first timed frame, and there is nothing to time here.
+    if (kind != nullptr && kind[0] != '\0') state().adapter = kind;
 }
 
 void benchNoteAotCandidates(unsigned candidates, unsigned packed) {

@@ -23,6 +23,14 @@
  *                                  for a first scene to have loaded its assets).
  *          - `ESTELLA_SHOT_QUIT`   `1` to exit once the verdict is out, which is
  *                                  what a CI run wants.
+ *          While a capture is armed the frames are the ENGINE's, one fixed
+ *          1/60 at a time (`shotDelta`). A shot at "frame 90" counted on wall
+ *          time is a shot at whatever moment the runner reached 90 frames: with
+ *          no display to wait for, a software-rendered runner walks 90 frames
+ *          in a third of a second, and a scene whose first mover appears after
+ *          0.8 s of game time has not spawned it yet — which a verifier then
+ *          reports as a compiled system that was never dispatched to. Same rule
+ *          as a bench (Bench.hpp) and as the web driver's fixed step.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -41,6 +49,10 @@ namespace eshost {
 /** Whether a capture was asked for. Read at device creation, because the
  *  swapchain has to be configured for copying BEFORE it exists. */
 bool shotWanted();
+
+/** The step this frame advances by: a fixed 1/60 while a capture is armed, and
+ *  @p wall untouched otherwise — a shipped game is not stepped by this file. */
+double shotDelta(double wall);
 
 /** Book the capture if @p frame is the one asked for. Call BEFORE the frame is
  *  rendered: the copy itself is performed inside the renderer's endFrame, since

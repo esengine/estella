@@ -168,6 +168,11 @@ void logAdapter(HostState& h) {
     if (wgpuAdapterGetInfo(h.adapter, &info) != WGPUStatus_Success) return;
     bootNote("gpu: %s %s (%s) — %s", svText(info.vendor).c_str(), svText(info.device).c_str(),
              svText(info.architecture).c_str(), svText(info.description).c_str());
+    // The class, for the bench: a ceiling on what a frame spends drawing is one
+    // number on a GPU and another on a rasterizer that draws on the CPU it times.
+    benchNoteAdapter(info.adapterType == WGPUAdapterType_DiscreteGPU ? "discrete"
+                     : info.adapterType == WGPUAdapterType_IntegratedGPU ? "integrated"
+                     : info.adapterType == WGPUAdapterType_CPU ? "cpu" : "unknown");
     wgpuAdapterInfoFreeMembers(info);
 }
 
@@ -328,9 +333,10 @@ void frame() {
     }
     h.lastFrameAt = nowAt;
     h.haveLastFrame = true;
-    // A bench steps at a fixed rate, so two builds of the same project move the
-    // same distance and can be held against each other.
-    deltaSeconds = benchDelta(deltaSeconds);
+    // A shot steps at a fixed rate too, so "frame 90" is the same moment of the
+    // game on every host (Shot.hpp); a bench at its own, so two builds move the
+    // same distance and can be held against each other. The bench's rate wins.
+    deltaSeconds = benchDelta(shotDelta(deltaSeconds));
 
     // Booked before the game renders, because the copy is served from inside the
     // renderer's own endFrame (see Shot.hpp).

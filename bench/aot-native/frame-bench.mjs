@@ -107,6 +107,11 @@ const RENDER = GATE || process.env.BENCH_RENDER === '1';
  * headroom over today. Submitting every sprite twice takes 59 ns/sprite to 109;
  * healthy runs read 3.65-4.21 and that one 5.94. A ceiling of 4 was tried at
  * 32,000 entities, where the same sabotage read 3.90 and passed.
+ *
+ * On a CPU rasterizer the span pays to rasterize the sprites too; the host says
+ * so (`adapter` in the bench line) and the report repeats it. No ceiling of its
+ * own: the runner's first reading, 5.37 (2026-09-02), was a regression this GPU
+ * also shows (5.06 at 122 ns/sprite), which a derived ceiling would have hidden.
  */
 const RENDER_MAX_RATIO = Number(process.env.BENCH_RENDER_MAX_RATIO ?? 5);
 
@@ -523,9 +528,13 @@ if (render.drawing && render.holding && !unmeasured(render.drawing) && !unmeasur
     const holding = render.holding.cpu.p50;
     const ratio = drawing / holding;
     const nsPerSprite = ((drawing - holding) * 1e6) / RENDER_ENTITIES;
+    // Said, not judged by a rule of its own: a CPU rasterizer pays for the sprites
+    // inside this span too, and a reading there has to be read as one.
+    const onCpu = render.drawing.adapter === 'cpu';
     console.log(`\ndrawing: ${RENDER_ENTITIES} sprites make the frame ${ratio.toFixed(2)}x the one that `
         + `only holds them (${holding.toFixed(2)} ms -> ${drawing.toFixed(2)} ms, `
-        + `${nsPerSprite.toFixed(0)} ns/sprite, ${render.drawing.draws} draw(s))`);
+        + `${nsPerSprite.toFixed(0)} ns/sprite, ${render.drawing.draws} draw(s)`
+        + `${onCpu ? ', rasterized on the CPU' : ''})`);
     if (GATE && !(ratio <= RENDER_MAX_RATIO)) {
         console.error(`✗ drawing: the frame is ${ratio.toFixed(2)}x the one that only holds the same `
             + `entities, over the ${RENDER_MAX_RATIO}x ceiling — submitting a sprite got dearer`);

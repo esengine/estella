@@ -91,6 +91,12 @@ void benchBeforePresent();
  *  a cost that lands somewhere the report cannot see reads as the system's. */
 void benchNoteDraws(unsigned draws, unsigned sprites);
 
+/** What DRAWS it: "discrete", "integrated", "cpu" or "unknown", as Dawn classes
+ *  the adapter. In the report because a ceiling on drawing time belongs to the
+ *  rasterizer: a CPU one also rasterizes every sprite inside the span `cpu`
+ *  measures, and a GPU-calibrated ratio reads a healthy frame there as over. */
+void benchNoteAdapter(const char* kind);
+
 /**
  * What a compiled system covered, and what it had to write, added to this
  * frame's totals.

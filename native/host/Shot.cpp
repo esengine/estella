@@ -95,6 +95,14 @@ void logVerdict(const std::vector<u8>& rgba, u32 w, u32 h, bool bgra) {
 
 bool shotWanted() { return state().asked; }
 
+double shotDelta(double wall) {
+    // Fixed for the whole run, not only up to the capture: a scene that moved at
+    // one rate before the shot and another after it is two scenes, and a shot
+    // that does not quit keeps being looked at.
+    constexpr double kShotDt = 1.0 / 60.0;
+    return state().asked ? kShotDt : wall;
+}
+
 void shotBeforeFrame(esengine::WebGPUDevice& gfx, u64 frame, u32 w, u32 h) {
     ShotState& s = state();
     if (!s.asked || s.started || s.done || frame < s.atFrame || w == 0 || h == 0) return;
