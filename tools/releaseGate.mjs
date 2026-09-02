@@ -144,16 +144,6 @@ export const CRITERIA = [
             'native/host/bindings/AotBindings.cpp'],
   },
   {
-    id: 'a-frame-pays-for-what-it-draws',
-    says: 'the CPU a frame spends drawing is bounded, not only the draws it makes',
-    // Counts were the only ceiling a frame had: `sprite-scale-cost` and its
-    // siblings hold draws, meshes and triangles, and a frame can honour all three
-    // while costing twice the CPU. A same-machine ratio, for the reason above.
-    answeredBy: 'node bench/aot-native/frame-bench.mjs --gate',
-    needs: ['bench/aot-native/frame-bench.mjs', 'native/host/Bench.cpp',
-            'src/esengine/renderer/plugins/SpritePlugin.cpp'],
-  },
-  {
     id: 'compiled-systems-compute-what-the-interpreter-computes',
     says: 'a packaged compiled system moves the world exactly as the interpreted one does',
     // Over the same FIXED steps, not the same wall clock: two launches of one

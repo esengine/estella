@@ -206,9 +206,8 @@ different deltas, move different distances, and have no differential between the
 | `BENCH_SPRITES` | on | `0` drops the `Sprite`, which is most of the idle floor — needed to resolve a compiled system at all |
 | `BENCH_BYSTANDERS` | 0 | extra entities with only a `Transform`, which no query matches: they grow the world without growing the matched set |
 | `BENCH_MIN_RATIO` | 5 | `--gate` only: the ratio a fallback cannot pass |
-| `BENCH_RENDER` | off, on under `--gate` | also run the render pair below |
+| `BENCH_RENDER` | off | also run the render pair below |
 | `BENCH_RENDER_ENTITIES` | 128000 | the pair's entity count |
-| `BENCH_RENDER_MAX_RATIO` | 5 | `--gate` only: how much of the frame the drawing may be |
 | `BENCH_MIN_BUSY` | 0.5 | the share of a frame's span that must be CPU for the span to be about the engine |
 | `BENCH_KEEP` | off | keep the exported apps for poking at |
 
@@ -219,10 +218,10 @@ draws, meshes and triangles — and a frame can honour every one of them while c
 twice the CPU it used to, because a count says how many sprites were submitted and
 nothing says what submitting one cost.
 
-So `--gate` also runs a **pair**: the same scene twice, differing only in whether its
+So `BENCH_RENDER=1` runs a **pair**: the same scene twice, differing only in whether its
 entities carry a `Sprite`. Both halves hold the same entities and run the same schedule,
 so the machine and the engine's own per-frame cost sit in the denominator, and only the
-numerator carries the drawing. The assertion is the ratio, and the reason is the same one
+numerator carries the drawing. The report is the ratio, and the reason is the same one
 the AOT ratio has: a millisecond is a fact about the machine that measured it.
 
 ```
@@ -236,10 +235,19 @@ better with more entities — it gets *less of the ratio*. At 32,000 the healthy
 spanned 2.85–3.01 and a sabotage read 3.90, close enough to overlap. At 128,000 healthy
 reads 3.65–4.21 and the same sabotage 6.97.
 
-That sabotage is where the ceiling of 5 comes from: submitting every sprite twice, which
-is the shape of a per-sprite cost that grew. It takes 59 ns/sprite to 115 and the pair
-past the ceiling on both runs, while three healthy runs pass. Both directions, on the
-same machine, on the same tree.
+That sabotage is where a ceiling of 5 came from: submitting every sprite twice, which
+is the shape of a per-sprite cost that grew. It took 59 ns/sprite to 115 and the pair
+past the ceiling on both runs, while three healthy runs passed. Both directions, on the
+same machine, on the same tree — on one day.
+
+**It was a release criterion until 2026-09-02, and is not one now.** The first run on a
+Linux runner read 5.37; the same commit read 5.06 and 5.17 on the machine above, and the
+commit that set the ceiling, rebuilt the same day, read 4.78 at the same 120 ns/sprite.
+The per-sprite cost had not moved between the two commits; what had moved was the
+machine — 59 ns/sprite in August, 120 in September, on identical code — and the healthy
+band with it, from 3.65–4.21 to 4.78–5.17, across the ceiling. A ratio whose denominator
+is a 4 ms frame is a fact about the machine after all, only a smaller one, and a gate
+that flips on the day it is run is not a gate. The pair stays as a measurement.
 
 The pair also has to *be* a pair — the half with sprites must draw and the half without
 must not. Two halves that both drew nothing would read 1.0x and pass, having measured

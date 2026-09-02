@@ -71,7 +71,7 @@ jobs:
         path: build/wasm/wechat/
         retention-days: 3
 
-  # The four criteria that ask what a COMPILED system does on a host with no JIT
+  # The three criteria that ask what a COMPILED system does on a host with no JIT
   # can only be answered against a template — and against THIS branch's, not a
   # release's: the host is half of what they measure, so answering with a
   # published binary would be answering about an engine this commit is not.
