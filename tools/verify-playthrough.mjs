@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
@@ -61,20 +62,25 @@ if (exported.status !== 0) {
   process.exit(1);
 }
 
-const played = runElectron([
-  path.join(ROOT, 'tools', 'launchers', 'play-through.mjs'),
-  '--dir', out, '--route', ROUTE,
-  '--out', path.join(WORK, `${PROJECT}.png`),
-  '--budget', '26000',
-], { encoding: 'utf8', cwd: ROOT });
-
+// A runner whose GPU dies mid-walk loses the WebGL context, and the driver
+// counts that as the game's errors (10/10 legs, errors=4, "unplayable"). Retried
+// like every other launch; the route's own failures still come straight through.
+const played = retryOnDeadGpu(() => {
+  const r = runElectron([
+    path.join(ROOT, 'tools', 'launchers', 'play-through.mjs'),
+    '--dir', out, '--route', ROUTE,
+    '--out', path.join(WORK, `${PROJECT}.png`),
+    '--budget', '26000',
+  ], { encoding: 'utf8', cwd: ROOT });
+  return { ok: r.status === 0, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, stdout: r.stdout, stderr: r.stderr };
+}, (died) => console.log(`↻ ${PROJECT} — ${died
+  ? 'the GPU went away under the walk' : 'no frame after a GPU death'}; walking again`));
 for (const line of (played.stdout || '').split('\n')) if (line.trim()) console.log(line);
 if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true });
-
-if (played.status !== 0) {
-  console.error(`✗ ${PROJECT} cannot be played to the end of its route`);
-  // Only stdout was reported, so a driver that never launched left this saying
-  // the route failed — which is a verdict about the game, not about the runner.
+if (!played.ok) {
+  console.error(played.launchFailed ? `✗ ${launchNeverHappenedVerdict('the walk')}`
+    : played.gpuDied ? `✗ ${deadGpuVerdict('the route')}`
+      : `✗ ${PROJECT} cannot be played to the end of its route`);
   const why = (played.stderr || '').trim();
   if (why) console.error(why.slice(-800));
   process.exit(1);
