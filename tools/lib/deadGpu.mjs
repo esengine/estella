@@ -85,6 +85,15 @@ function backoff(attempt, stepMs) {
 const STEP_MS = 5000;
 
 /**
+ * When this process last saw an outage, in any chain. A blank frame inside the
+ * two minutes a GPU takes to come back is aftermath even when the death was
+ * another launch's: golden captures the editor, then launches the package, and
+ * the package's blank frame was judged in a chain that had seen nothing.
+ */
+let lastOutageAt = 0;
+const OUTAGE_SETTLES_MS = 2 * 60 * 1000;
+
+/**
  * The ENGINE saying it could not make what it draws through. A run that gets this
  * far still prints its result — reporting an empty frame — so "it finished" is not
  * the same as "it rendered", and only the latter is a verdict about the scene.
@@ -127,7 +136,9 @@ function reachedNoVerdict(last) {
  * screen? a blank frame right after an outage is that outage still settling).
  */
 export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
-    let sawOutage = false;
+    // A chain that waits for nothing (tests) has no runner to remember across.
+    const remembers = stepMs > 0;
+    let sawOutage = remembers && Date.now() - lastOutageAt < OUTAGE_SETTLES_MS;
     let last;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
         last = attempt();
@@ -137,7 +148,10 @@ export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
         if (launchNeverHappened(last.output ?? '')) return { ...last, retried: i > 0, launchFailed: true };
 
         const noVerdict = reachedNoVerdict(last);
-        if (noVerdict) sawOutage = true;
+        if (noVerdict) {
+            sawOutage = true;
+            if (remembers) lastOutageAt = Date.now();
+        }
         // `drew === true` is the only thing that rules out aftermath: an attempt
         // that cannot say keeps the older, more cautious behaviour.
         const aftermath = sawOutage && last.drew !== true;

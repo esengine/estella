@@ -183,6 +183,26 @@ describe('retryOnDeadGpu', () => {
     // The runner ran out of GPU resources and every scene came back empty. Each
     // run still PRINTED its result, so 'it finished' called it a measurement and
     // 46 of 70 scenes were reported as broken renderers in one job.
+    it('retries a blank frame within two minutes of an outage in ANOTHER chain', () => {
+        // golden captures the editor in one chain and launches the package in the
+        // next; a GPU that died under the first is still coming back under the
+        // second. A chain that waits (stepMs > 0) remembers; 1 ms keeps this quick.
+        retryOnDeadGpu(() => ({ ok: false, output: DEAD }), () => {}, 1);
+        let attempts = 0;
+        const r = retryOnDeadGpu(() => {
+            attempts++;
+            return attempts === 1 ? { ok: false, output: '', measured: true, drew: false } : { ok: true, output: '' };
+        }, () => {}, 1);
+        expect(r.ok).toBe(true);
+        expect(attempts).toBe(2);
+    });
+    it('a chain that waits for nothing keeps no memory of outages', () => {
+        // The tests above run in one process; a remembered outage would make a
+        // game that draws nothing pass through a retry it must never get.
+        run([DEAD]);
+        const r = runReporting([{ ok: false, measured: true, drew: false }]);
+        expect(r.attempts).toBe(1);
+    });
     it('a run whose engine could not draw has measured nothing', () => {
         const broke = 'Framebuffer is incomplete! (size: 640x480, GL error 0x37442)';
         expect(engineCouldNotDraw(broke)).toBe(true);
