@@ -203,6 +203,16 @@ describe('retryOnDeadGpu', () => {
         const r = runReporting([{ ok: false, measured: true, drew: false }]);
         expect(r.attempts).toBe(1);
     });
+    it('a lost device with nothing left to create is still no verdict', () => {
+        // Verbatim from the runner: the context went, the launcher judged the flat
+        // frame that followed as "drew nothing", and no texture failed because
+        // nothing was asked for after the loss.
+        const lost = '[ERROR] GPU device lost: context-lost [backend=WebGL2, vendor=Google Inc. (Google)]';
+        expect(engineCouldNotDraw(lost)).toBe(true);
+        const r = runReporting([{ ok: false, output: lost, measured: true, drew: false }, { ok: true }]);
+        expect(r.ok).toBe(true);
+        expect(r.attempts).toBe(2);
+    });
     it('a run whose engine could not draw has measured nothing', () => {
         const broke = 'Framebuffer is incomplete! (size: 640x480, GL error 0x37442)';
         expect(engineCouldNotDraw(broke)).toBe(true);

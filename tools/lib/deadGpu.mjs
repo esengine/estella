@@ -99,7 +99,10 @@ const OUTAGE_SETTLES_MS = 2 * 60 * 1000;
  * the same as "it rendered", and only the latter is a verdict about the scene.
  */
 export function engineCouldNotDraw(output) {
-    return /Framebuffer is incomplete|Failed to create framebuffer|Failed to create texture|createTexture failed/
+    // A device the engine reports LOST draws nothing after, whether or not it
+    // went on to fail making anything: the flat frame a launcher judges after
+    // that line is the loss, not the game — input-actions was red for one.
+    return /Framebuffer is incomplete|Failed to create framebuffer|Failed to create texture|createTexture failed|GPU device lost/
         .test(output);
 }
 
