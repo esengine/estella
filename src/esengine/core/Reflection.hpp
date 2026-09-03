@@ -119,6 +119,16 @@
 #define ES_ENUM(...)
 
 /**
+ * @brief Mark a constant that CROSSES the boundary, so EHT emits its TS twin
+ *
+ * @details Hand-copied, such a constant does not fail when it drifts — a wrong
+ *          mask decodes a stored cell into a different tile. Marked, it has one
+ *          author and joins the ABI layout hash. `ts=<Name>` renames the
+ *          generated symbol; `hex` emits the value as hex, for a mask.
+ */
+#define ES_CONST(...)
+
+/**
  * @brief Mark an enum value for explicit naming in bindings
  *
  * @details Use this to provide custom names for enum values in scripts,

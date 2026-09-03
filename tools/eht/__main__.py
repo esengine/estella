@@ -7,6 +7,7 @@ from pathlib import Path
 from .parser import CppParser
 from .abi import compute_abi_hash
 from .entity_layout import parse_entity_layout, generate_ts as generate_entity_ts
+from .constants import parse_constants, canonical as const_canonical, generate_ts as generate_consts_ts
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
     PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator, AotComponentsGenerator,
@@ -81,6 +82,9 @@ def main() -> int:
     parser.add_argument('--entity-header', type=Path,
                         default=Path('src/esengine/core/Types.hpp'),
                         help='Header declaring Entity::Layout = PackedId<index, gen>')
+    parser.add_argument('--const-root', type=Path, nargs='+',
+                        default=[Path('src/esengine')],
+                        help='Roots scanned for ES_CONST boundary constants')
     parser.add_argument('--verbose', '-v', action='store_true')
     # Opt-in native (QuickJS) bindings. Off by default so the standard EHT run and
     # its committed *.generated.* files are unchanged; a native build passes this
@@ -171,8 +175,13 @@ def main() -> int:
     # offset — a handle that decodes to another entity — so it is in the hash.
     entity = parse_entity_layout(args.entity_header)
     print(f"Entity layout: index={entity[0]} gen={entity[1]}")
+    # Constants that cross say so at their declaration; a wrong one decodes a
+    # stored cell into a different tile rather than failing.
+    consts = parse_constants(args.const_root)
+    print(f"Boundary constants: {len(consts)}")
     abi_hash = compute_abi_hash(
-        cpp_parser.components, cpp_parser.enums, ptr_gen.layouts, entity
+        cpp_parser.components, cpp_parser.enums, ptr_gen.layouts, entity,
+        const_canonical(consts)
     )
     print(f"ABI layout hash: {abi_hash}")
 
@@ -238,6 +247,9 @@ def main() -> int:
 
     # ── Entity split ──
     write_ts('wasm/entityLayout.generated.ts', generate_entity_ts(*entity))
+
+    # ── Boundary constants ──
+    write_ts('wasm/constants.generated.ts', generate_consts_ts(consts))
 
     # ── Pointer Layouts & Accessors ──
     write_ts('wasm/ptrLayouts.generated.ts', ptr_gen.generate())

@@ -49,6 +49,33 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Two more hand-copied boundary constants, and a way to stop the next one.**
+  The tile cell encoding (13-bit id, three flip bits, the chunk stride) and the
+  particle colour LUT size were each written once in C++ and again in TypeScript,
+  tied only by a test. Neither fails when it drifts: a wrong mask decodes a stored
+  cell into a **different tile**, and a wrong LUT size over- or under-runs a
+  fixed-size upload.
+
+  `ES_CONST` marks a constant that crosses, beside `ES_COMPONENT` and `ES_ENUM`.
+  EHT scans for it — found by scanning, not from a list, because a list of what to
+  extract is the thing that goes stale — and emits
+  `sdk/src/wasm/constants.generated.ts`, which the two TS files now re-export. The
+  values join the ABI layout hash, so a binary and a bundle built from different
+  ones refuse each other at `connect()`. `ABI_LAYOUT_HASH` changes: rebuild the
+  engine.
+
+  A marker the extractor cannot read is a **hard failure**, not a skip: a silently
+  ungenerated constant is exactly the drift this exists to stop. Two headers
+  claiming one TS name is refused for the same reason. And EHT's build cache now
+  hashes every header it reads rather than the component directory alone —
+  otherwise editing a constant is answered with "no changes detected" and the old
+  value stays in the hash.
+
+  What is still owed is written down: the hash pairs a **binary** with a
+  **bundle**, and says nothing about a **saved map**. Widening the id mask still
+  reads every older `.esscene` into the wrong cells; that half needs a format
+  version of its own.
+
 - **The entity split had two authors and no handshake.** A handle crosses the
   boundary as a bare `u32`, so a side that disagrees about where the index ends
   does not fail — it decodes to **another entity's** index and the frame is merely

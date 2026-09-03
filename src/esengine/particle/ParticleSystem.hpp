@@ -16,6 +16,7 @@
 #include <functional>
 #include <random>
 #include <array>
+#include "../core/Reflection.hpp"
 
 namespace esengine { class RandomSource; }
 
@@ -23,6 +24,7 @@ namespace esengine::particle {
 
 // Resolution of the per-emitter over-life lookup tables (baked in TS from a
 // gradient/curve, sampled here per particle). 32 keeps them smooth and small.
+ES_CONST(ts=GRADIENT_LUT_SIZE)
 inline constexpr int kColorLutSize = 32;
 using ColorLut = std::array<glm::vec4, kColorLutSize>;
 // Size-over-life: a scalar multiplier curve × the particle's start size.

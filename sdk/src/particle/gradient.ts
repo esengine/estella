@@ -7,6 +7,8 @@
  *          C++ particle sim samples by normalized particle age. Curve math lives
  *          here (TS) only — the runtime just indexes the baked table.
  */
+
+import { GRADIENT_LUT_SIZE } from '../wasm/constants.generated';
 import type { Color } from '../types';
 
 export interface GradientStop {
@@ -19,8 +21,12 @@ export interface Gradient {
     stops: GradientStop[];
 }
 
-/** LUT resolution — MUST match the C++ `particle::kColorLutSize`. */
-export const GRADIENT_LUT_SIZE = 32;
+/**
+ * LUT resolution, from the C++ `kColorLutSize` that owns it. The baked gradient
+ * is uploaded as a flat `n * 4` float array, so a second answer here over- or
+ * under-runs the C++ `ColorLut` rather than failing.
+ */
+export { GRADIENT_LUT_SIZE };
 
 function sampleGradient(sorted: GradientStop[], t: number): Color {
     const first = sorted[0];

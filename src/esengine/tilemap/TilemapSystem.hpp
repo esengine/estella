@@ -9,16 +9,22 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "../core/Reflection.hpp"
 
 namespace esengine {
 namespace tilemap {
 
 static constexpr u16 EMPTY_TILE = 0;
+ES_CONST()
 static constexpr u32 CHUNK_SIZE = 16;
 
+ES_CONST(hex)
 static constexpr u16 TILE_ID_MASK = 0x1FFF;
+ES_CONST(hex)
 static constexpr u16 TILE_FLIP_H  = 0x2000;
+ES_CONST(hex)
 static constexpr u16 TILE_FLIP_V  = 0x4000;
+ES_CONST(hex)
 static constexpr u16 TILE_FLIP_D  = 0x8000;
 
 enum class GridType : u8 {

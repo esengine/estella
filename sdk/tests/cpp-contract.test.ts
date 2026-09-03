@@ -140,8 +140,8 @@ describe('C++ contract: animation tween enums (animation/TweenData.hpp)', () => 
 
 describe('C++ contract: particle color LUT (particle/ParticleSystem.hpp)', () => {
     it('GRADIENT_LUT_SIZE === kColorLutSize', () => {
-        // The baked gradient is uploaded as a flat kColorLutSize*4 float array; a
-        // mismatch would over/under-run the C++ ColorLut on setColorGradient.
+        // GENERATED from this header now, so this is a second parser of it:
+        // what it catches is a stale projection or an extraction bug.
         const cpp = parseConst(readCpp('particle/ParticleSystem.hpp'), 'kColorLutSize');
         expect(GRADIENT_LUT_SIZE).toBe(cpp);
     });

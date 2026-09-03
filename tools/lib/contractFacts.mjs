@@ -25,6 +25,10 @@
  * generating one from the other: same-source generation proves both inherited
  * one implementation, an independent pair proves both satisfy the contract.
  *
+ * `owed` states a gap in prose so it reads as work; `owedUntil: 'digest'` says
+ * MACHINE-READABLY what would close it, so the gate reports the debt as paid
+ * rather than leaving a sentence that has stopped being true.
+ *
  * A verification's `how` is `compiler` (the build fails), `handshake` (the two
  * sides compare at run time and refuse), `test` (a suite parses the other side
  * and asserts), or `independent-source` (a list written from the spec, not
@@ -169,37 +173,37 @@ export const FACTS = [
         digest: null,
         owed: 'hand-copied, outside the directory EHT parses. The pin is a test, not a'
             + ' handshake: a drift ships if the suite is not run.',
+        owedUntil: 'digest',
     },
     {
         id: 'particleColorLut',
         what: 'How many entries the particle colour lookup table has, which is its stride on both sides.',
         surface: 'runtime-wasm-abi',
         authors: [
-            { path: 'src/esengine/particle/ParticleSystem.hpp', probe: /LUT/, kind: 'semantic' },
-            { path: 'sdk/src/particle/gradient.ts', probe: /GRADIENT_LUT_SIZE/, kind: 'semantic' },
+            { path: 'src/esengine/particle/ParticleSystem.hpp', probe: /ES_CONST\(ts=GRADIENT_LUT_SIZE\)/, kind: 'semantic' },
         ],
-        projections: [],
+        projections: ['sdk/src/wasm/constants.generated.ts'],
         verification: [
             { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /particle color LUT/ },
         ],
-        digest: null,
-        owed: 'hand-copied; the pin is a test, not a handshake.',
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST / },
     },
     {
         id: 'tilemapCellEncoding',
         what: 'Which bits of a tile word are the id and which are the three flip flags.',
         surface: 'project-asset-format',
         authors: [
-            { path: 'src/esengine/tilemap/TilemapSystem.hpp', probe: /FLIP/, kind: 'semantic' },
-            { path: 'sdk/src/tilemap/tileBits.ts', probe: /TILE_ID_MASK/, kind: 'semantic' },
+            { path: 'src/esengine/tilemap/TilemapSystem.hpp', probe: /ES_CONST\(hex\)/, kind: 'semantic' },
         ],
-        projections: [],
+        projections: ['sdk/src/wasm/constants.generated.ts'],
         verification: [
             { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /tilemap cell encoding/ },
         ],
-        digest: null,
-        owed: 'hand-copied; and it is a FILE format, so a drift mis-renders every saved map'
-            + ' rather than failing to load.',
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST /},
+        owed: 'the hash pairs a BINARY with a BUNDLE; it says nothing about a saved map.'
+            + ' This is a file format, so widening the id mask still reads every older'
+            + ' `.esscene` into the wrong cells — that half needs a format version of its'
+            + ' own, not an ABI comparison.',
     },
     {
         id: 'uiBaseLayer',

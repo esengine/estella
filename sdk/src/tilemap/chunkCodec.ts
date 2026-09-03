@@ -9,8 +9,14 @@
  *          (CHUNK_SIZE = 16; empty chunks are omitted by the exporter.)
  */
 
-/** Tiles per chunk side (mirrors C++ `tilemap::CHUNK_SIZE`). */
-export const CHUNK_SIZE = 16;
+import { CHUNK_SIZE } from '../wasm/constants.generated';
+
+/**
+ * Tiles per chunk side, from the C++ `CHUNK_SIZE` that owns it. Generated, so
+ * this is not a second answer: a chunk decoded at the wrong side length reads a
+ * saved map into the wrong cells rather than failing to load.
+ */
+export { CHUNK_SIZE };
 const CHUNK_TILES = CHUNK_SIZE * CHUNK_SIZE;
 const ESTM_MAGIC = 0x4d545345;
 

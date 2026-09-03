@@ -12,11 +12,17 @@
  * corner permutation — keep the base perms below byte-identical with the C++ side.
  */
 
-/** Mirrors C++ `tilemap::TILE_ID_MASK` — 13 bits, max id 8191. */
-export const TILE_ID_MASK = 0x1fff;
-export const TILE_FLIP_H = 0x2000;
-export const TILE_FLIP_V = 0x4000;
-export const TILE_FLIP_D = 0x8000;
+import {
+    TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D,
+} from '../wasm/constants.generated';
+
+/**
+ * The cell encoding, from the C++ declarations that own it — 13 bits of id, max
+ * 8191, and three flip bits. Generated, so this is not a second answer, and in
+ * the ABI layout hash, so a binary and a bundle built from different values
+ * refuse each other rather than decoding each other's cells.
+ */
+export { TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D };
 export const TILE_FLAGS_MASK = TILE_FLIP_H | TILE_FLIP_V | TILE_FLIP_D;
 
 /** The three orientation bits a cell can carry (Tiled H/V/anti-diagonal). */

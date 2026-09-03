@@ -131,9 +131,15 @@ for (const fact of FACTS) {
             + ' and no `owed` says why that is accepted.');
     }
     // The debt is paid the day the gate says so, not the day someone remembers.
-    if (fact.owed && fact.digest && /no digest covers it/.test(fact.owed)) {
-        findings.push(`${fact.id}: owes "no digest covers it" but now HAS one (${fact.digest.name}).`
-            + ' Delete the `owed` line — a gap that reads as open after it closed is worse than none.');
+    // Keyed on a FIELD, not on how the sentence was worded: a rule that greps its
+    // own prose is dodged by a rephrase, which is the failure it exists to stop.
+    if (fact.owedUntil === 'digest' && fact.digest) {
+        findings.push(`${fact.id}: its gap says it closes when a digest covers the fact, and`
+            + ` one does now (${fact.digest.name}). Rewrite or delete \`owed\` — a gap that`
+            + ' reads as open after it closed is worse than none.');
+    }
+    if (fact.owedUntil && !fact.owed) {
+        findings.push(`${fact.id}: declares owedUntil with no \`owed\` saying what is missing.`);
     }
     report.push({ ...fact, status });
 }

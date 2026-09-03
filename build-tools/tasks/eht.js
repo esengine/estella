@@ -16,7 +16,7 @@ export async function runEht(options = {}) {
     const inputDir = path.join(rootDir, config.eht.inputDir);
     const script = path.join(rootDir, config.eht.script);
 
-    const componentFiles = await getComponentFiles(inputDir);
+    const componentFiles = await getHeaderFiles(inputDir);
 
     if (componentFiles.length === 0) {
         logger.warn('No component files found');
@@ -35,11 +35,15 @@ export async function runEht(options = {}) {
         const cache = new HashCache(config.paths.cache);
         await cache.load();
 
-        // The entity split comes from core/Types.hpp, which is NOT under the
-        // component directory — leaving it out means editing the split and being
-        // told "no changes detected", with the old split still in the hash.
-        const entityHeader = path.join(rootDir, config.eht.entityHeader);
-        const allFiles = [script, entityHeader, ...generatorFiles, ...componentFiles];
+        // EVERY header EHT reads, not just the component directory: the entity
+        // split is in core/Types.hpp and an ES_CONST can be anywhere. One left out
+        // is "no changes detected" with the old value still in the ABI hash.
+        const boundaryHeaders = (await Promise.all(
+            config.eht.constRoots.map((r) => getHeaderFiles(path.join(rootDir, r))),
+        )).flat();
+        const allFiles = [script, ...generatorFiles, ...new Set([
+            ...componentFiles, ...boundaryHeaders, path.join(rootDir, config.eht.entityHeader),
+        ])];
         const currentHash = await hashFiles(allFiles);
 
         if (!await cache.isChanged('eht', currentHash)) {
@@ -62,7 +66,7 @@ export async function runEht(options = {}) {
     return { skipped: false };
 }
 
-async function getComponentFiles(inputDir) {
+async function getHeaderFiles(inputDir) {
     const files = [];
     try {
         const { readdir, stat } = await import('fs/promises');
@@ -124,6 +128,7 @@ async function executeEht(rootDir, script) {
         // Passed rather than left to the generator's default: the path the cache
         // hashes and the path the generator reads must be one path.
         '--entity-header', path.join(rootDir, config.eht.entityHeader),
+        '--const-root', ...config.eht.constRoots.map((r) => path.join(rootDir, r)),
         '--output', outputDir,
         '--ts-output', tsOutputDir,
     ], {
