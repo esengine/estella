@@ -109,33 +109,20 @@ function enumForward(e: Record<string, string | number>): Map<string, number> {
 }
 
 describe('C++ contract: animation tween enums (animation/TweenData.hpp)', () => {
-    const src = readCpp('animation/TweenData.hpp');
-
-    it('EasingType matches (same names + values, minus COUNT sentinel)', () => {
-        // The TS easing dispatcher switches on these values; they are the wire
-        // protocol for anim_createTween's easing byte.
-        expect(sortedEntries(new Map(Object.entries(EasingType))))
-            .toEqual(sortedEntries(byName(parseEnum(src, 'EasingType'))));
-    });
-
-    it('TweenState matches', () => {
-        expect(sortedEntries(new Map(Object.entries(TweenState))))
-            .toEqual(sortedEntries(byName(parseEnum(src, 'TweenState'))));
-    });
-
-    it('LoopMode matches', () => {
-        expect(sortedEntries(new Map(Object.entries(LoopMode))))
-            .toEqual(sortedEntries(byName(parseEnum(src, 'LoopMode'))));
-    });
-
-    it('TweenTarget matches by value sequence (TS uses abbreviated names)', () => {
-        // TS abbreviates the names (PositionX vs C++ TransformPositionX) but the
-        // ordered numeric values ARE the boundary contract, so guard those.
-        const cppValues = parseEnum(src, 'TweenTarget')
-            .filter((e) => e.name !== 'COUNT')
-            .map((e) => e.value);
-        expect(Object.values(TweenTarget)).toEqual(cppValues);
-    });
+    // Generated from that header now, so the pin is IDENTITY: same-values-
+    // different-object is the drift a re-export eliminates, and only `toBe`
+    // sees it. The values are in the ABI layout hash.
+    const cases: Array<[string, unknown, unknown]> = [
+        ['EasingType', EasingType, gen.EasingType],
+        ['TweenState', TweenState, gen.TweenState],
+        ['LoopMode', LoopMode, gen.LoopMode],
+        ['TweenTarget', TweenTarget, gen.TweenTarget],
+    ];
+    for (const [label, published, generated] of cases) {
+        it(`${label} is a re-export of the generated enum`, () => {
+            expect(published).toBe(generated);
+        });
+    }
 });
 
 describe('C++ contract: particle color LUT (particle/ParticleSystem.hpp)', () => {

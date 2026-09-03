@@ -11,7 +11,9 @@
 #include <string>
 #include <vector>
 #include "../ecs/Registry.hpp"
+#include "../animation/TweenData.hpp"
 #include "../ecs/components/BitmapText.hpp"
+#include "../ecs/components/BodyType.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider2D.hpp"

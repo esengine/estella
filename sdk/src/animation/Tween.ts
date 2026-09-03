@@ -9,6 +9,8 @@
  * `app.getResource(Tween)` outside ECS code.
  */
 
+import { TweenTarget } from '../wasm/wasm.generated';
+
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
@@ -30,9 +32,9 @@ export { TweenState, LoopMode, type TweenOptions } from './TweenTypes';
 export { ValueTweenHandle } from './ValueTween';
 
 // =============================================================================
-// Tween Target (wire protocol — must stay in lock-step with
-// src/esengine/animation/TweenData.hpp::TweenTarget — both the order
-// and the numeric values are the WASM boundary contract).
+// Tween Target (wire protocol — generated from
+// src/esengine/animation/TweenData.hpp::TweenTarget, whose order and
+// numeric values are the boundary contract).
 // =============================================================================
 
 /**
@@ -52,23 +54,7 @@ export { ValueTweenHandle } from './ValueTween';
  * use `tween.value(...)` with a callback that writes the field yourself,
  * or drive it via Timeline.
  */
-export const TweenTarget = {
-    PositionX: 0,
-    PositionY: 1,
-    PositionZ: 2,
-    ScaleX: 3,
-    ScaleY: 4,
-    RotationZ: 5,
-    ColorR: 6,
-    ColorG: 7,
-    ColorB: 8,
-    ColorA: 9,
-    SizeX: 10,
-    SizeY: 11,
-    CameraOrthoSize: 12,
-} as const;
-
-export type TweenTarget = (typeof TweenTarget)[keyof typeof TweenTarget];
+export { TweenTarget };
 
 // =============================================================================
 // Tween Handle (fluent builder)

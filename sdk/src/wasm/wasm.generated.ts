@@ -74,6 +74,30 @@ export enum ClearFlags {
 }
 
 /**
+ * The engine's `EasingType`, generated from the C++ enum.
+ *
+ * @experimental
+ */
+export enum EasingType {
+    Linear = 0,
+    EaseInQuad = 1,
+    EaseOutQuad = 2,
+    EaseInOutQuad = 3,
+    EaseInCubic = 4,
+    EaseOutCubic = 5,
+    EaseInOutCubic = 6,
+    EaseInBack = 7,
+    EaseOutBack = 8,
+    EaseInOutBack = 9,
+    EaseInElastic = 10,
+    EaseOutElastic = 11,
+    EaseInOutElastic = 12,
+    EaseOutBounce = 13,
+    CubicBezier = 14,
+    Step = 15,
+}
+
+/**
  * The engine's `EmitterShape`, generated from the C++ enum.
  *
  * @beta
@@ -118,6 +142,17 @@ export enum LightType {
     Directional = 1,
     Ambient = 2,
     Spot = 3,
+}
+
+/**
+ * The engine's `LoopMode`, generated from the C++ enum.
+ *
+ * @experimental
+ */
+export enum LoopMode {
+    None = 0,
+    Restart = 1,
+    PingPong = 2,
 }
 
 export enum MaskMode {
@@ -214,6 +249,39 @@ export enum TilemapStaggerAxis {
 export enum TilemapStaggerIndex {
     Odd = 0,
     Even = 1,
+}
+
+/**
+ * The engine's `TweenState`, generated from the C++ enum.
+ *
+ * @experimental
+ */
+export enum TweenState {
+    Running = 0,
+    Paused = 1,
+    Completed = 2,
+    Cancelled = 3,
+}
+
+/**
+ * The engine's `TweenTarget`, generated from the C++ enum.
+ *
+ * @experimental
+ */
+export enum TweenTarget {
+    PositionX = 0,
+    PositionY = 1,
+    PositionZ = 2,
+    ScaleX = 3,
+    ScaleY = 4,
+    RotationZ = 5,
+    ColorR = 6,
+    ColorG = 7,
+    ColorB = 8,
+    ColorA = 9,
+    SizeX = 10,
+    SizeY = 11,
+    CameraOrthoSize = 12,
 }
 
 export enum UIDisplay {

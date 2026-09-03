@@ -8,30 +8,19 @@
  * in lock-step with src/esengine/animation/TweenData.hpp::EasingType.
  */
 
+import { EasingType } from '../wasm/wasm.generated';
+
 // =============================================================================
-// EasingType (wire protocol — must match C++ TweenData.hpp)
+// EasingType (wire protocol — generated from C++ TweenData.hpp)
 // =============================================================================
 
-export const EasingType = {
-    Linear: 0,
-    EaseInQuad: 1,
-    EaseOutQuad: 2,
-    EaseInOutQuad: 3,
-    EaseInCubic: 4,
-    EaseOutCubic: 5,
-    EaseInOutCubic: 6,
-    EaseInBack: 7,
-    EaseOutBack: 8,
-    EaseInOutBack: 9,
-    EaseInElastic: 10,
-    EaseOutElastic: 11,
-    EaseInOutElastic: 12,
-    EaseOutBounce: 13,
-    CubicBezier: 14,
-    Step: 15,
-} as const;
-
-export type EasingType = (typeof EasingType)[keyof typeof EasingType];
+/**
+ * The easing curves the C++ `TweenSystem` can drive, from the enum that owns
+ * them. Generated, so this is not a second answer, and the values are in the
+ * ABI layout hash — they cross as bare numbers, where a drift is a different
+ * curve rather than an error.
+ */
+export { EasingType } from '../wasm/wasm.generated';
 
 export interface BezierPoints {
     p1x: number;

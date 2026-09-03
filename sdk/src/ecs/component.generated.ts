@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9bc45f6f2153c7c6';
+export const ABI_LAYOUT_HASH = 'e59728e2336b5b14';
 
 /**
  * One asset-valued field of a component: which field, and what kind of

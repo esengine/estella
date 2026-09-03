@@ -108,7 +108,7 @@ class CppParser:
         content = filepath.read_text(encoding='utf-8')
         ns_match = self.RE_NAMESPACE.search(content)
         namespace = ns_match.group(1) if ns_match else ""
-        self._parse_enums(content, namespace)
+        self._parse_enums(content, namespace, filepath)
         self._parse_components(content, namespace, filepath)
 
     RE_COMMENT = re.compile(r'/\*.*?\*/|//[^\n]*', re.DOTALL)
@@ -118,7 +118,7 @@ class CppParser:
         """Blank out C and C++ comments, keeping the text's length and lines."""
         return cls.RE_COMMENT.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)), text)
 
-    def _parse_enums(self, content: str, namespace: str) -> None:
+    def _parse_enums(self, content: str, namespace: str, filepath: Path) -> None:
         for match in self.RE_ENUM.finditer(content):
             enum_annotations = self._parse_annotations(match.group(1))
             enum_name = match.group(2)
@@ -142,7 +142,8 @@ class CppParser:
             self.enums.append(Enum(
                 name=enum_name, namespace=namespace,
                 values=values, underlying_type=underlying,
-                annotations=enum_annotations
+                annotations=enum_annotations,
+                header_path=str(filepath.as_posix()),
             ))
 
     def _parse_components(self, content: str, namespace: str, filepath: Path) -> None:
@@ -350,6 +351,31 @@ class CppParser:
                 self.parse_file(filepath)
             except Exception as e:
                 self.warnings.append(f"Failed to parse {filepath}: {e}")
+
+    def parse_enums_outside(self, roots, skip) -> None:
+        """`ES_ENUM` in headers that declare no component.
+
+        Where an enum is declared is not the boundary's business: it crosses if
+        it says so. Enum-only, because a component outside the reflected
+        directory would need its bindings, storage and editor surface too —
+        that is a different decision, and this one must not make it quietly.
+        """
+        skipped = {Path(s).resolve() for s in skip}
+        for root in roots:
+            if not Path(root).is_dir():
+                raise SystemExit(f"[FAIL] ES_ENUM scan: no such directory: {root}")
+            for filepath in sorted(Path(root).rglob('*.hpp')):
+                if any(filepath.resolve().is_relative_to(s) for s in skipped):
+                    continue
+                try:
+                    content = filepath.read_text(encoding='utf-8')
+                except Exception as e:
+                    self.warnings.append(f"Failed to read {filepath}: {e}")
+                    continue
+                if 'ES_ENUM(' not in content or '#define ES_ENUM' in content:
+                    continue
+                ns_match = self.RE_NAMESPACE.search(content)
+                self._parse_enums(content, ns_match.group(1) if ns_match else "", filepath)
 
     def print_warnings(self) -> None:
         """Print all accumulated warnings to stderr."""

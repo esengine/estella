@@ -2868,9 +2868,24 @@ world: World
 readonly ["texture-compression-astc", "texture-compression-bc", "texture-compression-etc2", "timestamp-query"]
 ```
 
-## EasingType — type @experimental
+## EasingType — enum @experimental
 ```
-(typeof EasingType)[keyof typeof EasingType]
+CubicBezier = 14
+EaseInBack = 7
+EaseInCubic = 4
+EaseInElastic = 10
+EaseInOutBack = 9
+EaseInOutCubic = 6
+EaseInOutElastic = 12
+EaseInOutQuad = 3
+EaseInQuad = 1
+EaseOutBack = 8
+EaseOutBounce = 13
+EaseOutCubic = 5
+EaseOutElastic = 11
+EaseOutQuad = 2
+Linear = 0
+Step = 15
 ```
 
 ## EditorAssetType — type @experimental
@@ -4418,9 +4433,11 @@ static prototype: Logger
 code: string
 ```
 
-## LoopMode — type @experimental
+## LoopMode — enum @experimental
 ```
-(typeof LoopMode)[keyof typeof LoopMode]
+None = 0
+PingPong = 2
+Restart = 1
 ```
 
 ## MATERIAL_FORMAT_VERSION — const @experimental
@@ -8808,14 +8825,29 @@ static new (factories: TweenFactory[]): TweenSequence
 static prototype: TweenSequence
 ```
 
-## TweenState — type @experimental
+## TweenState — enum @experimental
 ```
-(typeof TweenState)[keyof typeof TweenState]
+Cancelled = 3
+Completed = 2
+Paused = 1
+Running = 0
 ```
 
-## TweenTarget — type @experimental
+## TweenTarget — enum @experimental
 ```
-(typeof TweenTarget)[keyof typeof TweenTarget]
+CameraOrthoSize = 12
+ColorA = 9
+ColorB = 8
+ColorG = 7
+ColorR = 6
+PositionX = 0
+PositionY = 1
+PositionZ = 2
+RotationZ = 5
+ScaleX = 3
+ScaleY = 4
+SizeX = 10
+SizeY = 11
 ```
 
 ## UICameraData — interface @beta

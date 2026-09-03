@@ -162,18 +162,14 @@ export const FACTS = [
         what: 'The tween easing/state/loop/target enums, which cross the boundary as bare numbers.',
         surface: 'runtime-wasm-abi',
         authors: [
-            { path: 'src/esengine/animation/TweenData.hpp', probe: /enum class/, kind: 'semantic' },
-            { path: 'sdk/src/animation/TweenTypes.ts', probe: /TweenState/, kind: 'semantic' },
+            { path: 'src/esengine/animation/TweenData.hpp', probe: /ES_ENUM\(stability=/, kind: 'semantic' },
         ],
-        projections: [],
+        projections: ['sdk/src/wasm/wasm.generated.ts'],
         verification: [
             { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /animation tween enums/ },
             { path: 'tools/check-enum-twins.mjs', how: 'test', probe: /owes a pin/ },
         ],
-        digest: null,
-        owed: 'hand-copied, outside the directory EHT parses. The pin is a test, not a'
-            + ' handshake: a drift ships if the suite is not run.',
-        owedUntil: 'digest',
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/abi.py', probe: /ENUM \{enum\.name\}/ },
     },
     {
         id: 'particleColorLut',

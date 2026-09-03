@@ -162,56 +162,56 @@ static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag,
 static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value,
                             std::vector<Entity>& flagged) {
     switch (target) {
-        case TweenTarget::TransformPositionX:
+        case TweenTarget::PositionX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.x = value;
                 markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_X, flagged);
             }
             break;
-        case TweenTarget::TransformPositionY:
+        case TweenTarget::PositionY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.y = value;
                 markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_Y, flagged);
             }
             break;
-        case TweenTarget::TransformPositionZ:
+        case TweenTarget::PositionZ:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) c->position.z = value;
             break;
-        case TweenTarget::TransformScaleX:
+        case TweenTarget::ScaleX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.x = value;
                 markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_X, flagged);
             }
             break;
-        case TweenTarget::TransformScaleY:
+        case TweenTarget::ScaleY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.y = value;
                 markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_Y, flagged);
             }
             break;
-        case TweenTarget::TransformRotationZ:
+        case TweenTarget::RotationZ:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 f32 h = value * 0.5f;
                 c->rotation = glm::quat(std::cos(h), 0.0f, 0.0f, std::sin(h));
                 markUIAnimOverride(registry, entity, ecs::UINode::ANIM_ROT_Z, flagged);
             }
             break;
-        case TweenTarget::SpriteColorR:
+        case TweenTarget::ColorR:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->color.r = value;
             break;
-        case TweenTarget::SpriteColorG:
+        case TweenTarget::ColorG:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->color.g = value;
             break;
-        case TweenTarget::SpriteColorB:
+        case TweenTarget::ColorB:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->color.b = value;
             break;
-        case TweenTarget::SpriteColorA:
+        case TweenTarget::ColorA:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->color.a = value;
             break;
-        case TweenTarget::SpriteSizeX:
+        case TweenTarget::SizeX:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->size.x = value;
             break;
-        case TweenTarget::SpriteSizeY:
+        case TweenTarget::SizeY:
             if (auto* c = registry.tryGet<ecs::Sprite>(entity)) c->size.y = value;
             break;
         case TweenTarget::CameraOrthoSize:

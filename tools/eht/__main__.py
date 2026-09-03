@@ -84,7 +84,7 @@ def main() -> int:
                         help='Header declaring Entity::Layout = PackedId<index, gen>')
     parser.add_argument('--const-root', type=Path, nargs='+',
                         default=[Path('src/esengine')],
-                        help='Roots scanned for ES_CONST boundary constants')
+                        help='Roots scanned for ES_CONST and for ES_ENUM outside --input')
     parser.add_argument('--verbose', '-v', action='store_true')
     # Opt-in native (QuickJS) bindings. Off by default so the standard EHT run and
     # its committed *.generated.* files are unchanged; a native build passes this
@@ -128,6 +128,10 @@ def main() -> int:
     for input_dir in args.input:
         print(f"Parsing: {input_dir}")
         cpp_parser.parse_directory(input_dir)
+
+    # An enum that crosses says so at its declaration; where it is declared is
+    # not the boundary's business. Scanned rather than listed, as ES_CONST is.
+    cpp_parser.parse_enums_outside(args.const_root, args.input)
 
     if cpp_parser.warnings:
         cpp_parser.print_warnings()

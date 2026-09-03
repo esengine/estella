@@ -48,3 +48,7 @@ class Enum:
     values: List[str] = field(default_factory=list)
     underlying_type: str = "int"
     annotations: Dict[str, str] = field(default_factory=dict)
+    #: Where it was declared. embind registers the enum by its C++ type, so the
+    #: generated TU has to include this — deriving the include from COMPONENTS
+    #: alone worked only while every enum shared a header with one.
+    header_path: str = ""

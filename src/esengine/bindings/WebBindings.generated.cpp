@@ -10,8 +10,10 @@
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
 #include "../ui/UITypes.hpp"
+#include "../animation/TweenData.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/BitmapText.hpp"
+#include "../ecs/components/BodyType.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider2D.hpp"
@@ -129,6 +131,24 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Depth", esengine::ecs::ClearFlags::Depth)
         .value("ColorAndDepth", esengine::ecs::ClearFlags::ColorAndDepth);
 
+    enum_<esengine::animation::EasingType>("EasingType")
+        .value("Linear", esengine::animation::EasingType::Linear)
+        .value("EaseInQuad", esengine::animation::EasingType::EaseInQuad)
+        .value("EaseOutQuad", esengine::animation::EasingType::EaseOutQuad)
+        .value("EaseInOutQuad", esengine::animation::EasingType::EaseInOutQuad)
+        .value("EaseInCubic", esengine::animation::EasingType::EaseInCubic)
+        .value("EaseOutCubic", esengine::animation::EasingType::EaseOutCubic)
+        .value("EaseInOutCubic", esengine::animation::EasingType::EaseInOutCubic)
+        .value("EaseInBack", esengine::animation::EasingType::EaseInBack)
+        .value("EaseOutBack", esengine::animation::EasingType::EaseOutBack)
+        .value("EaseInOutBack", esengine::animation::EasingType::EaseInOutBack)
+        .value("EaseInElastic", esengine::animation::EasingType::EaseInElastic)
+        .value("EaseOutElastic", esengine::animation::EasingType::EaseOutElastic)
+        .value("EaseInOutElastic", esengine::animation::EasingType::EaseInOutElastic)
+        .value("EaseOutBounce", esengine::animation::EasingType::EaseOutBounce)
+        .value("CubicBezier", esengine::animation::EasingType::CubicBezier)
+        .value("Step", esengine::animation::EasingType::Step);
+
     enum_<esengine::ecs::EmitterShape>("EmitterShape")
         .value("Point", esengine::ecs::EmitterShape::Point)
         .value("Circle", esengine::ecs::EmitterShape::Circle)
@@ -164,6 +184,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Directional", esengine::ecs::LightType::Directional)
         .value("Ambient", esengine::ecs::LightType::Ambient)
         .value("Spot", esengine::ecs::LightType::Spot);
+
+    enum_<esengine::animation::LoopMode>("LoopMode")
+        .value("None", esengine::animation::LoopMode::None)
+        .value("Restart", esengine::animation::LoopMode::Restart)
+        .value("PingPong", esengine::animation::LoopMode::PingPong);
 
     enum_<esengine::ecs::MaskMode>("MaskMode")
         .value("Scissor", esengine::ecs::MaskMode::Scissor)
@@ -214,6 +239,27 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::TilemapStaggerIndex>("TilemapStaggerIndex")
         .value("Odd", esengine::ecs::TilemapStaggerIndex::Odd)
         .value("Even", esengine::ecs::TilemapStaggerIndex::Even);
+
+    enum_<esengine::animation::TweenState>("TweenState")
+        .value("Running", esengine::animation::TweenState::Running)
+        .value("Paused", esengine::animation::TweenState::Paused)
+        .value("Completed", esengine::animation::TweenState::Completed)
+        .value("Cancelled", esengine::animation::TweenState::Cancelled);
+
+    enum_<esengine::animation::TweenTarget>("TweenTarget")
+        .value("PositionX", esengine::animation::TweenTarget::PositionX)
+        .value("PositionY", esengine::animation::TweenTarget::PositionY)
+        .value("PositionZ", esengine::animation::TweenTarget::PositionZ)
+        .value("ScaleX", esengine::animation::TweenTarget::ScaleX)
+        .value("ScaleY", esengine::animation::TweenTarget::ScaleY)
+        .value("RotationZ", esengine::animation::TweenTarget::RotationZ)
+        .value("ColorR", esengine::animation::TweenTarget::ColorR)
+        .value("ColorG", esengine::animation::TweenTarget::ColorG)
+        .value("ColorB", esengine::animation::TweenTarget::ColorB)
+        .value("ColorA", esengine::animation::TweenTarget::ColorA)
+        .value("SizeX", esengine::animation::TweenTarget::SizeX)
+        .value("SizeY", esengine::animation::TweenTarget::SizeY)
+        .value("CameraOrthoSize", esengine::animation::TweenTarget::CameraOrthoSize);
 
     enum_<esengine::ecs::UIDisplay>("UIDisplay")
         .value("Flex", esengine::ecs::UIDisplay::Flex)
@@ -3070,7 +3116,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "9bc45f6f2153c7c6";
+static const char* kEsAbiLayoutHash = "e59728e2336b5b14";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

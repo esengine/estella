@@ -79,6 +79,12 @@ class EmbindGenerator:
             if comp.header_path and 'src/esengine/' in comp.header_path:
                 rel = '../' + comp.header_path.replace('\\', '/').split('src/esengine/')[-1]
                 headers.add(f'#include "{rel}"')
+        # Enums too: one declared away from any component is registered by
+        # its C++ type all the same, and without this the TU cannot name it.
+        for enum in self.enums:
+            if enum.header_path and 'src/esengine/' in enum.header_path:
+                rel = '../' + enum.header_path.replace('\\', '/').split('src/esengine/')[-1]
+                headers.add(f'#include "{rel}"')
         headers.add('#include "../ecs/TransformSystem.hpp"')
         lines = sorted(headers)
         lines.extend([

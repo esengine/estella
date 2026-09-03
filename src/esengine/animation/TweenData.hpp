@@ -3,9 +3,11 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "../core/Reflection.hpp"
 
 namespace esengine::animation {
 
+ES_ENUM(stability=experimental)
 enum class EasingType : u8 {
     Linear = 0,
     EaseInQuad,
@@ -22,27 +24,27 @@ enum class EasingType : u8 {
     EaseInOutElastic,
     EaseOutBounce,
     CubicBezier,
-    Step,
-    COUNT
+    Step
 };
 
+ES_ENUM(stability=experimental)
 enum class TweenTarget : u8 {
-    TransformPositionX = 0,
-    TransformPositionY,
-    TransformPositionZ,
-    TransformScaleX,
-    TransformScaleY,
-    TransformRotationZ,
-    SpriteColorR,
-    SpriteColorG,
-    SpriteColorB,
-    SpriteColorA,
-    SpriteSizeX,
-    SpriteSizeY,
-    CameraOrthoSize,
-    COUNT
+    PositionX = 0,
+    PositionY,
+    PositionZ,
+    ScaleX,
+    ScaleY,
+    RotationZ,
+    ColorR,
+    ColorG,
+    ColorB,
+    ColorA,
+    SizeX,
+    SizeY,
+    CameraOrthoSize
 };
 
+ES_ENUM(stability=experimental)
 enum class TweenState : u8 {
     Running = 0,
     Paused,
@@ -50,6 +52,7 @@ enum class TweenState : u8 {
     Cancelled
 };
 
+ES_ENUM(stability=experimental)
 enum class LoopMode : u8 {
     None = 0,
     Restart,
@@ -58,7 +61,7 @@ enum class LoopMode : u8 {
 
 struct TweenData {
     Entity target_entity{INVALID_ENTITY};
-    TweenTarget target_property{TweenTarget::TransformPositionX};
+    TweenTarget target_property{TweenTarget::PositionX};
 
     f32 from_value{0.0f};
     f32 to_value{0.0f};

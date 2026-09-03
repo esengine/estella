@@ -49,6 +49,34 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The tween enums are generated now, and an enum may live outside the reflected
+  directory.** Easing curves, tween state, loop mode and tween target were each
+  written once in C++ and again in TypeScript, tied only by a test. They cross as
+  bare numbers, so a drift is a different curve or a tween reported in the wrong
+  state — never an error.
+
+  EHT parsed enums only under `src/esengine/ecs/components`, which is why these
+  were hand-copied: they live in `animation/TweenData.hpp`. It scans for `ES_ENUM`
+  across the engine now, the same way it scans for `ES_CONST` — enum-only, because
+  a component outside the reflected directory would need its bindings, storage and
+  editor surface too, and that decision must not be made quietly. Enum values were
+  already in the ABI layout hash, so marking them was enough to put them behind
+  the `connect()` handshake. `ABI_LAYOUT_HASH` changes: rebuild the engine.
+
+  Two things had to be fixed for an enum to live anywhere. The generated binding
+  derived its `#include` list from **components**, so an enum declared away from
+  one was registered by a C++ type the translation unit could not name — a latent
+  build break for any such enum, now that one exists. And `TweenTarget`'s C++
+  members were renamed to the SDK's shorter spelling (`PositionX`, not
+  `TransformPositionX`) so one vocabulary serves both sides; the values, which are
+  the contract, are unchanged. The dead `COUNT` sentinels went with it — nothing
+  in C++ read them, and a generated member that is not a target is a value the
+  boundary invites you to send.
+
+  The pins in `cpp-contract.test.ts` become identity pins, the idiom the other
+  fifteen generated enums already use: same-values-different-object is the drift a
+  re-export eliminates, and only `toBe` sees it.
+
 - **A recursive delete on Windows now retries, so the temp-tree flake is gone.**
   Deleting on Windows is not synchronous at the filesystem level: an unlinked file
   sits in a pending-delete state with its directory entry still there, so the
