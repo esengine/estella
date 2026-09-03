@@ -11,20 +11,20 @@
  * other rather than disagreeing quietly.
  */
 
-/** C++ `CHUNK_SIZE` in `D:/estella/src/esengine/tilemap/TilemapSystem.hpp`. */
+/** C++ `CHUNK_SIZE` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const CHUNK_SIZE = 16;
 
-/** C++ `kColorLutSize` in `D:/estella/src/esengine/particle/ParticleSystem.hpp`. */
+/** C++ `kColorLutSize` in `src/esengine/particle/ParticleSystem.hpp`. */
 export const GRADIENT_LUT_SIZE = 32;
 
-/** C++ `TILE_FLIP_D` in `D:/estella/src/esengine/tilemap/TilemapSystem.hpp`. */
+/** C++ `TILE_FLIP_D` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_FLIP_D = 0x8000;
 
-/** C++ `TILE_FLIP_H` in `D:/estella/src/esengine/tilemap/TilemapSystem.hpp`. */
+/** C++ `TILE_FLIP_H` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_FLIP_H = 0x2000;
 
-/** C++ `TILE_FLIP_V` in `D:/estella/src/esengine/tilemap/TilemapSystem.hpp`. */
+/** C++ `TILE_FLIP_V` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_FLIP_V = 0x4000;
 
-/** C++ `TILE_ID_MASK` in `D:/estella/src/esengine/tilemap/TilemapSystem.hpp`. */
+/** C++ `TILE_ID_MASK` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_ID_MASK = 0x1fff;

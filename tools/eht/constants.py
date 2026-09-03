@@ -26,6 +26,26 @@ class Constant(NamedTuple):
     header: str
 
 
+#: The repository the generator and the headers it scans both live in.
+_REPO = Path(__file__).resolve().parents[2]
+
+
+def _cite(header: Path) -> str:
+    """Where a reader finds the declaration, named from the repository root.
+
+    The absolute path of whichever machine generated last is not a citation: it
+    is a whole-file diff for everyone else, and it turns any regenerate-and-
+    compare check into a report about the host rather than about the code. So an
+    unciteable header is a failure, not a fallback to the absolute path.
+    """
+    try:
+        return header.resolve().relative_to(_REPO).as_posix()
+    except ValueError:
+        raise SystemExit(
+            f"[FAIL] ES_CONST: {header} is outside {_REPO}, so the generated file "
+            "cannot cite it by a name every machine agrees on.")
+
+
 #: `ES_CONST(attrs)` then a `constexpr` integer on the following line(s).
 _DECL = re.compile(
     r'ES_CONST\(([^)]*)\)\s*'
@@ -63,7 +83,7 @@ def parse_constants(roots: List[Path]) -> List[Constant]:
                     ts_name=attrs.get('ts', m.group(2)),
                     value=int(m.group(3), 0),
                     hex='hex' in attrs,
-                    header=header.as_posix(),
+                    header=_cite(header),
                 ))
     _refuse_duplicates(out)
     return sorted(out, key=lambda c: c.ts_name)

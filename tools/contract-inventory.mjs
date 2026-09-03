@@ -171,6 +171,28 @@ for (const [p, why] of Object.entries(NOT_CONTRACT)) {
     if (!existsSync(path.join(ROOT, p))) findings.push(`NOT_CONTRACT names ${p}, which is gone — ${why}`);
 }
 
+/**
+ * A derivation of an authority and of NOTHING ELSE — least of all of the
+ * machine that ran the generator. `constants.generated.ts` shipped citing
+ * `D:/estella/...`: every rebuild elsewhere rewrote all six lines, and a
+ * regenerate-and-compare over it would have reported the host, not the code.
+ */
+const MACHINE_PATH = /(?:^|[^A-Za-z0-9_])(?:[A-Za-z]:[\\/](?:Users|home|dev|estella)|\/(?:Users|home)\/[A-Za-z0-9._-]+\/)/;
+for (const g of generated) {
+    let text;
+    try {
+        text = read(g);
+    } catch {
+        continue;
+    }
+    const line = text.split('\n').findIndex((l) => MACHINE_PATH.test(l));
+    if (line >= 0) {
+        findings.push(`GROUND: ${g}:${line + 1} carries an absolute path from the machine that`
+            + ' generated it. A generated artifact must come out the same on every checkout,'
+            + ' or its diff reports the host.');
+    }
+}
+
 // ── Ground: every hand-copied cross-language pin belongs to a fact ────────────
 const PIN_FILE = 'sdk/tests/cpp-contract.test.ts';
 if (existsSync(path.join(ROOT, PIN_FILE))) {
