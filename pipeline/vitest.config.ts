@@ -15,5 +15,8 @@ export default defineConfig({
     // Cook and export shell out and touch temp directories.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // The native AOT build needs a C compiler; a run without one must declare
+    // it rather than skip. See globalSetup.ts.
+    globalSetup: ['tests/globalSetup.ts'],
   },
 });

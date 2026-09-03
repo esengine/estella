@@ -45,6 +45,22 @@ const SUITES = !argv.includes('--no-suites');
  * leaving 0 — so the nightly read 69/69 green as an answer about 80.
  */
 const COMPLETE = argv.includes('--complete');
+
+/**
+ * What a caller has DECLARED this run cannot cover. Declaring is the honest way
+ * to run without a capability — the suite refuses to start otherwise — but it is
+ * still a hole, and one only the summary knew about.
+ */
+const GAPS = [
+  { env: 'SDK_TEST_MODE', value: 'no-wasm', says: 'sdk-tests did NOT cover the engine boundary' },
+  {
+    env: 'ESTELLA_NO_HOST_CC',
+    value: '1',
+    says: 'no C compiler — the emitted C was NOT compared against the interpreter,'
+      + ' and the ABI struct checks were not compiled',
+  },
+];
+const declared = GAPS.filter((g) => process.env[g.env] === g.value);
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES });
 const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
 /** Suites this run is not paying for — named, never silently absent. */
@@ -74,9 +90,7 @@ function reportSuites() {
   if (suites.length) console.log(`  test suites run: ${suites.map((g) => g.id).join(', ')}`);
   // A declared profile narrows what a suite covered, and the summary is where
   // that has to be said — otherwise "green" quietly means "green minus 300".
-  if (process.env.SDK_TEST_MODE === 'no-wasm') {
-    console.log('  SDK_TEST_MODE=no-wasm — sdk-tests did NOT cover the engine boundary');
-  }
+  for (const g of declared) console.log(`  ${g.env}=${g.value} — ${g.says}`);
   const unrun = noEditor.filter((g) => g.covers?.length);
   if (unrun.length) {
     console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);
@@ -125,9 +139,15 @@ for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`
 // A gate narrowed to another scope is owned there and is not this run's hole;
 // one dropped for a missing checkout or an unpaid minute is exactly that.
 if (COMPLETE) {
-  const absent = [...noEditor, ...unpaid];
-  if (absent.length) {
-    console.error(`\n${absent.length} declared gate(s) never ran here: ${absent.map((g) => g.id).join(', ')}`);
+  // A declaration is not permission: it is the same hole as a missing checkout,
+  // said out loud instead of found. Printing it while exiting 0 is the shape
+  // check-unanswered-exits refuses of every verifier but this one.
+  const holes = [
+    ...[...noEditor, ...unpaid].map((g) => g.id),
+    ...declared.map((g) => `${g.env}=${g.value}`),
+  ];
+  if (holes.length) {
+    console.error(`\n${holes.length} declared gate(s) or capability gap(s) never ran here: ${holes.join(', ')}`);
     console.error('  --complete was asked for, so this cannot say the list is green.');
     process.exit(2);
   }

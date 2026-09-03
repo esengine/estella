@@ -156,13 +156,11 @@ export const FACTS = [
             // The half that needs no compiler: every constant the C half emits
             // is the author's, in the author's order.
             { path: 'compiler/tests/exact-trig.test.ts', how: 'test', probe: /authored order/ },
+            // A differential that did not run is not a verification: the suite
+            // proves the machine can compile, or the run declares it cannot.
+            { path: 'compiler/tests/globalSetup.ts', how: 'test', probe: /proveHostCC\(/ },
         ],
         digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /trig=/ },
-        owed: 'the constants are one author and therefore in the digest, but the STRUCTURE'
-            + ' is still written twice and only the differential compares it — and that'
-            + ' needs a host C compiler. A checkout without one holds the reduction, the'
-            + ' quadrant table and the Horner order against nothing, and says so in a'
-            + ' warning inside a test that passes.',
     },
     {
         id: 'tweenWireEnums',

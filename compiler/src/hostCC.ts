@@ -63,3 +63,27 @@ export function findHostCC(): string | null {
     }
     return null;
 }
+
+/** How a checkout with no compiler says so, rather than skipping in silence. */
+export const NO_HOST_CC = 'ESTELLA_NO_HOST_CC';
+
+/**
+ * Prove the machine can compile before a suite claims to have compared
+ * anything. The differentials are the only thing holding the C half of the ABI
+ * to the TypeScript, so a run either has a compiler or declares that it has
+ * none — a skip nobody declared reads exactly like a test that ran.
+ */
+export function proveHostCC(suite: string): void {
+    if (findHostCC()) return;
+    if (process.env[NO_HOST_CC] === '1') {
+        console.warn(`\n[${suite}] ${NO_HOST_CC}=1 — nothing that needs a C compiler ran.\n`
+            + '            This run does not compare the emitted C against the interpreter,\n'
+            + '            and does not compile the ABI struct checks.\n');
+        return;
+    }
+    throw new Error(
+        'no C compiler on PATH (tried clang, gcc, cc).\n'
+        + '  The differentials need one, and skipping them would report a partial run as a\n'
+        + `  clean one. Install one, or declare the gap with ${NO_HOST_CC}=1 — which the\n`
+        + '  gate runner then counts as something this machine could not answer.');
+}

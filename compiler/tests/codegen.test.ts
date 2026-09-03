@@ -319,18 +319,10 @@ const same = (a: AbiMemory, b: AbiMemory): boolean =>
 
 // =============================================================================
 
-describe('the emitted C says what the interpreter says', () => {
-    it('reports whether this gate could run at all', () => {
-        // Not a skip: a missing compiler means the differential did not happen,
-        // and a suite that stays silent about that is reporting a green it did
-        // not earn.
-        if (CC) console.log(`[codegen] the differential ran against ${CC}`);
-        else console.warn('[codegen] NO C COMPILER ON PATH — the differential did NOT run.');
-        expect(true).toBe(true);
-    });
-
-    if (!CC) return;
-
+// Skipped, never RETURNED from: an early return left these thirteen tests
+// unregistered, so a machine with no compiler reported a smaller suite passing
+// rather than a suite it could not run. globalSetup owns the announcement.
+describe.skipIf(!CC)('the emitted C says what the interpreter says', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'estella-aot-'));
 
     it('MoveSystem: the whole image agrees with the interpreter, and both with node', () => {

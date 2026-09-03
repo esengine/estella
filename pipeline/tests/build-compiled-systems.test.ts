@@ -344,10 +344,6 @@ describe('the AOT build step', () => {
  * C at the other width, since the header picks the typedef.
  */
 describe('the AOT build step, for a host that loads a library', () => {
-  it('reports whether this gate could run at all', () => {
-    if (!HOST_CC) console.warn('[aot-native] NO HOST C COMPILER — the native build did NOT run.');
-  });
-
   it.skipIf(!HOST_CC)('builds a library named for this platform, and a manifest for it', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
     const out = await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });

@@ -54,10 +54,6 @@ function bitsOf(x: number): string {
 }
 
 describe('the engine\'s trigonometry, on both sides of the compiler', () => {
-    it('reports whether this gate could run at all', () => {
-        if (!CC) console.warn('[exact-trig] NO C COMPILER — the comparison did NOT run.');
-    });
-
     it.skipIf(!CC)('answers the same bits in C as in TypeScript', () => {
         const dir = mkdtempSync(join(tmpdir(), 'estella-trig-'));
         mkdirSync(dir, { recursive: true });
