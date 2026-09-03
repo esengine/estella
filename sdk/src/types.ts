@@ -5,6 +5,8 @@
  * @brief   Core type definitions for ESEngine SDK
  */
 
+import { ENTITY_INDEX_BITS, ENTITY_GEN_BITS } from './wasm/entityLayout.generated';
+
 // =============================================================================
 // Entity
 // =============================================================================
@@ -29,11 +31,12 @@
 export type Entity = number;
 
 /**
- * Bit widths of the packed Entity representation. MUST match the C++ split
- * (`PackedId<22, 10>` via `Entity::Layout` in core/Types.hpp / PackedId.hpp).
+ * Bit widths of the packed Entity representation, from the C++ `Entity::Layout`
+ * that owns them — EHT reads the header, so this is not a second answer. The
+ * split is in the ABI layout hash, so a WASM binary and an SDK bundle built from
+ * different ones refuse each other rather than decoding each other's handles.
  */
-export const ENTITY_INDEX_BITS = 22;
-export const ENTITY_GEN_BITS = 10;
+export { ENTITY_INDEX_BITS, ENTITY_GEN_BITS };
 /** Number of representable indices (2^INDEX_BITS) — used for overflow-safe packing. */
 const ENTITY_INDEX_COUNT = 2 ** ENTITY_INDEX_BITS;
 export const ENTITY_INDEX_MASK = ENTITY_INDEX_COUNT - 1;

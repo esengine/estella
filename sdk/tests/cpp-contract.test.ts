@@ -149,8 +149,9 @@ describe('C++ contract: particle color LUT (particle/ParticleSystem.hpp)', () =>
 
 describe('C++ contract: packed Entity bit split (core/Types.hpp)', () => {
     it('ENTITY_INDEX_BITS / ENTITY_GEN_BITS === PackedId<index, gen>', () => {
-        // Entity handles cross the boundary as a raw u32; the wrong split silently
-        // mis-decodes index/generation -> stale-handle detection breaks.
+        // The split is GENERATED from this header now, so what this catches is a
+        // checked-in projection gone stale — read with a SECOND parser, so an
+        // extraction bug is a disagreement rather than a plausible number.
         const m = /PackedId<\s*(\d+)\s*,\s*(\d+)\s*>/.exec(stripComments(readCpp('core/Types.hpp')));
         if (!m) throw new Error('C++ Entity::Layout PackedId<index, gen> not found');
         expect([ENTITY_INDEX_BITS, ENTITY_GEN_BITS]).toEqual([Number(m[1]), Number(m[2])]);

@@ -35,7 +35,11 @@ export async function runEht(options = {}) {
         const cache = new HashCache(config.paths.cache);
         await cache.load();
 
-        const allFiles = [script, ...generatorFiles, ...componentFiles];
+        // The entity split comes from core/Types.hpp, which is NOT under the
+        // component directory — leaving it out means editing the split and being
+        // told "no changes detected", with the old split still in the hash.
+        const entityHeader = path.join(rootDir, config.eht.entityHeader);
+        const allFiles = [script, entityHeader, ...generatorFiles, ...componentFiles];
         const currentHash = await hashFiles(allFiles);
 
         if (!await cache.isChanged('eht', currentHash)) {
@@ -117,6 +121,9 @@ async function executeEht(rootDir, script) {
     await runCommand(python, [
         script,
         '--input', path.join(rootDir, config.eht.inputDir),
+        // Passed rather than left to the generator's default: the path the cache
+        // hashes and the path the generator reads must be one path.
+        '--entity-header', path.join(rootDir, config.eht.entityHeader),
         '--output', outputDir,
         '--ts-output', tsOutputDir,
     ], {

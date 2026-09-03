@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .parser import CppParser
 from .abi import compute_abi_hash
+from .entity_layout import parse_entity_layout, generate_ts as generate_entity_ts
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
     PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator, AotComponentsGenerator,
@@ -77,6 +78,9 @@ def main() -> int:
                         help='Output directory for C++ bindings')
     parser.add_argument('--ts-output', type=Path, default=Path('sdk'),
                         help='Output directory for TypeScript')
+    parser.add_argument('--entity-header', type=Path,
+                        default=Path('src/esengine/core/Types.hpp'),
+                        help='Header declaring Entity::Layout = PackedId<index, gen>')
     parser.add_argument('--verbose', '-v', action='store_true')
     # Opt-in native (QuickJS) bindings. Off by default so the standard EHT run and
     # its committed *.generated.* files are unchanged; a native build passes this
@@ -163,8 +167,12 @@ def main() -> int:
     # Compute pointer layouts and the ABI hash first; both the C++ bindings and
     # the TS metadata embed the same hash so connect() can verify they match.
     ptr_gen = PtrLayoutGenerator(cpp_parser.components, cpp_parser.enums)
+    # The entity split is a boundary fact with the same failure mode as an
+    # offset — a handle that decodes to another entity — so it is in the hash.
+    entity = parse_entity_layout(args.entity_header)
+    print(f"Entity layout: index={entity[0]} gen={entity[1]}")
     abi_hash = compute_abi_hash(
-        cpp_parser.components, cpp_parser.enums, ptr_gen.layouts
+        cpp_parser.components, cpp_parser.enums, ptr_gen.layouts, entity
     )
     print(f"ABI layout hash: {abi_hash}")
 
@@ -227,6 +235,9 @@ def main() -> int:
     # ── Component Metadata ──
     meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums, abi_hash=abi_hash)
     write_ts('ecs/component.generated.ts', meta_gen.generate())
+
+    # ── Entity split ──
+    write_ts('wasm/entityLayout.generated.ts', generate_entity_ts(*entity))
 
     # ── Pointer Layouts & Accessors ──
     write_ts('wasm/ptrLayouts.generated.ts', ptr_gen.generate())

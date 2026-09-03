@@ -125,17 +125,15 @@ export const FACTS = [
         what: 'How an entity handle packs an index and a generation into one u32.',
         surface: 'runtime-wasm-abi',
         authors: [
-            { path: 'sdk/src/types.ts', probe: /export const ENTITY_INDEX_BITS/, kind: 'semantic' },
             { path: 'src/esengine/core/Types.hpp', probe: /using Layout = PackedId</, kind: 'semantic' },
         ],
-        projections: [],
+        projections: ['sdk/src/wasm/entityLayout.generated.ts'],
         verification: [
+            // A SECOND reader of the same header: its own regex against EHT's
+            // parser. Not the projection checking itself — two code paths.
             { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /packed Entity bit split/ },
         ],
-        digest: null,
-        owed: 'no digest covers it: the split crosses as a bare u32, so a mismatch is a decoded'
-            + ' handle pointing at another entity rather than a refusal. The test parses the'
-            + ' header, which is a binding but not a handshake.',
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/abi.py', probe: /ENTITY index=/ },
     },
     {
         id: 'mathPolicy',

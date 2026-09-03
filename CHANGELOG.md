@@ -49,6 +49,31 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The entity split had two authors and no handshake.** A handle crosses the
+  boundary as a bare `u32`, so a side that disagrees about where the index ends
+  does not fail — it decodes to **another entity's** index and the frame is merely
+  wrong. That has happened: `installNativeAot` assembled a 20-bit mask by hand
+  against a 22-bit truth, and every world over 2^20 entities read one component
+  off another entity's row.
+
+  `22` was written in `sdk/src/types.ts` and again as `PackedId<22, 10>` in
+  `core/Types.hpp`, tied only by a test that parses the header. EHT now reads
+  `Entity::Layout` and emits `sdk/src/wasm/entityLayout.generated.ts`, so the C++
+  header is the one author and `types.ts` re-exports. **The split is in the ABI
+  layout hash**, which means a WASM binary and an SDK bundle built from different
+  splits refuse each other at `connect()` instead of decoding each other's
+  handles. `ABI_LAYOUT_HASH` therefore changes: rebuild the engine.
+
+  Not found is a failure, never a default — a fallback would emit a plausible
+  split from a header it could not read, which is the one outcome worse than
+  stopping. And `core/Types.hpp` joins EHT's cache inputs: it is not under the
+  component directory, so without that, editing the split is answered with "no
+  changes detected" and the old split stays in the hash.
+
+  `cpp-contract.test.ts` keeps its pin with a changed job: it reads the header
+  with a second parser, so what it now catches is a checked-in projection gone
+  stale, or an extraction bug — rather than a plausible number nobody re-derived.
+
 - **The engine's specified arithmetic was in no digest, so a module built against
   a different polynomial loaded.** The AOT subset SPECIFIES `sin` and `cos`,
   because ECMAScript does not, and a compiled module carries its own copy of that

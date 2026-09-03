@@ -7,6 +7,10 @@ SDK compares the two: a mismatch means the loaded WASM binary and the shipped SD
 were generated from different schemas, so the pointer offsets the SDK uses would
 read the wrong bytes. Refusing to run is the only safe response.
 
+The entity split is in here for the same reason the offsets are: a handle is a
+bare u32, so two sides that disagree about where the index ends decode each
+other's handles rather than refusing.
+
 This is the runtime half of the keystone. The compile-time half is the generated
 `static_assert(offsetof(...))` block, which proves EHT's computed offsets equal
 the real compiler layout. Together: TS offset == EHT offset == compiler offset,
@@ -14,19 +18,19 @@ and the loaded WASM's schema == the SDK's schema.
 """
 
 import hashlib
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from .data import Component, Enum
 
 
 def _canonical(components: List[Component], enums: List[Enum],
-               layouts: List[Dict]) -> str:
+               layouts: List[Dict], entity: Tuple[int, int]) -> str:
     """Build an order-independent canonical description of the boundary ABI.
 
     Components/enums/layouts are sorted by name so the hash is stable regardless
     of filesystem glob order (which is not guaranteed across machines).
     """
-    parts: List[str] = []
+    parts: List[str] = [f'ENTITY index={entity[0]} gen={entity[1]}']
 
     for enum in sorted(enums, key=lambda e: e.name):
         vals = ','.join(enum.values)
@@ -46,7 +50,7 @@ def _canonical(components: List[Component], enums: List[Enum],
 
 
 def compute_abi_hash(components: List[Component], enums: List[Enum],
-                     layouts: List[Dict]) -> str:
+                     layouts: List[Dict], entity: Tuple[int, int]) -> str:
     """Return a stable 16-hex-char digest of the boundary ABI."""
-    canonical = _canonical(components, enums, layouts)
+    canonical = _canonical(components, enums, layouts, entity)
     return hashlib.sha1(canonical.encode('utf-8')).hexdigest()[:16]

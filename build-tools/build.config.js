@@ -213,6 +213,7 @@ export default {
 
     eht: {
         inputDir: 'src/esengine/ecs/components',
+        entityHeader: 'src/esengine/core/Types.hpp',
         outputDir: 'src/esengine/bindings',
         tsOutputDir: 'sdk/src',
         script: 'tools/eht.py',
