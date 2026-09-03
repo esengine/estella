@@ -247,10 +247,10 @@ export async function emitAndroidGradleProject(contentDir, app, sources, icon) {
     // The generated half is rewritten wholesale so a re-export cannot inherit the
     // last one's assets, libraries or manifest. The build scripts are not in here:
     // they are the half the user owns.
-    await rm(path.join(mainDir, 'assets'), { recursive: true, force: true });
-    await rm(path.join(mainDir, 'jniLibs'), { recursive: true, force: true });
-    await rm(path.join(mainDir, 'java'), { recursive: true, force: true });
-    await rm(path.join(mainDir, 'res'), { recursive: true, force: true });
+    await rm(path.join(mainDir, 'assets'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(path.join(mainDir, 'jniLibs'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(path.join(mainDir, 'java'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(path.join(mainDir, 'res'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
     await mkdir(assetsDir, { recursive: true });
     for (const entry of exported) {

@@ -60,7 +60,7 @@ describe('source maps in a web package', () => {
       // Stripping the comment is all it does to the script.
       expect(readFileSync(path.join(f.out, 'sdk', 'index.js'), 'utf8')).toContain('export const x = 1;');
       expect(existsSync(path.join(f.out, 'game.js.map'))).toBe(false);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('ships them when the build asks for them', async () => {
@@ -73,6 +73,6 @@ describe('source maps in a web package', () => {
       expect(readFileSync(path.join(f.out, 'sdk', 'index.js'), 'utf8')).toContain('sourceMappingURL');
       // The export's own bundles answer the same question the same way.
       expect(existsSync(path.join(f.out, 'game.js.map'))).toBe(true);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 });

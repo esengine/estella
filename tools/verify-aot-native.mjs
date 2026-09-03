@@ -108,5 +108,5 @@ try {
   }
   console.log(`✓ aot native: ${installed[1]} installed, ${running[1]} running compiled, and it drew`);
 } finally {
-  rmSync(out, { recursive: true, force: true });
+  rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }

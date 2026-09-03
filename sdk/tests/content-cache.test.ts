@@ -77,7 +77,7 @@ describe('node adapter disk cache (real filesystem)', () => {
     beforeEach(() => { process.env.ESENGINE_CACHE_DIR = dir; });
     afterEach(async () => {
         delete process.env.ESENGINE_CACHE_DIR;
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     });
 
     it('round-trips bytes through the filesystem, misses on an absent key', async () => {

@@ -353,7 +353,7 @@ export async function exportPlayable(opts: {
   const outFile = path.join(absOut, 'index.html');
   span('game-bundle.js', bundle);
   await writeFile(outFile, indexHtml(title, globals, bundle, network));
-  await rm(cookDir, { recursive: true, force: true });
+  await rm(cookDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
   const htmlBytes = (await stat(outFile)).size;
   // The page, plus the JSON scaffolding around the spans. Derived rather than

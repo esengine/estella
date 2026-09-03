@@ -57,7 +57,7 @@ try {
 } catch (e) {
     console.error('EHT failed to generate the native entry-point bindings:');
     console.error(String(e.stderr || e.stdout || e.message));
-    rmSync(out, { recursive: true, force: true });
+    rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     process.exit(1);
 }
 
@@ -69,7 +69,7 @@ const includes = [...text.matchAll(/^#include\s+"([^"]+)"/gm)].map((m) => m[1])
 for (const inc of includes) {
     if (!existsSync(path.join(SRC, inc))) fail(`generated #include does not resolve: ${inc}`);
 }
-rmSync(out, { recursive: true, force: true });
+rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
 if (failed) process.exit(1);
 console.log(`native bindings OK: ${abs.length} headers, ${includes.length} generated include(s) resolve.`);

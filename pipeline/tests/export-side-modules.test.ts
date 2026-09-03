@@ -73,14 +73,14 @@ describe('web package side modules', () => {
       expect(existsSync(path.join(f.out, 'wasm', 'esengine.wasm'))).toBe(true);
       expect(existsSync(path.join(f.out, 'wasm', 'esengine.js'))).toBe(true);
       expect(existsSync(path.join(f.out, 'wasm', 'wasm.manifest.json'))).toBe(true);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('carries the 2D solver for a scene with a body', async () => {
     const f = setup({ version: '1.0', name: 'Main', entities: entities({ type: 'RigidBody2D', data: { bodyType: 1 } }) });
     try {
       expect(shipped((await run(f), f.out))).toEqual(['physics']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('carries the 2D solver a project declares but no scene uses', async () => {
@@ -88,7 +88,7 @@ describe('web package side modules', () => {
     try {
       await run(f, runtimeConfigOf({ features: { physics: { enabled: true } } }));
       expect(shipped(f.out)).toEqual(['physics']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('carries the 3D solver for a 3D body, and never implies it from the 2D flag', async () => {
@@ -96,7 +96,7 @@ describe('web package side modules', () => {
     try {
       await run(f);
       expect(shipped(f.out)).toEqual(['physics3d']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   // Joints and mesh colliders are 3D physics components like the bodies are;
@@ -106,7 +106,7 @@ describe('web package side modules', () => {
     try {
       await run(f);
       expect(shipped(f.out)).toEqual(['physics3d']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('carries the 3D solver for a mesh collider', async () => {
@@ -114,7 +114,7 @@ describe('web package side modules', () => {
     try {
       await run(f);
       expect(shipped(f.out)).toEqual(['physics3d']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   // The runtime expands prefabs before it asks whether the scene needs physics,
@@ -135,7 +135,7 @@ describe('web package side modules', () => {
       const res = await run(f);
       expect(res.errors).toEqual([]);
       expect(shipped(f.out)).toEqual(['physics']);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 
   it('fails the export when the content needs a module the wasm dir has not built', async () => {
@@ -145,6 +145,6 @@ describe('web package side modules', () => {
       const res = await run(f);
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/physics3d/);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);
 });

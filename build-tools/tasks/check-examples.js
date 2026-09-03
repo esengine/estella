@@ -56,11 +56,11 @@ function setupTypeLinks(exampleDir, rootDir) {
     // would silently shadow current SDK types (checks would fail — or pass —
     // against an old API). The mirror is a disposable cache; the editor
     // re-stages it on the next open.
-    rmSync(sdkLink, { recursive: true, force: true });
+    rmSync(sdkLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     symlinkSync(sdkDist, sdkLink, LINK_TYPE);
 
     if (existsSync(editorDist)) {
-        rmSync(editorLink, { recursive: true, force: true });
+        rmSync(editorLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         symlinkSync(editorDist, editorLink, LINK_TYPE);
     }
 }

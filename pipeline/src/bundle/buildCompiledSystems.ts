@@ -269,7 +269,7 @@ export async function buildCompiledSystems(
   const c = emitC(lowered.module, layout, inlined, plan.addressBytes);
 
   const dir = path.join(root, CACHE_DIR);
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, 'estella_abi.h'), c.header);
   writeFileSync(path.join(dir, 'estella_offsets.h'), c.offsets);

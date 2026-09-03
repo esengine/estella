@@ -129,7 +129,7 @@ export function installNativeTemplate(zipPath: string, engineVersion: string): I
         }
 
         const dest = installedTemplateDir(manifest.engineVersion, manifest.platform, store);
-        rmSync(dest, { recursive: true, force: true });
+        rmSync(dest, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         mkdirSync(path.dirname(dest), { recursive: true });
         renameSync(staging, dest);
         return {
@@ -142,7 +142,7 @@ export function installNativeTemplate(zipPath: string, engineVersion: string): I
     } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
     } finally {
-        rmSync(staging, { recursive: true, force: true });
+        rmSync(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 }
 
@@ -236,7 +236,7 @@ async function downloadFrom(
     } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
     } finally {
-        rmSync(staging, { recursive: true, force: true });
+        rmSync(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 }
 
@@ -245,6 +245,6 @@ async function downloadFrom(
 export function removeNativeTemplate(platform: TemplatePlatform, engineVersion: string): boolean {
     const dir = installedTemplateDir(engineVersion, platform);
     if (!readTemplateManifest(dir)) return false;
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     return true;
 }

@@ -40,7 +40,7 @@ for (const name of ['esengine.js', 'esengine.wasm']) writeFileSync(path.join(was
 function fail(message, detail) {
   console.error(`check-headless-export: ${message}`);
   if (detail) console.error(detail);
-  rmSync(work, { recursive: true, force: true });
+  rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   process.exit(1);
 }
 
@@ -63,5 +63,5 @@ if (!result.ok) fail('the export reported failure.', result.errors?.join('\n'));
 const missing = EXPECTED.filter((name) => !existsSync(path.join(out, name)));
 if (missing.length > 0) fail(`the package is missing ${missing.join(', ')}.`);
 
-rmSync(work, { recursive: true, force: true });
+rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 console.log(`check-headless-export: ${path.basename(PROJECT)} packaged for web from the command line — ${EXPECTED.length} artifact(s) present.`);

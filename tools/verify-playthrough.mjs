@@ -47,7 +47,7 @@ if (!existsSync(ROUTE)) {
   process.exit(2);
 }
 
-rmSync(WORK, { recursive: true, force: true });
+rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 mkdirSync(WORK, { recursive: true });
 const out = path.join(WORK, PROJECT);
 
@@ -76,7 +76,7 @@ const played = retryOnDeadGpu(() => {
 }, (died) => console.log(`↻ ${PROJECT} — ${died
   ? 'the GPU went away under the walk' : 'no frame after a GPU death'}; walking again`));
 for (const line of (played.stdout || '').split('\n')) if (line.trim()) console.log(line);
-if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true });
+if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 if (!played.ok) {
   console.error(played.launchFailed ? `✗ ${launchNeverHappenedVerdict('the walk')}`
     : played.gpuDied ? `✗ ${deadGpuVerdict('the route')}`

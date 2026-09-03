@@ -72,7 +72,7 @@ export async function compileJavaShim(outDir, { sdk, androidPlatform, jdk, root 
         .filter((f) => String(f).endsWith('.class'))
         .map((f) => path.join(classes, String(f)));
     await runCommand(buildTool(sdk, 'd8'), ['--lib', platformJar(sdk, androidPlatform), '--output', outDir, ...classFiles]);
-    await rm(classes, { recursive: true, force: true });
+    await rm(classes, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     return existsSync(path.join(outDir, 'classes.dex'));
 }
 
@@ -160,7 +160,7 @@ export async function emitNativeTemplate(options) {
         .filter((e) => e.abi === abi)
         .map((e) => ({ rel: e.rel, data: readFileSync(path.join(dir, e.rel)) })) }));
 
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await mkdir(dir, { recursive: true });
     for (const { files } of carry) {
         for (const file of files) {

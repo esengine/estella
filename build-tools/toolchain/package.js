@@ -103,7 +103,7 @@ function resolveTemplate(str, vars) {
 async function packageEngineSource(manifest) {
     const engineSrcDir = path.join(OUTPUT_DIR, 'engine-src');
     if (fs.existsSync(engineSrcDir)) {
-        await rm(engineSrcDir, { recursive: true, force: true });
+        await rm(engineSrcDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
     await mkdir(engineSrcDir, { recursive: true });
 
@@ -212,7 +212,7 @@ async function packageCmake(manifest) {
         log('Extracting cmake...');
 
         if (fs.existsSync(cmakeDir)) {
-            await rm(cmakeDir, { recursive: true, force: true });
+            await rm(cmakeDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
         await mkdir(path.join(cmakeDir, 'bin'), { recursive: true });
 
@@ -254,7 +254,7 @@ async function packageCmake(manifest) {
         const cmakeSize = await dirSize(cmakeDir);
         log(`  cmake size: ${formatSize(cmakeSize)}`);
     } finally {
-        await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+        await rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }).catch(() => {});
     }
 }
 

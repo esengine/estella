@@ -41,7 +41,7 @@ function canSymlinkFiles(): boolean {
   } catch {
     return false;
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }
 
@@ -99,7 +99,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
       expect(paths).not.toContain('assets/textures/adopted.png');
       expect(paths).not.toContain('assets/textures/sidecar.png');
     } finally {
-      rmSync(base, { recursive: true, force: true });
+      rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -114,7 +114,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
       const { index } = await scanAssetDatabase(root, { write: false, adopt: true });
       expect(index.entries.map((e) => e.path).some((p) => p.includes('deep'))).toBe(false);
     } finally {
-      rmSync(base, { recursive: true, force: true });
+      rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -136,7 +136,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
       const manifest = path.join(out, 'assets.manifest.json');
       if (existsSync(manifest)) expect(readFileSync(manifest, 'utf8')).not.toContain(SECRET);
     } finally {
-      rmSync(base, { recursive: true, force: true });
+      rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -153,7 +153,7 @@ describe('a link out of the project reaches neither the index nor the build', ()
       expect(paths).toContain('assets/textures/real.png');
       expect(paths).toContain('assets/textures/alias.png');
     } finally {
-      rmSync(base, { recursive: true, force: true });
+      rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });

@@ -191,7 +191,7 @@ function main() {
         // Create a temporary symlink/junction with the archive name
         const tmpLink = path.join(path.dirname(emsdkPath), archiveName);
         try {
-            if (fs.existsSync(tmpLink)) fs.rmSync(tmpLink, { recursive: true });
+            if (fs.existsSync(tmpLink)) fs.rmSync(tmpLink, { recursive: true, maxRetries: 10, retryDelay: 50 });
             execSync(`mklink /J "${tmpLink}" "${emsdkPath}"`, { shell: 'cmd', stdio: 'pipe' });
         } catch {
             // Fallback: just use the directory name
@@ -226,7 +226,7 @@ function main() {
         const tmpLink = path.join(path.dirname(emsdkPath), archiveName);
         let srcDir = archiveName;
         try {
-            if (fs.existsSync(tmpLink)) fs.rmSync(tmpLink, { recursive: true, force: true });
+            if (fs.existsSync(tmpLink)) fs.rmSync(tmpLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
             fs.symlinkSync(emsdkPath, tmpLink);
         } catch {
             srcDir = path.basename(emsdkPath);
@@ -239,7 +239,7 @@ function main() {
         );
 
         if (fs.existsSync(tmpLink) && tmpLink !== emsdkPath) {
-            fs.rmSync(tmpLink, { recursive: true, force: true });
+            fs.rmSync(tmpLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
 
         const stat = fs.statSync(outFile);

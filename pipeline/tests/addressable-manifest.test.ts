@@ -46,7 +46,7 @@ describe('buildAddressableManifest — texture import settings', () => {
     dir = await mkdtemp(path.join(tmpdir(), 'estella-manifest-'));
   });
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 
   const build = async (entries: unknown[]): Promise<AddressableManifest> => {

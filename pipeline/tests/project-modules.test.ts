@@ -43,7 +43,7 @@ async function writeModule(id: string, opts: {
 }
 
 beforeEach(async () => { root = await mkdtemp(path.join(tmpdir(), 'es-modules-')); });
-afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+afterEach(async () => { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
 describe('discovery', () => {
   it('finds nothing in a project that declares nothing', async () => {
@@ -87,7 +87,7 @@ describe('discovery', () => {
   it('lets a project vendor use its own directory, else the wechat build', async () => {
     await writeModule('rive', { builds: { wechat: ['rive.js'], 'acme-play': ['rive.js'] } });
     expect((await loadProjectModules(root, 'acme-play'))[0].buildDir).toContain('acme-play');
-    await rm(path.join(root, PROJECT_MODULES_DIR, 'rive', 'acme-play'), { recursive: true });
+    await rm(path.join(root, PROJECT_MODULES_DIR, 'rive', 'acme-play'), { recursive: true, maxRetries: 10, retryDelay: 50 });
     expect((await loadProjectModules(root, 'acme-play'))[0].buildDir).toContain('wechat');
   });
 });
@@ -118,7 +118,7 @@ describe('declarations', () => {
 describe('staging', () => {
   let out: string;
   beforeEach(async () => { out = await mkdtemp(path.join(tmpdir(), 'es-wasm-')); });
-  afterEach(async () => { await rm(out, { recursive: true, force: true }); });
+  afterEach(async () => { await rm(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
   it('puts glue and binary where every transport already looks', async () => {
     await writeModule('rive', { builds: { web: ['rive.js', 'rive.wasm'] } });

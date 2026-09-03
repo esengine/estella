@@ -49,6 +49,23 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A recursive delete on Windows now retries, so the temp-tree flake is gone.**
+  Deleting on Windows is not synchronous at the filesystem level: an unlinked file
+  sits in a pending-delete state with its directory entry still there, so the
+  `rmdir` that follows sees a directory that is not empty. A test that writes a
+  temp tree and removes it then fails with `ENOTEMPTY` **at random** — more often
+  on a machine with an indexer or a virus scanner — and it reads as a bug in
+  whatever ran last, which is how it costs an afternoon.
+
+  Node's `fs.rm` already carries a retry loop for exactly these errors. But
+  `maxRetries` **defaults to 0**, so every call written the obvious way has it
+  switched off, and `force: true` does not help — that suppresses `ENOENT` and
+  nothing else. There were **133 recursive removes in the engine and 76 in the
+  editor, and not one set it**. All of them do now.
+
+  `check-rm-retries` keeps it that way, and reads the editor checkout too, so the
+  next one is caught wherever it is written.
+
 - **Two more hand-copied boundary constants, and a way to stop the next one.**
   The tile cell encoding (13-bit id, three flip bits, the chunk stride) and the
   particle colour LUT size were each written once in C++ and again in TypeScript,

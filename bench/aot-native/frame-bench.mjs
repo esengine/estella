@@ -351,7 +351,7 @@ try {
         }
     }
 } finally {
-    if (!KEEP) rmSync(out, { recursive: true, force: true });
+    if (!KEEP) rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     else console.log(`\nkept: ${out}`);
 }
 

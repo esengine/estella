@@ -130,7 +130,7 @@ describe('exportGame warns about content the target cannot render', () => {
     writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   });
 
-  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   const run = (platform: 'android' | 'web', outDir: string) => exportGame({
     root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,

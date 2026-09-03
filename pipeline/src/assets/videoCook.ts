@@ -153,7 +153,7 @@ export async function transcodeVideoForWasm(
     warnings.push(`ffmpeg failed to run: ${err instanceof Error ? err.message : String(err)}`);
     return { esv: null, audio: null, warnings };
   } finally {
-    await rm(tmp, { recursive: true, force: true });
+    await rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }
 

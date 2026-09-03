@@ -81,7 +81,7 @@ export default {
   out = path.join(root, 'dist-acme');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame — a platform the project defines', () => {
   it('packages through the mini-game pipeline and joins the vendor\'s two halves', async () => {

@@ -57,7 +57,7 @@ async function loadPipeline() {
         logLevel: 'error',
     });
     const mod = await import(pathToFileURL(outfile).href);
-    return { mod, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+    return { mod, cleanup: () => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }) };
 }
 
 async function main() {
@@ -71,7 +71,7 @@ async function main() {
         if (!built.ok) throw new Error(`the AOT step refused:\n  ${built.errors.join('\n  ')}`);
         if (!built.wasmPath) throw new Error('nothing was compiled — is the @compiled marker still there?');
 
-        rmSync(OUT, { recursive: true, force: true });
+        rmSync(OUT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         mkdirSync(OUT, { recursive: true });
         copyFileSync(built.wasmPath, join(OUT, 'systems.wasm'));
         writeFileSync(join(OUT, 'systems.json'), `${JSON.stringify(built.manifest, null, 2)}\n`);

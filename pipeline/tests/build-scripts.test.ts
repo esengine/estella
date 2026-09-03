@@ -33,7 +33,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-    if (root) rmSync(root, { recursive: true, force: true });
+    if (root) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 describe('buildProjectScripts (E8-1)', () => {
@@ -87,7 +87,7 @@ describe('buildProjectScripts (E8-1)', () => {
             expect(out).toContain('DemoService'); // the package's code is IN the bundle
             expect(out).toMatch(/from\s*["']esengine["']/); // …and its engine import is not
         } finally {
-            rmSync(proj, { recursive: true, force: true });
+            rmSync(proj, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 
@@ -99,7 +99,7 @@ describe('buildProjectScripts (E8-1)', () => {
             expect(res.outputPath).toBeNull();
             expect(res.errors.join(' ')).toMatch(/entry not found/);
         } finally {
-            rmSync(empty, { recursive: true, force: true });
+            rmSync(empty, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 });

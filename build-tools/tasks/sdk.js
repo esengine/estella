@@ -105,7 +105,7 @@ async function copyDistOutputs(sdkDir, outputDir) {
     const esmDir = path.join(outputDir, 'esm');
     const cjsDir = path.join(outputDir, 'cjs');
 
-    await rm(esmDir, { recursive: true, force: true });
+    await rm(esmDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await mkdir(esmDir, { recursive: true });
     await mkdir(cjsDir, { recursive: true });
 
@@ -162,12 +162,12 @@ export async function cleanSdk() {
     const outputSdkDir = path.join(config.paths.output, 'sdk');
 
     if (existsSync(sdkDistDir)) {
-        await rm(sdkDistDir, { recursive: true, force: true });
+        await rm(sdkDistDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         logger.debug('Removed sdk/dist');
     }
 
     if (existsSync(outputSdkDir)) {
-        await rm(outputSdkDir, { recursive: true, force: true });
+        await rm(outputSdkDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         logger.debug('Removed build/sdk');
     }
 }

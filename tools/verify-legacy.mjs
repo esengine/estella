@@ -163,7 +163,7 @@ for (const { tag, id } of cases) {
       console.log(`✓ ${id} @ ${tag} — ${Object.keys(want).length} entities, every component still there`);
     }
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }
 

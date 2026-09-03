@@ -77,10 +77,10 @@ export async function emitIosXcodeProject(contentDir, app, sources, deploymentTa
 
     // Rewritten wholesale so a re-export never inherits the last one's stale
     // slices, plist or object graph.
-    await rm(projectDir, { recursive: true, force: true });
-    await rm(appDir, { recursive: true, force: true });
-    await rm(frameworkDest, { recursive: true, force: true });
-    await rm(path.join(contentDir, ICON_CATALOG), { recursive: true, force: true });
+    await rm(projectDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(appDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(frameworkDest, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(path.join(contentDir, ICON_CATALOG), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
     await cp(sources.xcframework, frameworkDest, { recursive: true });
     await mkdir(appDir, { recursive: true });

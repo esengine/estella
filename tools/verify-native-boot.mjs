@@ -734,7 +734,7 @@ function listExamples(opts) {
 function packageExample(driver, name, opts) {
     const work = path.join(ROOT, 'build', 'smoke-work', name);
     const report = path.join(work, 'export.json');
-    rmSync(work, { recursive: true, force: true });
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(work, { recursive: true });
     quietly('export', process.execPath, [
         path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export',
@@ -866,7 +866,7 @@ for (const name of examples) {
         }
         // Each APK carries the whole runtime template; keeping 40 of them around
         // is gigabytes for no reason.
-        rmSync(work, { recursive: true, force: true });
+        rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     } catch (err) {
         r = { ok: false, why: err.message, log: '', colors: 0, frames: 0, unjudged: null, size: '-' };
     }

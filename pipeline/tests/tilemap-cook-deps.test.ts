@@ -53,7 +53,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (root) rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 describe('tilemap tileset images are cooked dependencies', () => {

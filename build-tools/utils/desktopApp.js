@@ -95,7 +95,7 @@ export async function assembleDesktopApp(options) {
     // desktop the executable IS the identity, which is why the host reads its own
     // name rather than parsing a config (see desktop.cpp appName).
     const root = path.join(outDir, layout.root(app.name));
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
     const executable = path.join(root, layout.executable(app.name));
     await mkdir(path.dirname(executable), { recursive: true });

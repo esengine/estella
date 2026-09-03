@@ -225,6 +225,10 @@ export const GATES = [
   // authority claims, or a cross-language pin no fact names, is a compatibility
   // fact outside the compatibility system — the state EsEventOut was in.
   { id: 'contract-inventory', run: 'node tools/contract-inventory.mjs' },
+  // Windows deletes asynchronously: the rmdir races the unlink it just did, and
+  // the temp tree a test made comes back ENOTEMPTY at random. Node's retry loop
+  // is right there and defaults to OFF.
+  { id: 'rm-retries', run: 'node tools/check-rm-retries.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];

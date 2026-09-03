@@ -47,7 +47,7 @@ export async function syncToDesktop(options = {}) {
                 // Mirror rather than merge: the shared chunk filenames are the
                 // bundler's to choose, so a merge leaves the previous build's
                 // chunks behind forever and ships them to the editor.
-                await rm(destPath, { recursive: true, force: true });
+                await rm(destPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
                 synced += await copyDirectory(srcPath, destPath);
             }
         }

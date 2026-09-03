@@ -97,7 +97,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (root) rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 describe('assets named only inside another document are cooked', () => {
@@ -176,7 +176,7 @@ describe('assets named only inside another document are cooked', () => {
       expect(staged).toContain('builtin:cube');
     } finally {
       root = prev;
-      rmSync(lone, { recursive: true, force: true });
+      rmSync(lone, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -202,7 +202,7 @@ describe('assets named only inside another document are cooked', () => {
       expect(res.warnings.some((w) => /gone\.esenv: names 'nowhere\.png'/.test(w))).toBe(true);
     } finally {
       root = prev;
-      rmSync(lone, { recursive: true, force: true });
+      rmSync(lone, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });

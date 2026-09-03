@@ -83,7 +83,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
   out = path.join(root, 'dist-playable');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (playable)', () => {
   it('produces one self-contained index.html with everything inlined', async () => {
@@ -356,7 +356,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       expect(html).toMatch(/"physicsEnabled":true/);
       expect(html).toMatch(/"y":-20/);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
 
@@ -370,7 +370,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       expect(html).toContain('"physics"');
       expect(inlinedText(html, '__SIDE_MODULES__', (v) => v['physics'].wasm)).toBe('PHYSWASM');
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
 
@@ -381,7 +381,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/physics/);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
 });
@@ -448,7 +448,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       // The atlas page image is embedded + path-mapped (the dep the cook now follows).
       expect(html).toMatch(/"assets\/spine\/hero\.png":"@uuid:/);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
 
@@ -459,7 +459,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/spine/i);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
 });

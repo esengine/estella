@@ -43,7 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.ESTELLA_NATIVE_TEMPLATES;
-  rmSync(scratch, { recursive: true, force: true });
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 /** Every file the layout declares required, with a stand-in body — so the fixture

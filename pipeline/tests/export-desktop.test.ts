@@ -46,7 +46,7 @@ beforeAll(async () => {
   out = path.join(root, 'dist-desktop');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 /** A template with the files the assembler reads. What is under test is the EXPORT
  *  reaching the assembler; the assembler itself is pinned in desktop-app.test.ts. */

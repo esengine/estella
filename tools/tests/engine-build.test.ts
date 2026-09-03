@@ -36,7 +36,7 @@ beforeEach(() => {
     wasmDir = path.join(root, 'build', 'wasm', 'wechat');
     mkdirSync(wasmDir, { recursive: true });
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('staleEngineBuild, per variant', () => {
     it('dates a variant by its OWN build, not by when the manifest was written', () => {

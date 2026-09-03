@@ -442,7 +442,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //    project.private.config.json, so we don't wipe the whole tree.
   progress({ phase: 'Copying runtime' });
   const wasmOut = path.join(absOut, 'wasm');
-  await rm(wasmOut, { recursive: true, force: true });
+  await rm(wasmOut, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   await mkdir(wasmOut, { recursive: true });
   // Engine artifacts only — the project's own come from `.esengine/modules/`,
   // not from the engine runtime dir, and are staged below.

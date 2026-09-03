@@ -45,7 +45,7 @@ beforeAll(async () => {
   out = path.join(root, 'dist-android');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (native app content)', () => {
   it('ships content only — cooked assets, manifests, scene, config', async () => {

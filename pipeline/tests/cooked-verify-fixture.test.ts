@@ -75,8 +75,8 @@ addSystem(driftSystem);
 
 describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () => {
   it('cooks a content-addressed build: green KTX2 sprite + path-ref material chain', async () => {
-    rmSync(SRC, { recursive: true, force: true });
-    rmSync(OUT, { recursive: true, force: true });
+    rmSync(SRC, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(OUT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
     mkdirSync(path.join(SRC, 'assets'), { recursive: true });
     copyFileSync(path.resolve(HERE, '..', '..', 'fixtures', 'scenes', 'ktx2-test', 'green.ktx2'),

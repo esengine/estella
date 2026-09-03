@@ -29,7 +29,7 @@ const STAGE = path.join(ROOT, 'build/devicefarm/bundle');
  *  would quietly start shipping whatever lands in tools/ next. */
 const FILES = ['tools/verify-native-boot.mjs'];
 
-rmSync(STAGE, { recursive: true, force: true });
+rmSync(STAGE, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 mkdirSync(path.join(STAGE, 'tools'), { recursive: true });
 
 for (const rel of FILES) {

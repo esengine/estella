@@ -533,7 +533,7 @@ async function assembleXcframework(rootDir, env, genDir) {
         libs.push('-library', lib);
     }
     const out = path.join(rootDir, XCFRAMEWORK);
-    await rm(out, { recursive: true, force: true });
+    await rm(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await runCommand('xcodebuild', ['-create-xcframework', ...libs, '-output', out], { cwd: rootDir, env, silent: true });
     logger.success(`iOS framework: ${XCFRAMEWORK} (${libs.length / 2} slice${libs.length === 2 ? '' : 's'})`);
 }
@@ -547,7 +547,7 @@ async function stageIosContent(rootDir, contentDir) {
     const to = path.join(rootDir, 'native', 'ios', 'Content');
     const keep = path.join(to, '.gitkeep');
     const keepText = existsSync(keep) ? readFileSync(keep, 'utf8') : null;
-    await rm(to, { recursive: true, force: true });
+    await rm(to, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await mkdir(to, { recursive: true });
     await cp(from, to, { recursive: true });
     // The placeholder is committed so a fresh clone has the directory xcodegen's

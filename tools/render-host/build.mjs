@@ -30,7 +30,7 @@ if (!(await exists(path.join(WASM_SRC, 'esengine.wasm')))) {
     process.exit(2);
 }
 
-await rm(OUT, { recursive: true, force: true });
+await rm(OUT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 await mkdir(OUT, { recursive: true });
 
 await build({

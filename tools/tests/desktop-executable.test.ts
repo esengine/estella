@@ -30,7 +30,7 @@ function file(...parts: string[]): string {
 }
 
 beforeAll(() => { root = mkdtempSync(path.join(tmpdir(), 'estella-exe-')); });
-afterAll(() => { rmSync(root, { recursive: true, force: true }); });
+afterAll(() => { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
 describe('desktopExecutableIn', () => {
     it('picks the bundle executable over a signed bundle\'s CodeResources', () => {

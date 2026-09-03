@@ -299,7 +299,7 @@ for (const key of new Set(pairs.map((p) => JSON.stringify(ENGINE_OF(p.target))))
 const results = [];
 for (const { id, target } of pairs) {
   const out = path.join(WORK, `${id}-${target}`);
-  rmSync(out, { recursive: true, force: true });
+  rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
   const sizeReport = path.join(WORK, `${id}-${target}.size.json`);
   const exported = spawnSync(process.execPath, [

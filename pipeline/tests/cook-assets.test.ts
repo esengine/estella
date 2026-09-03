@@ -57,7 +57,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (root) rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 /** A solid RGBA PNG of an exact size — block alignment is a cook decision, so a
@@ -155,7 +155,7 @@ describe('cookAssets (A4)', () => {
       expect(h('t/a.png')).toBe(h('t/b.png'));     // identical content → one physical identity
       expect(h('t/a.png')).not.toBe(h('t/c.png')); // different content → different identity
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -195,7 +195,7 @@ describe('cookAssets (A4)', () => {
       expect(existsSync(path.join(res.outDir, byUuid(A).path))).toBe(true);
       expect(existsSync(path.join(res.outDir, byUuid(C).path))).toBe(true);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -230,7 +230,7 @@ describe('cookAssets (A4)', () => {
       const magic = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
       expect(magic.every((b, i) => bytes[i] === b)).toBe(true);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 30_000);
 
@@ -256,7 +256,7 @@ describe('cookAssets (A4)', () => {
       expect(tex.path).toMatch(/\.png$/);          // NOT .ktx2 — the asset opted out
       expect(tex.compressedFormats).toBeUndefined();
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 30_000);
 
@@ -285,7 +285,7 @@ describe('cookAssets (A4)', () => {
       expect(Math.max(shrunk.width, shrunk.height)).toBeLessThanOrEqual(64);
       expect(Math.max(shrunk.width, shrunk.height)).toBeGreaterThan(32); // scaled to fit, not over-shrunk
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 30_000);
 
@@ -312,7 +312,7 @@ describe('cookAssets (A4)', () => {
       expect(tex.compressedFormats).toBeUndefined();
       expect(res.warnings.some((w) => w.includes('70x70') && w.includes('multiple of 4'))).toBe(true);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -346,7 +346,7 @@ describe('cookAssets (A4)', () => {
       const shrunk = decodePngImage('wx', readFileSync(path.join(wechat.outDir, wx.path)));
       expect(Math.max(shrunk.width, shrunk.height)).toBeLessThanOrEqual(64); // …downscaled to its cap
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 30_000);
 
@@ -406,7 +406,7 @@ describe('cookAssets (A4)', () => {
       expect(stagedMat.properties.u_mask).toBe('assets/materials/green.png');
       expect(stagedMat.properties.u_mode).toBe('additive');
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -435,7 +435,7 @@ describe('cookAssets (A4)', () => {
       const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out' });
       expect(res.included.sort()).toEqual([SC, CLIP, FRAME].sort());
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });
@@ -503,7 +503,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       expect(at(a.atlas!.frame)).toEqual([255, 0, 0, 255]);
       expect(at(b.atlas!.frame)).toEqual([0, 255, 0, 255]);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -518,7 +518,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       expect(a.path).toBe('assets/sprites/heroes.atlas/a.png');
       expect(a.atlas).toBeUndefined();
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 
@@ -539,7 +539,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       expect(a.sourcePath).toBe('assets/sprites/heroes.atlas/a.png');
       expect(existsSync(path.join(res.outDir, a.path))).toBe(true);
     } finally {
-      rmSync(r, { recursive: true, force: true });
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });

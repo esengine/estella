@@ -37,7 +37,7 @@ const opts = (root: string, outDir: string) => ({
 
 describe.skipIf(!process.env.ESTELLA_HOTUPDATE_FIXTURE)('hot-update verify fixture', () => {
   it('cooks a shipped build (green CDN art) + a CDN update (red CDN art)', async () => {
-    rmSync(ROOT, { recursive: true, force: true });
+    rmSync(ROOT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
     // 1. Ship build: the example exactly as committed — green art in remote/cdn/.
     const build = await exportGame(opts(EXAMPLE, BUILD));

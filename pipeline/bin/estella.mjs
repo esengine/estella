@@ -133,7 +133,7 @@ async function loadPipeline(entry, outName) {
         + `const require = __esCreateRequire('${fileUrl(path.join(PIPELINE, 'package.json'))}');\n`,
     },
   });
-  const cleanup = () => rmSync(dir, { recursive: true, force: true });
+  const cleanup = () => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   try {
     // Cleaned up on the way out even when the bundle will not load: the temp dir
     // lives inside `pipeline/src`, so one left behind is a copy of half the

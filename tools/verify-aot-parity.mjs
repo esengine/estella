@@ -88,7 +88,7 @@ requireCurrentEngine(ROOT, ENGINE.dir, process.argv, ENGINE.variant);
 
 /** Package one project, with or without its compiled systems. */
 function exportOnce(id, out, compiled) {
-  rmSync(out, { recursive: true, force: true });
+  rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   return spawnSync(process.execPath, [
     path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'export', projectDir(id),
     '--platform', 'web', '--out', out, ...(compiled ? [] : ['--no-aot']),

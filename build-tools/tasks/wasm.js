@@ -123,7 +123,7 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
 
     if (clean && existsSync(buildDir)) {
         logger.debug(`Cleaning ${buildDir}`);
-        await rm(buildDir, { recursive: true, force: true });
+        await rm(buildDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 
     await mkdir(buildDir, { recursive: true });
@@ -315,7 +315,7 @@ export async function cleanWasm(target = null) {
         }
         const buildDir = path.join(rootDir, targetConfig.buildDir);
         if (existsSync(buildDir)) {
-            await rm(buildDir, { recursive: true, force: true });
+            await rm(buildDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
             logger.debug(`Removed ${buildDir}`);
         }
     } else {

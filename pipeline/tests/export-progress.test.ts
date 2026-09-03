@@ -38,7 +38,7 @@ beforeAll(() => {
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'wasmbytes');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('export progress', () => {
   it('emits a phase per major step (web)', async () => {

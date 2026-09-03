@@ -270,7 +270,7 @@ async function cleanAll() {
 
     const outputDir = config.paths.output;
     if (existsSync(outputDir)) {
-        await rm(outputDir, { recursive: true, force: true });
+        await rm(outputDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         logger.debug('Removed build/');
     }
 

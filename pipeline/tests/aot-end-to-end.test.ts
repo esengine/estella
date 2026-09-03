@@ -161,7 +161,7 @@ describe('a project that promised compilation gets it', () => {
 
   beforeAll(async () => {
     if (!EMCC) return;
-    rmSync(PROJECT, { recursive: true, force: true });
+    rmSync(PROJECT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(path.join(PROJECT, 'src'), { recursive: true });
     writeFileSync(path.join(PROJECT, 'src', 'move.ts'), SOURCE);
     built = await buildCompiledSystems(PROJECT, { mode: 'release', cc: EMCC, run });
@@ -171,7 +171,7 @@ describe('a project that promised compilation gets it', () => {
     fixture = await import(/* @vite-ignore */
       pathToFileURL(path.join(PROJECT, 'src', 'move.ts')).href) as unknown as Fixture;
 
-    rmSync(PROBE, { recursive: true, force: true });
+    rmSync(PROBE, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(path.join(PROBE, 'src'), { recursive: true });
     writeFileSync(path.join(PROBE, 'src', 'move.ts'), PROBE_SOURCE);
     probe = await buildCompiledSystems(PROBE, { mode: 'release', cc: EMCC, run });

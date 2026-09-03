@@ -423,7 +423,7 @@ export async function processFile(module, file, opts) {
     await writeFile(file, source.trimEnd() + '\n' + twin, 'utf8');
     return { file, status: 'generated' };
   } finally {
-    await rm(workDir, { recursive: true, force: true });
+    await rm(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }
 

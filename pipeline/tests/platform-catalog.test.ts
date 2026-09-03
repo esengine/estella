@@ -55,7 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.ESTELLA_NATIVE_TEMPLATES;
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 describe('listPlatforms — built-in readiness is probed', () => {

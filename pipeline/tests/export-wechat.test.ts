@@ -51,7 +51,7 @@ beforeAll(() => {
   out = path.join(root, 'dist-wechat');
 }, 60_000);
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (wechat)', () => {
   it('assembles a MiniGame matching the initWeChatRuntime contract', async () => {
@@ -200,7 +200,7 @@ describe('exportGame (wechat)', () => {
   // in the package and the glue has to be require()d by the generated entry.
   it("packages a project's own native module and requires it from game.js", async () => {
     const modDir = path.join(root, '.esengine', 'modules', 'rive');
-    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(path.join(modDir, 'wechat'), { recursive: true });
     writeFileSync(path.join(modDir, 'module.json'), JSON.stringify({ file: 'rive', globalName: 'RiveModule' }));
     // `?.` is exactly what a real-device host rejects — it must not survive.
@@ -236,14 +236,14 @@ describe('exportGame (wechat)', () => {
     // Down-levelled like the engine's own glue.
     expect(readFileSync(path.join(outWx, 'wasm', 'rive.js'), 'utf8')).not.toContain('?.');
 
-    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }, 60_000);
 
   it('refuses to substitute a web build for a mini-game one', async () => {
     // Serving the web glue would produce a package that builds clean and dies on
     // a device — the failure this whole per-platform layout exists to prevent.
     const modDir = path.join(root, '.esengine', 'modules', 'rive');
-    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(path.join(modDir, 'web'), { recursive: true });
     writeFileSync(path.join(modDir, 'web', 'rive.js'), 'export default () => Promise.resolve({});');
 
@@ -263,7 +263,7 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(outWx, 'wasm', 'rive.js'))).toBe(false);
     expect(readFileSync(path.join(outWx, 'game.js'), 'utf8')).not.toContain('rive');
 
-    rmSync(path.join(root, '.esengine'), { recursive: true, force: true });
+    rmSync(path.join(root, '.esengine'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }, 60_000);
 
   it('fails fast when the -t wechat engine runtime is missing', async () => {
@@ -557,7 +557,7 @@ describe('exportGame (wechat) — open data context', () => {
     platform: 'wechat',
   });
 
-  afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true }); });
+  afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
   it('a project without one declares no context — an absent directory would fail the host compile', async () => {
     const { root: r, out: o } = scaffold();

@@ -195,7 +195,7 @@ describe('budgets', () => {
 describe('measuring a build on disk', () => {
   let dir: string;
   beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'es-size-')); });
-  afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+  afterEach(async () => { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
   const write = async (rel: string, bytes: number): Promise<void> => {
     const abs = path.join(dir, rel);

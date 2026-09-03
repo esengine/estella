@@ -120,7 +120,7 @@ describe('what a package carries for a compiled system', () => {
       expect(existsSync(path.join(f.out, cfg.aot!.module))).toBe(true);
       expect(cfg.aot?.manifest.systems.map((s) => s.name)).toEqual(['ExportDriftSystem']);
       expect(cfg.aot?.manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
   it.skipIf(!EMCC)('fails the export when a promise cannot be kept, and says where', async () => {
@@ -130,7 +130,7 @@ describe('what a package carries for a compiled system', () => {
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/main\.ts:\d+:.*ExportDriftSystem is @compiled/);
       expect(existsSync(path.join(f.out, 'aot', 'systems.wasm'))).toBe(false);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
   it.skipIf(!EMCC)('a mini-game carries it too, and boots from the path', async () => {
@@ -145,7 +145,7 @@ describe('what a package carries for a compiled system', () => {
       const boot = readFileSync(path.join(f.out, 'game-bundle.js'), 'utf8');
       expect(boot).toContain('aot/systems.wasm');
       expect(boot).toContain('ExportDriftSystem');
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
   it('carries nothing for a project that promised nothing', async () => {
@@ -157,6 +157,6 @@ describe('what a package carries for a compiled system', () => {
       // this pays nothing for it, on a machine that may have no toolchain at all.
       expect(config(f.out).aot).toBeUndefined();
       expect(existsSync(path.join(f.out, 'aot'))).toBe(false);
-    } finally { rmSync(f.root, { recursive: true, force: true }); }
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 });

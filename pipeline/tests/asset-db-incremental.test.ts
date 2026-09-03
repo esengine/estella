@@ -54,7 +54,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (root) rmSync(root, { recursive: true, force: true });
+  if (root) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
 /** Assert an incremental update equals a full rescan of the same on-disk state. */
@@ -175,7 +175,7 @@ describe('updateAssetIndex — fallbacks (never silent)', () => {
   it('a removed directory that held assets falls back (its child moves are invisible)', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     // Simulate the dir vanishing (the watcher may report only the dir path).
-    rmSync(path.join(root, 'assets/fonts'), { recursive: true });
+    rmSync(path.join(root, 'assets/fonts'), { recursive: true, maxRetries: 10, retryDelay: 50 });
     const inc = await updateAssetIndex(root, prev, ['assets/fonts'], { write: false });
     expect(inc.fullRescan).toBe(true);
     expect(inc.reason).toContain('directory');
