@@ -49,6 +49,32 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The engine's specified arithmetic was in no digest, so a module built against
+  a different polynomial loaded.** The AOT subset SPECIFIES `sin` and `cos`,
+  because ECMAScript does not, and a compiled module carries its own copy of that
+  polynomial inside it. A host whose interpreter runs a different one therefore
+  makes the same system answer differently depending on whether it was compiled —
+  one ulp, which is one pixel, and a differential pixel gate reports it as a bug
+  in the engine rather than as two builds that were never the same build.
+
+  `engineAbiDigest` now covers it, in two halves because one alone misses. The
+  CONSTANTS go in exactly, so a coefficient change counts whether or not it moves
+  any answer — measured, and this is why: a 1-ulp nudge to `S3` moved **none** of
+  250 probed answers while still being different arithmetic that a long enough run
+  disagrees on. The ANSWERS go in for what the constants are not — the quadrant
+  choice, the tie in the range reduction, the order the polynomial is summed in —
+  which a restructure changes while every constant stays put.
+
+  `exact-trig.test.ts` proves the sensitivity exhaustively over the real constant
+  list rather than against a second copy of it: every constant the algorithm is,
+  one ulp, must move the digest. **The engine ABI digest changes again**, so an
+  AOT module built against 0.60.0 or earlier is refused and must be rebuilt.
+
+  What is still owed is written down in the inventory: the digest is taken of the
+  TypeScript side, so a change to the C half **alone** moves nothing and only the
+  bit-exact differential sees it — and that needs a host C compiler, so a checkout
+  without one verifies the two implementations against nothing.
+
 - **A fourth ABI struct was outside the compatibility system entirely.** Three of
   the structs a compiled system is handed carry the same three things: a word
   count authored once in `abiDigest.ts`, a `typedef char es_check_*[...]` in the

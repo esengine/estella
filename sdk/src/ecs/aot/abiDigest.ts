@@ -12,7 +12,8 @@
  *
  *          - `engineAbi` is everything about the ENGINE the module baked in:
  *            EHT's struct offsets, the resource shapes, the sizes of the four
- *            ABI structs and the width of an address. A mismatch means rebuild
+ *            ABI structs, the specified trigonometry and the width of an
+ *            address. A mismatch means rebuild
  *            the module against this engine.
  *          - `projectShapes` is the `defineComponent` shapes it compiled
  *            against, scoped to the components it actually names. A mismatch
@@ -29,6 +30,7 @@
 
 import { PTR_LAYOUTS } from '../../wasm/ptrLayouts.generated';
 import { RESOURCE_NAMES, RESOURCE_SHAPES, resourceLayout } from '../resourceShapes';
+import { EXACT_CONSTANTS, exact } from '../../math/exact';
 
 /** Sizes of the four ABI structs, in address-wide words. */
 export const SYSCTX_WORDS = 6;
@@ -57,6 +59,44 @@ export interface ShapeDigestInput {
 }
 
 /**
+ * Where the digest LOOKS: off the quadrant grid so every branch of the
+ * reduction is reached, then the tie, the boundaries, and arguments large
+ * enough that Cody-Waite loses digits. Sampling alone does not do — a 1-ulp
+ * `S3` moved none of these, which is why the constants go in exactly.
+ */
+function trigProbes(): number[] {
+    const out: number[] = [];
+    for (let i = -120; i <= 120; i++) out.push(i * 0.37);
+    const HALF_PI = Math.PI / 2;
+    for (let q = -4; q <= 4; q++) for (const d of [-1e-9, 0, 1e-9]) out.push(q * HALF_PI + d);
+    for (let k = -3; k <= 3; k++) out.push((k + 0.5) * HALF_PI);
+    out.push(0, -0, 1, -1, 1e-8, 12345.6789, -98765.4321, 1e10, -1e10);
+    return out;
+}
+
+/** A double as the bits it is, because one ulp apart is one pixel apart. */
+function bitsOf(x: number): string {
+    const view = new DataView(new ArrayBuffer(8));
+    view.setFloat64(0, x);
+    return view.getBigUint64(0).toString(16).padStart(16, '0');
+}
+
+/**
+ * Two halves because one alone misses: the CONSTANTS exactly, so a coefficient
+ * change counts whether or not it moves a sampled answer, and the ANSWERS for
+ * what the constants are not — quadrant choice, the reduction's tie, summation
+ * order. A parameter so a test can nudge one constant and watch this move.
+ *
+ * @internal
+ */
+export function trigDigest(consts_: readonly number[] = EXACT_CONSTANTS): string {
+    const consts = consts_.map(bitsOf).join(',');
+    const answers = trigProbes().map((x) => `${bitsOf(exact.sin(x))}/${bitsOf(exact.cos(x))}`).join(',');
+    return fnv1a64(`${consts}|${answers}`);
+}
+
+
+/**
  * Everything about the engine the module baked in. Recomputable by the SDK from
  * what it ships, which is what makes this the check that can actually run.
  */
@@ -75,6 +115,10 @@ export function engineAbiParts(addressBytes: AddressBytes): readonly string[] {
         `addr=${addressBytes}`,
         `sysctx=${SYSCTX_WORDS} rows=${QUERYROWS_WORDS} cmd=${CMD_WORDS} eventout=${EVENT_OUT_WORDS}`,
         `cmdkinds=${CMD_DESPAWN},${CMD_REMOVE}`,
+        // The module compiled ITS polynomial in, so a host running another makes
+        // the same system answer differently depending on whether it was
+        // compiled — an ulp, which is a pixel a differential gate calls a bug.
+        `trig=${trigDigest()}`,
     ];
     // EHT's table: every field of every engine component, at the offset the C++
     // struct puts it. This is the half that changes when the engine is rebuilt.

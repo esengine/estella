@@ -44,6 +44,20 @@ const C5 = 2.0875723212981748e-09;
 const C6 = -1.1359647557788195e-11;
 
 /**
+ * Every constant the algorithm IS, in one place a digest can take exactly.
+ * Sampling answers is not enough on its own: a 1-ulp nudge to `S3` moved none
+ * of 250 probed answers (measured), while still making two builds different
+ * arithmetic that a long enough run would disagree on.
+ *
+ * @internal
+ */
+export const EXACT_CONSTANTS: readonly number[] = [
+    PIO2_HI, PIO2_LO, TWO_OVER_PI,
+    S1, S2, S3, S4, S5, S6,
+    C1, C2, C3, C4, C5, C6,
+];
+
+/**
  * `Math.round`'s rule — ties toward +Infinity — spelled out, because C's
  * `round` breaks ties away from zero and would disagree on every .5.
  */

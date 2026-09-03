@@ -149,10 +149,11 @@ export const FACTS = [
         verification: [
             { path: 'compiler/tests/exact-trig.test.ts', how: 'test', probe: /bit for bit/i },
         ],
-        digest: null,
-        owed: 'no digest covers it: a module built against a different polynomial loads and'
-            + ' answers different pixels. The differential is bit-exact but needs a host C'
-            + ' compiler, so a checkout without one verifies nothing here.',
+        digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /trig=/ },
+        owed: 'the digest is taken of the TS side, so it refuses a module built against'
+            + ' different arithmetic — but a change to the C half ALONE moves nothing, and'
+            + ' only the differential sees it. That needs a host C compiler, so a checkout'
+            + ' without one verifies the two implementations against nothing.',
     },
     {
         id: 'tweenWireEnums',

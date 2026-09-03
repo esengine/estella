@@ -22,6 +22,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CFLAGS, RUNTIME_H } from '../src/codegen';
 import { exact } from '../../sdk/src/math/exact';
+import { engineAbiParts, trigDigest } from '../../sdk/src/ecs/aot/abiDigest';
+import { EXACT_CONSTANTS } from '../../sdk/src/math/exact';
 import { findHostCC } from '../src/hostCC';
 
 const CC = findHostCC();
@@ -107,3 +109,38 @@ describe('the engine\'s trigonometry, on both sides of the compiler', () => {
         expect(worst).toBeLessThan(1e-12);
     });
 });
+
+/**
+ * A compiled module carries ITS polynomial inside it, so a host running another
+ * one makes the same system answer differently depending on whether it was
+ * compiled. The digest is what turns that into a refusal instead of an ulp.
+ */
+describe('the specified trigonometry is in the engine handshake', () => {
+    it('is what the handshake is taken of', () => {
+        expect(engineAbiParts(4).join(' ')).toContain(`trig=${trigDigest()}`);
+    });
+
+    /**
+     * Exhaustive over the real list, not a second copy of it: every constant,
+     * one ulp. Sampling answers alone did not do this — a 1-ulp `S3` moved none
+     * of 250 probed answers while still being different arithmetic.
+     */
+    it('moves for a single ulp of any constant the algorithm is', () => {
+        const base = trigDigest();
+        expect(EXACT_CONSTANTS.length).toBeGreaterThan(10);
+        for (let i = 0; i < EXACT_CONSTANTS.length; i++) {
+            const nudged = [...EXACT_CONSTANTS];
+            nudged[i] = nextUp(nudged[i]!);
+            expect([i, nudged[i]]).not.toEqual([i, EXACT_CONSTANTS[i]]);
+            expect([i, trigDigest(nudged)]).not.toEqual([i, base]);
+        }
+    });
+});
+
+/** The next double away from zero — one ulp, done on the bits. */
+function nextUp(x: number): number {
+    const view = new DataView(new ArrayBuffer(8));
+    view.setFloat64(0, x);
+    view.setBigUint64(0, view.getBigUint64(0) + 1n);
+    return view.getFloat64(0);
+}
