@@ -47,7 +47,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePng, distinctColors } from '../build-tools/utils/png.js';
 import { GOLDEN, launchTimeoutFor } from './goldenProjects.mjs';
-import { worthAnotherLaunch, exitCodeFor } from './lib/smokeRetry.mjs';
+import { worthAnotherLaunch, exitCodeFor, unjudgedReason } from './lib/smokeRetry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_ID = 'com.estella.game';
@@ -692,12 +692,9 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true, round
     // capture that outran the game, one after three hundred is the game, and
     // without the number they read as the same failure.
     const frames = framesDrawn(log);
-    // Judge the pixels where the loop reached the frame the wait asked for, not
-    // below it: there the capture and the game are still racing. Zero is neither —
-    // ready and then no frame at all is the failure it looks like.
-    const unjudged = countColors && frames > 0 && frames < opts.frames
-        ? `too slow to judge here — ${frames} frame(s) before the capture`
-        : null;
+    const unjudged = unjudgedReason({
+        countColors, frames, wanted: opts.frames, colors, minColors: opts.minColors,
+    });
     const why = !ready ? 'never reported ready'
         : offScreen ? `the game was not on screen — ${offScreen}`
             : bootErrors.length ? bootErrors[0].trim()
@@ -880,7 +877,7 @@ for (const name of examples) {
     // the same event as one that needed one, and a name that starts appearing
     // here every night is the black-frame defect getting worse, not a flake.
     const retryNote = r.firstTry
-        ? ` (relaunched — first: ${r.firstTry.why?.split('\n')[0] ?? r.firstTry.unjudged})`
+        ? ` (relaunched — first: ${(r.firstTry.why || r.firstTry.unjudged || 'no verdict').split('\n')[0]})`
         : '';
     const verdict = r.ok ? `✓ ${r.size}, ${r.colors} colors, ${r.frames} frames${frameNote}`
         : r.undetermined ? `? ${r.unjudged} — twice`

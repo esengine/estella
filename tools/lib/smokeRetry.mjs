@@ -44,6 +44,20 @@ export function worthAnotherLaunch(r) {
 }
 
 /**
+ * Why this run judged nothing, or null if it judged something.
+ *
+ * Short of the asked-for frame the capture may still be racing the game, but only
+ * over an EMPTY one: content is the game having drawn, at whatever frame it
+ * stopped (lighting-2d: 10 frames in 90s, 1322 colours in the first).
+ *
+ * @param {{countColors: boolean, frames: number, wanted: number, colors: number, minColors: number}} run
+ */
+export function unjudgedReason({ countColors, frames, wanted, colors, minColors }) {
+    if (!countColors || frames === 0 || frames >= wanted || colors >= minColors) return null;
+    return `too slow to judge here — ${frames} frame(s) before the capture`;
+}
+
+/**
  * Pass, fail, or unanswered — the three a run can end in.
  *
  * @param {SmokeResult} r

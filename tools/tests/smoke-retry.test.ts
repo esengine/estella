@@ -11,7 +11,11 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { worthAnotherLaunch, verdictOf, exitCodeFor } from '../lib/smokeRetry.mjs';
+import { worthAnotherLaunch, verdictOf, exitCodeFor, unjudgedReason } from '../lib/smokeRetry.mjs';
+
+/** A run of the shape the check produces: `wanted` frames asked for, `colors` seen. */
+const run = (o: Partial<{ countColors: boolean, frames: number, wanted: number, colors: number, minColors: number }>) =>
+    ({ countColors: true, frames: 30, wanted: 30, colors: 8, minColors: 2, ...o });
 
 const flat = { ok: false, why: 'the frame is 1 flat color after 120 frame(s)' };
 const drew = { ok: true, colors: 8 };
@@ -41,6 +45,31 @@ describe('what earns a second launch', () => {
 
     it('leaves a run that drew alone', () => {
         expect(worthAnotherLaunch(drew)).toBe(false);
+    });
+});
+
+describe('what counts as having judged the frame', () => {
+    // The question is "did it draw", not "did it reach frame 30". lighting-2d
+    // takes 90s to reach 10 frames on a software rasteriser and has 1322 colours
+    // in the first of them; failing the run for that reports the emulator.
+    it('a picture with content is an answer, whatever frame it stopped at', () => {
+        expect(unjudgedReason(run({ frames: 10, colors: 1322 }))).toBeNull();
+    });
+
+    it('a flat frame short of the asked-for frame is not an answer', () => {
+        expect(unjudgedReason(run({ frames: 10, colors: 1 }))).toMatch(/too slow to judge/);
+    });
+
+    it('a flat frame that DID reach the asked-for frame is a verdict, not an excuse', () => {
+        expect(unjudgedReason(run({ frames: 30, colors: 1 }))).toBeNull();
+    });
+
+    it('no frame at all is its own failure, never unanswered', () => {
+        expect(unjudgedReason(run({ frames: 0, colors: 1 }))).toBeNull();
+    });
+
+    it('says nothing when the frame is not being judged', () => {
+        expect(unjudgedReason(run({ countColors: false, frames: 10, colors: 1 }))).toBeNull();
     });
 });
 
