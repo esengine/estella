@@ -47,6 +47,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePng, distinctColors } from '../build-tools/utils/png.js';
 import { GOLDEN, launchTimeoutFor } from './goldenProjects.mjs';
+import { worthAnotherLaunch, exitCodeFor } from './lib/smokeRetry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_ID = 'com.estella.game';
@@ -566,7 +567,7 @@ function framesDrawn(log) {
     return n;
 }
 
-async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
+async function verifyApp(driver, artifact, label, opts, judgeFrame = true, round = 1) {
     driver.install(artifact);
 
     let log = '';
@@ -596,7 +597,9 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
         const settleBy = Date.now() + Math.max(opts.settle, 1) * 1000;
         // Its own budget, not the ready timeout: a scene this slow is worth
         // waiting out, a hung one is not, and the set is 40-odd apps per device.
-        const framesBy = Date.now() + frameBudgetMs(label);
+        // A second round gets a longer one: the first said the budget was what
+        // ran out, so repeating it unchanged would only ask the same question.
+        const framesBy = Date.now() + frameBudgetMs(label) * round;
         await sleep(Math.max(settleBy - Date.now(), 0));
         // Backing off rather than polling flat out: reading the record spawns a
         // process on the device, and asking a struggling app ninety times is the
@@ -703,8 +706,11 @@ async function verifyApp(driver, artifact, label, opts, judgeFrame = true) {
                         ? `the frame is ${colors} flat color after ${frames} frame(s)`
                         : recreateWhy;
 
+    // Three states: `unjudged` is this machine failing to ask the question, and
+    // is neither a pass nor a verdict on the game (smokeRetry.mjs).
     return {
-        ok: !why, ready, colors, frames, unjudged, readyLine, errors, offScreen, metrics,
+        ok: !why && !unjudged, undetermined: !why && !!unjudged,
+        ready, colors, frames, unjudged, readyLine, errors, offScreen, metrics,
         size: `${image.width}x${image.height}`, log, shot, why,
     };
 }
@@ -856,6 +862,11 @@ for (const name of examples) {
     try {
         const { app, work } = packageExample(driver, name, opts);
         r = await verifyApp(driver, app, name, opts, !FRAME_NOT_JUDGED[name]);
+        if (worthAnotherLaunch(r)) {
+            const first = r;
+            r = await verifyApp(driver, app, name, opts, !FRAME_NOT_JUDGED[name], 2);
+            r.firstTry = first;
+        }
         // Each APK carries the whole runtime template; keeping 40 of them around
         // is gigabytes for no reason.
         rmSync(work, { recursive: true, force: true });
@@ -865,26 +876,37 @@ for (const name of examples) {
     results.push({ name, ...r });
     const frameNote = FRAME_NOT_JUDGED[name] ? ' (frame not judged)'
         : r.unjudged ? ` — ${r.unjudged}` : '';
-    console.log(`[smoke] ${name.padEnd(22)} ${r.ok ? `✓ ${r.size}, ${r.colors} colors, ${r.frames} frames${frameNote}` : `✗ ${r.why.split('\n')[0]}`}`);
+    // What the first launch said, kept in the line: a run that needed two is not
+    // the same event as one that needed one, and a name that starts appearing
+    // here every night is the black-frame defect getting worse, not a flake.
+    const retryNote = r.firstTry
+        ? ` (relaunched — first: ${r.firstTry.why?.split('\n')[0] ?? r.firstTry.unjudged})`
+        : '';
+    const verdict = r.ok ? `✓ ${r.size}, ${r.colors} colors, ${r.frames} frames${frameNote}`
+        : r.undetermined ? `? ${r.unjudged} — twice`
+            : `✗ ${r.why.split('\n')[0]}`;
+    console.log(`[smoke] ${name.padEnd(22)} ${verdict}${retryNote}`);
 }
 
 const known = Object.keys(KNOWN_FAILURES);
-const brokeUnexpectedly = results.filter((r) => !r.ok && !KNOWN_FAILURES[r.name]);
+const brokeUnexpectedly = results.filter((r) => !r.ok && !r.undetermined && !KNOWN_FAILURES[r.name]);
 const fixedUnexpectedly = results.filter((r) => r.ok && KNOWN_FAILURES[r.name]);
 
-// Counted, because a run that could not judge half its frames proved half of
-// what it claims and should not read as a clean pass.
-const tooSlow = results.filter((r) => r.ok && r.unjudged);
+// Neither passed nor failed: twice the capture landed before the run reached the
+// frame it judges at. Named, counted, and carried into the exit code, because a
+// question this machine could not ask is not an answer about the game.
+const tooSlow = results.filter((r) => r.undetermined);
 note(`### ${driver.name} — ${results.filter((r) => r.ok).length}/${results.length} examples started and drew`
-    + (tooSlow.length ? `, ${tooSlow.length} too slow to judge (${tooSlow.map((r) => r.name).join(', ')})` : ''));
+    + (tooSlow.length ? `, ${tooSlow.length} unanswered here (${tooSlow.map((r) => r.name).join(', ')})` : ''));
 note('');
 note(`Device: \`${device}\``);
 note('');
 note('| example | result | frame |');
 note('| --- | --- | --- |');
 for (const r of results) {
-    const state = r.ok ? '✓'
-        : (KNOWN_FAILURES[r.name] ? `✗ known — ${KNOWN_FAILURES[r.name]}` : `✗ ${r.why.split('\n')[0]}`);
+    const state = r.ok ? (r.firstTry ? '✓ (relaunched)' : '✓')
+        : r.undetermined ? `? ${r.unjudged} — twice`
+            : (KNOWN_FAILURES[r.name] ? `✗ known — ${KNOWN_FAILURES[r.name]}` : `✗ ${r.why.split('\n')[0]}`);
     note(`| ${r.name} | ${state} | ${r.ok ? `${r.size}, ${r.colors} colors` : '—'} |`);
 }
 
@@ -917,4 +939,15 @@ if (brokeUnexpectedly.length || fixedUnexpectedly.length) {
     process.exit(1);
 }
 
-console.log(`\n✓ ${driver.name}: ${results.filter((r) => r.ok).length}/${results.length} examples started and drew a frame`);
+// 2, not 0: nothing here failed, and this run did not answer for every example
+// it was given. A caller that treats 2 as a pass is making the same trade 0.59.0
+// made silently, but at least it is making it out loud.
+if (exitCodeFor(results, (r) => !!KNOWN_FAILURES[r.name]) === 2) {
+    console.error(`\n— UNANSWERED: ${tooSlow.length} example(s) reached no judged frame in two launches`);
+    for (const r of tooSlow) console.error(`  ${r.name} — ${r.unjudged}`);
+    process.exit(2);
+}
+
+const relaunched = results.filter((r) => r.firstTry);
+console.log(`\n✓ ${driver.name}: ${results.filter((r) => r.ok).length}/${results.length} examples started and drew a frame`
+    + (relaunched.length ? ` (${relaunched.length} on a second launch: ${relaunched.map((r) => r.name).join(', ')})` : ''));
