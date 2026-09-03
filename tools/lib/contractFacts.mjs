@@ -143,6 +143,9 @@ export const FACTS = [
         id: 'mathPolicy',
         what: 'The numeric subset a compiled system may use, specified to the bit because ECMAScript does not specify trigonometry.',
         surface: 'runtime-aot-abi',
+        // Two implementations of the ALGORITHM over one author for the fifteen
+        // constants, which the C half is written from: retyping a coefficient
+        // is a copy that drifts, not a second implementation of anything.
         authors: [
             { path: 'sdk/src/math/exact.ts', probe: /function kernelSin/, kind: 'implementation' },
             { path: 'compiler/src/codegen.ts', probe: /es_kernel_sin/, kind: 'implementation' },
@@ -150,12 +153,16 @@ export const FACTS = [
         projections: ['src/esengine/aot/estella_abi.h'],
         verification: [
             { path: 'compiler/tests/exact-trig.test.ts', how: 'test', probe: /bit for bit/i },
+            // The half that needs no compiler: every constant the C half emits
+            // is the author's, in the author's order.
+            { path: 'compiler/tests/exact-trig.test.ts', how: 'test', probe: /authored order/ },
         ],
         digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /trig=/ },
-        owed: 'the digest is taken of the TS side, so it refuses a module built against'
-            + ' different arithmetic — but a change to the C half ALONE moves nothing, and'
-            + ' only the differential sees it. That needs a host C compiler, so a checkout'
-            + ' without one verifies the two implementations against nothing.',
+        owed: 'the constants are one author and therefore in the digest, but the STRUCTURE'
+            + ' is still written twice and only the differential compares it — and that'
+            + ' needs a host C compiler. A checkout without one holds the reduction, the'
+            + ' quadrant table and the Horner order against nothing, and says so in a'
+            + ' warning inside a test that passes.',
     },
     {
         id: 'tweenWireEnums',

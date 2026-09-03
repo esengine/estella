@@ -111,6 +111,42 @@ describe('the engine\'s trigonometry, on both sides of the compiler', () => {
 });
 
 /**
+ * Where the C half's numbers come from. What is implemented twice is the
+ * STRUCTURE, which the differential above compares; the coefficients are data,
+ * and a retyped copy of them is a different curve with no error and — on a
+ * machine with no compiler — nothing above running to notice.
+ */
+describe('the specified trigonometry has one author for its constants', () => {
+    /** Not coefficients: the parts of the ALGORITHM that happen to be numbers —
+     *  the Taylor head, the rounding rule, the four quadrants. */
+    const STRUCTURAL = new Set([0, 0.5, 1, 2, 4]);
+
+    /** The trig section of the emitted header, by markers that must be found:
+     *  a moved marker has to fail here, not quietly scan an empty string. */
+    function trigSection(): string {
+        const from = RUNTIME_H.indexOf('#define ES_PIO2_HI');
+        const to = RUNTIME_H.indexOf('/* Math.sign');
+        expect([from, to].some((i) => i < 0), 'the trig section markers moved').toBe(false);
+        return RUNTIME_H.slice(from, to);
+    }
+
+    /** A numeric literal, not the digits inside an identifier like `ES_PIO2_HI`. */
+    const LITERAL = /(?<![A-Za-z0-9_.])-?\d+\.?\d*(?:[eE][-+]?\d+)?/g;
+
+    /**
+     * In ORDER, and every one of them: a set comparison passes a copy that put
+     * S4's digits where S3 goes, which is a different curve that only a host
+     * with a compiler would have caught.
+     */
+    it('emits the authored constants, all of them, in the authored order', () => {
+        const coefficients = [...trigSection().matchAll(LITERAL)]
+            .map((m) => Number(m[0]))
+            .filter((v) => !STRUCTURAL.has(v));
+        expect(coefficients).toEqual([...EXACT_CONSTANTS]);
+    });
+});
+
+/**
  * A compiled module carries ITS polynomial inside it, so a host running another
  * one makes the same system answer differently depending on whether it was
  * compiled. The digest is what turns that into a refusal instead of an ulp.

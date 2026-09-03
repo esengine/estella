@@ -155,6 +155,10 @@ static inline double es_sqrt(double x) { return sqrt(x); }
    These are the same range reduction, the same polynomial and the same ORDER as
    sdk/src/math/exact.ts, line for line. Reordering either side is a change to
    the result, and a differential compares them bit for bit.
+
+   The COEFFICIENTS come from that file, written in below: what is implemented
+   twice here is the structure, which a differential can compare, and not
+   fifteen decimals, which retyping only puts at risk.
    --------------------------------------------------------------------------- */
 #define ES_PIO2_HI 1.5707963267341256
 #define ES_PIO2_LO 6.077100506506192e-11
@@ -162,17 +166,17 @@ static inline double es_sqrt(double x) { return sqrt(x); }
 
 static inline double es_kernel_sin(double x) {
     double z = x * x;
-    double r = -1.6666666666666632e-01 + z * (8.333333333324894e-03
-        + z * (-1.984126982985795e-04 + z * (2.755731370707007e-06
-        + z * (-2.505076025340686e-08 + z * 1.5896909952115501e-10))));
+    double r = -0.16666666666666632 + z * (0.008333333333324894
+        + z * (-0.0001984126982985795 + z * (0.000002755731370707007
+        + z * (-2.505076025340686e-8 + z * 1.58969099521155e-10))));
     return x + x * z * r;
 }
 
 static inline double es_kernel_cos(double x) {
     double z = x * x;
-    double r = 4.1666666666666602e-02 + z * (-1.3888888888874109e-03
-        + z * (2.4801587289476730e-05 + z * (-2.7557314351390663e-07
-        + z * (2.0875723212981748e-09 + z * -1.1359647557788195e-11))));
+    double r = 0.0416666666666666 + z * (-0.001388888888887411
+        + z * (0.00002480158728947673 + z * (-2.7557314351390663e-7
+        + z * (2.087572321298175e-9 + z * -1.1359647557788195e-11))));
     return 1.0 - 0.5 * z + z * z * r;
 }
 

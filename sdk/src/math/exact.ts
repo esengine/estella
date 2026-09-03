@@ -44,18 +44,28 @@ const C5 = 2.0875723212981748e-09;
 const C6 = -1.1359647557788195e-11;
 
 /**
- * Every constant the algorithm IS, in one place a digest can take exactly.
- * Sampling answers is not enough on its own: a 1-ulp nudge to `S3` moved none
- * of 250 probed answers (measured), while still making two builds different
- * arithmetic that a long enough run would disagree on.
+ * Every constant the algorithm IS, under the name both sides call it. The
+ * compiler writes the C half's coefficients from here: what is implemented
+ * twice is the STRUCTURE, which a differential compares. Retyping a 17-digit
+ * decimal is not a second implementation — it is a copy that drifts in silence.
  *
  * @internal
  */
-export const EXACT_CONSTANTS: readonly number[] = [
+export const EXACT_COEFFICIENTS = {
     PIO2_HI, PIO2_LO, TWO_OVER_PI,
     S1, S2, S3, S4, S5, S6,
     C1, C2, C3, C4, C5, C6,
-];
+} as const;
+
+/**
+ * The same, as a list the digest takes exactly — the ORDER is in the hash, so
+ * reordering the record above is an ABI change and not a tidy-up. Sampling
+ * answers alone would not do: a 1-ulp `S3` moved none of 250 probed answers
+ * (measured) while still being arithmetic a long run disagrees on.
+ *
+ * @internal
+ */
+export const EXACT_CONSTANTS: readonly number[] = Object.values(EXACT_COEFFICIENTS);
 
 /**
  * `Math.round`'s rule — ties toward +Infinity — spelled out, because C's
