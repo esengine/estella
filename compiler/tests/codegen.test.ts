@@ -655,3 +655,29 @@ describe.skipIf(!CC)('the emitted C says what the interpreter says', () => {
         expect(source).not.toMatch(/\bes_abi_\w+\(/);
     });
 });
+
+/**
+ * What a road has to hand a compiled system before it does anything. A host
+ * that passes 0 in `events` faults on a frame where the system would have done
+ * nothing, which is why `installNativeAot` leaves event systems interpreted.
+ * Narrow this and that rule can be narrowed with it.
+ */
+describe('what the emitted C reaches for before it does anything', () => {
+    it('a writer dereferences the event block at entry, not at the send', () => {
+        const layout = packLayout(fixtures.module.comps);
+        const ping = systemOf(fixtures, 'FixturePing');
+        const { source } = emitC(fixtures.module, layout, [ping], 8);
+        const body = source.slice(source.indexOf(cSymbol('FixturePing')));
+        const prologue = body.slice(0, body.indexOf('for ('));
+        expect(prologue).toContain('ES_PTR(es_c->events)');
+        expect(prologue).toMatch(/es_ev_buf = \(double \*\)ES_PTR\(es_ev->buf\)/);
+    });
+
+    /** A reader asks for its payloads through a query slot that names the EVENT,
+     *  which is what the artifact's declaration table tells a host as well. */
+    it('a reader names its event where a host reads a component name', () => {
+        const layout = packLayout(fixtures.module.comps);
+        const { decls } = emitC(fixtures.module, layout, [systemOf(fixtures, 'FixturePong')], 8);
+        expect(decls).toContain('"FixturePinged"');
+    });
+});

@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
 import { defineComponent } from '../src/ecs/component';
 import { defineSystem, SystemRunner } from '../src/ecs/system';
+import { defineEvent, EventReader, EventWriter, EventRegistry } from '../src/ecs/event';
 import { Query, Mut, Changed } from '../src/ecs/query';
 import { ResourceStorage } from '../src/ecs/resource';
 import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
@@ -92,6 +93,59 @@ function fixture(boundNames: readonly string[]) {
         heap: fakeHeap(), bindings: host.bindings,
     });
     return { world, runner, runtime, Drift, ...host };
+}
+
+/**
+ * The same two systems, plus one that writes an event and one that reads one.
+ * A reader's payloads come through a QUERY slot naming the event, which is what
+ * the compiled artifact tells a host as well.
+ */
+const EVENT_MANIFEST: AotManifest = {
+    engineAbi: engineAbiDigest(8),
+    projectShapes: projectShapeDigest([{ name: 'Drift', fields: ['x'] }]),
+    systems: [
+        {
+            name: 'SendSystem', symbol: 'es_sys_Send', resources: [],
+            queries: [[{ comp: 'Drift', mut: true }]],
+            writers: [{ slot: 0, event: 'Hit', fields: ['amount'] }],
+        },
+        {
+            name: 'ReadSystem', symbol: 'es_sys_Read', resources: [],
+            queries: [[{ comp: 'Hit', mut: false }], [{ comp: 'Drift', mut: true }]],
+            readers: [{ slot: 0, event: 'Hit', fields: ['amount'] }],
+        },
+        {
+            name: 'PlainSystem', symbol: 'es_sys_Plain', resources: [],
+            queries: [[{ comp: 'Drift', mut: true }]],
+        },
+    ],
+};
+
+function eventFixture() {
+    const Drift = declareDrift();
+    const Hit = defineEvent<{ amount: number }>('Hit');
+    const events = new EventRegistry();
+    const world = new World();
+    const runner = new SystemRunner(world, new ResourceStorage(), events);
+    const order = EVENT_MANIFEST.systems.map((s) => s.name);
+    const calls: string[] = [];
+    // A host that can name and run EVERY system in the module — so what keeps
+    // its hands off the two event systems is this side's decision, not its
+    // inability, which is the thing under test.
+    const bindings: NativeAotBindings = {
+        install: () => order.length,
+        index: (name) => order.indexOf(name),
+        bound: () => true,
+        scriptRows: () => true,
+        resource: () => true,
+        run: (i) => { calls.push(order[i] ?? `#${i}`); return 0; },
+        reset: () => {},
+    };
+    const runtime = installNativeAot({
+        world, runner, modulePath: 'systems.dll', manifest: EVENT_MANIFEST,
+        heap: fakeHeap(), bindings,
+    });
+    return { world, runner, runtime, Drift, Hit, events, calls };
 }
 
 describe('installing compiled systems on a host that loads a library', () => {
@@ -208,5 +262,66 @@ describe('installing compiled systems on a host that loads a library', () => {
         f.runner.run(watcher);
 
         expect(watched.at(-1)).toBe(1);
+    });
+});
+
+
+/**
+ * A native host's ctx carries `events = 0` (AotHost.hpp) and the emitted C
+ * dereferences it before it looks at a row: probed against a real artifact, a
+ * writer-only system with ZERO rows segfaults on entry. Nothing stopped it —
+ * the takeover question was "did the library export this symbol".
+ */
+describe('a capability a loading host cannot hand compiled code', () => {
+    it('leaves an event WRITER to the interpreter, and the event still arrives', () => {
+        const f = eventFixture();
+        expect(f.runtime).not.toBeNull();
+
+        let sent = 0;
+        const send = defineSystem([Query(Mut(f.Drift)), EventWriter(f.Hit)], (_q, out) => {
+            sent++;
+            out.send({ amount: 7 });
+        }, { name: 'SendSystem' });
+        const seen: number[] = [];
+        const watch = defineSystem([EventReader(f.Hit)], (hits) => {
+            for (const h of hits) seen.push(h.amount);
+        }, { name: 'WatchSystem' });
+
+        const entity = f.world.spawn();
+        f.world.insert(entity, f.Drift, { x: 0 });
+        f.runner.run(send);
+        f.events.swapAll();
+        f.runner.run(watch);
+
+        expect(f.calls).not.toContain('SendSystem');
+        expect(sent).toBe(1);
+        expect(seen).toEqual([7]);
+    });
+
+    it('leaves an event READER to the interpreter, which is the half that would go quiet', () => {
+        const f = eventFixture();
+        f.events.getBus(f.Hit).send({ amount: 3 });
+        f.events.swapAll();
+
+        const seen: number[] = [];
+        const read = defineSystem([EventReader(f.Hit), Query(Mut(f.Drift))], (hits) => {
+            for (const h of hits) seen.push(h.amount);
+        }, { name: 'ReadSystem' });
+        f.runner.run(read);
+
+        expect(f.calls).not.toContain('ReadSystem');
+        expect(seen).toEqual([3]);
+    });
+
+    it('and takes the system that needs none of it', () => {
+        const f = eventFixture();
+        const plain = defineSystem([Query(Mut(f.Drift))], () => {
+            throw new Error('the closure must not run when the host took this one');
+        }, { name: 'PlainSystem' });
+        const entity = f.world.spawn();
+        f.world.insert(entity, f.Drift, { x: 0 });
+        f.runner.run(plain);
+
+        expect(f.calls).toEqual(['PlainSystem']);
     });
 });

@@ -24,7 +24,7 @@ import type { World } from '../world';
 import type { SystemRunner } from '../system';
 import { ENTITY_INDEX_MASK, type Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
-import { AotSystems, type AotManifest, type AotTwin } from './AotSystems';
+import { AotSystems, type AotManifest, type AotSystemDecl, type AotTwin } from './AotSystems';
 import { AotResources, type ResourceReader } from './AotResources';
 import type { AotDispatcher, AotRuntime } from './AotRuntime';
 
@@ -77,6 +77,16 @@ function declaredResourceLayouts(manifest: AotManifest): Map<string, readonly st
  */
 const SPARSE_INDEX_MASK = ENTITY_INDEX_MASK;
 
+/**
+ * Whether a native host can hand this system what it compiled against. Not
+ * events: the ctx carries `events = 0` (AotHost.hpp) and the emitted C
+ * dereferences it in the PROLOGUE, so a writer's twin faults on a frame where
+ * it would have done nothing. A capability this road lacks is a FALLBACK.
+ */
+function nativeCanHost(decl: AotSystemDecl): boolean {
+    return !decl.readers?.length && !decl.writers?.length;
+}
+
 /** Read the `es_aot_*` globals a native host bound, or null where it bound none. */
 export function nativeAotBindings(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
@@ -123,6 +133,11 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
     // that component, and until then the interpreter keeps the system.
     const byName = new Map<string, number>();
     for (const decl of opts.manifest.systems) {
+        if (!nativeCanHost(decl)) {
+            log.info('runtime', `AOT: ${decl.name} reads or writes events, which a loading host `
+                + 'cannot hand compiled code — the interpreter keeps it');
+            continue;
+        }
         const at = bindings.index(decl.name);
         if (at >= 0) byName.set(decl.name, at);
     }
