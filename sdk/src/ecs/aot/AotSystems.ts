@@ -212,7 +212,12 @@ function scriptShapes(
             // what says whether that order is still the one here.
             out.push({ name: r.name, fields: [...(resourceFields(r.name) ?? [])] });
         }
-        for (const query of decl.queries) {
+        // A reader's slot queries the EVENT it reads. Skipped on PURPOSE and
+        // not by failing to resolve: both halves of a digest must range over
+        // the same set. The payload layout still owes a mechanism of its own.
+        const payloads = new Set((decl.readers ?? []).map((r) => r.slot));
+        for (const [k, query] of decl.queries.entries()) {
+            if (payloads.has(k)) continue;
             for (const arg of query) {
                 if (seen.has(arg.comp)) continue;
                 seen.add(arg.comp);

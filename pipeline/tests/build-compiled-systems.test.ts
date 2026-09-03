@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildCompiledSystems, readCompiledManifest } from '../src/bundle/buildCompiledSystems';
+import { projectShapeDigest } from '../../sdk/src/ecs/aot/abiDigest';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { findHostCC, nativeModuleExt } from '../../compiler/src/hostCC';
 
@@ -439,5 +440,38 @@ export const moveSystem = defineSystem(
     // And the same build twice is the same pair, or it would refuse itself.
     expect((await build(WRITES_TRANSFORM)).manifest!.moduleContract)
       .toBe(a.manifest!.moduleContract);
+  });
+});
+
+
+/**
+ * A system that READS an event, built for real and handed to the runtime that
+ * has to load it. Every test of a reader until now wrote its own manifest, and
+ * wrote the projectShapes a runtime would compute rather than the one a build
+ * produces — so a real reader module had never been loaded by anything.
+ */
+describe('a compiled system that reads an event', () => {
+  const READER = `import { defineComponent, defineEvent, defineSystem, Query, Mut, EventReader } from 'esengine';
+export const Mover = defineComponent('Mover', { speed: 100 });
+export const Hit = defineEvent<{ amount: number }>('Hit');
+/** @compiled */
+export const absorb = defineSystem(
+    [EventReader(Hit), Query(Mut(Mover))],
+    (hits, query) => { for (const h of hits) { for (const [, m] of query) { m.speed += h.amount; } } },
+    { name: 'Absorb' },
+);
+`;
+
+  it.skipIf(!HOST_CC)('builds a manifest the runtime can recompute', async () => {
+    const out = await buildCompiledSystems(project({ 'src/systems.ts': READER }),
+      { mode: 'release', target: 'native', cc: HOST_CC, run });
+    expect(out.errors).toEqual([]);
+    expect(out.manifest!.systems[0]!.readers).toHaveLength(1);
+
+    // Exactly what a runtime holding this project computes: its components, and
+    // nothing that answers to an event's name. Counting `Hit` here refused every
+    // reader module ever built, blaming a component that had not moved.
+    expect(out.manifest!.projectShapes)
+      .toBe(projectShapeDigest([{ name: 'Mover', fields: ['speed'] }]));
   });
 });

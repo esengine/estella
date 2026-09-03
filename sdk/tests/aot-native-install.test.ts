@@ -21,7 +21,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
-import { defineComponent } from '../src/ecs/component';
+import { defineComponent, getComponent } from '../src/ecs/component';
 import { defineSystem, SystemRunner } from '../src/ecs/system';
 import { defineEvent, EventReader, EventWriter, EventRegistry } from '../src/ecs/event';
 import { Query, Mut, Changed } from '../src/ecs/query';
@@ -29,6 +29,7 @@ import { ResourceStorage } from '../src/ecs/resource';
 import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
 import { installNativeAot, type NativeAotBindings } from '../src/ecs/aot/installNativeAot';
+import { AotSystems } from '../src/ecs/aot/AotSystems';
 import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 
 /** Declared per test, not at module scope: the suite's setup resets the
@@ -378,5 +379,37 @@ describe('a module and the sidecar written beside it', () => {
     it('install where the host cannot say which build the module is', () => {
         expect(install(paired(PAIRED), '')).not.toThrow();
         expect(install(paired(PAIRED), undefined)).not.toThrow();
+    });
+});
+
+
+/**
+ * Both halves of `projectShapes` must range over the same set. A reader's slot
+ * queries the EVENT it reads, which `defineEvent<T>` erases — left in on either
+ * side alone, every module with a reader is refused, blaming a component that
+ * never moved.
+ */
+describe('an event a reader names is not a component either half counts', () => {
+    /** The event shares a real component's NAME, which is what makes this a test
+     *  and not a restatement: without the slot rule this side would resolve it
+     *  and count a shape the compiler did not. */
+    function manifest(): AotManifest {
+        return {
+            engineAbi: engineAbiDigest(8),
+            projectShapes: projectShapeDigest([{ name: 'Drift', fields: ['x'] }]),
+            systems: [{
+                name: 'AbsorbSystem', symbol: 'es_sys_Absorb', resources: [],
+                queries: [[{ comp: 'Named', mut: false }], [{ comp: 'Drift', mut: true }]],
+                readers: [{ slot: 0, event: 'Named', fields: ['amount'] }],
+            }],
+        };
+    }
+
+    it('is left out even where a component answers to its name', () => {
+        declareDrift();
+        defineComponent('Named', { amount: 0 });
+        const m = manifest();
+        expect(() => new AotSystems().install(
+            m, { es_sys_Absorb: () => {} }, (name) => getComponent(name), () => [], 8)).not.toThrow();
     });
 });

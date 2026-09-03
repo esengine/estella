@@ -504,7 +504,16 @@ export function abiHandshake(
     // Scoped to the components the compiled systems NAME: adding an unrelated
     // component to a project must not invalidate a module that never reads it.
     const named = new Set<string>();
-    for (const p of plans) for (const q of p.queries) for (const a of q) named.add(a.comp);
+    for (const p of plans) {
+        // A reader's slot queries the EVENT, which `defineEvent<T>` erases, so
+        // the other half of this digest cannot recompute one — counted here, it
+        // refuses every module with a reader. The payload layout owes its own.
+        const payloads = new Set((p.readers ?? []).map((r) => r.slot));
+        p.queries.forEach((q, k) => {
+            if (payloads.has(k)) return;
+            for (const a of q) named.add(a.comp);
+        });
+    }
     // A project's own RESOURCE is a project shape; the ENGINE's is not, being
     // covered by `engineAbi`. Counting one twice puts it in a digest the
     // runtime computes without it.
