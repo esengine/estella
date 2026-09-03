@@ -11,7 +11,7 @@
  *          Two digests, not one, because the mismatches have different fixes:
  *
  *          - `engineAbi` is everything about the ENGINE the module baked in:
- *            EHT's struct offsets, the resource shapes, the sizes of the three
+ *            EHT's struct offsets, the resource shapes, the sizes of the four
  *            ABI structs and the width of an address. A mismatch means rebuild
  *            the module against this engine.
  *          - `projectShapes` is the `defineComponent` shapes it compiled
@@ -30,9 +30,16 @@
 import { PTR_LAYOUTS } from '../../wasm/ptrLayouts.generated';
 import { RESOURCE_NAMES, RESOURCE_SHAPES, resourceLayout } from '../resourceShapes';
 
-/** Sizes of the three ABI structs, in address-wide words. */
+/** Sizes of the four ABI structs, in address-wide words. */
 export const SYSCTX_WORDS = 6;
 export const QUERYROWS_WORDS = 2;
+/**
+ * The header a system's event queue starts with: buf, cap, count. Here rather
+ * than beside either consumer because BOTH the runtime and the differential
+ * host lay this block out, and the number was written in each of them: a fourth
+ * field appended by one is three words the other keeps stepping over.
+ */
+export const EVENT_OUT_WORDS = 3;
 /** A command is four u32 at every address width. */
 export const CMD_WORDS = 4;
 
@@ -66,7 +73,7 @@ export function engineAbiDigest(addressBytes: AddressBytes): string {
 export function engineAbiParts(addressBytes: AddressBytes): readonly string[] {
     const parts: string[] = [
         `addr=${addressBytes}`,
-        `sysctx=${SYSCTX_WORDS} rows=${QUERYROWS_WORDS} cmd=${CMD_WORDS}`,
+        `sysctx=${SYSCTX_WORDS} rows=${QUERYROWS_WORDS} cmd=${CMD_WORDS} eventout=${EVENT_OUT_WORDS}`,
         `cmdkinds=${CMD_DESPAWN},${CMD_REMOVE}`,
     ];
     // EHT's table: every field of every engine component, at the offset the C++

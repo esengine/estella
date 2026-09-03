@@ -14,6 +14,36 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A fourth ABI struct was outside the compatibility system entirely.** Three of
+  the structs a compiled system is handed carry the same three things: a word
+  count authored once in `abiDigest.ts`, a `typedef char es_check_*[...]` in the
+  generated C that refuses to compile if the struct stops matching it, and a term
+  in the engine ABI digest so a module built against the old shape is turned away
+  rather than loaded. `EsEventOut` — the header a system's event queue starts
+  with — had none of them.
+
+  The number three was instead written twice and bound to nothing: once in the
+  runtime that lays the block out (`AotContext`) and once in the differential
+  host (`compiler/src/abi.ts`, as a bare `3 * 4`). A field appended to the struct
+  by either one is a header the other keeps stepping over — silently, since the
+  addresses stay valid and only the values are wrong. Nothing would have said so:
+  the digest did not know the struct existed, so a module compiled before the
+  change kept loading.
+
+  `EVENT_OUT_WORDS` now has the one author its three siblings have, both layout
+  sites derive from it, the generated header declares `es_check_eventout`, and
+  the digest names it. **The engine ABI digest changes**, so an AOT module built
+  against 0.60.0 or earlier is refused by a 0.61 host and must be rebuilt — which
+  is the mechanism working, not a regression.
+
+  Every check is now sabotaged in both directions in `compiler/tests/abi-structs.test.ts`
+  — a field added and a field dropped must each fail to compile, naming that
+  check — and the same file compares the ground against the claim: every
+  all-address struct in the contract header must be one the digest covers, so the
+  next one added without a check is a red rather than a silence.
+
 ## [0.60.0] - 2026-09-02
 
 ### Added

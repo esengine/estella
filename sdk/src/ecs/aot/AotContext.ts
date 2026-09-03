@@ -18,13 +18,13 @@
  */
 
 import type { PoolBlock, PoolMemory } from '../ScriptPool';
-import { CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS } from './abiDigest';
+import { CMD_WORDS, EVENT_OUT_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS } from './abiDigest';
 
 // The struct sizes and the command kinds have one author, and it is not this
 // file: `abiDigest.ts`, which the compiler reads too. Re-exported so call sites
 // name the ABI rather than the digest.
 export {
-    SYSCTX_WORDS, QUERYROWS_WORDS, CMD_WORDS, CMD_DESPAWN, CMD_REMOVE,
+    SYSCTX_WORDS, QUERYROWS_WORDS, CMD_WORDS, EVENT_OUT_WORDS, CMD_DESPAWN, CMD_REMOVE,
 } from './abiDigest';
 
 /** One record the compiled code appended. */
@@ -33,14 +33,10 @@ export interface AotCommand {
     readonly a: number;
 }
 
-
 /**
  * The per-call scratch, in engine memory. One instance per system is enough —
  * a call is over before the next begins, and nothing may outlive it.
  */
-/** The header a system's event queue starts with: buf, cap, count. */
-const EVENT_OUT_WORDS = 3;
-
 export class AotContext {
     private block: PoolBlock | null = null;
     private words: Uint32Array = EMPTY;

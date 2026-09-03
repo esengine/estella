@@ -10,7 +10,7 @@
    answer, it is a read of a different field. The address width belongs
    to the MACHINE, so it mixes in here rather than in the compiler and a
    32-bit artifact cannot load into a 64-bit host. */
-#define ES_ABI_ENGINE_DIGEST 0xf1506f426a7da360ULL
+#define ES_ABI_ENGINE_DIGEST 0x03e22db83f2a93daULL
 ES_EXPORT const uint64_t es_abi_hash =
     ES_ABI_ENGINE_DIGEST ^ (0x9e3779b97f4a7c15ULL * (uint64_t)sizeof(es_addr_t));
 

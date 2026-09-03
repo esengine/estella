@@ -29,7 +29,7 @@
  */
 import { resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
 import {
-    CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS, CMD_DESPAWN, CMD_REMOVE,
+    CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS, EVENT_OUT_WORDS, CMD_DESPAWN, CMD_REMOVE,
     abiHandshake, planFor,
     type AbiLayout, type FieldOffsets, type Leaf, type SysPlan,
 } from './abi';
@@ -186,7 +186,10 @@ typedef struct EsSysCtx {
    comes from the manifest — the host declared it.
 
    Its own queue rather than a wider EsCmd: fixed-width records and
-   variable-width ones cannot share a buffer without stride guesswork. */
+   variable-width ones cannot share a buffer without stride guesswork.
+
+   ${EVENT_OUT_WORDS} addresses. A host lays this block out from that same
+   number, so a field appended here without it is a header one side walks past. */
 typedef struct EsEventOut {
     es_addr_t buf;      /* double * */
     es_addr_t cap;      /* capacity, in doubles */
@@ -213,11 +216,15 @@ typedef struct EsSystemDecl {
 
 /* The C and TS sides of these structs have ONE author, and a side that drifts
    from it must fail to compile. The numbers below are written by that author
-   (compiler/src/abi.ts) into this file; these three declarations are how C says
-   no if a struct above ever stops matching them. */
+   (sdk/src/ecs/aot/abiDigest.ts, through compiler/src/abi.ts) into this file;
+   these four declarations are how C says no if a struct above ever stops
+   matching them. Every struct a host addresses by word owes one: EsEventOut
+   went without for as long as it existed, and a fourth field would have been
+   read as the next struct by whichever side had not been told. */
 typedef char es_check_sysctx[sizeof(EsSysCtx) == ${SYSCTX_WORDS} * sizeof(es_addr_t) ? 1 : -1];
 typedef char es_check_rows[sizeof(EsQueryRows) == ${QUERYROWS_WORDS} * sizeof(es_addr_t) ? 1 : -1];
 typedef char es_check_cmd[sizeof(EsCmd) == ${CMD_WORDS} * 4 ? 1 : -1];
+typedef char es_check_eventout[sizeof(EsEventOut) == ${EVENT_OUT_WORDS} * sizeof(es_addr_t) ? 1 : -1];
 
 /* memcpy, not a cast through a typed pointer: a component base is whatever the
    host handed over, and a wider load through an under-aligned pointer is

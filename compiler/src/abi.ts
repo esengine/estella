@@ -20,6 +20,7 @@
  */
 import {
     CMD_WORDS as CMD_WORDS_, CMD_DESPAWN as CMD_DESPAWN_, CMD_REMOVE as CMD_REMOVE_,
+    EVENT_OUT_WORDS as EVENT_OUT_WORDS_,
     QUERYROWS_WORDS as QUERYROWS_WORDS_, SYSCTX_WORDS as SYSCTX_WORDS_,
     engineAbiDigest, projectShapeDigest, type ShapeDigestInput,
 } from '../../sdk/src/ecs/aot/abiDigest';
@@ -34,7 +35,7 @@ import { runSystemOn, type EirHost, type Fns } from './interp';
  * because the code generator and this host both name them.
  */
 export {
-    CMD_WORDS, CMD_DESPAWN, CMD_REMOVE, SYSCTX_WORDS, QUERYROWS_WORDS,
+    CMD_WORDS, CMD_DESPAWN, CMD_REMOVE, SYSCTX_WORDS, QUERYROWS_WORDS, EVENT_OUT_WORDS,
 } from '../../sdk/src/ecs/aot/abiDigest';
 
 /**
@@ -344,7 +345,7 @@ export function materialize(mem: AbiMemory, plan: SysPlan): AbiCall {
     const eventBuf = mem.scratch(Math.max(8, eventCap * 8));
     const eventCount = mem.scratch(4);
     mem.u32[eventCount >> 2] = 0;
-    const eventOut = mem.scratch(3 * 4);
+    const eventOut = mem.scratch(EVENT_OUT_WORDS_ * 4);
     mem.u32[eventOut >> 2] = eventBuf;
     mem.u32[(eventOut >> 2) + 1] = eventCap;
     mem.u32[(eventOut >> 2) + 2] = eventCount;
