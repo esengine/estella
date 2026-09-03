@@ -349,6 +349,29 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A native smoke run that could not judge a frame counted as one that had.**
+  The Android check waits for a launched example to reach the frame it judges at,
+  and if the capture landed first it reported `too slow to judge here` and passed
+  the example anyway. So a black frame that was also slow was indistinguishable
+  from a game that drew: 0.59.0 shipped with `audio-demo` black on Android —
+  `1 colors`, at 10 frames — and nothing in that run said so.
+
+  It is a third state now. Neither a pass nor a verdict on the game, it survives
+  a second launch with a longer budget or the run exits 2, which says this
+  machine did not answer for every example it was given.
+
+  A frame of one flat colour earns that second launch too, because it was
+  measured to vary: across four runs of one commit, `chat` and `collision-layers`
+  took turns being the black one, each drew normally in the runs it was not, and
+  either drew every time it was launched by itself — with the boot record
+  reporting the same `1 draw(s), 14 tri, 7 sprite` either way. What varies is
+  whether the frame reached the surface, and one launch cannot tell that from a
+  game that draws nothing. Only those two verdicts are repeated: a crash, a
+  launch that never reported ready and a dialog with the focus all stand on the
+  first, since relaunching those would turn a broken build into a slow green one.
+  The reported line names what the first launch said, so an example that starts
+  needing two every night reads as a defect rather than as weather.
+
 - **Every spine in a released build drew nothing.** A spine atlas names its page
   images as siblings — `spineboy.png` — and a content-addressed pack renames every
   asset to a hash under one flat directory, so resolving that sibling against the
