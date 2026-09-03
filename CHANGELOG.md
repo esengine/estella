@@ -14,6 +14,39 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **An inventory of what the engine's runtime contract facts actually are.** The
+  `EsEventOut` hole above was not thin test coverage — the ABI compatibility
+  system did not know a fact lived there. Those are different severities and
+  nothing could tell them apart, because nothing enumerated the facts.
+
+  `tools/contract-inventory.mjs` enumerates them: fourteen, each declaring who
+  AUTHORS it, what is PROJECTED from it, what independently VERIFIES it, and
+  whether a digest covers it. It is deliberately descriptive — no authority
+  moves and nothing is generated from it. What exists comes first; which
+  authorities are worth merging is a decision that needs this list to make.
+
+  Two kinds of finding, and the second is what keeps it from becoming a list
+  somebody remembers. A CLAIM that no longer holds: every citation carries a
+  probe, so an entry pointing at a fact that has moved is red rather than stale
+  documentation. And GROUND with no claim over it: a generated artifact no fact
+  projects, or a `C++ contract:` pin no fact names, is a fact nobody wrote down.
+
+  The three roles are kept apart, and the checker refuses to let them merge — a
+  file cited as both a projection and the verification of the same fact is a
+  generator being asked whether it generated correctly. That rule caught one on
+  its first run: `es_check_sysctx` proves the emitted C struct matches the
+  emitted constant, which is the generator agreeing with itself; the independent
+  verification is the sabotage suite.
+
+  Five facts carry a declared gap, so the list reads as work rather than as
+  permission — `entityRepresentation` and `mathPolicy` are in no digest at all,
+  and three hand-copied constants are pinned by a test rather than a handshake.
+  Two authors is not automatically a defect: `mathPolicy` is two independent
+  implementations held together by a bit-exact differential, which proves more
+  than generating one from the other would.
+
 ### Fixed
 
 - **A fourth ABI struct was outside the compatibility system entirely.** Three of

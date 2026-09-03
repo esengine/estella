@@ -1,0 +1,270 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  contractFacts.mjs — the runtime contract facts, declared.
+ *
+ * A fact is something the engine and something else must agree about or one of
+ * them reads the wrong bytes. This file says, for each: who AUTHORS it, what is
+ * PROJECTED from it, what independently VERIFIES it, and whether a digest
+ * covers it. `contract-inventory.mjs` holds every claim here against the tree.
+ *
+ * The three roles are kept apart on purpose. An authority owns the fact; a
+ * projection derives it into another representation; a verification decides
+ * INDEPENDENTLY whether the two agree. Folding verification into the authority
+ * graph is how a green build stops meaning anything — a schema asking a
+ * generator whether it generated the schema. So a verification may never name a
+ * file that is also a projection of the same fact, and the checker refuses one.
+ *
+ * `probe` is what makes this different from a list somebody remembers: the fact
+ * has to still be findable where the entry says it is, or the entry is a
+ * finding rather than documentation.
+ *
+ * An author's `kind` is `semantic` (owns what the fact IS — more than one is
+ * drift waiting) or `implementation` (a second realisation of a fact specified
+ * elsewhere). Two implementations plus a differential is STRONGER than
+ * generating one from the other: same-source generation proves both inherited
+ * one implementation, an independent pair proves both satisfy the contract.
+ *
+ * A verification's `how` is `compiler` (the build fails), `handshake` (the two
+ * sides compare at run time and refuse), `test` (a suite parses the other side
+ * and asserts), or `independent-source` (a list written from the spec, not
+ * derived from the thing it checks — never collapse one of those into an
+ * authority).
+ */
+
+export const FACTS = [
+    {
+        id: 'componentShapes',
+        what: 'Every field of every engine component, and the offset its C++ struct puts it at.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'src/esengine/ecs/components', dir: true, probe: /ES_COMPONENT/, kind: 'semantic' },
+        ],
+        projections: [
+            'sdk/src/wasm/ptrLayouts.generated.ts',
+            'sdk/src/wasm/wasm.generated.ts',
+            'sdk/src/ecs/component.generated.ts',
+            'sdk/src/ecs/bridge/ptrAccessors.generated.ts',
+            'sdk/src/ecs/bridge/nativeEngineApi.generated.ts',
+            'sdk/esengine.d.ts',
+            'src/esengine/bindings/WebBindings.generated.cpp',
+            'src/esengine/bindings/EditorAPI.generated.cpp',
+            'src/esengine/aot/AotComponents.generated.hpp',
+            'src/esengine/aot/AotComponents.generated.cpp',
+            'docs/astro/src/data/components.generated.json',
+        ],
+        verification: [
+            { path: 'sdk/src/ecs/bridge/BuiltinBridge.ts', how: 'handshake', probe: /ABI_LAYOUT_HASH/ },
+            { path: 'tools/check-native-components.mjs', how: 'test', probe: /PTR_ACCESSORS/ },
+            { path: 'tools/check-component-fields.mjs', how: 'test', probe: /a declared field has a reader/ },
+        ],
+        digest: { name: 'eht-abi-layout-hash', path: 'sdk/src/ecs/component.generated.ts', probe: /ABI_LAYOUT_HASH/ },
+    },
+    {
+        id: 'abiStructs',
+        what: 'The word width of every struct a compiled system is handed by address.',
+        surface: 'runtime-aot-abi',
+        authors: [
+            { path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /export const SYSCTX_WORDS/, kind: 'semantic' },
+        ],
+        projections: [
+            'src/esengine/aot/estella_abi.h',
+            'src/esengine/aot/EngineDigest.generated.h',
+        ],
+        verification: [
+            { path: 'compiler/tests/abi-structs.test.ts', how: 'test', probe: /refuses a field appended/ },
+        ],
+        digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /sysctx=/ },
+    },
+    {
+        id: 'commandRecords',
+        what: 'What a compiled system may ask the host to do, as a kind number in a four-word record.',
+        surface: 'runtime-aot-abi',
+        authors: [
+            { path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /export const CMD_DESPAWN/, kind: 'semantic' },
+        ],
+        projections: ['src/esengine/aot/estella_abi.h'],
+        verification: [
+            { path: 'compiler/tests/abi-structs.test.ts', how: 'test', probe: /es_check_cmd/ },
+        ],
+        digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /cmdkinds=/ },
+    },
+    {
+        id: 'resourceShapes',
+        what: 'The built-in resources a compiled system can read: their members, and which method reads which bit set.',
+        surface: 'runtime-aot-abi',
+        authors: [
+            { path: 'sdk/src/ecs/resourceShapes.ts', probe: /export const RESOURCE_SHAPES/, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/resource-shape.test.ts', how: 'test', probe: /engineAbiParts/ },
+        ],
+        digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /RESOURCE_NAMES/ },
+    },
+    {
+        id: 'aotFixtureModule',
+        what: 'One compiled system, checked in so the C++ harness builds without running the compiler.',
+        surface: 'internal',
+        authors: [
+            { path: 'compiler/src/codegen.ts', probe: /export function emitC/, kind: 'semantic' },
+        ],
+        projections: [
+            'tests/aot/generated/estella_offsets.h',
+            'tests/aot/generated/move_system.c',
+            'tests/aot/generated/move_system_decl.c',
+            'tests/aot/generated/move_system_hash.h',
+        ],
+        verification: [
+            { path: 'compiler/tests/generated.test.ts', how: 'test', probe: /ESTELLA_AOT_WRITE/ },
+        ],
+        digest: { name: 'engine-abi', path: 'tests/aot/generated/move_system_hash.h', probe: /ES_EXPECTED_CONTRACT_HASH/ },
+    },
+    {
+        id: 'entityRepresentation',
+        what: 'How an entity handle packs an index and a generation into one u32.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'sdk/src/types.ts', probe: /export const ENTITY_INDEX_BITS/, kind: 'semantic' },
+            { path: 'src/esengine/core/Types.hpp', probe: /using Layout = PackedId</, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /packed Entity bit split/ },
+        ],
+        digest: null,
+        owed: 'no digest covers it: the split crosses as a bare u32, so a mismatch is a decoded'
+            + ' handle pointing at another entity rather than a refusal. The test parses the'
+            + ' header, which is a binding but not a handshake.',
+    },
+    {
+        id: 'mathPolicy',
+        what: 'The numeric subset a compiled system may use, specified to the bit because ECMAScript does not specify trigonometry.',
+        surface: 'runtime-aot-abi',
+        authors: [
+            { path: 'sdk/src/math/exact.ts', probe: /function kernelSin/, kind: 'implementation' },
+            { path: 'compiler/src/codegen.ts', probe: /es_kernel_sin/, kind: 'implementation' },
+        ],
+        projections: ['src/esengine/aot/estella_abi.h'],
+        verification: [
+            { path: 'compiler/tests/exact-trig.test.ts', how: 'test', probe: /bit for bit/i },
+        ],
+        digest: null,
+        owed: 'no digest covers it: a module built against a different polynomial loads and'
+            + ' answers different pixels. The differential is bit-exact but needs a host C'
+            + ' compiler, so a checkout without one verifies nothing here.',
+    },
+    {
+        id: 'tweenWireEnums',
+        what: 'The tween easing/state/loop/target enums, which cross the boundary as bare numbers.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'src/esengine/animation/TweenData.hpp', probe: /enum class/, kind: 'semantic' },
+            { path: 'sdk/src/animation/TweenTypes.ts', probe: /TweenState/, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /animation tween enums/ },
+            { path: 'tools/check-enum-twins.mjs', how: 'test', probe: /owes a pin/ },
+        ],
+        digest: null,
+        owed: 'hand-copied, outside the directory EHT parses. The pin is a test, not a'
+            + ' handshake: a drift ships if the suite is not run.',
+    },
+    {
+        id: 'particleColorLut',
+        what: 'How many entries the particle colour lookup table has, which is its stride on both sides.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'src/esengine/particle/ParticleSystem.hpp', probe: /LUT/, kind: 'semantic' },
+            { path: 'sdk/src/particle/gradient.ts', probe: /GRADIENT_LUT_SIZE/, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /particle color LUT/ },
+        ],
+        digest: null,
+        owed: 'hand-copied; the pin is a test, not a handshake.',
+    },
+    {
+        id: 'tilemapCellEncoding',
+        what: 'Which bits of a tile word are the id and which are the three flip flags.',
+        surface: 'project-asset-format',
+        authors: [
+            { path: 'src/esengine/tilemap/TilemapSystem.hpp', probe: /FLIP/, kind: 'semantic' },
+            { path: 'sdk/src/tilemap/tileBits.ts', probe: /TILE_ID_MASK/, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /tilemap cell encoding/ },
+        ],
+        digest: null,
+        owed: 'hand-copied; and it is a FILE format, so a drift mis-renders every saved map'
+            + ' rather than failing to load.',
+    },
+    {
+        id: 'uiBaseLayer',
+        what: 'The layer number UI elements draw from, which orders them against the world.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'src/esengine/renderer/plugins/UIElementPlugin.hpp', probe: /Layer/i, kind: 'semantic' },
+        ],
+        projections: [],
+        verification: [
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /UI base layer/ },
+        ],
+        digest: null,
+    },
+    {
+        id: 'shaderSources',
+        what: 'The engine shaders, and the WGSL twin each one needs to reach the second backend.',
+        surface: 'internal',
+        authors: [
+            { path: 'src/esengine/data/shaders', dir: true, probe: /#pragma shader/, kind: 'semantic' },
+        ],
+        projections: ['src/esengine/renderer/rhi/ShaderEmbeds.generated.hpp'],
+        verification: [
+            { path: 'tools/check-wgsl-twin.mjs', how: 'test', probe: /fragment stage/ },
+            { path: 'tools/check-shader-blocks.mjs', how: 'test', probe: /shader/i },
+        ],
+        digest: null,
+    },
+    {
+        id: 'apiTiers',
+        what: 'The stability tier every exported SDK symbol carries, and what that tier promises.',
+        surface: 'sdk-api',
+        authors: [
+            { path: 'sdk/src', dir: true, probe: /@public/, kind: 'semantic' },
+        ],
+        projections: ['docs/astro/src/data/apiStability.generated.json'],
+        verification: [
+            { path: 'tools/api-surface.mjs', how: 'test', probe: /check-baseline/ },
+            { path: 'tools/check-freeze-bar.mjs', how: 'test', probe: /public/i },
+        ],
+        digest: null,
+    },
+    {
+        id: 'uiWidgetPrefabs',
+        what: 'The built-in UI widgets, as prefab data the SDK ships rather than reads from disk.',
+        surface: 'sdk-api',
+        authors: [
+            { path: 'sdk/src/ui/widgets/prefabs', dir: true, probe: /"version"/, kind: 'semantic' },
+        ],
+        projections: ['sdk/src/ui/widgets/prefabs/generated.ts'],
+        verification: [
+            { path: 'sdk/tests/ui-widget-prefabs.gen.test.ts', how: 'test', probe: /prefab/i },
+        ],
+        digest: null,
+    },
+];
+
+/**
+ * Generated artifacts that are NOT a projection of a contract fact, and why.
+ * Being generated is not the same as being derived from a contract: a measured
+ * baseline records what a machine did, and pinning it to an authority would
+ * claim a fact the number does not carry.
+ */
+export const NOT_CONTRACT = {
+    'sdk/etc/perf.snapshot.json':
+        'a measured baseline, not a derivation — accepted with `perf-guard --update`.',
+};

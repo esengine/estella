@@ -221,6 +221,10 @@ export const GATES = [
   // error, it is a picture that is merely wrong. cpp-contract pins the ones
   // somebody remembered; this says which ones nobody did.
   { id: 'enum-twins', run: 'node tools/check-enum-twins.mjs' },
+  // …and this says which facts nobody wrote down at all. A generated artifact no
+  // authority claims, or a cross-language pin no fact names, is a compatibility
+  // fact outside the compatibility system — the state EsEventOut was in.
+  { id: 'contract-inventory', run: 'node tools/contract-inventory.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];
