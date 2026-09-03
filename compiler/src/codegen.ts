@@ -32,7 +32,7 @@ import { EXACT_COEFFICIENTS as EX } from '../../sdk/src/math/exact';
 import {
     CMD_WORDS, QUERYROWS_WORDS, SYSCTX_WORDS, EVENT_OUT_WORDS, CMD_DESPAWN, CMD_REMOVE,
     abiHandshake, planFor,
-    type AbiLayout, type FieldOffsets, type Leaf, type SysPlan,
+    type AbiHandshake, type AbiLayout, type FieldOffsets, type Leaf, type SysPlan,
 } from './abi';
 import {
     BOOL, F64,
@@ -93,7 +93,7 @@ export interface CModule {
      * The handshake: what this module baked in about the ENGINE and about the
      * PROJECT, each so a loader can say which one moved.
      */
-    readonly handshake: { readonly engineAbi: string; readonly projectShapes: string };
+    readonly handshake: AbiHandshake;
 }
 
 // =============================================================================
@@ -877,6 +877,14 @@ export function emitC(
         '/* This file calls the engine zero times, and holds no data of its own. */',
         '#include "estella_abi.h"',
         '#include "estella_offsets.h"',
+        '',
+        // Functions rather than a constant: a module sharing the engine's
+        // memory may carry no data section, and both roads compile this file.
+        '/* Which BUILD this is, for a loader holding the sidecar written beside',
+        '   it. The two digests above answer "is this engine right" and "are the',
+        '   project shapes right"; neither answers "are these two the same pair". */',
+        `ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x${handshake.moduleContract.slice(8)}u; }`,
+        `ES_EXPORT uint32_t es_module_contract_hi(void) { return 0x${handshake.moduleContract.slice(0, 8)}u; }`,
         '',
         ...bodies,
     ].join('\n');

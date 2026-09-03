@@ -44,6 +44,7 @@ public:
             close();
             handle_ = std::exchange(other.handle_, nullptr);
             systems_ = std::exchange(other.systems_, {});
+            contract_ = std::exchange(other.contract_, 0);
         }
         return *this;
     }
@@ -75,8 +76,16 @@ public:
             return fail("it was built against a different engine or address width");
         }
         systems_ = std::span<const EsSystemDecl>(decls, *count);
+        contract_ = readContract_();
         return true;
     }
+
+    /**
+     * Which BUILD this module is, for a caller holding the sidecar written
+     * beside it. Zero where the module predates it — which the caller must read
+     * as "cannot say", never as "paired".
+     */
+    std::uint64_t contract() const { return contract_; }
 
     bool isOpen() const { return handle_ != nullptr; }
 
@@ -94,13 +103,28 @@ public:
     void close() {
         // The declarations live IN the library, so they stop existing with it.
         systems_ = {};
+        contract_ = 0;
         core::closeLibrary(handle_);
         handle_ = nullptr;
     }
 
 private:
+    /**
+     * Two functions rather than one constant: a module that shares the engine's
+     * memory may carry no data section, and the same translation unit serves
+     * both roads. Absent means a module built before pairing existed.
+     */
+    std::uint64_t readContract_() const {
+        using Half = std::uint32_t (*)();
+        auto* lo = reinterpret_cast<Half>(core::librarySymbol(handle_, "es_module_contract_lo"));
+        auto* hi = reinterpret_cast<Half>(core::librarySymbol(handle_, "es_module_contract_hi"));
+        if (lo == nullptr || hi == nullptr) return 0;
+        return (static_cast<std::uint64_t>(hi()) << 32) | lo();
+    }
+
     void* handle_ = nullptr;
     std::span<const EsSystemDecl> systems_{};
+    std::uint64_t contract_ = 0;
 };
 
 }  // namespace esengine::aot

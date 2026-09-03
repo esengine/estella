@@ -537,6 +537,7 @@ WasmHeap & { readonly memory: WebAssembly.Memory }
 ## AotManifest — interface @experimental
 ```
 engineAbi: string
+moduleContract: string | undefined
 projectShapes: string
 systems: readonly AotSystemDecl[]
 ```

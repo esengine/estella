@@ -3,6 +3,12 @@
 #include "estella_abi.h"
 #include "estella_offsets.h"
 
+/* Which BUILD this is, for a loader holding the sidecar written beside
+   it. The two digests above answer "is this engine right" and "are the
+   project shapes right"; neither answers "are these two the same pair". */
+ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x714ea1e3u; }
+ES_EXPORT uint32_t es_module_contract_hi(void) { return 0x10bf77bbu; }
+
 ES_EXPORT void es_sys_MoveSystem(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
     const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);

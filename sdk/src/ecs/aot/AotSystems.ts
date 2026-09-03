@@ -44,6 +44,13 @@ export interface AotManifest {
     readonly engineAbi: string;
     /** The project's own component shapes, scoped to the ones it names. */
     readonly projectShapes: string;
+    /**
+     * Which BUILD this sidecar belongs to. The artifact bakes the same number,
+     * so the two can be asked the question neither digest above answers: are
+     * these halves from one run? Optional only for a module built before it
+     * existed, which a loader treats as unpaired rather than as paired.
+     */
+    readonly moduleContract?: string;
     readonly systems: readonly AotSystemDecl[];
 }
 
@@ -118,6 +125,13 @@ export class AotSystems {
           * could bind only some of it still loaded all of it. Default: all.
           */
         runs: (name: string) => boolean = () => true,
+        /**
+          * What the ARTIFACT says it was built as, or null where this road
+          * cannot ask it. Two builds over one engine and one project agree on
+          * both digests below while declaring different queries, mut flags and
+          * event payloads — which is what the bookkeeping here reads.
+          */
+        moduleContract: string | null = null,
     ): void {
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
@@ -127,6 +141,13 @@ export class AotSystems {
                 `AOT module refused: built for engine ${manifest.engineAbi}, this is ${engine}. `
                 + 'Rebuild the module against this engine — a wrong offset reads a different '
                 + 'field rather than failing.');
+        }
+        if (moduleContract !== null && manifest.moduleContract !== moduleContract) {
+            throw new Error(
+                `AOT module refused: the module was built as ${moduleContract} and the manifest `
+                + `beside it says ${manifest.moduleContract ?? '(nothing)'}. They are from `
+                + 'different builds — the declarations this runtime reads are not the ones the '
+                + 'module compiled. Rebuild both.');
         }
         const shapes = projectShapeDigest(scriptShapes(manifest, resolve, resourceFields));
         if (manifest.projectShapes !== shapes) {

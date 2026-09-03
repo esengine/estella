@@ -22,7 +22,7 @@ import {
     CMD_WORDS as CMD_WORDS_, CMD_DESPAWN as CMD_DESPAWN_, CMD_REMOVE as CMD_REMOVE_,
     EVENT_OUT_WORDS as EVENT_OUT_WORDS_,
     QUERYROWS_WORDS as QUERYROWS_WORDS_, SYSCTX_WORDS as SYSCTX_WORDS_,
-    engineAbiDigest, projectShapeDigest, type ShapeDigestInput,
+    engineAbiDigest, fnv1a64, projectShapeDigest, type ShapeDigestInput,
 } from '../../sdk/src/ecs/aot/abiDigest';
 import { resourceNames } from './builtins';
 import { resourceBlockBytes, resourceMethodBit } from '../../sdk/src/ecs/resourceShapes';
@@ -487,6 +487,13 @@ export function runOnAbi(sys: EirSystem, mem: AbiMemory, layout: AbiLayout, fns:
 export interface AbiHandshake {
     readonly engineAbi: string;
     readonly projectShapes: string;
+    /**
+     * Which BUILD this is: the artifact bakes it and the sidecar carries the
+     * same number, so a loader can ask what neither digest above answers — are
+     * these two halves one build? An IDENTITY proof, so both come from this one
+     * value. Not the engine or the width; `engineAbi` answers those.
+     */
+    readonly moduleContract: string;
 }
 
 export function abiHandshake(
@@ -510,10 +517,30 @@ export function abiHandshake(
         if (!shape || shape.storage !== 'host') continue;
         shapes.push({ name, fields: [...shape.fields.keys()] });
     }
+    const engineAbi = engineAbiDigest(addressBytes);
+    const projectShapes = projectShapeDigest(shapes);
     return {
-        engineAbi: engineAbiDigest(addressBytes),
-        projectShapes: projectShapeDigest(shapes),
+        engineAbi,
+        projectShapes,
+        moduleContract: fnv1a64([projectShapes, ...plans.map(contractLine)].join('\n')),
     };
+}
+
+/**
+ * One system's declaration as the runtime reads it: what it queries and may
+ * write, what it resources, and the event payload layout its compiled code
+ * baked in. Everything a host or a runtime takes from the sidecar rather than
+ * from the code.
+ */
+function contractLine(p: SysPlan): string {
+    const channel = (c: { slot: number; event: string }) => `${c.slot}:${c.event}`;
+    return [
+        p.system,
+        p.queries.map((q) => q.map((a) => `${a.comp}${a.mut ? '!' : ''}`).join(',')).join(';'),
+        p.resources.map((r) => `${r.name}${r.mut ? '!' : ''}`).join(','),
+        p.readers.map(channel).join(','),
+        p.writers.map(channel).join(','),
+    ].join('|');
 }
 
 /**

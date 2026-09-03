@@ -64,6 +64,10 @@ public:
     /** How many systems the module declared — bound or not. */
     std::size_t count() const { return bound_.size(); }
 
+    /** Which BUILD the open module is, or 0 where it cannot say. The SDK holds
+     *  the sidecar and is the half that can compare. */
+    std::uint64_t contract() const { return module_.contract(); }
+
     /** The declared name at that index, or an empty string out of range. */
     const char* nameAt(std::size_t i) const { return i < names_.size() ? names_[i] : ""; }
 

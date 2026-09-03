@@ -38,6 +38,7 @@
 #include "esengine/aot/AotDispatcher.hpp"
 #include "esengine/aot/EngineDigest.generated.h"
 
+#include <cstdio>
 #include <deque>
 #include <string>
 #include <unordered_map>
@@ -145,6 +146,19 @@ JSValue js_index(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     const std::size_t at = state().dispatcher.indexOf(name);
     JS_FreeCString(ctx, name);
     return JS_NewInt32(ctx, at == aot::Dispatcher::npos ? -1 : static_cast<int>(at));
+}
+
+/**
+ * es_aot_contract() -> which BUILD the open module is, as 16 hex digits, or ""
+ * where it cannot say. The SDK holds the sidecar written beside it and is the
+ * only half that can compare the two.
+ */
+JSValue js_contract(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    const std::uint64_t value = state().dispatcher.contract();
+    if (value == 0) return JS_NewString(ctx, "");
+    char hex[17];
+    std::snprintf(hex, sizeof(hex), "%016llx", static_cast<unsigned long long>(value));
+    return JS_NewString(ctx, hex);
 }
 
 /** es_aot_bound(i) -> whether that system resolved; an unbound one interprets. */
@@ -277,6 +291,7 @@ void registerAotBindings(HostState& h, JSValue global) {
     fn("es_aot_install", js_install, 1);
     fn("es_aot_index", js_index, 1);
     fn("es_aot_bound", js_bound, 1);
+    fn("es_aot_contract", js_contract, 0);
     fn("es_aot_script_rows", js_scriptRows, 8);
     fn("es_aot_resource", js_resource, 3);
     fn("es_aot_run", js_run, 2);

@@ -19,7 +19,9 @@ import { lowerProgram } from '../src/frontend';
 import { verifySystem } from '../src/verify';
 import { runSystem, type EirWorld, type Row } from '../src/interp';
 import { builtinShapes } from '../src/builtins';
-import { AbiMemory, packLayout, runOnAbi } from '../src/abi';
+import { AbiMemory, abiHandshake, packLayout, runOnAbi, type SysPlan } from '../src/abi';
+import { emitC } from '../src/codegen';
+import { inlineSystem } from '../src/inline';
 
 import { moveSystem } from '../../examples/ecs-basics/src/systems/move';
 import { lifetimeSystem } from '../../examples/ecs-basics/src/systems/lifetime';
@@ -163,4 +165,50 @@ describe('the ABI is sufficient for the systems the subset compiles', () => {
     // "Zero calls into the engine" is not asserted here: it is a property of the
     // shipped artifact — an empty wasm import section — and wasm.test.ts asks it
     // of the artifact itself.
+});
+
+/**
+ * Two builds of one engine, over one project's shapes, agree on both digests
+ * while declaring different queries, mut flags and event payloads — and those
+ * are what a runtime's bookkeeping reads out of the sidecar. Probed against
+ * real artifacts before this existed: same engineAbi, same projectShapes.
+ */
+describe('which build a module is', () => {
+    const shape = new Map([['Mover', { storage: 'host' as const, fields: new Map([['speed', 'f32']]) }]]);
+
+    /** One system's plan, as `planFor` would hand it over. */
+    const plan = (over: Partial<SysPlan> = {}): SysPlan => ({
+        system: 'MoveSystem', queries: [[{ comp: 'Mover', mut: true }]],
+        resources: [], channels: [], readers: [], writers: [],
+        slots: new Map(), ...over,
+    } as SysPlan);
+
+    const contractOf = (p: SysPlan) => abiHandshake(shape as never, [p], 8).moduleContract;
+
+    it('changes when a mut flag does, where neither other digest can', () => {
+        const writes = plan();
+        const reads = plan({ queries: [[{ comp: 'Mover', mut: false }]] });
+        const a = abiHandshake(shape as never, [writes], 8);
+        const b = abiHandshake(shape as never, [reads], 8);
+        expect(a.engineAbi).toBe(b.engineAbi);
+        expect(a.projectShapes).toBe(b.projectShapes);
+        expect(a.moduleContract).not.toBe(b.moduleContract);
+    });
+
+    it('changes for a resource, a reader and a writer alike', () => {
+        const base = contractOf(plan());
+        expect(contractOf(plan({ resources: [{ name: 'Score', mut: true }] }))).not.toBe(base);
+        expect(contractOf(plan({ readers: [{ slot: 0, event: 'Hit' }] }))).not.toBe(base);
+        expect(contractOf(plan({ writers: [{ slot: 0, event: 'Hit' }] }))).not.toBe(base);
+    });
+
+    it('is what the artifact bakes, in the halves a data-free module can carry', () => {
+        const fixture = resolve(ROOT, 'compiler/tests/fixtures/in-subset.ts');
+        const lowered = lowerProgram([fixture], builtinShapes());
+        const move = lowered.module.systems.find((s) => s.name === 'FixturePing')!;
+        const c = emitC(lowered.module, packLayout(lowered.module.comps),
+            [inlineSystem(move, lowered.module.fns)], 8);
+        expect(c.source).toContain(`es_module_contract_lo(void) { return 0x${c.handshake.moduleContract.slice(8)}u; }`);
+        expect(c.source).toContain(`es_module_contract_hi(void) { return 0x${c.handshake.moduleContract.slice(0, 8)}u; }`);
+    });
 });

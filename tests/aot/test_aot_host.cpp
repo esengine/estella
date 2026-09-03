@@ -47,6 +47,8 @@ extern "C" {
 /** The compiled system. One symbol, and it calls nothing. */
 void es_sys_MoveSystem(es_addr_t ctx);
 extern const std::uint64_t es_abi_hash;
+std::uint32_t es_module_contract_lo();
+std::uint32_t es_module_contract_hi();
 /** The manifest: what the artifact says its systems need filled in. */
 extern const EsSystemDecl es_systems[];
 extern const std::uint32_t es_system_count;
@@ -239,6 +241,15 @@ TEST_CASE("the generated offsets are the C++ struct's, not a second table") {
 
 TEST_CASE("the host and the artifact agree on the handshake") {
     CHECK(es_abi_hash == aot::abiHash(ES_EXPECTED_CONTRACT_HASH));
+}
+
+// Which BUILD the artifact is, for a loader holding the sidecar beside it: two
+// builds agree on the handshake above while declaring different mut flags. Two
+// functions, because a module sharing the engine's memory has no data section.
+TEST_CASE("the artifact says which build it is") {
+    const std::uint64_t said =
+        (static_cast<std::uint64_t>(es_module_contract_hi()) << 32) | es_module_contract_lo();
+    CHECK(said == ES_EXPECTED_MODULE_CONTRACT);
 }
 
 TEST_CASE("the artifact says what it needs, and nobody writes that list twice") {

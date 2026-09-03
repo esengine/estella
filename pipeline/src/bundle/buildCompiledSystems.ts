@@ -65,6 +65,9 @@ export interface CompiledSystemsManifest {
    */
   engineAbi: string;
   projectShapes: string;
+  /** Which BUILD this is: the artifact bakes the same number, so a loader can
+   *  refuse a module paired with another build's sidecar. */
+  moduleContract: string;
   systems: CompiledSystemInfo[];
 }
 
@@ -293,6 +296,7 @@ export async function buildCompiledSystems(
   const manifest: CompiledSystemsManifest = {
     engineAbi: c.handshake.engineAbi,
     projectShapes: c.handshake.projectShapes,
+    moduleContract: c.handshake.moduleContract,
     systems: inlined.map((sys) => {
       const plan = planFor(sys);
       return {

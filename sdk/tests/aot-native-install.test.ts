@@ -325,3 +325,58 @@ describe('a capability a loading host cannot hand compiled code', () => {
         expect(f.calls).toEqual(['PlainSystem']);
     });
 });
+
+
+/**
+ * Probed against two real native builds before this existed: one writing
+ * Transform, one writing Mover, same engine and same components — SAME
+ * engineAbi, SAME projectShapes, and the artifact's baked hash is a pure
+ * function of those. Nothing paired a sidecar to the module it describes.
+ */
+describe('a module and the sidecar written beside it', () => {
+    const PAIRED = 'aaaabbbbccccdddd';
+    const paired = (contract: string | null): AotManifest => ({
+        ...MANIFEST,
+        moduleContract: contract ?? undefined,
+    });
+
+    function install(manifest: AotManifest, hostSays: string | undefined) {
+        const order = manifest.systems.map((s) => s.name);
+        const bindings: NativeAotBindings = {
+            install: () => order.length,
+            index: (name) => order.indexOf(name),
+            bound: () => true,
+            scriptRows: () => true,
+            resource: () => true,
+            run: () => 0,
+            reset: () => {},
+            ...(hostSays === undefined ? {} : { contract: () => hostSays }),
+        };
+        declareDrift();
+        const world = new World();
+        return () => installNativeAot({
+            world, runner: new SystemRunner(world, new ResourceStorage()),
+            modulePath: 'systems.dll', manifest, heap: fakeHeap(), bindings,
+        });
+    }
+
+    it('are refused when they are from different builds', () => {
+        expect(install(paired('0123456789abcdef'), PAIRED)).toThrow(/different builds/);
+    });
+
+    it('are refused when the module is paired and the sidecar predates pairing', () => {
+        expect(install(paired(null), PAIRED)).toThrow(/different builds/);
+    });
+
+    it('install when they agree', () => {
+        expect(install(paired(PAIRED), PAIRED)).not.toThrow();
+    });
+
+    /** A host too old to answer cannot be asked; that is unpaired, and it is
+     *  the one case this cannot turn into a refusal without breaking every
+     *  runtime template built before the question existed. */
+    it('install where the host cannot say which build the module is', () => {
+        expect(install(paired(PAIRED), '')).not.toThrow();
+        expect(install(paired(PAIRED), undefined)).not.toThrow();
+    });
+});

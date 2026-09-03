@@ -389,3 +389,55 @@ describe('the AOT build step, for a host that loads a library', () => {
     expect(out.errors[0]).not.toMatch(/emsdk/);
   });
 });
+
+
+/**
+ * Two builds of one engine over one project's shapes. Probed before the pairing
+ * existed: both produced the SAME engineAbi and the SAME projectShapes, and the
+ * artifact's baked handshake is a pure function of those — so a runtime reading
+ * the wrong sidecar's mut flags had nothing to stop it.
+ */
+describe('which build a native artifact is', () => {
+  const COMPONENTS_2 = `import { defineComponent } from 'esengine';
+export const Mover = defineComponent('Mover', { speed: 100, directionX: 1, directionY: 0 });
+`;
+  const WRITES_TRANSFORM = `import { defineSystem, Query, Mut, Transform } from 'esengine';
+import { Mover } from './components';
+/** @compiled */
+export const moveSystem = defineSystem(
+    [Query(Mut(Transform), Mover)],
+    (query) => { for (const [, t, m] of query) { t.position.x += m.speed; } },
+    { name: 'MoveSystem' },
+);
+`;
+  const WRITES_MOVER = `import { defineSystem, Query, Mut, Transform } from 'esengine';
+import { Mover } from './components';
+/** @compiled */
+export const moveSystem = defineSystem(
+    [Query(Transform, Mut(Mover))],
+    (query) => { for (const [, t, m] of query) { m.speed = t.position.x; } },
+    { name: 'MoveSystem' },
+);
+`;
+
+  it.skipIf(!HOST_CC)('separates two builds the other digests cannot', async () => {
+    const build = (src: string) => buildCompiledSystems(
+      project({ 'src/components.ts': COMPONENTS_2, 'src/systems.ts': src }),
+      { mode: 'release', target: 'native', cc: HOST_CC, run });
+    const a = await build(WRITES_TRANSFORM);
+    const b = await build(WRITES_MOVER);
+    expect(a.errors).toEqual([]);
+    expect(b.errors).toEqual([]);
+
+    // The two really are different modules: one writes Transform, one Mover.
+    expect(JSON.stringify(a.manifest!.systems)).not.toEqual(JSON.stringify(b.manifest!.systems));
+    // And neither digest that existed can say so.
+    expect(a.manifest!.engineAbi).toBe(b.manifest!.engineAbi);
+    expect(a.manifest!.projectShapes).toBe(b.manifest!.projectShapes);
+    // This one can, which is the whole of its job.
+    expect(a.manifest!.moduleContract).not.toBe(b.manifest!.moduleContract);
+    // And the same build twice is the same pair, or it would refuse itself.
+    expect((await build(WRITES_TRANSFORM)).manifest!.moduleContract)
+      .toBe(a.manifest!.moduleContract);
+  });
+});

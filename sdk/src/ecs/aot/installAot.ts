@@ -82,6 +82,18 @@ export async function installAot(opts: InstallAotOptions): Promise<AotRuntime> {
  * world's first pooled component, and a runner may not exist until the first
  * frame. A caller holding the result attaches it when it does.
  */
+/**
+ * What the module says it was built as. Two exported functions rather than a
+ * constant: a module sharing the engine's memory carries no data section.
+ */
+function moduleContractOf(exports: Readonly<Record<string, unknown>>): string | null {
+    const lo = exports['es_module_contract_lo'];
+    const hi = exports['es_module_contract_hi'];
+    if (typeof lo !== 'function' || typeof hi !== 'function') return null;
+    const half = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+    return half((hi as () => number)()) + half((lo as () => number)());
+}
+
 export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promise<AotRuntime> {
     const memory = new WasmPoolMemory(opts.host);
     opts.world.useScriptPoolMemory(memory);
@@ -98,7 +110,7 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
         opts.resourceFields ?? ((name) => {
             const value = opts.resources(name);
             return value === undefined ? undefined : Object.keys(value);
-        }));
+        }), 4, () => true, moduleContractOf(exports));
 
     const runtime: AotRuntime = {
         systems,

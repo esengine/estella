@@ -42,6 +42,9 @@ export interface NativeAotBindings {
     resource(name: string, offset: number, bytes: number): boolean;
     run(index: number, scriptEpoch: number): number;
     reset(): void;
+    /** Which BUILD the module is, or '' where the host cannot say — an older
+     *  runtime template, which is unpaired and not paired. */
+    contract?(): string;
 }
 
 export interface InstallNativeAotOptions {
@@ -109,6 +112,7 @@ export function nativeAotBindings(
         run: (index, scriptEpoch) =>
             (run as (i: number, e: number) => number)(index, scriptEpoch),
         reset: call<void>('es_aot_reset', undefined as void),
+        contract: call<string>('es_aot_contract', ''),
     };
 }
 
@@ -152,8 +156,12 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
             throw new Error(`AOT: ${decl.name} is the host's to call, not this runtime's`);
         };
     }
+    // The artifact is the host's to read here, so the pairing comes back from
+    // it rather than off an export this side can reach.
+    const paired = bindings.contract?.() ?? '';
     systems.install(opts.manifest, exports, (name) => getComponent(name),
-        () => [], NATIVE_ADDRESS_BYTES, (name) => byName.has(name));
+        () => [], NATIVE_ADDRESS_BYTES, (name) => byName.has(name),
+        paired === '' ? null : paired);
 
     // Every script component any twin names, so one epoch change re-reports all
     // of them rather than whichever twin happened to run first.
