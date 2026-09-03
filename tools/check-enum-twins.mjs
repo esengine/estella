@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  check-enum-twins.mjs — a TS enum that restates a C++ one is held to it.
+ * @file  check-enum-twins.mjs — a TS number that restates a C++ one is held to it.
  *
  * The engine's enums cross as bare numbers, so a TS spelling that drifts from the
  * C++ one does not fail: it writes 1 where the renderer reads 2, and the picture
@@ -19,20 +19,28 @@
  * identity is asserted, or, where the symbol must keep its own tier tag, as a
  * value comparison.
  *
+ * A generated CONSTANT is stricter: it owes an import, and the pin does not
+ * excuse a copy. The pin is taken of the one module that re-exports it, so a
+ * third declaration elsewhere is covered by nothing — which is how a nav grid
+ * came to split cells with its own `0x1fff` beside a mask the C++ owns.
+ *
  *   node tools/check-enum-twins.mjs
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 import { ETC, ENTRIES } from './lib/sdkProgram.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GENERATED = path.join(ROOT, 'sdk/src/wasm/wasm.generated.ts');
+const CONSTANTS = path.join(ROOT, 'sdk/src/wasm/constants.generated.ts');
 const CONTRACT = path.join(ROOT, 'sdk/tests/cpp-contract.test.ts');
 
-for (const [what, file] of [['the generated twins', GENERATED], ['the contract test', CONTRACT]]) {
+for (const [what, file] of [['the generated twins', GENERATED],
+    ['the generated constants', CONSTANTS], ['the contract test', CONTRACT]]) {
     if (existsSync(file)) continue;
     // Loud: with either half missing this can only report "nothing to hold",
     // which reads exactly like "everything is held".
@@ -42,14 +50,22 @@ for (const [what, file] of [['the generated twins', GENERATED], ['the contract t
 
 const generated = readFileSync(GENERATED, 'utf8');
 const GEN_ENUMS = new Set([...generated.matchAll(/^export enum (\w+) \{/gm)].map((m) => m[1]));
+const GEN_CONSTS = new Set(
+    [...readFileSync(CONSTANTS, 'utf8').matchAll(/^export const ([A-Z_]+) =/gm)].map((m) => m[1]));
 const contract = readFileSync(CONTRACT, 'utf8');
 const pinned = (name) => new RegExp(`\\b${name}\\b`).test(contract);
 
 /** A doc that says this must agree with something, which only a check can. */
 const PROMISE = /\b(?:matching|matches|must match|mirrors|same as|kept in sync)\b/i;
 
-const sources = execFileSync('git', ['ls-files', 'sdk/src'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter((f) => f.endsWith('.ts') && !f.includes('.generated.'));
+// Every root a copy could be written in, not just the one where the last one
+// was found — the editor reads these constants too, and its files are in its
+// own index.
+const ROOTS = ['sdk/src', 'pipeline/src', 'compiler/src', 'tools', 'build-tools', 'bench', 'desktop/src'];
+const { files: tracked, missing } = listTrackedSources(ROOTS);
+const SELF = 'tools/check-enum-twins.mjs';
+const sources = tracked.filter((f) => /\.(ts|tsx|mts|mjs|js)$/.test(f)
+    && !f.includes('.generated.') && f !== SELF);
 
 const problems = [];
 for (const rel of sources) {
@@ -64,6 +80,16 @@ for (const rel of sources) {
         if (new RegExp(`^export \\{[^}]*\\b${name}\\b[^}]*\\} from`, 'm').test(text)) continue;
         if (!GEN_ENUMS.has(name) || pinned(name)) continue;
         problems.push(`${rel}: ${name} has the name of a generated C++ enum and nothing holds them equal`);
+    }
+
+    // A constant owes an IMPORT: `pinned` does not excuse it, because the pin is
+    // taken of the module that re-exports the generated one and says nothing
+    // about a third declaration somewhere else.
+    for (const m of text.matchAll(/^\s*(?:export\s+)?(?:const|let|var)\s+([A-Z_]+)\s*=/gm)) {
+        const name = m[1];
+        if (!GEN_CONSTS.has(name)) continue;
+        const line = text.slice(0, m.index).split('\n').length;
+        problems.push(`${rel}:${line}: ${name} restates a generated C++ constant — import it`);
     }
 
     for (const [i, line] of lines.entries()) {
@@ -101,14 +127,20 @@ for (const [name, sym] of api) {
     }
 }
 
+// A root with no checkout has to say so: silence there reads as a clean bill.
+for (const m of missing) console.log(`not checked (no checkout): ${m}`);
+
 if (problems.length) {
     console.error('check-enum-twins: a number that crosses to C++ is restated or under-promised.\n');
     for (const p of [...new Set(problems)]) console.error(`  ${p}`);
-    console.error('\nRe-export it from sdk/src/wasm/wasm.generated and pin the identity in'
-        + ' sdk/tests/cpp-contract.test.ts, or — where the symbol must keep its own tier tag —'
-        + ' keep the declaration and pin its VALUES there. An under-promised enum is answered'
-        + ' with ES_ENUM(stability=) at its C++ declaration.');
+    console.error('\nAn ENUM: re-export it from sdk/src/wasm/wasm.generated and pin the identity'
+        + ' in sdk/tests/cpp-contract.test.ts, or — where the symbol must keep its own tier tag —'
+        + ' keep the declaration and pin its VALUES there. An under-promised one is answered with'
+        + ' ES_ENUM(stability=) at its C++ declaration.');
+    console.error('A CONSTANT: import it from sdk/src/wasm/constants.generated, or from whichever'
+        + ' module re-exports it. There is no second declaration to pin.');
     process.exit(1);
 }
-console.log(`check-enum-twins: ${GEN_ENUMS.size} generated C++ enums — every TS restatement held to`
-    + ' one, and every shape promised at beta or better spelled in vocabulary at least as strong.');
+console.log(`check-enum-twins: ${GEN_ENUMS.size} generated C++ enums and ${GEN_CONSTS.size} constants`
+    + ` over ${sources.length} source(s) — every TS restatement held to one, and every shape promised`
+    + ' at beta or better spelled in vocabulary at least as strong.');

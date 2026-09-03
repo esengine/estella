@@ -6,16 +6,14 @@
  *
  * The core builder takes a raw `getTile(x,y)` reader so it stays wasm-free and
  * unit-testable; the convenience wrapper reads a live tilemap layer through
- * TilemapAPI. Cells are raw u16 (`tileId | flipBits`); the low 13 bits are the
- * tile id, matching `mergeCollisionTiles`.
+ * TilemapAPI. Cells are raw u16 (`tileId | flipBits`), split by the mask the
+ * C++ header owns — a wider one here reads every cell as a different tile.
  */
 
 import type { Entity, Vec2 } from '../../types';
 import { NavGrid } from './NavGrid';
 import { TilemapAPI } from '../../tilemap/tilemapAPI';
-
-/** Low 13 bits of a tilemap cell are the tile id; the top 3 are flip flags. */
-const TILE_ID_MASK = 0x1fff;
+import { TILE_ID_MASK } from '../../tilemap/tileBits';
 
 export interface BuildNavGridOptions {
     width: number;
