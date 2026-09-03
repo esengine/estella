@@ -26,8 +26,14 @@
 
 /** @typedef {{ok?: boolean, undetermined?: boolean, why?: string, unjudged?: string|null, offScreen?: string|null}} SmokeResult */
 
-/** The verdict for a frame that has no colour in it but one. */
-const FLAT_FRAME = / flat color after /;
+/**
+ * The verdicts that follow a successful start and say the app did not draw.
+ *
+ * Two faces of one event — the frame never reaching the surface — telling apart
+ * only by whether the record caught a frame count (camera-follow: 240 frames in
+ * one run of a build, none in the next).
+ */
+const NOT_DRAWN_AFTER_READY = [/ flat color after /, /drew no frame at all/];
 
 /**
  * Worth launching a second time, on the same installed APK.
@@ -40,7 +46,10 @@ export function worthAnotherLaunch(r) {
     // spent, and the frame under a dialog is not this check's to judge.
     if (r.offScreen) return false;
     if (r.undetermined) return true;
-    return !r.ok && FLAT_FRAME.test(r.why ?? '');
+    // No `ready` check guarding these: a run that never reported ready is given
+    // that verdict and no other, so both faces below already imply a start that
+    // succeeded. The border is real, and the caller draws it.
+    return !r.ok && NOT_DRAWN_AFTER_READY.some((face) => face.test(r.why ?? ''));
 }
 
 /**

@@ -17,13 +17,21 @@ import { worthAnotherLaunch, verdictOf, exitCodeFor, unjudgedReason } from '../l
 const run = (o: Partial<{ countColors: boolean, frames: number, wanted: number, colors: number, minColors: number }>) =>
     ({ countColors: true, frames: 30, wanted: 30, colors: 8, minColors: 2, ...o });
 
-const flat = { ok: false, why: 'the frame is 1 flat color after 120 frame(s)' };
-const drew = { ok: true, colors: 8 };
-const slow = { ok: false, undetermined: true, unjudged: 'too slow to judge here — 10 frame(s) before the capture' };
+const flat = { ok: false, ready: true, why: 'the frame is 1 flat color after 120 frame(s)' };
+const noFrame = { ok: false, ready: true, why: 'reported ready, then drew no frame at all' };
+const drew = { ok: true, ready: true, colors: 8 };
+const slow = { ok: false, ready: true, undetermined: true, unjudged: 'too slow to judge here — 10 frame(s) before the capture' };
 
 describe('what earns a second launch', () => {
     it('repeats a frame of one flat colour', () => {
         expect(worthAnotherLaunch(flat)).toBe(true);
+    });
+
+    // The same event as a flat frame, seen when the record caught no frame count
+    // at all: camera-follow drew 240 frames in one run of a build and none in the
+    // next, on the same emulator.
+    it('repeats a start that reported ready and then drew nothing', () => {
+        expect(worthAnotherLaunch(noFrame)).toBe(true);
     });
 
     it('repeats a run that never reached the frame it is judged at', () => {
@@ -31,16 +39,19 @@ describe('what earns a second launch', () => {
     });
 
     // The whole point of the policy: these are the ones that must not be given a
-    // second chance, or a broken build becomes a slow green one.
-    it('does not repeat a crash, a launch that never reported ready, or a boot error', () => {
-        expect(worthAnotherLaunch({ ok: false, why: 'never reported ready' })).toBe(false);
-        expect(worthAnotherLaunch({ ok: false, why: 'reported ready, then drew no frame at all' })).toBe(false);
-        expect(worthAnotherLaunch({ ok: false, why: 'ERROR [asset] texture 4 failed to upload' })).toBe(false);
-        expect(worthAnotherLaunch({ ok: false, why: 'after an activity recreate: ERROR [js] undefined' })).toBe(false);
+    // second chance, or a broken build becomes a slow green one. `ready` is the
+    // border — a launch that never got there is judged once.
+    it('does not repeat a launch that never reported ready', () => {
+        expect(worthAnotherLaunch({ ok: false, ready: false, why: 'never reported ready' })).toBe(false);
+    });
+
+    it('does not repeat an engine error, even after a successful start', () => {
+        expect(worthAnotherLaunch({ ok: false, ready: true, why: 'ERROR [asset] texture 4 failed to upload' })).toBe(false);
+        expect(worthAnotherLaunch({ ok: false, ready: true, why: 'after an activity recreate: ERROR [js] undefined' })).toBe(false);
     });
 
     it('does not repeat a game a dialog was covering — that retry is already spent', () => {
-        expect(worthAnotherLaunch({ ok: false, why: 'the game was not on screen — a dialog has focus', offScreen: 'a dialog has focus' })).toBe(false);
+        expect(worthAnotherLaunch({ ok: false, ready: true, why: 'the game was not on screen — a dialog has focus', offScreen: 'a dialog has focus' })).toBe(false);
     });
 
     it('leaves a run that drew alone', () => {
