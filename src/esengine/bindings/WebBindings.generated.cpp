@@ -3116,7 +3116,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "e59728e2336b5b14";
+static const char* kEsAbiLayoutHash = "7e0589f085f150f6";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

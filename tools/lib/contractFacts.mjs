@@ -201,10 +201,23 @@ export const FACTS = [
             { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /tilemap cell encoding/ },
         ],
         digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST /},
-        owed: 'the hash pairs a BINARY with a BUNDLE; it says nothing about a saved map.'
-            + ' This is a file format, so widening the id mask still reads every older'
-            + ' `.esscene` into the wrong cells — that half needs a format version of its'
-            + ' own, not an ABI comparison.',
+    },
+    {
+        id: 'tilemapBlobFormat',
+        what: 'The saved form of a painted map, and the cell encoding it says it was painted under.',
+        surface: 'project-asset-format',
+        // A saved map outlives both halves the ABI hash pairs, so it carries the
+        // encoding it was painted under and a reader whose own differs refuses
+        // it. The frozen `V1_*` values are what the older magic MEANT.
+        authors: [
+            { path: 'src/esengine/tilemap/ChunkBlob.hpp', probe: /BLOB_MAGIC_V2/, kind: 'semantic' },
+        ],
+        projections: ['sdk/src/wasm/constants.generated.ts'],
+        verification: [
+            { path: 'tests/tilemap/test_tilemap.cpp', how: 'test', probe: /tilemap_blob_header/ },
+            { path: 'sdk/tests/chunk-blob.test.ts', how: 'test', probe: /refuses a map painted/ },
+        ],
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST /},
     },
     {
         id: 'uiBaseLayer',

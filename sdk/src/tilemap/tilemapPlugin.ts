@@ -159,7 +159,13 @@ export class TilemapRuntime {
             importData: (entity, outOfBand) => {
                 const blob = outOfBand.chunks;
                 if (typeof blob === 'string' && blob !== '') {
-                    TilemapAPI.importChunks(entity, blob);
+                    // The engine refuses a map written under another cell
+                    // encoding rather than decoding it into other tiles, and
+                    // the only way that refusal is heard is here.
+                    if (!TilemapAPI.importChunks(entity, blob)) {
+                        log.error('tilemap', 'the saved map was refused — it is damaged, or was'
+                            + ' painted under a different cell encoding. The layer loads empty.');
+                    }
                 }
                 const ids = outOfBand.collidableTileIds;
                 if (Array.isArray(ids) && ids.length > 0) {

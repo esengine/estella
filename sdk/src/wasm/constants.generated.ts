@@ -17,6 +17,27 @@ export const CHUNK_SIZE = 16;
 /** C++ `kColorLutSize` in `src/esengine/particle/ParticleSystem.hpp`. */
 export const GRADIENT_LUT_SIZE = 32;
 
+/** C++ `BLOB_MAGIC_V1` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_BLOB_MAGIC_V1 = 0x4d545345;
+
+/** C++ `BLOB_MAGIC_V2` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_BLOB_MAGIC_V2 = 0x50414d54;
+
+/** C++ `V1_CHUNK_SIZE` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_V1_CHUNK_SIZE = 16;
+
+/** C++ `V1_TILE_FLIP_D` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_V1_FLIP_D = 0x8000;
+
+/** C++ `V1_TILE_FLIP_H` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_V1_FLIP_H = 0x2000;
+
+/** C++ `V1_TILE_FLIP_V` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_V1_FLIP_V = 0x4000;
+
+/** C++ `V1_TILE_ID_MASK` in `src/esengine/tilemap/ChunkBlob.hpp`. */
+export const TILEMAP_V1_ID_MASK = 0x1fff;
+
 /** C++ `TILE_FLIP_D` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_FLIP_D = 0x8000;
 

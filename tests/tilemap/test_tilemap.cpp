@@ -3,6 +3,7 @@
 
 #include <esengine/tilemap/TilemapSystem.hpp>
 #include <esengine/tilemap/TileFlip.hpp>
+#include <esengine/tilemap/ChunkBlob.hpp>
 
 using namespace esengine;
 using namespace esengine::tilemap;
@@ -420,4 +421,60 @@ TEST_CASE("tileset_atlas_cells") {
     // float: a margin wider than the image, and a tile with no size.
     CHECK(atlasCells(16.0f, 4096.0f, 32.0f, 0.0f) == 0);
     CHECK(atlasCells(64.0f, 0.0f, 0.0f, 0.0f) == 0);
+}
+
+
+// A saved map outlives the binary that wrote it, and the ABI layout hash pairs a
+// binary with a bundle only. The header is where that gap is closed.
+TEST_CASE("tilemap_blob_header") {
+    SUBCASE("what it writes, it reads back") {
+        std::vector<u8> raw;
+        appendBlobHeader(raw, 7);
+        CHECK(raw.size() == BLOB_HEADER_V2_BYTES);
+
+        BlobHeader header{};
+        REQUIRE(parseBlobHeader(raw.data(), raw.size(), header));
+        CHECK(header.chunkCount == 7);
+        CHECK(header.payloadAt == BLOB_HEADER_V2_BYTES);
+    }
+
+    SUBCASE("the older magic means the encoding it was written under, and still reads") {
+        std::vector<u8> raw(BLOB_HEADER_V1_BYTES);
+        const u32 count = 3;
+        std::memcpy(raw.data(), &BLOB_MAGIC_V1, sizeof(u32));
+        std::memcpy(raw.data() + sizeof(u32), &count, sizeof(count));
+
+        BlobHeader header{};
+        REQUIRE(parseBlobHeader(raw.data(), raw.size(), header));
+        CHECK(header.chunkCount == 3);
+        CHECK(header.payloadAt == BLOB_HEADER_V1_BYTES);
+        // Which is only sound while the frozen values ARE the running ones.
+        CHECK(v1Encoding() == runningEncoding());
+    }
+
+    // The bit that would otherwise be silent: a wider id mask leaves every byte
+    // where it is, so the blob parses and each flipped cell becomes another tile.
+    SUBCASE("a map painted under another encoding is refused, not decoded") {
+        std::vector<u8> raw;
+        appendBlobHeader(raw, 1);
+        u16 wider = 0x3FFF;
+        std::memcpy(raw.data() + sizeof(u32) + sizeof(u16), &wider, sizeof(wider));
+
+        BlobHeader header{};
+        CHECK_FALSE(parseBlobHeader(raw.data(), raw.size(), header));
+    }
+
+    SUBCASE("a blob that is not one of ours, and one that stops mid-header") {
+        std::vector<u8> raw;
+        appendBlobHeader(raw, 1);
+        const u32 alien = 0x12345678;
+        std::memcpy(raw.data(), &alien, sizeof(alien));
+        BlobHeader header{};
+        CHECK_FALSE(parseBlobHeader(raw.data(), raw.size(), header));
+
+        std::vector<u8> cut;
+        appendBlobHeader(cut, 1);
+        cut.resize(BLOB_HEADER_V2_BYTES - 2);
+        CHECK_FALSE(parseBlobHeader(cut.data(), cut.size(), header));
+    }
 }

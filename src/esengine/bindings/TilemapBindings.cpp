@@ -7,6 +7,7 @@
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
 #include "../tilemap/TilemapSystem.hpp"
+#include "../tilemap/ChunkBlob.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
 #include "../renderer/draw/ImmediateDraw.hpp"
@@ -202,11 +203,12 @@ bool base64Decode(const std::string& in, std::vector<u8>& out) {
 
 // Exports every non-empty chunk of `entity` as a single base64-encoded
 // blob. Layout (all little-endian):
-//   u32 magic = 'ESTM'   (header — version-check on import)
+//   u32 magic = 'TMAP'
+//   u16 chunkSize, idMask, flipH, flipV, flipD, reserved(0)
 //   u32 chunkCount
 //   repeated for each chunk:
 //     i32 chunkX, i32 chunkY
-//     u16 tiles[CHUNK_SIZE * CHUNK_SIZE]
+//     u16 tiles[chunkSize * chunkSize]
 // Empty chunks are skipped to keep the payload compact for sparse maps.
 std::string tilemap_exportChunks(u32 entity) {
     auto e = Entity::fromRaw(entity);
@@ -223,19 +225,17 @@ std::string tilemap_exportChunks(u32 entity) {
         if (anyTile) nonEmpty.emplace_back(coord, &chunk);
     }
 
-    const u32 magic = 0x4D545345u;  // 'ESTM'
     const u32 count = static_cast<u32>(nonEmpty.size());
     const usize perChunk = sizeof(i32) * 2
         + tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE * sizeof(u16);
     std::vector<u8> raw;
-    raw.reserve(sizeof(u32) * 2 + count * perChunk);
+    raw.reserve(tilemap::BLOB_HEADER_V2_BYTES + count * perChunk);
 
     auto append = [&](const void* p, usize n) {
         const u8* b = static_cast<const u8*>(p);
         raw.insert(raw.end(), b, b + n);
     };
-    append(&magic, sizeof(magic));
-    append(&count, sizeof(count));
+    tilemap::appendBlobHeader(raw, count);
     for (const auto& [coord, chunk] : nonEmpty) {
         append(&coord.x, sizeof(coord.x));
         append(&coord.y, sizeof(coord.y));
@@ -260,7 +260,7 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
 
     std::vector<u8> raw;
     if (!base64Decode(encoded, raw)) return false;
-    if (raw.size() < sizeof(u32) * 2) return false;
+    if (raw.size() < tilemap::BLOB_HEADER_V1_BYTES) return false;
 
     auto read = [&raw](usize offset, void* out, usize n) -> bool {
         if (offset + n > raw.size()) return false;
@@ -268,19 +268,16 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
         return true;
     };
 
-    u32 magic = 0;
-    u32 count = 0;
-    if (!read(0, &magic, sizeof(magic))) return false;
-    if (magic != 0x4D545345u) return false;
-    if (!read(sizeof(u32), &count, sizeof(count))) return false;
+    tilemap::BlobHeader header{};
+    if (!tilemap::parseBlobHeader(raw.data(), raw.size(), header)) return false;
 
     const usize perChunk = sizeof(i32) * 2
         + tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE * sizeof(u16);
-    if (raw.size() < sizeof(u32) * 2 + static_cast<usize>(count) * perChunk) return false;
+    if (raw.size() < header.payloadAt + static_cast<usize>(header.chunkCount) * perChunk) return false;
 
     layer->chunks.clear();
-    usize cursor = sizeof(u32) * 2;
-    for (u32 i = 0; i < count; ++i) {
+    usize cursor = header.payloadAt;
+    for (u32 i = 0; i < header.chunkCount; ++i) {
         i32 cx = 0, cy = 0;
         if (!read(cursor, &cx, sizeof(cx))) return false;
         cursor += sizeof(cx);

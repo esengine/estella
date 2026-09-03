@@ -5,11 +5,23 @@
  * @brief   Decode the `tilemap_exportChunks` blob so the SDK can
  *          read painted tiles back — used to derive runtime collision from a tilemap's
  *          collidable tiles. Format (little-endian, base64url):
- *            u32 magic 'ESTM' · u32 chunkCount · per chunk: i32 x, i32 y, u16 tiles[256]
- *          (CHUNK_SIZE = 16; empty chunks are omitted by the exporter.)
+ *            u32 magic 'TMAP' · u16 chunkSize, idMask, flipH, flipV, flipD, reserved
+ *            · u32 chunkCount · per chunk: i32 x, i32 y, u16 tiles[chunkSize²]
+ *          Empty chunks are omitted by the exporter.
+ *
+ *          A saved map outlives the binary that wrote it, and the ABI hash only
+ *          pairs a binary with a bundle. So the blob says which encoding it was
+ *          written under and a reader whose own differs REFUSES: the same bytes
+ *          would parse and mean other tiles. 'ESTM' is the older magic, which
+ *          carries no header and means exactly the frozen `TILEMAP_V1_*` values.
  */
 
-import { CHUNK_SIZE } from '../wasm/constants.generated';
+import {
+  CHUNK_SIZE, TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D,
+  TILEMAP_BLOB_MAGIC_V1, TILEMAP_BLOB_MAGIC_V2,
+  TILEMAP_V1_CHUNK_SIZE, TILEMAP_V1_ID_MASK,
+  TILEMAP_V1_FLIP_H, TILEMAP_V1_FLIP_V, TILEMAP_V1_FLIP_D,
+} from '../wasm/constants.generated';
 
 /**
  * Tiles per chunk side, from the C++ `CHUNK_SIZE` that owns it. Generated, so
@@ -18,7 +30,15 @@ import { CHUNK_SIZE } from '../wasm/constants.generated';
  */
 export { CHUNK_SIZE };
 const CHUNK_TILES = CHUNK_SIZE * CHUNK_SIZE;
-const ESTM_MAGIC = 0x4d545345;
+
+/** The chunk stride and cell split a blob has to have been written under. */
+const RUNNING = [CHUNK_SIZE, TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D];
+const V1 = [TILEMAP_V1_CHUNK_SIZE, TILEMAP_V1_ID_MASK,
+  TILEMAP_V1_FLIP_H, TILEMAP_V1_FLIP_V, TILEMAP_V1_FLIP_D];
+const V2_HEADER_BYTES = 4 + 2 * 6 + 4;
+const V1_HEADER_BYTES = 8;
+
+const sameEncoding = (a: number[]): boolean => a.every((v, i) => v === RUNNING[i]);
 
 /** One decoded chunk: its chunk-grid coords + the 16×16 row-major tile ids. */
 export interface DecodedChunk {
@@ -64,13 +84,24 @@ export function decodeTilemapChunks(blob: string): DecodedChunk[] {
   } catch {
     return [];
   }
-  if (bytes.byteLength < 8) return [];
+  if (bytes.byteLength < V1_HEADER_BYTES) return [];
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let off = 0;
-  if (dv.getUint32(off, true) !== ESTM_MAGIC) return [];
-  off += 4;
-  const count = dv.getUint32(off, true);
-  off += 4;
+  const magic = dv.getUint32(0, true);
+  let wrote: number[];
+  let off: number;
+  if (magic === TILEMAP_BLOB_MAGIC_V2) {
+    if (bytes.byteLength < V2_HEADER_BYTES) return [];
+    wrote = [0, 1, 2, 3, 4].map((i) => dv.getUint16(4 + i * 2, true));
+    off = V2_HEADER_BYTES;
+  } else if (magic === TILEMAP_BLOB_MAGIC_V1) {
+    wrote = V1;
+    off = V1_HEADER_BYTES;
+  } else {
+    return [];
+  }
+  // Refused, not decoded: these bytes would parse into different tiles.
+  if (!sameEncoding(wrote)) return [];
+  const count = dv.getUint32(off - 4, true);
   const chunks: DecodedChunk[] = [];
   const perChunk = 8 + CHUNK_TILES * 2;
   for (let i = 0; i < count; i++) {
