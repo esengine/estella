@@ -95,15 +95,15 @@ export function buildWorld(world, table, count) {
 export function applyTick(world, table, entities, tick, dirtyCount) {
     const n = entities.length;
     if (dirtyCount <= 0) return;
-    if (dirtyCount >= n) {
-        for (let i = 0; i < n; i++) writeOne(world, table, entities, i, tick);
-        return;
-    }
+    // One access pattern at EVERY rate. A sequential special case for "all of
+    // them" is cache-friendly in a way the strided rates are not, and read as
+    // 100% dirty costing 43% LESS than 95%.
+
     // Modulo every step, not one subtraction: STRIDE outruns the smallest entity
     // count here, and an index that walks off the array writes nothing while
     // still reporting the dirty rate it never applied.
     let idx = (tick * STRIDE) % n;
-    for (let k = 0; k < dirtyCount; k++) {
+    for (let k = 0; k < Math.min(dirtyCount, n); k++) {
         writeOne(world, table, entities, idx, tick);
         idx = (idx + STRIDE) % n;
     }
