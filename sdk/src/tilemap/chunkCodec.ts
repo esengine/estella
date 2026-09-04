@@ -38,7 +38,25 @@ const V1 = [TILEMAP_V1_CHUNK_SIZE, TILEMAP_V1_ID_MASK,
 const V2_HEADER_BYTES = 4 + 2 * 6 + 4;
 const V1_HEADER_BYTES = 8;
 
-const sameEncoding = (a: number[]): boolean => a.every((v, i) => v === RUNNING[i]);
+/**
+ * One cell from one encoding into another: the id it holds and the three flags
+ * it carries, at the positions this reader uses. -1 where the id does not FIT a
+ * narrowed mask — the only honest answers there are the tile or a refusal.
+ */
+function recodeCell(word: number, from: number[]): number {
+    const id = word & from[1]!;
+    if (id > TILE_ID_MASK) return -1;
+    let next = id;
+    if (word & from[2]!) next |= TILE_FLIP_H;
+    if (word & from[3]!) next |= TILE_FLIP_V;
+    if (word & from[4]!) next |= TILE_FLIP_D;
+    return next;
+}
+
+/** Floor division and its remainder, so a chunk left of the origin lands where
+ *  it belongs rather than rounding toward zero. */
+const floorDiv = (a: number, b: number): number => Math.floor(a / b);
+const floorMod = (a: number, b: number): number => ((a % b) + b) % b;
 
 /** One decoded chunk: its chunk-grid coords + the 16×16 row-major tile ids. */
 export interface DecodedChunk {
@@ -99,18 +117,38 @@ export function decodeTilemapChunks(blob: string): DecodedChunk[] {
   } else {
     return [];
   }
-  // Refused, not decoded: these bytes would parse into different tiles.
-  if (!sameEncoding(wrote)) return [];
+  const side = wrote[0]!;
+  if (side <= 0) return [];
   const count = dv.getUint32(off - 4, true);
-  const chunks: DecodedChunk[] = [];
-  const perChunk = 8 + CHUNK_TILES * 2;
-  for (let i = 0; i < count; i++) {
-    if (off + perChunk > bytes.byteLength) break; // truncated → stop
-    const x = dv.getInt32(off, true); off += 4;
-    const y = dv.getInt32(off, true); off += 4;
-    const tiles = new Uint16Array(CHUNK_TILES);
-    for (let t = 0; t < CHUNK_TILES; t++) { tiles[t] = dv.getUint16(off, true); off += 2; }
-    chunks.push({ x, y, tiles });
+
+  // By WORLD coordinate, which means the same under any chunk size — one path
+  // whether the map was written under this encoding or an older one, so the
+  // case that runs every day is the one the migration is tested on.
+  const chunks = new Map<string, DecodedChunk>();
+  const perChunk = 8 + side * side * 2;
+  for (let c = 0; c < count; c++) {
+    if (off + perChunk > bytes.byteLength) break;   // truncated → stop
+    const cx = dv.getInt32(off, true);
+    const cy = dv.getInt32(off + 4, true);
+    let at = off + 8;
+    for (let i = 0; i < side * side; i++, at += 2) {
+      const word = dv.getUint16(at, true);
+      if (word === 0) continue;
+      const cell = recodeCell(word, wrote);
+      if (cell < 0) return [];   // a narrowed mask cannot carry this tile
+      const x = cx * side + (i % side);
+      const y = cy * side + Math.floor(i / side);
+      const kx = floorDiv(x, CHUNK_SIZE);
+      const ky = floorDiv(y, CHUNK_SIZE);
+      const key = `${kx},${ky}`;
+      let chunk = chunks.get(key);
+      if (!chunk) {
+        chunk = { x: kx, y: ky, tiles: new Uint16Array(CHUNK_TILES) };
+        chunks.set(key, chunk);
+      }
+      chunk.tiles[floorMod(y, CHUNK_SIZE) * CHUNK_SIZE + floorMod(x, CHUNK_SIZE)] = cell;
+    }
+    off += perChunk;
   }
-  return chunks;
+  return [...chunks.values()];
 }

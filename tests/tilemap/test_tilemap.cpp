@@ -5,6 +5,9 @@
 #include <esengine/tilemap/TileFlip.hpp>
 #include <esengine/tilemap/ChunkBlob.hpp>
 
+#include <tuple>
+#include <vector>
+
 using namespace esengine;
 using namespace esengine::tilemap;
 
@@ -436,9 +439,10 @@ TEST_CASE("tilemap_blob_header") {
         REQUIRE(parseBlobHeader(raw.data(), raw.size(), header));
         CHECK(header.chunkCount == 7);
         CHECK(header.payloadAt == BLOB_HEADER_V2_BYTES);
+        CHECK(header.wrote == runningEncoding());
     }
 
-    SUBCASE("the older magic means the encoding it was written under, and still reads") {
+    SUBCASE("the older magic means the encoding it was written under") {
         std::vector<u8> raw(BLOB_HEADER_V1_BYTES);
         const u32 count = 3;
         std::memcpy(raw.data(), &BLOB_MAGIC_V1, sizeof(u32));
@@ -448,20 +452,7 @@ TEST_CASE("tilemap_blob_header") {
         REQUIRE(parseBlobHeader(raw.data(), raw.size(), header));
         CHECK(header.chunkCount == 3);
         CHECK(header.payloadAt == BLOB_HEADER_V1_BYTES);
-        // Which is only sound while the frozen values ARE the running ones.
-        CHECK(v1Encoding() == runningEncoding());
-    }
-
-    // The bit that would otherwise be silent: a wider id mask leaves every byte
-    // where it is, so the blob parses and each flipped cell becomes another tile.
-    SUBCASE("a map painted under another encoding is refused, not decoded") {
-        std::vector<u8> raw;
-        appendBlobHeader(raw, 1);
-        u16 wider = 0x3FFF;
-        std::memcpy(raw.data() + sizeof(u32) + sizeof(u16), &wider, sizeof(wider));
-
-        BlobHeader header{};
-        CHECK_FALSE(parseBlobHeader(raw.data(), raw.size(), header));
+        CHECK(header.wrote == v1Encoding());
     }
 
     SUBCASE("a blob that is not one of ours, and one that stops mid-header") {
@@ -477,4 +468,93 @@ TEST_CASE("tilemap_blob_header") {
         cut.resize(BLOB_HEADER_V2_BYTES - 2);
         CHECK_FALSE(parseBlobHeader(cut.data(), cut.size(), header));
     }
+}
+
+// A map outlives the binary that wrote it, and a MINOR has to open what an
+// older one saved. The header says what the cells mean, so they are TRANSLATED
+// rather than refused — the bits move, the tile and its flags do not.
+TEST_CASE("tilemap_cell_migration") {
+    const CellEncoding here = runningEncoding();
+
+    SUBCASE("flags written in other bits come back in these") {
+        const CellEncoding permuted{ 16, 0x1FFF, 0x8000, 0x2000, 0x4000 };
+        u16 out = 0;
+        REQUIRE(recodeCell(static_cast<u16>(9 | 0x8000), permuted, here, out));
+        CHECK(out == static_cast<u16>(9 | TILE_FLIP_H));
+        REQUIRE(recodeCell(static_cast<u16>(9 | 0x2000), permuted, here, out));
+        CHECK(out == static_cast<u16>(9 | TILE_FLIP_V));
+        REQUIRE(recodeCell(static_cast<u16>(9 | 0x8000 | 0x2000 | 0x4000), permuted, here, out));
+        CHECK(out == static_cast<u16>(9 | TILE_FLIP_H | TILE_FLIP_V | TILE_FLIP_D));
+    }
+
+    SUBCASE("an identity migration leaves every cell alone") {
+        u16 out = 0;
+        const u16 cell = static_cast<u16>(TILE_ID_MASK | TILE_FLIP_V);
+        REQUIRE(recodeCell(cell, here, here, out));
+        CHECK(out == cell);
+    }
+
+    // The one thing a migration cannot do: putting SOME other tile there is the
+    // failure the header exists to stop.
+    SUBCASE("a tile with no room in this mask is refused, not truncated") {
+        const CellEncoding wider{ 16, 0x3FFF, 0x4000, 0x8000, 0x0000 };
+        u16 out = 0;
+        CHECK_FALSE(recodeCell(0x2001, wider, here, out));
+        CHECK(recodeCell(0x0FFF, wider, here, out));
+    }
+}
+
+// A stride is not a contract about the world: cells are walked by the position
+// they occupy, so a map saved at one chunk size reads back at another.
+TEST_CASE("tilemap_blob_walk") {
+    const u32 side = 32;
+    const usize per = sizeof(i32) * 2 + static_cast<usize>(side) * side * sizeof(u16);
+    std::vector<u8> raw(BLOB_HEADER_V2_BYTES + per, 0);
+    const u32 magic = BLOB_MAGIC_V2;
+    const u16 fields[6] = { static_cast<u16>(side), TILE_ID_MASK,
+                            TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D, 0 };
+    const u32 count = 1;
+    std::memcpy(raw.data(), &magic, sizeof(magic));
+    std::memcpy(raw.data() + sizeof(u32), fields, sizeof(fields));
+    std::memcpy(raw.data() + BLOB_HEADER_V2_BYTES - sizeof(u32), &count, sizeof(count));
+
+    const i32 cx = -1, cy = 2;
+    u8* chunk = raw.data() + BLOB_HEADER_V2_BYTES;
+    std::memcpy(chunk, &cx, sizeof(cx));
+    std::memcpy(chunk + sizeof(i32), &cy, sizeof(cy));
+    const u16 corner = 3;
+    const u16 far = static_cast<u16>(4 | TILE_FLIP_D);
+    std::memcpy(chunk + sizeof(i32) * 2, &corner, sizeof(corner));                       // local (0,0)
+    std::memcpy(chunk + sizeof(i32) * 2 + (31 * side + 31) * sizeof(u16), &far, sizeof(far));
+
+    BlobHeader header{};
+    REQUIRE(parseBlobHeader(raw.data(), raw.size(), header));
+    CHECK(header.wrote.chunkSize == side);
+
+    std::vector<std::tuple<i32, i32, u16>> seen;
+    REQUIRE(walkBlobCells(raw.data(), raw.size(), header,
+        [&](i32 x, i32 y, u16 w) { seen.emplace_back(x, y, w); }));
+    REQUIRE(seen.size() == 2);
+    // World, not local: the chunk left of the origin starts at -32.
+    CHECK(std::get<0>(seen[0]) == -32);
+    CHECK(std::get<1>(seen[0]) == 64);
+    CHECK(std::get<2>(seen[0]) == corner);
+    CHECK(std::get<0>(seen[1]) == -1);
+    CHECK(std::get<1>(seen[1]) == 95);
+    CHECK(std::get<2>(seen[1]) == far);
+
+    SUBCASE("and a payload that stops short is refused rather than read past") {
+        std::vector<u8> cut(raw.begin(), raw.end() - 4);
+        CHECK_FALSE(walkBlobCells(cut.data(), cut.size(), header, [](i32, i32, u16) {}));
+    }
+}
+
+TEST_CASE("tilemap_chunk_floor") {
+    // A chunk left of the origin belongs to -1, not to 0: rounding toward zero
+    // puts two different columns in one chunk and loses one of them.
+    CHECK(floorDiv(-1, 16) == -1);
+    CHECK(floorDiv(-16, 16) == -1);
+    CHECK(floorDiv(-17, 16) == -2);
+    CHECK(floorMod(-1, 16) == 15);
+    CHECK(floorMod(-16, 16) == 0);
 }

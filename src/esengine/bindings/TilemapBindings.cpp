@@ -260,37 +260,43 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
 
     std::vector<u8> raw;
     if (!base64Decode(encoded, raw)) return false;
-    if (raw.size() < tilemap::BLOB_HEADER_V1_BYTES) return false;
-
-    auto read = [&raw](usize offset, void* out, usize n) -> bool {
-        if (offset + n > raw.size()) return false;
-        std::memcpy(out, raw.data() + offset, n);
-        return true;
-    };
 
     tilemap::BlobHeader header{};
     if (!tilemap::parseBlobHeader(raw.data(), raw.size(), header)) return false;
 
-    const usize perChunk = sizeof(i32) * 2
-        + tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE * sizeof(u16);
-    if (raw.size() < header.payloadAt + static_cast<usize>(header.chunkCount) * perChunk) return false;
+    // One path, migrating or not: a map written under this engine's own
+    // encoding takes the same walk as one written under an older one, so the
+    // case that runs every day is the case the migration is tested on.
+    const tilemap::CellEncoding running = tilemap::runningEncoding();
+    const i32 side = static_cast<i32>(tilemap::CHUNK_SIZE);
+    tilemap::ChunkData* into = nullptr;
+    tilemap::ChunkCoord at{ 0, 0 };
+    bool first = true;
+    bool lost = false;
 
     layer->chunks.clear();
-    usize cursor = header.payloadAt;
-    for (u32 i = 0; i < header.chunkCount; ++i) {
-        i32 cx = 0, cy = 0;
-        if (!read(cursor, &cx, sizeof(cx))) return false;
-        cursor += sizeof(cx);
-        if (!read(cursor, &cy, sizeof(cy))) return false;
-        cursor += sizeof(cy);
-
-        tilemap::ChunkData chunk;
-        if (!read(cursor, chunk.tiles, sizeof(chunk.tiles))) return false;
-        cursor += sizeof(chunk.tiles);
-        chunk.revision = ++layer->edit_revision;
-        layer->chunks[tilemap::ChunkCoord{cx, cy}] = chunk;
+    const bool walked = tilemap::walkBlobCells(raw.data(), raw.size(), header,
+        [&](i32 x, i32 y, u16 word) {
+            u16 cell = 0;
+            // A narrowed id mask cannot carry the tile, and putting SOME other
+            // tile there is the failure this whole header exists to stop.
+            if (!tilemap::recodeCell(word, header.wrote, running, cell)) { lost = true; return; }
+            const tilemap::ChunkCoord coord{ tilemap::floorDiv(x, side), tilemap::floorDiv(y, side) };
+            // Cells arrive along a row, so the chunk they land in changes rarely.
+            if (first || coord.x != at.x || coord.y != at.y) {
+                auto& chunk = layer->chunks[coord];
+                chunk.revision = ++layer->edit_revision;
+                into = &chunk;
+                at = coord;
+                first = false;
+            }
+            into->tiles[static_cast<usize>(tilemap::floorMod(y, side)) * tilemap::CHUNK_SIZE
+                + static_cast<usize>(tilemap::floorMod(x, side))] = cell;
+        });
+    if (!walked || lost) {
+        layer->chunks.clear();
+        return false;
     }
-
     return true;
 }
 

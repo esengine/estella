@@ -204,18 +204,23 @@ export const FACTS = [
     },
     {
         id: 'tilemapBlobFormat',
-        what: 'The saved form of a painted map, and the cell encoding it says it was painted under.',
+        what: 'The saved form of a painted map, the cell encoding it was written under, and how one'
+            + ' written under another is read.',
         surface: 'project-asset-format',
         // A saved map outlives both halves the ABI hash pairs, so it carries the
-        // encoding it was painted under and a reader whose own differs refuses
-        // it. The frozen `V1_*` values are what the older magic MEANT.
+        // encoding it was painted under and a reader whose own differs
+        // TRANSLATES it — a MINOR opens what an older one saved. The frozen
+        // `V1_*` values are what the older magic MEANT.
         authors: [
             { path: 'src/esengine/tilemap/ChunkBlob.hpp', probe: /BLOB_MAGIC_V2/, kind: 'semantic' },
         ],
         projections: ['sdk/src/wasm/constants.generated.ts'],
         verification: [
-            { path: 'tests/tilemap/test_tilemap.cpp', how: 'test', probe: /tilemap_blob_header/ },
-            { path: 'sdk/tests/chunk-blob.test.ts', how: 'test', probe: /refuses a map painted/ },
+            { path: 'tests/tilemap/test_tilemap.cpp', how: 'test', probe: /tilemap_cell_migration/ },
+            { path: 'sdk/tests/chunk-blob.test.ts', how: 'test', probe: /migrates a map whose flags/ },
+            // The corpus the promise is actually about: a blob written before
+            // any of this, decoded cell for cell.
+            { path: 'sdk/tests/chunk-blob.test.ts', how: 'test', probe: /checked-in v1 blob/ },
         ],
         digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST /},
     },
