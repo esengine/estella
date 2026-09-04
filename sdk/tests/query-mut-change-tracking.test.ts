@@ -129,7 +129,7 @@ describe('removal is a change', () => {
 
     it('still lists the entity as removed since that tick', () => {
         const world = new World();
-        world.enableChangeTracking(Transform);
+        world.registerRemovedReader(Transform);
         const e = world.spawn();
         world.insert(e, Transform, defaultTransform());
 

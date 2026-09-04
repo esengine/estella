@@ -44,9 +44,6 @@ describe('World internals - per-frame operations', () => {
         world.resetQueryPool();
     });
 
-    bench('cleanRemovedBuffer (nothing to clean)', () => {
-        world.cleanRemovedBuffer(2);
-    });
 });
 
 describe('World internals - getEntitiesWithComponents (cache behavior)', () => {

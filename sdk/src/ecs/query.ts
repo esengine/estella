@@ -816,12 +816,40 @@ export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable
     private readonly world_: World;
     private readonly component_: T;
     private lastRunTick_: number;
+    private readerId_: number | null = null;
 
+    /** Constructing one has NO side effect on the world: a runner that builds
+     *  several params and throws on a later one would otherwise leave a claim
+     *  on removal history that nothing can ever release. */
     constructor(world: World, component: T, lastRunTick: number) {
         this.world_ = world;
         this.component_ = component;
         this.lastRunTick_ = lastRunTick;
-        world.enableChangeTracking(component);
+    }
+
+    /** @internal Claim the history, once the whole parameter set is committed. */
+    activateRetention(): void {
+        if (this.readerId_ !== null) return;
+        this.world_.enableChangeTracking(this.component_);
+        this.readerId_ = this.world_.registerRemovedReader(this.component_);
+    }
+
+    /**
+     * @internal This run is over, so rows up to `lastRunTick` will never be
+     * asked for again. NOT `resetTick`: a system may await mid-body, and a claim
+     * released before the body read would let another reader's prune take rows
+     * this one is still owed.
+     */
+    releaseThrough(lastRunTick: number): void {
+        if (this.readerId_ === null) return;
+        this.world_.advanceRemovedReader(this.component_, this.readerId_, lastRunTick);
+    }
+
+    /** @internal Give up the claim — the runner evicted or reset this system. */
+    dispose(): void {
+        if (this.readerId_ === null) return;
+        this.world_.disposeRemovedReader(this.component_, this.readerId_);
+        this.readerId_ = null;
     }
 
     /** @internal Update lastRunTick for reuse across system runs */

@@ -1197,9 +1197,24 @@ export class World {
         return this.changes_.getRemovedEntitiesSince(component, sinceTick);
     }
 
-    /** @internal */
-    cleanRemovedBuffer(beforeTick: number): void {
-        this.changes_.cleanRemovedBuffer(beforeTick);
+    /** @internal A `Removed` reader's claim on history, from now on. */
+    registerRemovedReader(component: AnyComponentDef): number {
+        return this.changes_.registerRemovedReader(component);
+    }
+
+    /** @internal That reader is done with everything up to `lastRunTick`. */
+    advanceRemovedReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        this.changes_.advanceRemovedReader(component, readerId, lastRunTick);
+    }
+
+    /** @internal The reader is gone; its share of the watermark goes with it. */
+    disposeRemovedReader(component: AnyComponentDef, readerId: number): void {
+        this.changes_.disposeRemovedReader(component, readerId);
+    }
+
+    /** @internal How many readers hold `component`'s removal history. */
+    removedReaderCount(component: AnyComponentDef): number {
+        return this.changes_.removedReaderCount(component);
     }
 
     /** @internal Mark component as changed without writing data (for in-place Mut query) */

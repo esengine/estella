@@ -175,6 +175,42 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
 判据现在先查 `sdk/src → sdk/dist → template` 这条链，陈旧就报 `did NOT run`（exit 2）。
 （`.generated.ts` 不计入，原生构建会在打包之后重写它们。）
 
+## 3.7 PR6d：removal 历史有主了
+
+`cleanRemovedBuffer` 是一个**没有归属权**的全局 destructive API，而且它有一个调用者：
+`App.tick` 每帧末尾 `cleanRemovedBuffer(worldTick - 2)`。所以这不是内存问题，是**正确性缺陷**——
+任何超过 2 帧没运行的 `Removed(C)` system（`runIf` 关着、FixedUpdate 没到步、条件系统）
+会静默丢失它本该看到的 removal。判据 `sdk/tests/removed-retention.test.ts` 第一条先红在这里。
+
+现在是 **per-component 的 reader watermark**：
+
+```
+ChangeTracker
+├─ 变更观测：Added / Changed / anyChangedSince      ← trackedComponents_
+└─ removal 历史：每 component 一张 reader 表         ← removedReaders_
+       readerId → retainFromTick，prune 到最低的那个
+```
+
+- **watermark 按 component 分**，不是全局：一个组件的慢 reader 没有资格钉住另一个组件的历史。
+- **cursor 在 `flushSystem_` 推进**，不在 `resetTick`——system 可以 `await` 到一半，
+  在 body 读之前就宣告「读完了」，会让另一个 reader 的 prune 删掉它仍然欠着的行。
+- **认领发生在参数提交之后**，不在构造函数里：一组参数中途抛异常时，
+  已经建好的那个 reader 没有任何人能释放它，那个 component 的历史从此永久被钉住。
+- **`evict()` / `reset()` 真的 dispose**：丢掉 JS 引用不等于放弃认领。
+- **没有 reader 就不产生 removal 行**。`Changed(C)` 需要知道拓扑动了
+  （`componentLastChangedTick_` 照常更新，UI 布局依赖它），但不需要知道谁在 tick 738 掉了 C。
+  于是「开着 Changed(C)、没有 Removed(C)、despawn 十万次」从十万行变成 **0 行**。
+- **历史从 reader 认领的那一刻开始**（`retainFromTick = worldTick + 1`），
+  新 reader 不认领别人碰巧留下的古老 removal。
+
+慢的**活着的** reader 钉住历史不是 bug——`Removed` 的语义就是「自这个 system 上次运行以来」。
+真正的 bug 是已经 evict 掉的 reader 还在钉，所以 ownership 才必须显式。
+
+八条判据，六次 sabotage 各红一条：把 release 挪到 body 之前／改成全局 watermark／
+`evict` 不 dispose／`reset` 不 dispose／在构造函数里认领／让任何 tracked 组件都写 removal 行。
+
+`World.cleanRemovedBuffer` 已删——一个谁都能替别人删历史的接缝，在有了归属权之后没有位置。
+
 ## 4. 待裁定
 
 普查给出的结论是明确的：**`get`/`tryGet`/裸 `Query` 必须收成只读**，而且必须是
@@ -188,7 +224,4 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
 同时未判定、留给后续的两件：
 
 - ~~**AOT 写回**~~：已实测，见 3.6。
-- **`cleanRemovedBuffer` 的归属权**：它是全局 destructive cleanup，而每个
-  `RemovedQueryInstance` 各自持有 `lastRunTick`。复制层若替所有 `Removed()` 消费者删历史，
-  会让 frontier 落后的消费者永久错过那段 removal。这是正确性契约而不是内存优化，
-  属于 PR6d（共享 retention watermark），本文只记录事实。
+- ~~**`cleanRemovedBuffer` 的归属权**~~：已收掉，见 3.7。

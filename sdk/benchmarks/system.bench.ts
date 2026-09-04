@@ -208,6 +208,5 @@ describe('System - Full frame simulation (10 systems)', () => {
         for (const sys of systems) {
             runner.run(sys);
         }
-        world.cleanRemovedBuffer(2);
     });
 });

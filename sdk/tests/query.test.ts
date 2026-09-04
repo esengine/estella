@@ -537,37 +537,37 @@ describe('Query System', () => {
             expect(desc._component).toBe(Position);
         });
 
+        // History begins when the reader claims it: a reader does not inherit
+        // removals from before it existed, so the claim comes first.
         it('should iterate over removed entities', () => {
-            world.enableChangeTracking(Position);
+            const instance = new RemovedQueryInstance(world, Position, -1);
+            instance.activateRetention();
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
             world.remove(e1, Position);
 
-            const instance = new RemovedQueryInstance(world, Position, -1);
-            const removed = instance.toArray();
-            expect(removed).toContain(e1);
+            expect(instance.toArray()).toContain(e1);
         });
 
         it('should report isEmpty correctly', () => {
-            world.enableChangeTracking(Position);
-            const instance = new RemovedQueryInstance(world, Position, Infinity);
+            const instance = new RemovedQueryInstance(world, Position, -1);
+            instance.activateRetention();
             expect(instance.isEmpty()).toBe(true);
 
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
             world.remove(e1, Position);
 
-            const instance2 = new RemovedQueryInstance(world, Position, -1);
-            expect(instance2.isEmpty()).toBe(false);
+            expect(instance.isEmpty()).toBe(false);
         });
 
         it('should be iterable', () => {
-            world.enableChangeTracking(Position);
+            const instance = new RemovedQueryInstance(world, Position, -1);
+            instance.activateRetention();
             const e1 = world.spawn();
             world.insert(e1, Position, { x: 1, y: 1 });
             world.remove(e1, Position);
 
-            const instance = new RemovedQueryInstance(world, Position, -1);
             const results: number[] = [];
             for (const entity of instance) {
                 results.push(entity);

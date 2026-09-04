@@ -6366,6 +6366,9 @@ send: (data: string | ArrayBuffer) => void
 
 ## RemovedQueryInstance — class @public
 ```
+@internal activateRetention: () => void
+@internal dispose: () => void
+@internal releaseThrough: (lastRunTick: number) => void
 @internal resetTick: (tick: number) => void
 [Symbol.iterator]: () => Iterator<Entity>
 isEmpty: () => boolean
@@ -9484,15 +9487,16 @@ tabIndex: number | undefined
 ```
 @internal addressOfComponent: (component: AnyComponentDef, entity: Entity) => number | undefined
 @internal addressResolver: (component: AnyComponentDef) => (entity: Entity) => number | undefined
+@internal advanceRemovedReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal advanceTick: () => void
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void
 @internal beginIteration: () => void
 @internal builtin: BuiltinBridge
 @internal changes_: ChangeTracker
-@internal cleanRemovedBuffer: (beforeTick: number) => void
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
 @internal disconnectCpp: () => void
+@internal disposeRemovedReader: (component: AnyComponentDef, readerId: number) => void
 @internal enableChangeTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
 @internal getCppRegistry: () => CppRegistry | null
@@ -9512,6 +9516,8 @@ tabIndex: number | undefined
 @internal queries_: QueryCache
 @internal queryCostEnabled: boolean
 @internal queryEntities: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => readonly Entity[]
+@internal registerRemovedReader: (component: AnyComponentDef) => number
+@internal removedReaderCount: (component: AnyComponentDef) => number
 @internal resetIterationDepth: () => void
 @internal resetQueryCacheStats: () => void
 @internal resetQueryPool: () => void

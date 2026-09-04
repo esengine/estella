@@ -653,7 +653,9 @@ describe('World', () => {
 
         it('getRemovedEntitiesSince should detect removed components', () => {
             const w = new World();
-            w.enableChangeTracking(Position);
+            // History is produced for a component someone READS history of —
+            // change tracking alone says the topology moved, not who lost what.
+            w.registerRemovedReader(Position);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.advanceTick();
@@ -667,41 +669,10 @@ describe('World', () => {
             expect(w.getRemovedEntitiesSince(Velocity, -1)).toEqual([]);
         });
 
-        it('cleanRemovedBuffer should remove old entries', () => {
-            const w = new World();
-            w.enableChangeTracking(Position);
-            const e1 = w.spawn();
-            w.insert(e1, Position, { x: 0, y: 0 });
-            w.remove(e1, Position);
-
-            w.advanceTick();
-            w.advanceTick();
-
-            const e2 = w.spawn();
-            w.insert(e2, Position, { x: 0, y: 0 });
-            w.remove(e2, Position);
-
-            w.cleanRemovedBuffer(1);
-            const removed = w.getRemovedEntitiesSince(Position, -1);
-            expect(removed).toContain(e2);
-            expect(removed).not.toContain(e1);
-        });
-
-        it('cleanRemovedBuffer should delete empty buffers', () => {
-            const w = new World();
-            w.enableChangeTracking(Position);
-            const e = w.spawn();
-            w.insert(e, Position, { x: 0, y: 0 });
-            w.remove(e, Position);
-
-            w.cleanRemovedBuffer(Infinity);
-            expect(w.getRemovedEntitiesSince(Position, -1)).toEqual([]);
-        });
-
         it('despawn should record removed ticks for all components', () => {
             const w = new World();
-            w.enableChangeTracking(Position);
-            w.enableChangeTracking(Velocity);
+            w.registerRemovedReader(Position);
+            w.registerRemovedReader(Velocity);
             const e = w.spawn();
             w.insert(e, Position, { x: 0, y: 0 });
             w.insert(e, Velocity, { dx: 1, dy: 1 });

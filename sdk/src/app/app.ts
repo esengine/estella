@@ -1233,9 +1233,6 @@ export class App {
             }
         }
 
-        const REMOVED_BUFFER_RETENTION = 2;
-        this.world_.cleanRemovedBuffer(this.world_.getWorldTick() - REMOVED_BUFFER_RETENTION);
-
         for (const observe of this.frameObservers_) {
             try { observe(delta * 1000); } catch (e) {
                 log.error('app', 'Frame observer error', e);

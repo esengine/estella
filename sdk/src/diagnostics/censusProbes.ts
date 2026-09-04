@@ -67,8 +67,9 @@ export function installBuiltinCensusProbes(): void {
                 counter('ecs.despawnCallbacks', s.despawnCallbacks, 'conserved'),
                 counter('ecs.changeRows.added', s.changes.addedRows, 'conserved'),
                 counter('ecs.changeRows.changed', s.changes.changedRows, 'conserved'),
-                // Drained by cleanRemovedBuffer, not by despawn — so it is legitimately
-                // non-zero mid-frame and must still not climb from cycle to cycle.
+                // Held for registered history readers and pruned to their lowest
+                // claim, so it is legitimately non-zero mid-frame and must still
+                // not climb from cycle to cycle.
                 counter('ecs.changeRows.removed', s.changes.removedRows, 'bounded'),
                 counter('ecs.nameKeys', s.names.names, 'bounded'),
                 counter('ecs.scriptStorages', s.scripts.storages, 'bounded'),

@@ -17,6 +17,11 @@ export class ChangeTracker {
     // The most recent worldTick at which ANY entity changed each component — an
     // O(1) "did anything change since tick T" gate (vs scanning the per-entity map).
     private componentLastChangedTick_ = new Map<symbol, number>();
+    // Who still needs removal history, and from which tick. Removal rows are
+    // produced ONLY for a component in here: `Changed(C)` needs to know the
+    // topology moved, never which entity lost C at tick 738.
+    private removedReaders_ = new Map<symbol, Map<number, number>>();
+    private nextReaderId_ = 1;
 
     advanceTick(): void {
         this.worldTick_++;
@@ -62,19 +67,71 @@ export class ChangeTracker {
         return result;
     }
 
-    cleanRemovedBuffer(beforeTick: number): void {
-        for (const [id, buffer] of this.componentRemovedBuffer_) {
-            let writeIdx = 0;
-            for (let i = 0; i < buffer.length; i++) {
-                if (buffer[i].tick >= beforeTick) {
-                    buffer[writeIdx++] = buffer[i];
-                }
-            }
-            buffer.length = writeIdx;
-            if (writeIdx === 0) {
-                this.componentRemovedBuffer_.delete(id);
-            }
+    /**
+     * Take out a claim on `component`'s removal history. History begins HERE:
+     * a new reader does not inherit rows another reader happened to leave, so
+     * ownership is never ambiguous.
+     */
+    registerRemovedReader(component: AnyComponentDef): number {
+        let readers = this.removedReaders_.get(component._id);
+        if (!readers) {
+            readers = new Map();
+            this.removedReaders_.set(component._id, readers);
         }
+        const id = this.nextReaderId_++;
+        readers.set(id, this.worldTick_ + 1);
+        return id;
+    }
+
+    /**
+     * This reader has finished a run whose window ended at `lastRunTick`, so it
+     * will never ask for a row at or before it again. `Removed` reads
+     * `tick > lastRunTick`, which is why the claim is the tick after.
+     */
+    advanceRemovedReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        const readers = this.removedReaders_.get(component._id);
+        if (!readers?.has(readerId)) return;
+        readers.set(readerId, lastRunTick + 1);
+        this.pruneRemoved_(component._id);
+    }
+
+    /** Give up the claim, and let the watermark move at once — history with no
+     *  owner is not history anyone can ask for. */
+    disposeRemovedReader(component: AnyComponentDef, readerId: number): void {
+        const readers = this.removedReaders_.get(component._id);
+        if (!readers) return;
+        readers.delete(readerId);
+        this.pruneRemoved_(component._id);
+    }
+
+    /** @internal How many readers hold `component`'s history — for the fixtures
+     *  that assert a disposed reader stopped pinning it. */
+    removedReaderCount(component: AnyComponentDef): number {
+        return this.removedReaders_.get(component._id)?.size ?? 0;
+    }
+
+    /**
+     * Drop what no reader of THIS component can still ask for. Per component,
+     * never global: a slow reader of one component has no business pinning
+     * another's history.
+     */
+    private pruneRemoved_(componentId: symbol): void {
+        const readers = this.removedReaders_.get(componentId);
+        if (!readers || readers.size === 0) {
+            this.removedReaders_.delete(componentId);
+            this.componentRemovedBuffer_.delete(componentId);
+            return;
+        }
+        const buffer = this.componentRemovedBuffer_.get(componentId);
+        if (!buffer) return;
+        let safe = Infinity;
+        for (const from of readers.values()) if (from < safe) safe = from;
+        let writeIdx = 0;
+        for (let i = 0; i < buffer.length; i++) {
+            if (buffer[i].tick >= safe) buffer[writeIdx++] = buffer[i];
+        }
+        buffer.length = writeIdx;
+        if (writeIdx === 0) this.componentRemovedBuffer_.delete(componentId);
     }
 
     recordAdded(component: AnyComponentDef, entity: Entity): void {
@@ -118,13 +175,18 @@ export class ChangeTracker {
      * recorded for one kind and dropped for the other.
      */
     recordRemovedById(componentId: symbol, entity: Entity): void {
-        if (!this.trackedComponents_.has(componentId)) return;
-        let buffer = this.componentRemovedBuffer_.get(componentId);
-        if (!buffer) {
-            buffer = [];
-            this.componentRemovedBuffer_.set(componentId, buffer);
+        // A row is stored only for a component someone reads history of. With
+        // `Changed(C)` alone this is the whole difference between a buffer that
+        // grows with every despawn for the life of the world, and none at all.
+        if (this.removedReaders_.has(componentId)) {
+            let buffer = this.componentRemovedBuffer_.get(componentId);
+            if (!buffer) {
+                buffer = [];
+                this.componentRemovedBuffer_.set(componentId, buffer);
+            }
+            buffer.push({ entity, tick: this.worldTick_ });
         }
-        buffer.push({ entity, tick: this.worldTick_ });
+        if (!this.trackedComponents_.has(componentId)) return;
         this.componentAddedTicks_.get(componentId)?.delete(entity);
         this.componentChangedTicks_.get(componentId)?.delete(entity);
         // Losing a component IS a change to it. Without this, `anyChangedSince`
@@ -138,9 +200,9 @@ export class ChangeTracker {
     /**
      * @internal Live map sizes for the resource census.
      *
-     * `removedRows` is the one that can run away: it is drained only by
-     * {@link cleanRemovedBuffer}, so a tracked component whose consumer stops
-     * calling that accumulates a row per despawn for the life of the world.
+     * `removedRows` is bounded by what registered readers still owe: rows exist
+     * only while a `Removed` reader holds the component, and are pruned to the
+     * lowest claim whenever one advances or goes away.
      */
     sizes(): { tracked: number; addedRows: number; changedRows: number; removedRows: number } {
         const rowsIn = (maps: Map<symbol, Map<Entity, number>>): number => {

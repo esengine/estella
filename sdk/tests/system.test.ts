@@ -62,6 +62,12 @@ function createMockWorld() {
         isChangedSince: vi.fn(() => false),
         getRemovedEntitiesSince: vi.fn(() => []),
         enableChangeTracking: vi.fn(),
+        // Modelled with the runner's lifecycle in mind: it registers on commit,
+        // releases on completion and disposes on evict, and a stub that answers
+        // nothing would let a change to that order pass unnoticed here.
+        registerRemovedReader: vi.fn(() => 1),
+        advanceRemovedReader: vi.fn(),
+        disposeRemovedReader: vi.fn(),
         resolveGetter: vi.fn(() => null),
     };
 

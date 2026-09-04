@@ -462,6 +462,9 @@ export class SystemRunner {
         this.argsCache_.delete(systemId);
         this.systemTicks_.delete(systemId);
         this.queryCache_.delete(systemId);
+        // Dropping the reference is not releasing the claim: a reader nothing
+        // can reach still pins its component's removal history forever.
+        for (const removed of this.removedCache_.get(systemId) ?? []) removed.dispose();
         this.removedCache_.delete(systemId);
     }
 
@@ -470,6 +473,9 @@ export class SystemRunner {
         this.argsCache_.clear();
         this.systemTicks_.clear();
         this.queryCache_.clear();
+        for (const removeds of this.removedCache_.values()) {
+            for (const removed of removeds) removed.dispose();
+        }
         this.removedCache_.clear();
     }
 
@@ -534,6 +540,9 @@ export class SystemRunner {
         if (firstRun) {
             this.queryCache_.set(system._id, queries);
             this.removedCache_.set(system._id, removeds);
+            // After the commit, never during: a param that threw halfway would
+            // otherwise leave a claim on history with no owner to release it.
+            for (const removed of removeds) removed.activateRetention();
         }
 
         const t0 = this.timings_ ? performance.now() : 0;
@@ -597,7 +606,14 @@ export class SystemRunner {
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
         this.world_.resetIterationDepth();
-        this.systemTicks_.set(system._id, this.world_.getWorldTick());
+        // The window closes here, not where it opened: a system that awaited
+        // mid-body reads its rows after `resetTick`, so releasing there would let
+        // another reader prune what this one is still owed.
+        const ranAt = this.world_.getWorldTick();
+        for (const removed of this.removedCache_.get(system._id) ?? []) {
+            removed.releaseThrough(ranAt);
+        }
+        this.systemTicks_.set(system._id, ranAt);
     }
 
     private harvestQueryCost_(system: SystemDef): void {
