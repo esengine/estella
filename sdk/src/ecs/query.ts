@@ -408,6 +408,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private scanned_ = 0;
     private filtered_ = 0;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
+    private readonly gettersRetained_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
     private readonly mutIsBuiltin_: boolean[];
     private readonly compiledFilter_: QueryFilter | null;
@@ -445,7 +446,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             ...descriptor._without.map(c => c._id),
             ...(this.compiledFilter_?.deps.map(c => c._id) ?? []),
         ];
-        this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
+        this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'borrowed'));
+        this.gettersRetained_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'retained'));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>
             world.resolveSetter(this.actualComponents_[idx])
         );
@@ -556,6 +558,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         }
     }
 
+    /**
+     * Rows the caller may keep: a fresh array per entity, and for an
+     * engine-backed component a fresh value rather than the shared fill target.
+     * {@link forEach} lends its row instead and is cheaper for a body that only
+     * reads it once.
+     */
     [Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices } = this.descriptor_;
         const actualComponents = this.actualComponents_;
@@ -563,11 +571,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
         const hasChangeFilters = this.hasChangeFilters_();
-        const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
         const world = this.world_;
-        const getters = this.getters_;
+        const getters = this.gettersRetained_;
         const self = this;
 
         let idx = 0;
@@ -597,7 +604,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             try { writeMut(); } catch { /* the original error wins */ }
         };
 
-        const iterResult: IteratorResult<QueryResult<C>> = { value: result as QueryResult<C>, done: false };
+        const iterResult: IteratorResult<QueryResult<C>> = { value: undefined as unknown as QueryResult<C>, done: false };
         const doneResult: IteratorResult<QueryResult<C>> = { value: undefined as unknown as QueryResult<C>, done: true };
 
         return {
@@ -622,19 +629,21 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                             writeMut();
                         }
 
-                        result[0] = entity;
+                        const row: unknown[] = new Array(compCount + 1);
+                        row[0] = entity;
                         for (let i = 0; i < compCount; i++) {
                             const getter = getters[i];
-                            result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+                            row[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
                         }
 
                         if (hasMut) {
                             for (let i = 0; i < mutCount; i++) {
-                                mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
+                                mutData[i].data = row[_mutIndices[i] + 1] as Record<string, unknown>;
                             }
                             prevEntity = entity;
                         }
 
+                        iterResult.value = row as QueryResult<C>;
                         return iterResult;
                     }
                 } catch (e) {
@@ -652,6 +661,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         };
     }
 
+    /**
+     * Run `callback` per matching entity, LENDING it the row: the values are
+     * refilled for the next entity, so anything kept past the callback must be
+     * copied. The fast path — iterating instead costs an allocation per row
+     * (1.2x for script components, 1.7x for engine-backed ones).
+     */
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void {
         const { _mutIndices } = this.descriptor_;
         const entities = this.candidates_();
@@ -724,10 +739,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * the next iteration overwrites — a caller that holds this would otherwise
      * watch it change under them.
      */
+    /** The one row, or null. The iterator's rows are already the caller's to keep. */
     single(): QueryResult<C> | null {
-        for (const result of this) {
-            return [...result] as QueryResult<C>;
-        }
+        for (const result of this) return result;
         return null;
     }
 
@@ -764,9 +778,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
     toArray(): QueryResult<C>[] {
         const arr: QueryResult<C>[] = [];
-        for (const row of this) {
-            arr.push([...row] as QueryResult<C>);
-        }
+        for (const row of this) arr.push(row);
         return arr;
     }
 }

@@ -839,12 +839,13 @@ export class World {
     }
 
     /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
-    resolveGetter(component: AnyComponentDef): ((entity: Entity) => unknown) | null {
+    resolveGetter(component: AnyComponentDef, mode: 'borrowed' | 'retained' = 'borrowed'):
+    ((entity: Entity) => unknown) | null {
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
 
             if (this.builtin_.getWasmModule()) {
-                const ptrGetter = this.builtin_.resolvePtrGetter(component._cppName);
+                const ptrGetter = this.builtin_.resolvePtrGetter(component._cppName, mode);
                 if (ptrGetter) return ptrGetter;
             }
 

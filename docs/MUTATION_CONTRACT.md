@@ -64,6 +64,11 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
    写它既不改 World 也不报告——不是「安全」，是**静默丢弃**。裸 `Query(C)` 对 builtin 更糟：
    `resolvePtrGetter` 返回的是一个**跨行复用的 scratch 对象**，写入会被下一行的 fill 覆盖。
    于是同一行代码 `row.field = v` 在脚本组件上悄悄改了世界，在 builtin 上悄悄什么都没做。
+
+   > **PR6c.2 已修这一格的读侧。** 那不只是写侧的陷阱：`toArray()` 曾把三行返回成同一个
+   > 对象、值全等于最后一行，纯读也是错的。现在 `forEach` 是明确的 borrowed 快路，
+   > iterator / `single` / `toArray` 交出可保留的行；代价是每行一次分配
+   > （脚本组件 1.2x，引擎组件 1.7x）。判据见 `sdk/tests/query-row-lifetime.test.ts`。
 3. **`Query` 的文档承诺没有被执行层兑现。** 文档写的是「除非包在 `Mut` 里否则只读」，
    但裸 `Query(C)` 的 getter 对脚本组件就是 `storage.get(e)`。承诺只存在于类型注释里。
 

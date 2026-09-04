@@ -9544,7 +9544,7 @@ tabIndex: number | undefined
 @internal resetIterationDepth: () => void
 @internal resetQueryCacheStats: () => void
 @internal resetQueryPool: () => void
-@internal resolveGetter: (component: AnyComponentDef) => ((entity: Entity) => unknown) | null
+@internal resolveGetter: (component: AnyComponentDef, mode?: "borrowed" | "retained") => ((entity: Entity) => unknown) | null
 @internal resolveHas: (component: AnyComponentDef) => ((entity: Entity) => boolean) | null
 @internal resolveSetter: (component: AnyComponentDef) => ((entity: Entity, data: unknown) => void) | null
 @internal resumeIteration: (depth: number) => void

@@ -726,15 +726,26 @@ export class BuiltinBridge {
     }
 
     /**
-     * Returns a getter that reads C++ component data into a shared preallocated object.
-     * WARNING: The returned object is reused across calls — copy it if you need to retain the values.
+     * A getter reading C++ component data out of the wasm heap. `borrowed` (the
+     * default) refills ONE object per call, so the value dies at the next call;
+     * `retained` fills a fresh one, which is what a caller keeping the value past
+     * its own step needs — a query row outliving the row after it, above all.
      */
-    resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null {
+    resolvePtrGetter(cppName: string, mode: 'borrowed' | 'retained' = 'borrowed'):
+    ((entity: Entity) => unknown) | null {
         const accessor = PTR_ACCESSORS[cppName];
         if (!accessor) return null;
         const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
         if (!resolveHeap) return null;
         const heap: ComponentHeap = SCRATCH_HEAP();
+        if (mode === 'retained') {
+            return (e: Entity) => {
+                if (!resolveHeap(e, heap)) return null;
+                const out = accessor.create();
+                accessor.fill(heap.f32, heap.u32, heap.u8, heap.ptr, out);
+                return out;
+            };
+        }
         const cached = accessor.create();
         return (e: Entity) => {
             if (!resolveHeap(e, heap)) return null;

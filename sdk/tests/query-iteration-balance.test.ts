@@ -90,7 +90,12 @@ describe('iteration depth balances however iteration ends', () => {
         const q = new QueryInstance(world, Query(P), -1);
         // A getter that fails is the engine's own storage breaking underfoot; the
         // iterator still has to close, or nothing can spawn for the rest of the run.
-        (q as unknown as { getters_: unknown[] }).getters_ = [() => { throw new Error('storage'); }];
+        // Both tables: the iterator reads the retained one and forEach the
+        // borrowed one, and this test is about closing the iteration either way.
+        const broken = [() => { throw new Error('storage'); }];
+        const inner = q as unknown as { getters_: unknown[]; gettersRetained_: unknown[] };
+        inner.getters_ = broken;
+        inner.gettersRetained_ = broken;
         expect(() => {
             for (const _row of q) { /* never reached */ }
         }).toThrow('storage');
