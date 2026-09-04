@@ -142,6 +142,39 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
 `mutation-census` 已升级成门禁（`--gate`，注册为 `silent-writes`）：**静默写恒为 0**。
 它对扫不到的 root（未检出的编辑器子模块）明说而不是静默缩小语料。
 
+## 3.6 PR6c.4：`Mut → Changed` 在三条执行路上都成立
+
+这一节没有新建判据——证据早就在仓库里，只是没人认领它证明了什么。
+
+| `Query(Mut(C))` | 值 | Changed |
+|---|---|---|
+| JS 解释执行 | ✓ | ✓ |
+| Web AOT（编译进 wasm） | ✓ | ✓ |
+| Native AOT（打包宿主） | ✓ | ✓ |
+
+两条编译路各有**独立的实现权威**，所以各有独立的证据，不能互相背书：
+
+- **Web**：`sdk/tests/aot-conformance.test.ts` 是真编译（compiler → C → `emcc` → wasm），
+  末尾挂一个解释执行的 `Query(Changed(Mover))` watcher，逐帧比较两条路的 `ticks`，
+  并断言 `ticks.some(n => n > 0)`（watcher 匹配不到任何东西时两条路也会一致）。
+  实现在 `AotDispatch.markChanged_`，按 packed rows 标记。
+- **Native**：`tools/verify-native-conformance.mjs` 把打包宿主 `CONF` 行里的 `ticked` 列
+  与解释器写下的 `trace.json.ticks` 逐帧比较。实现是**另一个** `markChanged_`
+  （`installNativeAot.ts`），它在 native call 返回后重新查询匹配实体，而不是回传 packed rows。
+
+**两次 sabotage 都做过**：分别删掉两个 `markChanged_` 调用，两条 conformance 各自变红，
+且都红在 `ticks`（frame 1：0 vs 4），而值与资源的比较仍然相等——
+证明这条 conformance 确实由变更观测这一职责撑住，且这个职责**在 world 的值里看不见**。
+
+契约是「**只有声明为 `Mut` 的 projection 产生观测**」，不是「AOT 跑过的都变 dirty」。
+两条 AOT 路都从同一份 manifest 声明里取 mutated 集合，而这条规则钉在
+`sdk/tests/query.test.ts` 的 `Query(Mut(A), B)` → A Changed / B not。
+
+**顺带修掉一个假绿机器**：runtime template **内嵌 SDK 的 QuickJS 字节码**，所以改了 SDK 却不
+重建 template，native conformance 就在对着旧引擎报绿——sabotage 第一次跑正是这样通过的。
+判据现在先查 `sdk/src → sdk/dist → template` 这条链，陈旧就报 `did NOT run`（exit 2）。
+（`.generated.ts` 不计入，原生构建会在打包之后重写它们。）
+
 ## 4. 待裁定
 
 普查给出的结论是明确的：**`get`/`tryGet`/裸 `Query` 必须收成只读**，而且必须是
@@ -154,9 +187,7 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
 
 同时未判定、留给后续的两件：
 
-- **AOT 写回**：`AotDispatch.markChanged_` 按 `q.mutated`（即声明了 `Mut` 的组件）逐行标记，
-  语义上与 `Mut` 一致。但本轮 fixture 没有覆盖它——跑它需要编译产物，
-  留作 conformance 那条线的一格，**不计入本文的「已实测」**。
+- ~~**AOT 写回**~~：已实测，见 3.6。
 - **`cleanRemovedBuffer` 的归属权**：它是全局 destructive cleanup，而每个
   `RemovedQueryInstance` 各自持有 `lastRunTick`。复制层若替所有 `Removed()` 消费者删历史，
   会让 frontier 落后的消费者永久错过那段 removal。这是正确性契约而不是内存优化，

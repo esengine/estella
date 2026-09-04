@@ -22,7 +22,7 @@
  *   node tools/verify-native-conformance.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +51,41 @@ if (!template || !existsSync(template)) {
   console.log(`  build one with: node build-tools/cli.js native --target ${os}`);
   process.exit(2);
 }
+/**
+ * The newest hand-written .ts under `dir`, in epoch ms. `.generated.ts` is
+ * excluded: the native build rewrites those AFTER bundling, so counting them
+ * would report every fresh template as stale.
+ */
+function newestSource(dir) {
+  let newest = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+    const full = path.join(dir, entry.name);
+    newest = Math.max(newest, entry.isDirectory() ? newestSource(full)
+      : entry.name.endsWith('.ts') && !entry.name.endsWith('.generated.ts')
+        ? statSync(full).mtimeMs : 0);
+  }
+  return newest;
+}
+
+// The template EMBEDS the SDK as QuickJS bytecode, so a template built before an
+// SDK edit runs the previous engine and answers for it — green on a defect the
+// run was started to find. Exactly that happened while sabotaging markChanged_.
+const bytecode = path.join(template, 'esengine.native.qjsbc');
+const bundle = path.join(ROOT, 'sdk', 'dist', 'index.native.bundled.js');
+const stale = !existsSync(bytecode) || !existsSync(bundle) ? null
+  : newestSource(path.join(ROOT, 'sdk', 'src')) > statSync(bundle).mtimeMs
+    ? { why: 'sdk/dist is older than sdk/src', fix: 'pnpm --filter ./sdk build' }
+    : statSync(bundle).mtimeMs > statSync(bytecode).mtimeMs
+      ? { why: `the ${os} template embeds an older SDK than sdk/dist`,
+        fix: `node build-tools/cli.js native --target ${os}` }
+      : null;
+if (stale) {
+  console.log(`native conformance: ${stale.why} — did NOT run.`);
+  console.log(`  ${stale.fix}`);
+  process.exit(2);
+}
+
 if (!existsSync(TRACE)) {
   console.log('native conformance: no interpreter trace — did NOT run.');
   console.log('  record one with: ESTELLA_AOT_WRITE=1 pnpm --filter @estella/sdk test aot-conformance');

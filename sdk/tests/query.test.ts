@@ -179,6 +179,24 @@ describe('Query System', () => {
             expect(updated.x).toBe(3);
             expect(updated.y).toBe(3);
         });
+
+        // The contract is not "a query that ran dirties what it touched" — it is
+        // that only a Mut projection reports. The AOT roads mark from the same
+        // declaration, so this is where that rule is pinned.
+        it('reports the Mut component and not the read-only one beside it', () => {
+            const e1 = world.spawn();
+            world.insert(e1, Position, { x: 1, y: 1 });
+            world.insert(e1, Velocity, { dx: 2, dy: 2 });
+            world.enableChangeTracking(Position);
+            world.enableChangeTracking(Velocity);
+            world.advanceTick();
+            const since = world.getWorldTick() - 1;
+
+            new QueryInstance(world, Query(Mut(Position), Velocity)).forEach(() => { /* reads */ });
+
+            expect(world.isChangedSince(e1, Position, since)).toBe(true);
+            expect(world.isChangedSince(e1, Velocity, since)).toBe(false);
+        });
     });
 
     describe('complex queries', () => {
