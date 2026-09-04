@@ -125,6 +125,29 @@ export const FACTS = [
         digest: { name: 'engine-abi', path: 'tests/aot/generated/move_system_hash.h', probe: /ES_EXPECTED_CONTRACT_HASH/ },
     },
     {
+        id: 'aotConformanceFixture',
+        what: 'One source read twice — as the closures an App runs, and as the module compiled from them.',
+        surface: 'runtime-aot-abi',
+        // The SOURCE is the authority, and both roads are readings of it. The
+        // trace is the interpreter's reading, projected so a C++ harness can
+        // hold a compiled module against it without running a JS closure.
+        authors: [
+            { path: 'sdk/tests/fixtures/conformance-systems.ts', probe: /@compiled/, kind: 'semantic' },
+        ],
+        projections: [
+            'tests/aot/generated/conformance/estella_offsets.h',
+            'tests/aot/generated/conformance/systems.c',
+            'tests/aot/generated/conformance/systems_decl.c',
+            'tests/aot/generated/conformance/handshake.h',
+            'tests/aot/generated/conformance/trace.h',
+        ],
+        verification: [
+            { path: 'sdk/tests/aot-conformance.test.ts', how: 'test', probe: /interpreted and compiled/ },
+            { path: 'tests/aot/test_aot_conformance.cpp', how: 'test', probe: /after every frame/ },
+        ],
+        digest: { name: 'engine-abi', path: 'tests/aot/generated/conformance/handshake.h', probe: /ES_CONF_EXPECTED_CONTRACT_HASH/ },
+    },
+    {
         id: 'entityRepresentation',
         what: 'How an entity handle packs an index and a generation into one u32.',
         surface: 'runtime-wasm-abi',

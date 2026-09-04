@@ -16,7 +16,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -34,6 +34,7 @@ import { createMockModule } from './mocks/wasm';
 import { FakeEngine } from './fakeEngine';
 import { useBytesPlatform } from './helpers/aotFade';
 import { Schedule } from '../src/ecs/system';
+import { Time } from '../src/ecs/resource';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
 import type { Entity } from '../src/types';
 
@@ -41,6 +42,17 @@ const EMCC = emccPath();
 const FIXTURE = path.resolve(__dirname, 'fixtures/conformance-systems.ts');
 const FRAMES = 12;
 const DT = 1 / 60;
+
+/** The seed world, at module scope because two readers need the same one: the
+ *  suite that plays it, and the header the native harness starts from. */
+const SEEDS: readonly (readonly [number, number])[] =
+    [[0, 120], [9.5, 60], [-9.5, -60], [3, -300]];
+
+/** Where the native harness reads its inputs. Its own directory: the emitted C
+ *  includes `estella_offsets.h` by that name and guards it by that name, so two
+ *  fixtures cannot share one. */
+const NATIVE_DIR = path.resolve(__dirname, '../../tests/aot/generated/conformance');
+const WRITE = process.env['ESTELLA_AOT_WRITE'] === '1';
 
 /** The artifact a build makes of the fixture: the module, and what it declares. */
 function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest } {
@@ -77,7 +89,7 @@ function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest
 type Trace = number[][][];
 
 async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null): Promise<{
-    trace: Trace; calls: number;
+    trace: Trace; calls: number; delta: number;
 }> {
     // One context for both roads on purpose: the fixture's `defineComponent`
     // runs once, at import, and a road that reset the registry under it would
@@ -100,8 +112,7 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
         runtime = (app as unknown as { aot_: { systems: { calls: number } } }).aot_;
     }
 
-    const seeds: [number, number][] = [[0, 120], [9.5, 60], [-9.5, -60], [3, -300]];
-    const entities: Entity[] = seeds.map(([x, speed]) => {
+    const entities: Entity[] = SEEDS.map(([x, speed]) => {
         const e = app.world.spawn();
         app.world.insert(e, fixture.Mover, { x, speed, bounces: 0 });
         return e;
@@ -115,7 +126,12 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
             return [m.x, m.speed, m.bounces];
         }));
     }
-    return { trace, calls: runtime?.systems.calls ?? 0 };
+    // The delta the interpreter was HANDED, which is what the native harness is
+    // given: `tick` scales what it is asked for, and a harness restating 1/60
+    // would be a second opinion about the frame rather than a reading of it.
+    const time = (app as unknown as { resources_: { get: (r: unknown) => { delta: number } } })
+        .resources_.get(Time);
+    return { trace, calls: runtime?.systems.calls ?? 0, delta: time.delta };
 }
 
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
@@ -141,5 +157,127 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // And the run went somewhere: a fixture whose systems do nothing agrees
         // on every road.
         expect(interpreted.trace[FRAMES - 1]).not.toEqual(interpreted.trace[0]);
+    });
+});
+
+/**
+ * The same lowering the wasm road takes, at the width a LOADING host uses.
+ *
+ * One source, two machines: the C is byte for byte the same file either way
+ * and the width is a typedef the building compiler picks, so this is the same
+ * artifact rather than a second one written for the harness.
+ */
+function nativeArtifact(): ReturnType<typeof emitC> {
+    const lowered = lowerProgram([FIXTURE], builtinShapes());
+    expect(brokenPromises(lowered), 'the fixture must compile').toEqual([]);
+    const inlined = lowered.module.systems.map((s) => inlineSystem(s, lowered.module.fns));
+    return emitC(lowered.module, packLayout(lowered.module.comps), inlined, 8);
+}
+
+/** A checked-in input to the C++ harness. Regenerate them all with
+ *  `ESTELLA_AOT_WRITE=1 pnpm --filter @estella/sdk test aot-conformance`. */
+function artifact(name: string, want: string): void {
+    const at = path.join(NATIVE_DIR, name);
+    if (WRITE) {
+        mkdirSync(NATIVE_DIR, { recursive: true });
+        writeFileSync(at, want);
+        return;
+    }
+    expect(existsSync(at), `${name} is missing — regenerate with ESTELLA_AOT_WRITE=1`).toBe(true);
+    // Normalised: git may have handed the working tree CRLF, and the difference
+    // is not one anybody wants a diff about.
+    const have = readFileSync(at, 'utf8').replace(/\r\n/g, '\n');
+    expect(have, `${name} is stale — regenerate with ESTELLA_AOT_WRITE=1`).toBe(want);
+}
+
+/** A double as C source. Shortest round-trip: both languages read a decimal to
+ *  the NEAREST binary64, so what JS prints is the number C gets back. `-0` is
+ *  the one value JS prints without its sign, and `-speed` can produce it. */
+function cDouble(v: number): string {
+    if (Object.is(v, -0)) return '-0.0';
+    const s = String(v);
+    return /[.eE]/.test(s) ? s : `${s}.0`;
+}
+
+/** The handshake the harness compares the artifact's own baked numbers against.
+ *  From the same function the artifact's come from, so the harness carries no
+ *  second opinion about what this engine or this build is. */
+function handshakeHeader(h: { engineAbi: string; moduleContract: string }): string {
+    return [
+        '/* GENERATED by sdk/tests/aot-conformance.test.ts — do not edit. */',
+        '/* The contract half of the handshake. The width half is the harness. */',
+        `#define ES_CONF_EXPECTED_CONTRACT_HASH 0x${h.engineAbi}ULL`,
+        '/* And which BUILD the artifact beside this one is. */',
+        `#define ES_CONF_EXPECTED_MODULE_CONTRACT 0x${h.moduleContract}ULL`,
+        '',
+    ].join('\n');
+}
+
+/**
+ * The interpreter's answer, as a header the native harness includes.
+ *
+ * The point is WHOSE answer it is: the harness held a twin loop written in C++,
+ * which only ever asked whether two C-family readings of one struct agree.
+ * This asks what the author's closure does.
+ */
+function traceHeader(run: { trace: Trace; delta: number }): string {
+    return [
+        '/* GENERATED by sdk/tests/aot-conformance.test.ts — do not edit. */',
+        '/* What the INTERPRETER makes of sdk/tests/fixtures/conformance-systems.ts,',
+        '   frame by frame, so a divergence names the frame it began on. */',
+        '#ifndef ESTELLA_CONFORMANCE_TRACE_H',
+        '#define ESTELLA_CONFORMANCE_TRACE_H',
+        '',
+        `#define ES_CONF_ENTITIES ${SEEDS.length}u`,
+        `#define ES_CONF_FRAMES ${FRAMES}u`,
+        '/* x, speed, bounces — ConfMover in declaration order, which is the order',
+        '   the ABI lays a script record out in. */',
+        '#define ES_CONF_FIELDS 3u',
+        '/* The delta the interpreter was handed, rather than the one it asked for. */',
+        `#define ES_CONF_DELTA ${cDouble(run.delta)}`,
+        '',
+        'static const double ES_CONF_SEED[ES_CONF_ENTITIES][ES_CONF_FIELDS] = {',
+        ...SEEDS.map(([x, speed]) => `    { ${cDouble(x)}, ${cDouble(speed)}, 0.0 },`),
+        '};',
+        '',
+        '/* After each frame, both systems having run in the order the schedule has',
+        '   them: ConfDrift, then ConfClamp. */',
+        'static const double ES_CONF_EXPECT[ES_CONF_FRAMES][ES_CONF_ENTITIES][ES_CONF_FIELDS] = {',
+        ...run.trace.flatMap((frame, f) => [
+            `    { /* frame ${f} */`,
+            ...frame.map((m) => `        { ${m.map(cDouble).join(', ')} },`),
+            '    },',
+        ]),
+        '};',
+        '',
+        '#endif',
+        '',
+    ].join('\n');
+}
+
+/**
+ * The third road's inputs, written where a C++ harness can build them.
+ *
+ * Not behind emsdk: this is the compiler and the interpreter, and a machine
+ * without emscripten still has to notice that the checked-in artifacts have
+ * gone stale — otherwise the only gate on them is a road it cannot walk.
+ */
+describe('the inputs a loading host builds against', () => {
+    it('the C the compiler makes of the fixture, at the loading width', () => {
+        const c = nativeArtifact();
+        artifact('estella_offsets.h', c.offsets);
+        artifact('systems.c', c.source);
+        artifact('systems_decl.c', c.decls);
+        artifact('handshake.h', handshakeHeader(c.handshake));
+    });
+
+    it('and the answer the interpreter gives, for the harness to hold it against', async () => {
+        setDefaultContext(new AppContext());
+        setEditorMode(false);
+        setPlayMode(false);
+        const run = await play(null);
+        // A seed world that ends where it started proves nothing on any road.
+        expect(run.trace[FRAMES - 1]).not.toEqual(run.trace[0]);
+        artifact('trace.h', traceHeader(run));
     });
 });
