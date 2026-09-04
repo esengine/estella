@@ -59,6 +59,17 @@ if (run.status !== 0 && !/error TS\d+/.test(output)) {
   fail('tsc did not run.', output.slice(0, 2000));
 }
 
+const ROOT_POSIX = ROOT.split(path.sep).join('/');
+
+/**
+ * The checkout's own location, out of the message text. TS7016 and friends name
+ * the resolved module by ABSOLUTE path, so an identity built from the raw
+ * message is per-machine: a baseline banked on one checkout reported three
+ * phantom "new" diagnostics on every other one, including CI, where the same
+ * three were already banked under a different prefix.
+ */
+const unroot = (msg) => msg.split(`${ROOT_POSIX}/`).join('').split(ROOT_POSIX).join('');
+
 /** file → "TSxxxx|message" → count. Continuation lines are indented; skip them. */
 const current = {};
 const LINE = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/;
@@ -66,7 +77,7 @@ for (const line of output.split(/\r?\n/)) {
   const m = LINE.exec(line);
   if (!m) continue;
   const file = m[1].split(path.sep).join('/');
-  const key = `${m[4]}|${m[5]}`;
+  const key = `${m[4]}|${unroot(m[5])}`;
   (current[file] ??= {});
   current[file][key] = (current[file][key] ?? 0) + 1;
 }

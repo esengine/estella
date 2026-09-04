@@ -34,7 +34,7 @@
     "TS2739|Type '{ componentNamed: () => AnyComponentDef; resourceAt: () => undefined; }' is missing the following properties from type 'AotAddresses': resourceWriteBack, payloadRows, sendEvent, releasePayloads": 1
   },
   "tests/api-baseline-rules.test.ts": {
-    "TS7016|Could not find a declaration file for module '../../tools/lib/apiSnapshot.mjs'. 'D:/estella/tools/lib/apiSnapshot.mjs' implicitly has an 'any' type.": 1
+    "TS7016|Could not find a declaration file for module '../../tools/lib/apiSnapshot.mjs'. 'tools/lib/apiSnapshot.mjs' implicitly has an 'any' type.": 1
   },
   "tests/asset-refcounter-integration.test.ts": {
     "TS2739|Type '{ textureHandles: Map<any, any>; materialHandles: Map<any, any>; fontHandles: Map<any, any>; releaseCallbacks: never[]; missing: never[]; }' is missing the following properties from type 'SceneAssetResult': meshHandles, environmentHandles, scope": 1
@@ -51,7 +51,7 @@
     "TS2739|Type '{ name: \"web\" | \"wechat\"; fetch: () => Promise<any>; readFile: () => Promise<ArrayBuffer>; readTextFile: () => Promise<string>; fileExists: () => Promise<false>; ... 6 more ...; createAudioBackend: () => WebAudioBackend | MiniGameAudioBackend; }' is missing the following properties from type 'PlatformAdapter': devicePixelRatio, getStorageItem, setStorageItem, removeStorageItem, clearStorage": 1
   },
   "tests/binding-surface.test.ts": {
-    "TS7016|Could not find a declaration file for module '../../build-tools/tasks/native.js'. 'D:/estella/build-tools/tasks/native.js' implicitly has an 'any' type.": 1
+    "TS7016|Could not find a declaration file for module '../../build-tools/tasks/native.js'. 'build-tools/tasks/native.js' implicitly has an 'any' type.": 1
   },
   "tests/camera-bounds.test.ts": {
     "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
@@ -216,7 +216,7 @@
     "TS2345|Argument of type 'Map<BuiltinComponentDef<TilemapLayerData>, { visible: boolean; opacity: number; }>' is not assignable to parameter of type 'Map<symbol, any>'.": 1
   },
   "tests/shader-twins.test.ts": {
-    "TS7016|Could not find a declaration file for module '../../tools/gen-shader-twins.mjs'. 'D:/estella/tools/gen-shader-twins.mjs' implicitly has an 'any' type.": 1
+    "TS7016|Could not find a declaration file for module '../../tools/gen-shader-twins.mjs'. 'tools/gen-shader-twins.mjs' implicitly has an 'any' type.": 1
   },
   "tests/sideModuleHost.test.ts": {
     "TS7053|Element implicitly has an 'any' type because expression of type 'SideModuleId' can't be used to index type 'Record<BuiltinSideModuleId, SideModuleDescriptor>'.": 1
