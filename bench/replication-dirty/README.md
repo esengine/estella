@@ -100,6 +100,39 @@ Both anchors are re-run on the same HEAD as the middle of the curve. Splicing a
 1% number from one build onto a 70% number from another is how a benchmark
 reports a mechanism change as a workload effect.
 
+## What the crossover sweep measured
+
+`results.crossover.json`, 45 points on one build (the file records the commit and
+the artifact hash). Recall complete at every point; A, B and C emit identical
+output everywhere.
+
+`C/A`, the whole-architecture ratio:
+
+| dirty | 10k | 100k |
+|---|---|---|
+| 1% | 0.12 | 0.15 |
+| 30% | 0.49 | 0.78 |
+| 50% | 0.64 | 0.89 |
+| 70% | 0.79 | 0.89 |
+| 85% | 0.96 | 1.27 |
+| 95% | 1.08 | 1.08 |
+| 100% | 1.16 | 1.15 |
+
+**10k crosses at ~87%.** The curve is monotone and the enrollment tax (`B/A`) sits
+at 1.06–1.19.
+
+**100k is not precise enough to place a crossing.** Its 85% point is off the curve
+— higher than both 95% and 100% — and re-measuring it moved `C/A` from 1.27 to
+1.05, with C's write tax falling 20% to meet B's, which is where it belongs since
+B and C share a write path. Point-to-point variance at 100k is ±15–20%: enough to
+say `C/A` approaches 1 somewhere past 70%, not enough to say where. Placing that
+crossing needs repeats and a median, which this sweep does not do.
+
+Read it against the budget too. At 100k, A is already 170% of one core at 1%
+dirty and 320% at 30% — where both arms are past the frame budget, `C/A > 1` does
+not make A the usable one. The interesting cell is 100k/1%: A at 170% of a core
+(not shippable) against C at 25% (shippable).
+
 ## Fidelity notes, and what this does not cover
 
 - The shadow is **seeded at registration**, as `registerEntity_` does: an
