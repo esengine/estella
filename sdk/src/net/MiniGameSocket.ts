@@ -23,6 +23,8 @@ export class MiniGameSocket implements PlatformSocket {
     private sendQueue_: (string | ArrayBuffer)[] = [];
     private events_ = new Emitter<PlatformSocketEvents>();
 
+    /** `wx.connectSocket` and its siblings are WebSockets like any other. */
+    readonly delivery = 'reliable-ordered' as const;
     readyState: SocketReadyState = 'closed';
 
     constructor(options: GameSocketOptions, global: MiniGameGlobal) {

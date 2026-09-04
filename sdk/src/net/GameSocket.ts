@@ -23,6 +23,8 @@ export class GameSocket implements PlatformSocket {
     private sendQueue_: (string | ArrayBuffer)[] = [];
     private events_ = new Emitter<PlatformSocketEvents>();
 
+    /** A WebSocket: nothing is lost and nothing overtakes. */
+    readonly delivery = 'reliable-ordered' as const;
     readyState: SocketReadyState = 'closed';
 
     constructor(options: GameSocketOptions) {

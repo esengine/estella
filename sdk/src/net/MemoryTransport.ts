@@ -10,14 +10,18 @@
  *          interleaving are simulated.
  */
 import { Emitter } from '../ecs/emitter';
-import type { NetTransport } from './NetChannel';
+import type { ReliableOrderedTransport } from './NetChannel';
 
 export interface MemoryTransportOptions {
     /** Queue outgoing frames until flush() instead of delivering synchronously. */
     manualFlush?: boolean;
 }
 
-export class MemoryTransport implements NetTransport {
+export class MemoryTransport implements ReliableOrderedTransport {
+    /** In-process: `flush` delivers the queue in send order, so it models the
+     *  real thing rather than being merely convenient. */
+    readonly delivery = 'reliable-ordered' as const;
+
     private events_ = new Emitter<{ message: [data: string | ArrayBuffer] }>();
     private peer_: MemoryTransport | null = null;
     private readonly manualFlush_: boolean;

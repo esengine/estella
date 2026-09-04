@@ -9,7 +9,7 @@
  *          messages until the other end attaches, so wiring order is free.
  */
 import { Emitter } from '../ecs/emitter';
-import type { NetTransport } from './NetChannel';
+import type { ReliableOrderedTransport } from './NetChannel';
 
 /** The minimal MessagePort surface (structural — works for window and worker
  *  ports). A real DOM MessagePort types its `onmessage` against the full
@@ -21,7 +21,10 @@ export interface MessagePortLike {
     close?(): void;
 }
 
-export class MessagePortTransport implements NetTransport {
+export class MessagePortTransport implements ReliableOrderedTransport {
+    /** A MessagePort is a FIFO between two realms on one machine. */
+    readonly delivery = 'reliable-ordered' as const;
+
     private events_ = new Emitter<{ message: [data: string | ArrayBuffer] }>();
     private readonly port_: MessagePortLike;
 

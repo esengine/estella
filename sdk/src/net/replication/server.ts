@@ -21,7 +21,7 @@ import type { Entity } from '../../types';
 import { Name, Parent, getComponent } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import { serializeEntityComponents, type SceneComponentData } from '../../scene/scene';
-import { NetChannel, type NetTransport } from '../NetChannel';
+import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
 import { log } from '../../util/logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
@@ -182,7 +182,7 @@ export class ReplicationServer {
     }
 
     /** Accept a transport (server-side end of one client link). */
-    attachConnection(transport: NetTransport): number {
+    attachConnection(transport: ReliableOrderedTransport): number {
         const id = this.nextConnectionId_++;
         const channel = new NetChannel(transport);
         const conn: Connection = {

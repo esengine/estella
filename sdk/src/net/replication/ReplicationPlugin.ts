@@ -12,7 +12,7 @@
 import type { App, Plugin } from '../../app/app';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { defineResource, Res, Time, type TimeData } from '../../ecs/resource';
-import type { NetTransport } from '../NetChannel';
+import type { ReliableOrderedTransport } from '../NetChannel';
 import { ReplicationServer } from './server';
 import { ReplicationClient, type ReplicationClientOptions } from './client';
 import { ensureReplicationComponentsRegistered } from './components';
@@ -53,7 +53,7 @@ export class NetSession {
      *  first few ticks of a client realm and spawn local state that then
      *  lingered beside the replicated ghosts.) A failed handshake reverts to
      *  offline. */
-    async connect(transport: NetTransport, options?: ReplicationClientOptions): Promise<ReplicationClient> {
+    async connect(transport: ReliableOrderedTransport, options?: ReplicationClientOptions): Promise<ReplicationClient> {
         if (this.role_ !== 'offline') throw new Error(`[repl] session already ${this.role_}`);
         const client = new ReplicationClient(this.app_.world, options);
         this.role_ = 'client';

@@ -16,6 +16,16 @@ export interface NetTransport {
     on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void;
 }
 
+/**
+ * A transport that delivers every frame, once, in send order. {@link NetChannel}
+ * needs no such promise; replication does — its client applies the inbox in
+ * ARRIVAL order because that IS the authority's order. Declaring the marker is
+ * a claim about the link, not a feature to switch on.
+ */
+export interface ReliableOrderedTransport extends NetTransport {
+    readonly delivery: 'reliable-ordered';
+}
+
 export type MessageHandler<T = unknown> = (payload: T) => void;
 export type RequestHandler<Req = unknown, Res = unknown> = (payload: Req) => Res | Promise<Res>;
 export type BinaryHandler = (payload: Uint8Array) => void;

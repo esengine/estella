@@ -89,6 +89,7 @@ export {
     MemoryTransport, createMemoryTransportPair,
     MessagePortTransport, type MessagePortLike,
     type GameSocketOptions, type SocketReadyState, type NetTransport,
+    type ReliableOrderedTransport,
     type NetChannelOptions, type MessageHandler, type RequestHandler,
     type BinaryHandler, type PlatformSocket, type PlatformSocketEvents,
     type PlatformSocketOptions, type PlatformSocketReadyState,

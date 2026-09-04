@@ -23,7 +23,7 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
     loadEsengineModule, createHeadlessApp, runHeadless,
-    flushPendingRegistrations, Net, type NetTransport,
+    flushPendingRegistrations, Net, type ReliableOrderedTransport,
 } from 'esengine/node';
 import { arena } from '../src/net';
 // Side-effect import: `src/main.ts` registers the arena's systems at module
@@ -41,12 +41,12 @@ interface ServerOptions {
 }
 
 /**
- * One accepted `ws` connection as a {@link NetTransport}. The replication layer
- * asks a transport for exactly two things — send a frame, subscribe to frames —
- * so any ordered, reliable link can carry a session; `ws` is simply the one a
- * browser can dial.
+ * One accepted `ws` connection, as the transport replication asks for: send a
+ * frame, subscribe to frames, and a claim that the link loses and reorders
+ * nothing. A WebSocket does neither, so the claim is honest here; a transport
+ * that cannot make it is refused at compile time rather than desynchronizing.
  */
-function wsTransport(socket: WebSocket): NetTransport {
+function wsTransport(socket: WebSocket): ReliableOrderedTransport {
     const handlers = new Set<(data: string | ArrayBuffer) => void>();
     socket.on('message', (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
         // Binary frames are the delta stream and must reach the channel as an
@@ -56,6 +56,7 @@ function wsTransport(socket: WebSocket): NetTransport {
         for (const handler of [...handlers]) handler(frame);
     });
     return {
+        delivery: 'reliable-ordered',
         send: (data) => socket.send(data),
         on: (_event, handler) => {
             handlers.add(handler);

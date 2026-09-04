@@ -375,11 +375,12 @@ describe('codec round trip', () => {
     });
 
     it('diffSchemas pinpoints drift', () => {
-        const a = [{ name: 'A', fields: ['x'] }];
-        expect(diffSchemas(a, [{ name: 'A', fields: ['x'] }])).toBeNull();
+        const a = [{ name: 'A', fields: ['x'], shapes: ['f32'] }];
+        expect(diffSchemas(a, [{ name: 'A', fields: ['x'], shapes: ['f32'] }])).toBeNull();
         expect(diffSchemas(a, [])).toMatch(/size/);
-        expect(diffSchemas(a, [{ name: 'B', fields: ['x'] }])).toMatch(/differs/);
-        expect(diffSchemas(a, [{ name: 'A', fields: ['x', 'y'] }])).toMatch(/field list/);
+        expect(diffSchemas(a, [{ name: 'B', fields: ['x'], shapes: ['f32'] }])).toMatch(/differs/);
+        expect(diffSchemas(a, [{ name: 'A', fields: ['x', 'y'], shapes: ['f32', 'f32'] }])).toMatch(/field list/);
+        expect(diffSchemas(a, [{ name: 'A', fields: ['x'], shapes: ['bool'] }])).toMatch(/wire shape/);
     });
 });
 

@@ -10,6 +10,7 @@ export { WeChatSocket } from './WeChatSocket';
 export {
     NetChannel,
     type NetTransport,
+    type ReliableOrderedTransport,
     type NetChannelOptions,
     type MessageHandler,
     type RequestHandler,

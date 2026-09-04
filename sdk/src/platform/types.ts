@@ -109,6 +109,10 @@ export interface PlatformSocketEvents {
  * until open, moves string|ArrayBuffer frames.
  */
 export interface PlatformSocket {
+    /** Every platform socket is a WebSocket (browser, `wx.connectSocket`, Node
+     *  `ws`), so every one of them delivers in order and loses nothing — which
+     *  is what lets a socket be handed straight to replication. */
+    readonly delivery: 'reliable-ordered';
     readyState: PlatformSocketReadyState;
     on<K extends keyof PlatformSocketEvents>(
         event: K,

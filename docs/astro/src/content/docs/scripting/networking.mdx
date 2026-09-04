@@ -113,6 +113,11 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   live entity sends its full state; removing one removes it from every ghost.
   Spawn → component add → updates → component remove → despawn all cross the
   wire, and arrive in the order the authority sent them.
+- **The link must be reliable and ordered**: the client applies what arrives in
+  arrival order, because that is the authority's order. `startServer().attachConnection`
+  and `Net.connect` take a `ReliableOrderedTransport` — every built-in socket is
+  one; a transport you write yourself declares `delivery: 'reliable-ordered'`,
+  and one that cannot make that promise is a compile error rather than a desync.
 - **Ownership**: `Replicated.owner` routes a connection's `sendInput` commands to
   its entities; `client.ownsEntity(e)` answers "is this ghost mine".
 - **Editor preview**: pick **2–4 Players** in the Play-mode dropdown — a listen

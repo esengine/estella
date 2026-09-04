@@ -109,6 +109,10 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 - **结构本身也会复制,不只是值**:给活着的实体加一个 replicated 组件会发送
   它的完整状态,移除则会从每个 ghost 上移除。spawn → 组件加入 → 更新 →
   组件移除 → despawn 全部过线,并按权威端发出的顺序抵达。
+- **链路必须可靠且有序**:客户端按到达顺序应用收到的东西,因为那就是权威端
+  的顺序。`attachConnection` 和 `Net.connect` 收的是 `ReliableOrderedTransport`
+  ——内置 socket 都是;自己写的 transport 声明 `delivery: 'reliable-ordered'`,
+  做不到这个保证的会是编译错误,而不是一次静默失步。
 - **归属**:`Replicated.owner` 把某连接的 `sendInput` 命令路由到它的实体;
   `client.ownsEntity(e)` 回答"这个 ghost 是不是我的"。
 - **编辑器预览**:在 Play 模式下拉里选 **2–4 Players**——listen server 和

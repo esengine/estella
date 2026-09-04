@@ -26,7 +26,7 @@ import type { Entity } from '../../types';
 import { getComponent } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import { loadComponent } from '../../scene/scene';
-import { NetChannel, type NetTransport } from '../NetChannel';
+import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
 import { log } from '../../util/logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
@@ -181,7 +181,7 @@ export class ReplicationClient {
     }
 
     /** Handshake over the transport; rejects (and detaches) on any mismatch. */
-    async connect(transport: NetTransport): Promise<void> {
+    async connect(transport: ReliableOrderedTransport): Promise<void> {
         if (this.channel_) throw new Error('[repl] client already connected');
         const channel = new NetChannel(transport);
         this.channel_ = channel;

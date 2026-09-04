@@ -113,6 +113,10 @@ export const GATES = [
   // And the boundary holds in practice: a real project packages from the command
   // line with no editor built.
   { id: 'headless-export', run: 'node tools/check-headless-export.mjs' },
+  // Replication applies its inbox in arrival order, so reliable+ordered is a
+  // correctness condition. This compiles the claim: a transport that does not
+  // make it cannot reach replication.
+  { id: 'transport-contract', run: 'node tools/check-transport-contract.mjs' },
   // The multiplayer half of that claim: an authority runs as a plain Node
   // process over a real socket. Also the only check of two facts the editor's
   // preview has no way to reach — no local player, and a connection that LEAVES.

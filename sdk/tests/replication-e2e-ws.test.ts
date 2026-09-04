@@ -16,7 +16,7 @@ import { defineComponent, clearUserComponents, Transform } from '../src/ecs/comp
 import type { ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import { GameSocket } from '../src/net/GameSocket';
-import type { NetTransport } from '../src/net/NetChannel';
+import type { ReliableOrderedTransport } from '../src/net/NetChannel';
 import { replicationPlugin, Net, Replicated } from '../src/net/replication';
 import { setPlatform } from '../src/platform/base';
 import { nodeAdapter } from '../src/platform/node';
@@ -28,7 +28,7 @@ const STEP = 1 / 60;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Server-side end of one accepted `ws` connection as a NetTransport. */
-function wsServerTransport(conn: WsSocket): NetTransport {
+function wsServerTransport(conn: WsSocket): ReliableOrderedTransport {
     const handlers = new Set<(d: string | ArrayBuffer) => void>();
     conn.on('message', (data, isBinary) => {
         const frame = isBinary
@@ -40,6 +40,7 @@ function wsServerTransport(conn: WsSocket): NetTransport {
         for (const h of [...handlers]) h(frame);
     });
     return {
+        delivery: 'reliable-ordered',
         send: (d) => conn.send(d),
         on: (_event, handler) => {
             handlers.add(handler);
