@@ -341,6 +341,20 @@ describe('a capability a loading host cannot hand compiled code', () => {
         expect(f.world.valid(entity)).toBe(false);
     });
 
+    it('counts the calls it took, which is what says installed is not ran', () => {
+        const f = eventFixture();
+        const plain = defineSystem([Query(Mut(f.Drift))], () => {}, { name: 'PlainSystem' });
+        const entity = f.world.spawn();
+        f.world.insert(entity, f.Drift, { x: 0 });
+        f.runner.run(plain);
+        f.runner.run(plain);
+
+        // `App.compiledSystems` reports this to answer one question: a module
+        // that loaded and was never dispatched to. Counted on the wasm road
+        // only, so on the road whose fallback is by DESIGN it read 0 forever.
+        expect(f.runtime!.systems.calls).toBe(2);
+    });
+
     it('and takes the system that needs none of it', () => {
         const f = eventFixture();
         const plain = defineSystem([Query(Mut(f.Drift))], () => {

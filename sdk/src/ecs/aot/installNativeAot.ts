@@ -179,7 +179,7 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
         } as unknown as AotRuntime['addresses'],
         ctx: null as unknown as AotRuntime['ctx'],
         dispatcherFor: (world) =>
-            new NativeAotDispatch(world, bindings, byName, pooled, resources),
+            new NativeAotDispatch(world, bindings, byName, pooled, resources, systems),
     };
     opts.runner.useAot(runtime);
     return runtime;
@@ -204,6 +204,7 @@ class NativeAotDispatch implements AotDispatcher {
         private readonly indexByName: ReadonlyMap<string, number>,
         private readonly pooled: ReadonlySet<string>,
         private readonly resources: AotResources,
+        private readonly systems: AotSystems,
     ) {}
 
     run(twin: AotTwin): boolean {
@@ -219,6 +220,10 @@ class NativeAotDispatch implements AotDispatcher {
         // reads — a pool with no rows yet, a resource nothing has written.
         // The interpreter keeps it this frame and it is asked again next.
         if (this.bindings.run(at, this.world.scriptLayoutEpoch()) < 0) return false;
+        // The counter `App.compiledSystems` reports to say installed is not RAN.
+        // It was web-only, so on the road whose fallback is by design the
+        // instrument for spotting one answered 0 every frame.
+        this.systems.noteCall();
         // Once, the first time the host takes it. "Installed" says a module
         // loaded; this says a system is actually running as machine code, and
         // the two are different frames when a pool has to exist first.

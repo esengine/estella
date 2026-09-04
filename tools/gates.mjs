@@ -226,6 +226,10 @@ export const GATES = [
   // authority claims, or a cross-language pin no fact names, is a compatibility
   // fact outside the compatibility system — the state EsEventOut was in.
   { id: 'contract-inventory', run: 'node tools/contract-inventory.mjs' },
+  // The two AOT roads share no code, so a step one grows and the other does not
+  // is invisible to a reader. Three were: events, commands, and the counter that
+  // exists to say a twin ran at all.
+  { id: 'aot-duties', run: 'node tools/check-aot-duties.mjs' },
   // Windows deletes asynchronously: the rmdir races the unlink it just did, and
   // the temp tree a test made comes back ENOTEMPTY at random. Node's retry loop
   // is right there and defaults to OFF.
