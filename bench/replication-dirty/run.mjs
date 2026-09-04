@@ -18,7 +18,7 @@
  *   node bench/replication-dirty/run.mjs [--quick]
  */
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +75,26 @@ function buildSdkOnce() {
     }
 }
 
+/**
+ * Points already measured, by key, so an interrupted sweep resumes rather than
+ * restarting 40+ minutes of separate processes. Keyed by the SDK artifact hash:
+ * a rebuild starts a fresh sweep, because half a curve from one build and half
+ * from another is not a curve.
+ */
+const CACHE = path.join(HERE, `.sweep-${CROSSOVER ? 'crossover' : 'matrix'}.jsonl`);
+const buildId = () => sdkIdentity(ROOT).sdkArtifactSha256;
+
+function loadCache() {
+    const done = new Map();
+    if (!existsSync(CACHE)) return done;
+    for (const line of readFileSync(CACHE, 'utf8').split('\n').filter(Boolean)) {
+        const row = JSON.parse(line);
+        if (row.build !== buildId()) { unlinkSync(CACHE); return new Map(); }
+        done.set(row.key, row.result);
+    }
+    return done;
+}
+
 function runPoint(arm, entities, dirty, verify) {
     const args = [
         ARM, '--arm', arm, '--entities', String(entities), '--dirty', String(dirty),
@@ -93,6 +113,19 @@ function runPoint(arm, entities, dirty, verify) {
     return result;
 }
 
+const measured = loadCache();
+
+/** One point, measured once per build however many times the sweep is restarted. */
+function measure(arm, entities, dirty, verify) {
+    const key = `${arm}/${entities}/${dirty}/${verify ? 'v' : 'p'}`;
+    const cached = measured.get(key);
+    if (cached) return { result: cached, fresh: false };
+    const result = runPoint(arm, entities, dirty, verify);
+    appendFileSync(CACHE, `${JSON.stringify({ build: buildId(), key, result })}\n`);
+    measured.set(key, result);
+    return { result, fresh: true };
+}
+
 buildSdkOnce();
 
 const points = [];
@@ -102,16 +135,20 @@ let done = 0;
 for (const entities of ENTITY_COUNTS) {
     for (const dirty of DIRTY_RATES) {
         for (const arm of ARMS) {
-            process.stderr.write(`[${++done}/${total}] arm ${arm}  ${entities} entities  ${dirty * 100}% dirty\n`);
-            points.push(runPoint(arm, entities, dirty, false));
+            const { result, fresh } = measure(arm, entities, dirty, false);
+            process.stderr.write(`[${++done}/${total}] arm ${arm}  ${entities} entities  `
+                + `${dirty * 100}% dirty${fresh ? '' : '  (cached)'}\n`);
+            points.push(result);
         }
     }
 }
 
 const verifies = [];
 for (const [entities, dirty] of VERIFY_POINTS) {
-    process.stderr.write(`[${++done}/${total}] recall  ${entities} entities  ${dirty * 100}% dirty\n`);
-    verifies.push(runPoint('C', entities, dirty, true));
+    const { result, fresh } = measure('C', entities, dirty, true);
+    process.stderr.write(`[${++done}/${total}] recall  ${entities} entities  `
+        + `${dirty * 100}% dirty${fresh ? '' : '  (cached)'}\n`);
+    verifies.push(result);
 }
 
 // ---------------------------------------------------------------------------
