@@ -31,7 +31,8 @@ import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
 import { FakeEngine } from './fakeEngine';
 import { buildAotModule, useBytesPlatform } from './helpers/aotFade';
-import { Schedule } from '../src/ecs/system';
+import { Schedule, defineSystem } from '../src/ecs/system';
+import { Query, Changed } from '../src/ecs/query';
 import { Time } from '../src/ecs/resource';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
 import type { Entity } from '../src/types';
@@ -83,9 +84,11 @@ function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest
 type Trace = number[][][];
 /** The resource one of them WRITES, after each frame: [bounces, frames]. */
 type ResTrace = number[][];
+/** How many rows a `Changed(Mover)` watcher matched, after each frame. */
+type TickTrace = number[];
 
 async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null): Promise<{
-    trace: Trace; resource: ResTrace; calls: number; delta: number;
+    trace: Trace; resource: ResTrace; ticks: TickTrace; calls: number; delta: number;
 }> {
     // One context for both roads on purpose: the fixture's `defineComponent`
     // runs once, at import, and a road that reset the registry under it would
@@ -98,6 +101,16 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     app.addSystemToSchedule(Schedule.Update, fixture.driftSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.clampSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.tallySystem);
+    // Interpreted, and last: the Changed ticks a twin leaves are the one duty
+    // no value in the trace can show. A watcher counts what a filter matched,
+    // which is the same question a game asks of change detection.
+    const ticks: TickTrace = [];
+    app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Changed(fixture.Mover))],
+        (query) => {
+            let n = 0;
+            for (const _row of query) n++;
+            ticks.push(n);
+        }, { name: 'ConfWatch' }));
     // NOT inserted: a project resource nothing has touched yet is exactly the
     // case a shipped game boots in, and the handshake has to find it by the name
     // the manifest carries or refuse the module over a resource that is there.
@@ -136,7 +149,7 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     // would be a second opinion about the frame rather than a reading of it.
     const time = (app as unknown as { resources_: { get: (r: unknown) => { delta: number } } })
         .resources_.get(Time);
-    return { trace, resource, calls: runtime?.systems.calls ?? 0, delta: time.delta };
+    return { trace, resource, ticks, calls: runtime?.systems.calls ?? 0, delta: time.delta };
 }
 
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
@@ -162,10 +175,16 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
             // that never copied the mirror back would leave it at its default
             // while every row above still agreed.
             expect([f, twins.resource[f]]).toEqual([f, interpreted.resource[f]]);
+            // The ticks the compiled code could not leave, which the host has
+            // to mark instead. Nothing in the world's VALUES shows them.
+            expect([f, twins.ticks[f]]).toEqual([f, interpreted.ticks[f]]);
         }
         // And the run went somewhere: a fixture whose systems do nothing agrees
         // on every road.
         expect(interpreted.trace[FRAMES - 1]).not.toEqual(interpreted.trace[0]);
+        // A watcher that matched nothing agrees on every road: the tick
+        // comparison above is only worth running if something was ticked.
+        expect(interpreted.ticks.some((n) => n > 0)).toBe(true);
     });
 });
 
@@ -347,6 +366,10 @@ describe('the inputs a loading host builds against', () => {
             // row above still agrees, which is why it is traced separately.
             resourceFields: ['bounces', 'frames'],
             resource: run.resource,
+            // What a `Changed(Mover)` filter matched after each frame. Nothing
+            // in the values above shows a tick, and a road that stopped marking
+            // them agrees with every other column.
+            ticks: run.ticks,
         }, null, 2)}\n`);
     });
 

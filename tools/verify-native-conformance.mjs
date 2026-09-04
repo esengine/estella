@@ -101,14 +101,14 @@ function play(compiled) {
   }
 }
 
-/** `CONF <frame> <delta> <rows> <resource>` — what the fixture's reporter says. */
+/** `CONF <frame> <delta> <rows> <resource> <ticks>` — what the reporter says. */
 function framesIn(log) {
   const out = [];
   for (const line of log.split('\n')) {
-    const m = /CONF (\d+) (\S+) (\[.*\]) (\[[^\]]*\])\s*$/.exec(line);
+    const m = /CONF (\d+) (\S+) (\[.*\]) (\[[^\]]*\]) (\d+)\s*$/.exec(line);
     if (m !== null) {
       out.push({ at: Number(m[1]), delta: Number(m[2]), rows: JSON.parse(m[3]),
-        resource: JSON.parse(m[4]) });
+        resource: JSON.parse(m[4]), ticks: Number(m[5]) });
     }
   }
   return out;
@@ -146,6 +146,11 @@ function compare(road, got) {
           `interpreter ${want.resource[f][k]}
 host        ${frame.resource[k]}`);
       }
+    }
+    // The Changed ticks a twin could not leave, which the host marks instead.
+    if (frame.ticks !== want.ticks[f]) {
+      fail(`${road} matched ${frame.ticks} changed row(s) at frame ${f}, and the `
+        + `interpreter matched ${want.ticks[f]}`);
     }
     for (let i = 0; i < wantRows.length; i++) {
       for (let k = 0; k < wantRows[i].length; k++) {

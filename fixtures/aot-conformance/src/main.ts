@@ -2,7 +2,7 @@
 // The reporting is game code on purpose — a host-side dump would be a second
 // path nobody ships.
 import {
-    addStartupSystem, addSystemToSchedule, Commands, defineSystem,
+    addStartupSystem, addSystemToSchedule, Changed, Commands, defineSystem,
     Query, Res, Schedule, Time,
 } from 'esengine';
 
@@ -19,6 +19,17 @@ const spawnSystem = defineSystem(
 );
 
 let frame = 0;
+let ticked = 0;
+
+/** What a `Changed` filter matched this frame: the one duty no value shows. */
+const watchSystem = defineSystem(
+    [Query(Changed(Mover))],
+    (query) => {
+        ticked = 0;
+        for (const _row of query) ticked++;
+    },
+    { name: 'ConfWatch' },
+);
 
 /** Last in the schedule, and not `@compiled`: it reads what the two above left.
  *  The delta goes out with the rows because a road that stepped by another one
@@ -29,7 +40,7 @@ const reportSystem = defineSystem(
         const rows: number[][] = [];
         for (const [, m] of query) rows.push([m.x, m.speed, m.bounces]);
         console.log(`CONF ${frame} ${time.delta} ${JSON.stringify(rows)} `
-            + `${JSON.stringify([tally.bounces, tally.frames])}`);
+            + `${JSON.stringify([tally.bounces, tally.frames])} ${ticked}`);
         frame++;
     },
     { name: 'ConfReport' },
@@ -39,4 +50,5 @@ addStartupSystem(spawnSystem);
 addSystemToSchedule(Schedule.Update, driftSystem);
 addSystemToSchedule(Schedule.Update, clampSystem);
 addSystemToSchedule(Schedule.Update, tallySystem);
+addSystemToSchedule(Schedule.Update, watchSystem);
 addSystemToSchedule(Schedule.Update, reportSystem);

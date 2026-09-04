@@ -39,42 +39,65 @@ export const DUTIES = [
         // and is told where the script pools are.
         web: ['runtime.addresses.componentNamed', 'runtime.ctx.build'],
         native: ['world.scriptSpanOf', 'bindings.scriptRows'],
+        differential: [
+            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ },
+            { path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ },
+        ],
     },
     {
         id: 'layout-vouched',
         what: 'an address is reused only while something says the rows have not moved',
         web: ['world.layoutEpoch'],
         native: ['world.layoutEpoch', 'world.scriptLayoutEpoch'],
+        // The fixture seeds a world and never moves a row in it, so the cached
+        // table is never invalidated on any road. Nothing holds the REUSE.
+        owed: 'a differential whose world gains and loses rows mid-run',
     },
     {
         id: 'resource-in',
         what: 'a declared resource is at an address for exactly this call',
         web: ['runtime.addresses.resourceAt'],
         native: ['resources.addressOf', 'resources.bytesOf', 'bindings.resource'],
+        // Jointly with the rows: `Res(Time)` is what moves them, so a resource
+        // at the wrong address is a row that disagrees on frame 0.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
     },
     {
         id: 'resource-write-back',
         what: 'a ResMut the call wrote lands in the world, not only in the mirror',
         web: ['runtime.addresses.resourceWriteBack'],
         native: ['resources.writeBack'],
+        differential: [
+            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.resource\[f\]/ },
+            { path: 'tools/verify-native-conformance.mjs', probe: /about the resource/ },
+        ],
     },
     {
         id: 'call',
         what: 'the compiled function runs',
         web: ['twin.call'],
         native: ['bindings.run'],
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
     },
     {
         id: 'call-counted',
         what: 'App.compiledSystems can tell a module that loaded from one that ran',
         web: ['runtime.systems.noteCall'],
         native: ['systems.noteCall'],
+        differential: [
+            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.calls/ },
+            { path: 'tools/verify-native-conformance.mjs', probe: /were dispatched to/ },
+        ],
     },
     {
         id: 'changed-ticks',
         what: 'the Changed ticks the compiled code could not leave',
         web: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
         native: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
+        differential: [
+            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.ticks\[f\]/ },
+            { path: 'tools/verify-native-conformance.mjs', probe: /changed row\(s\) at frame/ },
+        ],
     },
     {
         id: 'event-payloads-in',
@@ -82,6 +105,7 @@ export const DUTIES = [
         web: ['runtime.addresses.payloadRows'],
         native: null,
         excusedBy: 'eventRead',
+        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
     },
     {
         id: 'event-payloads-released',
@@ -89,6 +113,7 @@ export const DUTIES = [
         web: ['runtime.addresses.releasePayloads'],
         native: null,
         excusedBy: 'eventRead',
+        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
     },
     {
         id: 'event-records-sized',
@@ -96,6 +121,7 @@ export const DUTIES = [
         web: ['runtime.ctx.setRecordLengths'],
         native: null,
         excusedBy: 'eventWrite',
+        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
     },
     {
         id: 'events-out',
@@ -103,6 +129,7 @@ export const DUTIES = [
         web: ['runtime.ctx.events', 'runtime.addresses.sendEvent'],
         native: null,
         excusedBy: 'eventWrite',
+        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
     },
     {
         id: 'commands-out',
@@ -110,6 +137,7 @@ export const DUTIES = [
         web: ['runtime.ctx.commands', 'world.despawn'],
         native: null,
         excusedBy: 'commands',
+        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
     },
 ];
 

@@ -111,6 +111,37 @@ for (const duty of DUTIES) {
     }
 }
 
+/**
+ * The other half: is what a road performs held against the INTERPRETER anywhere?
+ *
+ * `resource-write-back` was implemented on both roads and accounted for here
+ * while no source form existed that both lowered the same way. An expectation
+ * test agrees with whatever the road happens to do; only a differential does not.
+ */
+for (const duty of DUTIES) {
+    const held = duty.differential ?? [];
+    if (held.length === 0) {
+        if (!duty.owed) {
+            findings.push(`${duty.id}: no differential holds it against the interpreter, and no `
+                + '`owed` says so. A duty checked only for presence is a duty nothing verifies.');
+        }
+        continue;
+    }
+    if (duty.owed) {
+        findings.push(`${duty.id}: \`owed\` says nothing holds it, and ${held.length} `
+            + 'differential(s) are named. One of the two has stopped being true.');
+    }
+    for (const at of held) {
+        let src = null;
+        try { src = read(at.path); } catch { src = null; }
+        if (src === null) findings.push(`${duty.id}: ${at.path} is gone, and it is named as holding it.`);
+        else if (!at.probe.test(src)) {
+            findings.push(`${duty.id}: ${at.path} no longer matches ${at.probe} — the differential `
+                + 'this list points at has moved or been dropped.');
+        }
+    }
+}
+
 // A call nothing accounts for. This is the direction all three known bugs came
 // from — one road grew a step and the other did not.
 for (const road of ROADS) {
@@ -149,6 +180,10 @@ if (findings.length > 0) {
     process.exit(1);
 }
 const skipped = DUTIES.filter((d) => ROADS.some((r) => d[r.id] === null)).length;
+const owed = DUTIES.filter((d) => (d.differential ?? []).length === 0);
 console.log(`check-aot-duties: ${DUTIES.length} duties across ${ROADS.length} roads — `
     + `${DUTIES.length - skipped} performed by both, ${skipped} refused by capability, `
     + `${everyCall.size} call(s) accounted for.`);
+console.log(`  ${DUTIES.length - owed.length} held against the interpreter by a differential; `
+    + `${owed.length} owed one:`);
+for (const d of owed) console.log(`    ${d.id}: ${d.owed}`);
