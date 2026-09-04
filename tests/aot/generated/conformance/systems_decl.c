@@ -17,6 +17,9 @@ ES_EXPORT const uint64_t es_abi_hash =
 ES_EXPORT void es_sys_ConfDrift(es_addr_t es_ctx);
 ES_EXPORT void es_sys_ConfClamp(es_addr_t es_ctx);
 ES_EXPORT void es_sys_ConfTally(es_addr_t es_ctx);
+ES_EXPORT void es_sys_ConfAnnounce(es_addr_t es_ctx);
+ES_EXPORT void es_sys_ConfAbsorb(es_addr_t es_ctx);
+ES_EXPORT void es_sys_ConfReap(es_addr_t es_ctx);
 
 /* The systems in this file, and what each one needs filled in. */
 static const char *const es_sys_ConfDrift_q0_comps[] = { "ConfMover" };
@@ -32,10 +35,24 @@ static const unsigned char es_sys_ConfTally_q0_mut[] = { 0u };
 static const EsQueryDecl es_sys_ConfTally_queries[] = { { es_sys_ConfTally_q0_comps, es_sys_ConfTally_q0_mut, 1u } };
 static const char *const es_sys_ConfTally_resources[] = { "ConfTally" };
 static const unsigned char es_sys_ConfTally_resources_mut[] = { 1u };
+static const char *const es_sys_ConfAnnounce_q0_comps[] = { "ConfMover" };
+static const unsigned char es_sys_ConfAnnounce_q0_mut[] = { 0u };
+static const EsQueryDecl es_sys_ConfAnnounce_queries[] = { { es_sys_ConfAnnounce_q0_comps, es_sys_ConfAnnounce_q0_mut, 1u } };
+static const char *const es_sys_ConfAbsorb_q0_comps[] = { "ConfBounced" };
+static const unsigned char es_sys_ConfAbsorb_q0_mut[] = { 0u };
+static const char *const es_sys_ConfAbsorb_q1_comps[] = { "ConfDoomed" };
+static const unsigned char es_sys_ConfAbsorb_q1_mut[] = { 1u };
+static const EsQueryDecl es_sys_ConfAbsorb_queries[] = { { es_sys_ConfAbsorb_q0_comps, es_sys_ConfAbsorb_q0_mut, 1u }, { es_sys_ConfAbsorb_q1_comps, es_sys_ConfAbsorb_q1_mut, 1u } };
+static const char *const es_sys_ConfReap_q0_comps[] = { "ConfDoomed" };
+static const unsigned char es_sys_ConfReap_q0_mut[] = { 1u };
+static const EsQueryDecl es_sys_ConfReap_queries[] = { { es_sys_ConfReap_q0_comps, es_sys_ConfReap_q0_mut, 1u } };
 
 ES_EXPORT const EsSystemDecl es_systems[] = {
     { "ConfDrift", es_sys_ConfDrift, es_sys_ConfDrift_queries, es_sys_ConfDrift_resources, es_sys_ConfDrift_resources_mut, 1u, 1u },
     { "ConfClamp", es_sys_ConfClamp, es_sys_ConfClamp_queries, NULL, NULL, 1u, 0u },
     { "ConfTally", es_sys_ConfTally, es_sys_ConfTally_queries, es_sys_ConfTally_resources, es_sys_ConfTally_resources_mut, 1u, 1u },
+    { "ConfAnnounce", es_sys_ConfAnnounce, es_sys_ConfAnnounce_queries, NULL, NULL, 1u, 0u },
+    { "ConfAbsorb", es_sys_ConfAbsorb, es_sys_ConfAbsorb_queries, NULL, NULL, 2u, 0u },
+    { "ConfReap", es_sys_ConfReap, es_sys_ConfReap_queries, NULL, NULL, 1u, 0u },
 };
-ES_EXPORT const uint32_t es_system_count = 3u;
+ES_EXPORT const uint32_t es_system_count = 6u;

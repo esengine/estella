@@ -101,14 +101,14 @@ function play(compiled) {
   }
 }
 
-/** `CONF <frame> <delta> <rows> <resource> <ticks>` — what the reporter says. */
+/** `CONF <frame> <delta> <rows> <resource> <ticks> <pop>` — the reporter's line. */
 function framesIn(log) {
   const out = [];
   for (const line of log.split('\n')) {
-    const m = /CONF (\d+) (\S+) (\[.*\]) (\[[^\]]*\]) (\d+)\s*$/.exec(line);
+    const m = /CONF (\d+) (\S+) (\[.*\]) (\[[^\]]*\]) (\d+) (\[[^\]]*\])\s*$/.exec(line);
     if (m !== null) {
       out.push({ at: Number(m[1]), delta: Number(m[2]), rows: JSON.parse(m[3]),
-        resource: JSON.parse(m[4]), ticks: Number(m[5]) });
+        resource: JSON.parse(m[4]), ticks: Number(m[5]), pop: JSON.parse(m[6]) });
     }
   }
   return out;
@@ -147,6 +147,15 @@ function compare(road, got) {
 host        ${frame.resource[k]}`);
       }
     }
+    // What an event fed and a command emptied. On the loading road all three
+    // systems are REFUSED and interpret, which is what makes this one answer.
+    for (let k = 0; k < want.pop[f].length; k++) {
+      if (frame.pop[k] !== want.pop[f][k]) {
+        fail(`${road} disagrees at frame ${f} about the population, ${want.popFields[k]}`,
+          `interpreter ${want.pop[f][k]}
+host        ${frame.pop[k]}`);
+      }
+    }
     // The Changed ticks a twin could not leave, which the host marks instead.
     if (frame.ticks !== want.ticks[f]) {
       fail(`${road} matched ${frame.ticks} changed row(s) at frame ${f}, and the `
@@ -166,6 +175,7 @@ host        ${frame.resource[k]}`);
 const RUNNING = /AOT: (\w+) is running compiled/;
 const RUNNING_ALL = /AOT: (\w+) is running compiled/g;
 const INSTALLED = /AOT: (\d+) compiled system\(s\) installed/;
+const REFUSED = /AOT: (\w+) needs .*which this host cannot hand compiled code/g;
 
 const interpreted = play(false);
 if (interpreted === null) fail('the interpreted export could not be built');
@@ -197,7 +207,18 @@ if (ran.size !== Number(installed[1])) {
     `compiled: ${[...ran].join(', ') || '(none)'}`);
 }
 
+// The other half of the capability model, in a shipped game. A road that took
+// one of these would have crashed or desynced quietly; this one agrees above
+// BECAUSE the interpreter kept them.
+const refused = [...compiled.log.matchAll(REFUSED)].map((m) => m[1]);
+if (refused.length === 0) {
+  fail('nothing was refused by capability — the fixture carries an event and a despawn, '
+    + 'and this road can hand compiled code neither');
+}
+
 console.log(`✓ native conformance: both roads answer the interpreter, frame for frame `
   + `(${FRAMES} frames, ${want.frames[0].length} entities).`);
 console.log(`  interpreted, and every one of ${installed[1]} compiled system(s) dispatched to `
   + `on the packaged host: ${[...ran].join(', ')}.`);
+console.log(`  ${refused.length} refused by capability and kept by the interpreter: `
+  + `${refused.join(', ')}.`);

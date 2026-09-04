@@ -8,4 +8,7 @@ export const SEED: readonly (readonly [number, number])[] = [
     [3, -300],
 ];
 
+/** The population an event feeds and a command removes. */
+export const DOOMED: readonly number[] = [0, 2, 4];
+
 export const FRAMES = 12;

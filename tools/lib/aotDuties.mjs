@@ -105,7 +105,9 @@ export const DUTIES = [
         web: ['runtime.addresses.payloadRows'],
         native: null,
         excusedBy: 'eventRead',
-        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
+        // The WASM road only, and that is the whole entry: on the loading road
+        // these systems are refused, so its agreement is the interpreter's own.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
     },
     {
         id: 'event-payloads-released',
@@ -113,7 +115,9 @@ export const DUTIES = [
         web: ['runtime.addresses.releasePayloads'],
         native: null,
         excusedBy: 'eventRead',
-        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
+        // The WASM road only, and that is the whole entry: on the loading road
+        // these systems are refused, so its agreement is the interpreter's own.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
     },
     {
         id: 'event-records-sized',
@@ -121,7 +125,9 @@ export const DUTIES = [
         web: ['runtime.ctx.setRecordLengths'],
         native: null,
         excusedBy: 'eventWrite',
-        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
+        // The WASM road only, and that is the whole entry: on the loading road
+        // these systems are refused, so its agreement is the interpreter's own.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
     },
     {
         id: 'events-out',
@@ -129,7 +135,9 @@ export const DUTIES = [
         web: ['runtime.ctx.events', 'runtime.addresses.sendEvent'],
         native: null,
         excusedBy: 'eventWrite',
-        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
+        // The WASM road only, and that is the whole entry: on the loading road
+        // these systems are refused, so its agreement is the interpreter's own.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
     },
     {
         id: 'commands-out',
@@ -137,7 +145,9 @@ export const DUTIES = [
         web: ['runtime.ctx.commands', 'world.despawn'],
         native: null,
         excusedBy: 'commands',
-        owed: 'the fixture has no events and no despawn, so nothing holds the WEB road here',
+        // The WASM road only, and that is the whole entry: on the loading road
+        // these systems are refused, so its agreement is the interpreter's own.
+        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
     },
 ];
 

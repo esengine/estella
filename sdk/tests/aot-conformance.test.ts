@@ -47,6 +47,10 @@ const DT = 1 / 60;
 const SEEDS: readonly (readonly [number, number])[] =
     [[0, 120], [9.5, 60], [-9.5, -60], [3, -300]];
 
+/** The population an event feeds and a command removes, at three thresholds so
+ *  they leave on three different frames rather than all at once. */
+const DOOMED: readonly number[] = [0, 2, 4];
+
 /** Where the native harness reads its inputs. Its own directory: the emitted C
  *  includes `estella_offsets.h` by that name and guards it by that name, so two
  *  fixtures cannot share one. */
@@ -86,9 +90,12 @@ type Trace = number[][][];
 type ResTrace = number[][];
 /** How many rows a `Changed(Mover)` watcher matched, after each frame. */
 type TickTrace = number[];
+/** The despawned population, after each frame: [alive, total ttl]. */
+type PopTrace = number[][];
 
 async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null): Promise<{
-    trace: Trace; resource: ResTrace; ticks: TickTrace; calls: number; delta: number;
+    trace: Trace; resource: ResTrace; ticks: TickTrace; pop: PopTrace;
+    calls: number; delta: number;
 }> {
     // One context for both roads on purpose: the fixture's `defineComponent`
     // runs once, at import, and a road that reset the registry under it would
@@ -101,6 +108,11 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     app.addSystemToSchedule(Schedule.Update, fixture.driftSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.clampSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.tallySystem);
+    // The three the LOADING road refuses: a writer, a reader and a despawn.
+    // On that road they interpret, which is what makes the trace one answer.
+    app.addSystemToSchedule(Schedule.Update, fixture.announceSystem);
+    app.addSystemToSchedule(Schedule.Update, fixture.absorbSystem);
+    app.addSystemToSchedule(Schedule.Update, fixture.reapSystem);
     // Interpreted, and last: the Changed ticks a twin leaves are the one duty
     // no value in the trace can show. A watcher counts what a filter matched,
     // which is the same question a game asks of change detection.
@@ -131,8 +143,15 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
         return e;
     });
 
+    const doomed: Entity[] = DOOMED.map((ttl) => {
+        const e = app.world.spawn();
+        app.world.insert(e, fixture.Doomed, { ttl });
+        return e;
+    });
+
     const trace: Trace = [];
     const resource: ResTrace = [];
+    const pop: PopTrace = [];
     for (let f = 0; f < FRAMES; f++) {
         await app.tick(DT);
         trace.push(entities.map((e) => {
@@ -143,13 +162,18 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
         // where it lands only if the road copied it back.
         const tally = app.getResource(fixture.Tally) as { bounces: number; frames: number };
         resource.push([tally.bounces, tally.frames]);
+        // What the event fed and the command removed. A despawn that reached
+        // one world and not the other is a count that stops agreeing.
+        const alive = doomed.filter((e) => app.world.valid(e));
+        pop.push([alive.length, alive.reduce((n, e) =>
+            n + (app.world.get(e, fixture.Doomed) as { ttl: number }).ttl, 0)]);
     }
     // The delta the interpreter was HANDED, which is what the native harness is
     // given: `tick` scales what it is asked for, and a harness restating 1/60
     // would be a second opinion about the frame rather than a reading of it.
     const time = (app as unknown as { resources_: { get: (r: unknown) => { delta: number } } })
         .resources_.get(Time);
-    return { trace, resource, ticks, calls: runtime?.systems.calls ?? 0, delta: time.delta };
+    return { trace, resource, ticks, pop, calls: runtime?.systems.calls ?? 0, delta: time.delta };
 }
 
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
@@ -164,7 +188,7 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // Installed is not the same question as ran, and a differential cannot
         // tell them apart — the closure that would have run produces the same
         // numbers. Three systems, every frame.
-        expect(twins.calls).toBe(FRAMES * 3);
+        expect(twins.calls).toBe(FRAMES * 6);
         expect(interpreted.calls).toBe(0);
 
         // Frame for frame, so a divergence names the frame it began on rather
@@ -178,6 +202,7 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
             // The ticks the compiled code could not leave, which the host has
             // to mark instead. Nothing in the world's VALUES shows them.
             expect([f, twins.ticks[f]]).toEqual([f, interpreted.ticks[f]]);
+            expect([f, twins.pop[f]]).toEqual([f, interpreted.pop[f]]);
         }
         // And the run went somewhere: a fixture whose systems do nothing agrees
         // on every road.
@@ -185,6 +210,10 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // A watcher that matched nothing agrees on every road: the tick
         // comparison above is only worth running if something was ticked.
         expect(interpreted.ticks.some((n) => n > 0)).toBe(true);
+        // The event fed the population and the command emptied it: without both,
+        // the five duties this fixture carries for the wasm road are untouched.
+        expect(interpreted.pop[0]![1]).toBeGreaterThan(0);
+        expect(interpreted.pop[FRAMES - 1]![0]).toBeLessThan(DOOMED.length);
     });
 });
 
@@ -258,6 +287,9 @@ function projectSeed(): string {
         'export const SEED: readonly (readonly [number, number])[] = [',
         ...SEEDS.map(([x, speed]) => `    [${x}, ${speed}],`),
         '];',
+        '',
+        '/** The population an event feeds and a command removes. */',
+        `export const DOOMED: readonly number[] = [${DOOMED.join(', ')}];`,
         '',
         `export const FRAMES = ${FRAMES};`,
         '',
@@ -370,6 +402,10 @@ describe('the inputs a loading host builds against', () => {
             // in the values above shows a tick, and a road that stopped marking
             // them agrees with every other column.
             ticks: run.ticks,
+            // The population an event fed and a command emptied. The despawn is
+            // the one effect no field of any surviving row can show.
+            popFields: ['alive', 'ttl'],
+            pop: run.pop,
         }, null, 2)}\n`);
     });
 

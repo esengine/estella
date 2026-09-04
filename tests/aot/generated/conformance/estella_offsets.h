@@ -5,6 +5,8 @@
 #ifndef ESTELLA_OFFSETS_H
 #define ESTELLA_OFFSETS_H
 
+#define ES_OFF_ConfBounced_amount 0u
+#define ES_OFF_ConfDoomed_ttl 0u
 #define ES_OFF_ConfMover_bounces 16u
 #define ES_OFF_ConfMover_speed 8u
 #define ES_OFF_ConfMover_x 0u

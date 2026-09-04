@@ -6,8 +6,8 @@
 /* Which BUILD this is, for a loader holding the sidecar written beside
    it. The two digests above answer "is this engine right" and "are the
    project shapes right"; neither answers "are these two the same pair". */
-ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x04e812a6u; }
-ES_EXPORT uint32_t es_module_contract_hi(void) { return 0xa45bab2fu; }
+ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x220381a4u; }
+ES_EXPORT uint32_t es_module_contract_hi(void) { return 0x1f3a750cu; }
 
 ES_EXPORT void es_sys_ConfDrift(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
@@ -64,4 +64,82 @@ ES_EXPORT void es_sys_ConfTally(es_addr_t es_ctx) {
             es_set_f64(tally_1 + ES_OFF_ConfTally_bounces, (es_f64(tally_1 + ES_OFF_ConfTally_bounces) + es_f64(m_2 + ES_OFF_ConfMover_bounces)));
         }
     }
+}
+
+ES_EXPORT void es_sys_ConfAnnounce(es_addr_t es_ctx) {
+    const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
+    const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
+    const EsEventOut *es_ev = (const EsEventOut *)ES_PTR(es_c->events);
+    double *es_ev_buf = (double *)ES_PTR(es_ev->buf);
+    const uint32_t es_ev_cap = (uint32_t)es_ev->cap;
+    uint32_t *es_ev_at = (uint32_t *)ES_PTR(es_ev->count);
+    uint32_t es_ev_n = *es_ev_at;
+    {
+        const es_addr_t *es_rows0 = (const es_addr_t *)ES_PTR(es_queries[0].rows);
+        const es_addr_t es_n0 = es_queries[0].count;
+        for (es_addr_t es_i0 = 0; es_i0 < es_n0; ++es_i0) {
+            const es_addr_t *es_row0 = es_rows0 + es_i0 * 2u;
+            unsigned char *m_2 = ES_PTR(es_row0[1]);
+            if ((es_f64(m_2 + ES_OFF_ConfMover_bounces) > 0.0)) {
+                if (es_ev_n + 2u <= es_ev_cap) {
+                    double *es_rec = es_ev_buf + es_ev_n;
+                    es_rec[0] = 0.0;
+                    es_rec[1] = 1.0;
+                    es_ev_n += 2u;
+                }
+            }
+        }
+    }
+    *es_ev_at = es_ev_n;
+}
+
+ES_EXPORT void es_sys_ConfAbsorb(es_addr_t es_ctx) {
+    const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
+    const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
+    {
+        const es_addr_t *es_rows0 = (const es_addr_t *)ES_PTR(es_queries[0].rows);
+        const es_addr_t es_n0 = es_queries[0].count;
+        for (es_addr_t es_i0 = 0; es_i0 < es_n0; ++es_i0) {
+            const es_addr_t *es_row0 = es_rows0 + es_i0 * 2u;
+            unsigned char *h_2 = ES_PTR(es_row0[1]);
+            {
+                const es_addr_t *es_rows1 = (const es_addr_t *)ES_PTR(es_queries[1].rows);
+                const es_addr_t es_n1 = es_queries[1].count;
+                for (es_addr_t es_i1 = 0; es_i1 < es_n1; ++es_i1) {
+                    const es_addr_t *es_row1 = es_rows1 + es_i1 * 2u;
+                    unsigned char *d_3 = ES_PTR(es_row1[1]);
+                    es_set_f64(d_3 + ES_OFF_ConfDoomed_ttl, (es_f64(d_3 + ES_OFF_ConfDoomed_ttl) + es_f64(h_2 + ES_OFF_ConfBounced_amount)));
+                }
+            }
+        }
+    }
+}
+
+ES_EXPORT void es_sys_ConfReap(es_addr_t es_ctx) {
+    const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
+    const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
+    EsCmd *es_cmd_buf = (EsCmd *)ES_PTR(es_c->cmdBuf);
+    const uint32_t es_cmd_cap = (uint32_t)es_c->cmdCap;
+    uint32_t *es_cmd_at = (uint32_t *)ES_PTR(es_c->cmdCount);
+    uint32_t es_cmd_n = *es_cmd_at;
+    {
+        const es_addr_t *es_rows0 = (const es_addr_t *)ES_PTR(es_queries[0].rows);
+        const es_addr_t es_n0 = es_queries[0].count;
+        for (es_addr_t es_i0 = 0; es_i0 < es_n0; ++es_i0) {
+            const es_addr_t *es_row0 = es_rows0 + es_i0 * 2u;
+            const uint32_t e_2 = (uint32_t)es_row0[0];
+            unsigned char *d_3 = ES_PTR(es_row0[1]);
+            if ((es_f64(d_3 + ES_OFF_ConfDoomed_ttl) >= 8.0)) {
+                if (es_cmd_n < es_cmd_cap) {
+                    EsCmd *es_at = &es_cmd_buf[es_cmd_n];
+                    es_at->kind = ES_CMD_DESPAWN; /* despawn */
+                    es_at->a = e_2;
+                    es_at->b = 0u;
+                    es_at->c = 0u;
+                    es_cmd_n += 1u;
+                }
+            }
+        }
+    }
+    *es_cmd_at = es_cmd_n;
 }

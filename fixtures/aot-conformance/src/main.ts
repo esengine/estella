@@ -6,14 +6,18 @@ import {
     Query, Res, Schedule, Time,
 } from 'esengine';
 
-import { Mover, Tally, driftSystem, clampSystem, tallySystem } from './systems.generated';
-import { SEED } from './seed.generated';
+import {
+    Doomed, Mover, Tally, absorbSystem, announceSystem, clampSystem, driftSystem,
+    reapSystem, tallySystem,
+} from './systems.generated';
+import { DOOMED, SEED } from './seed.generated';
 
 /** Spawned in the order the trace records rows in, which is pool order. */
 const spawnSystem = defineSystem(
     [Commands()],
     (cmds) => {
         for (const [x, speed] of SEED) cmds.spawn().insert(Mover, { x, speed, bounces: 0 });
+        for (const ttl of DOOMED) cmds.spawn().insert(Doomed, { ttl });
     },
     { name: 'ConfSpawn' },
 );
@@ -35,12 +39,16 @@ const watchSystem = defineSystem(
  *  The delta goes out with the rows because a road that stepped by another one
  *  is a different question from a road that computed the step wrong. */
 const reportSystem = defineSystem(
-    [Query(Mover), Res(Time), Res(Tally)],
-    (query, time, tally) => {
+    [Query(Mover), Query(Doomed), Res(Time), Res(Tally)],
+    (query, doomed, time, tally) => {
         const rows: number[][] = [];
         for (const [, m] of query) rows.push([m.x, m.speed, m.bounces]);
+        let alive = 0;
+        let ttl = 0;
+        for (const [, d] of doomed) { alive++; ttl += d.ttl; }
         console.log(`CONF ${frame} ${time.delta} ${JSON.stringify(rows)} `
-            + `${JSON.stringify([tally.bounces, tally.frames])} ${ticked}`);
+            + `${JSON.stringify([tally.bounces, tally.frames])} ${ticked} `
+            + `${JSON.stringify([alive, ttl])}`);
         frame++;
     },
     { name: 'ConfReport' },
@@ -50,5 +58,8 @@ addStartupSystem(spawnSystem);
 addSystemToSchedule(Schedule.Update, driftSystem);
 addSystemToSchedule(Schedule.Update, clampSystem);
 addSystemToSchedule(Schedule.Update, tallySystem);
+addSystemToSchedule(Schedule.Update, announceSystem);
+addSystemToSchedule(Schedule.Update, absorbSystem);
+addSystemToSchedule(Schedule.Update, reapSystem);
 addSystemToSchedule(Schedule.Update, watchSystem);
 addSystemToSchedule(Schedule.Update, reportSystem);
