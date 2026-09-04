@@ -11,7 +11,7 @@
  */
 import type { SceneComponentData } from '../../scene/scene';
 
-export const REPLICATION_PROTOCOL_VERSION = 2;
+export const REPLICATION_PROTOCOL_VERSION = 3;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
@@ -21,14 +21,21 @@ export const ReplMsg = {
     hello: 'repl:hello',
     spawn: 'repl:spawn',
     despawn: 'repl:despawn',
+    componentRemove: 'repl:crm',
     input: 'repl:input',
     ack: 'repl:ack',
 } as const;
 
-/** One component's replication schema, as exchanged for handshake comparison. */
+/**
+ * One component's replication schema, as exchanged for handshake comparison.
+ * `shapes` is parallel to `fields`: each field's wire shape as a canonical
+ * signature. Names alone do not pin the byte layout — `0` against `false`
+ * agrees on the name and writes 4 bytes against 1.
+ */
 export interface ReplComponentSchema {
     name: string;
     fields: string[];
+    shapes: string[];
 }
 
 export interface ReplHelloRequest {
@@ -77,6 +84,17 @@ export interface ReplSpawnBatch {
 export interface ReplDespawnBatch {
     tick: number;
     netIds: number[];
+}
+
+/**
+ * Server → client: replicated components that LEFT an entity that lives on.
+ * Field deltas cannot carry this — a removed component stops being sampled, so
+ * without its own op the client keeps the last values it saw for good.
+ * `componentIds` are wire table ids (codec.ts), the same ids frames carry.
+ */
+export interface ReplComponentRemoveBatch {
+    tick: number;
+    entries: { netId: number; componentIds: number[] }[];
 }
 
 /**

@@ -6510,7 +6510,7 @@ ReadonlyMap<string, string>
 
 ## REPLICATION_PROTOCOL_VERSION — const @experimental
 ```
-2
+3
 ```
 
 ## RESOURCE_BINDINGS — const @experimental

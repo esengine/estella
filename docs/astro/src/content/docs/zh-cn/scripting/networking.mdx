@@ -103,6 +103,12 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 - **权威**:只有服务器做模拟;客户端看到的是复制且插值后的状态(`NetGhost`
   标记代理实体)。握手会对协议/ABI/schema 不匹配直接拒连,漂移的构建永远
   不会静默失步。
+- **schema 比的是字节布局,不只是字段名**:握手比对字段名**和**它们的 wire
+  shape。一端默认 `0`、另一端默认 `false` 的字段,名字相同、字节数不同,
+  光看名字发现不了。
+- **结构本身也会复制,不只是值**:给活着的实体加一个 replicated 组件会发送
+  它的完整状态,移除则会从每个 ghost 上移除。spawn → 组件加入 → 更新 →
+  组件移除 → despawn 全部过线,并按权威端发出的顺序抵达。
 - **归属**:`Replicated.owner` 把某连接的 `sendInput` 命令路由到它的实体;
   `client.ownsEntity(e)` 回答"这个 ghost 是不是我的"。
 - **编辑器预览**:在 Play 模式下拉里选 **2–4 Players**——listen server 和

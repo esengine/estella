@@ -115,8 +115,27 @@ export function buildReplicationTable(): ReplicationTable {
     return { entries, byName: new Map(entries.map((e) => [e.name, e])) };
 }
 
+/**
+ * A field shape as one canonical string, so the handshake can compare byte
+ * layouts and not just names. `entity` is its own signature rather than the
+ * `f32` its default `0` would derive: the two are both four bytes and mean
+ * completely different things on the wire.
+ */
+export function shapeSignature(shape: FieldShape): string {
+    switch (shape.kind) {
+        case 'object':
+            return `{${shape.keys.map((k, i) => `${k}:${shapeSignature(shape.shapes[i])}`).join(',')}}`;
+        default:
+            return shape.kind;
+    }
+}
+
 export function tableSchemas(table: ReplicationTable): ReplComponentSchema[] {
-    return table.entries.map((e) => ({ name: e.name, fields: [...e.fields] }));
+    return table.entries.map((e) => ({
+        name: e.name,
+        fields: [...e.fields],
+        shapes: e.shapes.map(shapeSignature),
+    }));
 }
 
 /** Exact-schema comparison for the handshake: same components, same fields,
@@ -131,6 +150,16 @@ export function diffSchemas(mine: ReplComponentSchema[], theirs: ReplComponentSc
         }
         if (mine[i].fields.join(',') !== theirs[i].fields.join(',')) {
             return `component "${mine[i].name}" field list differs ([${mine[i].fields}] vs [${theirs[i].fields}])`;
+        }
+        // The layout, not just the vocabulary. Matching names over different
+        // shapes is the mismatch that reads as a working connection and then
+        // decodes garbage from the second entry of every frame onward.
+        for (let f = 0; f < mine[i].fields.length; f++) {
+            const a = mine[i].shapes?.[f];
+            const b = theirs[i].shapes?.[f];
+            if (a !== b) {
+                return `component "${mine[i].name}" field "${mine[i].fields[f]}" has wire shape ${a} here and ${b} there`;
+            }
         }
     }
     return null;

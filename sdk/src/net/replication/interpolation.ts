@@ -154,6 +154,12 @@ export class InterpolationState {
         buf.push(fieldIndex, tick, value);
     }
 
+    /** Forget one component's history on one entity — the component left, but
+     *  the entity did not. */
+    dropComponent(netId: number, componentId: number): void {
+        this.buffers.get(netId)?.delete(componentId);
+    }
+
     drop(netId: number): void {
         this.buffers.delete(netId);
     }

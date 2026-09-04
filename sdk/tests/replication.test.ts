@@ -17,7 +17,7 @@ import { NetChannel } from '../src/net/NetChannel';
 import {
     replicationPlugin, Net, Replicated, NetGhost,
     ReplMsg, REPLICATION_PROTOCOL_VERSION,
-    buildReplicationTable, tableSchemas, diffSchemas,
+    buildReplicationTable, tableSchemas, diffSchemas, ReplicationServer,
     ByteWriter, ByteReader, encodeValue, decodeValue, FrameWriter, decodeStateFrame,
     type ReplHelloResponse, type FieldShape,
 } from '../src/net/replication';
@@ -43,6 +43,7 @@ async function makePair() {
 
 let NetPos: ReturnType<typeof defineComponent<{ x: number; y: number; secret: number }>>;
 let NetTag: ReturnType<typeof defineComponent<{ label: string; active: boolean }>>;
+let NetLink: ReturnType<typeof defineComponent<{ target: number }>>;
 
 beforeEach(() => {
     clearUserComponents();
@@ -51,6 +52,11 @@ beforeEach(() => {
     });
     NetTag = defineComponent('NetTag', { label: '', active: false }, {
         replicatedFields: ['label', 'active'],
+    });
+    // An entity reference: `0` on the wire is a netId, not a coordinate.
+    NetLink = defineComponent('NetLink', { target: 0 }, {
+        replicatedFields: ['target'],
+        entityFields: ['target'],
     });
 });
 
@@ -117,6 +123,47 @@ describe('replication handshake', () => {
         });
         expect(res.ok).toBe(false);
         if (!res.ok) expect(res.error).toMatch(/ABI/);
+    });
+
+    it('refuses a field whose wire SHAPE differs, with the names identical', async () => {
+        // The mismatch names alone cannot see. Both ends call the component
+        // NetPos and the field x; one writes 4 bytes and the other 1, so every
+        // entry after it in the frame decodes from the wrong offset.
+        const serverApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        const [ta, tb] = MemoryTransport.pair();
+        server.attachConnection(ta);
+        const raw = new NetChannel(tb);
+        const schemas = tableSchemas(buildReplicationTable());
+        const i = schemas.findIndex((c) => c.name === 'NetPos');
+        schemas[i] = { ...schemas[i], shapes: schemas[i].shapes.map((sh, f) => (f === 0 ? 'bool' : sh)) };
+        const res = await raw.request<ReplHelloResponse>(ReplMsg.hello, {
+            protocolVersion: REPLICATION_PROTOCOL_VERSION,
+            abiHash: ABI_LAYOUT_HASH,
+            components: schemas,
+        });
+        expect(res.ok).toBe(false);
+        if (!res.ok) expect(res.error).toMatch(/wire shape/);
+    });
+
+    it('refuses an entity-ref field the other end thinks is a plain number', async () => {
+        // Same width, so nothing desynchronizes — one end just reads a netId as
+        // a coordinate forever. `entity` is its own signature for this reason.
+        const serverApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        const [ta, tb] = MemoryTransport.pair();
+        server.attachConnection(ta);
+        const raw = new NetChannel(tb);
+        const schemas = tableSchemas(buildReplicationTable());
+        const i = schemas.findIndex((c) => c.name === 'NetPos');
+        schemas[i] = { ...schemas[i], shapes: schemas[i].shapes.map((sh, f) => (f === 0 ? 'entity' : sh)) };
+        const res = await raw.request<ReplHelloResponse>(ReplMsg.hello, {
+            protocolVersion: REPLICATION_PROTOCOL_VERSION,
+            abiHash: ABI_LAYOUT_HASH,
+            components: schemas,
+        });
+        expect(res.ok).toBe(false);
+        if (!res.ok) expect(res.error).toMatch(/wire shape/);
     });
 
     it('refuses a replication schema mismatch', async () => {
@@ -333,5 +380,204 @@ describe('codec round trip', () => {
         expect(diffSchemas(a, [])).toMatch(/size/);
         expect(diffSchemas(a, [{ name: 'B', fields: ['x'] }])).toMatch(/differs/);
         expect(diffSchemas(a, [{ name: 'A', fields: ['x', 'y'] }])).toMatch(/field list/);
+    });
+});
+
+describe('component topology', () => {
+    it('a replicated component leaving the authority leaves the ghost too', async () => {
+        // The delta plane cannot say this: a removed component stops being
+        // sampled, so without its own op the ghost keeps the last values it saw
+        // for the rest of the session.
+        const { serverApp, clientApp, client } = await makePair();
+        const e = serverApp.world.spawn('unit');
+        serverApp.world.insert(e, NetPos, { x: 5, y: 6, secret: 0 });
+        serverApp.world.insert(e, NetTag, { label: 'shielded', active: true });
+        serverApp.world.insert(e, Replicated, {});
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+
+        const ghost = clientApp.world.getEntitiesWithComponents([NetGhost])[0];
+        expect(clientApp.world.has(ghost, NetTag)).toBe(true);
+
+        serverApp.world.remove(e, NetTag);
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+
+        expect(clientApp.world.has(ghost, NetTag)).toBe(false);
+        // The entity and its other components are untouched — this is a
+        // component leaving, not a despawn.
+        expect(clientApp.world.valid(ghost)).toBe(true);
+        expect((clientApp.world.tryGet(ghost, NetPos) as { x: number }).x).toBe(5);
+        expect(client.connected).toBe(true);
+    });
+
+    it('re-adding the component after a removal replicates it again', async () => {
+        const { serverApp, clientApp } = await makePair();
+        const e = serverApp.world.spawn('unit');
+        serverApp.world.insert(e, NetPos, { x: 0, y: 0, secret: 0 });
+        serverApp.world.insert(e, NetTag, { label: 'first', active: true });
+        serverApp.world.insert(e, Replicated, {});
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        const ghost = clientApp.world.getEntitiesWithComponents([NetGhost])[0];
+
+        serverApp.world.remove(e, NetTag);
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(clientApp.world.has(ghost, NetTag)).toBe(false);
+
+        // The shadow snapshot goes with the removal, so a re-add replicates
+        // every field rather than diffing against a component that is gone.
+        serverApp.world.insert(e, NetTag, { label: 'second', active: false });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(clientApp.world.has(ghost, NetTag)).toBe(true);
+        expect((clientApp.world.tryGet(ghost, NetTag) as { label: string }).label).toBe('second');
+    });
+});
+
+describe('inbound timeline', () => {
+    it('a despawn and a re-spawn arriving together apply in the order they were sent', async () => {
+        // The AOI edge: leave interest at tick N, come back at N+1. Sorting the
+        // inbox by KIND replays that as re-enter-then-leave — and permanently,
+        // since the server sends only deltas for it from then on.
+        const serverApp = makeApp();
+        const clientApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        const [ta, tb] = MemoryTransport.pair();
+        server.attachConnection(ta);
+        const client = await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
+        expect(client.connected).toBe(true);
+
+        const e = serverApp.world.spawn('blinker');
+        serverApp.world.insert(e, NetPos, { x: 1, y: 2, secret: 0 });
+        serverApp.world.insert(e, Replicated, {});
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(clientApp.world.getEntitiesWithComponents([NetGhost])).toHaveLength(1);
+
+        // Leave, then re-enter, with the client not stepping in between — both
+        // batches land in one flush.
+        let visible = false;
+        server.setInterestPolicy(({ candidates }) => (visible ? new Set(candidates) : new Set<never>()));
+        await serverApp.tick(STEP);          // leaves  → despawn
+        visible = true;
+        await serverApp.tick(STEP);          // re-enters → spawn
+        await clientApp.tick(STEP);
+
+        const ghosts = clientApp.world.getEntitiesWithComponents([NetGhost]);
+        expect(ghosts).toHaveLength(1);
+        expect((clientApp.world.tryGet(ghosts[0], NetPos) as { x: number }).x).toBe(1);
+    });
+});
+
+describe('spawn batch references', () => {
+    it('an entity reference to something later in the same batch resolves', async () => {
+        // Hydrating entity-by-entity looked up a netId that had not been
+        // registered yet and wrote 0 — a reference to nothing, never revisited.
+        const { serverApp, clientApp, client } = await makePair();
+        // Replicated on the holder FIRST, so it is the earlier of the two in
+        // the batch and its reference genuinely points forward.
+        const holder = serverApp.world.spawn('holder');
+        serverApp.world.insert(holder, Replicated, {});
+        const target = serverApp.world.spawn('target');
+        serverApp.world.insert(target, NetPos, { x: 9, y: 9, secret: 0 });
+        serverApp.world.insert(target, Replicated, {});
+        serverApp.world.insert(holder, NetLink, { target });
+        // Both are new this tick, so they ride ONE spawn batch.
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+
+        const ghosts = clientApp.world.getEntitiesWithComponents([NetGhost]);
+        expect(ghosts).toHaveLength(2);
+        const ghostHolder = ghosts.find((g) => clientApp.world.has(g, NetLink))!;
+        const ghostTarget = ghosts.find((g) => clientApp.world.has(g, NetPos))!;
+        // netIds are allocated in batch order, so this pins the precondition:
+        // without it the test would still pass on a BACKWARD reference and
+        // quietly stop covering the bug it exists for.
+        expect(client.netIds.netIdOf(ghostHolder)!).toBeLessThan(client.netIds.netIdOf(ghostTarget)!);
+        const link = clientApp.world.tryGet(ghostHolder, NetLink) as { target: number };
+        expect(link.target).not.toBe(0);
+        expect(link.target).toBe(ghostTarget);
+    });
+
+    it('an entity that references itself resolves to itself', async () => {
+        // Self-reference failed for the same reason: the netId was registered
+        // only after its own components had been read.
+        const { serverApp, clientApp } = await makePair();
+        const e = serverApp.world.spawn('ouroboros');
+        serverApp.world.insert(e, NetLink, { target: e });
+        serverApp.world.insert(e, Replicated, {});
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+
+        const ghost = clientApp.world.getEntitiesWithComponents([NetGhost])[0];
+        expect((clientApp.world.tryGet(ghost, NetLink) as { target: number }).target).toBe(ghost);
+    });
+});
+
+describe('input sequence', () => {
+    /** A raw client channel, so the test can send any seq it likes. */
+    async function rawInputPair() {
+        const serverApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        const [ta, tb] = MemoryTransport.pair();
+        const id = server.attachConnection(ta);
+        const raw = new NetChannel(tb);
+        const res = await raw.request<ReplHelloResponse>(ReplMsg.hello, {
+            protocolVersion: REPLICATION_PROTOCOL_VERSION,
+            abiHash: ABI_LAYOUT_HASH,
+            components: tableSchemas(buildReplicationTable()),
+        });
+        expect(res.ok).toBe(true);
+        return { serverApp, server, raw, id };
+    }
+
+    /** The seq the authority runs on each of `n` consecutive ticks. */
+    function ticked(server: ReplicationServer, id: number, n: number): (number | null)[] {
+        const out: (number | null)[] = [];
+        for (let i = 0; i < n; i++) {
+            server.beginTick(STEP);
+            out.push(server.tickInputOf(id)?.seq ?? null);
+        }
+        return out;
+    }
+
+    it('a repeated seq does not delay the command behind it', async () => {
+        // Queued as [1,1,2] the authority runs 1, 1, 2 — seq 2 lands a tick
+        // late, and the client that predicted [1,2] over two ticks is now
+        // somewhere the server is not. Deduped it is [1,2].
+        const { server, raw, id } = await rawInputPair();
+        raw.send(ReplMsg.input, { seq: 1, actions: { n: 1 } });
+        raw.send(ReplMsg.input, { seq: 1, actions: { n: 1 } });
+        raw.send(ReplMsg.input, { seq: 2, actions: { n: 2 } });
+
+        expect(ticked(server, id, 2)).toEqual([1, 2]);
+    });
+
+    it('never runs a seq that goes backwards', async () => {
+        // A rewind queued like any other command walks the authority back to an
+        // older input a tick after it passed it.
+        const { server, raw, id } = await rawInputPair();
+        raw.send(ReplMsg.input, { seq: 7, actions: { a: 1 } });
+        raw.send(ReplMsg.input, { seq: 3, actions: { a: 2 } });
+
+        // Second tick starves and repeats 7 (documented) rather than running 3.
+        expect(ticked(server, id, 2)).toEqual([7, 7]);
+        expect(server.inputOf(id)?.seq).toBe(7);
+    });
+
+    it('a flooding client loses its NEWEST commands, never the queued ones', async () => {
+        // Shifting the front would skip a command the client already predicted
+        // and never revisit it. The front is the contract; the tail is credit.
+        const { server, raw, id } = await rawInputPair();
+        for (let seq = 1; seq <= 200; seq++) {
+            raw.send(ReplMsg.input, { seq, actions: { n: seq } });
+        }
+        const run = ticked(server, id, 129);
+        expect(run.slice(0, 128)).toEqual(Array.from({ length: 128 }, (_, i) => i + 1));
+        // Starved after the cap — it repeats the last command it actually ran,
+        // rather than jumping to a seq the client sent long after.
+        expect(run[128]).toBe(128);
     });
 });

@@ -27,6 +27,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
+    type ReplComponentRemoveBatch,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
@@ -49,12 +50,21 @@ interface Connection {
     applied: ReplInputMsg | null;
     /** Highest input seq acknowledged to the client (0 = none yet). */
     ackedSeq: number;
+    /** Highest input seq ACCEPTED from the client. Anything at or below it is a
+     *  repeat or a rewind and never reaches the queue. */
+    lastSeq: number;
+    /** Input commands refused (repeat, rewind, or a full queue). Non-zero means
+     *  this connection's prediction is replaying against a history the
+     *  authority did not run. */
+    droppedInputs: number;
     /** Entities this connection currently knows (has been sent a spawn for). */
     interest: Set<Entity>;
 }
 
-/** Queued-but-unconsumed input cap; beyond it the oldest commands drop (a
- *  client flooding faster than the tick rate loses history, not the server). */
+/** Queued-but-unconsumed input cap. Beyond it the NEW command is refused, not
+ *  the oldest dropped: the queue is drained one per tick from the front, so
+ *  shifting the front skips a command the client already predicted. Refusing
+ *  the tail only denies credit to a client 128 ticks ahead of the authority. */
 const INPUT_QUEUE_CAP = 128;
 
 /** One dirty component on one entity this tick — diffed once, written into
@@ -66,6 +76,31 @@ interface DirtyEntry {
     te: ReplicationTableEntry;
     mask: number;
     data: Record<string, unknown>;
+}
+
+/** One replicated component that LEFT an entity that is still replicated.
+ *  Topology, not values — it rides the control plane beside spawn/despawn. */
+interface RemovalEntry {
+    entity: Entity;
+    netId: number;
+    componentId: number;
+}
+
+/** What one sample tick found: values that moved, and components that left. */
+interface DirtySample {
+    dirty: DirtyEntry[];
+    removals: RemovalEntry[];
+}
+
+/** Group removals into the wire batch, one entry per entity. */
+function removeBatch(tick: number, removals: readonly RemovalEntry[]): ReplComponentRemoveBatch {
+    const byNetId = new Map<number, number[]>();
+    for (const r of removals) {
+        const ids = byNetId.get(r.netId);
+        if (ids) ids.push(r.componentId);
+        else byNetId.set(r.netId, [r.componentId]);
+    }
+    return { tick, entries: [...byNetId].map(([netId, componentIds]) => ({ netId, componentIds })) };
 }
 
 function fieldEqual(a: unknown, b: unknown): boolean {
@@ -153,16 +188,26 @@ export class ReplicationServer {
         const conn: Connection = {
             id, channel, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
+            lastSeq: 0, droppedInputs: 0,
             interest: new Set(),
         };
         this.connections_.set(id, conn);
 
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
-            if (!conn.input || msg.seq > conn.input.seq) conn.input = msg;
-            // The per-tick queue keeps every command in order for exactly-once
-            // consumption (tickInputOf) — the contract prediction replays against.
+            // Exactly-once starts here: a repeat or a rewind must not enter the
+            // queue tickInputOf drains. Running one command twice moves the
+            // authority somewhere the client never predicted.
+            if (typeof msg?.seq !== 'number' || msg.seq <= conn.lastSeq) {
+                this.refuseInput_(conn);
+                return;
+            }
+            conn.lastSeq = msg.seq;
+            conn.input = msg;
+            if (conn.queue.length >= INPUT_QUEUE_CAP) {
+                this.refuseInput_(conn);
+                return;
+            }
             conn.queue.push(msg);
-            if (conn.queue.length > INPUT_QUEUE_CAP) conn.queue.shift();
         });
 
         channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, (req) => {
@@ -183,6 +228,15 @@ export class ReplicationServer {
         });
 
         return id;
+    }
+
+    /** Count a refused command, and say so the first time — a drop that only a
+     *  counter knows about reads exactly like a healthy connection. */
+    private refuseInput_(conn: Connection): void {
+        conn.droppedInputs++;
+        if (conn.droppedInputs === 1) {
+            log.warn('repl', `connection ${conn.id}: input refused (repeat, rewind, or queue full) — its prediction will reconcile`);
+        }
     }
 
     detachConnection(id: number): void {
@@ -260,12 +314,12 @@ export class ReplicationServer {
         }
 
         // Diff once against the shadow; frames below share the result.
-        const dirty = this.collectDirty_();
+        const sample = this.collectDirty_();
 
         if (!this.policy_) {
-            this.sampleBroadcast_(tick, spawnedEntities, despawned, dirty);
+            this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
         } else {
-            this.sampleWithInterest_(tick, despawned, dirty);
+            this.sampleWithInterest_(tick, despawned, sample);
         }
 
         // Acknowledge consumed inputs: this tick's state incorporates each
@@ -284,7 +338,7 @@ export class ReplicationServer {
         tick: number,
         spawnedEntities: Entity[],
         despawned: { entity: Entity; netId: number }[],
-        dirty: DirtyEntry[],
+        { dirty, removals }: DirtySample,
     ): void {
         if (spawnedEntities.length > 0) {
             const entities = spawnedEntities.map((e) => this.spawnPayload_(e, this.knownNetIds_.get(e)!));
@@ -315,6 +369,13 @@ export class ReplicationServer {
             }
         }
 
+        // After the spawns (an entity that just entered carries a payload that
+        // already lacks the component) and before the delta frame.
+        if (removals.length > 0) {
+            const batch = removeBatch(tick, removals);
+            this.broadcast_((c) => c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, batch));
+        }
+
         if (dirty.length > 0) {
             const frame = new FrameWriter(tick);
             for (const d of dirty) frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
@@ -329,7 +390,7 @@ export class ReplicationServer {
     private sampleWithInterest_(
         tick: number,
         despawned: { entity: Entity; netId: number }[],
-        dirty: DirtyEntry[],
+        { dirty, removals }: DirtySample,
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
         const candidates = [...this.known_];
@@ -368,10 +429,16 @@ export class ReplicationServer {
                 if (leaveIds.length > 0) {
                     c.channel.send<ReplDespawnBatch>(ReplMsg.despawn, { tick, netIds: leaveIds });
                 }
+                const entered = new Set(enters);
+                // Same rule as the delta below: an entity that just entered was
+                // serialized without the component, so it owes no removal.
+                const mine = removals.filter((r) => visible.has(r.entity) && !entered.has(r.entity));
+                if (mine.length > 0) {
+                    c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, removeBatch(tick, mine));
+                }
                 // Entities that just entered skip the delta — their spawn
                 // payload already carries this tick's state.
                 let frame: FrameWriter | null = null;
-                const entered = new Set(enters);
                 for (const d of dirty) {
                     if (!visible.has(d.entity) || entered.has(d.entity)) continue;
                     frame ??= new FrameWriter(tick);
@@ -451,15 +518,22 @@ export class ReplicationServer {
 
     /** Diff every known entity against its shadow (updating the shadow), and
      *  return this tick's dirty component entries. */
-    private collectDirty_(): DirtyEntry[] {
+    private collectDirty_(): DirtySample {
         const out: DirtyEntry[] = [];
+        const removals: RemovalEntry[] = [];
         for (const e of this.known_) {
             const perComp = this.shadow_.get(e);
             if (!perComp) continue;
             const netId = this.knownNetIds_.get(e);
             if (netId === undefined) continue;
             for (const te of this.table.entries) {
-                if (!this.world_.has(e, te.def)) continue;
+                if (!this.world_.has(e, te.def)) {
+                    // The shadow is the record of what the clients were told
+                    // exists. Its snapshot disappearing IS the removal — there
+                    // is no other trace, since a gone component is never sampled.
+                    if (perComp.delete(te.id)) removals.push({ entity: e, netId, componentId: te.id });
+                    continue;
+                }
                 const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
                 let snap = perComp.get(te.id);
                 if (!snap) {
@@ -480,7 +554,7 @@ export class ReplicationServer {
                 }
             }
         }
-        return out;
+        return { dirty: out, removals };
     }
 
     private sendInitialState_(conn: Connection): void {

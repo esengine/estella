@@ -6322,7 +6322,7 @@ ReadonlyMap<string, string>
 
 ## REPLICATION_PROTOCOL_VERSION — const @experimental
 ```
-2
+3
 ```
 
 ## RETIRED_COMPONENT_TYPES — const @experimental

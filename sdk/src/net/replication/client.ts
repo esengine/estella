@@ -32,6 +32,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
+    type ReplComponentRemoveBatch,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
@@ -111,6 +112,13 @@ export interface ReplicationClientOptions {
     prediction?: PredictionOptions;
 }
 
+/** One received message, tagged so the inbox can stay a single ordered queue. */
+type PendingOp =
+    | { kind: 'spawn'; batch: ReplSpawnBatch }
+    | { kind: 'despawn'; batch: ReplDespawnBatch }
+    | { kind: 'remove'; batch: ReplComponentRemoveBatch }
+    | { kind: 'state'; frame: Uint8Array };
+
 export class ReplicationClient {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
@@ -119,9 +127,11 @@ export class ReplicationClient {
     private table_: ReplicationTable | null = null;
     private connectionId_ = 0;
     private serverTick_ = 0;
-    private readonly pendingFrames_: Uint8Array[] = [];
-    private readonly pendingSpawns_: ReplSpawnBatch[] = [];
-    private readonly pendingDespawns_: ReplDespawnBatch[] = [];
+    /** Everything received since the last fixed step, in ARRIVAL order — one
+     *  queue, not one per kind. Sorting by kind reorders across ticks: a leave
+     *  at tick N and a re-enter at N+1 arriving together replay as
+     *  re-enter-then-leave, and the entity is gone on the client for good. */
+    private readonly inbox_: PendingOp[] = [];
     private readonly interp_: InterpolationState | null;
     private inputSeq_ = 0;
     private prediction_: PredictionOptions | null;
@@ -179,14 +189,15 @@ export class ReplicationClient {
         // Handlers first: the initial spawn batch may hit the wire before the
         // hello response settles on this side. Batches queue until the fixed
         // step applies them, so ordering stays deterministic either way.
-        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.pendingSpawns_.push(batch));
-        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.pendingDespawns_.push(batch));
+        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.inbox_.push({ kind: 'spawn', batch }));
+        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.inbox_.push({ kind: 'despawn', batch }));
+        channel.on<ReplComponentRemoveBatch>(ReplMsg.componentRemove, (batch) => this.inbox_.push({ kind: 'remove', batch }));
         channel.on<ReplAckMsg>(ReplMsg.ack, (ack) => {
             if (ack.seq > this.ackedSeq_) this.ackedSeq_ = ack.seq;
         });
         channel.onBinary(REPLICATION_CHANNEL, (payload) => {
             // Copy out: the payload view may alias a transport-owned buffer.
-            this.pendingFrames_.push(payload.slice());
+            this.inbox_.push({ kind: 'state', frame: payload.slice() });
         });
 
         const hello: ReplHelloRequest = {
@@ -247,9 +258,7 @@ export class ReplicationClient {
         this.offDespawn_ = null;
         this.netIds_.clear();
         this.authority_.clear();
-        this.pendingFrames_.length = 0;
-        this.pendingSpawns_.length = 0;
-        this.pendingDespawns_.length = 0;
+        this.inbox_.length = 0;
         this.pendingInputs_.length = 0;
     }
 
@@ -277,19 +286,21 @@ export class ReplicationClient {
         return repl !== null && repl.owner === this.connectionId_ && this.connectionId_ !== 0;
     }
 
-    /** Apply everything received since the last fixed step. Spawns before
-     *  state (a frame may reference an entity spawned in the same flush).
+    /** Apply everything received since the last fixed step, in the order it
+     *  arrived — which is the order the authority sent it. Within one server
+     *  tick that is already spawn → remove → despawn → state, so a frame never
+     *  precedes the spawn it references and nothing has to be re-sorted here.
      *  With prediction enabled, ends by reconciling every owned entity:
      *  live state ← authority copy ⊕ replay of unacknowledged inputs. */
     applyPending(): void {
-        while (this.pendingSpawns_.length > 0) {
-            this.applySpawnBatch_(this.pendingSpawns_.shift()!);
-        }
-        while (this.pendingFrames_.length > 0) {
-            this.applyStateFrame_(decodeStateFrame(this.pendingFrames_.shift()!, this.table, this.refs_));
-        }
-        while (this.pendingDespawns_.length > 0) {
-            this.applyDespawnBatch_(this.pendingDespawns_.shift()!);
+        while (this.inbox_.length > 0) {
+            const op = this.inbox_.shift()!;
+            switch (op.kind) {
+                case 'spawn': this.applySpawnBatch_(op.batch); break;
+                case 'despawn': this.applyDespawnBatch_(op.batch); break;
+                case 'remove': this.applyComponentRemoveBatch_(op.batch); break;
+                case 'state': this.applyStateFrame_(decodeStateFrame(op.frame, this.table, this.refs_)); break;
+            }
         }
         if (this.prediction_) {
             while (this.pendingInputs_.length > 0 && this.pendingInputs_[0].seq <= this.ackedSeq_) {
@@ -404,32 +415,36 @@ export class ReplicationClient {
         return repl !== null && repl.owner === this.connectionId_;
     }
 
+    /**
+     * Three phases, because a payload may name an entity that appears LATER in
+     * the same batch — or itself. Register every netId before reading any
+     * component data and every reference resolves; hydrating as it goes writes
+     * 0 for a forward reference and never revisits it.
+     */
     private applySpawnBatch_(batch: ReplSpawnBatch): void {
+        const fresh: { spawn: ReplSpawnEntity; entity: Entity }[] = [];
         for (const spawn of batch.entities) {
-            this.spawnGhost_(spawn);
+            if (this.netIds_.entityOf(spawn.netId) !== undefined) continue; // duplicate delivery
+            const e = this.world_.spawn(spawn.name || undefined);
+            this.world_.insert(e, NetGhost, {});
+            this.netIds_.register(spawn.netId, e);
+            fresh.push({ spawn, entity: e });
         }
-        // Parent after the whole batch so forward references resolve.
-        for (const spawn of batch.entities) {
-            if (spawn.parentNetId !== 0) {
-                const child = this.netIds_.entityOf(spawn.netId);
-                const parent = this.netIds_.entityOf(spawn.parentNetId);
-                if (child !== undefined && parent !== undefined) {
-                    this.world_.setParent(child, parent);
-                }
+        for (const { spawn, entity } of fresh) {
+            for (const comp of spawn.components) {
+                const data = this.remapEntityRefs_(comp.type, comp.data);
+                loadComponent(this.world_, entity, { type: comp.type, data }, spawn.name);
             }
         }
-    }
-
-    private spawnGhost_(spawn: ReplSpawnEntity): void {
-        if (this.netIds_.entityOf(spawn.netId) !== undefined) return; // duplicate delivery
-        const e = this.world_.spawn(spawn.name || undefined);
-        for (const comp of spawn.components) {
-            const data = this.remapEntityRefs_(comp.type, comp.data);
-            loadComponent(this.world_, e, { type: comp.type, data }, spawn.name);
+        // Baseline before hierarchy, as it has always been: reparenting runs
+        // through the C++ registry and the prediction baseline must be the
+        // state the authority sent, not whatever that leaves behind.
+        for (const { spawn, entity } of fresh) this.seedAuthority_(spawn.netId, entity);
+        for (const { spawn, entity } of fresh) {
+            if (spawn.parentNetId === 0) continue;
+            const parent = this.netIds_.entityOf(spawn.parentNetId);
+            if (parent !== undefined) this.world_.setParent(entity, parent);
         }
-        this.world_.insert(e, NetGhost, {});
-        this.netIds_.register(spawn.netId, e);
-        this.seedAuthority_(spawn.netId, e);
     }
 
     /** Seed the authority copy for a freshly spawned OWNED entity from its
@@ -457,6 +472,24 @@ export class ReplicationClient {
             }
         }
         return out;
+    }
+
+    /** A replicated component left an entity that lives on. The ghost keeps
+     *  existing; the component, its interpolation buffer and its authority
+     *  snapshot all go. */
+    private applyComponentRemoveBatch_(batch: ReplComponentRemoveBatch): void {
+        for (const entry of batch.entries) {
+            const e = this.netIds_.entityOf(entry.netId);
+            for (const componentId of entry.componentIds) {
+                const te = this.table.entries[componentId];
+                if (!te) continue;
+                this.interp_?.dropComponent(entry.netId, componentId);
+                this.authority_.get(entry.netId)?.delete(componentId);
+                if (e !== undefined && this.world_.valid(e) && this.world_.has(e, te.def)) {
+                    this.world_.remove(e, te.def);
+                }
+            }
+        }
     }
 
     private applyDespawnBatch_(batch: ReplDespawnBatch): void {

@@ -105,7 +105,14 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
 
 - **Authority**: only the server simulates; clients see replicated, interpolated
   state (`NetGhost` tags the proxies). The handshake refuses a protocol/ABI/schema
-  mismatch fail-loud, so drifted builds never desync silently.
+  mismatch fail-loud, so drifted builds never desync silently — the schema it
+  compares is field names *and* their wire shapes, since a field defaulting to
+  `0` on one end and `false` on the other agrees on the name and disagrees on
+  the byte count.
+- **Structure replicates, not just values**: adding a replicated component to a
+  live entity sends its full state; removing one removes it from every ghost.
+  Spawn → component add → updates → component remove → despawn all cross the
+  wire, and arrive in the order the authority sent them.
 - **Ownership**: `Replicated.owner` routes a connection's `sendInput` commands to
   its entities; `client.ownsEntity(e)` answers "is this ghost mine".
 - **Editor preview**: pick **2–4 Players** in the Play-mode dropdown — a listen

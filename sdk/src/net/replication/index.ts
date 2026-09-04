@@ -10,12 +10,14 @@ export {
     type ReplSpawnEntity,
     type ReplSpawnBatch,
     type ReplDespawnBatch,
+    type ReplComponentRemoveBatch,
     type ReplInputMsg,
     type ReplAckMsg,
 } from './protocol';
 export {
     buildReplicationTable,
     tableSchemas,
+    shapeSignature,
     diffSchemas,
     encodeValue,
     decodeValue,
