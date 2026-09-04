@@ -9,6 +9,20 @@ import { Pawn } from './components';
 const BOUND_X = 420;
 const BOUND_Y = 278;
 
+/** The player id of whoever sits at THIS machine's keyboard. Connection ids the
+ *  server hands out start at 1, so 0 is never a remote player. */
+const HOST_PLAYER = 0;
+
+/**
+ * The one thing a listen server and a dedicated server disagree about. The
+ * editor preview (and offline Play) hosts player 0 on the local keyboard; a
+ * dedicated server has none, sets `hostPlays = false` at startup, and owns no
+ * pawn. Nothing else in this file can tell the deployments apart.
+ */
+export const arena = {
+    hostPlays: true,
+};
+
 const PLAYER_COLORS = [
     { r: 0.35, g: 0.85, b: 1.0, a: 1 },  // host — cyan
     { r: 1.0, g: 0.55, b: 0.35, a: 1 },  // player 2 — orange
@@ -61,23 +75,34 @@ function spawnPawn(world: World, player: number): void {
 }
 
 /**
- * Authority-side player provisioning: the host pawn always exists (so plain
- * single-player Play works too), and each handshaken client connection gets a
- * pawn. Stateless — derives what exists from the World each tick.
+ * Authority-side provisioning, both directions: a player owed a pawn gets one,
+ * a pawn whose player left is retired. Stateless — the roster is derived from
+ * the World and the connection list each tick. Retirement only ever fires on a
+ * real server; the preview's MessagePorts never drop, so it never ran there.
  */
 export const provisionPawnsSystem = defineSystem(
     [GetWorld(), Res(Net)],
     (world, net) => {
         if (net.role === 'client') return;
+        // Who is entitled to a pawn this tick.
+        const live = new Set<number>();
+        if (arena.hostPlays) live.add(HOST_PLAYER);
+        for (const id of net.server?.clientIds ?? []) live.add(id);
+
         const have = new Set<number>();
         for (const e of world.getEntitiesWithComponents([Pawn])) {
-            have.add((world.tryGet(e, Pawn) as { player: number }).player);
-        }
-        if (!have.has(0)) spawnPawn(world, 0);
-        if (net.server) {
-            for (const id of net.server.clientIds) {
-                if (!have.has(id)) spawnPawn(world, id);
+            const player = (world.tryGet(e, Pawn) as { player: number }).player;
+            if (!live.has(player)) {
+                // Despawning the authority's entity is the whole retirement:
+                // replication turns it into a despawn on every client that can
+                // see it, and the ghost goes with it.
+                world.despawn(e as Entity);
+                continue;
             }
+            have.add(player);
+        }
+        for (const player of live) {
+            if (!have.has(player)) spawnPawn(world, player);
         }
     },
     { name: 'ProvisionPawnsSystem' },
@@ -95,7 +120,7 @@ export const movePawnsSystem = defineSystem(
         if (net.role === 'client') return;
         for (const e of world.getEntitiesWithComponents([Pawn, Replicated])) {
             const repl = world.tryGet(e, Replicated)!;
-            const actions = repl.owner === 0
+            const actions = repl.owner === HOST_PLAYER
                 ? { move: readMove(input) }
                 : (net.server?.tickInputOf(repl.owner)?.actions ?? {});
             applyMove(world as World, e as Entity, actions, time.fixedDelta);

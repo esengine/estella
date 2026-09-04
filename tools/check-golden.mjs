@@ -55,6 +55,10 @@ const NEEDS_RUN = {
   'pause-resume': 'suspend',
   'hot-update': 'runBy',
   rollback: 'runBy',
+  // A frame of two coloured squares is what a working session and a broken one
+  // both look like. Nothing about replication is visible in a screenshot, so the
+  // claim needs the run that opens a socket.
+  networking: 'runBy',
 };
 
 /** Commands a release is defined as running — what makes `runBy` more than a string. */

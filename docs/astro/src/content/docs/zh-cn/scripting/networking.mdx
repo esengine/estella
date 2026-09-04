@@ -109,8 +109,12 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   客户端视图并排运行,零联网配置。
 - **专用服务器**:同一份玩法代码可在 Node 下无头运行——
   `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`。
+  再用 `flushPendingRegistrations(app)` 装上项目在模块作用域注册的东西(与正式 Web
+  运行时同一道门),权威端跑的就是项目自己的系统,而不是它的副本。
+- **重连目前由你负责**:`Replicated.owner` 是*连接* id,玩家重连会拿到新的一个。
+  SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。
 
-完整范式(复制、每 tick 输入、客户端预测)见 **Multiplayer Arena** 示例(约 130 行)。
+完整范式(复制、每 tick 输入、客户端预测)见 **Multiplayer Arena** 示例(约 130 行)。它的 `server/` 目录就是专用服务器那一半:同一个项目,无头运行,后面是一条真实的 WebSocket。
 
 ### 兴趣管理——谁看见什么
 

@@ -49,7 +49,7 @@ for your own game.
 | **rich-text** | UI | A live rich-text playground — type markup (and 中文 via IME) into a TextInput and watch a `Text` render bold/italic/color/font-size runs. |
 | **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |
 | **camera-follow** | Gameplay | The camera director — `FollowTarget` damping + dead zone, `shakeCamera` impacts, `setViewTarget` blends to an overview camera. |
-| **multiplayer-arena** | Networking | Server-authoritative multiplayer with client prediction: each player steers a replicated pawn, own-pawn input applies instantly ('2 Players' in the Play dropdown runs listen server + client). |
+| **multiplayer-arena** | Networking | Server-authoritative multiplayer with client prediction: each player steers a replicated pawn, own-pawn input applies instantly ('2 Players' in the Play dropdown runs listen server + client). `server/` runs the same project headless behind a real WebSocket. |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **video-puzzle** | Game | A tile-swap puzzle whose tiles are live regions of ONE playing video — texture-handle sharing + per-piece `uvOffset`/`uvScale`. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |

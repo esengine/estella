@@ -1,0 +1,16 @@
+{
+  "//": "The server is a separate program from the game: Node built-ins, its own deps, and the headless SDK entry. The project's root tsconfig covers src/ only, so this one holds the server half. It only ever checks — run.mjs builds with esbuild.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "paths": {
+      "esengine": ["../.esengine/sdk/index.d.ts"],
+      "esengine/node": ["../.esengine/sdk/index.node.d.ts"],
+      "esengine/wasm": ["../.esengine/sdk/wasm.d.ts"]
+    }
+  },
+  "include": ["**/*.ts", "../src/**/*.ts"]
+}

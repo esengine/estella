@@ -1,0 +1,16 @@
+{
+  "name": "multiplayer-arena-server",
+  "private": true,
+  "type": "module",
+  "description": "Dedicated server for the Multiplayer Arena example — the same project, headless.",
+  "scripts": {
+    "start": "node run.mjs",
+    "build": "node run.mjs --build-only"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0"
+  }
+}

@@ -112,8 +112,15 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   server plus client views run side by side, zero networking setup.
 - **Dedicated servers**: the same gameplay code runs headless under Node —
   `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`.
+  Install what the project registered at module scope with
+  `flushPendingRegistrations(app)`, the same door the shipped web runtime uses,
+  and the authority runs the project's own systems rather than a copy of them.
+- **Reconnect is yours for now**: `Replicated.owner` is a *connection* id, and a
+  player who reconnects gets a new one. Nothing in the SDK carries an identity
+  across a dropped socket, so a stable player id, a session token and a grace
+  window belong to your game.
 
-See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines.
+See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines. Its `server/` directory is the dedicated-server half: the same project, headless, behind a real WebSocket.
 
 ### Interest management — who sees what
 
