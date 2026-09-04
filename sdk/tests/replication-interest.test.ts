@@ -84,13 +84,13 @@ describe('interest management (radius policy)', () => {
         expect(ghostNames(clientApp)).toEqual(['near', 'pawn']);
 
         // `near` wanders out of range → its ghost despawns.
-        serverApp.world.set(near, NetPos, { x: 400, y: 0 });
+        serverApp.world.set(near, NetPos, { x: 400, y: 0, z: 0 });
         await step(serverApp, clientApp);
         expect(ghostNames(clientApp)).toEqual(['pawn']);
 
         // `far` wanders in — while out of interest it also changed y; the
         // respawn must carry CURRENT state, not the state at first spawn.
-        serverApp.world.set(far, NetPos, { x: 80, y: 33 });
+        serverApp.world.set(far, NetPos, { x: 80, y: 33, z: 0 });
         await step(serverApp, clientApp);
         expect(ghostNames(clientApp)).toEqual(['far', 'pawn']);
         const farGhost = client.netIds.entityOf(
@@ -111,7 +111,7 @@ describe('interest management (radius policy)', () => {
 
         // Move the far entity (still out of range): no ghost may appear and
         // the client's netId table must not learn it.
-        serverApp.world.set(far, NetPos, { x: 510, y: 5 });
+        serverApp.world.set(far, NetPos, { x: 510, y: 5, z: 0 });
         await step(serverApp, clientApp, 2);
         expect(ghostNames(clientApp)).toEqual(['pawn']);
         const farNetId = (serverApp.world.tryGet(far, Replicated) as { netId: number }).netId;

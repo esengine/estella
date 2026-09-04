@@ -1,0 +1,324 @@
+{
+  "tests/ai-enemy-integration.test.ts": {
+    "TS2345|Argument of type '{ position: { x: number; y: number; z: number; }; }' is not assignable to parameter of type 'TransformData'.": 1
+  },
+  "tests/animator-graph.test.ts": {
+    "TS2322|Type '\"int\"' is not assignable to type 'AnimatorParamType | undefined'.": 1,
+    "TS2345|Argument of type '\"int\"' is not assignable to parameter of type 'AnimatorParamType'.": 1
+  },
+  "tests/animator.test.ts": {
+    "TS2322|Type '{ clip: string; speed: number; playing: boolean; loop: boolean; enabled: boolean; currentFrame: number; frameTimer: number; finished?: boolean | undefined; }' is not assignable to type 'SpriteAnimatorData'.": 1
+  },
+  "tests/aot-app.test.ts": {
+    "TS2322|Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BufferSource'.": 12
+  },
+  "tests/aot-conformance.test.ts": {
+    "TS2322|Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BufferSource'.": 1,
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/aot-dispatch.test.ts": {
+    "TS2739|Type '{ componentNamed: (name: string) => AnyComponentDef | undefined; resourceAt: () => undefined; }' is missing the following properties from type 'AotAddresses': resourceWriteBack, payloadRows, sendEvent, releasePayloads": 2
+  },
+  "tests/aot-dispatcher-seam.test.ts": {
+    "TS2352|Conversion of type '{ componentNamed: () => ComponentDef<{ x: number; }>; resourceAt: () => undefined; }' to type 'AotAddresses' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1,
+    "TS2459|Module '\"../src/ecs/aot/AotRuntime\"' declares 'AotContext' locally, but it is not exported.": 1
+  },
+  "tests/aot-install.test.ts": {
+    "TS2322|Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'string | BufferSource'.": 1,
+    "TS2440|Import declaration conflicts with local declaration of 'FADE_FIELDS'.": 1
+  },
+  "tests/aot-perf.test.ts": {
+    "TS2322|Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BufferSource'.": 1
+  },
+  "tests/aot-row-cache.test.ts": {
+    "TS2739|Type '{ componentNamed: () => AnyComponentDef; resourceAt: () => undefined; }' is missing the following properties from type 'AotAddresses': resourceWriteBack, payloadRows, sendEvent, releasePayloads": 1
+  },
+  "tests/api-baseline-rules.test.ts": {
+    "TS7016|Could not find a declaration file for module '../../tools/lib/apiSnapshot.mjs'. 'D:/estella/tools/lib/apiSnapshot.mjs' implicitly has an 'any' type.": 1
+  },
+  "tests/asset-refcounter-integration.test.ts": {
+    "TS2739|Type '{ textureHandles: Map<any, any>; materialHandles: Map<any, any>; fontHandles: Map<any, any>; releaseCallbacks: never[]; missing: never[]; }' is missing the following properties from type 'SceneAssetResult': meshHandles, environmentHandles, scope": 1
+  },
+  "tests/assets-invalidate-event.test.ts": {
+    "TS2673|Constructor of class 'Assets' is private and only accessible within the class declaration.": 1
+  },
+  "tests/audio-api.test.ts": {
+    "TS2739|Type '{ name: string; initialize: Mock<Procedure>; ensureResumed: Mock<Procedure>; loadBuffer: Mock<Procedure>; loadBufferFromData: Mock<...>; ... 4 more ...; dispose: Mock<...>; }' is missing the following properties from type 'PlatformAudioBackend': mixer, isReady": 1
+  },
+  "tests/audio-backend-factory.test.ts": {
+    "TS18048|'platform.createAudioBackend' is possibly 'undefined'.": 3,
+    "TS2722|Cannot invoke an object which is possibly 'undefined'.": 3,
+    "TS2739|Type '{ name: \"web\" | \"wechat\"; fetch: () => Promise<any>; readFile: () => Promise<ArrayBuffer>; readTextFile: () => Promise<string>; fileExists: () => Promise<false>; ... 6 more ...; createAudioBackend: () => WebAudioBackend | MiniGameAudioBackend; }' is missing the following properties from type 'PlatformAdapter': devicePixelRatio, getStorageItem, setStorageItem, removeStorageItem, clearStorage": 1
+  },
+  "tests/binding-surface.test.ts": {
+    "TS7016|Could not find a declaration file for module '../../build-tools/tasks/native.js'. 'D:/estella/build-tools/tasks/native.js' implicitly has an 'any' type.": 1
+  },
+  "tests/camera-bounds.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/camera-director.test.ts": {
+    "TS2322|Type '{ entity: number; isActive: boolean; x: number; y: number; z: number; rotation: number; tilt?: { x: number; y: number; z: number; w: number; } | undefined; orbit?: { yaw: number; pitch: number; focusZ: number; } | undefined; ... 10 more ...; renderTarget?: number | undefined; }' is not assignable to type 'CameraPOV'.": 1
+  },
+  "tests/camera-pov.test.ts": {
+    "TS2322|Type '{ entity: number; isActive: boolean; x: number; y: number; z: number; rotation: number; tilt?: { x: number; y: number; z: number; w: number; } | undefined; orbit?: { yaw: number; pitch: number; focusZ: number; } | undefined; ... 10 more ...; renderTarget?: number | undefined; }' is not assignable to type 'CameraPOV'.": 1
+  },
+  "tests/camera-render-order.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/colliderEnabled.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/collisionLayerMask.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/content-cache.test.ts": {
+    "TS2322|Type 'Promise<{}>' is not assignable to type 'Promise<T>'.": 1
+  },
+  "tests/discoverAssets.test.ts": {
+    "TS2741|Property 'runtime' is missing in type '{ skeletonField: string; atlasField: string; }' but required in type 'SkeletalFieldMeta'.": 1
+  },
+  "tests/editor-view-orbit.test.ts": {
+    "TS2345|Argument of type '{ entity: number; isActive: boolean; x: number; y: number; z: number; rotation: number; tilt: { x: number; y: number; z: number; w: number; }; projection: number; orthoSize: number; fov: number; near: number; ... 5 more ...; cullingMask: number; }' is not assignable to parameter of type 'CameraPOV'.": 1
+  },
+  "tests/editor-view.test.ts": {
+    "TS2345|Argument of type '{ active: true; x: number; y: number; orthoSize: number; }' is not assignable to parameter of type 'EditorViewData'.": 3
+  },
+  "tests/entity-box.test.ts": {
+    "TS2698|Spread types may only be created from object types.": 5
+  },
+  "tests/entity-order.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/fsm-agent.test.ts": {
+    "TS2345|Argument of type '(ctx: AiContext) => number' is not assignable to parameter of type 'AiAction<AiContext> | AiActionSpec<AiContext>'.": 1
+  },
+  "tests/fsm.test.ts": {
+    "TS2345|Argument of type '() => number' is not assignable to parameter of type 'AiAction<unknown> | AiActionSpec<unknown>'.": 1
+  },
+  "tests/fx-despawn-cleanup.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/helpers/mockApp.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/hot-swap-systems.test.ts": {
+    "TS2322|Type 'number' is not assignable to type 'void | Promise<void>'.": 13
+  },
+  "tests/input-vocabulary.test.ts": {
+    "TS2741|Property 'mapping' is missing in type '{ index: number; connected: true; axes: number[]; buttons: number[]; }' but required in type 'GamepadSnapshot'.": 1
+  },
+  "tests/json-asset-loader.test.ts": {
+    "TS2345|Argument of type '{ backend: Backend; }' is not assignable to parameter of type 'AssetsOptions'.": 1
+  },
+  "tests/marker-component.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/minigame-entry.test.ts": {
+    "TS2722|Cannot invoke an object which is possibly 'undefined'.": 1
+  },
+  "tests/mocks/wasm.ts": {
+    "TS2352|Conversion of type '{ getRegistry: () => CppRegistry; getResourceManager: () => CppResourceManager; getUINodeHiddenInTree: (_registry: unknown, entity: Entity) => boolean; setUINodeHiddenInTree: (entity: Entity, hidden: boolean) => void; GL: any; }' to type 'MockModule' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1,
+    "TS2353|Object literal may only specify known properties, and 'loadTexture' does not exist in type 'CppResourceManager'.": 1
+  },
+  "tests/native-host-bridge.test.ts": {
+    "TS2345|Argument of type '{ onTouchStart: Mock<Procedure>; onTouchMove: Mock<Procedure>; onTouchEnd: Mock<Procedure>; onTouchCancel: Mock<Procedure>; }' is not assignable to parameter of type 'NativeInputListener'.": 1
+  },
+  "tests/native-text.test.ts": {
+    "TS2353|Object literal may only specify known properties, and 'len' does not exist in type '{ handle: number; x: number; y: number; w: number; h: number; bytes: number; }'.": 1
+  },
+  "tests/nav-debug-draw.test.ts": {
+    "TS2345|Argument of type '{ verts: Float32Array<ArrayBuffer>; polys: Int32Array<ArrayBuffer>; neis: Int32Array<ArrayBuffer>; ... 4 more ...; verticalReach: number; }' is not assignable to parameter of type 'NavMeshData'.": 1,
+    "TS2741|Property 'showLinks' is missing in type '{ enabled: true; showFaces: true; showBorders: true; }' but required in type 'NavDebugDrawConfig'.": 1
+  },
+  "tests/nav-geometry.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/physics-features.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/physics3d-ecs.test.ts": {
+    "TS2339|Property 'publishContacts' does not exist on type 'Physics3DWasmModule & { calls: { name: string; args: number[]; }[]; publish(records: number[]): void; publishQuery(records: number[]): void; }'.": 1
+  },
+  "tests/physicsReconcile.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/physicsSyncTransforms.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/playableRuntime.test.ts": {
+    "TS2554|Expected 1 arguments, but got 0.": 1
+  },
+  "tests/plugin-sets.test.ts": {
+    "TS2345|Argument of type 'Plugin[]' is not assignable to parameter of type '{ name: string; }[]'.": 6
+  },
+  "tests/prefab-spawn-overrides.test.ts": {
+    "TS2352|Conversion of type 'undefined' to type '{ overrides?: unknown[] | undefined; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1,
+    "TS2493|Tuple type '[]' of length '0' has no element at index '2'.": 1
+  },
+  "tests/preload-ai-assets.test.ts": {
+    "TS2741|Property 'version' is missing in type '{ name: string; entities: ({ id: number; name: string; parent: null; children: never[]; components: { type: string; data: { fsm: string; current: string; }; }[]; } | { id: number; name: string; parent: null; children: never[]; components: { ...; }[]; })[]; }' but required in type 'SceneData'.": 1
+  },
+  "tests/preload-concurrency.test.ts": {
+    "TS2673|Constructor of class 'Assets' is private and only accessible within the class declaration.": 1
+  },
+  "tests/preload-texture-import.test.ts": {
+    "TS2741|Property 'version' is missing in type '{ name: string; entities: { id: number; name: string; parent: null; children: never[]; components: { type: string; data: { texture: string; visualType: number; }; }[]; }[]; }' but required in type 'SceneData'.": 1
+  },
+  "tests/profile-recorder.test.ts": {
+    "TS2322|Type 'number' is not assignable to type 'void | Promise<void>'.": 1
+  },
+  "tests/query-mixed-mut.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/query-mut-change-tracking.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/renderPipeline.test.ts": {
+    "TS2339|Property '_applyScreenStack' does not exist on type 'ResourceDef<PostProcessAPI>'.": 1,
+    "TS2339|Property '_beginScreenCapture' does not exist on type 'ResourceDef<PostProcessAPI>'.": 2,
+    "TS2339|Property '_endScreenCapture' does not exist on type 'ResourceDef<PostProcessAPI>'.": 2,
+    "TS2339|Property '_executeScreenPasses' does not exist on type 'ResourceDef<PostProcessAPI>'.": 2,
+    "TS2339|Property 'getStack' does not exist on type 'ResourceDef<PostProcessAPI>'.": 1,
+    "TS2339|Property 'init' does not exist on type 'ResourceDef<PostProcessAPI>'.": 1,
+    "TS2339|Property 'isInitialized' does not exist on type 'ResourceDef<PostProcessAPI>'.": 1,
+    "TS2339|Property 'resize' does not exist on type 'ResourceDef<PostProcessAPI>'.": 2
+  },
+  "tests/renderTexture.test.ts": {
+    "TS2345|Argument of type '{ _handle: number; textureId: number; width: number; height: number; _depth: boolean; _filter: \"nearest\"; }' is not assignable to parameter of type 'RenderTextureHandle'.": 4
+  },
+  "tests/runtime-only-serialize.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/scene-asset-release.test.ts": {
+    "TS2345|Argument of type '{ key: string; generation: number; value: null; release: () => number; }' is not assignable to parameter of type 'AssetLease<null>'.": 1
+  },
+  "tests/scene-loading-progress.test.ts": {
+    "TS2353|Object literal may only specify known properties, and 'fetch' does not exist in type 'Backend'.": 1,
+    "TS2673|Constructor of class 'Assets' is private and only accessible within the class declaration.": 3,
+    "TS2673|Constructor of class 'Catalog' is private and only accessible within the class declaration.": 3,
+    "TS2741|Property 'version' is missing in type '{ name: string; entities: never[]; }' but required in type 'SceneData'.": 1,
+    "TS2741|Property 'version' is missing in type '{ name: string; entities: { id: number; name: string; parent: null; children: never[]; components: { type: string; data: { texture: string; }; }[]; }[]; }' but required in type 'SceneData'.": 1,
+    "TS7006|Parameter 'loaded' implicitly has an 'any' type.": 2,
+    "TS7006|Parameter 'total' implicitly has an 'any' type.": 2
+  },
+  "tests/scene-streaming.test.ts": {
+    "TS2352|Conversion of type 'SystemDef' to type '{ _fn: (...a: unknown[]) => void; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1
+  },
+  "tests/scene.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/sceneManager.test.ts": {
+    "TS2339|Property 'unbind' does not exist on type 'ResourceDef<PostProcessAPI>'.": 3,
+    "TS2345|Argument of type 'BuiltinComponentDef<BitmapTextData>' is not assignable to parameter of type 'symbol'.": 2,
+    "TS2345|Argument of type 'BuiltinComponentDef<SpineAnimationData>' is not assignable to parameter of type 'symbol'.": 2,
+    "TS2345|Argument of type 'BuiltinComponentDef<SpriteData>' is not assignable to parameter of type 'symbol'.": 4,
+    "TS2345|Argument of type 'ComponentDef<SceneOwnerData>' is not assignable to parameter of type 'symbol'.": 5,
+    "TS2345|Argument of type 'Map<BuiltinComponentDef<TilemapLayerData>, { visible: boolean; opacity: number; }>' is not assignable to parameter of type 'Map<symbol, any>'.": 1
+  },
+  "tests/shader-twins.test.ts": {
+    "TS7016|Could not find a declaration file for module '../../tools/gen-shader-twins.mjs'. 'D:/estella/tools/gen-shader-twins.mjs' implicitly has an 'any' type.": 1
+  },
+  "tests/sideModuleHost.test.ts": {
+    "TS7053|Element implicitly has an 'any' type because expression of type 'SideModuleId' can't be used to index type 'Record<BuiltinSideModuleId, SideModuleDescriptor>'.": 1
+  },
+  "tests/soak/sabotage.test.ts": {
+    "TS2345|Argument of type 'EventTarget' is not assignable to parameter of type 'Target'.": 1
+  },
+  "tests/spine-abi-cost.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; pair: { skeleton: string; atlas: string; }; value: SpineAssetValue; retain: () => { release: () => void; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/spine-apply-routing.test.ts": {
+    "TS2322|Type 'Map<string, { version: null; skelData: Uint8Array<ArrayBuffer>; atlasText: string; textures: Map<any, any>; }>' is not assignable to type 'Map<string, SpineAssetInfo>'.": 1,
+    "TS2741|Property 'runtime' is missing in type '{ skeletonField: string; atlasField: string; }' but required in type 'SkeletalFieldMeta'.": 1
+  },
+  "tests/spine-clip-start.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBuffer>; atlasText: string; isBinary: true; textures: Map<any, any>; }; pair: { skeleton: string; atlas: string; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/spine-contract-delivery.test.ts": {
+    "TS2554|Expected 0 arguments, but got 1.": 1
+  },
+  "tests/spine-dedup.test.ts": {
+    "TS2741|Property 'runtime' is missing in type '{ skeletonField: string; atlasField: string; }' but required in type 'SkeletalFieldMeta'.": 1
+  },
+  "tests/spine-demand-driven-pose.test.ts": {
+    "TS2339|Property 'animation' does not exist on type 'RawSpineEvent'.": 1,
+    "TS2339|Property 'name' does not exist on type 'RawSpineEvent'.": 1
+  },
+  "tests/spine-extract-stages.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBuffer>; atlasText: string; isBinary: true; textures: Map<any, any>; }; pair: { skeleton: string; atlas: string; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/spine-multi-version-build.test.ts": {
+    "TS7053|Element implicitly has an 'any' type because expression of type 'SideModuleId' can't be used to index type 'Record<BuiltinSideModuleId, SideModuleDescriptor>'.": 2
+  },
+  "tests/spine-observability.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBufferLike>; atlasText: string; isBinary: true; textures: Map<string, { glId: number; w: number; h: number; }>; }; pair: { ...; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/spine-pose-demand.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBufferLike>; atlasText: string; isBinary: true; textures: Map<any, any>; }; pair: { skeleton: string; atlas: string; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/spine-pose-materialization.test.ts": {
+    "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBufferLike>; atlasText: string; isBinary: true; textures: Map<any, any>; }; pair: { skeleton: string; atlas: string; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
+  },
+  "tests/sprite-animator-goto.test.ts": {
+    "TS2741|Property 'finished' is missing in type '{ clip: string; speed: number; playing: true; loop: true; enabled: true; currentFrame: number; frameTimer: number; }' but required in type 'SpriteAnimatorData'.": 1
+  },
+  "tests/storage.test.ts": {
+    "TS2322|Type '{ store: Map<string, string>; name: \"web\"; getStorageItem: (key: string) => string | null; setStorageItem: (key: string, value: string) => void; removeStorageItem: (key: string) => void; ... 11 more ...; createAudioBackend: any; }' is not assignable to type 'PlatformAdapter & { store: Map<string, string>; }'.": 1
+  },
+  "tests/tiled-tile-collision.test.ts": {
+    "TS18047|'map' is possibly 'null'.": 7
+  },
+  "tests/tilemap.test.ts": {
+    "TS2739|Type '{ name: string; width: number; height: number; visible: true; tiles: Uint16Array<ArrayBuffer>; opacity: number; tintColor: { r: number; g: number; b: number; a: number; }; parallaxX: number; parallaxY: number; }' is missing the following properties from type 'TiledLayerData': chunks, infinite": 1,
+    "TS2739|Type '{ opacity: number; tintColor: { r: number; g: number; b: number; a: number; }; parallaxX: number; parallaxY: number; name: string; width: number; height: number; visible: true; tiles: Uint16Array<ArrayBuffer>; }' is missing the following properties from type 'TiledLayerData': chunks, infinite": 5,
+    "TS2739|Type '{ shape: \"rect\"; x: number; y: number; width: number; height: number; rotation: number; vertices: null; properties: Map<any, any>; }' is missing the following properties from type 'TiledObjectData': id, name, type, visible": 2,
+    "TS2741|Property 'extrude' is missing in type '{ version: string; texture: string; tileWidth: number; tileHeight: number; columns: number; margin: number; spacing: number; tiles: {}; }' but required in type 'TilesetAsset'.": 1,
+    "TS2741|Property 'firstGid' is missing in type '{ name: string; image: string; tileWidth: number; tileHeight: number; columns: number; tileCount: number; }' but required in type 'TiledTilesetData'.": 4,
+    "TS2741|Property 'tileShapes' is missing in type '{ width: number; height: number; tileWidth: number; tileHeight: number; orientation: string; hexSideLength: number; staggerAxis: string; staggerIndex: string; layers: never[]; tilesets: never[]; collisionTileIds: never[]; tileAnimations: Map<...>; tileProperties: Map<...>; objectGroups: TiledObjectGroupData[]; }' but required in type 'TiledMapData'.": 1
+  },
+  "tests/timeline-drive.test.ts": {
+    "TS2322|Type 'object' is not assignable to type 'AnyComponentDef | undefined'.": 1
+  },
+  "tests/timeline-evaluator.test.ts": {
+    "TS2304|Cannot find name 'Entity'.": 5,
+    "TS2322|Type 'object' is not assignable to type 'AnyComponentDef | undefined'.": 1
+  },
+  "tests/torture/assetHarness.ts": {
+    "TS2339|Property 'registerTextureWithPath' does not exist on type 'never'.": 1,
+    "TS2459|Module '\"../../src/asset/Assets\"' declares 'TextureResult' locally, but it is not exported.": 1
+  },
+  "tests/ui-anchor-preset.test.ts": {
+    "TS2322|Type '{ position: number; display?: number | undefined; opacity?: number | undefined; pointerEvents?: number | undefined; width: Dimension; height: Dimension; ... 15 more ...; insetBottom: Dimension; }' is not assignable to type 'UINodeData'.": 1
+  },
+  "tests/ui-dimension-transient.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/ui-drag-plugin.test.ts": {
+    "TS2322|Type 'null' is not assignable to type 'Vec2 | undefined'.": 2
+  },
+  "tests/ui-layout-incremental.test.ts": {
+    "TS2322|Type '{ position: number; display?: number | undefined; opacity?: number | undefined; pointerEvents?: number | undefined; width: Dimension; height: Dimension; ... 15 more ...; insetBottom: Dimension; }' is not assignable to type 'UINodeData'.": 1,
+    "TS2352|Conversion of type 'FlexContainerData' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1
+  },
+  "tests/ui-plugin-cleanup.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/ui-slider-dropdown.test.ts": {
+    "TS2724|'\"../src/ui\"' has no exported member named 'UIRect'. Did you mean 'Rect'?": 1
+  },
+  "tests/ui-text-submit.test.ts": {
+    "TS2554|Expected 9-10 arguments, but got 8.": 1
+  },
+  "tests/utf8.test.ts": {
+    "TS2307|Cannot find module '../src/util/utf8?fallback' or its corresponding type declarations.": 1
+  },
+  "tests/velocity.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
+  },
+  "tests/wasm-video-backend.test.ts": {
+    "TS2739|Type '{ name: \"wechat\"; fetch: () => Promise<any>; readFile: () => Promise<ArrayBuffer>; readTextFile: () => Promise<string>; fileExists: () => Promise<true>; ... 6 more ...; createAudioBackend: () => any; }' is missing the following properties from type 'PlatformAdapter': devicePixelRatio, getStorageItem, setStorageItem, removeStorageItem, clearStorage": 1
+  },
+  "tests/world.test.ts": {
+    "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 2
+  }
+}

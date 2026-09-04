@@ -1,0 +1,12 @@
+{
+  "//": "The test corpus, type-checked. The production config compiles src/ and emits dist/, so tests have never been inside any checker — vitest strips types and never looks. This one only checks: same strictness, plus the environment tests actually run in (node + vitest globals), so 'the suite has no test-environment types' is not counted as project debt. Read by tools/check-sdk-test-types.mjs, not by any build.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": "..",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}

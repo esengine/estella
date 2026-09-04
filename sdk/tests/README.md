@@ -1,5 +1,22 @@
 # Estella SDK Tests
 
+## Types
+
+vitest strips types and never checks them, and `tsconfig.json` compiles `src/`
+only — so a fixture can go stale against the API it tests and stay green. One
+did: literal schemas missing a field the handshake had gained, passing because
+both sides read `undefined`.
+
+```bash
+node tools/check-sdk-test-types.mjs            # check (a gate runs this)
+node tools/check-sdk-test-types.mjs --update   # bank debt you paid off
+```
+
+It is a ratchet over `tools/baselines/sdk-test-types.json`, not a demand for
+zero: no new diagnostics, and fixed ones must be banked so they cannot return.
+The networking suites (`net-*`, `replication*`, `websocket`) carry **no** debt
+and `--update` refuses to add any.
+
 ## Running Tests
 
 ```bash

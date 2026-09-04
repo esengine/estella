@@ -104,7 +104,7 @@ describe('createSocket platform seam', () => {
         const urls: string[] = [];
         setPlatform({
             name: 'web',
-            createSocket: (o) => { urls.push(o.url); return marker; },
+            createSocket: (o: { url: string }) => { urls.push(o.url); return marker; },
         } as unknown as PlatformAdapter);
         expect(createSocket({ url: 'wss://x' })).toBe(marker);
         expect(urls).toEqual(['wss://x']);

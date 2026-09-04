@@ -113,6 +113,10 @@ export const GATES = [
   // And the boundary holds in practice: a real project packages from the command
   // line with no editor built.
   { id: 'headless-export', run: 'node tools/check-headless-export.mjs' },
+  // The 478 SDK test files were in no checker's scope: the production config
+  // compiles src/ and vitest strips types. A ratchet, not a demand for zero —
+  // except in the net suites, which are held to none.
+  { id: 'sdk-test-types', run: 'node tools/check-sdk-test-types.mjs' },
   // Replication applies its inbox in arrival order, so reliable+ordered is a
   // correctness condition. This compiles the claim: a transport that does not
   // make it cannot reach replication.
