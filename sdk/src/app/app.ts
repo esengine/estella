@@ -7,7 +7,7 @@
 
 import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
-import { builtinResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { installAot, prepareAot, type AotHost } from '../ecs/aot/installAot';
 import { installNativeAot, nativeAotBindings } from '../ecs/aot/installNativeAot';
 import { createNativeHeap } from '../ecs/bridge/nativeHeap';
@@ -632,7 +632,7 @@ export class App {
             manifest: opts.manifest,
             wasm: opts.wasm,
             resourceFields: (name) => {
-                const def = builtinResource(name) ?? this.resources_.getByName(name);
+                const def = builtinResource(name) ?? this.resources_.getByName(name) ?? declaredResource(name);
                 if (def === undefined) return undefined;
                 const value = this.resources_.get(def);
                 return typeof value === 'object' && value !== null ? Object.keys(value) : [];
@@ -651,7 +651,7 @@ export class App {
             resources: (name) => {
                 // The engine's own by name, and the PROJECT's through the
                 // storage's own name registry — a compiled system reads either.
-                const def = builtinResource(name) ?? this.resources_.getByName(name);
+                const def = builtinResource(name) ?? this.resources_.getByName(name) ?? declaredResource(name);
                 // `get`, not `has` then `get`: a slot holding a materialised
                 // default is what an INTERPRETED system reads, and a twin has to
                 // see the same world or the two stop being the same program.
@@ -869,7 +869,10 @@ export class App {
     }
 
     getResourceByName(name: string): unknown | undefined {
-        const def = this.resources_.getByName(name);
+        // The storage learns a name on INSERT; a declared one `get` materialises
+        // at its default, which is what an interpreted system reads on its first
+        // frame. Without this the AOT handshake refused a resource that was there.
+        const def = builtinResource(name) ?? this.resources_.getByName(name) ?? declaredResource(name);
         return def ? this.resources_.get(def) : undefined;
     }
 

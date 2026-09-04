@@ -207,6 +207,8 @@ class SystemLowerer {
     private next = 0;
     /** A stack, not one map: a `const` in a row loop must not outlive the loop. */
     private readonly scopes: Map<string, Local>[] = [new Map()];
+    /** Depth inside a `res.modify` body, where writing the resource is the point. */
+    private inModify = 0;
 
     constructor(
         private readonly comps: Map<string, CompShape>,
@@ -399,7 +401,7 @@ class SystemLowerer {
     private stmt(node: ts.Statement): Stmt[] {
         if (ts.isForOfStatement(node)) return [this.rowLoop(node)];
         if (ts.isExpressionStatement(node)) {
-            if (ts.isCallExpression(node.expression)) return [this.emit(node.expression)];
+            if (ts.isCallExpression(node.expression)) return this.callStmt(node.expression);
             return [this.assignment(node.expression)];
         }
         if (ts.isBlock(node)) return this.scoped(() => node.statements.flatMap((s) => this.stmt(s)));
@@ -504,6 +506,58 @@ class SystemLowerer {
     }
 
     /**
+     * A call statement: `res.modify(fn)`, which is inlined, or a channel emit.
+     *
+     * `ResMut` is the one parameter whose SOURCE FORM differs by road: the
+     * interpreter hands a WRAPPER, so `r.n = 1` sets a field of it and the world
+     * never sees the write. `.modify` is the spelling both roads take.
+     */
+    private callStmt(node: ts.CallExpression): Stmt[] {
+        const callee = node.expression;
+        if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
+            && callee.name.text === 'modify') {
+            const target = this.tryLookup(callee.expression.text);
+            if (target !== null && target.type.k === 'res') return this.modify(node, target);
+        }
+        return [this.emit(node)];
+    }
+
+    /**
+     * `res.modify((v) => { ... })`, inlined with `v` bound to the resource.
+     *
+     * An ALIAS, not a copy: the body addresses exactly what `res.field` would,
+     * so one authored line becomes one write on either road.
+     */
+    private modify(node: ts.CallExpression, target: Local): Stmt[] {
+        if (target.type.k !== 'res' || !target.type.mut) {
+            throw new NotInSubset(node, `'${target.name}' is a Res; only a ResMut can be modified`);
+        }
+        const fn = node.arguments[0];
+        if (fn === undefined || node.arguments.length !== 1 || !ts.isArrowFunction(fn)) {
+            throw new NotInSubset(node, 'modify takes exactly one arrow function');
+        }
+        if (fn.parameters.length !== 1) {
+            throw new NotInSubset(node,
+                `modify's callback takes 1 parameter, not ${fn.parameters.length}`);
+        }
+        const name = fn.parameters[0]!.name;
+        if (!ts.isIdentifier(name)) {
+            throw new NotInSubset(node, "modify's parameter must be a plain name");
+        }
+        this.inModify++;
+        try {
+            return this.scoped(() => {
+                this.scopes[this.scopes.length - 1]!.set(name.text, target);
+                return ts.isBlock(fn.body)
+                    ? fn.body.statements.flatMap((st) => this.stmt(st))
+                    : [this.assignment(fn.body)];
+            });
+        } finally {
+            this.inModify--;
+        }
+    }
+
+    /**
      * `cmds.despawn(entity)` — a record appended to a channel, not a call. The
      * SDK already defers these to a flush at system end, so this models what it
      * does rather than pretending the mutation happens here.
@@ -604,6 +658,7 @@ class SystemLowerer {
         }
         const compound = COMPOUND.get(node.operatorToken.kind);
         const target = this.place(node.left);
+        this.refuseBareResourceWrite(node.left, target);
         if (compound) {
             const type = this.placeType(node.left);
             const read: Expr = { e: 'read', place: target, type };
@@ -613,7 +668,28 @@ class SystemLowerer {
         if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
             throw new NotInSubset(node, `'${tokenText(node.operatorToken.kind)}' is not an assignment this subset lowers`);
         }
+        // Resolved for its REFUSALS: a plain `=` needs no read, so a field no
+        // declared shape has reached the IR verifier rather than being refused
+        // here, which coverage.test.ts calls a frontend bug.
+        this.placeType(node.left);
         return { s: 'assign', target, value: this.expr(node.right) };
+    }
+
+    /**
+     * A write straight into a resource, outside `modify`, is refused.
+     *
+     * One line, two meanings: this side lowers a write, and the interpreter sets
+     * a field on the ResMut WRAPPER that no reader of the world sees.
+     */
+    private refuseBareResourceWrite(node: ts.Expression, target: Place): void {
+        if (this.inModify > 0) return;
+        let base = target;
+        while (base.p === 'field') base = base.base;
+        const local = this.locals.find((l) => l.id === base.id);
+        if (local?.type.k !== 'res') return;
+        throw new NotInSubset(node, `'${local.name}' is a resource, and a bare write to one is a `
+            + 'no-op in the interpreter — write it as '
+            + `${local.name}.modify((v) => { ... }), which both roads lower the same`);
     }
 
     /** A place is a local, or a dotted path from one. Nothing else is addressable. */

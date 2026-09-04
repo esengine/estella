@@ -13,9 +13,13 @@
 import { defineComponent } from '../../src/ecs/component';
 import { defineSystem } from '../../src/ecs/system';
 import { Query, Mut } from '../../src/ecs/query';
-import { Res, Time } from '../../src/ecs/resource';
+import { Res, ResMut, Time, defineResource } from '../../src/ecs/resource';
 
 export const Mover = defineComponent('ConfMover', { x: 0, speed: 0, bounces: 0 });
+
+/** A resource the compiled code WRITES. A ResMut lands in the mirror and
+ *  nowhere else, so it is in the world only if the road copied it back. */
+export const Tally = defineResource({ bounces: 0, frames: 0 }, 'ConfTally');
 
 /**
  * @compiled
@@ -49,4 +53,22 @@ export const clampSystem = defineSystem(
         }
     },
     { name: 'ConfClamp' },
+);
+
+/**
+ * @compiled
+ */
+export const tallySystem = defineSystem(
+    [Query(Mover), ResMut(Tally)],
+    (query, tally) => {
+        tally.modify((t) => {
+            t.frames = t.frames + 1;
+        });
+        for (const [, m] of query) {
+            tally.modify((t) => {
+                t.bounces = t.bounces + m.bounces;
+            });
+        }
+    },
+    { name: 'ConfTally' },
 );

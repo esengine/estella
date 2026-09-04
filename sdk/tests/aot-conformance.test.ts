@@ -81,9 +81,11 @@ function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest
 
 /** The world the fixture's systems touch, after each frame. */
 type Trace = number[][][];
+/** The resource one of them WRITES, after each frame: [bounces, frames]. */
+type ResTrace = number[][];
 
 async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null): Promise<{
-    trace: Trace; calls: number; delta: number;
+    trace: Trace; resource: ResTrace; calls: number; delta: number;
 }> {
     // One context for both roads on purpose: the fixture's `defineComponent`
     // runs once, at import, and a road that reset the registry under it would
@@ -95,6 +97,10 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     const fixture = await import('./fixtures/conformance-systems');
     app.addSystemToSchedule(Schedule.Update, fixture.driftSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.clampSystem);
+    app.addSystemToSchedule(Schedule.Update, fixture.tallySystem);
+    // NOT inserted: a project resource nothing has touched yet is exactly the
+    // case a shipped game boots in, and the handshake has to find it by the name
+    // the manifest carries or refuse the module over a resource that is there.
 
     // Before the first pooled component: a pool cannot move to other memory
     // once it has rows, and the module addresses only the heap it was given.
@@ -113,19 +119,24 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     });
 
     const trace: Trace = [];
+    const resource: ResTrace = [];
     for (let f = 0; f < FRAMES; f++) {
         await app.tick(DT);
         trace.push(entities.map((e) => {
             const m = app.world.get(e, fixture.Mover) as { x: number; speed: number; bounces: number };
             return [m.x, m.speed, m.bounces];
         }));
+        // A ResMut is written into the MIRROR; this reads the world, which is
+        // where it lands only if the road copied it back.
+        const tally = app.getResource(fixture.Tally) as { bounces: number; frames: number };
+        resource.push([tally.bounces, tally.frames]);
     }
     // The delta the interpreter was HANDED, which is what the native harness is
     // given: `tick` scales what it is asked for, and a harness restating 1/60
     // would be a second opinion about the frame rather than a reading of it.
     const time = (app as unknown as { resources_: { get: (r: unknown) => { delta: number } } })
         .resources_.get(Time);
-    return { trace, calls: runtime?.systems.calls ?? 0, delta: time.delta };
+    return { trace, resource, calls: runtime?.systems.calls ?? 0, delta: time.delta };
 }
 
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
@@ -139,14 +150,18 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
 
         // Installed is not the same question as ran, and a differential cannot
         // tell them apart — the closure that would have run produces the same
-        // numbers. Two systems, every frame.
-        expect(twins.calls).toBe(FRAMES * 2);
+        // numbers. Three systems, every frame.
+        expect(twins.calls).toBe(FRAMES * 3);
         expect(interpreted.calls).toBe(0);
 
         // Frame for frame, so a divergence names the frame it began on rather
         // than only the state it ended in.
         for (let f = 0; f < FRAMES; f++) {
             expect([f, twins.trace[f]]).toEqual([f, interpreted.trace[f]]);
+            // The resource a twin WROTE, read back out of the world: the road
+            // that never copied the mirror back would leave it at its default
+            // while every row above still agreed.
+            expect([f, twins.resource[f]]).toEqual([f, interpreted.resource[f]]);
         }
         // And the run went somewhere: a fixture whose systems do nothing agrees
         // on every road.
@@ -327,6 +342,11 @@ describe('the inputs a loading host builds against', () => {
             fields: ['x', 'speed', 'bounces'],
             seed: SEEDS.map(([x, speed]) => [x, speed, 0]),
             frames: run.trace,
+            // The resource a twin WROTE, read back out of the world. A road that
+            // never copied the mirror back leaves it at its default while every
+            // row above still agrees, which is why it is traced separately.
+            resourceFields: ['bounces', 'frames'],
+            resource: run.resource,
         }, null, 2)}\n`);
     });
 

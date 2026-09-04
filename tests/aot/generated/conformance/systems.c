@@ -6,8 +6,8 @@
 /* Which BUILD this is, for a loader holding the sidecar written beside
    it. The two digests above answer "is this engine right" and "are the
    project shapes right"; neither answers "are these two the same pair". */
-ES_EXPORT uint32_t es_module_contract_lo(void) { return 0xf77a6dadu; }
-ES_EXPORT uint32_t es_module_contract_hi(void) { return 0x1b0366c7u; }
+ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x04e812a6u; }
+ES_EXPORT uint32_t es_module_contract_hi(void) { return 0xa45bab2fu; }
 
 ES_EXPORT void es_sys_ConfDrift(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
@@ -45,6 +45,23 @@ ES_EXPORT void es_sys_ConfClamp(es_addr_t es_ctx) {
                     es_set_f64(m_1 + ES_OFF_ConfMover_bounces, (es_f64(m_1 + ES_OFF_ConfMover_bounces) + 1.0));
                 }
             }
+        }
+    }
+}
+
+ES_EXPORT void es_sys_ConfTally(es_addr_t es_ctx) {
+    const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
+    const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
+    const es_addr_t *es_resources = (const es_addr_t *)ES_PTR(es_c->resources);
+    unsigned char *tally_1 = ES_PTR(es_resources[0]);
+    es_set_f64(tally_1 + ES_OFF_ConfTally_frames, (es_f64(tally_1 + ES_OFF_ConfTally_frames) + 1.0));
+    {
+        const es_addr_t *es_rows0 = (const es_addr_t *)ES_PTR(es_queries[0].rows);
+        const es_addr_t es_n0 = es_queries[0].count;
+        for (es_addr_t es_i0 = 0; es_i0 < es_n0; ++es_i0) {
+            const es_addr_t *es_row0 = es_rows0 + es_i0 * 2u;
+            unsigned char *m_2 = ES_PTR(es_row0[1]);
+            es_set_f64(tally_1 + ES_OFF_ConfTally_bounces, (es_f64(tally_1 + ES_OFF_ConfTally_bounces) + es_f64(m_2 + ES_OFF_ConfMover_bounces)));
         }
     }
 }

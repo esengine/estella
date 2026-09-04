@@ -2,4 +2,4 @@
 /* The contract half of the handshake. The width half is the harness. */
 #define ES_CONF_EXPECTED_CONTRACT_HASH 0xaa8849ed8d31d9a0ULL
 /* And which BUILD the artifact beside this one is. */
-#define ES_CONF_EXPECTED_MODULE_CONTRACT 0x1b0366c7f77a6dadULL
+#define ES_CONF_EXPECTED_MODULE_CONTRACT 0xa45bab2f04e812a6ULL

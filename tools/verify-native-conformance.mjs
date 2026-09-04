@@ -101,12 +101,15 @@ function play(compiled) {
   }
 }
 
-/** `CONF <frame> <delta> <rows>` — what the fixture's own reporting system says. */
+/** `CONF <frame> <delta> <rows> <resource>` — what the fixture's reporter says. */
 function framesIn(log) {
   const out = [];
   for (const line of log.split('\n')) {
-    const m = /CONF (\d+) (\S+) (\[.*\])\s*$/.exec(line);
-    if (m !== null) out.push({ at: Number(m[1]), delta: Number(m[2]), rows: JSON.parse(m[3]) });
+    const m = /CONF (\d+) (\S+) (\[.*\]) (\[[^\]]*\])\s*$/.exec(line);
+    if (m !== null) {
+      out.push({ at: Number(m[1]), delta: Number(m[2]), rows: JSON.parse(m[3]),
+        resource: JSON.parse(m[4]) });
+    }
   }
   return out;
 }
@@ -134,6 +137,15 @@ function compare(road, got) {
     const wantRows = want.frames[f];
     if (frame.rows.length !== wantRows.length) {
       fail(`${road} has ${frame.rows.length} row(s) at frame ${f}, and the trace has ${wantRows.length}`);
+    }
+    // The resource a twin WROTE, read back out of the world: a road that never
+    // copied the mirror back leaves it at its default while every row agrees.
+    for (let k = 0; k < want.resource[f].length; k++) {
+      if (frame.resource[k] !== want.resource[f][k]) {
+        fail(`${road} disagrees at frame ${f} about the resource, ${want.resourceFields[k]}`,
+          `interpreter ${want.resource[f][k]}
+host        ${frame.resource[k]}`);
+      }
     }
     for (let i = 0; i < wantRows.length; i++) {
       for (let k = 0; k < wantRows[i].length; k++) {

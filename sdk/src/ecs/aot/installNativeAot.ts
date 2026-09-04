@@ -155,6 +155,13 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
         addressBytes: NATIVE_ADDRESS_BYTES,
         runs: (name) => byName.has(name),
         moduleContract: paired === '' ? null : paired,
+        // From the RUNTIME's own copy. The default answers "no fields" for every
+        // resource, so this road's handshake could not see a project resource at
+        // all and the mirror was laid out from the manifest alone.
+        resourceFields: (name) => {
+            const value = opts.resources?.(name);
+            return value === undefined ? undefined : Object.keys(value);
+        },
     });
 
     // Every script component any twin names, so one epoch change re-reports all

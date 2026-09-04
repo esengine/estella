@@ -48,11 +48,19 @@ export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T
     // module's manifest carries names. Only the DECLARED ones: a project's
     // resource is identified by reference, and two may share a name.
     if (name && RESOURCE_SHAPES[name]) builtinByName.set(name, def as ResourceDef<unknown>);
+    else if (name !== undefined) {
+        // Two declarations of one name cannot both be what a manifest means.
+        if (declaredByName.has(name)) ambiguousNames.add(name);
+        declaredByName.set(name, def as ResourceDef<unknown>);
+    }
     return def;
 }
 
 /** Registered by `defineResource` for the names `resourceShapes.ts` declares. */
 const builtinByName = new Map<string, ResourceDef<unknown>>();
+/** And for the names a PROJECT declares, which a manifest also carries. */
+const declaredByName = new Map<string, ResourceDef<unknown>>();
+const ambiguousNames = new Set<string>();
 
 /**
  * The engine resource a manifest's NAME refers to, or undefined when the module
@@ -64,6 +72,19 @@ const builtinByName = new Map<string, ResourceDef<unknown>>();
  */
 export function builtinResource(name: string): ResourceDef<unknown> | undefined {
     return builtinByName.get(name);
+}
+
+/**
+ * A named resource a project DECLARED, whether or not anything has inserted one.
+ *
+ * The storage learns a name on INSERT, so a resource nothing had touched was
+ * invisible to the AOT handshake. Undefined for an AMBIGUOUS name: two
+ * declarations sharing one is a project no manifest can describe.
+ *
+ * @internal
+ */
+export function declaredResource(name: string): ResourceDef<unknown> | undefined {
+    return ambiguousNames.has(name) ? undefined : declaredByName.get(name);
 }
 
 // =============================================================================
