@@ -97,6 +97,42 @@ export const moveSystem = defineSystem(
 );
 `;
 
+/** Takes the channel AND uses it: the declaration alone is not the question,
+ *  because a system that never despawns writes no record for a host to flush. */
+const COMMANDS = `import { defineSystem, Query, Mut, Commands } from 'esengine';
+import { Mover } from './components';
+
+/**
+ * @compiled
+ */
+export const reapSystem = defineSystem(
+    [Query(Mut(Mover)), Commands()],
+    (query, cmds) => {
+        for (const [e, mover] of query) {
+            mover.speed = mover.speed - 1;
+            if (mover.speed <= 0) cmds.despawn(e);
+        }
+    },
+    { name: 'ReapSystem' },
+);
+`;
+
+/** Takes the channel and never writes to it. */
+const IDLE_COMMANDS = `import { defineSystem, Query, Mut, Commands } from 'esengine';
+import { Mover } from './components';
+
+/**
+ * @compiled
+ */
+export const idleSystem = defineSystem(
+    [Query(Mut(Mover)), Commands()],
+    (query, _cmds) => {
+        for (const [, mover] of query) mover.speed = mover.speed - 1;
+    },
+    { name: 'IdleSystem' },
+);
+`;
+
 /** Promised, and outside the subset: trig is refused on purpose (§3.3). */
 const BROKEN = PROMISED
   .replace('mover.directionX * mover.speed', 'Math.sin(mover.directionX) * mover.speed')
@@ -226,6 +262,9 @@ describe('the AOT build step', () => {
       // never has to tell "none" from "an older manifest".
       readers: [],
       writers: [],
+      // Off the BODY: this one takes no Commands channel, and one that took it
+      // and never despawned would say the same.
+      commands: false,
     }]);
     expect(out.manifest!.engineAbi).toMatch(/^[0-9a-f]{16}$/);
     expect(out.manifest!.projectShapes).toMatch(/^[0-9a-f]{16}$/);
@@ -450,6 +489,27 @@ export const moveSystem = defineSystem(
  * wrote the projectShapes a runtime would compute rather than the one a build
  * produces — so a real reader module had never been loaded by anything.
  */
+describe('a compiled system that appends a command', () => {
+  it.skipIf(!HOST_CC)('says so, so a road that cannot flush one can refuse it', async () => {
+    const out = await buildCompiledSystems(
+      project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': COMMANDS }),
+      { mode: 'release', target: 'native', cc: HOST_CC, run });
+    expect(out.errors).toEqual([]);
+    expect(out.manifest!.systems[0]!.commands).toBe(true);
+  });
+
+  // The declaration is not the question. Refusing on the channel would send a
+  // system to the interpreter for a promise it never makes, and the difference
+  // is a whole road's worth of systems on a host that cannot flush records.
+  it.skipIf(!HOST_CC)('and one that takes the channel without writing to it does not', async () => {
+    const out = await buildCompiledSystems(
+      project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': IDLE_COMMANDS }),
+      { mode: 'release', target: 'native', cc: HOST_CC, run });
+    expect(out.errors).toEqual([]);
+    expect(out.manifest!.systems[0]!.commands).toBe(false);
+  });
+});
+
 describe('a compiled system that reads an event', () => {
   const READER = `import { defineComponent, defineEvent, defineSystem, Query, Mut, EventReader } from 'esengine';
 export const Mover = defineComponent('Mover', { speed: 100 });

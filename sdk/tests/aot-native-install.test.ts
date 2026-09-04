@@ -25,6 +25,7 @@ import { defineComponent, getComponent } from '../src/ecs/component';
 import { defineSystem, SystemRunner } from '../src/ecs/system';
 import { defineEvent, EventReader, EventWriter, EventRegistry } from '../src/ecs/event';
 import { Query, Mut, Changed } from '../src/ecs/query';
+import { Commands } from '../src/ecs/commands';
 import { ResourceStorage } from '../src/ecs/resource';
 import { engineAbiDigest, projectShapeDigest } from '../src/ecs/aot/abiDigest';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
@@ -51,8 +52,8 @@ const MANIFEST: AotManifest = {
     engineAbi: engineAbiDigest(8),
     projectShapes: projectShapeDigest([{ name: 'Drift', fields: ['x'] }]),
     systems: [
-        { name: 'DriftSystem', symbol: 'es_sys_Drift', queries: [[{ comp: 'Drift', mut: true }]], resources: [] },
-        { name: 'OtherSystem', symbol: 'es_sys_Other', queries: [[{ comp: 'Drift', mut: true }]], resources: [] },
+        { name: 'DriftSystem', symbol: 'es_sys_Drift', commands: false, queries: [[{ comp: 'Drift', mut: true }]], resources: [] },
+        { name: 'OtherSystem', symbol: 'es_sys_Other', commands: false, queries: [[{ comp: 'Drift', mut: true }]], resources: [] },
     ],
 };
 
@@ -109,17 +110,24 @@ const EVENT_MANIFEST: AotManifest = {
     ]),
     systems: [
         {
-            name: 'SendSystem', symbol: 'es_sys_Send', resources: [],
+            name: 'SendSystem', symbol: 'es_sys_Send', commands: false, resources: [],
             queries: [[{ comp: 'Drift', mut: true }]],
             writers: [{ slot: 0, event: 'Hit', fields: ['amount'] }],
         },
         {
-            name: 'ReadSystem', symbol: 'es_sys_Read', resources: [],
+            name: 'ReadSystem', symbol: 'es_sys_Read', commands: false, resources: [],
             queries: [[{ comp: 'Hit', mut: false }], [{ comp: 'Drift', mut: true }]],
             readers: [{ slot: 0, event: 'Hit', fields: ['amount'] }],
         },
         {
-            name: 'PlainSystem', symbol: 'es_sys_Plain', resources: [],
+            name: 'PlainSystem', symbol: 'es_sys_Plain', commands: false, resources: [],
+            queries: [[{ comp: 'Drift', mut: true }]],
+        },
+        // The other capability this road lacks, and the quiet one: a loading
+        // host applies a despawn to its own Registry inside the call, and the
+        // World the interpreter would have despawned from never hears.
+        {
+            name: 'ReapSystem', symbol: 'es_sys_Reap', commands: true, resources: [],
             queries: [[{ comp: 'Drift', mut: true }]],
         },
     ],
@@ -317,6 +325,22 @@ describe('a capability a loading host cannot hand compiled code', () => {
         expect(seen).toEqual([3]);
     });
 
+    it('leaves a system that COMMANDS to the interpreter, and the despawn lands', () => {
+        const f = eventFixture();
+        const reap = defineSystem([Query(Mut(f.Drift)), Commands()], (query, cmds) => {
+            for (const [e] of query) cmds.despawn(e);
+        }, { name: 'ReapSystem' });
+
+        const entity = f.world.spawn();
+        f.world.insert(entity, f.Drift, { x: 0 });
+        f.runner.run(reap);
+
+        expect(f.calls).not.toContain('ReapSystem');
+        // The half that was silent: the twin ran, the C++ Registry lost the
+        // entity and this world kept it in every query it matched.
+        expect(f.world.valid(entity)).toBe(false);
+    });
+
     it('and takes the system that needs none of it', () => {
         const f = eventFixture();
         const plain = defineSystem([Query(Mut(f.Drift))], () => {
@@ -400,7 +424,7 @@ describe('an event payload is a project shape', () => {
             { name: 'Struck', fields: [...fields] },
         ]),
         systems: [{
-            name: 'AbsorbSystem', symbol: 'es_sys_Absorb', resources: [],
+            name: 'AbsorbSystem', symbol: 'es_sys_Absorb', commands: false, resources: [],
             queries: [[{ comp: 'Struck', mut: false }], [{ comp: 'Drift', mut: true }]],
             readers: [{ slot: 0, event: 'Struck', fields: [...fields] }],
         }],

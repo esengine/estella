@@ -55,6 +55,12 @@ export interface CompiledSystemInfo {
   /** Event readers and writers, with the payload layout each one uses. */
   readers: { slot: number; event: string; fields: string[] }[];
   writers: { slot: number; event: string; fields: string[] }[];
+  /**
+   * Whether the body appends a command record. A road that cannot flush one to
+   * the world the interpreter would have flushed it to leaves the system to the
+   * interpreter, so this is what that decision is made on.
+   */
+  commands: boolean;
 }
 
 export interface CompiledSystemsManifest {

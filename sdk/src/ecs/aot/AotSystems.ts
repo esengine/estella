@@ -37,6 +37,13 @@ export interface AotSystemDecl {
     readonly readers?: readonly { slot: number; event: string; fields: readonly string[] }[];
     /** Event writers, by the slot the appended record names. */
     readonly writers?: readonly { slot: number; event: string; fields: readonly string[] }[];
+    /**
+     * Whether the body appends a COMMAND record. From the body rather than the
+     * declaration: taking `Commands()` and never despawning writes nothing.
+     * Absent is a manifest older than this field — read it as `true`, because
+     * the road that cannot flush them fails silently.
+     */
+    readonly commands?: boolean;
 }
 
 /**

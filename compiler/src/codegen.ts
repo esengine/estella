@@ -1014,6 +1014,8 @@ export interface ModuleDeclaration {
     readonly resources: { name: string; mut: boolean; fields?: string[] }[];
     readonly readers: { slot: number; event: string; fields: string[] }[];
     readonly writers: { slot: number; event: string; fields: string[] }[];
+    /** Whether the body appends a command record, which a host has to flush. */
+    readonly commands: boolean;
 }
 
 export function moduleDeclarations(
@@ -1039,6 +1041,30 @@ export function moduleDeclarations(
             writers: plan.writers.map((w) => ({
                 slot: w.slot, event: w.event, fields: fieldsOf(module.events, w.event),
             })),
+            commands: writesCommands(sys, plan),
         };
     });
+}
+
+/**
+ * Whether this system appends a COMMAND record — an emit that is not an event.
+ *
+ * The BODY, not the declaration: taking `Commands()` and never despawning
+ * writes nothing, and refusing on the channel would send a system back to the
+ * interpreter for a promise it does not make.
+ */
+function writesCommands(sys: EirSystem, plan: SysPlan): boolean {
+    const writerSlots = new Set(plan.writers.map((w) => w.slot));
+    const isCommand = (channel: Place): boolean => {
+        if (channel.p !== 'local') return true;
+        const at = plan.slots.get(channel.id);
+        return at === undefined || at.table !== 'channel' || !writerSlots.has(at.slot);
+    };
+    const walk = (body: readonly Stmt[]): boolean => body.some((s) => {
+        if (s.s === 'emit') return isCommand(s.channel);
+        if (s.s === 'rowLoop') return walk(s.body);
+        if (s.s === 'if') return walk(s.then) || walk(s.otherwise);
+        return false;
+    });
+    return walk(sys.body);
 }

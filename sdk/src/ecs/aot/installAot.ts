@@ -32,6 +32,8 @@ import { AotEvents, type EventBusAccess } from './AotEvents';
 import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
 import { AotDispatch } from './AotDispatch';
+import { missingCapabilities, whyInterpreted, WEB_AOT } from './executorCapabilities';
+import { log } from '../../util/logger';
 
 /**
  * The engine module a compiled system shares memory with. The Memory OBJECT,
@@ -106,11 +108,20 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
     (exports['_initialize'] as (() => void) | undefined)?.();
 
     const systems = new AotSystems();
+    // Through the same question the loading road asks, though this road answers
+    // yes to all of it: a road that does not DECLARE what it carries is a road
+    // outside the model, and the next capability to differ would find no gate.
+    const takeable = new Map(opts.manifest.systems.map((decl) => {
+        const missing = missingCapabilities(decl, WEB_AOT);
+        if (missing.length > 0) log.info('runtime', whyInterpreted(decl.name, missing));
+        return [decl.name, missing.length === 0];
+    }));
     systems.install(opts.manifest, exports, componentNamed, {
         resourceFields: opts.resourceFields ?? ((name) => {
             const value = opts.resources(name);
             return value === undefined ? undefined : Object.keys(value);
         }),
+        runs: (name) => takeable.get(name) ?? false,
         moduleContract: moduleContractOf(exports),
     });
 
