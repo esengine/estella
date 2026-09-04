@@ -228,14 +228,20 @@ export const FACTS = [
         id: 'uiBaseLayer',
         what: 'The layer number UI elements draw from, which orders them against the world.',
         surface: 'runtime-wasm-abi',
+        // It was declared twice: this header, and `const UI_BASE_LAYER = 1000`
+        // in the SDK's text renderer with a comment saying it must match. The
+        // ledger recorded one author while the pin read both.
         authors: [
-            { path: 'src/esengine/renderer/plugins/UIElementPlugin.hpp', probe: /Layer/i, kind: 'semantic' },
+            { path: 'src/esengine/renderer/plugins/UIElementPlugin.hpp',
+              probe: /ES_CONST\(\)\s*\n\s*static constexpr i32 UI_BASE_LAYER/, kind: 'semantic' },
         ],
-        projections: [],
+        projections: ['sdk/src/wasm/constants.generated.ts'],
         verification: [
-            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /UI base layer/ },
+            { path: 'sdk/tests/cpp-contract.test.ts', how: 'test', probe: /UI base layer/,
+              compares: ['src/esengine/renderer/plugins/UIElementPlugin.hpp',
+                  'sdk/src/wasm/constants.generated.ts'] },
         ],
-        digest: null,
+        digest: { name: 'eht-abi-layout-hash', path: 'tools/eht/constants.py', probe: /CONST / },
     },
     {
         id: 'shaderSources',
@@ -279,6 +285,31 @@ export const FACTS = [
         digest: null,
     },
 ];
+
+/**
+ * Modules a cross-language pin reads because they RE-EXPORT the generated value
+ * it compares — one publishing name, not a second declaration. Named so a file
+ * a verifier reads is never one the ledger pretends is not there; a hand-written
+ * twin cannot hide among them, because it would owe an entry saying it is one.
+ */
+export const RE_EXPORTS = {
+    'sdk/src/animation/Easing.ts': 'the tween easing enum',
+    'sdk/src/animation/TweenTypes.ts': 'tween state and loop mode',
+    'sdk/src/animation/Tween.ts': 'the tween target enum',
+    'sdk/src/particle/gradient.ts': 'the particle colour LUT size',
+    'sdk/src/types.ts': 'the packed entity split',
+    'sdk/src/tilemap/tileBits.ts': 'the cell encoding',
+    'sdk/src/tilemap/chunkCodec.ts': 'the chunk stride',
+    'sdk/src/tilemap/tileGeometry.ts': 'the tilemap orientation enum',
+    'sdk/src/physics/PhysicsComponents.ts': 'the body type enum',
+    'sdk/src/ui/core/ui-node.ts': 'the UI position and align enums',
+    'sdk/src/ui/core/ui-visual.ts': 'the UI visual, fill method and fill origin enums',
+    'sdk/src/ui/core/ui-mask.ts': 'the mask mode enum',
+    'sdk/src/ui/core/ui-scroll.ts': 'the scroll movement enum',
+    'sdk/src/ui/core/text.ts': 'the text align enum',
+    'sdk/src/ui/layout/flex.ts': 'the flex enums',
+    'sdk/src/ecs/component.ts': 'the particle easing enum, on a component field',
+};
 
 /**
  * Generated artifacts that are NOT a projection of a contract fact, and why.

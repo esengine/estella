@@ -28,6 +28,7 @@ import { GRADIENT_LUT_SIZE } from '../src/particle/gradient';
 import { ENTITY_INDEX_BITS, ENTITY_GEN_BITS } from '../src/types';
 import { TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D } from '../src/tilemap/tileBits';
 import { CHUNK_SIZE } from '../src/tilemap/chunkCodec';
+import { UI_BASE_LAYER } from '../src/wasm/constants.generated';
 
 // EHT-generated twins (the authoritative C++ ES_ENUM values) + the module-local
 // names the UI/physics modules publish them under.
@@ -168,14 +169,11 @@ describe('C++ contract: tilemap cell encoding (tilemap/TilemapSystem.hpp)', () =
 });
 
 describe('C++ contract: UI base layer (renderer/plugins/UIElementPlugin.hpp)', () => {
-    it('UI_BASE_LAYER matches the TS text renderer', () => {
-        // Not exported (module-private), so guard the source values directly:
-        // the C++ plugin and the TS text plugin must agree on the UI layer base.
-        const cpp = parseConst(readCpp('renderer/plugins/UIElementPlugin.hpp'), 'UI_BASE_LAYER');
-        const tsSrc = readFileSync(resolve(__dirname, '../src/ui/text/plugin.ts'), 'utf8');
-        const tsm = /UI_BASE_LAYER\s*=\s*(\d+)/.exec(stripComments(tsSrc));
-        if (!tsm) throw new Error('TS UI_BASE_LAYER not found in ui/text/plugin.ts');
-        expect(Number(tsm[1])).toBe(cpp);
+    it('UI_BASE_LAYER is generated from the header, not restated beside it', () => {
+        // It was declared twice — `const UI_BASE_LAYER = 1000` in the TS text
+        // renderer, with a comment saying it must match. Generated now, so this
+        // pin is a SECOND reader of the header rather than a guard on a copy.
+        expect(UI_BASE_LAYER).toBe(parseConst(readCpp('renderer/plugins/UIElementPlugin.hpp'), 'UI_BASE_LAYER'));
     });
 });
 

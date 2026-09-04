@@ -49,3 +49,6 @@ export const TILE_FLIP_V = 0x4000;
 
 /** C++ `TILE_ID_MASK` in `src/esengine/tilemap/TilemapSystem.hpp`. */
 export const TILE_ID_MASK = 0x1fff;
+
+/** C++ `UI_BASE_LAYER` in `src/esengine/renderer/plugins/UIElementPlugin.hpp`. */
+export const UI_BASE_LAYER = 1000;

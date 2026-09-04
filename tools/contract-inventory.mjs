@@ -36,7 +36,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { FACTS, NOT_CONTRACT } from './lib/contractFacts.mjs';
+import { FACTS, NOT_CONTRACT, RE_EXPORTS } from './lib/contractFacts.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
@@ -206,8 +206,51 @@ if (existsSync(path.join(ROOT, PIN_FILE))) {
         }
     }
     notes.push(`${titles.length} cross-language pin(s) in ${PIN_FILE}, each claimed by a fact.`);
+
+    /**
+     * Every side a verifier COMPARES has to be a node this list explains. The
+     * ledger said uiBaseLayer had one author while the pin read a second,
+     * hand-written declaration in the SDK — a fact with two authors, recorded
+     * as one, because nothing asked what the verifier was reading.
+     */
+    const declared = new Set(FACTS.flatMap((f) => [
+        ...f.authors.map((a) => a.path),
+        ...f.projections,
+        ...f.verification.flatMap((v) => v.compares ?? []),
+    ]).concat(Object.keys(RE_EXPORTS)));
+    const reads = readsOf(PIN_FILE);
+    for (const rel of reads) {
+        if (declared.has(rel)) continue;
+        findings.push(`GROUND: ${PIN_FILE} reads ${rel}, and no fact names it — as an author, as`
+            + ' a projection, or in the `compares` of the verification that reads it.');
+    }
+    // An excuse nobody uses is an excuse that stops being true.
+    for (const [rel, why] of Object.entries(RE_EXPORTS)) {
+        if (!reads.includes(rel)) {
+            findings.push(`RE_EXPORTS names ${rel} (${why}), which ${PIN_FILE} no longer reads.`);
+        }
+    }
 } else {
     findings.push(`GROUND: ${PIN_FILE} is gone; the cross-language pins it held are now unclaimed.`);
+}
+
+/** Repo files a source names: an import, or a path handed to a reader. Resolved
+ *  against the roots this repo's test helpers use, so a fragment counts too. */
+function readsOf(rel) {
+    const text = read(rel);
+    const bases = [path.dirname(rel), '', 'src/esengine'];
+    const out = new Set();
+    for (const m of text.matchAll(/'([^'\n]+)'/g)) {
+        const lit = m[1];
+        if (!lit.includes('/') || lit.startsWith('/')) continue;
+        for (const base of bases) {
+            for (const ext of ['', '.ts', '.hpp', '.cpp']) {
+                const at = path.normalize(path.join(base, lit) + ext);
+                if (tracked.includes(at)) out.add(at);
+            }
+        }
+    }
+    return [...out];
 }
 
 // ── Say it ───────────────────────────────────────────────────────────────────

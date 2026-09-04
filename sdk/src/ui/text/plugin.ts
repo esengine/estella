@@ -26,13 +26,14 @@ import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers
 import { resolveTextFamily } from './font-registry';
 import { platformDevicePixelRatio } from '../../platform';
 import { engineApi } from '../../ecs/bridge/engineApi';
+// UI quads use layer = base + uiOrder, off the C++ declaration that owns it.
+import { UI_BASE_LAYER } from '../../wasm/constants.generated';
 
 // Base glyph rasterization size in CSS px; the real source is this × DPR so text
 // stays crisp on HiDPI displays. 64 covers common UI sizes at 1:1 or finer.
 const GLYPH_BASE_SIZE = 64;
 
-// Matches C++ UIElementPlugin::UI_BASE_LAYER — UI quads use layer = base + uiOrder.
-const UI_BASE_LAYER = 1000;
+
 
 // Auto tolerance: a bitmap glyph still reads as pixel-exact within ±2% of 1:1.
 const BITMAP_SCALE_EPSILON = 0.02;

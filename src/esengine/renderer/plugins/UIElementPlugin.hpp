@@ -4,6 +4,7 @@
 
 #include "BatchPlugin.hpp"
 #include "../../resource/TextureMetadata.hpp"
+#include "../../core/Reflection.hpp"
 
 namespace esengine {
 
@@ -11,8 +12,10 @@ class UIElementPlugin : public BatchPlugin {
 public:
     void collect(RenderCollectContext& ctx) override;
 
-private:
-    // UI draws above world content: its sort layer is offset past the world layer range.
+    // UI draws above world content: its sort layer is offset past the world
+    // layer range. The SDK's own text renderer puts quads at the same base, so
+    // it crosses — and a second spelling of it is two layers, not one.
+    ES_CONST()
     static constexpr i32 UI_BASE_LAYER = 1000;
 };
 
