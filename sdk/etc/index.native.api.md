@@ -549,6 +549,7 @@ systems: readonly AotSystemDecl[]
 
 ## AotSystemDecl — interface @experimental
 ```
+commands: boolean | undefined
 name: string
 queries: readonly (readonly { comp: string; mut: boolean; }[])[]
 readers: readonly { slot: number; event: string; fields: readonly string[]; }[] | undefined
