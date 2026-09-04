@@ -141,6 +141,53 @@ describe('an interface that gains an optional member', () => {
 });
 
 /**
+ * Nobody implements a class from outside, so a class that GAINS a member breaks
+ * no caller — unlike an interface, where a required member is a demand on every
+ * implementor. Losing or changing one is still a broken promise.
+ */
+describe('a @public class that gained a member', () => {
+    const body = (...members: string[]) => members.join('\n');
+    const was = sig('World — class @public', body(
+        'get: (e: Entity, c: Def) => Data',
+        'set: (e: Entity, c: Def, d: Data) => void',
+    ));
+    const changed = (b: string) =>
+        baselineFindings(snapshot(was), snapshot(sig('World — class @public', b)));
+
+    it('is a note, not a broken promise', () => {
+        const { failures, notes } = changed(body(
+            'get: (e: Entity, c: Def) => Data',
+            'set: (e: Entity, c: Def, d: Data) => void',
+            'update: (e: Entity, c: Def, edit: (d: Data) => void) => void',
+        ));
+        expect(failures).toEqual([]);
+        expect(notes.join(' ')).toMatch(/class gained a member/);
+    });
+
+    it('is still broken when a member is REMOVED', () => {
+        expect(changed(body('get: (e: Entity, c: Def) => Data')).failures)
+            .toEqual(['World — @public signature changed']);
+    });
+
+    it('is still broken when a member CHANGED while another was added', () => {
+        expect(changed(body(
+            'get: (e: Entity, c: Def, extra: number) => Data',
+            'set: (e: Entity, c: Def, d: Data) => void',
+            'update: (e: Entity, c: Def, edit: (d: Data) => void) => void',
+        )).failures).toEqual(['World — @public signature changed']);
+    });
+
+    it('does not fire for an interface, where a required member is a demand', () => {
+        const iface = sig('Shape — interface @public', body('a: number'));
+        const { failures } = baselineFindings(
+            snapshot(iface),
+            snapshot(sig('Shape — interface @public', body('a: number', 'b: string'))),
+        );
+        expect(failures).toEqual(['Shape — @public signature changed']);
+    });
+});
+
+/**
  * A trailing OPTIONAL parameter breaks no call that was written, which is the
  * whole of what @public promises. Every other edit to a signature does break
  * one, so the rule has to be a prefix rule and not "the strings differ".

@@ -23,7 +23,6 @@ export interface TextInputData {
     readOnly: boolean;
     focused: boolean;
     cursorPos: number;
-    dirty: boolean;
     /** Where the value sits in the field: Left, Center or Right. A single line
      *  keeps the alignment only while it fits — past that the field scrolls to
      *  follow the caret, as a left-aligned one always has. */
@@ -49,7 +48,6 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
     readOnly: false,
     focused: false,
     cursorPos: 0,
-    dirty: true,
     textAlign: TextAlign.Left,
     renderMode: TextRenderMode.Auto,
 }, {

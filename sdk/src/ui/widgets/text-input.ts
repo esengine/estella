@@ -88,7 +88,6 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
         readOnly: opts.readOnly ?? false,
         focused: false,
         cursorPos: (opts.value ?? '').length,
-        dirty: true,
         renderMode: opts.renderMode ?? TextRenderMode.Auto,
     });
     markThemed(world, entity, {
@@ -114,12 +113,11 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
         entity,
         getValue: () => (world.get(entity, TextInput) as TextInputData).value,
         setValue: (value: string) => {
-            const ti = world.get(entity, TextInput) as TextInputData;
-            if (ti.value === value) return;
-            ti.value = value;
-            ti.cursorPos = Math.min(ti.cursorPos, value.length);
-            ti.dirty = true;
-            world.insert(entity, TextInput, ti);
+            if ((world.get(entity, TextInput) as TextInputData).value === value) return;
+            world.update(entity, TextInput, (ti) => {
+                ti.value = value;
+                ti.cursorPos = Math.min(ti.cursorPos, value.length);
+            });
         },
         dispose: () => {
             offChange?.();

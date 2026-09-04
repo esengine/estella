@@ -266,29 +266,30 @@ describe('World', () => {
         });
     });
 
-    describe('component data mutations', () => {
-        it('should allow mutating component data', () => {
+    // The supported edit is `update`. Writing to a `get` result does still stick
+    // for a script component, but nothing observes it.
+    describe('component data updates', () => {
+        it('stores what the edit wrote', () => {
             const entity = world.spawn();
             world.insert(entity, Position, { x: 0, y: 0 });
 
-            const pos = world.get(entity, Position);
-            pos.x = 100;
-            pos.y = 200;
+            world.update(entity, Position, (pos) => {
+                pos.x = 100;
+                pos.y = 200;
+            });
 
             const updated = world.get(entity, Position);
             expect(updated.x).toBe(100);
             expect(updated.y).toBe(200);
         });
 
-        it('should reflect mutations immediately', () => {
+        it('is visible to the next read', () => {
             const entity = world.spawn();
             world.insert(entity, Health, { value: 100 });
 
-            const hp1 = world.get(entity, Health);
-            hp1.value -= 25;
+            world.update(entity, Health, (hp) => { hp.value -= 25; });
 
-            const hp2 = world.get(entity, Health);
-            expect(hp2.value).toBe(75);
+            expect(world.get(entity, Health).value).toBe(75);
         });
     });
 

@@ -128,21 +128,21 @@ export class DragPlugin implements Plugin {
                         if (!world.has(bestEntity, DragState)) {
                             world.insert(bestEntity, DragState);
                         }
-                        const dragState = world.get(bestEntity, DragState) as DragStateData;
                         const wt = world.get(bestEntity, Transform) as TransformData;
-                        dragState.startWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
-                        dragState.currentWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
-                        dragState.pointerStartWorld = { x: worldMouse.x, y: worldMouse.y };
-                        dragState.deltaWorld = { x: 0, y: 0 };
-                        dragState.totalDeltaWorld = { x: 0, y: 0 };
-                        dragState.isDragging = false;
+                        world.update(bestEntity, DragState, (d) => {
+                            d.startWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
+                            d.currentWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
+                            d.pointerStartWorld = { x: worldMouse.x, y: worldMouse.y };
+                            d.deltaWorld = { x: 0, y: 0 };
+                            d.totalDeltaWorld = { x: 0, y: 0 };
+                            d.isDragging = false;
+                        });
                     }
                 }
 
                 if (pendingEntity !== null && !input.isMouseButtonDown(0)) {
                     if (world.valid(pendingEntity) && world.has(pendingEntity, DragState)) {
-                        const dragState = world.get(pendingEntity, DragState) as DragStateData;
-                        dragState.isDragging = false;
+                        world.update(pendingEntity, DragState, (d) => { d.isDragging = false; });
                     }
                     pendingEntity = null;
                 }
@@ -162,8 +162,7 @@ export class DragPlugin implements Plugin {
                         activeEntity = pendingEntity;
                         pendingEntity = null;
 
-                        const dragState = world.get(activeEntity, DragState) as DragStateData;
-                        dragState.isDragging = true;
+                        world.update(activeEntity, DragState, (d) => { d.isDragging = true; });
                         events.emit(activeEntity, 'drag_start');
                     }
                 }
@@ -189,12 +188,14 @@ export class DragPlugin implements Plugin {
 
                     const prevX = dragState.currentWorldPos.x;
                     const prevY = dragState.currentWorldPos.y;
-                    dragState.deltaWorld = { x: newWorldX - prevX, y: newWorldY - prevY };
-                    dragState.currentWorldPos = { x: newWorldX, y: newWorldY };
-                    dragState.totalDeltaWorld = {
-                        x: newWorldX - dragState.startWorldPos.x,
-                        y: newWorldY - dragState.startWorldPos.y,
-                    };
+                    world.update(activeEntity, DragState, (d) => {
+                        d.deltaWorld = { x: newWorldX - prevX, y: newWorldY - prevY };
+                        d.currentWorldPos = { x: newWorldX, y: newWorldY };
+                        d.totalDeltaWorld = {
+                            x: newWorldX - d.startWorldPos.x,
+                            y: newWorldY - d.startWorldPos.y,
+                        };
+                    });
 
                     if (world.has(activeEntity, UINode)) {
                         // Nudge the CSS-box absolute insets (the layout input), so
@@ -214,16 +215,16 @@ export class DragPlugin implements Plugin {
                             world, activeEntity,
                             dragState.deltaWorld.x, dragState.deltaWorld.y
                         );
-                        const lt = world.get(activeEntity, Transform) as TransformData;
-                        lt.position.x += localDelta.x;
-                        lt.position.y += localDelta.y;
-                        world.insert(activeEntity, Transform, lt);
+                        world.update(activeEntity, Transform, (t) => {
+                            t.position.x += localDelta.x;
+                            t.position.y += localDelta.y;
+                        });
                     }
 
                     events.emit(activeEntity, 'drag_move');
 
                     if (input.isMouseButtonReleased(0)) {
-                        dragState.isDragging = false;
+                        world.update(activeEntity, DragState, (d) => { d.isDragging = false; });
                         events.emit(activeEntity, 'drag_end');
                         activeEntity = null;
                     }

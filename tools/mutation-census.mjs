@@ -18,12 +18,16 @@
  * result, because a census whose limits are unstated reads as an all-clear.
  *
  *   node tools/mutation-census.mjs
+ *   node tools/mutation-census.mjs --gate        # no silent write may exist
  *   node tools/mutation-census.mjs --json
  *   node tools/mutation-census.mjs --self-test   # calibrate on known-positive source
  *
- * Exit codes: 0 the census ran, 2 a declared root could not be read (an
- * unchecked-out editor submodule scans as zero findings, which is a false
- * all-clear, not a clean repo).
+ * Exit codes without `--gate`: 0 the census ran, 2 a declared root could not be
+ * read (an unchecked-out editor submodule scans as zero findings, which is a
+ * false all-clear, not a clean repo). With `--gate`: 0 no silent write in what
+ * was scanned, 1 there is one. A gate NAMES the roots it could not read rather
+ * than refusing to answer for the rest — the corpus it judged is stated, and a
+ * silent write anywhere in it fails.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -35,6 +39,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ts = createRequire(path.join(ROOT, 'sdk', '/'))('typescript');
 const JSON_OUT = process.argv.includes('--json');
 const SELF_TEST = process.argv.includes('--self-test');
+const GATE = process.argv.includes('--gate');
 
 /** Where a game or the engine could write through a read handle. */
 const ROOTS = ['sdk/src', 'sdk/tests', 'examples', 'desktop/src'];
@@ -407,7 +412,7 @@ const byRoot = (rel) => ROOTS.find((r) => rel.startsWith(r + '/')) ?? rel;
 
 if (JSON_OUT) {
     console.log(JSON.stringify({ scanned: sources.length, findings, skippedRoots, missing }, null, 2));
-} else {
+} else if (!GATE) {
     console.log('');
     console.log(`  ${sources.length} files scanned across ${declaredRoots.join(', ')}`);
     if (skippedRoots.length) console.log(`  NOT scanned (no checkout): ${skippedRoots.join(', ')}`);
@@ -442,6 +447,20 @@ if (JSON_OUT) {
     console.log('  Not decidable by this census:');
     for (const b of BLIND_SPOTS) console.log(`    - ${b}`);
     console.log('');
+}
+
+if (GATE) {
+    const silent = writes.filter((f) => f.storedBack === false);
+    const unread = [...skippedRoots, ...missing];
+    if (silent.length) {
+        console.error(`mutation-census: ${silent.length} silent write(s) — the value changes and`
+            + ' nothing observes it. Use world.update, world.set, or Mut().\n');
+        for (const f of silent) console.error(`  ${f.file}:${f.line}  ${f.code}`);
+        process.exit(1);
+    }
+    console.log(`mutation-census: ${sources.length} files, no silent writes`
+        + (unread.length ? ` (NOT read: ${unread.join(', ')})` : ''));
+    process.exit(0);
 }
 
 process.exit(skippedRoots.length || missing.length ? 2 : 0);

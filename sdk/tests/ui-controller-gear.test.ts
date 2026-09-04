@@ -52,6 +52,7 @@ function makeMockWorld() {
         get: (e: Entity, c: AnyComponentDef) => storeFor(c).get(e),
         insert: (e: Entity, c: AnyComponentDef, d: unknown) => { storeFor(c).set(e, d); },
         set: (e: Entity, c: AnyComponentDef, d: unknown) => { storeFor(c).set(e, d); },
+        update: (e: Entity, c: AnyComponentDef, edit: (d: unknown) => void) => { edit(storeFor(c).get(e)); },
         remove: (e: Entity, c: AnyComponentDef) => storeFor(c).delete(e),
         getEntitiesWithComponents: (required: AnyComponentDef[]) => {
             const out: Entity[] = [];
@@ -216,7 +217,7 @@ describe('GearApplySystem — snap', () => {
         expect((world.get(e, UIVisual) as UIVisualData).color).toEqual({ r: 1, g: 0, b: 0, a: 1 });
 
         setControllerPage(world as never, e, 'tab', 'b'); // page 'b' unauthored for this gear
-        (world.get(e, UIVisual) as UIVisualData).color = { r: 0.3, g: 0.3, b: 0.3, a: 1 };
+        world.update(e, UIVisual, (v) => { (v as UIVisualData).color = { r: 0.3, g: 0.3, b: 0.3, a: 1 }; });
         runSystem(sys, 1 / 60);
         expect((world.get(e, UIVisual) as UIVisualData).color).toEqual({ r: 0.3, g: 0.3, b: 0.3, a: 1 });
     });

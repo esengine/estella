@@ -144,6 +144,13 @@ function fakeWorld() {
             store.get(e)?.set(def, value as Record<string, unknown>);
         },
         has(e: Entity, def: unknown): boolean { return store.get(e)?.has(def) ?? false; },
+        // Modelled, not stubbed: the real one edits the stored value in place and
+        // reports it. A fake missing a write path sends its tests down another.
+        update<T>(e: Entity, def: unknown, edit: (draft: T) => void): void {
+            const value = store.get(e)?.get(def);
+            if (!value) throw new Error('update: the entity does not carry it.');
+            edit(value as T);
+        },
         valid(e: Entity): boolean { return store.has(e); },
         queryEntities(defs: unknown[]): Entity[] {
             return [...store.entries()]
@@ -210,7 +217,7 @@ describe('the 3D world and the ECS', () => {
     it('sends the solver metres, not world units', () => {
         const e = spawn({ x: 300, y: 150, z: 0 });
         world.insert(e, SphereCollider3D);
-        (world.get(e, SphereCollider3D) as { radius: number }).radius = 50;
+        world.update(e, SphereCollider3D, (c) => { (c as { radius: number }).radius = 50; });
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
 
@@ -375,7 +382,7 @@ describe('the 3D world and the ECS', () => {
     it('sends the continuous-collision choice to the world', () => {
         const e = spawn();
         world.insert(e, SphereCollider3D);
-        (world.get(e, RigidBody3D) as { continuousCollision: boolean }).continuousCollision = true;
+        world.update(e, RigidBody3D, (b) => { (b as { continuousCollision: boolean }).continuousCollision = true; });
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
 
@@ -388,7 +395,7 @@ describe('the 3D world and the ECS', () => {
     it('sends a body\u2019s layer to the world', () => {
         const e = spawn();
         world.insert(e, SphereCollider3D);
-        (world.get(e, RigidBody3D) as { layer: number }).layer = 5;
+        world.update(e, RigidBody3D, (b) => { (b as { layer: number }).layer = 5; });
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
 
@@ -401,7 +408,7 @@ describe('the 3D world and the ECS', () => {
     it('leaves a disabled body out of the world', () => {
         const e = spawn();
         world.insert(e, BoxCollider3D);
-        (world.get(e, RigidBody3D) as { enabled: boolean }).enabled = false;
+        world.update(e, RigidBody3D, (b) => { (b as { enabled: boolean }).enabled = false; });
 
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(bodies.size).toBe(0);
@@ -440,8 +447,9 @@ describe('the 3D world and the ECS', () => {
             const [a, b] = pair();
             // A quarter turn about Z: +x becomes +y, and so does the hinge axis.
             const half = Math.PI / 4;
-            const t = world.get(a, Transform) as TransformData;
-            t.worldRotation = { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+            world.update(a, Transform, (t) => {
+                (t as TransformData).worldRotation = { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
+            });
             world.insert(a, HingeJoint3D, {
                 connectedEntity: b, anchor: { x: 100, y: 0, z: 0 }, axis: { x: 1, y: 0, z: 0 },
             });

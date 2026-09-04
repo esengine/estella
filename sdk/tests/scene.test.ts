@@ -70,10 +70,11 @@ describe('Scene', () => {
             const snapshot = serializeEntityComponents(world, e);
             const snap = snapshot.find((c) => c.type === 'SerStats')!.data as { hp: number; tags: string[] };
 
-            // Mutate the LIVE component — a detached snapshot must not change.
-            const live = world.get(e, Stats) as { hp: number; tags: string[] };
-            live.hp = 99;
-            live.tags.push('b');
+            // Change the component — a detached snapshot must not follow.
+            world.update(e, Stats, (live) => {
+                (live as { hp: number }).hp = 99;
+                (live as { tags: string[] }).tags.push('b');
+            });
 
             expect(snap.hp).toBe(10);
             expect(snap.tags).toEqual(['a']);

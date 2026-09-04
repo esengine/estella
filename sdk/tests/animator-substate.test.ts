@@ -139,6 +139,7 @@ function makeWorld() {
         insert(e: number, c: unknown, data: unknown) { mapOf(c).set(e, data); },
         get(e: number, c: unknown) { return mapOf(c).get(e); },
         has(e: number, c: unknown) { return mapOf(c).has(e); },
+        update(e: number, c: unknown, edit: (d: unknown) => void) { edit(mapOf(c).get(e)); },
         getEntitiesWithComponents(comps: unknown[]) {
             const [first, ...rest] = comps;
             return [...mapOf(first).keys()].filter((e) => rest.every((c) => mapOf(c).has(e)));
@@ -183,8 +184,7 @@ describe('AnimatorControllerAPI.update — nested machine', () => {
         ctrl.setTrigger(E, 'attack');
         ctrl.update(world); // → Combat/Swing (swing clip applied, loop:false)
         // Simulate the swing clip finishing so its exit-time edge can fire.
-        const sp = world.get(E, SpriteAnimator) as SpriteAnimatorData;
-        sp.playing = false;
+        world.update(E, SpriteAnimator, (sp: SpriteAnimatorData) => { sp.playing = false; });
         ctrl.update(world);
         expect(animPath(world)).toBe('Combat/Recover');
         expect(clip(world)).toBe('recover');

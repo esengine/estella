@@ -702,10 +702,54 @@ export class World {
     }
 
     /**
-     * The component's value. Asking for one the entity does not have is a
-     * programming error, not a case to handle — use {@link tryGet} where absence
-     * is expected. Engine-backed components answer a fresh object each call;
-     * writing to it does not store anything, {@link set} does.
+     * Edit a component in place and report the change — the write path for
+     * "read it, adjust a field, keep the rest". The draft is BORROWED for the
+     * call, and for a script component it IS the stored object, so nothing may
+     * keep it. Reporting is unconditional; a false positive costs one look.
+     *
+     * @throws if `entity` does not carry `component`.
+     */
+    update<C extends AnyComponentDef>(
+        entity: Entity,
+        component: C,
+        edit: (draft: ComponentData<C>) => void,
+    ): void {
+        if (!this.has(entity, component)) {
+            throw new Error(
+                `update(${component._name}, entity=${entity}): the entity does not carry it. `
+                + 'Use insert() or set() to add a component.'
+            );
+        }
+        if (isBuiltinComponent(component)) {
+            // A projection, so the write-back is what stores it; `set` owns that
+            // for every builtin shape, hierarchy included, and records the change.
+            const draft = this.builtin_.get(entity, component) as ComponentData<C>;
+            try {
+                edit(draft);
+            } finally {
+                this.set(entity, component, draft);
+            }
+            return;
+        }
+        const draft = this.scripts_.get(entity, component as ComponentDef<any>) as ComponentData<C>;
+        try {
+            edit(draft);
+        } finally {
+            // A throwing `edit` has already written to the live object, so the
+            // change is reported before the error escapes.
+            this.changes_.recordChanged(component, entity);
+            if ((component as ComponentDef<any>)._id === Name._id) {
+                this.names_.update(entity, (draft as { value: string }).value);
+            }
+            notifyBridge('onComponentChanged', entity, component._name);
+        }
+    }
+
+    /**
+     * The component's value, to READ. Writing to the result is deprecated: it
+     * stores nothing for an engine-backed component and changes a script one
+     * with nothing observing it — use {@link update}, {@link set} or `Mut()`.
+     * Asking for a component the entity lacks throws; {@link tryGet} allows it.
      */
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
         if (isBuiltinComponent(component)) {
@@ -726,7 +770,9 @@ export class World {
         return this.scripts_.has(entity, component as ComponentDef<any>);
     }
 
-    /** {@link get}, answering null instead of throwing when the component is absent. */
+    /** {@link get}, answering null instead of throwing when the component is
+     *  absent. Reading only, on the same terms — writing to the result is
+     *  deprecated; {@link update} is the edit. */
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;

@@ -50,12 +50,16 @@ export const damageSystem = defineSystem(
             if (!world.has(blow.target, Health)) continue;
             const health = world.get(blow.target, Health);
             if (health.invulnerable > 0 || health.current <= 0) continue;
-            health.current -= blow.amount;
-            health.invulnerable = health.invulnerability;
-            if (health.current <= 0) {
-                health.current = 0;
-                died.send({ entity: blow.target, isPlayer: world.has(blow.target, Player) });
-            }
+            let killed = false;
+            world.update(blow.target, Health, (h) => {
+                h.current -= blow.amount;
+                h.invulnerable = h.invulnerability;
+                if (h.current <= 0) {
+                    h.current = 0;
+                    killed = true;
+                }
+            });
+            if (killed) died.send({ entity: blow.target, isPlayer: world.has(blow.target, Player) });
         }
     },
     { name: 'DamageSystem' },

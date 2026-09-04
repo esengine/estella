@@ -62,6 +62,21 @@ export function isAdditiveMembers(before, after) {
 }
 
 /**
+ * A class that kept every member it had and gained more. Nobody implements a
+ * class from outside, so a new member breaks no caller — unlike an interface,
+ * where a required member is a demand on every implementor.
+ */
+export function isAddedClassMembers(before, after) {
+    const was = before.split('\n').filter(Boolean);
+    const now = new Set(after.split('\n').filter(Boolean));
+    if (was.some((line) => !now.has(line))) return false;
+    // Set against Set: a body may repeat a line, and comparing a deduplicated
+    // size to a raw length reads an addition as no change.
+    const wasSet = new Set(was);
+    return [...now].some((line) => !wasSet.has(line));
+}
+
+/**
  * A function that kept every parameter it had and gained OPTIONAL ones at the
  * end: every call written against the old signature still compiles and means
  * the same thing, which is the whole of what @public promises. Prefix and
@@ -153,6 +168,9 @@ export function baselineFindings(was, now) {
                 } else if (before.kind === 'function'
                     && isAddedOptionalParam(promisedBody(before.body), promisedBody(after.body))) {
                     notes.push(`${name} — @public function gained an optional parameter`);
+                } else if (before.kind === 'class'
+                    && isAddedClassMembers(promisedBody(before.body), promisedBody(after.body))) {
+                    notes.push(`${name} — @public class gained a member`);
                 } else {
                     failures.push(`${name} — @public signature changed`);
                 }

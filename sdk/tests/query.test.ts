@@ -137,8 +137,7 @@ describe('Query System', () => {
 
             new QueryInstance(world, query).forEach(() => {});
 
-            const pos = world.get(e1, Position);
-            pos.x = 999;
+            world.update(e1, Position, (pos) => { pos.x = 999; });
 
             let count = 0;
             new QueryInstance(world, query).forEach(() => { count++; });

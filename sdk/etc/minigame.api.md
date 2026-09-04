@@ -8330,7 +8330,6 @@ ComponentDef<TextInputData>
 backgroundColor: Color
 color: Color
 cursorPos: number
-dirty: boolean
 focused: boolean
 font: number
 fontFamily: string
@@ -9795,6 +9794,7 @@ set: <C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentDa
 setParent: (child: Entity, parent: Entity) => void
 spawn: (name?: string) => Entity
 tryGet: <C extends AnyComponentDef>(entity: Entity, component: C) => ComponentData<C> | null
+update: <C extends AnyComponentDef>(entity: Entity, component: C, edit: (draft: ComponentData<C>) => void) => void
 valid: (entity: Entity) => boolean
 static new (): World
 static prototype: World

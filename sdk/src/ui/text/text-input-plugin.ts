@@ -117,10 +117,8 @@ export class TextInputPlugin implements Plugin {
                 case 'composition':
                     // The preedit sits in the surface's value with the caret after
                     // it, and the render loop reads that live — so nothing is copied
-                    // here. This keeps the caret solid and the field dirty while the
-                    // composition moves, and commits it when it ends.
+                    // here, and the commit at the end is what writes the field.
                     composing = event.composing;
-                    if (focused !== null) (world.get(focused, TextInput) as TextInputData).dirty = true;
                     if (!event.composing && focused !== null) syncFromEditor();
                     resetCursorBlink();
                     break;
@@ -135,9 +133,7 @@ export class TextInputPlugin implements Plugin {
                     break;
                 case 'blur':
                     if (focused !== null) {
-                        const ti = world.get(focused, TextInput) as TextInputData;
-                        ti.focused = false;
-                        ti.dirty = true;
+                        world.update(focused, TextInput, (ti) => { ti.focused = false; });
                         (app.getResource(FocusManager) as FocusManagerState).blur();
                         // The manager only holds "who has focus"; the entity holds
                         // it too. Clearing one and not the other leaves a control
@@ -176,13 +172,14 @@ export class TextInputPlugin implements Plugin {
                 editor!.write({ ...state, value: val, selectionStart: val.length, selectionEnd: val.length });
             }
 
-            if (val !== ti.value) {
-                ti.value = val;
-                const events = app.getResource(UIEvents) as UIEventQueue;
-                events.emit(focused, 'change');
+            const valueChanged = val !== ti.value;
+            world.update(focused, TextInput, (d) => {
+                d.value = val;
+                d.cursorPos = Math.min(state.selectionStart, val.length);
+            });
+            if (valueChanged) {
+                (app.getResource(UIEvents) as UIEventQueue).emit(focused, 'change');
             }
-            ti.cursorPos = Math.min(state.selectionStart, val.length);
-            ti.dirty = true;
             resetCursorBlink();
         }
 
@@ -245,8 +242,7 @@ export class TextInputPlugin implements Plugin {
             const ti = world.get(entity, TextInput) as TextInputData;
             if (ti.readOnly) return;
 
-            ti.focused = true;
-            ti.dirty = true;
+            world.update(entity, TextInput, (d) => { d.focused = true; });
 
             editor!.focus(
                 { value: ti.value, selectionStart: ti.cursorPos, selectionEnd: ti.cursorPos, backward: false },
@@ -258,9 +254,7 @@ export class TextInputPlugin implements Plugin {
         function blurCurrent(): void {
             const focused = getFocusedTextInput();
             if (focused !== null) {
-                const ti = world.get(focused, TextInput) as TextInputData;
-                ti.focused = false;
-                ti.dirty = true;
+                world.update(focused, TextInput, (ti) => { ti.focused = false; });
             }
             const fm = app.getResource(FocusManager) as FocusManagerState;
             fm.blur();
@@ -326,9 +320,7 @@ export class TextInputPlugin implements Plugin {
                     // the surface on its way in.
                     if (prevFocusedTextInput !== null && prevFocusedTextInput !== currentFocused
                         && world.valid(prevFocusedTextInput) && world.has(prevFocusedTextInput, TextInput)) {
-                        const ti = world.get(prevFocusedTextInput, TextInput) as TextInputData;
-                        ti.focused = false;
-                        ti.dirty = true;
+                        world.update(prevFocusedTextInput, TextInput, (ti) => { ti.focused = false; });
                         editor.blur();
                     }
 
@@ -349,9 +341,7 @@ export class TextInputPlugin implements Plugin {
                         const idx = caretIndexFromPointer(currentFocused);
                         if (idx !== null) {
                             editor.write({ ...editor.read(), selectionStart: idx, selectionEnd: idx, backward: false });
-                            const ti = world.get(currentFocused, TextInput) as TextInputData;
-                            ti.cursorPos = idx;
-                            ti.dirty = true;
+                            world.update(currentFocused, TextInput, (ti) => { ti.cursorPos = idx; });
                             resetCursorBlink();
                         }
                     }
@@ -414,7 +404,9 @@ export class TextInputPlugin implements Plugin {
                         ? fieldSelection(state.selectionStart, state.selectionEnd, state.backward, len)
                         : { lo: 0, hi: 0, caret: Math.max(0, Math.min(ti.cursorPos, len)), hasRange: false };
                     // Keep the component caret in step so a blur/refocus restores it.
-                    if (editing && ti.cursorPos !== sel.caret) ti.cursorPos = sel.caret;
+                    if (editing && ti.cursorPos !== sel.caret) {
+                        world.update(entity, TextInput, (d) => { d.cursorPos = sel.caret; });
+                    }
 
                     const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR);
                     const atlas = ensureMeasure().atlas;

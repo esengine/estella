@@ -114,6 +114,34 @@ shadow scan 看得见，ChangeTracker 看不见。** 只要还有一条这样的
   同一目录下 `layout.ts` 正在用 `world.anyChangedSince(UINode, ...)` 决定要不要重算布局——
   同一个 tracker，一边被当权威，一边被绕过。
 
+## 3.5 PR6c.3：`world.update` 与静默写归零
+
+裁定已执行第一步。新增 `world.update(entity, Component, draft => {…})`，它是「读出来、改一个字段、
+其余保留」的唯一写入口：
+
+- **脚本组件零拷贝**——draft 就是存储里那个对象，编辑后 `recordChanged`；
+- **引擎组件**读投影、编辑、经 `set` 写回（hierarchy 也走它），不发明第三套机制；
+- **无条件报告**：不做深比较。假阳性让消费者多看一眼，而按比较决定会在它读不懂的值上变哑；
+- **`edit` 抛异常不回滚**：脚本组件上已经写进去的就是写进去了，所以在异常逃逸前先报告——
+  一个没人听见的半写正是这条路要消灭的东西；
+- draft 是**借用**的，不许留存。
+
+43 处静默写已清到 **0**，其中：
+
+| 位置 | 处数 | 做法 |
+|---|---|---|
+| `text-input-plugin.ts` | 15 | 7 处改 `update`；8 处 `ti.dirty = true` **直接删** |
+| `drag.ts` | 12 | 全部改 `update` |
+| `sdk/tests/*` | 13 | 改走合法路径；三个假 World 补上 `update`（假实现落后于真实现正是它骗人的方式）|
+| `combat.ts` | 3 | 伤害结算改 `update` |
+
+`TextInputData.dirty` 全仓零读者，是变更观测缺位时长出来的私有 dirty 机制化石。写入已删，
+字段本身标 `@deprecated` 留到下一个 MINOR——顶层未知字段在反序列化时是**错误**，
+立刻删字段会让存量场景加载失败。
+
+`mutation-census` 已升级成门禁（`--gate`，注册为 `silent-writes`）：**静默写恒为 0**。
+它对扫不到的 root（未检出的编辑器子模块）明说而不是静默缩小语料。
+
 ## 4. 待裁定
 
 普查给出的结论是明确的：**`get`/`tryGet`/裸 `Query` 必须收成只读**，而且必须是
