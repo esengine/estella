@@ -27,8 +27,8 @@ import { brokenPromises, lowerProgram } from '../../../compiler/src/frontend';
 import { verifySystem } from '../../../compiler/src/verify';
 import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
-import { packLayout, planFor } from '../../../compiler/src/abi';
-import { CFLAGS, WASM_LINK_FLAGS, cSymbol, emitC } from '../../../compiler/src/codegen';
+import { packLayout } from '../../../compiler/src/abi';
+import { CFLAGS, WASM_LINK_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
 import { nativeLinkFlags, nativeModuleExt } from '../../../compiler/src/hostCC';
 import { AOT_MANIFEST, AOT_WASM } from './aotArtifacts';
 
@@ -138,17 +138,7 @@ export interface BuildCompiledResult {
   notes: string[];
 }
 
-/** A project resource's fields in LAYOUT order, as the code reads them. */
-function fieldsOfShape(module: { comps: ReadonlyMap<string, { fields: ReadonlyMap<string, unknown> }> },
-  name: string): string[] {
-  return [...(module.comps.get(name)?.fields.keys() ?? [])];
-}
 
-/** A payload's fields in LAYOUT order, which is the order the code reads them. */
-function fieldsOf(module: { events: ReadonlyMap<string, { fields: ReadonlyMap<string, unknown> }> },
-    event: string): string[] {
-  return [...(module.events.get(event)?.fields.keys() ?? [])];
-}
 
 /** Every `.ts` under `src/`, which is the unit a project's program is. */
 function sources(root: string): string[] {
@@ -297,25 +287,10 @@ export async function buildCompiledSystems(
     engineAbi: c.handshake.engineAbi,
     projectShapes: c.handshake.projectShapes,
     moduleContract: c.handshake.moduleContract,
-    systems: inlined.map((sys) => {
-      const plan = planFor(sys);
-      return {
-        name: sys.name,
-        symbol: cSymbol(sys.name),
-        queries: plan.queries.map((q) => q.map((a) => ({ comp: a.comp, mut: a.mut }))),
-        resources: plan.resources.map((r) => (lowered.module.userResources.has(r.name)
-            ? { name: r.name, mut: r.mut, fields: fieldsOfShape(lowered.module, r.name) }
-            : { name: r.name, mut: r.mut })),
-        // The payload layout travels with the manifest: the runtime flattens an
-        // object into it, and the compiled code reads at those offsets.
-        readers: plan.readers.map((r) => ({
-            slot: r.slot, event: r.event, fields: fieldsOf(lowered.module, r.event),
-        })),
-        writers: plan.writers.map((w) => ({
-            slot: w.slot, event: w.event, fields: fieldsOf(lowered.module, w.event),
-        })),
-      };
-    }),
+    // The one mapping from plans to declarations, shared with whatever else
+    // installs a module it just compiled — this was a second copy of the C
+    // table the artifact carries.
+    systems: moduleDeclarations(lowered.module, inlined),
   };
   writeFileSync(path.join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
   return { ok: true, modulePath, manifest, errors: [], notes };

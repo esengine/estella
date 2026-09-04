@@ -614,3 +614,4 @@ export function packLayout(shapes: ReadonlyMap<string, CompShape>): AbiLayout {
  * declarations, so this list has no second author to drift from.
  */
 const RESOURCES = new Set(resourceNames());
+

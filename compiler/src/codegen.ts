@@ -36,7 +36,7 @@ import {
 } from './abi';
 import {
     BOOL, F64,
-    type EirFn, type EirModule, type EirSystem, type EirType, type Expr, type Local,
+    type CompShape, type EirFn, type EirModule, type EirSystem, type EirType, type Expr, type Local,
     type LeafEnc, type MathFn, type Place, type Stmt,
 } from './eir';
 
@@ -999,4 +999,46 @@ function calledFns(module: EirModule, systems: readonly EirSystem[]): string[] {
     for (const sys of systems) visit(sys.body);
     // Declaration order, so a helper that calls a helper is defined first.
     return [...module.fns.keys()].filter((n) => want.has(n));
+}
+
+
+/**
+ * What a module DECLARES, as a host or a runtime reads it — one mapping, where
+ * there were two. Structurally typed rather than against the SDK's
+ * `AotSystemDecl`: naming that type would pull the whole runtime in here.
+ */
+export interface ModuleDeclaration {
+    readonly name: string;
+    readonly symbol: string;
+    readonly queries: { comp: string; mut: boolean }[][];
+    readonly resources: { name: string; mut: boolean; fields?: string[] }[];
+    readonly readers: { slot: number; event: string; fields: string[] }[];
+    readonly writers: { slot: number; event: string; fields: string[] }[];
+}
+
+export function moduleDeclarations(
+    module: EirModule,
+    systems: readonly EirSystem[],
+): ModuleDeclaration[] {
+    const fieldsOf = (table: ReadonlyMap<string, CompShape>, name: string): string[] =>
+        [...(table.get(name)?.fields.keys() ?? [])];
+    return systems.map((sys) => {
+        const plan = planFor(sys);
+        return {
+            name: sys.name,
+            symbol: cSymbol(sys.name),
+            queries: plan.queries.map((q) => q.map((a) => ({ comp: a.comp, mut: a.mut }))),
+            // An ENGINE resource's shape is `engineAbi`'s; only a project's own
+            // travels here, because only the build knows its field order.
+            resources: plan.resources.map((r) => (module.userResources.has(r.name)
+                ? { name: r.name, mut: r.mut, fields: fieldsOf(module.comps, r.name) }
+                : { name: r.name, mut: r.mut })),
+            readers: plan.readers.map((r) => ({
+                slot: r.slot, event: r.event, fields: fieldsOf(module.events, r.event),
+            })),
+            writers: plan.writers.map((w) => ({
+                slot: w.slot, event: w.event, fields: fieldsOf(module.events, w.event),
+            })),
+        };
+    });
 }
