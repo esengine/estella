@@ -225,13 +225,10 @@ function scanFile(rel, text) {
 
     const written = new Set();
     /**
-     * Whether the handle rooted at `node` is handed back to the World in the
-     * same scope — `world.set(e, C, h)` / `insert` / an explicit `markChanged`.
-     *
-     * This is the distinction the whole census turns on. Read-modify-write-back
-     * is a LEGAL idiom today and reports normally; the same two lines without
-     * the third are the silent write. Counting them together would price the
-     * migration at every mutation in the repo rather than at the broken ones.
+     * Whether the handle rooted at `node` is handed back to the World in the same
+     * scope. The distinction the census turns on: read-modify-write-back is legal
+     * today and reports normally, the same edit without the write-back is the
+     * silent write, and counting them together misprices the migration.
      */
     const storesBack = (node) => {
         const r = accessRoot(node);

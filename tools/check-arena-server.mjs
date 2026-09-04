@@ -178,12 +178,27 @@ function ghosts(app) {
   }));
 }
 
-/** Tick both apps for `seconds` of simulated time, letting the socket breathe. */
+/**
+ * Tick both apps for `seconds` of simulated time, at the rate the authority runs
+ * at. The server is a real 60Hz process: a client that outpaces it overruns the
+ * input window and has its commands refused, which reads as "replication is
+ * behind" while the client's own prediction sits at the wall.
+ */
 async function run(apps, seconds) {
   for (let i = 0; i < Math.round(seconds / STEP); i++) {
     for (const app of apps) await app.tick(STEP);
-    await delay(4);
+    await delay(STEP * 1000);
   }
+}
+
+/** Run until `done()`, or fail once `seconds` of simulated time have passed. */
+async function runUntil(apps, seconds, done) {
+  for (let i = 0; i < Math.round(seconds / STEP); i++) {
+    if (done()) return true;
+    for (const app of apps) await app.tick(STEP);
+    await delay(STEP * 1000);
+  }
+  return done();
 }
 
 let player, spectator;
@@ -232,9 +247,12 @@ if (Math.abs(wallX - BOUND_X) > 0.5) {
 
 // 4 — a third party saw it happen. The spectator runs no gameplay code at all,
 // so this position can only have arrived as replicated state.
-await run([player.app, spectator.app], 0.3);
-const witnessed = ghosts(spectator.app).map((g) => g.x);
-if (!witnessed.some((x) => Math.abs(x - BOUND_X) < 40)) {
+// Waiting for the state to ARRIVE rather than for a fixed duration: how many
+// ticks a socket round trip takes is a property of the machine, and a deadline
+// dressed up as a duration fails on a slow one while asserting nothing more.
+const sawWall = () => ghosts(spectator.app).some((g) => Math.abs(g.x - BOUND_X) < 40);
+if (!await runUntil([player.app, spectator.app], 1.0, sawWall)) {
+  const witnessed = ghosts(spectator.app).map((g) => g.x);
   fail(`the spectator never saw the moving pawn reach the wall (saw x=${witnessed.join(', ')}).`, serverLog);
 }
 

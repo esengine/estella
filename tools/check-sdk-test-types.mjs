@@ -62,11 +62,9 @@ if (run.status !== 0 && !/error TS\d+/.test(output)) {
 const ROOT_POSIX = ROOT.split(path.sep).join('/');
 
 /**
- * The checkout's own location, out of the message text. TS7016 and friends name
- * the resolved module by ABSOLUTE path, so an identity built from the raw
- * message is per-machine: a baseline banked on one checkout reported three
- * phantom "new" diagnostics on every other one, including CI, where the same
- * three were already banked under a different prefix.
+ * The checkout's own location, out of the message text. TS7016 names the
+ * resolved module by ABSOLUTE path, so a raw-message identity is per-machine and
+ * a baseline banked on one checkout reads as new diagnostics on every other.
  */
 const unroot = (msg) => msg.split(`${ROOT_POSIX}/`).join('').split(ROOT_POSIX).join('');
 

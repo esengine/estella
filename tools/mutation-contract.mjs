@@ -84,13 +84,10 @@ function snapshot(world, entity, component) {
 }
 
 /**
- * One access path against a fresh world.
- *
- * `make` builds the component and its initial value, so a row can choose the
- * storage it needs: an all-scalar script shape is pooled into the wasm heap, a
- * shape with a nested object is a plain JS object, and a builtin lives in C++.
- * Those are three different objects to hand a caller, and the whole question is
- * whether they behave the same.
+ * One access path against a fresh world. `kind` picks the storage: an all-scalar
+ * script shape is pooled into the wasm heap, a nested one is a plain JS object,
+ * a builtin lives in C++. Three different objects to hand a caller, and the
+ * question is whether they behave the same.
  */
 async function probe({ name, kind, expect, defect = false, cpp = false, body }) {
     const app = sdk.App.new();
