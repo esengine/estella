@@ -219,11 +219,20 @@ if (existsSync(path.join(ROOT, PIN_FILE))) {
         ...f.verification.flatMap((v) => v.compares ?? []),
     ]).concat(Object.keys(RE_EXPORTS)));
     const reads = readsOf(PIN_FILE);
+    // A pin that resolves to no repo file is a checker that cannot see, not a
+    // tree with nothing to answer for: both walks below would read clean on any
+    // tree, which is how a separator this host spells differently stayed quiet.
+    if (reads.length === 0) {
+        findings.push(`GROUND: ${PIN_FILE} names no repo file this run can resolve — the`
+            + ' two checks below have nothing to walk, and would pass on any tree.');
+    }
     for (const rel of reads) {
         if (declared.has(rel)) continue;
         findings.push(`GROUND: ${PIN_FILE} reads ${rel}, and no fact names it — as an author, as`
             + ' a projection, or in the `compares` of the verification that reads it.');
     }
+    notes.push(`${reads.length} repo file(s) read by ${PIN_FILE}, each one a node this list `
+        + 'explains.');
     // An excuse nobody uses is an excuse that stops being true.
     for (const [rel, why] of Object.entries(RE_EXPORTS)) {
         if (!reads.includes(rel)) {
@@ -235,17 +244,20 @@ if (existsSync(path.join(ROOT, PIN_FILE))) {
 }
 
 /** Repo files a source names: an import, or a path handed to a reader. Resolved
- *  against the roots this repo's test helpers use, so a fragment counts too. */
+ *  against the roots this repo's test helpers use, and joined with `path.posix`
+ *  because the answer is held against `git ls-files`: a backslash matches
+ *  nothing there, so on Windows the pin read as naming NO file at all — every
+ *  re-export a stale excuse, and the ground check walking an empty list. */
 function readsOf(rel) {
     const text = read(rel);
-    const bases = [path.dirname(rel), '', 'src/esengine'];
+    const bases = [path.posix.dirname(rel), '', 'src/esengine'];
     const out = new Set();
     for (const m of text.matchAll(/'([^'\n]+)'/g)) {
         const lit = m[1];
         if (!lit.includes('/') || lit.startsWith('/')) continue;
         for (const base of bases) {
             for (const ext of ['', '.ts', '.hpp', '.cpp']) {
-                const at = path.normalize(path.join(base, lit) + ext);
+                const at = path.posix.normalize(path.posix.join(base, lit) + ext);
                 if (tracked.includes(at)) out.add(at);
             }
         }
