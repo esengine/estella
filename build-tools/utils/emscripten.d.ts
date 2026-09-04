@@ -5,3 +5,6 @@
 
 /** The `emcc` to run, or null where no activated emsdk was found. */
 export function emccPath(): string | null;
+
+export const NO_EMCC: string;
+export function proveEmcc(suite: string): void;

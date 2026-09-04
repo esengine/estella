@@ -59,6 +59,11 @@ const GAPS = [
     says: 'no C compiler — the emitted C was NOT compared against the interpreter,'
       + ' and the ABI struct checks were not compiled',
   },
+  {
+    env: 'ESTELLA_NO_EMCC',
+    value: '1',
+    says: 'no emsdk — nothing was compiled to wasm, so nothing was compared against a module',
+  },
 ];
 const declared = GAPS.filter((g) => process.env[g.env] === g.value);
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES });

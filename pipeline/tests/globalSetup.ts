@@ -8,7 +8,9 @@
  *          in one place, so the `skipIf`s below it mean what they say.
  */
 import { proveHostCC } from '../../compiler/src/hostCC';
+import { proveEmcc } from '../../build-tools/utils/emscripten.js';
 
 export default async function setup(): Promise<void> {
     proveHostCC('pipeline-tests');
+    proveEmcc('pipeline-tests');
 }

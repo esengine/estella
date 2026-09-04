@@ -19,6 +19,7 @@
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { WASM_DIR, WASM_FILE, SIDE_MODULES, NO_WASM_MODE } from './helpers/loadWasm';
+import { proveEmcc } from '../../build-tools/utils/emscripten.js';
 
 /** The package this suite belongs to — where it has to be run from. */
 const SDK_ROOT = resolve(__dirname, '..');
@@ -27,6 +28,9 @@ const SDK_ROOT = resolve(__dirname, '..');
 const CANONICAL = 'pnpm --filter ./sdk test   (or: cd sdk && npx vitest run)';
 
 export default async function setup(): Promise<void> {
+    // The AOT suites build a real module; without emcc they would skip in silence.
+    proveEmcc('sdk-tests');
+
     if (NO_WASM_MODE) {
         console.warn(
             '\n[sdk-tests] SDK_TEST_MODE=no-wasm — the engine boundary suites will NOT run.\n'

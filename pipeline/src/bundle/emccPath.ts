@@ -15,14 +15,7 @@
  */
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-/** `emcc` is a .bat on Windows, and spawning it needs the extension. */
-const EXE = process.platform === 'win32' ? 'emcc.bat' : 'emcc';
-
-/** The repo root, from this file's own location (pipeline/src/bundle). */
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+import { emccPath } from '../../../build-tools/utils/emscripten.js';
 
 /**
  * Run it. Never rejects: a missing binary is a code and a message, so the step
@@ -51,11 +44,8 @@ export function resolveEmcc(override?: string | null): string | null {
     if (override) return existsSync(override) ? override : null;
     const env = process.env['EMCC'];
     if (env && existsSync(env)) return env;
-    const emsdk = process.env['EMSDK'];
-    if (emsdk) {
-        const at = path.join(emsdk, 'upstream', 'emscripten', EXE);
-        if (existsSync(at)) return at;
-    }
-    const local = path.join(REPO, 'tools', 'emsdk', 'upstream', 'emscripten', EXE);
-    return existsSync(local) ? local : null;
+    // The one discovery, not a second policy: this looked only at EMSDK and the
+    // `tools/emsdk` submodule, so a machine whose emsdk lives anywhere else was
+    // told it had no compiler while the SDK suite compiled on it all day.
+    return emccPath();
 }

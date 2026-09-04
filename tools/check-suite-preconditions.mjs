@@ -30,6 +30,8 @@ const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
  */
 const CAPABILITIES = [
     { what: 'a host C compiler', probe: 'findHostCC', prover: 'proveHostCC', owner: 'compiler/src/hostCC.ts' },
+    { what: 'an activated emsdk', probe: 'emccPath', prover: 'proveEmcc',
+      owner: 'build-tools/utils/emscripten.js' },
 ];
 
 /** Test files, by the package that owns them. */

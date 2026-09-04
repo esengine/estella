@@ -79,6 +79,28 @@ export function emccPath() {
     return null;
 }
 
+/** How a checkout with no emsdk says so, rather than skipping in silence. */
+export const NO_EMCC = 'ESTELLA_NO_EMCC';
+
+/**
+ * Prove the machine can compile to wasm before a suite claims it compared
+ * anything against a module. A skip reads the same in a summary as a test that
+ * ran, so a run either has emcc or declares that it has none.
+ */
+export function proveEmcc(suite) {
+    if (emccPath()) return;
+    if (process.env[NO_EMCC] === '1') {
+        console.warn(`\n[${suite}] ${NO_EMCC}=1 — nothing that needs emcc ran.\n`
+            + '            This run compiled no module, so it compared none.\n');
+        return;
+    }
+    throw new Error(
+        'no activated emsdk on this machine.\n'
+        + '  The AOT suites build a real module, and skipping them would report a partial run\n'
+        + `  as a clean one. Run \`pnpm emsdk:setup\`, or declare the gap with ${NO_EMCC}=1 —\n`
+        + '  which the gate runner then counts as something this machine could not answer.');
+}
+
 let emsdkActivated = false;
 
 /**
