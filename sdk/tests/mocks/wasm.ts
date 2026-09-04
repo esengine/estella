@@ -37,6 +37,14 @@ export function createMockModule(): MockModule {
 
         entityCount: () => entities.size,
 
+        /**
+         * Every engine pool's version. A constant, and the TRUTH rather than a
+         * stub: this registry keeps components in JS maps, so nothing here has
+         * an address that can move. Null would mean "assume everything moved",
+         * which kept the AOT row cache from ever being reused in a suite.
+         */
+        layoutEpoch: () => 0,
+
         // Mirrors ecs::setParent: both halves of the link, or neither.
         setParent: (child: Entity, parent: Entity) => {
             const detach = (): void => {
