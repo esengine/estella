@@ -29,6 +29,8 @@
     "gate": "node tools/check-release-gate.mjs --report",
     "gate:run": "node tools/run-release-gate.mjs",
     "render-host": "node tools/render-host/build.mjs",
+    "verify:mutation": "node tools/mutation-contract.mjs",
+    "census:mutation": "node tools/mutation-census.mjs",
     "verify:render": "node tools/verify-render.mjs",
     "test": "vitest run --config vitest.engine.config.ts",
     "verify:aot": "rm -rf .aot-verify && node pipeline/bin/estella.mjs export examples/ecs-basics --out .aot-verify && node tools/run-electron.mjs tools/launchers/headless-aot-verify.mjs .aot-verify",
