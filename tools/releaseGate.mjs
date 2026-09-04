@@ -112,7 +112,7 @@ export const CRITERIA = [
   },
   {
     id: 'every-road-answers-the-same-world',
-    says: 'one source, run four ways, leaves the same world after every frame',
+    says: 'one source, on every road it runs, leaves the same world after every frame',
     // Dispatching is not COMPUTING: the criterion above asks whether a packaged
     // game REACHES a compiled system. A road that quietly fell back agrees with
     // any trace, so the run must say a system was taken before agreement counts.
