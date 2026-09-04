@@ -17,9 +17,6 @@
  *          than a missing one.
  */
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +27,7 @@ import { AotResources } from '../src/ecs/aot/AotResources';
 import type { Entity } from '../src/types';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { FakeEngine } from './fakeEngine';
-import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
+import { buildAotModule } from './helpers/aotFade';
 
 const e = (n: number): Entity => n as unknown as Entity;
 const N = 16;
@@ -104,19 +101,7 @@ void es_sys_Decay(es_addr_t ctx) {
 }
 `;
 
-function buildModule(): Uint8Array {
-    const dir = mkdtempSync(path.join(tmpdir(), 'estella-sdk-aot-'));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'sys.c'), SYSTEM_C);
-    const out = path.join(dir, 'sys.wasm');
-    const built = spawnSync(EMCC!, [
-        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Decay',
-        '-o', out, path.join(dir, 'sys.c'),
-    ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
-    if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
-    return readFileSync(out);
-}
+const buildModule = (): Uint8Array => buildAotModule(EMCC!, SYSTEM_C, 'es_sys_Decay');
 
 const DEFAULTS = { remaining: 0, rate: 1 };
 

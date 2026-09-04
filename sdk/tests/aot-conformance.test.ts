@@ -15,16 +15,14 @@
  *          agrees with itself.
  */
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { lowerProgram, brokenPromises } from '../../compiler/src/frontend';
 import { builtinShapes } from '../../compiler/src/builtins';
 import { inlineSystem } from '../../compiler/src/inline';
 import { packLayout } from '../../compiler/src/abi';
-import { emitC, moduleDeclarations, WASM_LINK_FLAGS } from '../../compiler/src/codegen';
+import { emitC, moduleDeclarations } from '../../compiler/src/codegen';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 
 import { App } from '../src/app/app';
@@ -32,7 +30,7 @@ import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
 import { FakeEngine } from './fakeEngine';
-import { useBytesPlatform } from './helpers/aotFade';
+import { buildAotModule, useBytesPlatform } from './helpers/aotFade';
 import { Schedule } from '../src/ecs/system';
 import { Time } from '../src/ecs/resource';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
@@ -61,21 +59,15 @@ function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest
     const inlined = lowered.module.systems.map((s) => inlineSystem(s, lowered.module.fns));
     const c = emitC(lowered.module, packLayout(lowered.module.comps), inlined, 4);
 
-    const dir = mkdtempSync(path.join(tmpdir(), 'estella-conf-'));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'estella_abi.h'), c.header);
-    writeFileSync(path.join(dir, 'estella_offsets.h'), c.offsets);
-    writeFileSync(path.join(dir, 'sys.c'), c.source);
-    const out = path.join(dir, 'sys.wasm');
-    const built = spawnSync(emcc, [
-        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, `-sEXPORTED_FUNCTIONS=${c.symbols.map((s) => `_${s}`).join(',')}`,
-        '-o', out, path.join(dir, 'sys.c'),
-    ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
-    if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
+    // Through the one spelling of "how the emitted C is compiled", so this road
+    // is built the way a shipped project's is rather than nearly that way.
+    const wasm = buildAotModule(emcc, c.source, c.symbols, {
+        'estella_abi.h': c.header,
+        'estella_offsets.h': c.offsets,
+    });
 
     return {
-        wasm: readFileSync(out),
+        wasm,
         manifest: {
             engineAbi: c.handshake.engineAbi,
             projectShapes: c.handshake.projectShapes,

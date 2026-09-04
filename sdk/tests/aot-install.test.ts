@@ -18,9 +18,7 @@
  *          Loud skip without emsdk — the module here is really compiled.
  */
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,9 +36,10 @@ import type { AnyComponentDef } from '../src/ecs/component';
 import type { WasmHeap } from '../src/ecs/WasmPoolMemory';
 import type { Entity } from '../src/types';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
-import { WASM_LINK_FLAGS } from '../../compiler/src/codegen';
 import { FakeEngine } from './fakeEngine';
-import { buildFadeModule, FADE_FIELDS, fadeManifest } from './helpers/aotFade';
+import {
+    buildAotModuleFile, buildFadeModule, FADE_FIELDS, fadeManifest, type AotModuleFile,
+} from './helpers/aotFade';
 
 const N = 16;
 
@@ -93,19 +92,7 @@ function moduleFor(kind: keyof typeof HOSTS, built: { bytes: Uint8Array; path: s
     return kind === 'a host that takes only a path' ? built.path : built.bytes;
 }
 
-function buildModule(): { bytes: Uint8Array; path: string } {
-    const dir = mkdtempSync(path.join(tmpdir(), 'estella-install-'));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, 'sys.c'), SYSTEM_C);
-    const out = path.join(dir, 'sys.wasm');
-    const built = spawnSync(EMCC!, [
-        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, '-sEXPORTED_FUNCTIONS=_es_sys_Fade',
-        '-o', out, path.join(dir, 'sys.c'),
-    ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
-    if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
-    return { bytes: readFileSync(out), path: out };
-}
+const buildModule = (): AotModuleFile => buildAotModuleFile(EMCC!, SYSTEM_C, 'es_sys_Fade');
 
 const FADE_FIELDS = ['alpha', 'step'];
 

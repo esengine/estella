@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { WASM_LINK_FLAGS } from '../../../compiler/src/codegen';
+import { CFLAGS, WASM_LINK_FLAGS } from '../../../compiler/src/codegen';
 import { engineAbiDigest, projectShapeDigest } from '../../src/ecs/aot/abiDigest';
 import { resourceMethodBit } from '../../src/ecs/resourceShapes';
 import type { AotManifest } from '../../src/ecs/aot/AotSystems';
@@ -56,18 +56,53 @@ export const FADE_PROBE_ALPHA = -1;
 
 export const FADE_FIELDS = ['alpha', 'step'];
 
-export function buildAotModule(emcc: string, source: string, symbol: string): Uint8Array {
+/**
+ * How the emitted C is compiled here: the BUILD's flags, plus a test's warnings.
+ *
+ * Four copies of this list had drifted from `CFLAGS`, all four missing
+ * `-fexcess-precision=standard`: a differential that compiles the C differently
+ * from a shipped project is a differential about another binary.
+ */
+const TEST_CFLAGS: readonly string[] = [...CFLAGS, '-Wall', '-Wextra'];
+
+/** A built module and where it landed, for a host that takes only a path. */
+export interface AotModuleFile {
+    bytes: Uint8Array;
+    path: string;
+}
+
+/**
+ * Compile one C source into a side module. `headers` are written beside it, for
+ * a source the compiler emitted with `#include`s of its own.
+ */
+export function buildAotModuleFile(
+    emcc: string,
+    source: string,
+    symbols: string | readonly string[],
+    headers: Readonly<Record<string, string>> = {},
+): AotModuleFile {
     const dir = mkdtempSync(path.join(tmpdir(), 'estella-aot-'));
     mkdirSync(dir, { recursive: true });
+    for (const [name, text] of Object.entries(headers)) writeFileSync(path.join(dir, name), text);
     writeFileSync(path.join(dir, 'sys.c'), source);
     const out = path.join(dir, 'sys.wasm');
+    const exported = (typeof symbols === 'string' ? [symbols] : symbols).map((s) => `_${s}`);
     const built = spawnSync(emcc, [
-        '-std=c11', '-O2', '-ffp-contract=off', '-Wall', '-Wextra',
-        ...WASM_LINK_FLAGS, `-sEXPORTED_FUNCTIONS=_${symbol}`,
+        ...TEST_CFLAGS,
+        ...WASM_LINK_FLAGS, `-sEXPORTED_FUNCTIONS=${exported.join(',')}`,
         '-o', out, path.join(dir, 'sys.c'),
     ], { encoding: 'utf8', cwd: dir, shell: process.platform === 'win32' });
     if (built.status !== 0) throw new Error(`emcc failed:\n${built.stderr}`);
-    return readFileSync(out);
+    return { bytes: readFileSync(out), path: out };
+}
+
+export function buildAotModule(
+    emcc: string,
+    source: string,
+    symbols: string | readonly string[],
+    headers: Readonly<Record<string, string>> = {},
+): Uint8Array {
+    return buildAotModuleFile(emcc, source, symbols, headers).bytes;
 }
 
 export function buildFadeModule(emcc: string, source: string = FADE_C): Uint8Array {
