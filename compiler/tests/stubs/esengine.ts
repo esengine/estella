@@ -39,8 +39,9 @@ export function ResMut(resource: unknown): unknown {
 }
 export const Input = { _name: 'Input' };
 export { exact } from '../../../sdk/src/math/exact';
-export function defineEvent<T>(name: string): { _name: string } {
+export function defineEvent<T>(name: string, payload?: T & object): { _name: string } {
     void (undefined as T | undefined);
+    void payload;
     return { _name: name };
 }
 export function EventWriter(event: unknown): unknown {

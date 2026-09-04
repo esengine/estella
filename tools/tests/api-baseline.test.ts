@@ -139,3 +139,48 @@ describe('an interface that gains an optional member', () => {
         expect(isAdditiveMembers('a: string | undefined', 'a: string | undefined')).toBe(false);
     });
 });
+
+/**
+ * A trailing OPTIONAL parameter breaks no call that was written, which is the
+ * whole of what @public promises. Every other edit to a signature does break
+ * one, so the rule has to be a prefix rule and not "the strings differ".
+ */
+describe('a @public function that gained an optional parameter', () => {
+    const was = sig('defineEvent — function @public', '<T>(name: string): EventDef<T>');
+    const changed = (body: string) =>
+        baselineFindings(snapshot(was), snapshot(sig('defineEvent — function @public', body)));
+
+    it('is a note, not a broken promise', () => {
+        const { failures, notes } = changed('<T>(name: string, payload?: T & object): EventDef<T>');
+        expect(failures).toEqual([]);
+        expect(notes.join(' ')).toMatch(/gained an optional parameter/);
+    });
+
+    it('is still broken when the new parameter is REQUIRED', () => {
+        expect(changed('<T>(name: string, payload: T & object): EventDef<T>').failures)
+            .toEqual(['defineEvent — @public signature changed']);
+    });
+
+    it('is still broken when an existing parameter changed', () => {
+        expect(changed('<T>(name: number, payload?: T): EventDef<T>').failures)
+            .toEqual(['defineEvent — @public signature changed']);
+    });
+
+    it('is still broken when the return type changed', () => {
+        expect(changed('<T>(name: string, payload?: T): EventDef<unknown>').failures)
+            .toEqual(['defineEvent — @public signature changed']);
+    });
+
+    it('is still broken when a parameter was inserted rather than appended', () => {
+        expect(changed('<T>(payload?: T, name: string): EventDef<T>').failures)
+            .toEqual(['defineEvent — @public signature changed']);
+    });
+
+    /** A type parameter list is not a parameter list; a comma inside one must
+     *  not split a parameter either. */
+    it('reads a parameter whose own type carries a comma', () => {
+        const wide = sig('f — function @public', '(a: Map<string, number>): void');
+        const wider = sig('f — function @public', '(a: Map<string, number>, b?: number): void');
+        expect(baselineFindings(snapshot(wide), snapshot(wider)).failures).toEqual([]);
+    });
+});

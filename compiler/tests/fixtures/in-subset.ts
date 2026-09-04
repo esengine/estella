@@ -163,7 +163,7 @@ export const gateSystem = defineSystem(
 );
 
 /** One payload, and the two halves that put it into memory and take it out. */
-export const Pinged = defineEvent<{ by: number }>('FixturePinged');
+export const Pinged = defineEvent<{ by: number }>('FixturePinged', { by: 0 });
 
 export const pingSystem = defineSystem(
     [Query(Mut(Drift)), EventWriter(Pinged)],

@@ -103,7 +103,10 @@ function fixture(boundNames: readonly string[]) {
  */
 const EVENT_MANIFEST: AotManifest = {
     engineAbi: engineAbiDigest(8),
-    projectShapes: projectShapeDigest([{ name: 'Drift', fields: ['x'] }]),
+    projectShapes: projectShapeDigest([
+        { name: 'Drift', fields: ['x'] },
+        { name: 'Hit', fields: ['amount'] },
+    ]),
     systems: [
         {
             name: 'SendSystem', symbol: 'es_sys_Send', resources: [],
@@ -124,7 +127,7 @@ const EVENT_MANIFEST: AotManifest = {
 
 function eventFixture() {
     const Drift = declareDrift();
-    const Hit = defineEvent<{ amount: number }>('Hit');
+    const Hit = defineEvent<{ amount: number }>('Hit', { amount: 0 });
     const events = new EventRegistry();
     const world = new World();
     const runner = new SystemRunner(world, new ResourceStorage(), events);
@@ -384,32 +387,66 @@ describe('a module and the sidecar written beside it', () => {
 
 
 /**
- * Both halves of `projectShapes` must range over the same set. A reader's slot
- * queries the EVENT it reads, which `defineEvent<T>` erases — left in on either
- * side alone, every module with a reader is refused, blaming a component that
- * never moved.
+ * A payload's field ORDER is what compiled code baked in, and a manifest
+ * compared against itself always agrees. `defineEvent` carries the payload as a
+ * VALUE — what a component's defaults already are — so this side says what the
+ * order is without being told by the module.
  */
-describe('an event a reader names is not a component either half counts', () => {
-    /** The event shares a real component's NAME, which is what makes this a test
-     *  and not a restatement: without the slot rule this side would resolve it
-     *  and count a shape the compiler did not. */
-    function manifest(): AotManifest {
-        return {
-            engineAbi: engineAbiDigest(8),
-            projectShapes: projectShapeDigest([{ name: 'Drift', fields: ['x'] }]),
-            systems: [{
-                name: 'AbsorbSystem', symbol: 'es_sys_Absorb', resources: [],
-                queries: [[{ comp: 'Named', mut: false }], [{ comp: 'Drift', mut: true }]],
-                readers: [{ slot: 0, event: 'Named', fields: ['amount'] }],
-            }],
-        };
-    }
+describe('an event payload is a project shape', () => {
+    const manifestFor = (fields: readonly string[]): AotManifest => ({
+        engineAbi: engineAbiDigest(8),
+        projectShapes: projectShapeDigest([
+            { name: 'Drift', fields: ['x'] },
+            { name: 'Struck', fields: [...fields] },
+        ]),
+        systems: [{
+            name: 'AbsorbSystem', symbol: 'es_sys_Absorb', resources: [],
+            queries: [[{ comp: 'Struck', mut: false }], [{ comp: 'Drift', mut: true }]],
+            readers: [{ slot: 0, event: 'Struck', fields: [...fields] }],
+        }],
+    });
 
-    it('is left out even where a component answers to its name', () => {
+    const install = (m: AotManifest) => () => new AotSystems().install(
+        m, { es_sys_Absorb: () => {} }, (name) => getComponent(name), { addressBytes: 8 });
+
+    it('installs where the payload this project declares is the one it was built for', () => {
         declareDrift();
-        defineComponent('Named', { amount: 0 });
-        const m = manifest();
-        expect(() => new AotSystems().install(
-            m, { es_sys_Absorb: () => {} }, (name) => getComponent(name), () => [], 8)).not.toThrow();
+        defineEvent<{ target: number; amount: number }>('Struck', { target: 0, amount: 0 });
+        expect(install(manifestFor(['target', 'amount']))).not.toThrow();
+    });
+
+    /** A rename: the module reads a field now called something else, and every
+     *  value it delivers is undefined. */
+    it('refuses a module built against a payload this project no longer has', () => {
+        declareDrift();
+        defineEvent<{ target: number; power: number }>('Renamed', { target: 0, power: 0 });
+        const m = manifestFor(['target', 'amount']);
+        const renamed: AotManifest = {
+            ...m,
+            projectShapes: projectShapeDigest([
+                { name: 'Drift', fields: ['x'] },
+                { name: 'Renamed', fields: ['target', 'amount'] },
+            ]),
+            systems: [{ ...m.systems[0]!, queries: [[{ comp: 'Renamed', mut: false }], [{ comp: 'Drift', mut: true }]],
+                readers: [{ slot: 0, event: 'Renamed', fields: ['target', 'amount'] }] }],
+        };
+        expect(install(renamed)).toThrow(/built for components/);
+    });
+
+    /** And the reorder, which changes every position without changing a name. */
+    it('refuses a module built against the same fields in another order', () => {
+        declareDrift();
+        defineEvent<{ target: number; amount: number }>('Reordered', { amount: 0, target: 0 });
+        const m = manifestFor(['target', 'amount']);
+        const swapped: AotManifest = {
+            ...m,
+            projectShapes: projectShapeDigest([
+                { name: 'Drift', fields: ['x'] },
+                { name: 'Reordered', fields: ['target', 'amount'] },
+            ]),
+            systems: [{ ...m.systems[0]!, queries: [[{ comp: 'Reordered', mut: false }], [{ comp: 'Drift', mut: true }]],
+                readers: [{ slot: 0, event: 'Reordered', fields: ['target', 'amount'] }] }],
+        };
+        expect(install(swapped)).toThrow(/built for components/);
     });
 });

@@ -222,6 +222,10 @@ class SystemLowerer {
         /** Event payloads by declared name, and the const each is bound to. */
         private readonly events: ReadonlyMap<string, CompShape> = new Map(),
         private readonly eventBindings: ReadonlyMap<string, string> = new Map(),
+        /** Events with no payload VALUE beside their type. Compiled code reads a
+         *  payload by position, and only the value tells the runtime which
+         *  position is which. */
+        private readonly unpayloaded: ReadonlySet<string> = new Set(),
     ) {}
 
     /** The event a binding names, or null when the program declares no such one. */
@@ -332,6 +336,11 @@ class SystemLowerer {
                 const name = this.eventName(arg.text);
                 if (!name) {
                     throw new NotInSubset(el, `'${arg.text}' is not an event this program declares`);
+                }
+                if (this.unpayloaded.has(name)) {
+                    throw new NotInSubset(el, `'${name}' is declared without a payload value, so nothing`
+                        + ' at run time can say which field a compiled system read. Give defineEvent a'
+                        + ` default: defineEvent<...>('${name}', { ... })`, 'permanent');
                 }
                 return kind === 'EventWriter'
                     ? { k: 'channel', name, channel: 'event' } as EirType
@@ -861,6 +870,28 @@ function componentShape(call: ts.CallExpression, tag: boolean): CompShape | null
 }
 
 /**
+ * The second argument's leaves, dotted, in declaration order — the same walk
+ * `eventFieldsOf` makes at run time. Null where it is absent or is not a literal
+ * of scalars, which is the only shape both sides can agree about.
+ */
+function declaredPayload(call: ts.CallExpression): string[] | null {
+    const literal = call.arguments[1];
+    if (!literal || !ts.isObjectLiteralExpression(literal)) return null;
+    const out: string[] = [];
+    const walk = (node: ts.ObjectLiteralExpression, prefix: string): boolean => {
+        for (const prop of node.properties) {
+            if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return false;
+            const path = prefix ? `${prefix}.${prop.name.text}` : prop.name.text;
+            if (ts.isObjectLiteralExpression(prop.initializer)) {
+                if (!walk(prop.initializer, path)) return false;
+            } else out.push(path);
+        }
+        return true;
+    };
+    return walk(literal, '') ? out : null;
+}
+
+/**
  * `defineEvent<{ target: Entity; amount: number }>('DamageDealt')` -> a shape.
  *
  * A payload's fields live only in the TYPE argument, read as syntax rather than
@@ -978,6 +1009,8 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     /** Event payloads, by declared name — a second namespace from components. */
     const events = new Map<string, CompShape>();
     const eventBindings = new Map<string, string>();
+    /** Events declared with no payload value, which compiled code may not use. */
+    const unpayloaded = new Set<string>();
     /** Resources the PROJECT declared, whose layout travels in the manifest. */
     const userResources = new Set<string>();
     const consts = new Map<string, ConstValue>();
@@ -1075,6 +1108,19 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                     });
                     return;
                 }
+                // The payload as a VALUE, held against it as a type: the layout
+                // comes from the type and the runtime can read only the value,
+                // so a disagreement is two halves over different fields.
+                const declared = declaredPayload(node);
+                if (declared === null) unpayloaded.add(shape.name);
+                else if (declared.join(',') !== [...shape.fields.keys()].join(',')) {
+                    unpayloaded.add(shape.name);
+                    diagnostics.push({
+                        file: sf.fileName, line: lineOf(sf, node), kind: 'permanent', severity: 'note',
+                        message: `'${shape.name}' declares the payload [${declared.join(', ')}] and its`
+                            + ` type says [${[...shape.fields.keys()].join(', ')}] — one of the two moved`,
+                    });
+                }
                 events.set(shape.name, shape);
                 // ONE shape table downstream: a payload's fields are read the
                 // same way a component's are, so every later pass finds them
@@ -1127,7 +1173,7 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 }
                 if (!name || !params || !body || fns.has(name)) return;
                 try {
-                    fns.set(name, new SystemLowerer(comps, bindings, consts, fns, fnFailures, events, eventBindings)
+                    fns.set(name, new SystemLowerer(comps, bindings, consts, fns, fnFailures, events, eventBindings, unpayloaded)
                         .lowerFn(name, params, body));
                 } catch (e) {
                     if (!(e instanceof NotInSubset)) throw e;
@@ -1152,7 +1198,8 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
                 if (!params || !fn || !ts.isArrowFunction(fn)) {
                     throw new NotInSubset(node, 'defineSystem takes a parameter array and an arrow function');
                 }
-                systems.push(new SystemLowerer(comps, bindings, consts, fns, fnFailures, events, eventBindings).lower(name, params, fn));
+                systems.push(new SystemLowerer(comps, bindings, consts, fns, fnFailures, events,
+                    eventBindings, unpayloaded).lower(name, params, fn));
             } catch (e) {
                 if (!(e instanceof NotInSubset)) throw e;
                 diagnostics.push({

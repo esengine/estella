@@ -203,7 +203,7 @@ describe('an App told to run its compiled twins', () => {
         const wasm = buildAotModule(EMCC!, EVENT_C, 'es_sys_Absorb');
         const { app } = bootMockApp();
         const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
-        const Hit = defineEvent<{ amount: number }>('Hit');
+        const Hit = defineEvent<{ amount: number }>('Hit', { amount: 0 });
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [EventReader(Hit), Query(Mut(Fade))], () => { /* the twin is the point */ },
             { name: 'Absorb' }));
@@ -226,7 +226,7 @@ describe('an App told to run its compiled twins', () => {
         const wasm = buildAotModule(EMCC!, EVENT_C, 'es_sys_Emit');
         const { app } = bootMockApp();
         const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
-        const Hit = defineEvent<{ amount: number }>('Sent');
+        const Hit = defineEvent<{ amount: number }>('Sent', { amount: 0 });
         const seen: number[] = [];
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Query(Fade), EventWriter(Hit)], () => { /* the twin is the point */ },

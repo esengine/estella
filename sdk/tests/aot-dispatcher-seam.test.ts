@@ -67,8 +67,7 @@ function hostRuntime(world: World, seen: { dispatcher?: HostPackedDispatcher }):
         MANIFEST,
         { es_sys_Drift: () => { throw new Error('the host calls it, not the runner'); } },
         (name) => (name === 'Drift' ? Drift : undefined),
-        () => [],
-        NATIVE_ADDR,
+        { addressBytes: NATIVE_ADDR },
     );
     return {
         systems,

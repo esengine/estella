@@ -10,8 +10,9 @@ export interface CollectEvent {
     points: number;
 }
 
-export const SpawnRequestEvent = defineEvent<SpawnRequest>('SpawnRequest');
-export const CollectEventDef = defineEvent<CollectEvent>('CollectEvent');
+export const SpawnRequestEvent = defineEvent<SpawnRequest>(
+    'SpawnRequest', { x: 0, y: 0, color: { r: 0, g: 0, b: 0 } });
+export const CollectEventDef = defineEvent<CollectEvent>('CollectEvent', { points: 0 });
 
 export interface ScoreData {
     value: number;

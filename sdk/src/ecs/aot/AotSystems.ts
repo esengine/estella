@@ -17,6 +17,7 @@
 
 import type { AnyComponentDef } from '../component';
 import { engineAbiDigest, projectShapeDigest, type ShapeDigestInput } from './abiDigest';
+import { eventFieldsOf } from '../event';
 
 /** One system's declaration, as the build wrote it beside the module. */
 export interface AotSystemDecl {
@@ -36,6 +37,31 @@ export interface AotSystemDecl {
     readonly readers?: readonly { slot: number; event: string; fields: readonly string[] }[];
     /** Event writers, by the slot the appended record names. */
     readonly writers?: readonly { slot: number; event: string; fields: readonly string[] }[];
+}
+
+/**
+ * What a road knows that the manifest cannot say for itself. Each answer comes
+ * from the RUNTIME, never from the manifest: a manifest compared against itself
+ * always agrees.
+ */
+export interface InstallOptions {
+    /** The fields this runtime's copy of a resource has, in ITS order, or
+     *  undefined when there is no such resource. */
+    readonly resourceFields?: (name: string) => readonly string[] | undefined;
+    /** The fields this runtime's copy of an event payload has, in ITS order.
+     *  Undefined is "cannot say" — an event declared without a payload value. */
+    readonly eventFields?: (name: string) => readonly string[] | undefined;
+    /** `sizeof(es_addr_t)` where this module will run: 4 in a wasm module
+     *  addressing the engine's memory by offset, 8 in a library the host
+     *  loaded into its own process. */
+    readonly addressBytes?: 4 | 8;
+    /** Which declarations become twins. The handshake is still checked over the
+     *  WHOLE manifest, because that is what the module is. Default: all. */
+    readonly runs?: (name: string) => boolean;
+    /** What the ARTIFACT says it was built as, or null where this road cannot
+     *  ask it. Two builds over one engine and one project agree on both digests
+     *  while declaring different queries, mut flags and event payloads. */
+    readonly moduleContract?: string | null;
 }
 
 export interface AotManifest {
@@ -106,33 +132,15 @@ export class AotSystems {
         manifest: AotManifest,
         exports: Readonly<Record<string, unknown>>,
         resolve: (name: string) => AnyComponentDef | undefined,
-        /**
-          * The fields this runtime's copy of a resource has, in ITS order, or
-          * undefined when there is no such resource. Asked rather than taken
-          * from the manifest: a manifest compared against itself always agrees.
-          */
-        resourceFields: (name: string) => readonly string[] | undefined = () => [],
-        /**
-          * `sizeof(es_addr_t)` where this module will run: 4 in a wasm module
-          * addressing the engine's memory by offset, 8 in a library the host
-          * loaded into its own process. The digest carries it, so asking for
-          * the wrong one is the refusal it is supposed to be.
-          */
-        addressBytes: 4 | 8 = 4,
-        /**
-          * Which declarations become twins. The handshake is still checked over
-          * the WHOLE manifest, because that is what the module is; a host that
-          * could bind only some of it still loaded all of it. Default: all.
-          */
-        runs: (name: string) => boolean = () => true,
-        /**
-          * What the ARTIFACT says it was built as, or null where this road
-          * cannot ask it. Two builds over one engine and one project agree on
-          * both digests below while declaring different queries, mut flags and
-          * event payloads — which is what the bookkeeping here reads.
-          */
-        moduleContract: string | null = null,
+        opts: InstallOptions = {},
     ): void {
+        const {
+            resourceFields = () => [],
+            eventFields = eventFieldsOf,
+            addressBytes = 4,
+            runs = () => true,
+            moduleContract = null,
+        } = opts;
         // Two questions with two fixes, so two answers rather than one that can
         // only say "something moved".
         const engine = engineAbiDigest(addressBytes);
@@ -149,7 +157,7 @@ export class AotSystems {
                 + 'different builds — the declarations this runtime reads are not the ones the '
                 + 'module compiled. Rebuild both.');
         }
-        const shapes = projectShapeDigest(scriptShapes(manifest, resolve, resourceFields));
+        const shapes = projectShapeDigest(scriptShapes(manifest, resolve, resourceFields, eventFields));
         if (manifest.projectShapes !== shapes) {
             throw new Error(
                 `AOT module refused: built for components ${manifest.projectShapes}, this project `
@@ -198,6 +206,7 @@ function scriptShapes(
     manifest: AotManifest,
     resolve: (name: string) => AnyComponentDef | undefined,
     resourceFields: (name: string) => readonly string[] | undefined,
+    eventFields: (name: string) => readonly string[] | undefined,
 ): ShapeDigestInput[] {
     const seen = new Set<string>();
     const out: ShapeDigestInput[] = [];
@@ -212,9 +221,16 @@ function scriptShapes(
             // what says whether that order is still the one here.
             out.push({ name: r.name, fields: [...(resourceFields(r.name) ?? [])] });
         }
-        // A reader's slot queries the EVENT it reads. Skipped on PURPOSE and
-        // not by failing to resolve: both halves of a digest must range over
-        // the same set. The payload layout still owes a mechanism of its own.
+        // A payload's field ORDER is what the compiled code baked in, and this
+        // side reads it off the value `defineEvent` carries — never off the
+        // manifest, which compared against itself always agrees.
+        for (const ch of [...(decl.readers ?? []), ...(decl.writers ?? [])]) {
+            if (seen.has(ch.event)) continue;
+            seen.add(ch.event);
+            out.push({ name: ch.event, fields: [...(eventFields(ch.event) ?? [])] });
+        }
+        // A reader's slot IS that event, counted just above rather than resolved
+        // here: both halves of a digest must range over the same set.
         const payloads = new Set((decl.readers ?? []).map((r) => r.slot));
         for (const [k, query] of decl.queries.entries()) {
             if (payloads.has(k)) continue;

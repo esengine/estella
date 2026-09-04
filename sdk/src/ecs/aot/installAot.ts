@@ -106,11 +106,13 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'>): Promi
     (exports['_initialize'] as (() => void) | undefined)?.();
 
     const systems = new AotSystems();
-    systems.install(opts.manifest, exports, componentNamed,
-        opts.resourceFields ?? ((name) => {
+    systems.install(opts.manifest, exports, componentNamed, {
+        resourceFields: opts.resourceFields ?? ((name) => {
             const value = opts.resources(name);
             return value === undefined ? undefined : Object.keys(value);
-        }), 4, () => true, moduleContractOf(exports));
+        }),
+        moduleContract: moduleContractOf(exports),
+    });
 
     const runtime: AotRuntime = {
         systems,

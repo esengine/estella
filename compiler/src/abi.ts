@@ -505,14 +505,19 @@ export function abiHandshake(
     // component to a project must not invalidate a module that never reads it.
     const named = new Set<string>();
     for (const p of plans) {
-        // A reader's slot queries the EVENT, which `defineEvent<T>` erases, so
-        // the other half of this digest cannot recompute one — counted here, it
-        // refuses every module with a reader. The payload layout owes its own.
+        // A reader's slot IS the event, and it is named below with the writers'
+        // — once, and as a payload rather than as a component the runtime would
+        // be asked to resolve.
         const payloads = new Set((p.readers ?? []).map((r) => r.slot));
         p.queries.forEach((q, k) => {
             if (payloads.has(k)) return;
             for (const a of q) named.add(a.comp);
         });
+        // The payload's field ORDER is what compiled code baked in, so it is a
+        // project shape like any other: the runtime reads the same order off the
+        // value `defineEvent` carries.
+        for (const r of p.readers) named.add(r.event);
+        for (const w of p.writers) named.add(w.event);
     }
     // A project's own RESOURCE is a project shape; the ENGINE's is not, being
     // covered by `engineAbi`. Counting one twice puts it in a digest the

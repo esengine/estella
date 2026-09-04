@@ -99,3 +99,47 @@ describe('a promise the author wrote down', () => {
         expect(brokenPromises(result).map((d) => d.system)).toEqual(['FixturePromised']);
     });
 });
+
+/**
+ * `defineEvent<T>` erases T, so a payload declared only as a type leaves the
+ * layout compiled code baked in unnameable at run time — and the two halves of
+ * the project handshake then range over different fields. The subset asks for
+ * the value, the way a component and a resource already carry theirs.
+ */
+describe('an event a compiled system uses carries its payload as a value', () => {
+    const NO_PAYLOAD = resolve(HERE, 'fixtures/event-no-payload.ts');
+    const lowered = lowerProgram([NO_PAYLOAD], builtinShapes());
+    const broken = brokenPromises(lowered);
+    const about = (system: string) => broken.find((d) => d.system === system);
+
+    it('refuses a reader of one that does not, with a line and the fix', () => {
+        const found = about('ReadsSilent');
+        expect(found, 'ReadsSilent was not refused').toBeDefined();
+        expect(found!.line).toBeGreaterThan(0);
+        expect(found!.message).toMatch(/declared without a payload value/);
+        expect(found!.message).toMatch(/defineEvent<\.\.\.>\('NoPayloadSilent', \{ \.\.\. \}\)/);
+    });
+
+    it('refuses a writer of one too — the layout is the same contract', () => {
+        expect(about('WritesSilent'), 'WritesSilent was not refused').toBeDefined();
+    });
+
+    /** The value and the type are two statements of one layout, so the compiler
+     *  holds them together — a payload declared in another order is every field
+     *  at another position, and the runtime would read the value's. */
+    it('refuses one whose declared value and type disagree, naming both', () => {
+        const said = lowered.diagnostics.find((d) => /NoPayloadCrossed/.test(d.message));
+        expect(said, 'the disagreement was not reported').toBeDefined();
+        expect(said!.message).toMatch(/declares the payload \[second, first\]/);
+        expect(said!.message).toMatch(/type says \[first, second\]/);
+        expect(said!.line).toBeGreaterThan(0);
+        // And the system that reads it does not compile against a layout the
+        // two halves cannot agree on.
+        expect(about('ReadsCrossed'), 'ReadsCrossed was not refused').toBeDefined();
+    });
+
+    it('and compiles the one whose event carries its payload', () => {
+        expect(about('ReadsLoud')).toBeUndefined();
+        expect(lowered.module.systems.some((s) => s.name === 'ReadsLoud')).toBe(true);
+    });
+});

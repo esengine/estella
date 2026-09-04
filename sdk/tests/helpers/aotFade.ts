@@ -223,10 +223,16 @@ export function userResManifest(fields: readonly string[]): AotManifest {
 
 /** The manifest for whichever half is being run. */
 export function eventManifest(which: 'Absorb' | 'Emit'): AotManifest {
-    const shapes = projectShapeDigest([{ name: 'Fade', fields: FADE_FIELDS }]);
+    // The payload is a project shape too: the compiled code baked its field
+    // order in, and this side reads the same order off what `defineEvent` was
+    // given. The two events differ, so the digests do.
+    const shapesFor = (event: string) => projectShapeDigest([
+        { name: 'Fade', fields: FADE_FIELDS },
+        { name: event, fields: ['amount'] },
+    ]);
     return which === 'Absorb'
         ? {
-            engineAbi: engineAbiDigest(4), projectShapes: shapes,
+            engineAbi: engineAbiDigest(4), projectShapes: shapesFor('Hit'),
             systems: [{
                 name: 'Absorb', symbol: 'es_sys_Absorb', resources: [],
                 queries: [[{ comp: 'Hit', mut: false }], [{ comp: 'Fade', mut: true }]],
@@ -234,7 +240,7 @@ export function eventManifest(which: 'Absorb' | 'Emit'): AotManifest {
             }],
         }
         : {
-            engineAbi: engineAbiDigest(4), projectShapes: shapes,
+            engineAbi: engineAbiDigest(4), projectShapes: shapesFor('Sent'),
             systems: [{
                 name: 'Emit', symbol: 'es_sys_Emit', resources: [],
                 queries: [[{ comp: 'Fade', mut: false }]],

@@ -159,9 +159,11 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
     // The artifact is the host's to read here, so the pairing comes back from
     // it rather than off an export this side can reach.
     const paired = bindings.contract?.() ?? '';
-    systems.install(opts.manifest, exports, (name) => getComponent(name),
-        () => [], NATIVE_ADDRESS_BYTES, (name) => byName.has(name),
-        paired === '' ? null : paired);
+    systems.install(opts.manifest, exports, (name) => getComponent(name), {
+        addressBytes: NATIVE_ADDRESS_BYTES,
+        runs: (name) => byName.has(name),
+        moduleContract: paired === '' ? null : paired,
+    });
 
     // Every script component any twin names, so one epoch change re-reports all
     // of them rather than whichever twin happened to run first.

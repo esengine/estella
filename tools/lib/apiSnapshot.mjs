@@ -62,6 +62,51 @@ export function isAdditiveMembers(before, after) {
 }
 
 /**
+ * A function that kept every parameter it had and gained OPTIONAL ones at the
+ * end: every call written against the old signature still compiles and means
+ * the same thing, which is the whole of what @public promises. Prefix and
+ * optional both — a required, changed or inserted parameter stays a failure.
+ */
+export function isAddedOptionalParam(before, after) {
+    const parts = (s) => {
+        // `<T>(a: number, b?: string): R` — the parameter list, and the rest.
+        const open = s.indexOf('(');
+        const close = s.lastIndexOf(')');
+        if (open < 0 || close < open) return null;
+        const params = s.slice(open + 1, close).trim();
+        return {
+            head: s.slice(0, open),
+            tail: s.slice(close + 1),
+            // Split on commas outside brackets, so `Map<a, b>` stays one.
+            list: splitParams(params),
+        };
+    };
+    const a = parts(before.trim());
+    const b = parts(after.trim());
+    if (a === null || b === null) return false;
+    if (a.head !== b.head || a.tail !== b.tail) return false;
+    if (b.list.length <= a.list.length) return false;
+    if (a.list.some((p, i) => p !== b.list[i])) return false;
+    return b.list.slice(a.list.length).every((p) => /^[A-Za-z_$][\w$]*\?\s*:/.test(p));
+}
+
+/** Top-level commas only: a parameter's own type may hold them. */
+function splitParams(text) {
+    const out = [];
+    let depth = 0;
+    let at = 0;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if ('<([{'.includes(c)) depth++;
+        else if ('>)]}'.includes(c)) depth--;
+        else if (c === ',' && depth === 0) { out.push(text.slice(at, i).trim()); at = i + 1; }
+    }
+    const last = text.slice(at).trim();
+    if (last) out.push(last);
+    return out;
+}
+
+/**
  * A string-literal union that kept every member and gained more. The direction
  * is the rule: every value that was legal still is, while a union that LOST one
  * stays a failure. A note rather than a pass, since an exhaustive switch over
@@ -105,6 +150,9 @@ export function baselineFindings(was, now) {
                 } else if (before.kind === 'type'
                     && isWidenedUnion(promisedBody(before.body), promisedBody(after.body))) {
                     notes.push(`${name} — @public union gained a member`);
+                } else if (before.kind === 'function'
+                    && isAddedOptionalParam(promisedBody(before.body), promisedBody(after.body))) {
+                    notes.push(`${name} — @public function gained an optional parameter`);
                 } else {
                     failures.push(`${name} — @public signature changed`);
                 }

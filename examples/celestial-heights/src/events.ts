@@ -10,6 +10,7 @@ export const DamageDealt = defineEvent<{
     /** Where the blow came from, for knockback and hit sparks. */
     fromX: number;
     fromY: number;
-}>('DamageDealt');
+}>('DamageDealt', { target: 0 as Entity, amount: 0, fromX: 0, fromY: 0 });
 
-export const Died = defineEvent<{ entity: Entity; isPlayer: boolean }>('Died');
+export const Died = defineEvent<{ entity: Entity; isPlayer: boolean }>(
+    'Died', { entity: 0 as Entity, isPlayer: false });

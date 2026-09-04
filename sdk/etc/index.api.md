@@ -3118,6 +3118,7 @@ target: string | undefined
 
 ## EventDef — interface @public
 ```
+@internal _default: object | undefined
 @internal _id: symbol
 @internal _name: string
 @internal _phantom: T | undefined
@@ -10319,7 +10320,7 @@ PluralSelector
 
 ## defineEvent — function @public
 ```
-<T>(name: string): EventDef<T>
+<T>(name: string, payload?: T & object): EventDef<T>
 ```
 
 ## defineInputMap — function @public

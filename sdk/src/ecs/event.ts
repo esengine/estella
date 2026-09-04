@@ -20,6 +20,14 @@ export interface EventDef<T> {
     readonly _id: symbol;
     /** @internal */
     readonly _name: string;
+    /**
+     * The payload's fields, as a value rather than as an erased type — the same
+     * thing `defineComponent` and `defineResource` carry, and for the same
+     * reason: a mechanism that has to know this shape can ask.
+     *
+     * @internal
+     */
+    readonly _default?: object;
     /** @internal */
     readonly _phantom?: T;
 }
@@ -29,12 +37,19 @@ export interface EventDef<T> {
  * readable for exactly the next one, so a reader that misses a frame misses the
  * event — events are for this-frame signalling, not a queue.
  *
+ * `payload` is a default of the shape `T`, the way a component declares its
+ * fields. Optional, and needed only where a `@compiled` system reads or writes
+ * the event: `T` is erased at run time, so without it nothing on this side can
+ * say what layout the compiled code baked in. The compiler asks for it by name
+ * and line when a promise depends on it.
+ *
  * @public
  */
-export function defineEvent<T>(name: string): EventDef<T> {
+export function defineEvent<T>(name: string, payload?: T & object): EventDef<T> {
     const def: EventDef<T> = {
         _id: Symbol(`Event_${name}`),
         _name: name,
+        ...(payload === undefined ? {} : { _default: payload as object }),
     };
     // By name as well, because a compiled module's manifest carries names. The
     // FIRST wins: a second event of the same name is a different event, and
@@ -52,6 +67,28 @@ const byName = new Map<string, EventDef<unknown>>();
  */
 export function eventNamed(name: string): EventDef<unknown> | undefined {
     return byName.get(name);
+}
+
+/**
+ * The payload's fields as compiled code reads them: one entry per leaf, dotted,
+ * in declaration order. Undefined where the event was declared without a
+ * payload — which is "cannot say", never "no fields".
+ *
+ * @internal
+ */
+export function eventFieldsOf(name: string): readonly string[] | undefined {
+    const shape = byName.get(name)?._default;
+    if (shape === undefined) return undefined;
+    const out: string[] = [];
+    const walk = (value: object, prefix: string): void => {
+        for (const [key, at] of Object.entries(value)) {
+            const path = prefix ? `${prefix}.${key}` : key;
+            if (at !== null && typeof at === 'object') walk(at as object, path);
+            else out.push(path);
+        }
+    };
+    walk(shape, '');
+    return out;
 }
 
 // =============================================================================

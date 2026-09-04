@@ -453,7 +453,7 @@ export const moveSystem = defineSystem(
 describe('a compiled system that reads an event', () => {
   const READER = `import { defineComponent, defineEvent, defineSystem, Query, Mut, EventReader } from 'esengine';
 export const Mover = defineComponent('Mover', { speed: 100 });
-export const Hit = defineEvent<{ amount: number }>('Hit');
+export const Hit = defineEvent<{ amount: number }>('Hit', { amount: 0 });
 /** @compiled */
 export const absorb = defineSystem(
     [EventReader(Hit), Query(Mut(Mover))],
@@ -469,9 +469,11 @@ export const absorb = defineSystem(
     expect(out.manifest!.systems[0]!.readers).toHaveLength(1);
 
     // Exactly what a runtime holding this project computes: its components, and
-    // nothing that answers to an event's name. Counting `Hit` here refused every
-    // reader module ever built, blaming a component that had not moved.
-    expect(out.manifest!.projectShapes)
-      .toBe(projectShapeDigest([{ name: 'Mover', fields: ['speed'] }]));
+    // the payload read off the value `defineEvent` carries. Both halves range
+    // over the same set, which is what a reader module needs to load at all.
+    expect(out.manifest!.projectShapes).toBe(projectShapeDigest([
+      { name: 'Mover', fields: ['speed'] },
+      { name: 'Hit', fields: ['amount'] },
+    ]));
   });
 });
