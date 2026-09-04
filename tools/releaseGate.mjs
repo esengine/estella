@@ -111,6 +111,19 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'every-road-answers-the-same-world',
+    says: 'one source, run four ways, leaves the same world after every frame',
+    // Dispatching is not COMPUTING: the criterion above asks whether a packaged
+    // game REACHES a compiled system. A road that quietly fell back agrees with
+    // any trace, so the run must say a system was taken before agreement counts.
+    answeredBy: 'node tools/verify-native-conformance.mjs',
+    needs: [
+      'tools/verify-native-conformance.mjs',
+      'sdk/tests/fixtures/conformance-systems.ts',
+      'tests/aot/test_aot_conformance.cpp',
+    ],
+  },
+  {
     id: 'a-web-game-runs-its-systems-as-machine-code',
     says: 'an exported web game loads its compiled systems and dispatches to them',
     // The claim the desktop road already makes, on the road most games ship on.

@@ -50,6 +50,8 @@ const SEEDS: readonly (readonly [number, number])[] =
  *  includes `estella_offsets.h` by that name and guards it by that name, so two
  *  fixtures cannot share one. */
 const NATIVE_DIR = path.resolve(__dirname, '../../tests/aot/generated/conformance');
+/** The project a native host runs the same fixture as, scripts and all. */
+const PROJECT_DIR = path.resolve(__dirname, '../../fixtures/aot-conformance/src');
 const WRITE = process.env['ESTELLA_AOT_WRITE'] === '1';
 
 /** The artifact a build makes of the fixture: the module, and what it declares. */
@@ -166,12 +168,12 @@ function nativeArtifact(): ReturnType<typeof emitC> {
     return emitC(lowered.module, packLayout(lowered.module.comps), inlined, 8);
 }
 
-/** A checked-in input to the C++ harness. Regenerate them all with
+/** A checked-in file derived from the fixture. Regenerate them all with
  *  `ESTELLA_AOT_WRITE=1 pnpm --filter @estella/sdk test aot-conformance`. */
-function artifact(name: string, want: string): void {
-    const at = path.join(NATIVE_DIR, name);
+function artifact(dir: string, name: string, want: string): void {
+    const at = path.join(dir, name);
     if (WRITE) {
-        mkdirSync(NATIVE_DIR, { recursive: true });
+        mkdirSync(dir, { recursive: true });
         writeFileSync(at, want);
         return;
     }
@@ -180,6 +182,52 @@ function artifact(name: string, want: string): void {
     // is not one anybody wants a diff about.
     const have = readFileSync(at, 'utf8').replace(/\r\n/g, '\n');
     expect(have, `${name} is stale — regenerate with ESTELLA_AOT_WRITE=1`).toBe(want);
+}
+
+/**
+ * The fixture as a PROJECT imports it.
+ *
+ * A project's scripts import `esengine`; this file imports the SDK by relative
+ * path so the suite and the compiler can both read it. The bodies must not
+ * diverge, so the imports are rewritten and nothing else is touched.
+ */
+function projectSystems(): string {
+    const RELATIVE = /^import \{([^}]*)\} from '\.\.\/\.\.\/src\/[^']*';$/;
+    const names: string[] = [];
+    const out: string[] = [];
+    let at = -1;
+    for (const line of readFileSync(FIXTURE, 'utf8').replace(/\r\n/g, '\n').split('\n')) {
+        const m = RELATIVE.exec(line);
+        if (m === null) {
+            out.push(line);
+            continue;
+        }
+        for (const n of m[1]!.split(',')) if (n.trim() !== '') names.push(n.trim());
+        if (at === -1) at = out.push('') - 1;
+    }
+    expect(names.length, 'the fixture imports the SDK by relative path').toBeGreaterThan(0);
+    out[at] = `import { ${names.join(', ')} } from 'esengine';`;
+    return [
+        '// GENERATED from sdk/tests/fixtures/conformance-systems.ts — do not edit.',
+        '// The same systems, with the imports a PROJECT writes. Regenerate with',
+        '// ESTELLA_AOT_WRITE=1 pnpm --filter @estella/sdk test aot-conformance.',
+        ...out,
+    ].join('\n');
+}
+
+/** The seed world, where the project that plays it can read it. */
+function projectSeed(): string {
+    return [
+        '// GENERATED from sdk/tests/aot-conformance.test.ts — do not edit.',
+        '// The world the checked-in trace was recorded over.',
+        '',
+        'export const SEED: readonly (readonly [number, number])[] = [',
+        ...SEEDS.map(([x, speed]) => `    [${x}, ${speed}],`),
+        '];',
+        '',
+        `export const FRAMES = ${FRAMES};`,
+        '',
+    ].join('\n');
 }
 
 /** A double as C source. Shortest round-trip: both languages read a decimal to
@@ -257,10 +305,10 @@ function traceHeader(run: { trace: Trace; delta: number }): string {
 describe('the inputs a loading host builds against', () => {
     it('the C the compiler makes of the fixture, at the loading width', () => {
         const c = nativeArtifact();
-        artifact('estella_offsets.h', c.offsets);
-        artifact('systems.c', c.source);
-        artifact('systems_decl.c', c.decls);
-        artifact('handshake.h', handshakeHeader(c.handshake));
+        artifact(NATIVE_DIR, 'estella_offsets.h', c.offsets);
+        artifact(NATIVE_DIR, 'systems.c', c.source);
+        artifact(NATIVE_DIR, 'systems_decl.c', c.decls);
+        artifact(NATIVE_DIR, 'handshake.h', handshakeHeader(c.handshake));
     });
 
     it('and the answer the interpreter gives, for the harness to hold it against', async () => {
@@ -270,6 +318,23 @@ describe('the inputs a loading host builds against', () => {
         const run = await play(null);
         // A seed world that ends where it started proves nothing on any road.
         expect(run.trace[FRAMES - 1]).not.toEqual(run.trace[0]);
-        artifact('trace.h', traceHeader(run));
+        artifact(NATIVE_DIR, 'trace.h', traceHeader(run));
+        // The same answer for a reader that is not a C compiler: the native
+        // host road is driven from JS, and re-parsing the header there would be
+        // a second reading of one number rather than the number.
+        artifact(NATIVE_DIR, 'trace.json', `${JSON.stringify({
+            delta: run.delta,
+            fields: ['x', 'speed', 'bounces'],
+            seed: SEEDS.map(([x, speed]) => [x, speed, 0]),
+            frames: run.trace,
+        }, null, 2)}\n`);
+    });
+
+    // The third road runs the fixture as a shipped game, so it needs the source
+    // as a project holds one. Generated rather than copied: a hand-kept twin is
+    // the thing this whole differential exists to not have.
+    it('and the fixture as a project imports it', () => {
+        artifact(PROJECT_DIR, 'systems.generated.ts', projectSystems());
+        artifact(PROJECT_DIR, 'seed.generated.ts', projectSeed());
     });
 });

@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "AOT Conformance",
+  "tag": "Fixture",
+  "description": "The conformance fixture as a shipped game, so a native host runs the same source the suite does.",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 320,
+    "height": 240
+  },
+  "spineVersion": "none"
+}
