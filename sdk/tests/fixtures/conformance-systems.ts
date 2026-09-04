@@ -21,7 +21,7 @@ export const Mover = defineComponent('ConfMover', { x: 0, speed: 0, bounces: 0 }
 
 /** A resource the compiled code WRITES. A ResMut lands in the mirror and
  *  nowhere else, so it is in the world only if the road copied it back. */
-export const Tally = defineResource({ bounces: 0, frames: 0 }, 'ConfTally');
+export const Tally = defineResource({ bounces: 0, frames: 0, census: 0 }, 'ConfTally');
 
 /** A second population, so the road that despawns never touches the rows the
  *  C++ harness models. */
@@ -121,4 +121,23 @@ export const reapSystem = defineSystem(
         }
     },
     { name: 'ConfReap' },
+);
+
+/**
+ * A compiled query over rows that LEAVE, which is the only way the cached row
+ * table is ever invalidated. A road reusing last frame's addresses walks a slot
+ * nothing owns any more and this number stops agreeing.
+ *
+ * @compiled
+ */
+export const censusSystem = defineSystem(
+    [Query(Doomed), ResMut(Tally)],
+    (query, tally) => {
+        for (const [, d] of query) {
+            tally.modify((t) => {
+                t.census = t.census + d.ttl + 1;
+            });
+        }
+    },
+    { name: 'ConfCensus' },
 );

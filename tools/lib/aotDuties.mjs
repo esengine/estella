@@ -23,12 +23,21 @@
  * road that cannot (`sdk/src/ecs/aot/executorCapabilities.ts`). There is no
  * third answer: a duty a road neither performs nor refuses systems for is the
  * shape all three bugs had.
+ *
+ * And presence is not correctness. `resource-write-back` was implemented on both
+ * roads and accounted for here while no source form existed that the two lowered
+ * the same way, so every duty also names the DIFFERENTIAL that holds it against
+ * the interpreter — per road, because a road that refuses a duty owes none.
  */
 
 /**
  * `web` and `native` list the calls that PERFORM the duty on that road, or null
  * where the road does not perform it — and then `excusedBy` names the capability
  * that keeps such a system off it, which the checker holds against the model.
+ *
+ * `differential` and `owed` are keyed the same way: a road that performs a duty
+ * owes either a differential holding it against the interpreter, or a sentence
+ * saying nothing does.
  */
 export const DUTIES = [
     {
@@ -39,19 +48,26 @@ export const DUTIES = [
         // and is told where the script pools are.
         web: ['runtime.addresses.componentNamed', 'runtime.ctx.build'],
         native: ['world.scriptSpanOf', 'bindings.scriptRows'],
-        differential: [
-            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ },
-            { path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ },
-        ],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ }],
+        },
     },
     {
         id: 'layout-vouched',
         what: 'an address is reused only while something says the rows have not moved',
         web: ['world.layoutEpoch'],
         native: ['world.layoutEpoch', 'world.scriptLayoutEpoch'],
-        // The fixture seeds a world and never moves a row in it, so the cached
-        // table is never invalidated on any road. Nothing holds the REUSE.
-        owed: 'a differential whose world gains and loses rows mid-run',
+        differential: {
+            // `ConfCensus` queries the population a despawn empties, so a host
+            // keeping last frame's table walks a slot nothing owns. Freezing the
+            // epoch handed to it is red at frame 2: 45 against the author's 36.
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /about the resource/ }],
+        },
+        owed: {
+            web: "the suite's world answers no layout epoch — its engine is a mock — so the "
+                + 'wasm road repacks every frame and the reuse is never taken',
+        },
     },
     {
         id: 'resource-in',
@@ -60,44 +76,50 @@ export const DUTIES = [
         native: ['resources.addressOf', 'resources.bytesOf', 'bindings.resource'],
         // Jointly with the rows: `Res(Time)` is what moves them, so a resource
         // at the wrong address is a row that disagrees on frame 0.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ }],
+        },
     },
     {
         id: 'resource-write-back',
         what: 'a ResMut the call wrote lands in the world, not only in the mirror',
         web: ['runtime.addresses.resourceWriteBack'],
         native: ['resources.writeBack'],
-        differential: [
-            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.resource\[f\]/ },
-            { path: 'tools/verify-native-conformance.mjs', probe: /about the resource/ },
-        ],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.resource\[f\]/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /about the resource/ }],
+        },
     },
     {
         id: 'call',
         what: 'the compiled function runs',
         web: ['twin.call'],
         native: ['bindings.run'],
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ }],
+        },
     },
     {
         id: 'call-counted',
         what: 'App.compiledSystems can tell a module that loaded from one that ran',
         web: ['runtime.systems.noteCall'],
         native: ['systems.noteCall'],
-        differential: [
-            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.calls/ },
-            { path: 'tools/verify-native-conformance.mjs', probe: /were dispatched to/ },
-        ],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.calls/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /were dispatched to/ }],
+        },
     },
     {
         id: 'changed-ticks',
         what: 'the Changed ticks the compiled code could not leave',
         web: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
         native: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
-        differential: [
-            { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.ticks\[f\]/ },
-            { path: 'tools/verify-native-conformance.mjs', probe: /changed row\(s\) at frame/ },
-        ],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.ticks\[f\]/ }],
+            native: [{ path: 'tools/verify-native-conformance.mjs', probe: /changed row\(s\) at frame/ }],
+        },
     },
     {
         id: 'event-payloads-in',
@@ -105,9 +127,9 @@ export const DUTIES = [
         web: ['runtime.addresses.payloadRows'],
         native: null,
         excusedBy: 'eventRead',
-        // The WASM road only, and that is the whole entry: on the loading road
-        // these systems are refused, so its agreement is the interpreter's own.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        },
     },
     {
         id: 'event-payloads-released',
@@ -115,9 +137,9 @@ export const DUTIES = [
         web: ['runtime.addresses.releasePayloads'],
         native: null,
         excusedBy: 'eventRead',
-        // The WASM road only, and that is the whole entry: on the loading road
-        // these systems are refused, so its agreement is the interpreter's own.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        },
     },
     {
         id: 'event-records-sized',
@@ -125,9 +147,9 @@ export const DUTIES = [
         web: ['runtime.ctx.setRecordLengths'],
         native: null,
         excusedBy: 'eventWrite',
-        // The WASM road only, and that is the whole entry: on the loading road
-        // these systems are refused, so its agreement is the interpreter's own.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        },
     },
     {
         id: 'events-out',
@@ -135,9 +157,9 @@ export const DUTIES = [
         web: ['runtime.ctx.events', 'runtime.addresses.sendEvent'],
         native: null,
         excusedBy: 'eventWrite',
-        // The WASM road only, and that is the whole entry: on the loading road
-        // these systems are refused, so its agreement is the interpreter's own.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        },
     },
     {
         id: 'commands-out',
@@ -145,9 +167,9 @@ export const DUTIES = [
         web: ['runtime.ctx.commands', 'world.despawn'],
         native: null,
         excusedBy: 'commands',
-        // The WASM road only, and that is the whole entry: on the loading road
-        // these systems are refused, so its agreement is the interpreter's own.
-        differential: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        differential: {
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.pop\[f\]/ }],
+        },
     },
 ];
 

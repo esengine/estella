@@ -119,25 +119,33 @@ for (const duty of DUTIES) {
  * test agrees with whatever the road happens to do; only a differential does not.
  */
 for (const duty of DUTIES) {
-    const held = duty.differential ?? [];
-    if (held.length === 0) {
-        if (!duty.owed) {
-            findings.push(`${duty.id}: no differential holds it against the interpreter, and no `
-                + '`owed` says so. A duty checked only for presence is a duty nothing verifies.');
+    for (const road of ROADS) {
+        // A road that REFUSES the duty owes nothing: the systems that would need
+        // it never reach this road at all.
+        if (duty[road.id] === null || duty[road.id] === undefined) continue;
+        const held = duty.differential?.[road.id] ?? [];
+        const owed = duty.owed?.[road.id];
+        if (held.length === 0) {
+            if (!owed) {
+                findings.push(`${duty.id}: the ${road.id} road performs it and no differential holds `
+                    + 'it against the interpreter, with no `owed` saying so. A duty checked only for '
+                    + 'presence is a duty nothing verifies.');
+            }
+            continue;
         }
-        continue;
-    }
-    if (duty.owed) {
-        findings.push(`${duty.id}: \`owed\` says nothing holds it, and ${held.length} `
-            + 'differential(s) are named. One of the two has stopped being true.');
-    }
-    for (const at of held) {
-        let src = null;
-        try { src = read(at.path); } catch { src = null; }
-        if (src === null) findings.push(`${duty.id}: ${at.path} is gone, and it is named as holding it.`);
-        else if (!at.probe.test(src)) {
-            findings.push(`${duty.id}: ${at.path} no longer matches ${at.probe} — the differential `
-                + 'this list points at has moved or been dropped.');
+        if (owed) {
+            findings.push(`${duty.id}: \`owed.${road.id}\` says nothing holds it, and ${held.length} `
+                + 'differential(s) are named. One of the two has stopped being true.');
+        }
+        for (const at of held) {
+            let src = null;
+            try { src = read(at.path); } catch { src = null; }
+            if (src === null) {
+                findings.push(`${duty.id}: ${at.path} is gone, and it is named as holding it.`);
+            } else if (!at.probe.test(src)) {
+                findings.push(`${duty.id}: ${at.path} no longer matches ${at.probe} — the `
+                    + 'differential this list points at has moved or been dropped.');
+            }
         }
     }
 }
@@ -180,10 +188,15 @@ if (findings.length > 0) {
     process.exit(1);
 }
 const skipped = DUTIES.filter((d) => ROADS.some((r) => d[r.id] === null)).length;
-const owed = DUTIES.filter((d) => (d.differential ?? []).length === 0);
+// Counted per ROAD, because a duty held on one road and owed on the other is
+// exactly the state a single number would round away.
+const pairs = DUTIES.flatMap((d) => ROADS
+    .filter((r) => d[r.id] !== null && d[r.id] !== undefined)
+    .map((r) => ({ id: d.id, road: r.id, owed: d.owed?.[r.id] })));
+const owed = pairs.filter((p) => p.owed);
 console.log(`check-aot-duties: ${DUTIES.length} duties across ${ROADS.length} roads — `
     + `${DUTIES.length - skipped} performed by both, ${skipped} refused by capability, `
     + `${everyCall.size} call(s) accounted for.`);
-console.log(`  ${DUTIES.length - owed.length} held against the interpreter by a differential; `
-    + `${owed.length} owed one:`);
-for (const d of owed) console.log(`    ${d.id}: ${d.owed}`);
+console.log(`  ${pairs.length - owed.length} of ${pairs.length} duty/road pairs held against the `
+    + `interpreter by a differential; ${owed.length} owed one:`);
+for (const p of owed) console.log(`    ${p.id} (${p.road}): ${p.owed}`);

@@ -20,6 +20,7 @@ ES_EXPORT void es_sys_ConfTally(es_addr_t es_ctx);
 ES_EXPORT void es_sys_ConfAnnounce(es_addr_t es_ctx);
 ES_EXPORT void es_sys_ConfAbsorb(es_addr_t es_ctx);
 ES_EXPORT void es_sys_ConfReap(es_addr_t es_ctx);
+ES_EXPORT void es_sys_ConfCensus(es_addr_t es_ctx);
 
 /* The systems in this file, and what each one needs filled in. */
 static const char *const es_sys_ConfDrift_q0_comps[] = { "ConfMover" };
@@ -46,6 +47,11 @@ static const EsQueryDecl es_sys_ConfAbsorb_queries[] = { { es_sys_ConfAbsorb_q0_
 static const char *const es_sys_ConfReap_q0_comps[] = { "ConfDoomed" };
 static const unsigned char es_sys_ConfReap_q0_mut[] = { 1u };
 static const EsQueryDecl es_sys_ConfReap_queries[] = { { es_sys_ConfReap_q0_comps, es_sys_ConfReap_q0_mut, 1u } };
+static const char *const es_sys_ConfCensus_q0_comps[] = { "ConfDoomed" };
+static const unsigned char es_sys_ConfCensus_q0_mut[] = { 0u };
+static const EsQueryDecl es_sys_ConfCensus_queries[] = { { es_sys_ConfCensus_q0_comps, es_sys_ConfCensus_q0_mut, 1u } };
+static const char *const es_sys_ConfCensus_resources[] = { "ConfTally" };
+static const unsigned char es_sys_ConfCensus_resources_mut[] = { 1u };
 
 ES_EXPORT const EsSystemDecl es_systems[] = {
     { "ConfDrift", es_sys_ConfDrift, es_sys_ConfDrift_queries, es_sys_ConfDrift_resources, es_sys_ConfDrift_resources_mut, 1u, 1u },
@@ -54,5 +60,6 @@ ES_EXPORT const EsSystemDecl es_systems[] = {
     { "ConfAnnounce", es_sys_ConfAnnounce, es_sys_ConfAnnounce_queries, NULL, NULL, 1u, 0u },
     { "ConfAbsorb", es_sys_ConfAbsorb, es_sys_ConfAbsorb_queries, NULL, NULL, 2u, 0u },
     { "ConfReap", es_sys_ConfReap, es_sys_ConfReap_queries, NULL, NULL, 1u, 0u },
+    { "ConfCensus", es_sys_ConfCensus, es_sys_ConfCensus_queries, es_sys_ConfCensus_resources, es_sys_ConfCensus_resources_mut, 1u, 1u },
 };
-ES_EXPORT const uint32_t es_system_count = 6u;
+ES_EXPORT const uint32_t es_system_count = 7u;

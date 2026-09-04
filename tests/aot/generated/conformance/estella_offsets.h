@@ -11,6 +11,7 @@
 #define ES_OFF_ConfMover_speed 8u
 #define ES_OFF_ConfMover_x 0u
 #define ES_OFF_ConfTally_bounces 0u
+#define ES_OFF_ConfTally_census 16u
 #define ES_OFF_ConfTally_frames 8u
 #define ES_OFF_Time_delta 0u
 

@@ -6,8 +6,8 @@
 /* Which BUILD this is, for a loader holding the sidecar written beside
    it. The two digests above answer "is this engine right" and "are the
    project shapes right"; neither answers "are these two the same pair". */
-ES_EXPORT uint32_t es_module_contract_lo(void) { return 0x220381a4u; }
-ES_EXPORT uint32_t es_module_contract_hi(void) { return 0x1f3a750cu; }
+ES_EXPORT uint32_t es_module_contract_lo(void) { return 0xd5701a2eu; }
+ES_EXPORT uint32_t es_module_contract_hi(void) { return 0xc3d0e057u; }
 
 ES_EXPORT void es_sys_ConfDrift(es_addr_t es_ctx) {
     const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
@@ -142,4 +142,20 @@ ES_EXPORT void es_sys_ConfReap(es_addr_t es_ctx) {
         }
     }
     *es_cmd_at = es_cmd_n;
+}
+
+ES_EXPORT void es_sys_ConfCensus(es_addr_t es_ctx) {
+    const EsSysCtx *es_c = (const EsSysCtx *)ES_PTR(es_ctx);
+    const EsQueryRows *es_queries = (const EsQueryRows *)ES_PTR(es_c->queries);
+    const es_addr_t *es_resources = (const es_addr_t *)ES_PTR(es_c->resources);
+    unsigned char *tally_1 = ES_PTR(es_resources[0]);
+    {
+        const es_addr_t *es_rows0 = (const es_addr_t *)ES_PTR(es_queries[0].rows);
+        const es_addr_t es_n0 = es_queries[0].count;
+        for (es_addr_t es_i0 = 0; es_i0 < es_n0; ++es_i0) {
+            const es_addr_t *es_row0 = es_rows0 + es_i0 * 2u;
+            unsigned char *d_2 = ES_PTR(es_row0[1]);
+            es_set_f64(tally_1 + ES_OFF_ConfTally_census, ((es_f64(tally_1 + ES_OFF_ConfTally_census) + es_f64(d_2 + ES_OFF_ConfDoomed_ttl)) + 1.0));
+        }
+    }
 }

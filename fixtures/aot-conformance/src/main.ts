@@ -7,8 +7,8 @@ import {
 } from 'esengine';
 
 import {
-    Doomed, Mover, Tally, absorbSystem, announceSystem, clampSystem, driftSystem,
-    reapSystem, tallySystem,
+    Doomed, Mover, Tally, absorbSystem, announceSystem, censusSystem, clampSystem,
+    driftSystem, reapSystem, tallySystem,
 } from './systems.generated';
 import { DOOMED, SEED } from './seed.generated';
 
@@ -47,7 +47,7 @@ const reportSystem = defineSystem(
         let ttl = 0;
         for (const [, d] of doomed) { alive++; ttl += d.ttl; }
         console.log(`CONF ${frame} ${time.delta} ${JSON.stringify(rows)} `
-            + `${JSON.stringify([tally.bounces, tally.frames])} ${ticked} `
+            + `${JSON.stringify([tally.bounces, tally.frames, tally.census])} ${ticked} `
             + `${JSON.stringify([alive, ttl])}`);
         frame++;
     },
@@ -61,5 +61,6 @@ addSystemToSchedule(Schedule.Update, tallySystem);
 addSystemToSchedule(Schedule.Update, announceSystem);
 addSystemToSchedule(Schedule.Update, absorbSystem);
 addSystemToSchedule(Schedule.Update, reapSystem);
+addSystemToSchedule(Schedule.Update, censusSystem);
 addSystemToSchedule(Schedule.Update, watchSystem);
 addSystemToSchedule(Schedule.Update, reportSystem);

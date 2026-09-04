@@ -113,6 +113,8 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     app.addSystemToSchedule(Schedule.Update, fixture.announceSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.absorbSystem);
     app.addSystemToSchedule(Schedule.Update, fixture.reapSystem);
+    // After the reap, so its query walks a set that SHRANK this frame.
+    app.addSystemToSchedule(Schedule.Update, fixture.censusSystem);
     // Interpreted, and last: the Changed ticks a twin leaves are the one duty
     // no value in the trace can show. A watcher counts what a filter matched,
     // which is the same question a game asks of change detection.
@@ -160,8 +162,9 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
         }));
         // A ResMut is written into the MIRROR; this reads the world, which is
         // where it lands only if the road copied it back.
-        const tally = app.getResource(fixture.Tally) as { bounces: number; frames: number };
-        resource.push([tally.bounces, tally.frames]);
+        const tally = app.getResource(fixture.Tally) as
+            { bounces: number; frames: number; census: number };
+        resource.push([tally.bounces, tally.frames, tally.census]);
         // What the event fed and the command removed. A despawn that reached
         // one world and not the other is a count that stops agreeing.
         const alive = doomed.filter((e) => app.world.valid(e));
@@ -188,7 +191,7 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // Installed is not the same question as ran, and a differential cannot
         // tell them apart — the closure that would have run produces the same
         // numbers. Three systems, every frame.
-        expect(twins.calls).toBe(FRAMES * 6);
+        expect(twins.calls).toBe(FRAMES * 7);
         expect(interpreted.calls).toBe(0);
 
         // Frame for frame, so a divergence names the frame it began on rather
@@ -396,7 +399,7 @@ describe('the inputs a loading host builds against', () => {
             // The resource a twin WROTE, read back out of the world. A road that
             // never copied the mirror back leaves it at its default while every
             // row above still agrees, which is why it is traced separately.
-            resourceFields: ['bounces', 'frames'],
+            resourceFields: ['bounces', 'frames', 'census'],
             resource: run.resource,
             // What a `Changed(Mover)` filter matched after each frame. Nothing
             // in the values above shows a tick, and a road that stopped marking
