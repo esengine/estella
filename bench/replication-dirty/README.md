@@ -24,10 +24,10 @@ justifies nothing.
 ## Running it
 
 ```sh
-node bench/replication-dirty/run.mjs           # the 36-point matrix + recall
-node bench/replication-dirty/run.mjs --quick   # 1k only, for wiring changes
-node bench/replication-dirty/completeness.mjs  # which write paths report
-node bench/replication-dirty/churn.mjs         # storage over time
+node bench/replication-dirty/run.mjs             # the 36-point matrix + recall
+node bench/replication-dirty/run.mjs --crossover # the 42-point sweep: where C stops paying
+node bench/replication-dirty/run.mjs --quick     # 1k only, for wiring changes
+node bench/replication-dirty/completeness.mjs    # which write paths report
 ```
 
 Every point runs in its **own process**. Change tracking cannot be turned off
@@ -79,6 +79,27 @@ workload: a shadow reads the final value and does not care how it got there; a
 tracker is an observation and is only usable as an authoritative source if every
 legal write path reports.
 
+## What a crossover is, and what it is not
+
+`--crossover` sweeps 1 / 30 / 50 / 70 / 85 / 95 / 100% dirty at 10k and 100k,
+arms A/B/C. It answers ONE question: **is a replicated component worth enrolling
+in change tracking at all?**
+
+It is not a per-frame switch. Enrolling is not a sample-time flag — the write tax
+is paid on every write once a component is tracked, whatever the sampler then
+does. So a busy frame chooses between C and B, never back to A, and
+`if (dirty > x) fullScan()` recovers nothing. PR6b measured C/B at 0.95–1.04 with
+everything dirty: having paid for tracking, candidate pruning is close to free.
+
+Read the tax against a budget as well as against the other arm. The report prints
+each total as a share of one core (µs per simulated second, so 1e6 = 100%). Where
+both arms are already past one core, `C/A > 1` does not make A usable — neither
+arm is.
+
+Both anchors are re-run on the same HEAD as the middle of the curve. Splicing a
+1% number from one build onto a 70% number from another is how a benchmark
+reports a mechanism change as a workload effect.
+
 ## Fidelity notes, and what this does not cover
 
 - The shadow is **seeded at registration**, as `registerEntity_` does: an
@@ -92,3 +113,12 @@ legal write path reports.
   C++ mirror, and their tracking behaviour is not measured here.
 - Physics, UI layout and AOT writeback have their own write paths and are not
   covered. None of them is assumed.
+- The measurement phase only ever calls `world.set()`: no removal, no despawn,
+  no churn. So this says nothing about **topology** discovery — a production
+  sampler still finds component removal by comparing against the shadow, and
+  owning a `Removed` reader per replicated component is a PR7 question, not one
+  these numbers answer.
+- `ReplicationServer.sample()` walks every replicated entity to find spawns and
+  despawns BEFORE it looks for dirty fields. That scan is not in these arms, so
+  a near-zero sample tax here is the dirty-discovery segment vanishing, not the
+  whole sample.

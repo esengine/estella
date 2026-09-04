@@ -22,21 +22,28 @@ import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sdkIdentity } from './workload.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 const ARM = path.join(HERE, 'arm.mjs');
 const QUICK = process.argv.includes('--quick');
+// The crossover sweep: where does the candidate architecture stop paying? Two
+// sizes worth running and seven dirty rates, with this HEAD's OWN 1% and 100%
+// anchors — a curve must not be spliced from two different builds.
+const CROSSOVER = process.argv.includes('--crossover');
 
-const ARMS = ['A', 'B', 'C', 'D'];
+// D is a counterfactual ceiling and PR6b already disqualified it: the tracker is
+// not an authority, so shadow verify stays. It is not run in the sweep.
+const ARMS = CROSSOVER ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
 const ARM_MEANING = {
     A: 'tracking OFF, full shadow      (today\'s production)',
     B: 'tracking ON,  full shadow      (the write tax, alone)',
     C: 'tracking ON,  candidates+verify(the candidate architecture)',
     D: 'tracking ON,  candidates only  (COUNTERFACTUAL CEILING)',
 };
-const ENTITY_COUNTS = QUICK ? [1000] : [1000, 10000, 100000];
-const DIRTY_RATES = [0, 0.01, 1];
+const ENTITY_COUNTS = QUICK ? [1000] : CROSSOVER ? [10000, 100000] : [1000, 10000, 100000];
+const DIRTY_RATES = CROSSOVER ? [0.01, 0.3, 0.5, 0.7, 0.85, 0.95, 1] : [0, 0.01, 1];
 const FIXED = {
     simHz: 60, replHz: 20,
     warmup: QUICK ? 60 : 300,
@@ -50,7 +57,23 @@ const FIXED = {
  */
 const VERIFY_POINTS = QUICK
     ? [[1000, 0.01]]
-    : [[1000, 0], [1000, 0.01], [1000, 1], [10000, 0], [10000, 0.01], [10000, 1], [100000, 0.01]];
+    : CROSSOVER
+        ? [[10000, 0.3], [10000, 0.95], [100000, 0.5]]
+        : [[1000, 0], [1000, 0.01], [1000, 1], [10000, 0], [10000, 0.01], [10000, 1], [100000, 0.01]];
+
+/**
+ * Build the SDK once, here, rather than letting 42 workers each discover the
+ * artifact is stale. The arms still refuse a stale one on their own — this is
+ * the convenience, that is the guard.
+ */
+function buildSdkOnce() {
+    const built = spawnSync('pnpm', ['--filter', './sdk', 'build'],
+        { encoding: 'utf8', cwd: ROOT, maxBuffer: 1 << 24 });
+    if (built.status !== 0) {
+        console.error(built.stderr || built.stdout);
+        throw new Error('the SDK build failed; nothing was measured');
+    }
+}
 
 function runPoint(arm, entities, dirty, verify) {
     const args = [
@@ -69,6 +92,8 @@ function runPoint(arm, entities, dirty, verify) {
     result.wallSeconds = (Date.now() - started) / 1000;
     return result;
 }
+
+buildSdkOnce();
 
 const points = [];
 const total = ENTITY_COUNTS.length * DIRTY_RATES.length * ARMS.length + VERIFY_POINTS.length;
@@ -143,7 +168,7 @@ const round = (v) => Math.round(v);
 for (const entities of ENTITY_COUNTS) {
     for (const dirty of DIRTY_RATES) {
         say(`  ${entities} entities · ${dirty * 100}% dirty`);
-        say(`      arm    write      sample       total     B/A    C/B    C/A    alloc KB/s   GC`);
+        say(`      arm    write      sample       total  1 core     B/A    C/B    C/A    alloc KB/s   GC`);
         const a = at('A', entities, dirty);
         for (const arm of ARMS) {
             const p = at(arm, entities, dirty);
@@ -153,7 +178,9 @@ for (const entities of ENTITY_COUNTS) {
                 : arm === 'B' ? [ratio(p.totalTaxUsPerSimSecond, a.totalTaxUsPerSimSecond), '—', '—']
                     : arm === 'C' ? ['—', ratio(p.totalTaxUsPerSimSecond, b.totalTaxUsPerSimSecond), ratio(p.totalTaxUsPerSimSecond, a.totalTaxUsPerSimSecond)]
                         : ['—', '—', ratio(p.totalTaxUsPerSimSecond, a.totalTaxUsPerSimSecond)];
-            say(`      ${arm}   ${pad(round(p.writeTaxUsPerSimSecond), 8)} ${pad(round(p.sampleTaxUsPerSimSecond), 11)} ${pad(round(p.totalTaxUsPerSimSecond), 11)}`
+            // Per simulated second, so µs/s IS the share of one core: 1e6 = 100%.
+            const core = `${(p.totalTaxUsPerSimSecond / 1e4).toFixed(1)}%`;
+            say(`      ${arm}   ${pad(round(p.writeTaxUsPerSimSecond), 8)} ${pad(round(p.sampleTaxUsPerSimSecond), 11)} ${pad(round(p.totalTaxUsPerSimSecond), 11)} ${pad(core, 7)}`
                 + `  ${pad(cols[0], 6)} ${pad(cols[1], 6)} ${pad(cols[2], 6)}`
                 + `  ${pad(round(p.heapDeltaBytes / 1024 / p.simSeconds), 10)} ${pad(p.gcCount, 4)}`);
         }
@@ -166,6 +193,16 @@ say('  B/A  what does turning tracking on cost the WRITE path, alone?');
 say('  C/B  having paid that, how much scan does candidate pruning save?');
 say('  C/A  is the whole architecture worth switching production to?');
 say('');
+say('  A crossover is NOT a per-frame switch. Tracking is enrollment, not a');
+say('  sample-time flag: once a component is enrolled the write tax is paid');
+say('  whatever the sampler then does, so a busy frame chooses between C and B,');
+say('  never back to A. `if (dirty > x) fullScan()` does not recover A.');
+say('  The question the sweep answers is whether a replicated component is');
+say('  worth ENROLLING at all.');
+say('');
+say('  Read the tax beside the budget, not only the ratio: where both arms are');
+say('  already past one core, C/A > 1 does not make A a usable option.');
+say('');
 say(recallClean
     ? 'RECALL: complete at every point measured.'
     : 'RECALL: INCOMPLETE — the tracker missed changes a full scan found.'
@@ -173,7 +210,8 @@ say(recallClean
 
 // A quick run writes its own file: it is 1k-only and must never be mistaken
 // for — or overwrite — the matrix everyone reads.
-const out = path.join(HERE, QUICK ? 'results.quick.json' : 'results.json');
+const out = path.join(HERE, QUICK ? 'results.quick.json'
+    : CROSSOVER ? 'results.crossover.json' : 'results.json');
 // A benchmark artifact that does not say what ran it is a number without units.
 const machine = {
     node: process.version,
@@ -183,7 +221,9 @@ const machine = {
     totalMemGB: Math.round(os.totalmem() / 1024 ** 3),
     ranAt: new Date().toISOString(),
 };
-writeFileSync(out, `${JSON.stringify({ machine, fixed: FIXED, points, verifies, parity, recallClean }, null, 2)}
+writeFileSync(out, `${JSON.stringify({
+    machine, build: sdkIdentity(ROOT), fixed: FIXED, points, verifies, parity, recallClean,
+}, null, 2)}
 `);
 say('');
 say(`raw results: ${path.relative(ROOT, out)}`);

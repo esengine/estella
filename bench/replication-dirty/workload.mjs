@@ -12,13 +12,49 @@
  * locality the real thing would not have.
  */
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const STRIDE = 7919; // coprime with every entity count used here
 
-/** Load the SDK's headless build from a repo checkout. */
+/** The newest hand-written .ts under `dir`, in epoch ms. */
+function newestSource(dir) {
+    let newest = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+        const full = path.join(dir, entry.name);
+        newest = Math.max(newest, entry.isDirectory() ? newestSource(full)
+            : entry.name.endsWith('.ts') ? statSync(full).mtimeMs : 0);
+    }
+    return newest;
+}
+
+/**
+ * What was actually measured: the commit, and the artifact the arms imported.
+ * A benchmark cannot tell a stale build from a fast one — it just reports very
+ * stable numbers for yesterday's code — so the identity ships with the result.
+ */
+export function sdkIdentity(root) {
+    const entry = path.join(root, 'sdk', 'dist', 'index.node.js');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim();
+    return {
+        gitHead: head,
+        workingTreeClean: dirty.length === 0,
+        sdkArtifactSha256: createHash('sha256').update(readFileSync(entry)).digest('hex').slice(0, 16),
+        sdkBuiltAt: new Date(statSync(entry).mtimeMs).toISOString(),
+    };
+}
+
+/** Load the SDK's headless build, refusing one older than the sources it is built from. */
 export async function loadSdk(root) {
     const entry = path.join(root, 'sdk', 'dist', 'index.node.js');
+    if (newestSource(path.join(root, 'sdk', 'src')) > statSync(entry).mtimeMs) {
+        throw new Error('sdk/dist is older than sdk/src — this run would measure the previous'
+            + ' commit. Build it with `pnpm --filter ./sdk build`.');
+    }
     return import(pathToFileURL(entry).href);
 }
 
