@@ -23,21 +23,22 @@ const ROOT = path.resolve(HERE, '..', '..');
 const ARM = path.join(HERE, 'arm.mjs');
 const QUICK = process.argv.includes('--quick');
 
-const ARMS = ['A', 'B'];
+const ARMS = ['B', 'C0', 'C1'];
 const ARM_MEANING = {
-    A: 'as shipped: anchors, radius and ownership all scan every candidate',
-    B: 'ownership index: only the two owner passes change',
+    B: 'as shipped: every connection reads every candidate\'s position',
+    C0: 'positions read once per sample, cached; same full walk',
+    C1: 'grid rebuilt per sample; only nearby cells are walked',
 };
-/** 100k stops at 32 connections: arm A there is already 30 billion visits. */
+/** Arm B reads a builtin position per candidate per connection, so 100k x 32 is
+ *  already 50 seconds of work per simulated second. Points stay few. */
 const POINTS = QUICK
-    ? [[10000, 1], [10000, 8]]
-    : [[10000, 1], [10000, 8], [10000, 32], [10000, 128],
-        [100000, 1], [100000, 8], [100000, 32]];
+    ? [[10000, 8]]
+    : [[10000, 8], [10000, 32], [100000, 8], [100000, 32]];
 const FIXED = {
     anchors: 1, visible: 0.01, movement: 0.01,
-    simHz: 60, replHz: 20, warmup: QUICK ? 12 : 60, measure: QUICK ? 30 : 120,
+    simHz: 60, replHz: 20, warmup: QUICK ? 4 : 6, measure: QUICK ? 9 : 18,
 };
-const VERIFY_POINTS = QUICK ? [[10000, 8]] : [[10000, 8], [10000, 128], [100000, 8]];
+const VERIFY_POINTS = QUICK ? [[10000, 8]] : [[10000, 8], [10000, 32], [100000, 8]];
 
 const CACHE = path.join(HERE, `.sweep-${QUICK ? 'quick' : 'matrix'}.jsonl`);
 const buildId = () => sdkIdentity(ROOT).sdkArtifactSha256;
@@ -105,7 +106,7 @@ for (const [entities, connections] of POINTS) {
 }
 const verifies = [];
 for (const [entities, connections] of VERIFY_POINTS) {
-    const { result, fresh } = measure('B', entities, connections, true);
+    const { result, fresh } = measure('C1', entities, connections, true);
     process.stderr.write(`[${++done}/${total}] differential  ${entities}  ${connections} conn`
         + `${fresh ? '' : '  (cached)'}\n`);
     verifies.push(result);
@@ -123,41 +124,42 @@ for (const arm of ARMS) say(`  ${arm}  ${ARM_MEANING[arm]}`);
 say('');
 const clean = verifies.every((v) => v.mismatches === 0);
 say(clean
-    ? `  DIFFERENTIAL: B saw exactly what A saw, every connection, every sample (${verifies.length} point(s)).`
-    : '  DIFFERENTIAL: MISMATCHED — the ownership index changed what a connection sees.');
+    ? `  DIFFERENTIAL: the grid saw exactly what the full scan saw, every connection,`
+      + ` every sample (${verifies.length} point(s)).`
+    : '  DIFFERENTIAL: MISMATCHED — the grid changed what a connection sees.');
 say('');
 say('  us per simulated second, and the share of one core');
-say('      pop    conn  arm       total  1 core   anchor    radius     owner    B/A');
+say('      pop    conn  arm       total  1 core    build    radius   vs B');
 for (const [entities, connections] of POINTS) {
-    const a = at('A', entities, connections);
+    const b = at('B', entities, connections);
     for (const arm of ARMS) {
         const p = at(arm, entities, connections);
         const s = p.segmentUsPerSimSecond;
-        const ratio = arm === 'B' ? (p.totalUsPerSimSecond / a.totalUsPerSimSecond).toFixed(2) : '—';
-        say(`   ${pad(entities, 7)} ${pad(connections, 5)}    ${arm} ${pad(round(p.totalUsPerSimSecond), 11)}`
+        const ratio = arm === 'B' ? '—' : (p.totalUsPerSimSecond / b.totalUsPerSimSecond).toFixed(3);
+        say(`   ${pad(entities, 7)} ${pad(connections, 5)}   ${pad(arm, 2)} ${pad(round(p.totalUsPerSimSecond), 11)}`
             + ` ${pad(`${(p.totalUsPerSimSecond / 1e4).toFixed(0)}%`, 7)}`
-            + ` ${pad(round(s.anchor), 8)} ${pad(round(s.radius), 9)} ${pad(round(s.owner), 9)} ${pad(ratio, 6)}`);
+            + ` ${pad(round(s.build), 8)} ${pad(round(s.radius), 9)} ${pad(ratio, 6)}`);
     }
 }
 say('');
-say('  entities visited per sample (the mechanism, without this machine in it)');
-say('      pop    conn  arm     anchor     radius      owner   distance');
+say('  visits per sample (the mechanism, without this machine in it)');
+say('      pop    conn  arm   posReads      cells  spatialCand   distTests');
 for (const [entities, connections] of POINTS) {
     for (const arm of ARMS) {
         const v = at(arm, entities, connections).visitedPerSample;
-        say(`   ${pad(entities, 7)} ${pad(connections, 5)}    ${arm} ${pad(round(v.anchor), 10)}`
-            + ` ${pad(round(v.radius), 10)} ${pad(round(v.owner), 10)} ${pad(round(v.distanceTests), 10)}`);
+        say(`   ${pad(entities, 7)} ${pad(connections, 5)}   ${pad(arm, 2)} ${pad(round(v.positionReads), 10)}`
+            + ` ${pad(round(v.cells), 10)} ${pad(round(v.spatialCandidates), 12)} ${pad(round(v.distanceTests), 11)}`);
     }
 }
 say('');
-say('--- WHAT THIS DECOMPOSES ---');
-say('  anchor  finding the entities this connection owns, to place its view');
-say('  radius  testing every candidate against those anchors');
-say('  owner   the server putting owned entities back, not trusting the policy');
+say('--- WHAT THIS SEPARATES ---');
+say('  C0/B   reading each position ONCE per sample instead of once per connection');
+say('  C1/C0  spatial locality on top of that');
+say('  build  the price of rebuilding, paid every sample whatever moved');
 say('');
-say('  anchor and owner are the same question asked twice, both O(population).');
-say('  B answers it from an index and changes nothing else — so B/A is the price');
-say('  of NOT having one, and what is left in B is the spatial problem alone.');
+say('  Rebuilding is what lets this support an arbitrary position() function:');
+say('  nothing is carried between samples, so there is no invalidation to get');
+say('  wrong. What an incremental index would buy is the build column alone.');
 
 const out = path.join(HERE, QUICK ? 'results.quick.json' : 'results.json');
 writeFileSync(out, `${JSON.stringify({

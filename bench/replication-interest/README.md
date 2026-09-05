@@ -51,25 +51,69 @@ Entities visited per sample, which is the mechanism without this machine in it:
 | A @ 100k × 32 | 3,200,000 | 3,200,000 | 3,200,000 |
 | B @ 100k × 32 | **32** | 3,200,000 | **32** |
 
+## Second question: what is left, once ownership is indexed
+
+With the owner passes gone, the radius scan is the whole cost — and it reads
+each candidate's position through the builtin `Transform`, once per connection.
+Two more arms separate what that costs from what the scan costs:
+
+| | positions | walk |
+|---|---|---|
+| **B** | read per connection, as shipped | every candidate |
+| **C0** | read once per sample, cached | every candidate |
+| **C1** | read once per sample into a grid | nearby cells only |
+
+The grid is rebuilt **every sample**, which is not a compromise — it is what
+lets it support an arbitrary `position()` function. Nothing is carried between
+samples, so there is no invalidation contract to get wrong. It keeps all three
+of the shipped rules: a placeless entity is relevant to everyone, no positioned
+anchor fails open to `'all'`, and a cell is a box while the rule is a sphere, so
+the exact distance test stays.
+
+The grid saw exactly what the full scan saw, every connection, every sample, at
+all three differential points.
+
+| population | connections | B | C0 | C1 | C0/B | C1/B |
+|---|---|---|---|---|---|---|
+| 10k | 8 | 115% | 19% | 16% | 0.168 | 0.143 |
+| 10k | 32 | 497% | 32% | 18% | 0.064 | 0.036 |
+| 100k | 8 | 1094% | 219% | 175% | 0.200 | 0.160 |
+| 100k | 32 | **4623%** | 333% | **184%** | 0.072 | **0.040** |
+
+Position reads per sample go from `connections × population` to `population`;
+distance tests at 100k × 32 go from **3,200,000 to 83,267**.
+
+**Most of the win is not the grid.** Reading each position once per sample
+rather than once per connection is C0, and it alone takes 100k × 32 from 46
+cores to 3.3. The grid then halves what is left. Measuring them together would
+have credited spatial locality with an amortisation that has nothing to do with
+space.
+
+At 100% visible the grid still wins — 0.22 against B — because the read
+amortisation survives even when locality buys nothing (C1/C0 there is 0.93).
+
+**What an incremental index would buy is the build column, and only that.** At
+100k × 32, C1 spends 1,716,864 of its 1,842,972 on rebuilding and 77,081 on
+querying: the query is already 8% of a core, and the rebuild is 172%.
+
 ## What that says about the change after this one
 
 **Half the cost at 10k, two thirds at 100k, is ownership lookup — and none of it
 needs a spatial index.** An index answers it in O(owned): 3.2 million visits
-become 32.
+become 32. That shipped first, on its own, for exactly this reason.
 
-So the order is settled: **ownership index first, spatial provider after.** Going
-straight to a provider would remove anchors, radius and ownership in one change
-and leave nobody able to say which part paid.
-
-What is left in B is the real spatial problem, and it is still the larger half —
-5.8 seconds per simulated second at 100k × 32. That is what a provider has to
-attack, and it is worth attacking on its own terms rather than as a side effect.
+What remains is the radius scan, and a per-sample rebuilt grid takes 100k × 32
+from 46 cores to 1.8 while keeping arbitrary `position()` support and matching
+the full scan entity for entity. The build is 93% of what is left, so an
+incremental index is worth designing — but it is now a question about
+maintaining a structure, not about whether locality helps.
 
 ## What this does not cover
 
-- Position lives in a script component, not the builtin `Transform` the shipped
-  default reads. A builtin read crosses the wasm boundary, so arm A is
-  UNDERSTATED here and every ratio is conservative.
+- Arms A and B were first measured with position in a script component, which
+  understated them by roughly a factor of ten: the shipped default reads the
+  builtin `Transform` across the wasm boundary, and that read is most of the
+  cost. Everything above uses the builtin.
 - One anchor per connection. `radiusInterest` allows several, and the radius
   pass is then `candidates × anchors` — this measures the floor of that pass.
 - The per-connection dirty and removal filters are timed and counted but stay

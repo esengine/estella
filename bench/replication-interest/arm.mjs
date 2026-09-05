@@ -8,7 +8,9 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-    loadSdk, buildWorld, applyMovement, newStats, visibleForA, visibleForB, diffAndFilter,
+    loadSdk, connectEngine, buildWorld, applyMovement, newStats,
+    visibleForA, visibleForB, visibleForC0, visibleForC1,
+    buildPositionCache, buildGrid, diffAndFilter,
 } from './workload.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -29,12 +31,13 @@ const SIM_HZ = Number(flag('simHz', '60'));
 const REPL_HZ = Number(flag('replHz', '20'));
 const WARMUP = Number(flag('warmup', '60'));
 const MEASURE = Number(flag('measure', '240'));
-/** Arm B only: compare its visible set against arm A's, every connection, every sample. */
+/** Compare this arm's visible set against arm A's, every connection, every sample. */
 const VERIFY = argv.includes('--verify');
 
 const REPL_EVERY = Math.round(SIM_HZ / REPL_HZ);
 const sdk = await loadSdk(ROOT);
 const app = sdk.App.new();
+await connectEngine(sdk, app, ROOT);
 const world = app.world;
 const ctx = buildWorld(sdk, world, {
     population: ENTITIES, connections: CONNECTIONS, anchorsPerConn: ANCHORS,
@@ -71,15 +74,30 @@ function sampleOnce(measuring) {
     const dirty = candidates.slice(0, Math.max(1, Math.round(ENTITIES * 0.01)));
     const removals = [];
 
+    // Built once per sample, which is what makes an arbitrary position function
+    // safe here: nothing is carried between samples to go stale.
+    const shared = measuring ? stats : newStats();
+    const cache = ARM === 'C0' ? buildPositionCache(world, ctx, shared) : null;
+    const grid = ARM === 'C1' ? buildGrid(world, ctx, shared, RADIUS) : null;
+
     for (let c = 0; c < CONNECTIONS; c++) {
         const use = measuring ? stats : newStats();
-        const visible = ARM === 'B'
-            ? visibleForB(world, ctx, c, candidates, R2, use, ctx.owned)
-            : visibleForA(world, ctx, c, candidates, R2, use, ctx.owned);
+        const visible = ARM === 'C1'
+            ? visibleForC1(ctx, c, candidates, R2, use, ctx.owned, grid, RADIUS)
+            : ARM === 'C0'
+                ? visibleForC0(ctx, c, candidates, R2, use, ctx.owned, cache)
+                : ARM === 'B'
+                    ? visibleForB(world, ctx, c, candidates, R2, use, ctx.owned)
+                    : visibleForA(world, ctx, c, candidates, R2, use, ctx.owned);
         if (VERIFY) {
+            // Set equality, not size: an arm that both misses one entity and
+            // invents another has the same count and a different answer.
             const truth = visibleForA(world, ctx, c, candidates, R2, newStats());
             if (truth.size !== visible.size) mismatches++;
-            else { for (const e of truth) if (!visible.has(e)) { mismatches++; break; } }
+            else {
+                for (const e of truth) if (!visible.has(e)) { mismatches++; break; }
+                for (const e of visible) if (!truth.has(e)) { mismatches++; break; }
+            }
         }
         diffAndFilter(visible, previous.get(c), dirty, removals, use);
         previous.set(c, visible);
