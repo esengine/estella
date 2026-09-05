@@ -51,6 +51,28 @@ const RADIUS = VISIBLE >= 1
 const R2 = RADIUS * RADIUS;
 const MOVE_COUNT = Math.round(ENTITIES * MOVEMENT);
 
+// The composed world transforms exist because something asked, not because a
+// frame happened. A server asks here, before it samples.
+world.ensureTransformsComposed();
+
+// The measured path is the composed one, not a local-space lookalike: a child of
+// a parent at 100, five to its right, has to read 105.
+{
+    const p = world.spawn();
+    world.insert(p, ctx.Pos, { position: { x: 100, y: 0, z: 0 } });
+    const c = world.spawn();
+    world.insert(c, ctx.Pos, { position: { x: 5, y: 0, z: 0 } });
+    world.setParent(c, p);
+    world.ensureTransformsComposed();
+    const composed = world.tryGet(c, ctx.Pos)?.worldPosition?.x;
+    if (composed !== 105) {
+        process.stderr.write(`sentinel: composed child x = ${composed}, want 105\n`);
+        process.exit(1);
+    }
+    world.despawn(c);
+    world.despawn(p);
+}
+
 const stats = newStats();
 const previous = new Map();
 for (let c = 0; c < CONNECTIONS; c++) previous.set(c, new Set());
@@ -64,6 +86,11 @@ let movedTotal = 0;
 
 function sampleOnce(measuring) {
     const t0 = process.hrtime.bigint();
+    // What a server does before an interest snapshot. With no transform mutation
+    // since the last one this is the epoch comparison and nothing else.
+    const et = process.hrtime.bigint();
+    world.ensureTransformsComposed();
+    if (measuring) stats.ns.ensure += process.hrtime.bigint() - et;
     const mt = process.hrtime.bigint();
     const candidates = [...ctx.entities];
     if (measuring) {

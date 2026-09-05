@@ -58,7 +58,7 @@ export function defineComponents(sdk) {
 export function newStats() {
     return {
         ns: {
-            materialize: 0n, build: 0n, anchor: 0n, radius: 0n, owner: 0n,
+            materialize: 0n, ensure: 0n, build: 0n, anchor: 0n, radius: 0n, owner: 0n,
             enter: 0n, leave: 0n, removeFilter: 0n, dirtyFilter: 0n,
         },
         visited: {
@@ -117,8 +117,9 @@ export function applyMovement(world, ctx, tick, count) {
     return moved;
 }
 
-/** What `defaultPosition` does: a builtin read, then the position field. */
-const positionOf = (world, Pos, e) => world.tryGet(e, Pos)?.position ?? null;
+/** What the shipped `defaultPosition` does: a builtin read, then the COMPOSED
+ *  world position — the authority a server now has. */
+const positionOf = (world, Pos, e) => world.tryGet(e, Pos)?.worldPosition ?? null;
 
 /**
  * Arm A: exactly what ships. Anchors are found by scanning the whole candidate

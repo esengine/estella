@@ -108,6 +108,33 @@ the full scan entity for entity. The build is 93% of what is left, so an
 incremental index is worth designing — but it is now a question about
 maintaining a structure, not about whether locality helps.
 
+## Confirmation on the authoritative world-space path
+
+The numbers above were taken while `defaultPosition` still read the authoring
+`position`. It reads the composed `worldPosition` now, and a server composes
+before it samples — so the baseline is re-taken on the path that actually ships.
+Same point, 100k entities and 32 connections, 1% visible, 1% movement:
+
+| | total | one core | ensure | build | radius | posReads | distTests |
+|---|---|---|---|---|---|---|---|
+| B | 51,460,116 | **5146%** | 25,597 | — | 51,384,591 | — | 3,200,000 |
+| C1 | 1,976,888 | **198%** | 25,683 | 1,810,169 | 89,044 | **100,000** | **83,273** |
+
+C1 was 184% against local positions and is 198% against composed ones: reading a
+different field of the same builtin projection, as expected. The ratio holds.
+
+Three things are asserted rather than assumed:
+
+- **The measured path really is the composed one.** Each run builds a child five
+  units right of a parent at 100 and refuses to start unless it reads 105.
+- **Positions are still read once per snapshot.** `posReads` is 100,000, not
+  100,000 × 32 — routing through the composed field did not turn it back into a
+  per-connection read.
+- **Composing is O(1) when nothing moved.** With movement at 0%, `ensure` costs
+  144 µs per simulated second — 0.01% of a core — against 25,297 at 1% movement.
+  A 176× gap is the epoch gate working: it neither misses an invalidation nor
+  invents one.
+
 ## What this does not cover
 
 - Arms A and B were first measured with position in a script component, which
