@@ -55,10 +55,7 @@ public:
         (void)registry;
     }
 
-    void update(World& world) override {
-        updateDirtyTransforms(world.registry);
-        markComposed(world.registry);
-    }
+    void update(World& world) override { compose(world.registry); }
 
     /**
      * @brief Compose if anything changed since the last one; O(1) if not
@@ -70,34 +67,33 @@ public:
     void ensureComposed(Registry& registry) {
         if (registry.instanceId() == composedRegistry_
             && transformMutationEpoch() == composedEpoch_) return;
-        updateDirtyTransforms(registry);
-        markComposed(registry);
+        compose(registry);
     }
 
     u32 composedEpoch() const { return composedEpoch_; }
 
     /**
-     * @brief Compose, and answer which entities' composed OUTPUT actually moved
-     * @param changed Receives those entities; cleared first
-     * @return Whether it composed at all (false = nothing was stale)
-     * @details Not the set the walk VISITED: a non-static root is recomposed
-     *          unconditionally. Costed in bench/transform-composition.
-     * @note A root publishes decomposed world TRS and a child publishes
-     *       `cachedMatrix_`, so each is compared against the one it publishes.
+     * @brief How many compositions have RUN
+     * @details A consumer maintaining a structure from {@link lastChanged} reads
+     *          this to know what it is holding: the same number means nothing
+     *          composed, one more means that set is the whole difference, and any
+     *          other gap means it missed compositions and has to rebuild.
      */
-    bool composeCollecting(Registry& registry, std::vector<Entity>& changed) {
-        changed.clear();
-        visited_ = 0;
-        if (registry.instanceId() == composedRegistry_
-            && transformMutationEpoch() == composedEpoch_) return false;
-        changed_ = &changed;
-        updateDirtyTransforms(registry);
-        changed_ = nullptr;
-        markComposed(registry);
-        return true;
-    }
+    u32 compositionSerial() const { return serial_; }
 
-    /** How many entities the last collecting compose actually wrote. */
+    /**
+     * @brief Collect which entities' composed OUTPUT changed, from now on
+     * @details Off by default: comparing costs about a third of a compose
+     *          (bench/transform-composition) and only a consumer maintaining an
+     *          incremental structure needs it. Turning it on does not compose.
+     */
+    void setChangeTracking(bool on) { tracking_ = on; if (!on) changed_.clear(); }
+    bool changeTracking() const { return tracking_; }
+
+    /** @brief The entities the LAST composition changed; empty unless tracking. */
+    const std::vector<Entity>& lastChanged() const { return changed_; }
+
+    /** @brief How many entities that composition wrote, changed or not. */
     u32 visited() const { return visited_; }
 
 private:
@@ -113,10 +109,29 @@ private:
 
     std::vector<Entity> dirty_to_clear_;
 
-    // Null on the shipped path: composition answers "are they stale", and only a
+    // Off on the shipped path: composition answers "are they stale", and only a
     // caller building an incremental structure pays for "which ones moved".
-    std::vector<Entity>* changed_ = nullptr;
+    bool tracking_ = false;
+    std::vector<Entity>* changedOut_ = nullptr;
+    std::vector<Entity> changed_;
     u32 visited_ = 0;
+    u32 serial_ = 0;
+
+    /**
+     * @brief One composition, whoever asked for it
+     * @details The serial advances here and nowhere else, so "a composition ran"
+     *          and "the changed set describes it" cannot come apart — a caller
+     *          that composed through update() would otherwise move the serial
+     *          past a set nobody collected.
+     */
+    void compose(Registry& registry) {
+        visited_ = 0;
+        if (tracking_) { changed_.clear(); changedOut_ = &changed_; }
+        updateDirtyTransforms(registry);
+        changedOut_ = nullptr;
+        ++serial_;
+        markComposed(registry);
+    }
 
     void updateDirtyTransforms(Registry& registry) {
         dirty_to_clear_.clear();
@@ -156,13 +171,13 @@ private:
     }
 
     void updateRootTransform(Registry& registry, Entity entity, Transform& transform) {
-        if (changed_) {
+        if (changedOut_) {
             ++visited_;
             if (!transform.decomposed_
                 || transform.worldPosition != transform.position
                 || transform.worldRotation != transform.rotation
                 || transform.worldScale != transform.scale) {
-                changed_->push_back(entity);
+                changedOut_->push_back(entity);
             }
         }
         transform.worldPosition = transform.position;
@@ -221,12 +236,12 @@ private:
         glm::mat4 localMatrix = math::compose(transform.position, transform.rotation, transform.scale);
         glm::mat4 worldMatrix = parentWorldMatrix * localMatrix;
 
-        if (changed_) {
+        if (changedOut_) {
             ++visited_;
             // `decomposed_` is not part of the output: a READ flips it (the ptr
             // accessor decomposes on the way out), so testing it here reports
             // every child anyone looked at as having moved.
-            if (worldMatrix != transform.cachedMatrix_) changed_->push_back(entity);
+            if (worldMatrix != transform.cachedMatrix_) changedOut_->push_back(entity);
         }
         transform.cachedMatrix_ = worldMatrix;
         transform.decomposed_ = false;

@@ -648,27 +648,31 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
                 ts->ensureComposed(registry);
             }
         }), emscripten::allow_raw_pointers());
-    // The same composition, asked to also say WHICH entities' output moved — the
-    // set an incremental spatial index would maintain itself from. Costed in
-    // bench/transform-composition; no shipped path calls it.
-    emscripten::function("transform_composeCollecting", emscripten::optional_override(
-        [](esengine::ecs::Registry& registry) -> emscripten::val {
-            static std::vector<esengine::Entity> changed;
-            auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>();
-            auto out = emscripten::val::object();
-            const bool ran = ts && ts->composeCollecting(registry, changed);
-            out.set("ran", ran);
-            out.set("visited", ts ? ts->visited() : 0u);
-            out.set("changed", static_cast<esengine::u32>(ran ? changed.size() : 0));
-            // The ids themselves, as an address into linear memory: a JS array of
-            // a hundred thousand handles would cost more than the walk that found
-            // them. Valid until the next call, which reuses the vector.
+    // Whether composition also records WHICH entities' output moved. Off by
+    // default: only a consumer maintaining an incremental structure needs it.
+    emscripten::function("transform_setChangeTracking", emscripten::optional_override(
+        [](bool on) {
+            if (auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>()) {
+                ts->setChangeTracking(on);
+            }
+        }));
+    // What the LAST composition was: its serial, and the entities it changed as
+    // an address into linear memory. A JS array of a hundred thousand handles
+    // would cost more than the walk that found them.
+    emscripten::function("transform_lastComposition", emscripten::optional_override(
+        []() -> emscripten::val {
             static_assert(sizeof(esengine::Entity) == sizeof(esengine::u32),
                           "the changed set is read as a Uint32Array of raw ids");
-            out.set("ptr", static_cast<esengine::u32>(
-                reinterpret_cast<uintptr_t>(changed.data())));
+            auto out = emscripten::val::object();
+            auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>();
+            out.set("serial", ts ? ts->compositionSerial() : 0u);
+            out.set("tracking", ts && ts->changeTracking());
+            out.set("count", ts ? static_cast<esengine::u32>(ts->lastChanged().size()) : 0u);
+            out.set("visited", ts ? ts->visited() : 0u);
+            out.set("ptr", ts ? static_cast<esengine::u32>(
+                reinterpret_cast<uintptr_t>(ts->lastChanged().data())) : 0u);
             return out;
-        }), emscripten::allow_raw_pointers());
+        }));
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
 #ifdef ES_ENABLE_PARTICLES

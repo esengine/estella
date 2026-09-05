@@ -102,21 +102,33 @@ function mutate(tick) {
     world.invalidateTransformComposition();
 }
 
-const collecting = module.transform_composeCollecting;
+const setTracking = module.transform_setChangeTracking;
+const lastComposition = module.transform_lastComposition;
 let visitedSum = 0;
 let changedSum = 0;
 let ran = 0;
+let seenSerial = -1;
 
 // Both arms in one process, alternating passes. Run apart they disagreed by more
-// than the thing being measured — two node processes differ by more than a
-// hundred microseconds of compose, and B came out FASTER than A on the tree.
-function composeA() { world.ensureTransformsComposed(); }
-function composeB() {
-    const r = collecting(registry);
-    if (r.ran) { ran++; visitedSum += r.visited; changedSum += r.changed; }
+// than the thing being measured — B came out FASTER than A on the tree. Switching
+// the mode and READING the set are the consumer's work, not the composition's, so
+// both sit outside the timer.
+function compose(collect) {
+    setTracking(collect);
+    const t0 = process.hrtime.bigint();
+    world.ensureTransformsComposed();
+    const dt = Number(process.hrtime.bigint() - t0);
+    if (collect) {
+        const r = lastComposition();
+        if (r.serial !== seenSerial) {
+            seenSerial = r.serial;
+            ran++; visitedSum += r.visited; changedSum += r.count;
+        }
+    }
+    return dt;
 }
 
-for (let t = 0; t < WARMUP; t++) { mutate(t); (t % 2 ? composeB : composeA)(); }
+for (let t = 0; t < WARMUP; t++) { mutate(t); compose(t % 2 === 1); }
 ran = 0; visitedSum = 0; changedSum = 0;
 let nsA = 0;
 let nsB = 0;
@@ -125,9 +137,7 @@ let passesB = 0;
 for (let t = 0; t < MEASURE; t++) {
     mutate(t);
     const collect = t % 2 === 1;
-    const t0 = process.hrtime.bigint();
-    if (collect) composeB(); else composeA();
-    const dt = Number(process.hrtime.bigint() - t0);
+    const dt = compose(collect);
     if (collect) { nsB += dt; passesB++; } else { nsA += dt; passesA++; }
 }
 

@@ -98,9 +98,9 @@ never move their probe, so the check is live where movement is.
   entities arrive in this set like any other. 3D physics already wrote only
   local inputs — but it treats the solver pose as local unconditionally, which
   is a parented-body bug of its own and not an authorship one.
-- Nothing ships. `composeCollecting` has one caller and it is this bench; the
-  shipped `ensureComposed` path collects nothing and pays one predictable branch
-  per entity, which the A column is what says is affordable.
+- Change tracking is OFF by default, and the A column is what says that matters:
+  a compose that records nothing pays one predictable branch per entity, and a
+  consumer that wants the set turns it on and pays the B column.
 - **The set is a value-change journal, not a membership one.** A new entity
   spawned at the origin is not in it — its composed output equals what its fields
   already held — and a despawned entity is never in it. A consumer that maintains

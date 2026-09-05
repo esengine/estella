@@ -315,7 +315,32 @@ export interface BridgeConnectOptions {
 export interface TransformComposition {
     readonly epoch: Uint32Array;
     ensure(): void;
+    /** Optional third: what the last composition changed. A core that cannot
+     *  report it leaves every consumer to rebuild, which is a capability
+     *  difference and not a failure. */
+    setChangeTracking?(on: boolean): void;
+    lastComposition?(): NativeComposition;
 }
+
+/** What a core answers about its last composition. */
+export interface NativeComposition {
+    readonly serial: number;
+    readonly tracking: boolean;
+    readonly count: number;
+    readonly visited: number;
+    readonly changed: ArrayBuffer | null;
+}
+
+/** The last composition, as a consumer reads it: an empty set and the serial it
+ *  belongs to, or null from a core that cannot say. */
+export interface CompositionDelta {
+    readonly serial: number;
+    readonly changed: Uint32Array;
+    readonly visited: number;
+}
+
+/** One allocation for every core's empty answer. */
+const EMPTY_CHANGED = new Uint32Array(0);
 
 const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
 
@@ -452,6 +477,52 @@ export class BuiltinBridge {
         if (this.transformComposition_) { this.transformComposition_.ensure(); return; }
         if (!this.cppRegistry_) return;
         this.module_?.transform_ensureComposed?.(this.cppRegistry_);
+    }
+
+    /**
+     * Ask composition to record which entities' output changed. Answers whether
+     * this core can: one that cannot leaves a consumer to rebuild every time.
+     */
+    setTransformChangeTracking(on: boolean): boolean {
+        const injected = this.transformComposition_;
+        if (injected) {
+            if (!injected.setChangeTracking || !injected.lastComposition) return false;
+            injected.setChangeTracking(on);
+            return true;
+        }
+        const set = this.module_?.transform_setChangeTracking;
+        if (!set || !this.module_?.transform_lastComposition) return false;
+        set.call(this.module_, on);
+        return true;
+    }
+
+    /**
+     * The last composition's serial and the entities it changed, or null from a
+     * core that cannot report one. The ids VIEW engine memory and the next
+     * composition overwrites them, so a consumer reads them before composing
+     * again — the serial is how it knows which composition they describe.
+     */
+    lastComposition(): CompositionDelta | null {
+        const injected = this.transformComposition_;
+        if (injected?.lastComposition) {
+            const raw = injected.lastComposition();
+            return {
+                serial: raw.serial,
+                visited: raw.visited,
+                changed: raw.changed ? new Uint32Array(raw.changed, 0, raw.count) : EMPTY_CHANGED,
+            };
+        }
+        const read = this.module_?.transform_lastComposition;
+        if (!read || !this.module_) return null;
+        const raw = read.call(this.module_);
+        return {
+            serial: raw.serial,
+            visited: raw.visited,
+            // Rebuilt every call: growing the heap detaches the previous view.
+            changed: raw.count > 0
+                ? new Uint32Array(this.module_.HEAPU32.buffer, raw.ptr, raw.count)
+                : EMPTY_CHANGED,
+        };
     }
 
     /** @internal What the staleness counter reads, for the fixtures that assert

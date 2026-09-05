@@ -9776,6 +9776,7 @@ tabIndex: number | undefined
 @internal isChangeTracked: (component: AnyComponentDef) => boolean
 @internal isChangedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
 @internal isIterating: () => boolean
+@internal lastComposition: () => CompositionDelta | null
 @internal layoutEpoch: () => number | null
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
 @internal queries_: QueryCache
@@ -9796,6 +9797,7 @@ tabIndex: number | undefined
 @internal scriptLayoutEpoch: () => number
 @internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
+@internal setTransformChangeTracking: (on: boolean) => boolean
 @internal suspendIteration: () => number
 @internal topologyReaderCount: (component: AnyComponentDef) => number
 @internal transformEpoch: () => number

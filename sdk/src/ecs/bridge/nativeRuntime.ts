@@ -21,8 +21,9 @@ import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
+import type { NativeComposition } from './BuiltinBridge';
 import { createNativeResourceManager } from './nativeResourceManager';
-import { HOST_FLAGS, REGISTRY_BINDINGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
+import { COMPOSITION_BINDINGS, HOST_FLAGS, REGISTRY_BINDINGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
 import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
 import { createNativeEngineApi } from './nativeEngineApi.generated';
 import { setNativeEngineApi, engineApi } from './engineApi';
@@ -70,7 +71,17 @@ function nativeTransformComposition(scope: Record<string, unknown>) {
     if (!bytes) return undefined;
     // The arena never moves, unlike a growable wasm heap, so one view lasts.
     const epoch = new Uint32Array(bytes, 0, 1);
-    return { epoch, ensure: () => { (ensure as () => void)(); } };
+    const track = scope[COMPOSITION_BINDINGS.setChangeTracking];
+    const last = scope[COMPOSITION_BINDINGS.lastComposition];
+    const reports = typeof track === 'function' && typeof last === 'function';
+    return {
+        epoch,
+        ensure: () => { (ensure as () => void)(); },
+        // A host too old to report the delta simply has no third half, and every
+        // consumer of it rebuilds instead.
+        setChangeTracking: reports ? (on: boolean) => { (track as (v: boolean) => void)(on); } : undefined,
+        lastComposition: reports ? () => (last as () => NativeComposition)() : undefined,
+    };
 }
 
 export function createNativeWorld(

@@ -314,3 +314,112 @@ describe.skipIf(!HAS_WASM)('a core that hands the composition seam over', () => 
         world.disconnectCpp();
     });
 });
+
+/**
+ * What a consumer maintaining an incremental structure reads: a serial saying
+ * WHICH composition it is looking at, and the entities that one changed. The
+ * pair is the whole contract — a set without a serial cannot tell "nothing
+ * moved" from "you missed three compositions".
+ */
+describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
+    let module: ESEngineModule;
+    beforeAll(async () => { module = await loadWasmModule(); });
+
+    function scene() {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, module);
+        const world = app.world;
+        const a = world.spawn('a');
+        world.insert(a, Transform, { position: { x: 1, y: 0, z: 0 } });
+        const b = world.spawn('b');
+        world.insert(b, Transform, { position: { x: 2, y: 0, z: 0 } });
+        return { app, world, a, b };
+    }
+    const ids = (world: App['world']) => [...(world.lastComposition()!.changed)];
+
+    it('names the entities whose output moved, and only those', () => {
+        const { world, a, b } = scene();
+        expect(world.setTransformChangeTracking(true)).toBe(true);
+        world.ensureTransformsComposed();
+
+        world.update(b, Transform, (t) => { (t as { position: { x: number } }).position.x = 40; });
+        world.ensureTransformsComposed();
+        expect(ids(world)).toEqual([b as number]);
+
+        // A write that moves nothing: the epoch cannot tell it from movement and
+        // the comparison can, which is the whole reason the set is worth having.
+        world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 1; });
+        world.ensureTransformsComposed();
+        expect(ids(world)).toEqual([]);
+        world.setTransformChangeTracking(false);
+        world.disconnectCpp();
+    });
+
+    it('advances the serial once per composition and not at all without one', () => {
+        const { world, a } = scene();
+        world.setTransformChangeTracking(true);
+        world.ensureTransformsComposed();
+        const first = world.lastComposition()!.serial;
+
+        // Nothing was invalidated, so nothing composed.
+        world.ensureTransformsComposed();
+        world.ensureTransformsComposed();
+        expect(world.lastComposition()!.serial).toBe(first);
+
+        world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 9; });
+        world.ensureTransformsComposed();
+        expect(world.lastComposition()!.serial).toBe(first + 1);
+        world.setTransformChangeTracking(false);
+        world.disconnectCpp();
+    });
+
+    it('reports nothing while tracking is off, and the serial still moves', () => {
+        const { world, a } = scene();
+        world.setTransformChangeTracking(false);
+        world.ensureTransformsComposed();
+        const before = world.lastComposition()!.serial;
+
+        world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 3; });
+        world.ensureTransformsComposed();
+        const after = world.lastComposition()!;
+        expect(after.serial).toBe(before + 1);
+        expect(after.changed.length).toBe(0);
+        world.disconnectCpp();
+    });
+
+    it('a second world composing in between shows up as a gap', () => {
+        const first = scene();
+        first.world.setTransformChangeTracking(true);
+        first.world.ensureTransformsComposed();
+        const seen = first.world.lastComposition()!.serial;
+
+        // Another world composes; the serial is the engine's, not this world's,
+        // so a consumer that missed compositions has to be able to see that.
+        const other = scene();
+        other.world.ensureTransformsComposed();
+        other.world.disconnectCpp();
+
+        first.world.update(first.a, Transform,
+            (t) => { (t as { position: { x: number } }).position.x = 50; });
+        first.world.ensureTransformsComposed();
+        expect(first.world.lastComposition()!.serial).toBeGreaterThan(seen + 1);
+        first.world.setTransformChangeTracking(false);
+        first.world.disconnectCpp();
+    });
+
+    it('a core that cannot report says so instead of answering nothing', () => {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        // The seam without its optional third half — a host too old to report.
+        app.connectCpp(registry, undefined, {
+            transformComposition: {
+                epoch: new Uint32Array(module.HEAPU32.buffer, module.transform_epochAddress!(), 1),
+                ensure: () => module.transform_ensureComposed!(registry),
+            },
+        });
+        expect(app.world.setTransformChangeTracking(true)).toBe(false);
+        expect(app.world.lastComposition()).toBeNull();
+        app.world.disconnectCpp();
+    });
+});

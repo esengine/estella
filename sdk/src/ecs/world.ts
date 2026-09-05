@@ -9,7 +9,7 @@ import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } fro
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
-import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './bridge/BuiltinBridge';
+import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
@@ -1307,6 +1307,19 @@ export class World {
     /** @internal What the composition staleness counter reads. */
     transformEpoch(): number {
         return this.builtin_.transformEpoch();
+    }
+
+    /** @internal Ask composition to record which entities' output changed.
+     *  Answers whether this core can report it at all. */
+    setTransformChangeTracking(on: boolean): boolean {
+        return this.builtin_.setTransformChangeTracking(on);
+    }
+
+    /** @internal The last composition's serial and the entities it changed; null
+     *  from a core that cannot say. The ids view engine memory until the next
+     *  composition, and the serial says which composition they describe. */
+    lastComposition(): CompositionDelta | null {
+        return this.builtin_.lastComposition();
     }
 
     /** @internal Mark component as changed without writing data (for in-place Mut query) */

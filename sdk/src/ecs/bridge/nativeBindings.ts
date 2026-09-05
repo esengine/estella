@@ -48,6 +48,16 @@ export const REGISTRY_BINDINGS = {
 } as const;
 
 /**
+ * The composition's change REPORT, which not every host has to answer: a core
+ * that does not leaves consumers rebuilding rather than updating, so these are
+ * outside {@link assertNativeBindings}' required set.
+ */
+export const COMPOSITION_BINDINGS = {
+    setChangeTracking: 'es_transformSetChangeTracking',
+    lastComposition: 'es_transformLastComposition',
+} as const;
+
+/**
  * The native ResourceManager surface the asset pipeline uploads through.
  *
  * `createTexture` and `releaseTexture` are the engine's own `rm_*` entry points,

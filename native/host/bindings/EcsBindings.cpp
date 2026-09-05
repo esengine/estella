@@ -115,6 +115,34 @@ JSValue js_setMeshSkinJoints(JSContext* ctx, JSValueConst, int argc, JSValueCons
 JSValue js_transformEpochBuffer(JSContext* ctx, JSValueConst, int, JSValueConst*) {
     return esn_arraybuffer(ctx, &ecs::transformMutationEpoch(), sizeof(u32));
 }
+/** Whether composition also records which entities' output moved. Off by default;
+ *  only a consumer maintaining an incremental structure pays for it. */
+JSValue js_transformSetChangeTracking(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc >= 1 && host().ctx) {
+        if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) {
+            ts->setChangeTracking(JS_ToBool(ctx, argv[0]) != 0);
+        }
+    }
+    return JS_UNDEFINED;
+}
+/**
+ * The last composition: its serial, and the entities it changed. The buffer is a
+ * view over the system's own vector — valid until the next composition, which is
+ * what the serial is for.
+ */
+JSValue js_transformLastComposition(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    static_assert(sizeof(Entity) == sizeof(u32), "the changed set is read as raw ids");
+    auto* ts = host().ctx ? host().ctx->tryGet<ecs::TransformSystem>() : nullptr;
+    JSValue out = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, out, "serial", JS_NewUint32(ctx, ts ? ts->compositionSerial() : 0));
+    JS_SetPropertyStr(ctx, out, "tracking", JS_NewBool(ctx, ts && ts->changeTracking()));
+    const size_t count = ts ? ts->lastChanged().size() : 0;
+    JS_SetPropertyStr(ctx, out, "count", JS_NewUint32(ctx, static_cast<uint32_t>(count)));
+    JS_SetPropertyStr(ctx, out, "visited", JS_NewUint32(ctx, ts ? ts->visited() : 0));
+    JS_SetPropertyStr(ctx, out, "changed", count == 0 ? JS_NULL
+        : esn_arraybuffer(ctx, const_cast<Entity*>(ts->lastChanged().data()), count * sizeof(Entity)));
+    return out;
+}
 /** The consumer half: compose if a producer said the inputs moved. A headless
  *  host installs no renderer, and nothing else would ever schedule it. */
 JSValue js_transformEnsureComposed(JSContext* ctx, JSValueConst, int, JSValueConst*) {
@@ -140,6 +168,8 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_registryLayoutEpoch", js_layoutEpoch, 0);
     bindGlobal(h, global, "es_transformEpochBuffer", js_transformEpochBuffer, 0);
     bindGlobal(h, global, "es_transformEnsureComposed", js_transformEnsureComposed, 0);
+    bindGlobal(h, global, "es_transformSetChangeTracking", js_transformSetChangeTracking, 1);
+    bindGlobal(h, global, "es_transformLastComposition", js_transformLastComposition, 0);
 }
 
 }  // namespace eshost
