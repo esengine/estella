@@ -382,6 +382,15 @@ public:
      */
     virtual bool supportsFloatTargets() = 0;
 
+    /**
+     * @brief Most samples an offscreen colour attachment may carry; 1 = none.
+     * @details The engine owns its own multisampling: a target the scene draws
+     *          into is created with this many samples and resolves itself. Ask
+     *          before requesting samples — a backend answering 1 has no MSAA to
+     *          give, and a target that asks anyway would resolve from nothing.
+     */
+    virtual u32 maxSamples() = 0;
+
     // =========================================================================
     // Shader Programs
     // =========================================================================

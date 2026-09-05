@@ -139,6 +139,7 @@ TargetHandle RenderGraph::acquire(const Resource& res) {
     shape.format = res.desc.format;
     shape.linearFilter = res.desc.linearFilter;
     shape.depthStencil = res.desc.depthStencil;
+    shape.samples = res.desc.samples;
     const TargetHandle handle = pool_.acquire(shape);
     if (handle != kNoTarget) borrowed_.push_back(handle);
     return handle;

@@ -143,10 +143,17 @@ public:
     // =========================================================================
 
     /** @brief Gets the color attachment texture */
-    TextureHandle getColorAttachment() const { return colorAttachment_; }
+    /// What a shader samples. On a multisampled target this is the RESOLVED
+    /// attachment, not the one drawn into — the caller never handles the
+    /// multisampled side, which cannot be sampled at all.
+    TextureHandle getColorAttachment() const {
+        return resolveColor_ != TextureHandle::Invalid ? resolveColor_ : colorAttachment_;
+    }
 
     /** @brief Gets the depth attachment texture (Invalid if none) */
-    TextureHandle getDepthAttachment() const { return depthAttachment_; }
+    TextureHandle getDepthAttachment() const {
+        return resolveDepth_ != TextureHandle::Invalid ? resolveDepth_ : depthAttachment_;
+    }
 
     /** @brief Gets the framebuffer width in pixels */
     u32 getWidth() const { return spec_.width; }
@@ -177,6 +184,9 @@ private:
     FramebufferHandle handle_ = FramebufferHandle::Default;
     TextureHandle colorAttachment_ = TextureHandle::Invalid;
     TextureHandle depthAttachment_ = TextureHandle::Invalid;
+    /// Single-sample twins, non-Invalid only when spec_.samples > 1.
+    TextureHandle resolveColor_ = TextureHandle::Invalid;
+    TextureHandle resolveDepth_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine

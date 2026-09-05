@@ -80,6 +80,7 @@ public:
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
     bool supportsFloatTargets() override;
+    u32 maxSamples() override;
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300;
@@ -238,6 +239,24 @@ private:
         u32 depthStencil = 0;
     };
     std::unordered_map<u32, FramebufferTextures> framebuffer_textures_;
+
+    // Where a multisampled framebuffer resolves to, and how big. The blit runs
+    // whenever the target is left, which is the only reason anything above the
+    // RHI can sample a target it drew into multisampled.
+    struct ResolvePair {
+        u32 destFbo = 0;
+        u32 width = 0;
+        u32 height = 0;
+        bool depth = false;
+    };
+    std::unordered_map<u32, ResolvePair> framebuffer_resolve_;
+    /// Blit a multisampled target into the single-sample one it owns; no-op for
+    /// a target that owns none. Called whenever a target is left.
+    void resolveFramebuffer(u32 fbo);
+    /// The target a pass is currently drawing into, so leaving it can resolve it.
+    u32 current_fbo_ = 0;
+    /// 0 = unprobed; otherwise GL_MAX_SAMPLES, floored at 1.
+    u32 max_samples_ = 0;
 
     // Completed readbacks parked until taken: GL reads synchronously at request
     // time, so the async contract resolves on the caller's first poll.

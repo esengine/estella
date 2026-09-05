@@ -1,0 +1,99 @@
+{
+  "version": 4,
+  "name": "AaEdgePost",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 300
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 100,
+            "nearPlane": 1,
+            "farPlane": 1000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "pixelate",
+                "enabled": true,
+                "uniforms": {
+                  "u_pixelSize": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Blade",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0.1736,
+              "w": 0.9848
+            },
+            "scale": {
+              "x": 1.4,
+              "y": 0.35,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:quad",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": false,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

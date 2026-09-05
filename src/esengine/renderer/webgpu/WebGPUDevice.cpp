@@ -73,6 +73,11 @@ WebGPUDevice::~WebGPUDevice() {
     shutdown();
 }
 
+// MSAA is not wired on this backend yet: its targets are all sampleCount 1 and
+// its pipelines multisample.count 1, so a caller must not ask for more — a
+// target that did would resolve out of an attachment that was never multisampled.
+u32 WebGPUDevice::maxSamples() { return 1; }
+
 void WebGPUDevice::init() {
     captureDeviceIdentity();
 }

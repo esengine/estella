@@ -52,6 +52,9 @@ struct TargetShape {
     GfxPixelFormat format = GfxPixelFormat::RGBA8;
     bool linearFilter = true;
     bool depthStencil = false;
+    /// Samples the target is DRAWN into with; what it hands back to be sampled
+    /// is always single-sample, because the target resolves itself.
+    u32 samples = 1;
 };
 
 class TargetPool {

@@ -402,6 +402,8 @@ private:
     bool bypass_ = false;
     bool linear_output_ = false;
     bool scene_needs_depth_ = false;
+    /// Samples the scene target rasterises with; the backend's ceiling, capped.
+    u32 scene_samples_ = 1;
     OutputTransform output_transform_ = OutputTransform::None;
     /// The graph resource the scene is drawn into, live between begin() and end().
     rg::ResourceId sceneResource_ = rg::kNoResource;

@@ -22,12 +22,17 @@ u64 texelBytes(const TargetShape& shape) {
     // Depth24Stencil8 is what a depth-stencil attachment costs; the colour above
     // is separate storage, not a second view of it.
     if (shape.depthStencil) bytes += 4u;
+    // A multisampled target is that many times over, PLUS the single-sample
+    // attachments it resolves into — it is two targets in one object, and a
+    // budget that counted only the shape would under-report it fivefold.
+    if (shape.samples > 1) bytes *= (shape.samples + 1);
     return bytes;
 }
 
 bool sameShape(const TargetShape& a, const TargetShape& b) {
     return a.width == b.width && a.height == b.height && a.format == b.format
-           && a.linearFilter == b.linearFilter && a.depthStencil == b.depthStencil;
+           && a.linearFilter == b.linearFilter && a.depthStencil == b.depthStencil
+           && a.samples == b.samples;
 }
 
 }  // namespace
@@ -68,6 +73,7 @@ TargetHandle TargetPool::acquire(const TargetShape& shape) {
     spec.depthStencil = shape.depthStencil;
     spec.linearFilter = shape.linearFilter;
     spec.colorFormat = shape.format;
+    spec.samples = shape.samples;
     auto fbo = Framebuffer::create(device_, spec);
     if (!fbo) {
         ES_LOG_ERROR("TargetPool: failed to create a {}x{} target", shape.width, shape.height);

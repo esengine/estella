@@ -63,6 +63,10 @@ void PostProcessPipeline::init(u32 width, u32 height) {
         return;
     }
 
+    // Capped at 4: what a browser offers a drawing buffer, past which a sample
+    // buys less than its bandwidth. A backend with no MSAA answers 1.
+    scene_samples_ = std::min(4u, device_.maxSamples());
+
     initialized_ = true;
 }
 
@@ -359,8 +363,13 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     // With no pass to run, the blit samples the scene target itself, so the
     // present's filter is the one that applies to it.
     const bool sceneIsBlitSource = bypass_ || passes_.empty();
-    sceneResource_ = graph_->createExternalTarget(
-        sceneIsBlitSource ? blitSourceTarget(scene_needs_depth_) : chainTarget(scene_needs_depth_));
+    rg::TargetDesc sceneDesc =
+        sceneIsBlitSource ? blitSourceTarget(scene_needs_depth_) : chainTarget(scene_needs_depth_);
+    // The only target geometry is rasterised into, so the only one with edges.
+    // Every other target in the chain is a fullscreen pass and stays at one
+    // sample. Gate: check-postfx-aa.
+    sceneDesc.samples = scene_samples_;
+    sceneResource_ = graph_->createExternalTarget(sceneDesc);
     if (sceneResource_ == rg::kNoResource) {
         ES_LOG_ERROR("PostProcessPipeline: no scene target this frame");
         return;

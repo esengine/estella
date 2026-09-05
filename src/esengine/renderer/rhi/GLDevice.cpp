@@ -91,6 +91,14 @@ namespace esengine {
 
 namespace {
 
+// A multisampled attachment is a RENDERBUFFER in WebGL2, and renderbuffer ids
+// live in their own namespace where id 3 and texture 3 both exist — hence a tag
+// bit rather than a lookup that would confuse the two.
+constexpr u32 kRenderbufferTag = 0x80000000u;
+inline bool isRenderbuffer(u32 handle) { return (handle & kRenderbufferTag) != 0; }
+inline GLuint rbId(u32 handle) { return static_cast<GLuint>(handle & ~kRenderbufferTag); }
+
+
 GLenum toGLFilter(TextureFilter filter) {
     switch (filter) {
     case TextureFilter::Nearest: return GL_NEAREST;
@@ -1061,6 +1069,24 @@ void GLDevice::evictSamplerBinding(u32 textureId) {
 
 TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixels) {
     if (!isDeviceUsable()) return TextureHandle::Invalid;
+
+    // Multisampled: a renderbuffer, never sampled, only drawn into and resolved
+    // from. It takes no filter or wrap because nothing reads it through a sampler.
+    if (desc.samples > 1) {
+        GLuint rb = 0;
+        glGenRenderbuffers(1, &rb);
+        glBindRenderbuffer(GL_RENDERBUFFER, rb);
+        auto glfmt = toGLPixelFormat(desc.format);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, static_cast<GLsizei>(desc.samples),
+                                         glfmt.internalFormat,
+                                         static_cast<GLsizei>(desc.width),
+                                         static_cast<GLsizei>(desc.height));
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        if (rb == 0) return TextureHandle::Invalid;
+        texture_formats_[rb | kRenderbufferTag] = desc.format;
+        return TextureHandle{rb | kRenderbufferTag};
+    }
+
     GLuint id = 0;
     glGenTextures(1, &id);
     texture_formats_[id] = desc.format;
@@ -1128,9 +1154,15 @@ TextureHandle GLDevice::importExternalTexture(u32 nativeId, const TextureDesc& d
 }
 
 void GLDevice::deleteTexture(TextureHandle texture) {
-    GLuint id = static_cast<GLuint>(texture);
-    glDeleteTextures(1, &id);
-    texture_formats_.erase(static_cast<u32>(texture));
+    const u32 handle = static_cast<u32>(texture);
+    if (isRenderbuffer(handle)) {
+        GLuint rb = rbId(handle);
+        glDeleteRenderbuffers(1, &rb);
+    } else {
+        GLuint id = static_cast<GLuint>(texture);
+        glDeleteTextures(1, &id);
+    }
+    texture_formats_.erase(handle);
 }
 
 void GLDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
@@ -1171,18 +1203,31 @@ FramebufferHandle GLDevice::createFramebuffer(const FramebufferDesc& desc) {
     glGenFramebuffers(1, &id);
     glBindFramebuffer(GL_FRAMEBUFFER, id);
 
+    auto attachDepth = [&](u32 handle) {
+        auto it = texture_formats_.find(handle);
+        const bool depthOnly = it != texture_formats_.end()
+                            && it->second == GfxPixelFormat::DepthComponent24;
+        const GLenum point = depthOnly ? GL_DEPTH_ATTACHMENT : GL_DEPTH_STENCIL_ATTACHMENT;
+        if (isRenderbuffer(handle)) {
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, point, GL_RENDERBUFFER, rbId(handle));
+        } else {
+            glFramebufferTexture2D(GL_FRAMEBUFFER, point, GL_TEXTURE_2D,
+                                   static_cast<GLuint>(handle), 0);
+        }
+    };
+
     if (desc.color0 != TextureHandle::Invalid) {
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                               static_cast<GLuint>(desc.color0), 0);
+        const u32 c = static_cast<u32>(desc.color0);
+        if (isRenderbuffer(c)) {
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbId(c));
+        } else {
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                   static_cast<GLuint>(c), 0);
+        }
     }
     if (desc.depthStencil != TextureHandle::Invalid) {
         // Attach point follows the texture's pixel format (depth-only vs packed depth+stencil).
-        auto it = texture_formats_.find(static_cast<u32>(desc.depthStencil));
-        const bool depthOnly = it != texture_formats_.end()
-                            && it->second == GfxPixelFormat::DepthComponent24;
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               depthOnly ? GL_DEPTH_ATTACHMENT : GL_DEPTH_STENCIL_ATTACHMENT,
-                               GL_TEXTURE_2D, static_cast<GLuint>(desc.depthStencil), 0);
+        attachDepth(static_cast<u32>(desc.depthStencil));
     }
 
     const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
@@ -1191,12 +1236,61 @@ FramebufferHandle GLDevice::createFramebuffer(const FramebufferDesc& desc) {
         glDeleteFramebuffers(1, &id);
         return FramebufferHandle::Default;
     }
+    // A multisampled target keeps a second, single-sample framebuffer of its own
+    // to resolve into. It is the target's, not a pass's: whoever leaves the
+    // target gets the resolve for free and never has to ask for it.
+    if (desc.resolveColor0 != TextureHandle::Invalid) {
+        GLuint dst = 0;
+        glGenFramebuffers(1, &dst);
+        glBindFramebuffer(GL_FRAMEBUFFER, dst);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               static_cast<GLuint>(desc.resolveColor0), 0);
+        if (desc.resolveDepthStencil != TextureHandle::Invalid) {
+            attachDepth(static_cast<u32>(desc.resolveDepthStencil));
+        }
+        const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (ok) {
+            framebuffer_resolve_[id] = {dst, desc.width, desc.height,
+                                        desc.resolveDepthStencil != TextureHandle::Invalid};
+        } else {
+            glDeleteFramebuffers(1, &dst);
+            ES_LOG_ERROR("GLDevice: multisample resolve target incomplete");
+        }
+    }
     framebuffer_textures_[id] = {static_cast<u32>(desc.color0), static_cast<u32>(desc.depthStencil)};
     return FramebufferHandle{id};
 }
 
+/**
+ * Blits a multisampled target into the single-sample one it owns. Depth rides
+ * along because a post-process effect reads the scene's depth and a
+ * multisampled depth attachment cannot be sampled — GL_NEAREST is the only
+ * filter a depth blit accepts.
+ */
+void GLDevice::resolveFramebuffer(u32 fbo) {
+    auto it = framebuffer_resolve_.find(fbo);
+    if (it == framebuffer_resolve_.end() || it->second.destFbo == 0) return;
+    const auto& r = it->second;
+    if (r.width == 0 || r.height == 0) return;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, r.destFbo);
+    const GLsizei w = static_cast<GLsizei>(r.width), h = static_cast<GLsizei>(r.height);
+    glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    if (r.depth) {
+        // A separate blit: depth and colour cannot share one when the filter
+        // differs, and depth refuses anything but NEAREST.
+        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(current_fbo_));
+}
+
 void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
     GLuint id = static_cast<GLuint>(framebuffer);
+    if (auto it = framebuffer_resolve_.find(id); it != framebuffer_resolve_.end()) {
+        if (it->second.destFbo != 0) glDeleteFramebuffers(1, &it->second.destFbo);
+        framebuffer_resolve_.erase(it);
+    }
     if (id != 0) glDeleteFramebuffers(1, &id);
     framebuffer_textures_.erase(id);
 }
@@ -1208,6 +1302,11 @@ void GLDevice::clearStencil(i32 value) {
 
 void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
     const GLuint target = static_cast<GLuint>(desc.target);
+    // Retargeting LEAVES the previous target, and the model has no explicit pass
+    // object to hang the resolve on — so leaving is the event, whether it comes
+    // from endRenderPass or from being retargeted out from under.
+    if (current_fbo_ != target) resolveFramebuffer(current_fbo_);
+    current_fbo_ = target;
     glBindFramebuffer(GL_FRAMEBUFFER, target);
 
     // Feedback-loop guard: a render target's own attachment must not remain bound to
@@ -1251,7 +1350,17 @@ void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
 }
 
 void GLDevice::endRenderPass() {
+    resolveFramebuffer(current_fbo_);
+    current_fbo_ = 0;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+u32 GLDevice::maxSamples() {
+    if (max_samples_ != 0) return max_samples_;
+    GLint n = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &n);
+    max_samples_ = n > 1 ? static_cast<u32>(n) : 1u;
+    return max_samples_;
 }
 
 // =============================================================================

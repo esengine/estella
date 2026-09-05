@@ -182,6 +182,8 @@ struct MockGfxDevice final : GfxDevice {
     }
     bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
     bool supportsFloatTargets() override { return true; }
+    // No multisampling: these tests exercise the device seam, not a resolve.
+    u32 maxSamples() override { return 1; }
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300 || (wgslSupported && language == GfxShaderLanguage::WGSL);

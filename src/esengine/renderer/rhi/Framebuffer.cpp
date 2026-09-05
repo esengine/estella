@@ -17,6 +17,8 @@
 #include "./GfxDevice.hpp"
 #include "../../core/Log.hpp"
 
+#include <algorithm>
+
 namespace esengine {
 
 // =============================================================================
@@ -32,10 +34,14 @@ Framebuffer::Framebuffer(Framebuffer&& other) noexcept
       spec_(other.spec_),
       handle_(other.handle_),
       colorAttachment_(other.colorAttachment_),
-      depthAttachment_(other.depthAttachment_) {
+      depthAttachment_(other.depthAttachment_),
+      resolveColor_(other.resolveColor_),
+      resolveDepth_(other.resolveDepth_) {
     other.handle_ = FramebufferHandle::Default;
     other.colorAttachment_ = TextureHandle::Invalid;
     other.depthAttachment_ = TextureHandle::Invalid;
+    other.resolveColor_ = TextureHandle::Invalid;
+    other.resolveDepth_ = TextureHandle::Invalid;
 }
 
 Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
@@ -46,9 +52,13 @@ Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
         handle_ = other.handle_;
         colorAttachment_ = other.colorAttachment_;
         depthAttachment_ = other.depthAttachment_;
+        resolveColor_ = other.resolveColor_;
+        resolveDepth_ = other.resolveDepth_;
         other.handle_ = FramebufferHandle::Default;
         other.colorAttachment_ = TextureHandle::Invalid;
         other.depthAttachment_ = TextureHandle::Invalid;
+        other.resolveColor_ = TextureHandle::Invalid;
+        other.resolveDepth_ = TextureHandle::Invalid;
     }
     return *this;
 }
@@ -103,6 +113,9 @@ void Framebuffer::resize(u32 width, u32 height) {
 
 bool Framebuffer::initialize() {
     const TextureFilter filter = spec_.linearFilter ? TextureFilter::Linear : TextureFilter::Nearest;
+    // The backend's ceiling, not the caller's wish: asking a backend with no MSAA
+    // for samples would leave a resolve reading an attachment nothing multisampled.
+    const u32 samples = std::min(std::max(spec_.samples, 1u), device_->maxSamples());
 
     TextureDesc colorDesc;
     colorDesc.width = spec_.width;
@@ -110,19 +123,35 @@ bool Framebuffer::initialize() {
     colorDesc.format = spec_.colorFormat;
     colorDesc.minFilter = filter;
     colorDesc.magFilter = filter;
+    colorDesc.samples = samples;
     colorAttachment_ = device_->createTexture(colorDesc, nullptr);
 
+    TextureDesc depthDesc;
+    depthDesc.width = spec_.width;
+    depthDesc.height = spec_.height;
+    depthDesc.format = GfxPixelFormat::Depth24Stencil8;
+    depthDesc.minFilter = TextureFilter::Nearest;
+    depthDesc.magFilter = TextureFilter::Nearest;
     if (spec_.depthStencil) {
-        TextureDesc depthDesc;
-        depthDesc.width = spec_.width;
-        depthDesc.height = spec_.height;
-        depthDesc.format = GfxPixelFormat::Depth24Stencil8;
-        depthDesc.minFilter = TextureFilter::Nearest;
-        depthDesc.magFilter = TextureFilter::Nearest;
+        depthDesc.samples = samples;
         depthAttachment_ = device_->createTexture(depthDesc, nullptr);
     }
 
-    handle_ = device_->createFramebuffer({colorAttachment_, depthAttachment_});
+    // The single-sample twins the multisampled attachments resolve into. They
+    // belong to this target: it is what makes a multisampled target sampleable,
+    // and no pass or effect has to know it happened.
+    if (samples > 1) {
+        colorDesc.samples = 1;
+        resolveColor_ = device_->createTexture(colorDesc, nullptr);
+        if (spec_.depthStencil) {
+            depthDesc.samples = 1;
+            resolveDepth_ = device_->createTexture(depthDesc, nullptr);
+        }
+    }
+
+    handle_ = device_->createFramebuffer({colorAttachment_, depthAttachment_,
+                                          resolveColor_, resolveDepth_,
+                                          spec_.width, spec_.height});
     if (handle_ == FramebufferHandle::Default) {
         ES_LOG_ERROR("Framebuffer is incomplete! (size: {}x{}, GL error 0x{:X})",
                      spec_.width, spec_.height, device_->getError());
@@ -135,6 +164,14 @@ bool Framebuffer::initialize() {
 void Framebuffer::cleanup() {
     if (!device_) return;
 
+    if (resolveColor_ != TextureHandle::Invalid) {
+        device_->deleteTexture(resolveColor_);
+        resolveColor_ = TextureHandle::Invalid;
+    }
+    if (resolveDepth_ != TextureHandle::Invalid) {
+        device_->deleteTexture(resolveDepth_);
+        resolveDepth_ = TextureHandle::Invalid;
+    }
     if (colorAttachment_ != TextureHandle::Invalid) {
         device_->deleteTexture(colorAttachment_);
         colorAttachment_ = TextureHandle::Invalid;

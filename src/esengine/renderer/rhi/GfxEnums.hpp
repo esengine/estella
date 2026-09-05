@@ -355,6 +355,10 @@ struct BufferDesc {
 struct TextureDesc {
     u32 width = 1;
     u32 height = 1;
+    /// Samples per pixel. Above 1 the attachment is MULTISAMPLED and cannot be
+    /// sampled by a shader — it is only ever drawn into and resolved from. Ask
+    /// GfxDevice::maxSamples() first; a backend that answers 1 wants 1.
+    u32 samples = 1;
     GfxPixelFormat format = GfxPixelFormat::RGBA8;
     TextureFilter minFilter = TextureFilter::Linear;
     TextureFilter magFilter = TextureFilter::Linear;
@@ -371,6 +375,15 @@ struct TextureDesc {
 struct FramebufferDesc {
     TextureHandle color0 = TextureHandle::Invalid;
     TextureHandle depthStencil = TextureHandle::Invalid;
+    /// Single-sample attachments a multisampled target resolves into. Set them
+    /// and the device resolves whenever the target is left, so nothing above the
+    /// RHI learns the target was multisampled.
+    TextureHandle resolveColor0 = TextureHandle::Invalid;
+    TextureHandle resolveDepthStencil = TextureHandle::Invalid;
+    /// Pixel size, required only when resolving: a blit needs a rectangle and an
+    /// attachment handle carries no dimensions.
+    u32 width = 0;
+    u32 height = 0;
 };
 
 /**

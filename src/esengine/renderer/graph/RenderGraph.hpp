@@ -61,6 +61,9 @@ struct TargetDesc {
     GfxPixelFormat format = GfxPixelFormat::RGBA8;
     bool linearFilter = true;
     bool depthStencil = false;
+    /// Samples to DRAW with. What the target hands back to be sampled stays
+    /// single-sample either way — the resolve is the target's own business.
+    u32 samples = 1;
 };
 
 /** What a pass's execute() is told: where it is drawing and what it may read. */

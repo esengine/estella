@@ -143,6 +143,7 @@ public:
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
     // Float-target rendering is a WebGPU core capability.
     bool supportsFloatTargets() override { return true; }
+    u32 maxSamples() override;
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::WGSL;
