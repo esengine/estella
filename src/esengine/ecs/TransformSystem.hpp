@@ -74,10 +74,8 @@ public:
 
     /**
      * @brief How many compositions have RUN
-     * @details A consumer maintaining a structure from {@link lastChanged} reads
-     *          this to know what it is holding: the same number means nothing
-     *          composed, one more means that set is the whole difference, and any
-     *          other gap means it missed compositions and has to rebuild.
+     * @details A consumer compares it with the serial at its last acknowledgement
+     *          to answer "has anything composed since?" without looking at a set.
      */
     u32 compositionSerial() const { return serial_; }
 
@@ -86,14 +84,36 @@ public:
      * @details Off by default: comparing costs about a third of a compose
      *          (bench/transform-composition) and only a consumer maintaining an
      *          incremental structure needs it. Turning it on does not compose.
+     * @note One consumer. The pending set is a mailbox, not a per-reader journal:
+     *       whoever acknowledges empties it for everyone.
      */
-    void setChangeTracking(bool on) { tracking_ = on; if (!on) changed_.clear(); }
+    void setChangeTracking(bool on) {
+        tracking_ = on;
+        if (!on) takeChanges();
+    }
     bool changeTracking() const { return tracking_; }
 
-    /** @brief The entities the LAST composition changed; empty unless tracking. */
-    const std::vector<Entity>& lastChanged() const { return changed_; }
+    /**
+     * @brief What every composition since the last acknowledgement changed
+     * @details ACCUMULATED, not per-composition: a renderer composes each frame
+     *          and a consumer samples every few. Duplicates are kept, because
+     *          applying an entity twice is idempotent for every consumer.
+     */
+    const std::vector<Entity>& pendingChanges() const { return changed_; }
 
-    /** @brief How many entities that composition wrote, changed or not. */
+    /**
+     * @brief Whether the pending set was dropped for being bigger than a rebuild
+     * @details Once more entities have changed than a composition writes, reading
+     *          them all again is cheaper than replaying the list — so it is
+     *          dropped and the consumer is told to rebuild instead of handed a
+     *          set that costs more than the thing it saves.
+     */
+    bool changesOverflowed() const { return overflowed_; }
+
+    /** @brief Acknowledge the pending set: it is applied, and starts again. */
+    void takeChanges() { changed_.clear(); overflowed_ = false; }
+
+    /** @brief How many entities the last composition wrote, changed or not. */
     u32 visited() const { return visited_; }
 
 private:
@@ -116,6 +136,7 @@ private:
     std::vector<Entity> changed_;
     u32 visited_ = 0;
     u32 serial_ = 0;
+    bool overflowed_ = false;
 
     /**
      * @brief One composition, whoever asked for it
@@ -126,9 +147,14 @@ private:
      */
     void compose(Registry& registry) {
         visited_ = 0;
-        if (tracking_) { changed_.clear(); changedOut_ = &changed_; }
+        if (tracking_ && !overflowed_) changedOut_ = &changed_;
         updateDirtyTransforms(registry);
         changedOut_ = nullptr;
+        // Past the point where replaying the list beats re-reading the world.
+        if (changed_.size() > visited_) {
+            changed_.clear();
+            overflowed_ = true;
+        }
         ++serial_;
         markComposed(registry);
     }

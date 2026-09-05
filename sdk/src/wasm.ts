@@ -431,11 +431,14 @@ export interface ESEngineModule {
     /** Whether composition also records which entities' output moved. Off by
      *  default: only a consumer maintaining an incremental structure needs it. */
     transform_setChangeTracking?(on: boolean): void;
-    /** The last composition: its serial, and `count` raw entity ids at `ptr`.
-     *  Valid until the next composition, which is what the serial is for. */
-    transform_lastComposition?(): {
-        serial: number; tracking: boolean; count: number; visited: number; ptr: number;
+    /** What every composition since the last acknowledgement changed: `count`
+     *  raw entity ids at `ptr`, valid until the next composition. */
+    transform_compositionChanges?(): {
+        serial: number; tracking: boolean; overflowed: boolean;
+        count: number; visited: number; ptr: number;
     };
+    /** Acknowledge that set: it starts again. */
+    transform_takeChanges?(): void;
     /** Permute component storage to the given entity order — see World.applyEntityOrder.
      *  Optional: an older core still answers every other renderer entry point. */
     renderer_setEntityDrawOrder?(registry: CppRegistry, entitiesPtr: number, count: number): void;

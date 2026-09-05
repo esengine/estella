@@ -126,22 +126,32 @@ JSValue js_transformSetChangeTracking(JSContext* ctx, JSValueConst, int argc, JS
     return JS_UNDEFINED;
 }
 /**
- * The last composition: its serial, and the entities it changed. The buffer is a
- * view over the system's own vector — valid until the next composition, which is
- * what the serial is for.
+ * What every composition since the last acknowledgement changed. The buffer views
+ * the system's own vector and the next composition may move it, so a consumer
+ * reads, applies, and acknowledges within one turn.
  */
-JSValue js_transformLastComposition(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+JSValue js_transformCompositionChanges(JSContext* ctx, JSValueConst, int, JSValueConst*) {
     static_assert(sizeof(Entity) == sizeof(u32), "the changed set is read as raw ids");
     auto* ts = host().ctx ? host().ctx->tryGet<ecs::TransformSystem>() : nullptr;
     JSValue out = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, out, "serial", JS_NewUint32(ctx, ts ? ts->compositionSerial() : 0));
     JS_SetPropertyStr(ctx, out, "tracking", JS_NewBool(ctx, ts && ts->changeTracking()));
-    const size_t count = ts ? ts->lastChanged().size() : 0;
+    JS_SetPropertyStr(ctx, out, "overflowed", JS_NewBool(ctx, ts && ts->changesOverflowed()));
+    const size_t count = ts ? ts->pendingChanges().size() : 0;
     JS_SetPropertyStr(ctx, out, "count", JS_NewUint32(ctx, static_cast<uint32_t>(count)));
     JS_SetPropertyStr(ctx, out, "visited", JS_NewUint32(ctx, ts ? ts->visited() : 0));
     JS_SetPropertyStr(ctx, out, "changed", count == 0 ? JS_NULL
-        : esn_arraybuffer(ctx, const_cast<Entity*>(ts->lastChanged().data()), count * sizeof(Entity)));
+        : esn_arraybuffer(ctx, const_cast<Entity*>(ts->pendingChanges().data()), count * sizeof(Entity)));
     return out;
+}
+/** Applied: the set starts again. Separate from the read, so a consumer that
+ *  throws half way through has not acknowledged and gets it again. */
+JSValue js_transformTakeChanges(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    (void)ctx;
+    if (host().ctx) {
+        if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) ts->takeChanges();
+    }
+    return JS_UNDEFINED;
 }
 /** The consumer half: compose if a producer said the inputs moved. A headless
  *  host installs no renderer, and nothing else would ever schedule it. */
@@ -169,7 +179,8 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_transformEpochBuffer", js_transformEpochBuffer, 0);
     bindGlobal(h, global, "es_transformEnsureComposed", js_transformEnsureComposed, 0);
     bindGlobal(h, global, "es_transformSetChangeTracking", js_transformSetChangeTracking, 1);
-    bindGlobal(h, global, "es_transformLastComposition", js_transformLastComposition, 0);
+    bindGlobal(h, global, "es_transformCompositionChanges", js_transformCompositionChanges, 0);
+    bindGlobal(h, global, "es_transformTakeChanges", js_transformTakeChanges, 0);
 }
 
 }  // namespace eshost

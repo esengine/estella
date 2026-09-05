@@ -319,24 +319,30 @@ export interface TransformComposition {
      *  report it leaves every consumer to rebuild, which is a capability
      *  difference and not a failure. */
     setChangeTracking?(on: boolean): void;
-    lastComposition?(): NativeComposition;
+    compositionChanges?(): NativeComposition;
+    takeChanges?(): void;
 }
 
-/** What a core answers about its last composition. */
+/** What a core answers about the compositions since the last acknowledgement. */
 export interface NativeComposition {
     readonly serial: number;
     readonly tracking: boolean;
+    readonly overflowed: boolean;
     readonly count: number;
     readonly visited: number;
     readonly changed: ArrayBuffer | null;
 }
 
-/** The last composition, as a consumer reads it: an empty set and the serial it
- *  belongs to, or null from a core that cannot say. */
+/**
+ * The pending change set, as a consumer reads it. `overflowed` means it grew
+ * past the point where reading the world again is cheaper, so it was dropped —
+ * rebuild rather than apply.
+ */
 export interface CompositionDelta {
     readonly serial: number;
     readonly changed: Uint32Array;
     readonly visited: number;
+    readonly overflowed: boolean;
 }
 
 /** One allocation for every core's empty answer. */
@@ -486,43 +492,52 @@ export class BuiltinBridge {
     setTransformChangeTracking(on: boolean): boolean {
         const injected = this.transformComposition_;
         if (injected) {
-            if (!injected.setChangeTracking || !injected.lastComposition) return false;
+            if (!injected.setChangeTracking || !injected.compositionChanges) return false;
             injected.setChangeTracking(on);
             return true;
         }
         const set = this.module_?.transform_setChangeTracking;
-        if (!set || !this.module_?.transform_lastComposition) return false;
+        if (!set || !this.module_?.transform_compositionChanges) return false;
         set.call(this.module_, on);
         return true;
     }
 
     /**
-     * The last composition's serial and the entities it changed, or null from a
-     * core that cannot report one. The ids VIEW engine memory and the next
-     * composition overwrites them, so a consumer reads them before composing
-     * again — the serial is how it knows which composition they describe.
+     * What every composition since the last acknowledgement changed, or null from
+     * a core that cannot report. The ids VIEW engine memory and the next
+     * composition may move it, so a consumer reads, applies and acknowledges
+     * within one turn.
      */
-    lastComposition(): CompositionDelta | null {
+    compositionChanges(): CompositionDelta | null {
         const injected = this.transformComposition_;
-        if (injected?.lastComposition) {
-            const raw = injected.lastComposition();
+        if (injected?.compositionChanges) {
+            const raw = injected.compositionChanges();
             return {
                 serial: raw.serial,
                 visited: raw.visited,
+                overflowed: raw.overflowed,
                 changed: raw.changed ? new Uint32Array(raw.changed, 0, raw.count) : EMPTY_CHANGED,
             };
         }
-        const read = this.module_?.transform_lastComposition;
+        const read = this.module_?.transform_compositionChanges;
         if (!read || !this.module_) return null;
         const raw = read.call(this.module_);
         return {
             serial: raw.serial,
             visited: raw.visited,
+            overflowed: raw.overflowed,
             // Rebuilt every call: growing the heap detaches the previous view.
             changed: raw.count > 0
                 ? new Uint32Array(this.module_.HEAPU32.buffer, raw.ptr, raw.count)
                 : EMPTY_CHANGED,
         };
+    }
+
+    /** Acknowledge the pending set: it starts again. */
+    takeCompositionChanges(): void {
+        const injected = this.transformComposition_;
+        if (injected?.takeChanges) { injected.takeChanges(); return; }
+        this.module_?.transform_takeChanges?.();
     }
 
     /** @internal What the staleness counter reads, for the fixtures that assert

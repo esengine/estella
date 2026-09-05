@@ -656,10 +656,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
                 ts->setChangeTracking(on);
             }
         }));
-    // What the LAST composition was: its serial, and the entities it changed as
-    // an address into linear memory. A JS array of a hundred thousand handles
-    // would cost more than the walk that found them.
-    emscripten::function("transform_lastComposition", emscripten::optional_override(
+    // What every composition since the last acknowledgement changed: the entities
+    // as an address into linear memory, because a JS array of a hundred thousand
+    // handles would cost more than the walk that found them.
+    emscripten::function("transform_compositionChanges", emscripten::optional_override(
         []() -> emscripten::val {
             static_assert(sizeof(esengine::Entity) == sizeof(esengine::u32),
                           "the changed set is read as a Uint32Array of raw ids");
@@ -667,12 +667,18 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
             auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>();
             out.set("serial", ts ? ts->compositionSerial() : 0u);
             out.set("tracking", ts && ts->changeTracking());
-            out.set("count", ts ? static_cast<esengine::u32>(ts->lastChanged().size()) : 0u);
+            out.set("overflowed", ts && ts->changesOverflowed());
+            out.set("count", ts ? static_cast<esengine::u32>(ts->pendingChanges().size()) : 0u);
             out.set("visited", ts ? ts->visited() : 0u);
             out.set("ptr", ts ? static_cast<esengine::u32>(
-                reinterpret_cast<uintptr_t>(ts->lastChanged().data())) : 0u);
+                reinterpret_cast<uintptr_t>(ts->pendingChanges().data())) : 0u);
             return out;
         }));
+    // Applied: the set starts again. Separate from the read so a consumer that
+    // throws half way through has not acknowledged, and gets it again.
+    emscripten::function("transform_takeChanges", emscripten::optional_override([]() {
+        if (auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>()) ts->takeChanges();
+    }));
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
 #ifdef ES_ENABLE_PARTICLES

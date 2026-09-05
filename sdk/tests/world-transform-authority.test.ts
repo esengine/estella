@@ -336,19 +336,21 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
         world.insert(b, Transform, { position: { x: 2, y: 0, z: 0 } });
         return { app, world, a, b };
     }
-    const ids = (world: App['world']) => [...(world.lastComposition()!.changed)];
+    const ids = (world: App['world']) => [...(world.compositionChanges()!.changed)];
 
     it('names the entities whose output moved, and only those', () => {
         const { world, a, b } = scene();
         expect(world.setTransformChangeTracking(true)).toBe(true);
         world.ensureTransformsComposed();
 
+        world.takeCompositionChanges();
         world.update(b, Transform, (t) => { (t as { position: { x: number } }).position.x = 40; });
         world.ensureTransformsComposed();
         expect(ids(world)).toEqual([b as number]);
 
         // A write that moves nothing: the epoch cannot tell it from movement and
         // the comparison can, which is the whole reason the set is worth having.
+        world.takeCompositionChanges();
         world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 1; });
         world.ensureTransformsComposed();
         expect(ids(world)).toEqual([]);
@@ -360,16 +362,16 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
         const { world, a } = scene();
         world.setTransformChangeTracking(true);
         world.ensureTransformsComposed();
-        const first = world.lastComposition()!.serial;
+        const first = world.compositionChanges()!.serial;
 
         // Nothing was invalidated, so nothing composed.
         world.ensureTransformsComposed();
         world.ensureTransformsComposed();
-        expect(world.lastComposition()!.serial).toBe(first);
+        expect(world.compositionChanges()!.serial).toBe(first);
 
         world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 9; });
         world.ensureTransformsComposed();
-        expect(world.lastComposition()!.serial).toBe(first + 1);
+        expect(world.compositionChanges()!.serial).toBe(first + 1);
         world.setTransformChangeTracking(false);
         world.disconnectCpp();
     });
@@ -378,11 +380,11 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
         const { world, a } = scene();
         world.setTransformChangeTracking(false);
         world.ensureTransformsComposed();
-        const before = world.lastComposition()!.serial;
+        const before = world.compositionChanges()!.serial;
 
         world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 3; });
         world.ensureTransformsComposed();
-        const after = world.lastComposition()!;
+        const after = world.compositionChanges()!;
         expect(after.serial).toBe(before + 1);
         expect(after.changed.length).toBe(0);
         world.disconnectCpp();
@@ -392,7 +394,7 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
         const first = scene();
         first.world.setTransformChangeTracking(true);
         first.world.ensureTransformsComposed();
-        const seen = first.world.lastComposition()!.serial;
+        const seen = first.world.compositionChanges()!.serial;
 
         // Another world composes; the serial is the engine's, not this world's,
         // so a consumer that missed compositions has to be able to see that.
@@ -403,9 +405,72 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
         first.world.update(first.a, Transform,
             (t) => { (t as { position: { x: number } }).position.x = 50; });
         first.world.ensureTransformsComposed();
-        expect(first.world.lastComposition()!.serial).toBeGreaterThan(seen + 1);
+        expect(first.world.compositionChanges()!.serial).toBeGreaterThan(seen + 1);
         first.world.setTransformChangeTracking(false);
         first.world.disconnectCpp();
+    });
+
+    it('accumulates across compositions, because a renderer composes every frame', () => {
+        const { world, a, b } = scene();
+        world.setTransformChangeTracking(true);
+        world.ensureTransformsComposed();
+        world.takeCompositionChanges();
+
+        // Three compositions between one consumer's reads is the ordinary case:
+        // a listen server composes each frame and samples every few. Reporting
+        // only the last one would drop the first two.
+        world.update(a, Transform, (t) => { (t as { position: { x: number } }).position.x = 11; });
+        world.ensureTransformsComposed();
+        world.update(b, Transform, (t) => { (t as { position: { x: number } }).position.x = 22; });
+        world.ensureTransformsComposed();
+
+        expect([...ids(world)].sort()).toEqual([a as number, b as number].sort());
+        // Reading does not consume: a consumer that throws half way through has
+        // not acknowledged, and is handed the same work again.
+        expect(ids(world).length).toBe(2);
+        world.takeCompositionChanges();
+        expect(ids(world)).toEqual([]);
+        world.setTransformChangeTracking(false);
+        world.disconnectCpp();
+    });
+
+    it('drops a set that grew past the rebuild it would save', () => {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, module);
+        const world = app.world;
+        const all = [];
+        for (let i = 0; i < 8; i++) {
+            const e = world.spawn();
+            world.insert(e, Transform, { position: { x: i + 1, y: 0, z: 0 } });
+            all.push(e);
+        }
+        world.setTransformChangeTracking(true);
+        world.ensureTransformsComposed();
+        world.takeCompositionChanges();
+
+        // Every entity, twice, with nothing acknowledged in between: more pending
+        // changes than a composition writes, so replaying them costs more than
+        // reading the world again.
+        for (let pass = 1; pass <= 2; pass++) {
+            for (const e of all) {
+                world.update(e, Transform,
+                    (t) => { (t as { position: { x: number } }).position.x += 10 * pass; });
+            }
+            world.ensureTransformsComposed();
+        }
+        const pending = world.compositionChanges()!;
+        expect(pending.overflowed).toBe(true);
+        expect(pending.changed.length).toBe(0);
+
+        // And it stays dropped until acknowledged, rather than half-filling again.
+        world.update(all[0]!, Transform, (t) => { (t as { position: { x: number } }).position.x = 900; });
+        world.ensureTransformsComposed();
+        expect(world.compositionChanges()!.overflowed).toBe(true);
+        world.takeCompositionChanges();
+        expect(world.compositionChanges()!.overflowed).toBe(false);
+        world.setTransformChangeTracking(false);
+        world.disconnectCpp();
     });
 
     it('a core that cannot report says so instead of answering nothing', () => {
@@ -419,7 +484,7 @@ describe.skipIf(!HAS_WASM)('the composition reports what it changed', () => {
             },
         });
         expect(app.world.setTransformChangeTracking(true)).toBe(false);
-        expect(app.world.lastComposition()).toBeNull();
+        expect(app.world.compositionChanges()).toBeNull();
         app.world.disconnectCpp();
     });
 });

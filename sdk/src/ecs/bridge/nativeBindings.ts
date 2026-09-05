@@ -54,7 +54,8 @@ export const REGISTRY_BINDINGS = {
  */
 export const COMPOSITION_BINDINGS = {
     setChangeTracking: 'es_transformSetChangeTracking',
-    lastComposition: 'es_transformLastComposition',
+    compositionChanges: 'es_transformCompositionChanges',
+    takeChanges: 'es_transformTakeChanges',
 } as const;
 
 /**

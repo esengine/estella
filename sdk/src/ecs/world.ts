@@ -1315,11 +1315,16 @@ export class World {
         return this.builtin_.setTransformChangeTracking(on);
     }
 
-    /** @internal The last composition's serial and the entities it changed; null
-     *  from a core that cannot say. The ids view engine memory until the next
-     *  composition, and the serial says which composition they describe. */
-    lastComposition(): CompositionDelta | null {
-        return this.builtin_.lastComposition();
+    /** @internal What every composition since the last acknowledgement changed;
+     *  null from a core that cannot say. The ids view engine memory, so a
+     *  consumer reads, applies and acknowledges within one turn. */
+    compositionChanges(): CompositionDelta | null {
+        return this.builtin_.compositionChanges();
+    }
+
+    /** @internal Acknowledge that set: it starts again. */
+    takeCompositionChanges(): void {
+        this.builtin_.takeCompositionChanges();
     }
 
     /** @internal Mark component as changed without writing data (for in-place Mut query) */

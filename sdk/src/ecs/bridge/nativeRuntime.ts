@@ -72,15 +72,17 @@ function nativeTransformComposition(scope: Record<string, unknown>) {
     // The arena never moves, unlike a growable wasm heap, so one view lasts.
     const epoch = new Uint32Array(bytes, 0, 1);
     const track = scope[COMPOSITION_BINDINGS.setChangeTracking];
-    const last = scope[COMPOSITION_BINDINGS.lastComposition];
-    const reports = typeof track === 'function' && typeof last === 'function';
+    const last = scope[COMPOSITION_BINDINGS.compositionChanges];
+    const reports = typeof track === 'function' && typeof last === 'function'
+        && typeof scope[COMPOSITION_BINDINGS.takeChanges] === 'function';
     return {
         epoch,
         ensure: () => { (ensure as () => void)(); },
         // A host too old to report the delta simply has no third half, and every
         // consumer of it rebuilds instead.
         setChangeTracking: reports ? (on: boolean) => { (track as (v: boolean) => void)(on); } : undefined,
-        lastComposition: reports ? () => (last as () => NativeComposition)() : undefined,
+        compositionChanges: reports ? () => (last as () => NativeComposition)() : undefined,
+        takeChanges: reports ? () => { (scope[COMPOSITION_BINDINGS.takeChanges] as () => void)(); } : undefined,
     };
 }
 

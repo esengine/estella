@@ -103,7 +103,8 @@ function mutate(tick) {
 }
 
 const setTracking = module.transform_setChangeTracking;
-const lastComposition = module.transform_lastComposition;
+const compositionChanges = module.transform_compositionChanges;
+const takeChanges = module.transform_takeChanges;
 let visitedSum = 0;
 let changedSum = 0;
 let ran = 0;
@@ -119,11 +120,12 @@ function compose(collect) {
     world.ensureTransformsComposed();
     const dt = Number(process.hrtime.bigint() - t0);
     if (collect) {
-        const r = lastComposition();
+        const r = compositionChanges();
         if (r.serial !== seenSerial) {
             seenSerial = r.serial;
             ran++; visitedSum += r.visited; changedSum += r.count;
         }
+        takeChanges();
     }
     return dt;
 }

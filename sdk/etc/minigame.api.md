@@ -9753,6 +9753,7 @@ tabIndex: number | undefined
 @internal beginIteration: () => void
 @internal builtin: BuiltinBridge
 @internal changes_: ChangeTracker
+@internal compositionChanges: () => CompositionDelta | null
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
 @internal disconnectCpp: () => void
 @internal disposeRemovedReader: (component: AnyComponentDef, readerId: number) => void
@@ -9776,7 +9777,6 @@ tabIndex: number | undefined
 @internal isChangeTracked: (component: AnyComponentDef) => boolean
 @internal isChangedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
 @internal isIterating: () => boolean
-@internal lastComposition: () => CompositionDelta | null
 @internal layoutEpoch: () => number | null
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
 @internal queries_: QueryCache
@@ -9799,6 +9799,7 @@ tabIndex: number | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
 @internal suspendIteration: () => number
+@internal takeCompositionChanges: () => void
 @internal topologyReaderCount: (component: AnyComponentDef) => number
 @internal transformEpoch: () => number
 @internal useScriptPoolMemory: (memory: PoolMemory) => void
