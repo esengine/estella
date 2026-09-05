@@ -56,6 +56,9 @@ export const GATES = [
   // disagree with nothing between them to notice.
   { id: 'generated-fresh', run: 'node tools/check-generated-fresh.mjs' },
   { id: 'transform-seam', run: 'node tools/check-transform-seam.mjs' },
+  // …and the other direction: every C++ writer of a composition input is a
+  // seam somebody classified, rather than a count that moves with a refactor.
+  { id: 'transform-writers', run: 'node tools/census-transform-writers.mjs --gate' },
   { id: 'api-surface', run: 'node tools/api-surface.mjs --check' },
   // Reads the snapshot the gate above just proved current, against the one the
   // last release tag shipped — drift says the surface moved, this says a promise did.
