@@ -482,7 +482,7 @@ export class ReplicationServer {
         if (!this.interest_) {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
         } else {
-            this.sampleWithInterest_(tick, despawned, sample);
+            this.sampleWithInterest_(tick, spawnedEntities, despawned, sample);
         }
 
         // Acknowledge consumed inputs: this tick's state incorporates each
@@ -557,13 +557,20 @@ export class ReplicationServer {
      *  connection's delta frame from the shared dirty list. */
     private sampleWithInterest_(
         tick: number,
+        spawnedEntities: Entity[],
         despawned: { entity: Entity; netId: number }[],
         { dirty, removals }: DirtySample,
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
         // One snapshot for every connection this sample: a provider prepares
         // here, and never on the per-connection path below.
-        const visibleFor = this.resolveVisibility_();
+        const visibleFor = this.resolveVisibility_({
+            entered: spawnedEntities,
+            left: despawned.map((d) => d.entity),
+            // A component going away is not something that component's value feed
+            // reports, and a provider caching a fact READ from one has to hear.
+            rechecked: removals.map((r) => r.entity),
+        });
         // Spawn payloads serialize once per entity per tick, however many
         // connections it enters.
         const payloads = new Map<Entity, ReplSpawnEntity>();
@@ -627,7 +634,11 @@ export class ReplicationServer {
      * it exists — and never sees a materialized candidate array, which is the
      * other O(population) the policy shape forces.
      */
-    private resolveVisibility_(): (connectionId: number) => Set<Entity> {
+    private resolveVisibility_(membership: {
+        entered: readonly Entity[];
+        left: readonly Entity[];
+        rechecked: readonly Entity[];
+    } = { entered: [], left: [], rechecked: [] }): (connectionId: number) => Set<Entity> {
         // Relevance is decided in world space, so the composition has to be
         // current before a snapshot is taken — here rather than inside a position
         // reader, so a caller's own reader sees the same composed fact.
@@ -645,6 +656,7 @@ export class ReplicationServer {
                 // iterable back to a Set could otherwise clear it.
                 entities: { [Symbol.iterator]: () => known.values() },
                 entityCount: known.size,
+                ...membership,
             });
             return (connectionId) => {
                 const owned = this.ownedByConnection_?.get(connectionId);

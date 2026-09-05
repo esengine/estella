@@ -343,6 +343,8 @@ export interface CompositionDelta {
     readonly changed: Uint32Array;
     readonly visited: number;
     readonly overflowed: boolean;
+    /** Whether anything is asking for the set at all. */
+    readonly tracking: boolean;
 }
 
 /** One allocation for every core's empty answer. */
@@ -516,6 +518,7 @@ export class BuiltinBridge {
                 serial: raw.serial,
                 visited: raw.visited,
                 overflowed: raw.overflowed,
+                tracking: raw.tracking,
                 changed: raw.changed ? new Uint32Array(raw.changed, 0, raw.count) : EMPTY_CHANGED,
             };
         }
@@ -526,6 +529,7 @@ export class BuiltinBridge {
             serial: raw.serial,
             visited: raw.visited,
             overflowed: raw.overflowed,
+            tracking: raw.tracking,
             // Rebuilt every call: growing the heap detaches the previous view.
             changed: raw.count > 0
                 ? new Uint32Array(this.module_.HEAPU32.buffer, raw.ptr, raw.count)
