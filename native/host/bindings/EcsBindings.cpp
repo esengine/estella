@@ -22,7 +22,7 @@
 
 #include "esn_shim.hpp"                           // esn_entity
 
-#include "esengine/ecs/TransformSystem.hpp"       // ecs::setParent
+#include "esengine/ecs/TransformSystem.hpp"       // ecs::setParent, the composition epoch
 #include "esengine/ecs/components/Hierarchy.hpp"  // Parent / Children
 #include "esengine/ecs/components/MeshRenderer.hpp"     // MeshSkin
 
@@ -107,6 +107,23 @@ JSValue js_setMeshSkinJoints(JSContext* ctx, JSValueConst, int argc, JSValueCons
     return JS_UNDEFINED;
 }
 
+/**
+ * The composition's staleness counter, as MEMORY rather than a call: every
+ * Transform write announces through it, and an ABI call for one integer nearly
+ * doubles the write it follows (bench/transform-invalidation).
+ */
+JSValue js_transformEpochBuffer(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    return esn_arraybuffer(ctx, &ecs::transformMutationEpoch(), sizeof(u32));
+}
+/** The consumer half: compose if a producer said the inputs moved. A headless
+ *  host installs no renderer, and nothing else would ever schedule it. */
+JSValue js_transformEnsureComposed(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    if (host().ctx && host().registry) {
+        if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) ts->ensureComposed(*host().registry);
+    }
+    return JS_UNDEFINED;
+}
+
 }  // namespace
 
 void registerEcsBindings(HostState& h, JSValue global) {
@@ -121,6 +138,8 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_getMeshSkinJoints", js_getMeshSkinJoints, 1);
     bindGlobal(h, global, "es_setMeshSkinJoints", js_setMeshSkinJoints, 2);
     bindGlobal(h, global, "es_registryLayoutEpoch", js_layoutEpoch, 0);
+    bindGlobal(h, global, "es_transformEpochBuffer", js_transformEpochBuffer, 0);
+    bindGlobal(h, global, "es_transformEnsureComposed", js_transformEnsureComposed, 0);
 }
 
 }  // namespace eshost

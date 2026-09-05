@@ -22,7 +22,7 @@ import { installNativePlatform, type NativeBridge } from '../../platform/native'
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
 import { createNativeResourceManager } from './nativeResourceManager';
-import { HOST_FLAGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
+import { HOST_FLAGS, REGISTRY_BINDINGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
 import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
 import { createNativeEngineApi } from './nativeEngineApi.generated';
 import { setNativeEngineApi, engineApi } from './engineApi';
@@ -55,6 +55,24 @@ import { platformLoadImagePixels } from '../../platform';
  * returned World is the real SDK World — the game script authors entities and
  * components through it, and the native host reads the resulting ECS each frame.
  */
+/**
+ * The composition seam over the host's two bindings. The epoch is a view over the
+ * engine's own word, so a producer STORES rather than calling.
+ *
+ * A host binding neither leaves the seam absent; `assertNativeBindings` says so at
+ * boot rather than at the first frame that does not move.
+ */
+function nativeTransformComposition(scope: Record<string, unknown>) {
+    const buffer = scope[REGISTRY_BINDINGS.transformEpoch];
+    const ensure = scope[REGISTRY_BINDINGS.ensureComposed];
+    if (typeof buffer !== 'function' || typeof ensure !== 'function') return undefined;
+    const bytes = (buffer as () => ArrayBuffer | null)();
+    if (!bytes) return undefined;
+    // The arena never moves, unlike a growable wasm heap, so one view lasts.
+    const epoch = new Uint32Array(bytes, 0, 1);
+    return { epoch, ensure: () => { (ensure as () => void)(); } };
+}
+
 export function createNativeWorld(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): World {
@@ -66,6 +84,7 @@ export function createNativeWorld(
     const world = new World();
     world.connectCpp(createNativeRegistry(scope), undefined, {
         memory: new NativeMemoryProvider(scope),
+        transformComposition: nativeTransformComposition(scope),
     });
     return world;
 }
@@ -93,6 +112,7 @@ export function createNativeApp(
     const app = App.new();
     app.connectCpp(createNativeRegistry(scope), undefined, {
         memory: new NativeMemoryProvider(scope),
+        transformComposition: nativeTransformComposition(scope),
     });
     // The optional subsystems (physics today) come from the host binary rather than
     // a fetched wasm side module, through the same acquirer the web realms use — so

@@ -258,3 +258,59 @@ describe.skipIf(!HAS_WASM)('the editor writes through the same authority', () =>
         world.disconnectCpp();
     });
 });
+
+/**
+ * A core with no emscripten module — the shape a native host connects in — reads
+ * neither half of the seam off `module`, so it hands them over instead. Here the
+ * web engine stands in for that host: the epoch view and the compose call are the
+ * engine's own, reached the way a native binding would deliver them.
+ */
+describe.skipIf(!HAS_WASM)('a core that hands the composition seam over', () => {
+    let module: ESEngineModule;
+    beforeAll(async () => { module = await loadWasmModule(); });
+
+    /** What a native host binds: a one-word view, and the call that composes. On a
+     *  native core the word lives in an arena that never moves; here it borrows the
+     *  wasm heap, which is why nothing in these tests grows it. */
+    const handedOver = (registry: CppRegistry) => ({
+        epoch: new Uint32Array(module.HEAPU32.buffer, module.transform_epochAddress!(), 1),
+        ensure: () => module.transform_ensureComposed!(registry),
+    });
+
+    function parented(handOver: boolean) {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, undefined,
+            handOver ? { transformComposition: handedOver(registry) } : {});
+        const world = app.world;
+        const parent = world.spawn('parent');
+        world.insert(parent, Transform, { position: { x: 100, y: 0, z: 0 } });
+        const child = world.spawn('child');
+        world.insert(child, Transform, { position: { x: 5, y: 0, z: 0 } });
+        world.setParent(child, parent);
+        const worldX = () => (world.get(child, Transform) as { worldPosition: { x: number } })
+            .worldPosition.x;
+        return { world, parent, worldX };
+    }
+
+    it('composes through the seam it was handed', () => {
+        const { world, parent, worldX } = parented(true);
+        world.ensureTransformsComposed();
+        expect(worldX()).toBe(105);
+
+        const before = world.transformEpoch();
+        world.update(parent, Transform, (t) => { (t as { position: { x: number } }).position.x = 200; });
+        expect(world.transformEpoch()).not.toBe(before);
+        world.ensureTransformsComposed();
+        expect(worldX()).toBe(205);
+        world.disconnectCpp();
+    });
+
+    it('without it, an announcement goes nowhere and nothing recomposes', () => {
+        const { world, worldX } = parented(false);
+        world.ensureTransformsComposed();
+        expect(world.transformEpoch()).toBe(-1);
+        expect(worldX()).toBe(0);
+        world.disconnectCpp();
+    });
+});

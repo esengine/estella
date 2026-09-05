@@ -40,6 +40,11 @@ export const REGISTRY_BINDINGS = {
     // The web build reaches this as an embind free function on the module; a
     // native host has no module, so it is a binding like the rest.
     layoutEpoch: 'es_registryLayoutEpoch',
+    // The world-transform composition's two halves, for the same reason. The
+    // epoch is handed over as MEMORY, not read through a call: every Transform
+    // write announces through it.
+    transformEpoch: 'es_transformEpochBuffer',
+    ensureComposed: 'es_transformEnsureComposed',
 } as const;
 
 /**

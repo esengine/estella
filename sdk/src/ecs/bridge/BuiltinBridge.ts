@@ -301,6 +301,20 @@ export interface BridgeConnectOptions {
      * bridge reaches components through the host's `es_<Component>_buffer` bindings.
      */
     readonly memory?: MemoryProvider;
+
+    /**
+     * The world-transform composition seam, for a core with no emscripten module.
+     * `epoch` is a one-word view over the engine's staleness counter and `ensure`
+     * composes; the web build reads both off `module`. Without it a producer's
+     * announcement goes nowhere and nothing ever recomposes.
+     */
+    readonly transformComposition?: TransformComposition;
+}
+
+/** The two halves of the composition seam a core has to expose. */
+export interface TransformComposition {
+    readonly epoch: Uint32Array;
+    ensure(): void;
 }
 
 const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
@@ -341,6 +355,7 @@ export class BuiltinBridge {
     private cppRegistry_: CppRegistry | null = null;
     private module_: ESEngineModule | null = null;
     private transformEpochWord_ = -1;
+    private transformComposition_: TransformComposition | null = null;
     private memory_: MemoryProvider | null = null;
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
@@ -371,6 +386,10 @@ export class BuiltinBridge {
         this.transformEpochWord_ = module?.transform_epochAddress
             ? module.transform_epochAddress() >>> 2
             : -1;
+        // A native core has no module to read either half off, so it hands them
+        // over: without this the epoch is unreachable from here and a world moved
+        // only from script never recomposes.
+        this.transformComposition_ = options.transformComposition ?? null;
         // Web derives a wasm-HEAP backend from the module; the native runtime
         // injects its own (es_<Component>_buffer). No module and no override => no
         // fast path (resolvePtr* return null), exactly as before.
@@ -405,6 +424,8 @@ export class BuiltinBridge {
         this.cppRegistry_ = null;
         this.module_ = null;
         this.memory_ = null;
+        this.transformComposition_ = null;
+        this.transformEpochWord_ = -1;
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
     }
@@ -415,6 +436,11 @@ export class BuiltinBridge {
      * friends, which are the composition's own output.
      */
     invalidateTransformComposition(): void {
+        const injected = this.transformComposition_;
+        if (injected) {
+            injected.epoch[0] = (injected.epoch[0]! + 1) >>> 0;
+            return;
+        }
         if (this.transformEpochWord_ < 0) return;
         const heap = this.module_?.HEAPU32;
         if (!heap) return;
@@ -423,6 +449,7 @@ export class BuiltinBridge {
 
     /** Compose if any producer invalidated since the last one; O(1) otherwise. */
     ensureTransformsComposed(): void {
+        if (this.transformComposition_) { this.transformComposition_.ensure(); return; }
         if (!this.cppRegistry_) return;
         this.module_?.transform_ensureComposed?.(this.cppRegistry_);
     }
@@ -430,6 +457,7 @@ export class BuiltinBridge {
     /** @internal What the staleness counter reads, for the fixtures that assert
      *  a producer notified. */
     transformEpoch(): number {
+        if (this.transformComposition_) return this.transformComposition_.epoch[0]!;
         const heap = this.module_?.HEAPU32;
         return this.transformEpochWord_ < 0 || !heap ? -1 : heap[this.transformEpochWord_];
     }

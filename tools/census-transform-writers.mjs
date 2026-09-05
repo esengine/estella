@@ -80,6 +80,20 @@ const OUTPUT_FIELDS = ['worldPosition', 'worldRotation', 'worldScale', 'cachedMa
  *  spelling of the write that the scan does not see. */
 const OUTPUT_WRITE = new RegExp(String.raw`(?:(?:\.|->)\s*|^\s*)(${OUTPUT_FIELDS.join('|')})\s*(?:\.\w+\s*)?=[^=]`);
 
+/**
+ * The seam has to exist on BOTH cores. A producer announces by storing into the
+ * epoch, so a core that does not hand that word over turns every announcement
+ * into a no-op — nothing recomposes, and the only symptom is a world that stops
+ * moving. Each entry: what the SDK asks for, and where that core answers it.
+ */
+const SEAM_SURFACES = [
+    { core: 'web (embind)', asks: 'sdk/src/wasm.ts', answers: 'src/esengine/bindings/WebSDKEntry.cpp',
+      names: ['transform_epochAddress', 'transform_ensureComposed'] },
+    { core: 'native (QuickJS)', asks: 'sdk/src/ecs/bridge/nativeBindings.ts',
+      answers: 'native/host/bindings/EcsBindings.cpp',
+      names: ['es_transformEpochBuffer', 'es_transformEnsureComposed'] },
+];
+
 /** The hierarchy is the composition's other input, and one function writes it. */
 const HIERARCHY_WRITER = { file: 'src/esengine/ecs/TransformSystem.hpp', fn: 'setParent' };
 
@@ -257,6 +271,18 @@ if (!outputWords) {
     }
 }
 
+for (const surface of SEAM_SURFACES) {
+    for (const file of [surface.asks, surface.answers]) {
+        if (missing.some((m) => file.startsWith(m))) continue;
+        const text = readFileSync(path.join(ROOT, file), 'utf8');
+        for (const name of surface.names) {
+            if (!text.includes(name)) {
+                errors.push(`${file} — the ${surface.core} core does not carry \`${name}\`, so a producer there announces into nothing`);
+            }
+        }
+    }
+}
+
 {
     const text = readFileSync(path.join(ROOT, HIERARCHY_WRITER.file), 'utf8');
     const i = text.split('\n').findIndex((l) => l.includes(`${HIERARCHY_WRITER.fn}(`) && l.includes('Registry&'));
@@ -281,6 +307,9 @@ for (const seam of SEAMS) {
 say(`  ${HIERARCHY_WRITER.fn.padEnd(w)}   hierarchy  announces`);
 say(`  ${' '.repeat(w)}  ${HIERARCHY_WRITER.file}`);
 say(`  ${' '.repeat(w)}  a reparent moves a subtree without touching one transform field`);
+say('');
+say('  The seam both cores carry:');
+for (const surface of SEAM_SURFACES) say(`    ${surface.core.padEnd(17)} ${surface.answers}`);
 say('');
 say('  The composition\'s OUTPUT has one author:');
 for (const [file, why] of OUTPUT_AUTHORS) say(`    ${file}  —  ${why}`);
