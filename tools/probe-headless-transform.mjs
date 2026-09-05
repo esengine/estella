@@ -86,11 +86,24 @@ compose();
 const second = worldX(child);
 say(`  ${ok(first === 15 && second === 25)}  two composes in ONE frame each see their own state`
     + `  (${first}, ${second}; want 15, 25)`);
-if (first === 15 && second !== 25) {
-    say('       the second compose was skipped: `transforms_updated` is cleared by');
-    say('       renderer_beginFrame, so a frame boundary — not a simulation step —');
-    say('       is what currently lets composition run again.');
+if (second !== 25) {
+    say('       The second compose was skipped. `transforms_updated` is cleared only');
+    say('       by renderer_beginFrame, so a RENDER frame — not a mutation — is what');
+    say('       lets composition run again. Writing a Transform does not invalidate');
+    say('       it: a builtin write goes straight into the wasm heap through the ptr');
+    say('       setter, calling no C++ at all, so nothing on that side can see it.');
 }
+
+// Where an invalidation source could come from, if one is to exist.
+say('');
+say('What could invalidate a composed-transform epoch');
+say('  TransformDirty is emplaced in exactly ONE place in the engine: setParent.');
+say('  It does not mean "this changed" — a non-static root is recomposed every');
+say('  pass whether or not it carries the tag, and the tag exists so a STATIC one');
+say('  is recomposed once anyway. So local Transform writes produce no tag, and');
+say('  need none today.');
+say('  Which also means it is not a mutation seam an epoch could hang off: the');
+say('  writes it would have to catch never reach C++.');
 
 // 5 — what does composing a large flat world cost?
 const bulk = sdk.createHeadlessApp(module);
