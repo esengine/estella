@@ -423,6 +423,7 @@ tilemap_setTile: ((entity: number, x: number, y: number, tileId: number) => void
 tilemap_setTiles: ((entity: number, tilesPtr: number, count: number) => void) | undefined
 trail_clear: ((registry: CppRegistry, entity: number) => void) | undefined
 trail_update: ((registry: CppRegistry, dt: number) => void) | undefined
+transform_composeCollecting: ((registry: CppRegistry) => { ran: boolean; visited: number; changed: number; ptr: number; }) | undefined
 transform_ensureComposed: ((registry: CppRegistry) => void) | undefined
 transform_epochAddress: (() => number) | undefined
 transform_update: (registry: CppRegistry) => void

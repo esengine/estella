@@ -6501,7 +6501,7 @@ static prototype: QueryInstance<any>
 
 ## REGISTRY_BINDINGS — const @experimental
 ```
-{ readonly createEntity: "es_createEntity"; readonly destroyEntity: "es_destroyEntity"; readonly setParent: "es_setParent"; readonly hasParent: "es_hasParent"; readonly getParent: "es_getParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; readonly getMeshSkinJoints: "es_getMeshSkinJoints"; readonly setMeshSkinJoints: "es_setMeshSkinJoints"; readonly layoutEpoch: "es_registryLayoutEpoch"; }
+{ readonly createEntity: "es_createEntity"; readonly destroyEntity: "es_destroyEntity"; readonly setParent: "es_setParent"; readonly hasParent: "es_hasParent"; readonly getParent: "es_getParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; readonly getMeshSkinJoints: "es_getMeshSkinJoints"; readonly setMeshSkinJoints: "es_setMeshSkinJoints"; readonly layoutEpoch: "es_registryLayoutEpoch"; readonly transformEpoch: "es_transformEpochBuffer"; readonly ensureComposed: "es_transformEnsureComposed"; }
 ```
 
 ## RENAMED_COMPONENT_TYPES — const @experimental

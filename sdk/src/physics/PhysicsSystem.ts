@@ -483,17 +483,15 @@ export function applyPhysics2DTransforms(
         // paths get from the registry for free: the body may name an entity that
         // is gone, or one that never carried a Transform.
         if (!app.world.valid(entityId) || !app.world.has(entityId, Transform)) continue;
-        // This path REPLACES the whole component, so the composed fields have to
-        // be carried across as they stand: a value from this loop would be this
-        // path authoring them.
+        // This path REPLACES the whole component, so the composed fields ride
+        // along as they stand rather than being authored here. Copied, because
+        // editing what `get` answered is a write nothing observes.
         const current = app.world.get(entityId, Transform) as TransformData;
-        current.position.x = localX;
-        current.position.y = localY;
-        current.rotation.w = cosH;
-        current.rotation.x = 0;
-        current.rotation.y = 0;
-        current.rotation.z = sinH;
-        addFn!(entityId, current);
+        addFn!(entityId, {
+            ...current,
+            position: { x: localX, y: localY, z: 0 },
+            rotation: { w: cosH, x: 0, y: 0, z: sinH },
+        });
     }
 }
 
