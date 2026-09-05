@@ -25,6 +25,7 @@ import { App } from '../src/app/app';
 import { Canvas, Transform } from '../src/ecs/component';
 import { FlexContainer } from '../src/ui/layout/flex';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { setScreenBox } from './helpers/screenBox';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -65,6 +66,7 @@ describe.skipIf(!HAS_WASM)('incremental layout equals a fresh solve', () => {
             worldRight: camW / 2, worldTop: camH / 2,
             worldMouseX: 0, worldMouseY: 0, valid: true,
         });
+        setScreenBox(app, -camW / 2, -camH / 2, camW / 2, camH / 2);
         app.addPlugin(uiLayoutPlugin);
         return { app, registry };
     }
@@ -155,9 +157,8 @@ describe.skipIf(!HAS_WASM)('incremental layout equals a fresh solve', () => {
         await live.app.tick(1 / 60);
         await perturb(live.app, liveIds, () => live.app.tick(1 / 60));
         if (camAfter) {
-            const cam = live.app.getResource(UICameraInfo);
-            cam.worldLeft = -camAfter.w / 2; cam.worldRight = camAfter.w / 2;
-            cam.worldBottom = -camAfter.h / 2; cam.worldTop = camAfter.h / 2;
+            setScreenBox(live.app, -camAfter.w / 2, -camAfter.h / 2,
+                         camAfter.w / 2, camAfter.h / 2);
         }
         await live.app.tick(1 / 60);
         const incremental = read(live.registry, label(liveIds));

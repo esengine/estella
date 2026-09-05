@@ -30,6 +30,16 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
                     i32 clearX, i32 clearY, u32 clearW, u32 clearH);
 void renderer_flush();
 void renderer_end();
+/// Closes the frame — the pair of beginFrame, and where a borrowed swapchain
+/// image goes back. Per FRAME, not per camera (see RenderFrame::endFrame).
+void renderer_endFrame();
+
+/// The frame's screen-space overlay, drawn once after every camera and after
+/// post: begin with the projection the layout domain reaches pixels through,
+/// collect, let the host add its own screen geometry, then declare and run it.
+void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH);
+void renderer_submitScreenOverlay(ecs::Registry& registry);
+void renderer_endScreenOverlay(u32 targetHandle);
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif
 /// Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per

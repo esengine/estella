@@ -6709,11 +6709,14 @@ width: number
 ## RenderPipeline — class @experimental
 ```
 addPreFlushCallback: (cb: (registry: { _cpp: CppRegistry; }) => void) => void
+addScreenOverlayCallback: (cb: (registry: { _cpp: CppRegistry; }) => void) => void
 beginFrame: (elapsedSec?: number) => void
 beginScreenCapture: () => void
+endFrame: () => void
 endScreenCapture: () => void
 render: (params: RenderParams) => void
 renderCamera: (params: CameraRenderParams) => void
+renderScreenOverlay: (registry: { _cpp: CppRegistry; }, overlay: ScreenOverlayData, target?: number) => void
 runPreFlushCallbacks: (registry: { _cpp: CppRegistry; }) => void
 setActiveScenes: (scenes: Set<string> | null) => void
 setPostProcess: (pp: PostProcessAPI | null) => void
@@ -6797,7 +6800,7 @@ UIElement = 7
 
 ## Renderer — const @experimental
 ```
-{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; submitAll(registry: { _cpp: CppRegistry; }, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setDepthLayers(mask: number): void; setCullingMask(mask: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
+{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; endFrame(): void; hasScreenOverlay(): boolean; beginScreenOverlay(projection: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): void; submitScreenOverlay(registry: { _cpp: CppRegistry; }): void; endScreenOverlay(target?: RenderTargetHandle): void; submitAll(registry: { _cpp: CppRegistry; }, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setDepthLayers(mask: number): void; setCullingMask(mask: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
 ```
 
 ## Replicated — const @experimental
@@ -13051,7 +13054,7 @@ TrailPlugin
 
 ## uiHitTestWorld — function @experimental
 ```
-(world: PickableWorld, ray: WorldRay): Entity | null
+(world: PickableWorld, ray: WorldRay, screenRay?: WorldRay): Entity | null
 ```
 
 ## uiInteractionPlugin — const @experimental

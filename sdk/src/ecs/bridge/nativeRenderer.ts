@@ -39,6 +39,15 @@ function hostCall(scope: Record<string, unknown>, name: string, args: unknown[])
  * has exactly one C++ registry, the one it created the World over, so the
  * bindings take none.
  */
+/** A host entry point that may not exist, as a callable or null. */
+function optional(
+    scope: Record<string, unknown>,
+    name: string,
+): ((...args: unknown[]) => unknown) | null {
+    const fn = scope[name];
+    return typeof fn === 'function' ? (fn as (...args: unknown[]) => unknown) : null;
+}
+
 export function createNativeRendererBackend(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): RendererBackend {
@@ -67,6 +76,21 @@ export function createNativeRendererBackend(
         },
         end: (): void => {
             hostCall(scope, RENDERER_BINDINGS.end, []);
+        },
+        endFrame: (): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.endFrame)?.();
+        },
+        hasScreenOverlay: (): boolean =>
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.beginScreenOverlay) !== null,
+        beginScreenOverlay: (projection, vpX, vpY, vpW, vpH): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.beginScreenOverlay)?.(
+                projection, vpX, vpY, vpW, vpH);
+        },
+        submitScreenOverlay: (_registry: CppRegistry): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.submitScreenOverlay)?.();
+        },
+        endScreenOverlay: (target): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.endScreenOverlay)?.(target);
         },
         setStage: (stage): void => {
             hostCall(scope, RENDERER_BINDINGS.setStage, [stage]);

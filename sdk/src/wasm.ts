@@ -282,6 +282,9 @@ export interface ESEngineModule {
      */
     ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
     ui_getCullBit?(registry: CppRegistry, entity: number): number;
+    /** Whether an entity belongs to the screen rather than the world — the same
+     *  answer the renderer partitions its collects by (UISystem::screenDomain). */
+    ui_isScreenDomain?(registry: CppRegistry, entity: number): boolean;
 
     /**
      * Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per
@@ -449,6 +452,15 @@ export interface ESEngineModule {
                    clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_flush(): void;
     renderer_end(): void;
+    /** Closes the frame — per FRAME, not per camera. Optional: an older core
+     *  released the surface at every camera's end and answers nothing here. */
+    renderer_endFrame?(): void;
+    /** The frame's screen-space overlay. Optional as a set: a core without them
+     *  has no screen pass, and screen UI stays world content. */
+    renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number,
+                                 vpW: number, vpH: number): void;
+    renderer_submitScreenOverlay?(registry: CppRegistry): void;
+    renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_submitAll(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_play?(registry: CppRegistry, entity: number): void;
@@ -588,6 +600,13 @@ export interface ESEngineModule {
     uiHitTest_update(registry: CppRegistry,
                      originX: number, originY: number, originZ: number,
                      dirX: number, dirY: number, dirZ: number): void;
+    /** The hit test with a ray per domain: world content answers the first,
+     *  screen UI the second. Optional — an older core has one domain. */
+    uiHitTest_updateDomains?(registry: CppRegistry,
+                             worldOriginX: number, worldOriginY: number, worldOriginZ: number,
+                             worldDirX: number, worldDirY: number, worldDirZ: number,
+                             screenOriginX: number, screenOriginY: number, screenOriginZ: number,
+                             screenDirX: number, screenDirY: number, screenDirZ: number): void;
     uiHitTest_getHitEntity(): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: CppRegistry, worldX: number, worldY: number): number;

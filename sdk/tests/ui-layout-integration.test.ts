@@ -14,6 +14,7 @@ import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { FlexContainer, type FlexContainerData } from '../src/ui/layout/flex';
 import { Canvas } from '../src/ecs/component';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { ScreenLayout } from '../src/ui/core/screen-layout';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
 import { Transform, Sprite } from '../src/ecs/component';
@@ -108,6 +109,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
             worldMouseX: 0, worldMouseY: 0,
             valid: false,
         });
+        app.insertResource(ScreenLayout, { ...ScreenLayout._default });
 
         app.addPlugin(uiLayoutPlugin);
         app.addPlugin(uiRenderOrderPlugin);
@@ -123,13 +125,22 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         (registry as unknown as { delete(): void }).delete();
     }
 
+    // The box UI lays out in is the SCREEN's, not a camera's — a camera has no
+    // way to reach it (see ui/core/screen-layout.ts).
     function setCanvasRect(app: App, left: number, bottom: number, right: number, top: number): void {
-        const cam = app.getResource(UICameraInfo);
-        cam.worldLeft = left;
-        cam.worldBottom = bottom;
-        cam.worldRight = right;
-        cam.worldTop = top;
-        cam.valid = true;
+        const screen = app.getResource(ScreenLayout);
+        screen.left = left;
+        screen.bottom = bottom;
+        screen.right = right;
+        screen.top = top;
+        screen.safeLeft = left;
+        screen.safeBottom = bottom;
+        screen.safeRight = right;
+        screen.safeTop = top;
+        screen.scale = 1;
+        screen.viewportW = right - left;
+        screen.viewportH = top - bottom;
+        screen.valid = true;
     }
 
     const nodeW = (registry: CppRegistry, e: number) => module.getUINodeComputedWidth!(registry, e);

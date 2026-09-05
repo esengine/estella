@@ -76,6 +76,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
     auto emitterView = registry.view<ecs::Transform, ecs::ParticleEmitter>();
 
     for (auto entity : emitterView) {
+        if (!collect_ctx.accepts(entity)) continue;
         const auto& emitter = emitterView.get<ecs::ParticleEmitter>(entity);
         if (!emitter.enabled) continue;
 
@@ -181,7 +182,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = shaderId,
             .blend = blend,
             .textureId = textureId,
-            .depth = collect_ctx.camera.viewDepth(emitterWorldPos),
+            .depth = collect_ctx.sortDepth(emitterWorldPos),
             // Sorted by world Y like every other draw — a burst left at y = 0
             // loses to any sprite standing anywhere else, so an emitter placed on
             // a character disappears behind them.
@@ -208,7 +209,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                 .shaderId = ctx.batch_shader_id,
                 .blend = blendMode,
                 .textureId = ctx.white_texture_id,
-                .depth = collect_ctx.camera.viewDepth(emitterWorldPos),
+                .depth = collect_ctx.sortDepth(emitterWorldPos),
                 .y = emitterWorldPos.y,
                 .entity = entity,
                 .type = RenderType::Trail,

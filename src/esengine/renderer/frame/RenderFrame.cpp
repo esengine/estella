@@ -271,6 +271,10 @@ void RenderFrame::releaseFrameTargets() {
 }
 
 void RenderFrame::beginFrame() {
+    // A frame a host never closed. Forgiving rather than strict: the cost of
+    // closing it here is one frame's deferral, and the cost of NOT is a backend
+    // holding a swapchain image forever.
+    device_.endFrame();
     // Here and not at end(), which runs once per CAMERA: every camera plans and
     // renders its own maps, and the pool hands the same physical atlas to each in
     // turn. Then one tick of the clock, by the frame that owns the pool.
@@ -409,6 +413,36 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
     scene_fbo_ = pass.target;
 }
 
+// What a finalized list cost, added to the frame's tally. Accumulated rather
+// than assigned because a frame reports more than one list: the scene's, and the
+// screen overlay's after every camera.
+void RenderFrame::accumulateStats(const DrawList& list) {
+    stats_.draw_calls += list.mergedDrawCallCount();
+    for (u32 i = 0; i < list.commandCount(); ++i) {
+        const auto& cmd = list.command(i);
+        // An instanced command holds ONE copy of the geometry and draws it
+        // instance_count times; a batched one merged its indices in already. The
+        // multiply is what stops the number meaning two things on the two paths.
+        stats_.triangles += (cmd.index_count / 3) * (cmd.instance_count ? cmd.instance_count : 1);
+        switch (cmd.type) {
+        case RenderType::Sprite:
+        case RenderType::UIElement:
+            stats_.sprites += cmd.entity_count; break;
+        case RenderType::Text:     stats_.text += cmd.entity_count; break;
+        case RenderType::Mesh:
+        case RenderType::ExternalMesh:
+        case RenderType::Trail:
+            stats_.meshes += cmd.entity_count; break;
+#ifdef ES_ENABLE_PARTICLES
+        case RenderType::Particle: stats_.particles += cmd.entity_count; break;
+#endif
+        case RenderType::Shape:    stats_.shapes += cmd.entity_count; break;
+        case RenderType::Skeletal: stats_.skeletal += cmd.entity_count; break;
+        default: break;
+        }
+    }
+}
+
 void RenderFrame::flush() {
     if (!in_frame_ || flushed_) return;
 
@@ -436,30 +470,7 @@ void RenderFrame::flush() {
     // pass carries the camera's own rather than inheriting it.
     scene_viewport_ = device_.viewport();
 
-    stats_.draw_calls = draw_list_.mergedDrawCallCount();
-    for (u32 i = 0; i < draw_list_.commandCount(); ++i) {
-        const auto& cmd = draw_list_.command(i);
-        // An instanced command holds ONE copy of the geometry and draws it
-        // instance_count times; a batched one merged its indices in already. The
-        // multiply is what stops the number meaning two things on the two paths.
-        stats_.triangles += (cmd.index_count / 3) * (cmd.instance_count ? cmd.instance_count : 1);
-        switch (cmd.type) {
-        case RenderType::Sprite:
-        case RenderType::UIElement:
-            stats_.sprites += cmd.entity_count; break;
-        case RenderType::Text:     stats_.text += cmd.entity_count; break;
-        case RenderType::Mesh:
-        case RenderType::ExternalMesh:
-        case RenderType::Trail:
-            stats_.meshes += cmd.entity_count; break;
-#ifdef ES_ENABLE_PARTICLES
-        case RenderType::Particle: stats_.particles += cmd.entity_count; break;
-#endif
-        case RenderType::Shape:    stats_.shapes += cmd.entity_count; break;
-        case RenderType::Skeletal: stats_.skeletal += cmd.entity_count; break;
-        default: break;
-        }
-    }
+    accumulateStats(draw_list_);
 
     // What the frame's render targets cost. The atlas and every chain
     // intermediate come out of one pool, so one number answers for all of them —
@@ -479,6 +490,10 @@ void RenderFrame::flush() {
 #ifdef ES_ENABLE_PARTICLES
     ES_PROFILE_COUNTER("render.particles", stats_.particles);
 #endif
+}
+
+void RenderFrame::endFrame() {
+    device_.endFrame();
 }
 
 void RenderFrame::end() {
@@ -552,9 +567,6 @@ void RenderFrame::end() {
     // not ride into the next one (the swapchain recycles it at task end). On
     // GL this is just the default-framebuffer rebind.
     device_.endRenderPass();
-    // ...and the frame itself ends here, which is when a borrowed swapchain
-    // image goes back. Not at the pass: this frame may have opened several.
-    device_.endFrame();
 
     frame_capture_.endCapture();
     in_frame_ = false;
@@ -1430,6 +1442,7 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, shadow_pool_,
                                         list, ctx,
                                         computeCameraView(view.view_projection)};
+        collectCtx.screen_ui = screen_domain_;
         for (auto& plugin : plugins_) {
             if (plugin->castsShadows()) plugin->collect(collectCtx);
         }
@@ -1542,6 +1555,10 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
 
     RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
                                     computeCameraView(ctx.view_projection)};
+    // What this collect must NOT draw. A camera's job is the world; the screen's
+    // entities are laid out in pixels centred on the origin, and drawing them
+    // through a view matrix puts a HUD wherever the view happens to be looking.
+    collectCtx.screen_ui = screen_domain_;
     collectSky(collectCtx);
     for (auto& plugin : plugins_) plugin->collect(collectCtx);
 

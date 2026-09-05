@@ -46,7 +46,6 @@ static f32 radialMaxSweep(ecs::UIFillMethod m) {
 
 void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
-    auto& frustum = collect_ctx.frustum;
     auto& clips = collect_ctx.clip_state;
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
@@ -54,6 +53,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
     auto uiView = registry.view<ecs::Transform, ecs::UIVisual>();
 
     for (auto entity : uiView) {
+        if (!collect_ctx.accepts(entity)) continue;
         const auto& renderer = uiView.get<ecs::UIVisual>(entity);
         if (!renderer.enabled || renderer.visualType == ecs::UIVisualType::None) continue;
 
@@ -90,7 +90,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         // `position` above already carries the turned offset, so only the extents do.
         glm::vec3 halfExtents = flatHalfExtents(
             flatTurnZ(rotation), glm::vec3(w * scale.x, h * scale.y, 0.0f) * 0.5f);
-        if (!frustum.intersectsAABB(position, halfExtents)) { ++collect_ctx.culled; continue; }
+        if (!collect_ctx.visible(position, halfExtents)) { ++collect_ctx.culled; continue; }
 
         f32 angle = 2.0f * std::atan2(rotation.z, rotation.w);
         i32 layer = UI_BASE_LAYER + renderer.uiOrder;
@@ -225,7 +225,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,
-            .depth = collect_ctx.camera.viewDepth(position),
+            .depth = collect_ctx.sortDepth(position),
             .cullBit = renderer.uiCullBit,
             .entity = entity,
             .type = RenderType::UIElement,

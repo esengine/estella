@@ -11,6 +11,8 @@ import type { Entity, Vec2 } from '../../types';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
+import { uiPointerFor } from '../util/ui-pick';
 import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
@@ -224,10 +226,14 @@ export class UIBehaviorPlugin implements Plugin {
         let lastOffset: Vec2 = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout)],
-            (input: InputState, camera: UICameraData, time: TimeData, layout: ScreenLayoutData) => {
-                if (!camera.valid) return;
-                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
+            [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout), Res(ScreenOverlay)],
+            (input: InputState, camera: UICameraData, time: TimeData, layout: ScreenLayoutData,
+             overlay: ScreenOverlayData) => {
+                if (!camera.valid && !overlay.active) return;
+                // In the domain the grabbed container is laid out in — a scroll
+                // subtracts a pointer from a transform, like a drag does.
+                const pointerFor = (entity: Entity): { x: number; y: number } =>
+                    uiPointerFor(world, entity, camera, overlay);
 
                 // Press over a hovered container (or an interactive child of one)
                 // arms the drag; the nearest container wins so a nested list
@@ -238,7 +244,7 @@ export class UIBehaviorPlugin implements Plugin {
                         const container = scrollContainers.get(best)!;
                         dynamicsFor(best, container).stop();
                         pendingEntity = best;
-                        grabStartWorld = { x: worldMouse.x, y: worldMouse.y };
+                        grabStartWorld = pointerFor(best);
                     }
                 }
 
@@ -253,8 +259,9 @@ export class UIBehaviorPlugin implements Plugin {
                     if (!container) {
                         pendingEntity = null;
                     } else {
-                        const dx = worldMouse.x - grabStartWorld.x;
-                        const dy = worldMouse.y - grabStartWorld.y;
+                        const pointer = pointerFor(pendingEntity);
+                        const dx = pointer.x - grabStartWorld.x;
+                        const dy = pointer.y - grabStartWorld.y;
                         const screenDist = Math.hypot(dx, dy) * layout.scale;
                         if (screenDist >= SCROLL_DRAG_THRESHOLD_PX) {
                             activeEntity = pendingEntity;
@@ -282,8 +289,9 @@ export class UIBehaviorPlugin implements Plugin {
                         if (wt.worldScale.x !== 0) sx = wt.worldScale.x;
                         if (wt.worldScale.y !== 0) sy = wt.worldScale.y;
                     }
-                    const totalDx = worldMouse.x - grabStartWorld.x;
-                    const totalDy = worldMouse.y - grabStartWorld.y;
+                    const pointer = pointerFor(activeEntity);
+                    const totalDx = pointer.x - grabStartWorld.x;
+                    const totalDy = pointer.y - grabStartWorld.y;
                     container.setOffset({
                         x: grabStartOffset.x - totalDx / sx,
                         y: grabStartOffset.y + totalDy / sy,

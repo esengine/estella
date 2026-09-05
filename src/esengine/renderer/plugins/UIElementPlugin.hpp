@@ -10,6 +10,7 @@ namespace esengine {
 
 class UIElementPlugin : public BatchPlugin {
 public:
+    bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
 
     // UI draws above world content: its sort layer is offset past the world

@@ -15,7 +15,6 @@ namespace esengine {
 
 void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
-    auto& frustum = collect_ctx.frustum;
     auto& clips = collect_ctx.clip_state;
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
@@ -25,6 +24,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     u32 litProgram = 0;
 
     for (auto entity : spriteView) {
+        if (!collect_ctx.accepts(entity)) continue;
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
         if (registry.has<ecs::UINode>(entity)) continue;  // UI sprites are drawn by UIElementPlugin
@@ -46,7 +46,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
                                                     0.0f);
         glm::vec3 halfExtents = flatHalfExtents(
             turn, glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f);
-        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
+        if (!collect_ctx.visible(aabbCenter, halfExtents)) {
             ++collect_ctx.culled;
             continue;
         }
@@ -93,7 +93,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,
-            .depth = collect_ctx.camera.viewDepth(position),
+            .depth = collect_ctx.sortDepth(position),
             .y = position.y,
             .entity = entity,
             .type = RenderType::Sprite,

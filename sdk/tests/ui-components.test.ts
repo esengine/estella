@@ -17,6 +17,7 @@ import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from '../src/ui/layout/flex';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { setScreenBox } from './helpers/screenBox';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
@@ -92,13 +93,10 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
         (registry as unknown as { delete(): void }).delete();
     }
 
+    // The box UI lays out in is the screen's, and a camera has no way to reach
+    // it (ui/core/screen-layout.ts).
     function setCanvasRect(app: App, left: number, bottom: number, right: number, top: number): void {
-        const cam = app.getResource(UICameraInfo);
-        cam.worldLeft = left;
-        cam.worldBottom = bottom;
-        cam.worldRight = right;
-        cam.worldTop = top;
-        cam.valid = true;
+        setScreenBox(app, left, bottom, right, top);
     }
 
     function makeTransform() {

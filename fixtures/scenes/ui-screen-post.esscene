@@ -1,0 +1,170 @@
+{
+  "version": 4,
+  "name": "A HUD over a graded scene. The overlay runs AFTER the post chain: a vignette at full strength eats the corners of the WORLD quad behind it, and the badge sitting in the same corner keeps the colour it was authored. The darkened world point is the control \u2014 without it this would pass just as well on a frame with no chain.",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 300
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 0.1,
+            "farPlane": 1000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "vignette",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1.0,
+                  "u_softness": 0.1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "WorldFill",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 8,
+              "y": 8,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "color": {
+              "r": 0.2,
+              "g": 0.6,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "opaque": true,
+            "mesh": "/scenes/textured-quad.esmesh"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        3
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "CornerBadge",
+      "parent": 2,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "width": {
+              "value": 20,
+              "unit": 1
+            },
+            "height": {
+              "value": 20,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

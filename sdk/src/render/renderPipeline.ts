@@ -9,6 +9,7 @@ import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
+import type { ScreenOverlayData } from '../ui/core/screen-overlay';
 import { Draw, isDrawAPIReady } from './draw';
 import {
     getDrawCallbacks,
@@ -66,6 +67,7 @@ export class RenderPipeline {
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
     private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
+    private screenOverlayCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
     private postProcess_: PostProcessAPI | null = null;
 
     setActiveScenes(scenes: Set<string> | null): void {
@@ -86,6 +88,16 @@ export class RenderPipeline {
     }
 
     /**
+     * Register geometry a plugin draws into the SCREEN overlay rather than into a
+     * camera — the sibling of {@link addPreFlushCallback}, separate for the same
+     * reason the two collects are: a callback that ran in both would put the same
+     * glyph in each list. Runs between the overlay's collect and its pass.
+     */
+    addScreenOverlayCallback(cb: (registry: { _cpp: CppRegistry }) => void): void {
+        this.screenOverlayCallbacks_.push(cb);
+    }
+
+    /**
      * Run what plugins registered to draw just before the frame flushes (glyph
      * quads, today). {@link submitScene} calls this in the middle of its own
      * sequence; a host that owns its render loop in C++ — the native one — calls
@@ -98,6 +110,40 @@ export class RenderPipeline {
 
     beginFrame(elapsedSec = 0): void {
         Renderer.beginFrame(elapsedSec);
+    }
+
+    /**
+     * Closes the frame. The pair of {@link beginFrame}, and the last thing a
+     * frame does: a backend that borrows the swapchain image for a frame gives it
+     * back here, so everything drawn after the first camera — a second camera,
+     * the screen post stack, the overlay — still has somewhere to land.
+     */
+    endFrame(): void {
+        Renderer.endFrame();
+    }
+
+    /**
+     * The frame's screen-space overlay: one pass, after every camera and after
+     * post. It takes a projection and a rect and no camera, which is what makes a
+     * HUD hold still while the view moves. Silent when the core has no overlay
+     * pass, which has not partitioned the domains either.
+     */
+    renderScreenOverlay(
+        registry: { _cpp: CppRegistry },
+        overlay: ScreenOverlayData,
+        target = 0,
+    ): void {
+        if (!overlay.active || overlay.vpW === 0 || overlay.vpH === 0) return;
+        if (!Renderer.hasScreenOverlay()) return;
+
+        Renderer.beginScreenOverlay(overlay.projection,
+                                    overlay.vpX, overlay.vpY, overlay.vpW, overlay.vpH);
+        // Set after begin (which clears the list) and before the collect it gates,
+        // exactly as a camera's own mask is.
+        Renderer.setCullingMask(overlay.layerMask);
+        Renderer.submitScreenOverlay(registry);
+        for (const cb of this.screenOverlayCallbacks_) cb(registry);
+        Renderer.endScreenOverlay(target);
     }
 
     beginScreenCapture(): void {

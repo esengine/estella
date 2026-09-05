@@ -171,6 +171,17 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     setDepthLayers: 'es_renderer_setDepthLayers',
     /** Camera culling mask; hosts predating it draw every layer, as they always did. */
     setCullingMask: 'es_renderer_setCullingMask',
+    /** Closes the frame. A host predating it released the swapchain image at
+     *  every camera's end instead, which is where multi-camera and the screen
+     *  overlay both fell over — so it is a fix, not only a new call. */
+    endFrame: 'es_renderer_endFrame',
+    /** The frame's screen-space overlay. All four or none: a host with only
+     *  some of them would partition the world and then never draw the half it
+     *  took out. The glue is generated from the same headers the engine
+     *  compiles, so the pass and the partition arrive together. */
+    beginScreenOverlay: 'es_renderer_beginScreenOverlay',
+    submitScreenOverlay: 'es_renderer_submitScreenOverlay',
+    endScreenOverlay: 'es_renderer_endScreenOverlay',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

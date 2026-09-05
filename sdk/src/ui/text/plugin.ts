@@ -22,6 +22,7 @@ import { UINode } from '../core/ui-node';
 import { Localization } from '../../i18n/Localization';
 import { applyTextLocalization, type TextWorldView } from './localize';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
+import { ScreenOverlay } from '../core/screen-overlay';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { resolveTextFamily } from './font-registry';
 import { platformDevicePixelRatio } from '../../platform';
@@ -55,36 +56,42 @@ export function resolveTextRenderMode(
 }
 
 /**
- * Pure: how many device pixels one world unit covers, which is the size bitmap
- * glyphs must be rasterized at to land on screen pixels.
+ * Pure: how many CSS pixels one unit of a DOMAIN covers, which is the size
+ * bitmap glyphs must be rasterized at to land on screen pixels.
  *
- * It comes from what the camera SHOWS, not from the box UI lays out in. Those
- * agree in a shipped game — the camera frames the design box — and diverge in
- * the editor, whose free-zoom view deliberately holds the layout box fixed so UI
- * does not reflow while you zoom (see syncUICameraInfo). Taking the span from
- * the layout box therefore rasterized glyphs for the design scale and left the
- * camera to scale the result, so editor text went soft at every zoom but "fit" —
- * and the sharper look of SDF there was really the bitmap path being asked for
- * the wrong size.
+ * It comes from the projection that will DRAW the text, not from the box the
+ * text was laid out in: the editor's free-zoom view holds that box fixed on
+ * purpose, so reading the span off it asks for design-sized glyphs and leaves the
+ * projection to scale the result — which is soft text at every zoom but "fit".
  *
- * An orthographic view-projection's first element is 2 / the span it covers.
+ * Two domains call this with their own projections. World text sharpens as the
+ * camera zooms in, which is correct; screen text follows the overlay, which is
+ * what keeps a 3D camera's field of view out of a HUD's glyphs.
+ *
+ * @param projScaleX element 0 of the projection: 2 / the span it shows.
+ * @param vpW        the pixel width that span lands in.
  */
-export function glyphContentScale(
-    cam: Pick<UICameraData, 'valid' | 'vpW' | 'worldLeft' | 'worldRight' | 'viewProjection'> | undefined,
-    dpr: number,
-): number {
-    if (!cam?.valid || !(dpr > 0)) return 1;
-    const vpScaleX = cam.viewProjection?.[0] ?? 0;
-    const layoutSpan = cam.worldRight - cam.worldLeft;
-    const shownSpan = vpScaleX !== 0 ? Math.abs(2 / vpScaleX) : layoutSpan;
-    return shownSpan > 0 ? cam.vpW / (shownSpan * dpr) : 1;
+export function glyphContentScale(projScaleX: number, vpW: number, dpr: number): number {
+    if (!(dpr > 0) || !(vpW > 0)) return 1;
+    if (!Number.isFinite(projScaleX) || projScaleX === 0) return 1;
+    const shownSpan = Math.abs(2 / projScaleX);
+    return shownSpan > 0 ? vpW / (shownSpan * dpr) : 1;
+}
+
+/** The two domains a Text can belong to, and the state each keeps. */
+interface TextDomainState {
+    bitmap: SdfTextRenderer | null;
+    sdf: SdfTextRenderer | null;
 }
 
 export class TextPlugin implements Plugin {
     name = 'text';
 
-    private bitmapRenderer_: SdfTextRenderer | null = null;
-    private sdfRenderer_: SdfTextRenderer | null = null;
+    // One pair per DOMAIN: a bitmap atlas is rasterized at ONE content scale, and
+    // the two ask for different ones the moment a camera stops being the screen.
+    // Lazy, so text in only one domain pays for one pair.
+    private readonly world_: TextDomainState = { bitmap: null, sdf: null };
+    private readonly screen_: TextDomainState = { bitmap: null, sdf: null };
     private readonly matrix_ = new Float32Array(16);
 
     build(app: App): void {
@@ -114,149 +121,184 @@ export class TextPlugin implements Plugin {
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw
 
-        const registry = world.getCppRegistry() as CppRegistry;
-
-        pipeline.addPreFlushCallback(() => {
-            // The engine queries below go through engineApi, not app.wasmModule: a
-            // device has no wasm module, so asking for one left every Text at the
-            // base UI layer — beneath any sibling panel — and hid it (ecs/engineApi.ts).
-            const api = engineApi(app);
-            // Design→device scale beyond DPR (vpW is device px); the bitmap
-            // atlas folds it into rasterization. Resolved per frame — the
-            // camera plugin may build after this one.
-            // Camera-scaled ON PURPOSE, and correct for WORLD text: zooming in
-            // rasterizes sharper. Screen text wants the layout domain, which
-            // needs the two told apart — the collection split, not here.
-            const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
-            const dpr = platformDevicePixelRatio();
-            const contentScale = glyphContentScale(uiCamera, dpr);
-
-            const seen = new Set<number>();
-            for (const e of world.getEntitiesWithComponents([Text, Transform])) {
-                const entity = e as Entity;
-                const t = world.get(entity, Text) as TextData;
-                // enabled === false: pre-upgrade data lacks the field → visible.
-                if (!t.content || t.enabled === false) continue;
-                // display:none anywhere up the UI tree hides this text too.
-                if (api?.getUINodeHiddenInTree?.(registry, entity)) continue;
-                const groupAlpha = api?.getUINodeAlphaInTree?.(registry, entity) ?? 1;
-                seen.add(entity as number);
-
-                const tr = world.get(entity, Transform) as TransformData;
-                const renderer = this.rendererFor(
-                    app,
-                    resolveTextRenderMode(t.renderMode, tr.worldScale.x),
-                    contentScale,
-                );
-                composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);
-
-                const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
-                // Text.lineHeight is a ratio of fontSize (legacy convention).
-                const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
-
-                // The layout box: a UINode (CSS box, pivot-centered) or legacy
-                // UINode. Text is placed + aligned + wrapped inside it and sorted
-                // by the UI render order. No box ⇒ a world-space label at the
-                // entity origin, sorted by Text.layer like any other world
-                // renderer (it used to be pinned to 0, where anything else on
-                // layer 0 drawn later covered it).
-                let originX: number | undefined;
-                let originY: number | undefined;
-                let maxWidth: number | undefined;
-                let boxWidth: number | undefined;
-                let boxHeight: number | undefined;
-                let layer = t.layer | 0;
-                let w = 0, h = 0, hasBox = false;
-                if (world.has(entity, UINode)) {
-                    w = getUINodeWidth(entity);
-                    h = getUINodeHeight(entity);
-                    hasBox = w > 0 || h > 0;
-                }
-                if (hasBox) {
-                    const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
-                    originX = box.originX;
-                    originY = box.originY;
-                    boxWidth = box.maxWidth; // align within the box regardless of word-wrap
-                    boxHeight = box.boxHeight;
-                    if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
-
-                    const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
-                    layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
-                }
-
-                // A blur with no offset is still a shadow — a halo centred on the
-                // glyphs — so it counts as one for the "is there a shadow" test.
-                const shadow = t.shadowColor.a > 0
-                    && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
-                    ? {
-                        color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
-                        dx: t.shadowOffsetX,
-                        dy: t.shadowOffsetY,
-                        blur: t.shadowBlur,
-                    }
-                    : undefined;
-                const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
-                    ? {
-                        color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
-                        width: t.strokeWidth,
-                    }
-                    : undefined;
-
-                renderer.drawText(
-                    {
-                        text: t.content,
-                        fontFamily: resolveTextFamily(t.font, t.fontFamily),
-                        fontSizePx: t.fontSize,
-                        // Subtree opacity (UINode.opacity) is resolved in C++ by the
-                        // layout pass; text is drawn here, so it multiplies the same
-                        // inherited alpha in and fades with its panel like visuals do.
-                        color: [t.color.r, t.color.g, t.color.b, t.color.a * groupAlpha],
-                        style,
-                        richText: t.richText,
-                        align: t.align,
-                        verticalAlign: t.verticalAlign,
-                        lineHeight: lineHeightPx,
-                        maxWidth,
-                        boxWidth,
-                        boxHeight,
-                        overflow: t.overflow,
-                        originX,
-                        originY,
-                        shadow,
-                        outline,
-                    },
-                    this.matrix_,
-                    entity as number,
-                    layer,
-                    tr.worldPosition.z,
-                    api?.ui_getCullBit?.(registry, entity as number) ?? 0,
-                );
-            }
-
-            // Release cached geometry for text that vanished / hid this frame.
-            this.bitmapRenderer_?.retainOnly(seen);
-            this.sdfRenderer_?.retainOnly(seen);
-        });
+        // Two passes, because there are two lists: the world's glyphs go into the
+        // camera being collected, the screen's into the frame's overlay.
+        pipeline.addPreFlushCallback(() => this.drawDomain(app, /*screen=*/false));
+        pipeline.addScreenOverlayCallback(() => this.drawDomain(app, /*screen=*/true));
     }
 
-    /** The two glyph pipelines, created lazily; they share layout, page store,
-     *  and batch submit — only the atlas contents and shader coverage differ. */
-    private rendererFor(app: App, kind: 'bitmap' | 'sdf', contentScale: number): SdfTextRenderer {
+    /**
+     * Draw every Text belonging to one domain, into whichever list is open.
+     *
+     * The domain is asked of the engine, not derived here: it is resolved once at
+     * a UI subtree's root and inherited (UISystem::screenDomain), and a second
+     * spelling of that rule in TS is a second rule.
+     */
+    private drawDomain(app: App, screen: boolean): void {
+        const world = app.world;
+        const registry = world.getCppRegistry() as CppRegistry;
+        // Through engineApi, not app.wasmModule: a device has no wasm module, and
+        // asking for one leaves every Text at the base UI layer (ecs/engineApi.ts).
+        const api = engineApi(app);
+        // A core that cannot answer has not partitioned anything either, so every
+        // Text is world content and the screen pass draws nothing.
+        const isScreen = (entity: number): boolean =>
+            api?.ui_isScreenDomain?.(registry, entity) ?? false;
+        if (screen && !api?.ui_isScreenDomain) return;
+
+        const dpr = platformDevicePixelRatio();
+        const contentScale = screen
+            ? this.screenContentScale(app, dpr)
+            : this.worldContentScale(app, dpr);
+        const state = screen ? this.screen_ : this.world_;
+
+        const seen = new Set<number>();
+        for (const e of world.getEntitiesWithComponents([Text, Transform])) {
+            const entity = e as Entity;
+            if (isScreen(entity as number) !== screen) continue;
+            const t = world.get(entity, Text) as TextData;
+            // enabled === false: pre-upgrade data lacks the field → visible.
+            if (!t.content || t.enabled === false) continue;
+            // display:none anywhere up the UI tree hides this text too.
+            if (api?.getUINodeHiddenInTree?.(registry, entity)) continue;
+            const groupAlpha = api?.getUINodeAlphaInTree?.(registry, entity) ?? 1;
+            seen.add(entity as number);
+
+            const tr = world.get(entity, Transform) as TransformData;
+            const renderer = this.rendererFor(
+                app, state,
+                resolveTextRenderMode(t.renderMode, tr.worldScale.x),
+                contentScale,
+            );
+            composeTRS(this.matrix_, tr.worldPosition, tr.worldRotation, tr.worldScale);
+
+            const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
+            // Text.lineHeight is a ratio of fontSize (legacy convention).
+            const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
+
+            // The layout box: a UINode (CSS box, pivot-centered), which places,
+            // aligns and wraps the text and sorts it by UI render order. No box ⇒
+            // a world label at the entity origin, sorted by Text.layer.
+            let originX: number | undefined;
+            let originY: number | undefined;
+            let maxWidth: number | undefined;
+            let boxWidth: number | undefined;
+            let boxHeight: number | undefined;
+            let layer = t.layer | 0;
+            let w = 0, h = 0, hasBox = false;
+            if (world.has(entity, UINode)) {
+                w = getUINodeWidth(entity);
+                h = getUINodeHeight(entity);
+                hasBox = w > 0 || h > 0;
+            }
+            if (hasBox) {
+                const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
+                originX = box.originX;
+                originY = box.originY;
+                boxWidth = box.maxWidth; // align within the box regardless of word-wrap
+                boxHeight = box.boxHeight;
+                if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
+
+                const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
+                layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
+            }
+
+            // A blur with no offset is still a shadow — a halo centred on the
+            // glyphs — so it counts as one for the "is there a shadow" test.
+            const shadow = t.shadowColor.a > 0
+                && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
+                ? {
+                    color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
+                    dx: t.shadowOffsetX,
+                    dy: t.shadowOffsetY,
+                    blur: t.shadowBlur,
+                }
+                : undefined;
+            const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
+                ? {
+                    color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
+                    width: t.strokeWidth,
+                }
+                : undefined;
+
+            renderer.drawText(
+                {
+                    text: t.content,
+                    fontFamily: resolveTextFamily(t.font, t.fontFamily),
+                    fontSizePx: t.fontSize,
+                    // Subtree opacity (UINode.opacity) is resolved in C++ by the
+                    // layout pass; text is drawn here, so it multiplies the same
+                    // inherited alpha in and fades with its panel like visuals do.
+                    color: [t.color.r, t.color.g, t.color.b, t.color.a * groupAlpha],
+                    style,
+                    richText: t.richText,
+                    align: t.align,
+                    verticalAlign: t.verticalAlign,
+                    lineHeight: lineHeightPx,
+                    maxWidth,
+                    boxWidth,
+                    boxHeight,
+                    overflow: t.overflow,
+                    originX,
+                    originY,
+                    shadow,
+                    outline,
+                },
+                this.matrix_,
+                entity as number,
+                layer,
+                // Screen draws all share one depth: their order is the UI tree's,
+                // and a z left on a screen root would otherwise outrank a sibling.
+                screen ? 0 : tr.worldPosition.z,
+                api?.ui_getCullBit?.(registry, entity as number) ?? 0,
+            );
+        }
+
+        // Release cached geometry for text that vanished / hid this frame. Per
+        // domain, because each keeps its own atlases: retaining across the two
+        // would have each pass evict the other's glyphs every frame.
+        state.bitmap?.retainOnly(seen);
+        state.sdf?.retainOnly(seen);
+    }
+
+    /** World text rasterizes for the camera showing it — zoom in, get sharper. */
+    private worldContentScale(app: App, dpr: number): number {
+        const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
+        if (!cam?.valid) return 1;
+        return glyphContentScale(cam.viewProjection?.[0] ?? 0, cam.vpW, dpr);
+    }
+
+    /** Screen text rasterizes for the overlay that draws it, which is the one
+     *  projection with no camera in it. */
+    private screenContentScale(app: App, dpr: number): number {
+        if (!app.hasResource(ScreenOverlay)) return 1;
+        const overlay = app.getResource(ScreenOverlay);
+        if (!overlay.active) return 1;
+        return glyphContentScale(overlay.projection[0] ?? 0, overlay.vpW, dpr);
+    }
+
+    /** The two glyph pipelines of one domain, created lazily; they share layout,
+     *  page store, and batch submit — only the atlas contents and shader
+     *  coverage differ. */
+    private rendererFor(
+        app: App,
+        state: TextDomainState,
+        kind: 'bitmap' | 'sdf',
+        contentScale: number,
+    ): SdfTextRenderer {
         const module = app.wasmModule as ESEngineModule | null;
         if (kind === 'sdf') {
-            if (!this.sdfRenderer_) {
-                this.sdfRenderer_ = new SdfTextRenderer(module, { sdf: true });
-            }
-            return this.sdfRenderer_;
+            if (!state.sdf) state.sdf = new SdfTextRenderer(module, { sdf: true });
+            return state.sdf;
         }
-        if (!this.bitmapRenderer_) {
+        if (!state.bitmap) {
             const dpr = platformDevicePixelRatio();
-            this.bitmapRenderer_ = new SdfTextRenderer(module, {
+            state.bitmap = new SdfTextRenderer(module, {
                 sdf: false, dpr, renderSize: Math.round(GLYPH_BASE_SIZE * dpr),
             });
         }
-        this.bitmapRenderer_.setContentScale(contentScale);
-        return this.bitmapRenderer_;
+        state.bitmap.setContentScale(contentScale);
+        return state.bitmap;
     }
 }
 

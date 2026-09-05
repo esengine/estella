@@ -17,8 +17,8 @@ import { Res } from '../../ecs/resource';
 import { UINode } from '../core/ui-node';
 import { UIVisual } from '../core/ui-visual';
 import { FlexContainer } from './flex';
-import { UICameraInfo } from '../core/ui-camera-info';
-import type { UICameraData } from '../core/ui-camera-info';
+import { ScreenLayout } from '../core/screen-layout';
+import type { ScreenLayoutData } from '../core/screen-layout';
 import { UILayoutGeneration } from './ui-layout-generation';
 import type { UILayoutGenerationData } from './ui-layout-generation';
 import type { CppRegistry } from '../../wasm';
@@ -67,31 +67,34 @@ export class UILayoutPlugin implements Plugin {
             return dirty;
         };
 
-        const layoutFn = (camera: UICameraData) => {
-            if (!camera.valid) return;
+        // The box is the SCREEN's: the design resolution fitted to the viewport,
+        // centred on the origin — which is what makes a screen root's placement a
+        // fact about the screen rather than about where something is looking.
+        const layoutFn = (screen: ScreenLayoutData) => {
+            if (!screen.valid) return;
             engine?.uiLayout_update?.(
                 registry,
-                camera.worldLeft, camera.worldBottom,
-                camera.worldRight, camera.worldTop,
+                screen.left, screen.bottom,
+                screen.right, screen.top,
                 propertyDirty(),
             );
             engine?.transform_update?.(registry);
             layoutGen.generation++;
         };
 
-        const layoutOnlyFn = (camera: UICameraData) => {
-            if (!camera.valid) return;
+        const layoutOnlyFn = (screen: ScreenLayoutData) => {
+            if (!screen.valid) return;
             engine?.uiLayout_update?.(
                 registry,
-                camera.worldLeft, camera.worldBottom,
-                camera.worldRight, camera.worldTop,
+                screen.left, screen.bottom,
+                screen.right, screen.top,
                 propertyDirty(),
             );
             layoutGen.generation++;
         };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(UICameraInfo)],
+            [Res(ScreenLayout)],
             layoutFn,
             { name: 'UILayoutSystem' }
         ));
@@ -100,7 +103,7 @@ export class UILayoutPlugin implements Plugin {
         // render reads world transforms (UIRenderOrder walks hierarchy only), and
         // the renderer's ensureTransformsUpdated composes worlds before collect.
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
-            [Res(UICameraInfo)],
+            [Res(ScreenLayout)],
             layoutOnlyFn,
             { name: 'UILayoutLateSystem' }
         ), { runAfter: [SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });

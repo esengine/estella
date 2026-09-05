@@ -194,6 +194,11 @@ void applyStencilDescendants(ecs::Registry& registry, RenderFrame& frame,
 }  // anonymous namespace
 
 void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
+    processMasks(registry, view_projection_, vpX, vpY, vpW, vpH);
+}
+
+void RenderFrame::processMasks(ecs::Registry& registry, const glm::mat4& projection,
+                               i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     clearAllClipRects();
     clearAllStencilMasks();
 
@@ -231,8 +236,8 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
         }
 
         for (auto entity : rootScissors) {
-            ScreenRect rect = computeMaskScreenRect(registry, entity, view_projection_, vpX, vpY, vpW, vpH);
-            applyScissorToDescendants(registry, *this, entity, rect, maskSet, view_projection_, vpX, vpY, vpW, vpH);
+            ScreenRect rect = computeMaskScreenRect(registry, entity, projection, vpX, vpY, vpW, vpH);
+            applyScissorToDescendants(registry, *this, entity, rect, maskSet, projection, vpX, vpY, vpW, vpH);
         }
     }
 

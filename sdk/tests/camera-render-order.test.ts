@@ -56,7 +56,11 @@ describe('render order: transforms resolve before cameras are read', () => {
             },
             begin: (viewProjection) => { calls.push('begin'); lastViewProjection = viewProjection; },
             submitAll: () => { calls.push('submitAll'); },
-            flush: () => {}, end: () => {},
+            flush: () => {}, end: () => {}, endFrame: () => { calls.push('endFrame'); },
+            // No overlay from this fake: what it records is the ORDER a frame
+            // drives its cameras in, and a screen pass is not one of them.
+            hasScreenOverlay: () => false,
+            beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, endScreenOverlay: () => {},
             setStage: () => {}, setViewport: () => {},
             setYSortLayers: () => {}, setDepthLayers: () => {}, setCullingMask: () => {},
             getStats: () => ({ drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 }),

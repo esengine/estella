@@ -53,6 +53,18 @@ export interface RendererBackend {
               vpX: number, vpY: number, vpW: number, vpH: number): void;
     flush(): void;
     end(): void;
+    /** Closes the frame. Per FRAME, not per camera: this is where a backend
+     *  holding a swapchain image for the duration of one gives it back. */
+    endFrame(): void;
+    /** Whether this core can draw the frame's screen overlay. False means it
+     *  keeps screen UI in the world domain, as every core did before the pass
+     *  existed — the partition and the pass ship in the same binary, so the two
+     *  answers cannot disagree. */
+    hasScreenOverlay(): boolean;
+    beginScreenOverlay(projection: Float32Array,
+                       vpX: number, vpY: number, vpW: number, vpH: number): void;
+    submitScreenOverlay(registry: CppRegistry): void;
+    endScreenOverlay(target: number): void;
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
@@ -110,6 +122,37 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 m.renderer_end();
             } catch (e) {
                 handleWasmError(e, 'Renderer.end');
+            }
+        },
+        endFrame: () => {
+            try {
+                m.renderer_endFrame?.();
+            } catch (e) {
+                handleWasmError(e, 'Renderer.endFrame');
+            }
+        },
+        hasScreenOverlay: () => typeof m.renderer_beginScreenOverlay === 'function',
+        beginScreenOverlay: (projection, vpX, vpY, vpW, vpH) => {
+            if (!viewProjectionPtr) return;
+            try {
+                m.HEAPF32.set(projection, viewProjectionPtr / 4);
+                m.renderer_beginScreenOverlay?.(viewProjectionPtr, vpX, vpY, vpW, vpH);
+            } catch (e) {
+                handleWasmError(e, 'Renderer.beginScreenOverlay');
+            }
+        },
+        submitScreenOverlay: (registry) => {
+            try {
+                m.renderer_submitScreenOverlay?.(registry);
+            } catch (e) {
+                handleWasmError(e, 'Renderer.submitScreenOverlay');
+            }
+        },
+        endScreenOverlay: (target) => {
+            try {
+                m.renderer_endScreenOverlay?.(target);
+            } catch (e) {
+                handleWasmError(e, 'Renderer.endScreenOverlay');
             }
         },
         setStage: (stage) => m.renderer_setStage(stage),
@@ -355,6 +398,30 @@ export const Renderer = {
 
     end(): void {
         backend?.end();
+    },
+
+    /** Closes the frame — after every camera, after the screen post stack, and
+     *  after the overlay. See RendererBackend.endFrame. */
+    endFrame(): void {
+        backend?.endFrame();
+    },
+
+    /** Whether the core can draw the frame's screen overlay. */
+    hasScreenOverlay(): boolean {
+        return backend?.hasScreenOverlay() ?? false;
+    },
+
+    beginScreenOverlay(projection: Float32Array,
+                       vpX: number, vpY: number, vpW: number, vpH: number): void {
+        backend?.beginScreenOverlay(projection, vpX, vpY, vpW, vpH);
+    },
+
+    submitScreenOverlay(registry: { _cpp: CppRegistry }): void {
+        backend?.submitScreenOverlay(registry._cpp);
+    },
+
+    endScreenOverlay(target: RenderTargetHandle = 0): void {
+        backend?.endScreenOverlay(target);
     },
 
     submitAll(registry: { _cpp: CppRegistry }, vpX: number, vpY: number, vpW: number, vpH: number): void {

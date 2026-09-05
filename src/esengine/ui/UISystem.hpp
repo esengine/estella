@@ -19,6 +19,7 @@
 #include "./UIHitTestSystem.hpp"
 
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 namespace esengine::resource { class ResourceManager; }
@@ -90,6 +91,17 @@ public:
     void hitTestUpdate(Registry& registry, const PickRay& ray,
                        const resource::ResourceManager* resources = nullptr);
 
+    /**
+     * @brief The same, with a ray per DOMAIN.
+     *
+     * @details A pixel is in no domain until it is projected into one, so screen
+     *          UI answers @p screenRay and world content @p worldRay — each
+     *          entity through the projection it is DRAWN with. One ray for both
+     *          draws the HUD where it should be and clicks somewhere else.
+     */
+    void hitTestUpdate(Registry& registry, const PickRay& worldRay, const PickRay& screenRay,
+                       const resource::ResourceManager* resources);
+
     /** @brief Editor pick: the most specific UI entity under the point. Unlike
      *         hitTestUpdate it ignores Interactable and mutates no state. */
     u32 pick(Registry& registry, f32 worldX, f32 worldY);
@@ -108,6 +120,16 @@ public:
 
     /** @brief Entity hit by the previous frame's hitTestUpdate */
     u32 getPrevHitEntity() const { return hitResult.prev_hit_entity.id(); }
+
+    /**
+     * @brief Every entity that belongs to the SCREEN, as opposed to the world.
+     *
+     * @details Resolved once at a subtree's root and inherited by all of it: a
+     *          Canvas with no Transform parent IS the screen. The whole Transform
+     *          subtree, not just the laid-out nodes — what decides the domain is
+     *          where a transform composes FROM. Rebuilt by every layout pass.
+     */
+    const std::unordered_set<u32>& screenDomain() const { return screen_domain_; }
 
 private:
     /** @brief World-space pick for entities outside the layout tree (see .cpp) */
@@ -128,6 +150,8 @@ private:
     // Which registry the retained Yoga nodes belong to — entity ids restart with
     // each one, so they mean nothing across registries (Registry::instanceId).
     u64 lastRegistryId_{0};
+
+    std::unordered_set<u32> screen_domain_;
 };
 
 }  // namespace esengine::ecs

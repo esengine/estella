@@ -9,6 +9,10 @@ namespace esengine {
 
 class SpritePlugin : public BatchPlugin {
 public:
+    // A Sprite parented into a UI tree is laid out and ordered by that tree
+    // (UIRenderOrderSystem assigns it a layer), so it is screen content when the
+    // tree is — and has to be drawn by the pass that owns those coordinates.
+    bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
 
 private:

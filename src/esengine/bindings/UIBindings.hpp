@@ -35,6 +35,19 @@ void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 bo
 void uiHitTest_update(ecs::Registry& registry,
                       f32 originX, f32 originY, f32 originZ,
                       f32 dirX, f32 dirY, f32 dirZ);
+/**
+ * @brief The hit test with a ray per domain — world content and world-space UI
+ *        answer the first, screen UI the second.
+ *
+ * @details A separate entry point rather than more parameters: these are bound by
+ *          NAME, and widening a signature makes an older core throw rather than
+ *          decline.
+ */
+void uiHitTest_updateDomains(ecs::Registry& registry,
+                             f32 worldOriginX, f32 worldOriginY, f32 worldOriginZ,
+                             f32 worldDirX, f32 worldDirY, f32 worldDirZ,
+                             f32 screenOriginX, f32 screenOriginY, f32 screenOriginZ,
+                             f32 screenDirX, f32 screenDirY, f32 screenDirZ);
 u32 uiHitTest_getHitEntity();
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY);
@@ -52,6 +65,14 @@ void uiRenderOrder_update(ecs::Registry& registry);
 i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity);
 /** Mask bit of the owning Canvas' layer, for Camera.cullingMask. 0 = not a UI node. */
 u32 ui_getCullBit(ecs::Registry& registry, u32 entity);
+/**
+ * @brief Whether @p entity belongs to the SCREEN rather than to the world.
+ *
+ * @details The same answer the renderer partitions its collects by, asked here
+ *          because the SDK submits some of the screen's geometry itself — glyph
+ *          quads — into the list the panel behind them went into.
+ */
+bool ui_isScreenDomain(ecs::Registry& registry, u32 entity);
 
 
 /** UINode computed state that is not embind-readable off the component. */

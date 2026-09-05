@@ -346,6 +346,7 @@ registry_getCanvasEntity: (registry: CppRegistry) => number
 registry_getGeneration: (registry: CppRegistry, entity: number) => number
 renderer_begin: (matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number) => void
 renderer_beginFrame: (elapsedSec: number) => void
+renderer_beginScreenOverlay: ((projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number) => void) | undefined
 renderer_captureFrame: ((w: number, h: number) => number) | undefined
 renderer_captureNextFrame: () => void
 renderer_createSkeletalPreview: (w: number, h: number) => number
@@ -353,6 +354,8 @@ renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_destroySkeletalPreview: (preview: number) => void
 renderer_diagnose: () => void
 renderer_end: () => void
+renderer_endFrame: (() => void) | undefined
+renderer_endScreenOverlay: ((targetHandle: number) => void) | undefined
 renderer_entityVisibleToCamera: ((registry: CppRegistry, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number) => void) | undefined
 renderer_flush: () => void
 renderer_getCapturedCameraCount: () => number
@@ -406,6 +409,7 @@ renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: num
 renderer_setViewport: (x: number, y: number, w: number, h: number) => void
 renderer_setYSortLayers: ((mask: number) => void) | undefined
 renderer_submitAll: (registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number) => void
+renderer_submitScreenOverlay: ((registry: CppRegistry) => void) | undefined
 renderer_submitSkeletalBatchByEntity: ((registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number) => void) | undefined
 renderer_submitSkeletalPreviewBatch: (preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number) => number
 renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number) => void) | undefined
@@ -437,12 +441,14 @@ uiHitTest_pick: ((registry: CppRegistry, worldX: number, worldY: number) => numb
 uiHitTest_pickAll: ((registry: CppRegistry, worldX: number, worldY: number) => number) | undefined
 uiHitTest_pickResult: ((index: number) => number) | undefined
 uiHitTest_update: (registry: CppRegistry, originX: number, originY: number, originZ: number, dirX: number, dirY: number, dirZ: number) => void
+uiHitTest_updateDomains: ((registry: CppRegistry, worldOriginX: number, worldOriginY: number, worldOriginZ: number, worldDirX: number, worldDirY: number, worldDirZ: number, screenOriginX: number, screenOriginY: number, screenOriginZ: number, screenDirX: number, screenDirY: number, screenDirZ: number) => void) | undefined
 uiLayout_update: (registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean) => void
 uiNode_computedHeight: (registry: CppRegistry, entity: number) => number
 uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
 uiRenderOrder_update: (registry: CppRegistry) => void
 ui_getCullBit: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
+ui_isScreenDomain: ((registry: CppRegistry, entity: number) => boolean) | undefined
 wasmMemory: WebAssembly.Memory | undefined
 ```
 

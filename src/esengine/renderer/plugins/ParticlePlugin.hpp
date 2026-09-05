@@ -20,6 +20,10 @@ public:
 
     void setParticleSystem(particle::ParticleSystem* system) { particle_system_ = system; }
 
+    // An emitter inside a UI tree draws where that tree says it does — the reason
+    // a UI particle is a first-class thing here rather than an extension — so it
+    // follows the tree into the screen domain too.
+    bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
 
 private:

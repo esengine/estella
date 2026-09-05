@@ -19,6 +19,8 @@ import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo } from '../core/ui-camera-info';
 import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
+import { uiPointerFor } from '../util/ui-pick';
 import type { UICameraData } from '../core/ui-camera-info';
 import { playModeOnly } from '../../ecs/env';
 import { getEntityDepth } from '../util/helpers';
@@ -92,11 +94,16 @@ export class DragPlugin implements Plugin {
         let activeEntity: Entity | null = null;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo), Res(ScreenLayout)],
-            (input: InputState, camera: UICameraData, layout: ScreenLayoutData) => {
-                if (!camera.valid) return;
+            [Res(Input), Res(UICameraInfo), Res(ScreenLayout), Res(ScreenOverlay)],
+            (input: InputState, camera: UICameraData, layout: ScreenLayoutData,
+             overlay: ScreenOverlayData) => {
+                if (!camera.valid && !overlay.active) return;
 
-                const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
+                // Per ENTITY, not once per frame: a drag subtracts a pointer from
+                // a transform, and the two share coordinates only if the pointer
+                // was projected into the domain the entity is laid out in.
+                const pointerFor = (entity: Entity): { x: number; y: number } =>
+                    uiPointerFor(world, entity, camera, overlay);
 
                 if (input.isMouseButtonPressed(0)) {
                     const draggableEntities = world.getEntitiesWithComponents([Draggable, UIInteraction]);
@@ -124,7 +131,8 @@ export class DragPlugin implements Plugin {
 
                     if (bestEntity !== null) {
                         pendingEntity = bestEntity;
-                        pendingStartWorld = { x: worldMouse.x, y: worldMouse.y };
+                        const pointer = pointerFor(bestEntity);
+                        pendingStartWorld = { x: pointer.x, y: pointer.y };
 
                         if (!world.has(bestEntity, DragState)) {
                             world.insert(bestEntity, DragState);
@@ -133,7 +141,7 @@ export class DragPlugin implements Plugin {
                         world.update(bestEntity, DragState, (d) => {
                             d.startWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
                             d.currentWorldPos = { x: wt.worldPosition.x, y: wt.worldPosition.y };
-                            d.pointerStartWorld = { x: worldMouse.x, y: worldMouse.y };
+                            d.pointerStartWorld = { x: pointer.x, y: pointer.y };
                             d.deltaWorld = { x: 0, y: 0 };
                             d.totalDeltaWorld = { x: 0, y: 0 };
                             d.isDragging = false;
@@ -153,8 +161,9 @@ export class DragPlugin implements Plugin {
                         pendingEntity = null;
                         return;
                     }
-                    const dx = worldMouse.x - pendingStartWorld.x;
-                    const dy = worldMouse.y - pendingStartWorld.y;
+                    const pointer = pointerFor(pendingEntity);
+                    const dx = pointer.x - pendingStartWorld.x;
+                    const dy = pointer.y - pendingStartWorld.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     const draggable = world.get(pendingEntity, Draggable) as DraggableData;
 
@@ -177,8 +186,9 @@ export class DragPlugin implements Plugin {
                     const dragState = world.get(activeEntity, DragState) as DragStateData;
                     const draggable = world.get(activeEntity, Draggable) as DraggableData;
 
-                    const pointerDeltaX = worldMouse.x - dragState.pointerStartWorld.x;
-                    const pointerDeltaY = worldMouse.y - dragState.pointerStartWorld.y;
+                    const pointer = pointerFor(activeEntity);
+                    const pointerDeltaX = pointer.x - dragState.pointerStartWorld.x;
+                    const pointerDeltaY = pointer.y - dragState.pointerStartWorld.y;
 
                     let newWorldX = dragState.startWorldPos.x + pointerDeltaX;
                     let newWorldY = dragState.startWorldPos.y + pointerDeltaY;

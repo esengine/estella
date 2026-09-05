@@ -41,6 +41,19 @@ void uiHitTest_update(ecs::Registry& registry,
                                                  ctx().tryGet<resource::ResourceManager>());
 }
 
+void uiHitTest_updateDomains(ecs::Registry& registry,
+                             f32 worldOriginX, f32 worldOriginY, f32 worldOriginZ,
+                             f32 worldDirX, f32 worldDirY, f32 worldDirZ,
+                             f32 screenOriginX, f32 screenOriginY, f32 screenOriginZ,
+                             f32 screenDirX, f32 screenDirY, f32 screenDirZ) {
+    const ecs::PickRay world{{worldOriginX, worldOriginY, worldOriginZ},
+                             {worldDirX, worldDirY, worldDirZ}};
+    const ecs::PickRay screen{{screenOriginX, screenOriginY, screenOriginZ},
+                              {screenDirX, screenDirY, screenDirZ}};
+    ctx().require<ecs::UISystem>().hitTestUpdate(registry, world, screen,
+                                                 ctx().tryGet<resource::ResourceManager>());
+}
+
 u32 uiHitTest_getHitEntity() {
     return ctx().require<ecs::UISystem>().getHitEntity();
 }
@@ -86,6 +99,12 @@ i32 ui_getRenderOrder(ecs::Registry& registry, u32 entity) {
 u32 ui_getCullBit(ecs::Registry& registry, u32 entity) {
     auto* ui = registry.tryGet<ecs::UIVisual>(Entity::fromRaw(entity));
     return ui ? ui->uiCullBit : 0u;
+}
+
+bool ui_isScreenDomain(ecs::Registry& registry, u32 entity) {
+    (void)registry;
+    auto* ui = ctx().tryGet<ecs::UISystem>();
+    return ui && ui->screenDomain().count(entity) != 0;
 }
 
 // UINode (CSS box) computed size — its internal computed_size_ is not

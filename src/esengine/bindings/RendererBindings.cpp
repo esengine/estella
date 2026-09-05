@@ -31,6 +31,7 @@
 #include "../core/RandomSource.hpp"
 #endif
 #include "../trail/TrailSystem.hpp"
+#include "../ui/UISystem.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
@@ -451,6 +452,11 @@ void renderer_end() {
     checkGLErrors("renderer_end");
 }
 
+void renderer_endFrame() {
+    if (!g_renderFrame) return;
+    g_renderFrame->endFrame();
+}
+
 /** Compose if a producer said the inputs moved. The renderer is a consumer of
  *  world transforms, not the authority over when they are computed. */
 static void ensureTransformsUpdated(ecs::Registry& registry) {
@@ -484,9 +490,41 @@ void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr,
     ecs::applySceneEntityOrder(registry, order.data(), order.size());
 }
 
+/** The screen's entities, as a membership set the renderer can partition by.
+ *  Empty when there is no UI system — then every collect is a world one, which
+ *  is what a project with no Canvas has always had. */
+static const std::unordered_set<u32>* screenDomain() {
+    auto* ui = ctx().tryGet<ecs::UISystem>();
+    return ui ? &ui->screenDomain() : nullptr;
+}
+
+void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH) {
+    if (!g_renderFrame) return;
+    const f32* matrixData = boundarySpan<f32>(projectionPtr, 16, "renderer_beginScreenOverlay.matrix");
+    if (!matrixData) return;
+    g_renderFrame->beginScreenOverlay(glm::make_mat4(matrixData), vpX, vpY, vpW, vpH);
+}
+
+void renderer_submitScreenOverlay(ecs::Registry& registry) {
+    if (!g_renderFrame) return;
+    ensureTransformsUpdated(registry);
+    g_renderFrame->setScreenDomain(screenDomain());
+    g_renderFrame->submitScreenOverlay(registry);
+}
+
+void renderer_endScreenOverlay(u32 targetHandle) {
+    if (!g_renderFrame) return;
+    g_renderFrame->endScreenOverlay(targetHandle);
+    checkGLErrors("renderer_endScreenOverlay");
+}
+
 void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
+    // What this camera must NOT draw. Set on every collect rather than once a
+    // frame: the set is rebuilt by each layout pass, and a camera holding the
+    // previous one would draw a just-reparented element in the wrong domain.
+    g_renderFrame->setScreenDomain(screenDomain());
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
 
     g_renderFrame->collectAll(registry);

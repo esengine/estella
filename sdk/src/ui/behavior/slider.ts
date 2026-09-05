@@ -21,6 +21,8 @@ import { UIVisual, type UIVisualData } from '../core/ui-visual';
 import { UINode, type UINodeData } from '../core/ui-node';
 import { percent } from '../core/dimension';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
+import { uiPointerFor } from '../util/ui-pick';
 import { UIInteraction, type UIInteractionData } from '../input/interactable';
 import { Interactable, type InteractableData } from '../input/interactable';
 import { Focusable, type FocusableData } from '../input/focusable';
@@ -76,8 +78,8 @@ export function createSliderSystem(world: World, events: UIEventQueue): SystemDe
     const shown = new EntityStateMap<number>(); // last value whose visuals were applied
 
     return defineSystem(
-        [Res(Input), Res(UICameraInfo)],
-        (input: InputState, camera: UICameraData) => {
+        [Res(Input), Res(UICameraInfo), Res(ScreenOverlay)],
+        (input: InputState, camera: UICameraData, overlay: ScreenOverlayData) => {
             for (const e of world.getEntitiesWithComponents([UISlider])) {
                 const d = world.get(e, UISlider) as UISliderData;
                 let next = d.value;
@@ -93,13 +95,17 @@ export function createSliderSystem(world: World, events: UIEventQueue): SystemDe
                 if (active === e) {
                     if (!input.isMouseButtonDown(0)) {
                         active = null;
-                    } else if (camera.valid && world.has(e, Transform)) {
+                    } else if ((camera.valid || overlay.active) && world.has(e, Transform)) {
                         const t = world.get(e, Transform) as TransformData;
                         const w = getUINodeWidth(e) * t.worldScale.x;
                         if (w > 0) {
+                            // The pointer in the track's own domain: the fraction
+                            // is a ratio of two positions, so both have to be in
+                            // the coordinates the track was laid out in.
+                            const pointer = uiPointerFor(world, e, camera, overlay);
                             const left = t.worldPosition.x - w / 2;
                             next = sliderClamp(
-                                d.min + ((camera.worldMouseX - left) / w) * (d.max - d.min), d);
+                                d.min + ((pointer.x - left) / w) * (d.max - d.min), d);
                         }
                     }
                 }

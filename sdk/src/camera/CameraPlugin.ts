@@ -15,8 +15,9 @@ import { cameraBoundsUpdate } from './CameraBounds';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { UICameraInfo } from '../ui/core/ui-camera-info';
-import { ScreenLayout, screenLayoutRect } from '../ui/core/screen-layout';
+import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
+import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
+import { ScreenOverlay } from '../ui/core/screen-overlay';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
@@ -550,6 +551,44 @@ function resolveCameras(
 // UICameraInfo Sync
 // =============================================================================
 
+/**
+ * The aspect the design box is fitted to, when it is NOT the surface's — the
+ * editor's design view lays UI out for the DEVICE it simulates, not the panel
+ * showing it. Zero is every shipped frame. Mirrors uiLayoutRect's editor branch
+ * from the same inputs, so the design frame and the layout cannot disagree.
+ */
+function simulatedScreenAspect(app: App, fit: CanvasScale | null): number {
+    if (!fit || !app.hasResource(EditorView)) return 0;
+    const view = app.getResource(EditorView);
+    if (!view.active) return 0;
+    return view.uiPreviewAspect > 0
+        ? view.uiPreviewAspect
+        : fit.designResolution.x / fit.designResolution.y;
+}
+
+/**
+ * The screen domain, published from the fit and the surface and from NOTHING
+ * else — `screenLayoutRect` has no parameter a camera could reach. Unconditional,
+ * including with no camera at all: a HUD is not something a camera grants.
+ */
+function publishScreenLayout(
+    app: App,
+    module: ESEngineModule | null,
+    cppRegistry: CppRegistry,
+    width: number,
+    height: number,
+): void {
+    if (!app.hasResource(ScreenLayout)) return;
+    const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
+    const aspect = simulatedScreenAspect(app, fit);
+    Object.assign(
+        app.getResource(ScreenLayout),
+        aspect > 0
+            ? screenLayoutRect(fit, height * aspect, height)
+            : screenLayoutRect(fit, width, height),
+    );
+}
+
 function syncUICameraInfo(
     app: App,
     module: ESEngineModule | null,
@@ -562,6 +601,7 @@ function syncUICameraInfo(
     if (!cameras) {
         cameras = collectCameras(module, cppRegistry, width, height, undefined, undefined, pool);
     }
+    publishScreenLayout(app, module, cppRegistry, width, height);
     const uiCam = app.getResource(UICameraInfo);
     if (cameras.length > 0) {
         const cam = cameras[0];
@@ -591,13 +631,6 @@ function syncUICameraInfo(
         // and a shipped build lay UI out in one box.
         const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
         const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
-        // The screen domain is published from here because this is where the fit
-        // is resolved, and from NOTHING here: `screenLayoutRect` takes the fit and
-        // the viewport, and a camera has no way to reach it.
-        if (app.hasResource(ScreenLayout)) {
-            Object.assign(app.getResource(ScreenLayout),
-                          screenLayoutRect(fit, uiCam.vpW, uiCam.vpH));
-        }
         const rect = uiLayoutRect(cam, fit, width, height, previewAspect);
         uiCam.worldLeft = rect.left;
         uiCam.worldRight = rect.right;
@@ -607,6 +640,56 @@ function syncUICameraInfo(
     } else {
         uiCam.valid = false;
     }
+    publishScreenOverlay(app, width, height, uiCam, cameras);
+}
+
+/**
+ * How the screen domain reaches the framebuffer this frame: {@link
+ * screenProjection} over the whole surface, which is every shipped frame.
+ *
+ * The editor's design VIEW is the one exception: there the screen box is shown
+ * inside the scene so it can be zoomed while it is authored.
+ */
+function publishScreenOverlay(
+    app: App,
+    width: number,
+    height: number,
+    uiCam: UICameraData,
+    cameras: CameraInfo[],
+): void {
+    if (!app.hasResource(ScreenOverlay)) return;
+    const overlay = app.getResource(ScreenOverlay);
+    overlay.surfaceW = width;
+    overlay.surfaceH = height;
+    // A layer any camera shows, this frame shows. `Camera.cullingMask` is a
+    // statement about layers rather than about geometry, so it survives the
+    // screen leaving the cameras' passes.
+    let mask = 0;
+    for (const cam of cameras) mask |= cam.cullingMask ?? 0xFFFFFFFF;
+    overlay.layerMask = (cameras.length > 0 ? mask : 0xFFFFFFFF) >>> 0;
+    const primary = cameras[0];
+
+    if (uiCam.valid && primary?.entity === EDITOR_VIEW_ENTITY) {
+        overlay.projection.set(uiCam.viewProjection);
+        overlay.vpX = uiCam.vpX;
+        overlay.vpY = uiCam.vpY;
+        overlay.vpW = uiCam.vpW;
+        overlay.vpH = uiCam.vpH;
+        overlay.active = true;
+        return;
+    }
+
+    const screen = app.hasResource(ScreenLayout) ? app.getResource(ScreenLayout) : null;
+    if (!screen?.valid) {
+        overlay.active = false;
+        return;
+    }
+    screenProjection(screen, overlay.projection);
+    overlay.vpX = 0;
+    overlay.vpY = 0;
+    overlay.vpW = width;
+    overlay.vpH = height;
+    overlay.active = true;
 }
 
 // =============================================================================
@@ -765,6 +848,17 @@ export function cameraPlugin(
                             pipeline.endScreenCapture();
                             Renderer.setViewport(0, 0, width, height);
                         }
+
+                        // Last, and outside the camera branch: a frame with no
+                        // camera still has a screen. After the post stack, since a
+                        // HUD is not world content for an effect to grade.
+                        if (app.hasResource(ScreenOverlay)) {
+                            pipeline.renderScreenOverlay({ _cpp: cppRegistry },
+                                                         app.getResource(ScreenOverlay));
+                        }
+                        // ...and now the frame is over, which is when a borrowed
+                        // swapchain image goes back.
+                        pipeline.endFrame();
                     }, { remainder: 'wait' });
                 },
             };

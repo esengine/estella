@@ -30,7 +30,8 @@ import {
     splitLines, caretLineCol, lineSelections, imeAnchorCss, alignOffset,
     type TextFieldDisplay,
 } from './text-input-view';
-import { uiWorldToScreen } from '../util/ui-pick';
+import { uiWorldToScreen, uiLayoutToScreen, uiPointerFor, isScreenEntity } from '../util/ui-pick';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
@@ -190,8 +191,12 @@ export class TextInputPlugin implements Plugin {
         // (no camera / no box).
         function caretIndexFromPointer(entity: Entity): number | null {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
-            if (!cam || !cam.valid) return null;
+            const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
+            if (!cam || !overlay || (!cam.valid && !overlay.active)) return null;
             if (!world.has(entity, Transform) || !world.has(entity, UINode)) return null;
+            // The pointer in the FIELD's domain: every subtraction below is a
+            // pointer minus a transform, and the two have to be in one space.
+            const pointer = uiPointerFor(world, entity, cam, overlay);
             const ti = world.get(entity, TextInput) as TextInputData;
             const width = getUINodeWidth(entity);
             if (width <= 0) return null;
@@ -213,12 +218,12 @@ export class TextInputPlugin implements Plugin {
                 const height = getUINodeHeight(entity);
                 const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
                 const fieldTop = tr.worldPosition.y + height / 2;
-                const localY = fieldTop - cam.worldMouseY; // y-down from the box top
+                const localY = fieldTop - pointer.y; // y-down from the box top
                 const lines = splitLines(val);
                 const li = Math.max(0, Math.min(Math.floor(localY / lineH), lines.length - 1));
                 const line = lines[li];
                 // Each line carries its own alignment offset, so undo THIS line's.
-                const textX = cam.worldMouseX - fieldLeft - ti.padding
+                const textX = pointer.x - fieldLeft - ti.padding
                     - alignOffset(ti.textAlign, innerW, mw(line.text));
                 const prefixes: number[] = [];
                 for (let i = 0; i <= line.text.length; i++) prefixes.push(mw(line.text.slice(0, i)));
@@ -230,7 +235,7 @@ export class TextInputPlugin implements Plugin {
             // a focused field's value can differ from what was last drawn, and a
             // guess about the offset lands the caret on the wrong glyph.
             const ao = alignOffsetOf.get(entity) ?? 0;
-            const textX = cam.worldMouseX - fieldLeft - ti.padding - ao + scrollX;
+            const textX = pointer.x - fieldLeft - ti.padding - ao + scrollX;
             const prefixes: number[] = [];
             for (let i = 0; i <= val.length; i++) {
                 prefixes.push(mw(maskedPrefix(val, i, ti.password, PASSWORD_CHAR)));
@@ -267,15 +272,22 @@ export class TextInputPlugin implements Plugin {
          *  field-local px (y-down from the box top). */
         function anchorCaret(entity: Entity, caretX: number, caretBottom: number): void {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
-            if (!cam || !cam.valid || !world.has(entity, Transform)) return;
+            const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
+            if (!cam || !overlay || (!cam.valid && !overlay.active)) return;
+            if (!world.has(entity, Transform)) return;
+            const screen = isScreenEntity(world, entity);
             const tr = world.get(entity, Transform) as TransformData;
             const w = getUINodeWidth(entity);
             const h = getUINodeHeight(entity);
             // Box is centered on its Transform (pivot 0.5): left/top edges from it.
             const worldX = (tr.worldPosition.x - w / 2) + caretX;
             const worldY = (tr.worldPosition.y + h / 2) - caretBottom; // world y-up
-            const scr = uiWorldToScreen(cam, worldX, worldY);
-            const css = imeAnchorCss(scr.x, scr.y, cam.screenH, platformDevicePixelRatio());
+            // Forward through whichever projection actually drew the field.
+            const scr = screen
+                ? uiLayoutToScreen(overlay, worldX, worldY)
+                : uiWorldToScreen(cam, worldX, worldY);
+            const surfaceH = screen ? overlay.surfaceH : cam.screenH;
+            const css = imeAnchorCss(scr.x, scr.y, surfaceH, platformDevicePixelRatio());
             editor!.setCaretAnchor?.(css.left, css.top);
         }
 

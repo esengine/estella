@@ -21,6 +21,7 @@ import { DimensionUnit, px, auto } from '../src/ui/core/dimension';
 import { App } from '../src/app/app';
 import { Canvas, Transform, Sprite } from '../src/ecs/component';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { setScreenBox } from './helpers/screenBox';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -115,6 +116,7 @@ describe.skipIf(!HAS_WASM)('anchor presets lay out via Yoga (WASM integration)',
             worldLeft: -400, worldBottom: -300, worldRight: 400, worldTop: 300,
             worldMouseX: 0, worldMouseY: 0, valid: true,
         });
+        setScreenBox(app, -400, -300, 400, 300);
         app.addPlugin(uiLayoutPlugin);
         return { app, registry };
     }

@@ -26,6 +26,11 @@ namespace esengine::ecs {
 
 void UISystem::hitTestUpdate(Registry& registry, const PickRay& ray,
                              const resource::ResourceManager* resources) {
+    hitTestUpdate(registry, ray, ray, resources);
+}
+
+void UISystem::hitTestUpdate(Registry& registry, const PickRay& worldRay, const PickRay& screenRay,
+                             const resource::ResourceManager* resources) {
     hitResult.prev_hit_entity = hitResult.hit_entity;
     hitResult.hit_entity = INVALID_ENTITY;
 
@@ -37,6 +42,11 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& ray,
         auto* interactable = registry.tryGet<Interactable>(entity);
         if (!interactable || !interactable->enabled || !interactable->raycastTarget) continue;
         if (!registry.has<Transform>(entity)) continue;
+
+        // Which projection this node was drawn through decides which ray reaches
+        // it. Resolved from the same set the renderer partitions by, so what is
+        // clickable and what is visible cannot come apart.
+        const PickRay& ray = screen_domain_.count(entity.id()) != 0 ? screenRay : worldRay;
 
         registry.getOrEmplace<UIInteraction>(entity);
 
@@ -76,7 +86,8 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& ray,
         }
     }
 
-    hitWorldContent(registry, ray, resources);
+    // World content is world content: the screen has no sprites or meshes in it.
+    hitWorldContent(registry, worldRay, resources);
 }
 
 /**

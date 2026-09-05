@@ -473,6 +473,33 @@ void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
     }
 }
 
+/** @brief Adds @p entity and its whole Transform subtree to @p out. */
+void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out) {
+    out.insert(entity.id());
+    auto* children = registry.tryGet<Children>(entity);
+    if (!children) return;
+    for (Entity child : children->entities) {
+        if (registry.valid(child)) addSubtree(registry, child, out);
+    }
+}
+
+/**
+ * @brief Which entities are the screen's rather than the world's.
+ *
+ * @details Decided at each Canvas and inherited downward, so one subtree has one
+ *          answer. Walks the TRANSFORM hierarchy, not the layout tree: a plain
+ *          Sprite parented into a HUD is not a layout node, yet its transform
+ *          composes from a screen root all the same.
+ */
+void collectScreenDomain(Registry& registry, std::unordered_set<u32>& out) {
+    out.clear();
+    registry.each<Canvas>([&](Entity entity, Canvas&) {
+        if (!registry.has<UINode>(entity) || !registry.has<Transform>(entity)) return;
+        if (!isScreenRoot(registry, entity)) return;
+        addSubtree(registry, entity, out);
+    });
+}
+
 void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
                        const LayoutRect& box, bool structureChanged,
                        bool forceWriteback) {
@@ -524,6 +551,10 @@ void UISystem::layoutUpdate(
     // the reliable structural signal we don't otherwise have. The expensive part
     // (orphan + propagateHidden + Yoga solve + reap) is what the gate below skips.
     tree.rebuild(registry);
+    // Beside the rebuild and never behind the skip gate below: a frame that needs
+    // no re-solve can still have reparented something, and a renderer reading a
+    // stale set would draw it in the wrong domain rather than in the wrong place.
+    collectScreenDomain(registry, screen_domain_);
 
     LayoutRect box{ boxLeft, boxBottom, boxRight, boxTop };
 

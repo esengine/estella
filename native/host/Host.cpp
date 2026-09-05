@@ -74,6 +74,10 @@ void fallbackFrame(HostState& h) {
     const glm::mat4 vp = glm::ortho(0.0f, h.w, 0.0f, h.h);
     auto& rf = ctx.require<RenderFrame>();
     rf.begin(vp, 0, RenderFrame::PassClear{true, true, kFallbackClear});
+    // One domain here. The screen/world split exists so a frame can draw the two
+    // through different projections, and this frame has no SDK to say what the
+    // screen is — so partitioning would take UI out of the only pass there is.
+    rf.setScreenDomain(nullptr);
     rf.collectAll(*h.registry);
     rf.flush();
     rf.end();

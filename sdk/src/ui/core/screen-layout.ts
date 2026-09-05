@@ -17,6 +17,7 @@
  */
 import { defineResource } from '../../ecs/resource';
 import { computeEffectiveOrthoSize, type CanvasScale } from '../../camera/uiLayoutRect';
+import { ortho } from '../../math/mat4';
 
 /** Insets, in layout pixels, the device asks content to stay clear of. */
 export interface ScreenInsets {
@@ -101,4 +102,30 @@ export function screenLayoutRect(
         scale,
         viewportW, viewportH,
     };
+}
+
+/**
+ * How far a screen quad may sit either side of the plane before the projection
+ * clips it. Generous on purpose: a screen root's `Transform.worldPosition.z` is
+ * layout storage with no depth meaning, so a value left there must not decide
+ * whether the element exists.
+ */
+const SCREEN_Z_RANGE = 1e5;
+
+/**
+ * The projection the screen domain is drawn and picked through.
+ *
+ * @details ONE matrix, not two agreeing ones: the overlay renders with it and the
+ *          pointer is inverted through it, so "the HUD is where it looks" holds
+ *          by construction. Its only input is the layout box.
+ */
+export function screenProjection(l: ScreenLayoutData, out?: Float32Array): Float32Array {
+    const m = out ?? new Float32Array(16);
+    if (!l.valid) {
+        m.fill(0);
+        m[0] = m[5] = m[10] = m[15] = 1;
+        return m;
+    }
+    m.set(ortho(l.left, l.right, l.bottom, l.top, -SCREEN_Z_RANGE, SCREEN_Z_RANGE));
+    return m;
 }

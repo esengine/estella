@@ -17,7 +17,8 @@ import { ensureEntityEvents } from '../../ecs/entityEvents';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
-import { screenToUiWorld, uiPointerRay, uiHitTestWorld } from '../util/ui-pick';
+import { screenToUiWorld, screenToUiLayout, uiPointerRay, uiLayoutRay, uiHitTestWorld } from '../util/ui-pick';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { CppRegistry } from '../../wasm';
@@ -63,11 +64,14 @@ export class UIInteractionPlugin implements Plugin {
         let pressedEntity: Entity | null = null;
         let lastPointerX = NaN;
         let lastPointerY = NaN;
+        let lastWorldPointerX = NaN;
+        let lastWorldPointerY = NaN;
         let lastLayoutGen = -1;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo), Res(UILayoutGeneration)],
-            (input: InputState, camera: UICameraData, layoutGen: UILayoutGenerationData) => {
+            [Res(Input), Res(UICameraInfo), Res(ScreenOverlay), Res(UILayoutGeneration)],
+            (input: InputState, camera: UICameraData, overlay: ScreenOverlayData,
+             layoutGen: UILayoutGenerationData) => {
                 events.drain();
 
                 const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
@@ -80,33 +84,59 @@ export class UIInteractionPlugin implements Plugin {
                     }
                 }
 
-                if (!camera.valid) { input.pointerOverUI = false; return; }
+                // Either domain is enough to be pointing AT something: a scene
+                // with no camera still has a screen, and a HUD on it is still
+                // clickable.
+                if (!camera.valid && !overlay.active) { input.pointerOverUI = false; return; }
 
                 const dpr = platformDevicePixelRatio();
                 const mouseGLX = input.mouseX * dpr;
-                const mouseGLY = camera.screenH - input.mouseY * dpr;
+                const surfaceH = overlay.active ? overlay.surfaceH : camera.screenH;
+                const mouseGLY = surfaceH - input.mouseY * dpr;
 
-                const worldMouse = screenToUiWorld(camera, mouseGLX, mouseGLY);
-
+                // The pointer, once per domain. Neither is derived from the
+                // other: each is the inverse of the projection that domain is
+                // drawn with, which is what keeps a click where the pixel is.
+                const worldMouse = camera.valid
+                    ? screenToUiWorld(camera, mouseGLX, mouseGLY)
+                    : { x: 0, y: 0 };
                 camera.worldMouseX = worldMouse.x;
                 camera.worldMouseY = worldMouse.y;
+
+                const layoutMouse = overlay.active
+                    ? screenToUiLayout(overlay, mouseGLX, mouseGLY)
+                    : worldMouse;
+                overlay.pointerX = layoutMouse.x;
+                overlay.pointerY = layoutMouse.y;
 
                 const mouseDown = input.isMouseButtonDown(0);
                 const mousePressed = input.isMouseButtonPressed(0);
                 const mouseReleased = input.isMouseButtonReleased(0);
 
-                const pointerMoved = worldMouse.x !== lastPointerX || worldMouse.y !== lastPointerY;
+                const pointerMoved = layoutMouse.x !== lastPointerX || layoutMouse.y !== lastPointerY
+                                  || worldMouse.x !== lastWorldPointerX
+                                  || worldMouse.y !== lastWorldPointerY;
                 const layoutChanged = layoutGen.generation !== lastLayoutGen;
                 const hasMouseEvent = mousePressed || mouseReleased;
                 const needsHitTest = pointerMoved || layoutChanged || hasMouseEvent;
 
-                lastPointerX = worldMouse.x;
-                lastPointerY = worldMouse.y;
+                lastPointerX = layoutMouse.x;
+                lastPointerY = layoutMouse.y;
+                lastWorldPointerX = worldMouse.x;
+                lastWorldPointerY = worldMouse.y;
                 lastLayoutGen = layoutGen.generation;
 
                 let hitEntity: Entity | null = hoveredEntity;
                 if (needsHitTest) {
-                    hitEntity = uiHitTestWorld(world, uiPointerRay(camera, mouseGLX, mouseGLY));
+                    // With no camera there is no world ray: inverting a projection
+                    // never written yields NaN, which answers "no" by accident.
+                    // The screen's ray stands in — nothing is in the world.
+                    const screenRay = overlay.active
+                        ? uiLayoutRay(overlay, mouseGLX, mouseGLY) : undefined;
+                    const worldRay = camera.valid
+                        ? uiPointerRay(camera, mouseGLX, mouseGLY)
+                        : screenRay!;
+                    hitEntity = uiHitTestWorld(world, worldRay, screenRay);
                 }
 
                 if (hoveredEntity !== null && !world.valid(hoveredEntity)) {

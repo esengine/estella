@@ -19,6 +19,7 @@ import { outputTransformCode, type OutputTransform } from '../postprocess';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ScreenLayout } from '../ui/core/screen-layout';
+import { ScreenOverlay, defaultScreenOverlay } from '../ui/core/screen-overlay';
 import { inputPlugin, Input } from '../input/input';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
@@ -1708,6 +1709,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.setPipeline(new RenderPipeline());
     app.insertResource(UICameraInfo, { ...DEFAULT_UI_CAMERA_INFO });
     app.insertResource(ScreenLayout, { ...ScreenLayout._default });
+    app.insertResource(ScreenOverlay, defaultScreenOverlay());
     app.addPlugin(cameraPlugin(options?.getViewportSize));
     app.addPlugin(assetPlugin);
     app.addPlugin(prefabsPlugin);

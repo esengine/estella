@@ -12,6 +12,13 @@
  * lists every one and fails on an undeclared reader. A reader that still belongs
  * to the camera says so here, with the reason it is not screen-space.
  *
+ * The migration is DONE: what remains declares the field, publishes it, or asks
+ * the camera a camera's question. Nothing left reads it to decide where a piece
+ * of UI goes — the layout box comes from `ScreenLayout` and the projection from
+ * `ScreenOverlay`, neither of which has a parameter a camera could reach. So a
+ * new entry here is now a regression, not a step: it means something has started
+ * asking a camera where the screen is again.
+ *
  *   node tools/check-screen-domain.mjs
  */
 import { readFileSync } from 'node:fs';
@@ -33,11 +40,6 @@ const DECLARED = new Map([
     ['sdk/src/app/corePlugin.ts', 'zeroes the resource at startup'],
     ['sdk/src/ecs/resourceShapes.ts', 'declares the resource shape'],
     ['sdk/src/camera/Camera.ts', 'getWorldBounds is a camera query, not a UI one'],
-    ['sdk/src/ui/layout/layout.ts',
-     'still hands the box to uiLayout_update — moves with the collection split'],
-    ['sdk/src/ui/text/plugin.ts',
-     'glyph raster scale is camera-correct for WORLD text; screen text needs the '
-     + 'two told apart, which is the collection split'],
 ]);
 
 const files = execFileSync('git', ['ls-files', 'sdk/src'], { cwd: ROOT, encoding: 'utf8' })

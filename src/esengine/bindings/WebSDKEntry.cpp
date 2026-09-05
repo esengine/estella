@@ -632,6 +632,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_begin", &esengine::renderer_begin);
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);
+    emscripten::function("renderer_endFrame", &esengine::renderer_endFrame);
+    emscripten::function("renderer_beginScreenOverlay", &esengine::renderer_beginScreenOverlay);
+    emscripten::function("renderer_submitScreenOverlay", &esengine::renderer_submitScreenOverlay);
+    emscripten::function("renderer_endScreenOverlay", &esengine::renderer_endScreenOverlay);
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif
 
@@ -774,6 +778,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiLayout_update", &esengine::uiLayout_update);
     emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
+    emscripten::function("uiHitTest_updateDomains", &esengine::uiHitTest_updateDomains);
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
     emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
     emscripten::function("uiHitTest_pickAll", &esengine::uiHitTest_pickAll);
@@ -783,6 +788,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
     emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
     emscripten::function("ui_getCullBit", &esengine::ui_getCullBit);
+    emscripten::function("ui_isScreenDomain", &esengine::ui_isScreenDomain);
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);

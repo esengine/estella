@@ -4,6 +4,7 @@
 
 #include "../core/Types.hpp"
 #include "./frame/RenderStage.hpp"
+#include "./frame/Frustum.hpp"
 #include "./frame/FrameConstants.hpp"
 #include "./draw/RenderItem.hpp"
 #include "./draw/DrawCommand.hpp"
@@ -19,10 +20,10 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <cmath>
+#include <unordered_set>
 
 namespace esengine {
 
-struct Frustum;
 class RenderContext;
 class MaterialStore;
 class RenderFrame;
@@ -38,6 +39,10 @@ class RenderFrame;
 enum class RenderPurpose : u8 {
     Scene,
     ShadowDepth,
+    /// The frame's screen-space overlay: one pass after every camera and after
+    /// post, drawing what belongs to the screen rather than the world. It has no
+    /// camera — the projection it is given comes from the layout domain.
+    ScreenOverlay,
 };
 
 struct RenderFrameContext {
@@ -106,6 +111,53 @@ struct RenderCollectContext {
     DrawList& draw_list;
     RenderFrameContext& frame_context;
     CameraView camera;
+
+    /**
+     * @brief The entities the SCREEN owns (UISystem::screenDomain), or null.
+     *
+     * @details A set rather than the UI system itself, so the renderer keeps
+     *          knowing nothing about UI: what it needs is a membership answer,
+     *          and that is all a set is.
+     */
+    const std::unordered_set<u32>* screen_ui = nullptr;
+
+    /** @brief Whether this collect is the frame's screen overlay. */
+    bool isOverlay() const { return frame_context.purpose == RenderPurpose::ScreenOverlay; }
+
+    /**
+     * @brief Whether @p entity belongs to THIS collect.
+     *
+     * @details One predicate, not a test on each side: the two collects partition
+     *          the world, and two tests drifting apart is how something is drawn
+     *          twice — or by nobody, which is what a 3D HUD was.
+     */
+    bool accepts(Entity entity) const {
+        const bool screen = screen_ui && screen_ui->count(entity.id()) != 0;
+        return isOverlay() == screen;
+    }
+
+    /**
+     * @brief Whether a renderable bounded by @p centre / @p halfExtents survives
+     *        this collect's cull.
+     *
+     * @details The overlay has no camera to be outside of: a screen element is on
+     *          the screen by construction, and a frustum test would ask about
+     *          wherever something else happens to be looking.
+     */
+    bool visible(const glm::vec3& centre, const glm::vec3& halfExtents) const {
+        return isOverlay() || frustum.intersectsAABB(centre, halfExtents);
+    }
+
+    /**
+     * @brief The sort depth of a draw anchored at @p worldPos.
+     *
+     * @details One value for every screen draw: their order is the UI tree's
+     *          (layer = UI_BASE_LAYER + uiOrder), so a z left on a screen root's
+     *          transform cannot outrank its siblings.
+     */
+    f32 sortDepth(const glm::vec3& worldPos) const {
+        return isOverlay() ? 0.0f : camera.viewDepth(worldPos);
+    }
 
     /**
      * @brief How many renderables this collect's frustum rejected.
@@ -212,6 +264,15 @@ public:
      *          depth — so the default is no, and a plugin that casts says so.
      */
     virtual bool castsShadows() const { return false; }
+
+    /**
+     * @brief Whether this plugin can draw an entity that lives in a UI tree.
+     *
+     * @details The overlay collect runs only these. Saying yes is a promise to
+     *          consult RenderCollectContext::accepts, without which the plugin
+     *          draws the screen's entities in the world's pass too.
+     */
+    virtual bool drawsScreenUI() const { return false; }
 
     virtual void collect(RenderCollectContext& ctx) = 0;
 };

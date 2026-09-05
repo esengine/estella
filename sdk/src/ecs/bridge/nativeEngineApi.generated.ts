@@ -110,6 +110,7 @@ export interface NativeEngineApi {
     registry_getGeneration?(registry: unknown, entity: number): number;
     renderer_begin?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_beginFrame?(elapsedSec: number): void;
+    renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
     renderer_createSkeletalPreview?(w: number, h: number): number;
@@ -117,6 +118,8 @@ export interface NativeEngineApi {
     renderer_destroySkeletalPreview?(preview: number): void;
     renderer_diagnose?(): void;
     renderer_end?(): void;
+    renderer_endFrame?(): void;
+    renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_entityVisibleToCamera?(registry: unknown, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
     renderer_flush?(): void;
     renderer_getCapturedCameraCount?(): number;
@@ -164,6 +167,7 @@ export interface NativeEngineApi {
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
     renderer_setYSortLayers?(mask: number): void;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
+    renderer_submitScreenOverlay?(registry: unknown): void;
     renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
     renderer_submitSkeletalPreviewBatch?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number): number;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
@@ -231,12 +235,14 @@ export interface NativeEngineApi {
     uiHitTest_pickAll?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
     uiHitTest_update?(registry: unknown, originX: number, originY: number, originZ: number, dirX: number, dirY: number, dirZ: number): void;
+    uiHitTest_updateDomains?(registry: unknown, worldOriginX: number, worldOriginY: number, worldOriginZ: number, worldDirX: number, worldDirY: number, worldDirZ: number, screenOriginX: number, screenOriginY: number, screenOriginZ: number, screenDirX: number, screenDirY: number, screenDirZ: number): void;
     uiLayout_update?(registry: unknown, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
     uiNode_computedHeight?(registry: unknown, entity: number): number;
     uiNode_computedWidth?(registry: unknown, entity: number): number;
     uiRenderOrder_update?(registry: unknown): void;
     ui_getCullBit?(registry: unknown, entity: number): number;
     ui_getRenderOrder?(registry: unknown, entity: number): number;
+    ui_isScreenDomain?(registry: unknown, entity: number): boolean;
 }
 
 /** Build the API over a host scope (the QuickJS global object; a plain object
@@ -349,6 +355,7 @@ export function createNativeEngineApi(
     bind('registry_getGeneration', 'es_registry_getGeneration', true);
     bind('renderer_begin', 'es_renderer_begin', false);
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);
+    bind('renderer_beginScreenOverlay', 'es_renderer_beginScreenOverlay', false);
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
     bind('renderer_createSkeletalPreview', 'es_renderer_createSkeletalPreview', false);
@@ -356,6 +363,8 @@ export function createNativeEngineApi(
     bind('renderer_destroySkeletalPreview', 'es_renderer_destroySkeletalPreview', false);
     bind('renderer_diagnose', 'es_renderer_diagnose', false);
     bind('renderer_end', 'es_renderer_end', false);
+    bind('renderer_endFrame', 'es_renderer_endFrame', false);
+    bind('renderer_endScreenOverlay', 'es_renderer_endScreenOverlay', false);
     bind('renderer_entityVisibleToCamera', 'es_renderer_entityVisibleToCamera', true);
     bind('renderer_flush', 'es_renderer_flush', false);
     bind('renderer_getCapturedCameraCount', 'es_renderer_getCapturedCameraCount', false);
@@ -403,6 +412,7 @@ export function createNativeEngineApi(
     bind('renderer_setViewport', 'es_renderer_setViewport', false);
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);
+    bind('renderer_submitScreenOverlay', 'es_renderer_submitScreenOverlay', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);
     bind('renderer_submitSkeletalPreviewBatch', 'es_renderer_submitSkeletalPreviewBatch', false);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
@@ -470,11 +480,13 @@ export function createNativeEngineApi(
     bind('uiHitTest_pickAll', 'es_uiHitTest_pickAll', true);
     bind('uiHitTest_pickResult', 'es_uiHitTest_pickResult', false);
     bind('uiHitTest_update', 'es_uiHitTest_update', true);
+    bind('uiHitTest_updateDomains', 'es_uiHitTest_updateDomains', true);
     bind('uiLayout_update', 'es_uiLayout_update', true);
     bind('uiNode_computedHeight', 'es_uiNode_computedHeight', true);
     bind('uiNode_computedWidth', 'es_uiNode_computedWidth', true);
     bind('uiRenderOrder_update', 'es_uiRenderOrder_update', true);
     bind('ui_getCullBit', 'es_ui_getCullBit', true);
     bind('ui_getRenderOrder', 'es_ui_getRenderOrder', true);
+    bind('ui_isScreenDomain', 'es_ui_isScreenDomain', true);
     return api as NativeEngineApi;
 }

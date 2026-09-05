@@ -54,18 +54,6 @@ inline constexpr u32 kShadowCascadeCells = 2;
  */
 enum class ShadowShape : u8 { Box, Cone, Cube };
 
-struct Plane {
-    glm::vec3 normal;
-    f32 distance;
-    f32 signedDistance(const glm::vec3& point) const;
-};
-
-struct Frustum {
-    Plane planes[6];
-    void extractFromMatrix(const glm::mat4& vp);
-    bool intersectsAABB(const glm::vec3& center, const glm::vec3& halfExtents) const;
-};
-
 // GPU frame timer: a small ring of device timer queries so a frame's result is
 // read a few frames later without stalling the CPU on the GPU.
 class GpuTimer {
@@ -137,6 +125,16 @@ public:
      */
     void beginFrame();
 
+    /**
+     * @brief Closes the FRAME, once, after every camera and every overlay.
+     *
+     * @details The pair of beginFrame, and the only place a backend that borrows
+     *          the swapchain image gives it back. Releasing it in end(), which
+     *          runs per CAMERA, leaves the post stack and the overlay drawing
+     *          into an image the surface has taken away.
+     */
+    void endFrame();
+
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target = 0);
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                const PassClear& clear);
@@ -144,6 +142,35 @@ public:
     void end();
 
     void processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
+    /// Same, resolved through @p projection rather than the current camera's —
+    /// a scissor rect is pixels, and which pixels a UI box covers is a question
+    /// only the projection that draws it can answer.
+    void processMasks(ecs::Registry& registry, const glm::mat4& projection,
+                      i32 vpX, i32 vpY, i32 vpW, i32 vpH);
+
+    // ---- The screen-space overlay -------------------------------------------
+    //
+    // One pass a frame, after every camera and after post. The frame's, not a
+    // camera's: the projection comes from the layout domain.
+
+    /** @brief The screen's entities (UISystem::screenDomain), borrowed for the
+     *         frame. Null partitions nothing — every collect is a world one. */
+    void setScreenDomain(const std::unordered_set<u32>* domain) { screen_domain_ = domain; }
+
+    /** @brief Opens the overlay: @p projection maps the layout domain onto the
+     *         pixel rect @p vpX/@p vpY/@p vpW/@p vpH of the surface. */
+    void beginScreenOverlay(const glm::mat4& projection, i32 vpX, i32 vpY, u32 vpW, u32 vpH);
+
+    /** @brief Collects the screen's renderables. Between this and
+     *         endScreenOverlay a host may submit its own screen geometry (the
+     *         SDK's glyph quads), which lands in the same list. */
+    void submitScreenOverlay(ecs::Registry& registry);
+
+    /** @brief Declares the overlay as a graph pass over @p target and runs it. */
+    void endScreenOverlay(RenderTargetManager::Handle target);
+
+    /** @brief Whether the overlay is open — what routes a host's submissions. */
+    bool screenOverlayOpen() const { return overlay_active_; }
 
     void setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
     void clearAllClipRects();
@@ -448,6 +475,11 @@ private:
 
     RenderFrameContext makeContext();
     void buildClipState();
+    /// Adds a finalized list's cost to this frame's tally (see the definition).
+    void accumulateStats(const DrawList& list);
+    /// The overlay pass's body: the projection its geometry was built for, then
+    /// the list. Runs inside the graph, like every other pass's draw.
+    void drawScreenOverlay();
 
     /**
      * @brief Tells the capture whether to carry a depth attachment.
@@ -610,6 +642,13 @@ private:
     bool sky_compiled_ = false;
     /// Emits the background quad when an environment asked to be seen behind the scene.
     void collectSky(RenderCollectContext& ctx);
+
+    /// Borrowed from the UI system for the frame (see setScreenDomain).
+    const std::unordered_set<u32>* screen_domain_ = nullptr;
+    bool overlay_active_ = false;
+    glm::mat4 overlay_projection_{1.0f};
+    i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
+    u32 overlay_vp_w_ = 0, overlay_vp_h_ = 0;
 
     // processMasks scratch, reused across cameras/frames.
     std::vector<Entity> mask_scissor_scratch_;
