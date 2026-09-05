@@ -27,6 +27,7 @@
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/CollisionDispatch.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/RegisterTypes.h>
@@ -587,13 +588,52 @@ private:
 };
 
 /// Appends one hit's (entity, px,py,pz) to the query buffer.
-void pushHit(const BodyID& id, RVec3Arg point) {
-    auto owner = g().entityOf.find(id.GetIndexAndSequenceNumber());
-    g().queryBuffer.push_back(owner == g().entityOf.end() ? 0.0f
-                                                         : static_cast<float>(owner->second));
+void pushEntityHit(uint32_t entity, RVec3Arg point) {
+    g().queryBuffer.push_back(static_cast<float>(entity));
     g().queryBuffer.push_back(static_cast<float>(point.GetX()));
     g().queryBuffer.push_back(static_cast<float>(point.GetY()));
     g().queryBuffer.push_back(static_cast<float>(point.GetZ()));
+}
+
+void pushHit(const BodyID& id, RVec3Arg point) {
+    auto owner = g().entityOf.find(id.GetIndexAndSequenceNumber());
+    pushEntityHit(owner == g().entityOf.end() ? 0u : owner->second, point);
+}
+
+/// Whether a layer index passes a mask, where 0 means every layer.
+bool layerPasses(uint32_t mask, uint32_t layerIndex) {
+    return ((mask == 0 ? 0xFFFFFFFFu : mask) & (1u << layerIndex)) != 0;
+}
+
+/**
+ * @brief Characters overlapping `shape`, appended to the query buffer.
+ * @details A CharacterVirtual is swept against the world and is not IN it, so the
+ *          narrow phase has no body to find — and every player and every enemy is
+ *          one. Overlap only: what a RAY meets is a separate question with its own
+ *          consumers (line of sight, the camera's boom).
+ */
+int collideCharacters(const Shape* shape, RMat44Arg transform,
+                      const CollideShapeSettings& settings, uint32_t layerMask) {
+    int found = 0;
+    for (const auto& entry : g().characters) {
+        const auto layer = g().characterLayers.find(entry.first);
+        if (!layerPasses(layerMask, layer == g().characterLayers.end() ? 0u : layer->second)) {
+            continue;
+        }
+        const auto owner = g().entityOf.find(entry.first | CHARACTER_ID_TAG);
+        if (owner == g().entityOf.end()) continue;
+
+        ClosestHitCollisionCollector<CollideShapeCollector> collector;
+        CollisionDispatch::sCollideShapeVsShape(
+            shape, entry.second->GetShape(),
+            Vec3::sReplicate(1.0f), Vec3::sReplicate(1.0f),
+            transform, entry.second->GetCenterOfMassTransform(),
+            SubShapeIDCreator(), SubShapeIDCreator(), settings, collector);
+        if (!collector.HadHit()) continue;
+        pushEntityHit(owner->second, collector.mHit.mContactPointOn2);
+        found++;
+    }
+    return found;
 }
 
 /// Everything overlapping `shape` at `position`, into the query buffer.
@@ -610,7 +650,8 @@ int collideShape(const Shape* shape, float px, float py, float pz, uint32_t laye
     for (const CollideShapeResult& hit : collector.mHits) {
         pushHit(hit.mBodyID2, hit.mContactPointOn2);
     }
-    return static_cast<int>(collector.mHits.size());
+    return static_cast<int>(collector.mHits.size())
+        + collideCharacters(shape, transform, settings, layerMask);
 }
 
 }  // namespace
