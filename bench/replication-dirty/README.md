@@ -88,7 +88,7 @@ in change tracking at all?**
 It is not a per-frame switch. Enrolling is not a sample-time flag — the write tax
 is paid on every write once a component is tracked, whatever the sampler then
 does. So a busy frame chooses between C and B, never back to A, and
-`if (dirty > x) fullScan()` recovers nothing. PR6b measured C/B at 0.95–1.04 with
+`if (dirty > x) fullScan()` recovers nothing. C/B measures 0.95–1.04 with
 everything dirty: having paid for tracking, candidate pruning is close to free.
 
 Read the tax against a budget as well as against the other arm. The report prints
@@ -149,8 +149,8 @@ not make A the usable one. The interesting cell is 100k/1%: A at 170% of a core
 - The measurement phase only ever calls `world.set()`: no removal, no despawn,
   no churn. So this says nothing about **topology** discovery — a production
   sampler still finds component removal by comparing against the shadow, and
-  owning a `Removed` reader per replicated component is a PR7 question, not one
-  these numbers answer.
+  owning a `Removed` reader per replicated component is a separate question, not
+  one these numbers answer.
 - `ReplicationServer.sample()` walks every replicated entity to find spawns and
   despawns BEFORE it looks for dirty fields. That scan is not in these arms, so
   a near-zero sample tax here is the dirty-discovery segment vanishing, not the

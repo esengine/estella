@@ -2,8 +2,8 @@
 
 `reconcileRegistry_()` reads every replicated entity and walks the whole
 registry, **every sample, whether or not anything entered or left replication**.
-With dirty-field discovery now down to candidates (PR7), that scan is what is
-left of the O(E) in `sample()`.
+With dirty-field discovery now down to candidates, that scan is what is left of
+the O(E) in `sample()`.
 
 This directory measures whether a **topology journal** removes it, and ships
 nothing: production still runs the full reconcile.
@@ -21,7 +21,8 @@ nothing: production still runs the full reconcile.
 It records one thing: *this entity's membership in this component moved at tick
 T*. Not what moved, and not in which direction.
 
-That is deliberate, and it is the same rule PR7 established one layer down:
+That is deliberate, and it is the same rule the field collector follows one
+layer down:
 
 ```
 field replication:   history selects candidates, shadow × world decides truth

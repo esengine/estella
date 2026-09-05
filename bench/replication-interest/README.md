@@ -1,6 +1,7 @@
 # Interest path decomposition
 
-With the registry's O(E) gone (N1.5b), `sampleWithInterest_` is what is left. It
+With the registry's O(E) gone — it runs on a membership journal now —
+`sampleWithInterest_` is what is left. It
 costs C × E, and this measures **which of its passes spends that** — production
 is untouched.
 
@@ -50,7 +51,7 @@ Entities visited per sample, which is the mechanism without this machine in it:
 | A @ 100k × 32 | 3,200,000 | 3,200,000 | 3,200,000 |
 | B @ 100k × 32 | **32** | 3,200,000 | **32** |
 
-## What that says about N2b
+## What that says about the change after this one
 
 **Half the cost at 10k, two thirds at 100k, is ownership lookup — and none of it
 needs a spatial index.** An index answers it in O(owned): 3.2 million visits
@@ -76,4 +77,4 @@ attack, and it is worth attacking on its own terms rather than as a side effect.
   is the next thing to look at — measured, not guessed.
 - Custom `position()` readers are why a provider cannot simply index everything:
   the server has no way to know when a caller's arbitrary function would return
-  something new. That is a design constraint for N2b, not a cost measured here.
+  something new. That is a design constraint on any provider, not a cost measured here.

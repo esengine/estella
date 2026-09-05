@@ -3,11 +3,10 @@
 /**
  * @file  Where the interest path's C × E actually goes.
  *
- * Phase 1 of N2a: decomposition, not optimisation. Production is untouched —
- * this reproduces `sampleWithInterest_` segment by segment so each pass can be
- * timed and counted on its own, and adds ONE alternative (an ownership index)
- * to price the two passes that exist only to answer "what does this connection
- * own".
+ * Decomposition, not optimisation: production is untouched. This reproduces
+ * `sampleWithInterest_` segment by segment so each pass can be timed and counted
+ * on its own, and adds ONE alternative — an ownership index — to price the two
+ * passes that exist only to answer "what does this connection own".
  *
  *   node bench/replication-interest/run.mjs
  *   node bench/replication-interest/run.mjs --quick
