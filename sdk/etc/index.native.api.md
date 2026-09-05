@@ -6739,6 +6739,7 @@ inputOf: (connectionId: number) => ReplInputMsg | null
 netIds: NetIds
 sample: (tick: number) => void
 setInterestPolicy: (policy: InterestPolicy | null) => void
+setInterestProvider: (provider: InterestProvider | null) => void
 table: ReplicationTable
 tickInputOf: (connectionId: number) => ReplInputMsg | null
 static new (world: World): ReplicationServer

@@ -35,7 +35,7 @@ import {
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
-import type { InterestPolicy } from './interest';
+import type { InterestPolicy, InterestProvider } from './interest';
 
 interface Connection {
     id: number;
@@ -126,7 +126,14 @@ export class ReplicationServer {
     /** known entity → netId, owned by sampling. Survives the onDespawn hook
      *  clearing netIds_, so a despawn can still broadcast its id. */
     private readonly knownNetIds_ = new Map<Entity, number>();
-    private policy_: InterestPolicy | null = null;
+    /**
+     * One interest slot, two shapes: a policy filters per connection, a provider
+     * prepares once and answers each from it. Never both — "does the provider
+     * run before the policy?" would quietly redefine what `candidates` means.
+     */
+    private interest_: { kind: 'policy'; value: InterestPolicy }
+        | { kind: 'provider'; value: InterestProvider }
+        | null = null;
     private tick_ = 0;
     private fixedDelta_ = 0;
     /** Removal-history claims, one per replicated component. */
@@ -236,6 +243,8 @@ export class ReplicationServer {
             this.world_.disposeWriteReader(Replicated, this.ownerReader_);
             this.ownerReader_ = null;
         }
+        if (this.interest_?.kind === 'provider') this.interest_.value.dispose?.();
+        this.interest_ = null;
         this.offDespawn_();
     }
 
@@ -274,8 +283,27 @@ export class ReplicationServer {
      * set against the new policy.
      */
     setInterestPolicy(policy: InterestPolicy | null): void {
-        if (policy && !this.ownedByConnection_) this.installOwnerIndex_();
-        this.policy_ = policy;
+        this.setInterest_(policy ? { kind: 'policy', value: policy } : null);
+    }
+
+    /**
+     * Install a prepare-once/query-many provider. Shares the slot with
+     * {@link setInterestPolicy}: the last non-null setter wins, and null on
+     * either disables interest.
+     *
+     * @experimental
+     */
+    setInterestProvider(provider: InterestProvider | null): void {
+        this.setInterest_(provider ? { kind: 'provider', value: provider } : null);
+    }
+
+    private setInterest_(next: typeof this.interest_): void {
+        const previous = this.interest_;
+        if (previous?.kind === 'provider' && previous.value !== (next as { value?: unknown })?.value) {
+            previous.value.dispose?.();
+        }
+        if (next && !this.ownedByConnection_) this.installOwnerIndex_();
+        this.interest_ = next;
     }
 
     /** Claim the write journal, then seed from what is already known — in that
@@ -451,7 +479,7 @@ export class ReplicationServer {
         // Diff once against the shadow; frames below share the result.
         const sample = this.collectDirty_();
 
-        if (!this.policy_) {
+        if (!this.interest_) {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
         } else {
             this.sampleWithInterest_(tick, despawned, sample);
@@ -533,7 +561,9 @@ export class ReplicationServer {
         { dirty, removals }: DirtySample,
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
-        const candidates = [...this.known_];
+        // One snapshot for every connection this sample: a provider prepares
+        // here, and never on the per-connection path below.
+        const visibleFor = this.resolveVisibility_();
         // Spawn payloads serialize once per entity per tick, however many
         // connections it enters.
         const payloads = new Map<Entity, ReplSpawnEntity>();
@@ -548,7 +578,7 @@ export class ReplicationServer {
 
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
-            const visible = this.visibleFor_(conn.id, candidates);
+            const visible = visibleFor(conn.id);
 
             const enters: Entity[] = [];
             for (const e of visible) {
@@ -591,12 +621,48 @@ export class ReplicationServer {
         }
     }
 
+    /**
+     * One snapshot of the interest source, and a function answering per
+     * connection from it. A provider prepares ONCE — that is the whole reason
+     * it exists — and never sees a materialized candidate array, which is the
+     * other O(population) the policy shape forces.
+     */
+    private resolveVisibility_(): (connectionId: number) => Set<Entity> {
+        const source = this.interest_;
+        if (!source) {
+            const all = [...this.known_];
+            return () => new Set(all);
+        }
+        if (source.kind === 'provider') {
+            const known = this.known_;
+            const prepared = source.value.prepare({
+                world: this.world_,
+                // A wrapper, not the registry itself: a caller that casts the
+                // iterable back to a Set could otherwise clear it.
+                entities: { [Symbol.iterator]: () => known.values() },
+                entityCount: known.size,
+            });
+            return (connectionId) => {
+                const owned = this.ownedByConnection_?.get(connectionId);
+                const ownedList = owned ? [...owned] : [];
+                const result = prepared.query({ connectionId, owned: ownedList });
+                const visible = result === 'all' ? new Set(this.known_) : new Set(result);
+                for (const e of ownedList) visible.add(e);
+                return visible;
+            };
+        }
+        const candidates = [...this.known_];
+        return (connectionId) => this.visibleFor_(connectionId, candidates);
+    }
+
     /** The policy's answer for one connection, with the server's invariant
      *  applied on top: a connection always sees the entities it owns (input
      *  routing and prediction anchor on them, so a policy cannot cull them). */
     private visibleFor_(connectionId: number, candidates: readonly Entity[]): Set<Entity> {
         const owned = this.ownedByConnection_?.get(connectionId);
-        const result = this.policy_!({
+        const policy = this.interest_?.kind === 'policy' ? this.interest_.value : null;
+        if (!policy) return new Set(candidates);
+        const result = policy({
             connectionId, world: this.world_, candidates,
             owned: owned ? [...owned] : undefined,
         });
@@ -845,8 +911,7 @@ export class ReplicationServer {
         if (!anyReady) this.rebaseRegistry_();
         // Everything relevant right now, full component payloads (current state
         // included — no separate baseline frame needed).
-        const candidates = [...this.known_];
-        const visible = this.policy_ ? this.visibleFor_(conn.id, candidates) : new Set(candidates);
+        const visible = this.resolveVisibility_()(conn.id);
         const entities: ReplSpawnEntity[] = [];
         for (const e of visible) {
             const netId = this.knownNetIds_.get(e);

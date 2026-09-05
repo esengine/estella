@@ -36,8 +36,13 @@ export {
 export { Replicated, NetGhost, type ReplicatedData } from './components';
 export {
     radiusInterest,
+    radiusInterestProvider,
     type InterestPolicy,
     type InterestView,
+    type InterestProvider,
+    type InterestProviderPrepareView,
+    type InterestProviderQueryView,
+    type PreparedInterest,
     type RadiusInterestOptions,
 } from './interest';
 export { NetIds } from './NetIds';

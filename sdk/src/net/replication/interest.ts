@@ -38,6 +38,47 @@ export interface InterestView {
  */
 export type InterestPolicy = (view: InterestView) => ReadonlySet<Entity> | 'all';
 
+/**
+ * What a provider is given to build one snapshot from.
+ *
+ * `entities` is an iterable, not an array: a provider that scans the population
+ * may, but installing one must not itself cost an O(population) materialization.
+ *
+ * @experimental
+ */
+export interface InterestProviderPrepareView {
+    readonly world: World;
+    readonly entities: Iterable<Entity>;
+    readonly entityCount: number;
+}
+
+/** What a prepared snapshot is asked about one connection. @experimental */
+export interface InterestProviderQueryView {
+    readonly connectionId: number;
+    /** The entities this connection owns. The SERVER still forces them visible;
+     *  this is here so a provider can place its view. */
+    readonly owned: readonly Entity[];
+}
+
+/** One snapshot, queried by every connection evaluated against it. @experimental */
+export interface PreparedInterest {
+    query(view: InterestProviderQueryView): ReadonlySet<Entity> | 'all';
+}
+
+/**
+ * Relevance as prepare-once, query-many. A {@link InterestPolicy} is handed the
+ * population per connection, so what it reads it reads C times; a provider
+ * prepares one snapshot and answers every connection from it.
+ *
+ * @experimental
+ */
+export interface InterestProvider {
+    prepare(view: InterestProviderPrepareView): PreparedInterest;
+    /** Release anything held across samples. A provider that rebuilds owns
+     *  nothing; one that maintains an index between samples does. */
+    dispose?(): void;
+}
+
 /** Where an entity is, for the distance a policy measures. `z` is optional so a
  *  flat game's reader can keep answering in two. */
 export interface InterestPoint {
@@ -107,4 +148,78 @@ function defaultPosition(world: World, entity: Entity): InterestPoint | null {
     if (!Transform || !world.has(entity, Transform)) return null;
     const t = world.tryGet(entity, Transform) as { position?: { x: number; y: number; z?: number } } | null;
     return t?.position ? { x: t.position.x, y: t.position.y, z: t.position.z ?? 0 } : null;
+}
+
+/**
+ * {@link radiusInterest} as a provider: one pass over the population per sample,
+ * then a local lookup per connection. Rebuilt every sample, so an arbitrary
+ * `position` reader needs no invalidation contract and is evaluated once per
+ * entity per snapshot. Keeps every rule the policy has.
+ *
+ * @experimental
+ * @see radiusInterest
+ */
+export function radiusInterestProvider(
+    radius: number,
+    options: RadiusInterestOptions = {},
+): InterestProvider {
+    const r2 = radius * radius;
+    const positionOf = options.position ?? defaultPosition;
+    const cell = Math.max(radius, Number.EPSILON);
+    const key = (x: number, y: number, z: number): string =>
+        `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+
+    return {
+        prepare({ world, entities }): PreparedInterest {
+            const at = new Map<Entity, InterestPoint>();
+            const placeless: Entity[] = [];
+            const cells = new Map<string, Entity[]>();
+            for (const e of entities) {
+                const p = positionOf(world, e);
+                if (!p) { placeless.push(e); continue; }
+                at.set(e, p);
+                const k = key(p.x, p.y, p.z ?? 0);
+                const bucket = cells.get(k);
+                if (bucket) bucket.push(e); else cells.set(k, [e]);
+            }
+            return {
+                query({ owned }) {
+                    const anchors: InterestPoint[] = [];
+                    for (const e of owned) {
+                        const p = at.get(e);
+                        if (p) anchors.push(p);
+                    }
+                    // No place to look from: the same fail-open the policy has.
+                    if (anchors.length === 0) return 'all';
+
+                    const visible = new Set<Entity>(placeless);
+                    for (const a of anchors) {
+                        const cx = Math.floor(a.x / cell);
+                        const cy = Math.floor(a.y / cell);
+                        const cz = Math.floor((a.z ?? 0) / cell);
+                        for (let dx = -1; dx <= 1; dx++) {
+                            for (let dy = -1; dy <= 1; dy++) {
+                                for (let dz = -1; dz <= 1; dz++) {
+                                    const bucket = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
+                                    if (!bucket) continue;
+                                    for (const e of bucket) {
+                                        if (visible.has(e)) continue;
+                                        const p = at.get(e)!;
+                                        // A cell is a box and the rule is a
+                                        // sphere: being in the neighbourhood is
+                                        // not being in range.
+                                        const ddx = p.x - a.x;
+                                        const ddy = p.y - a.y;
+                                        const ddz = (p.z ?? 0) - (a.z ?? 0);
+                                        if (ddx * ddx + ddy * ddy + ddz * ddz <= r2) visible.add(e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return visible;
+                },
+            };
+        },
+    };
 }
