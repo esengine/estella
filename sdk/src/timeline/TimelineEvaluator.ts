@@ -25,7 +25,7 @@ import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Pose, PoseTrack, PoseWorld } from '../animation/pose';
 import { q } from '../math/quat';
-import type { Entity } from '../types';
+import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 
 const RAD2DEG = 180 / Math.PI;
@@ -159,6 +159,71 @@ function applyField(data: any, component: string, property: string, value: numbe
         return true;
     }
     return setNestedProperty(data, property, value);
+}
+
+// ---------------------------------------------------------------------------
+// The root track — where the clip says the ENTITY goes, not how it is posed
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether a channel states the placement of the entity the clip is played ON —
+ * the whole of root motion: a channel aimed at a child poses a bone, one aimed at
+ * nothing says where the character travels. Read by both the sampler that leaves
+ * these out of the pose and the extractor, so the two cannot disagree.
+ */
+export function isRootPlacementChannel(
+    childPath: string, component: string, property: string,
+): boolean {
+    return childPath === '' && component === 'Transform'
+        && (property.startsWith('position') || property.startsWith('rotation'));
+}
+
+/** Where a clip says its entity stands, over a base that states nothing. */
+export interface RootPlacement {
+    position: Vec3;
+    rotation: Quat;
+}
+
+/** A placement holder to sample into; the base is neutral, see below. */
+export function createRootPlacement(): RootPlacement {
+    return { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 } };
+}
+
+function resetRootPlacement(out: RootPlacement): void {
+    out.position.x = 0; out.position.y = 0; out.position.z = 0;
+    out.rotation = { w: 1, x: 0, y: 0, z: 0 };
+}
+
+/**
+ * The root placement `asset` states at `time`, into `out`. Over a NEUTRAL base:
+ * two of these are only ever subtracted, so the entity's own values would cancel
+ * anyway while making the answer depend on where the character stood.
+ *
+ * False when the clip states no root track — not the same as one holding still.
+ */
+export function sampleRootPlacement(
+    asset: TimelineAsset, time: number, out: RootPlacement,
+): boolean {
+    resetRootPlacement(out);
+    let stated = false;
+    for (const track of asset.tracks) {
+        if (track.type !== TrackType.Property) continue;
+        if (track.childPath !== '' || track.component !== 'Transform') continue;
+
+        const touched = new Set<string>();
+        for (const ch of track.channels) {
+            if (!ch.keyframes || ch.keyframes.length === 0) continue;
+            if (!isRootPlacementChannel(track.childPath, track.component, ch.property)) continue;
+            if (applyField(out, 'Transform', ch.property, evaluateChannel(ch, time))) {
+                touched.add(ch.property.split('.')[0]!);
+            }
+        }
+        if (touched.size > 0) {
+            finishQuaternions(out, 'Transform', touched);
+            stated = true;
+        }
+    }
+    return stated;
 }
 
 // ---------------------------------------------------------------------------

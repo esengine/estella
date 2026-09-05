@@ -49,10 +49,21 @@ export {
     sampleTimelineInWorld,
     evaluateChannel,
     applyWrapMode,
+    isRootPlacementChannel,
+    sampleRootPlacement,
+    createRootPlacement,
     type SampleWorld,
     type SampleDeps,
     type SampleOptions,
+    type RootPlacement,
 } from './TimelineEvaluator';
+
+export {
+    playheadRuns,
+    runCrosses,
+    collectCustomEvents,
+    type PlayheadRun,
+} from './timelineEvents';
 
 export {
     serializeTimelineAsset,

@@ -146,7 +146,21 @@ export {
     type MotionContext,
     type MotionDriver,
     type MotionParams,
+    type MotionSpan,
+    type MotionEvent,
+    type RootMotionDelta,
 } from './motion';
+
+export {
+    AnimatorEvent,
+    type AnimatorEventPayload,
+    type AnimatorEventSink,
+} from './animatorEvent';
+
+export {
+    AnimatorRootMotion,
+    type AnimatorRootMotionData,
+} from './animatorRootMotion';
 
 export {
     SPRITE_MOTION,

@@ -8,6 +8,8 @@
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
+import { EventWriter, type EventWriterInstance } from '../ecs/event';
+import { AnimatorEvent, type AnimatorEventPayload } from './animatorEvent';
 import { Time, type TimeData } from '../ecs/resource';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
@@ -67,9 +69,12 @@ export class AnimationPlugin implements Plugin {
         // The state machine runs before the sprite animator so a transition's
         // clip switch applies the same frame it fires.
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time), Res(AnimatorController)],
-            (time: TimeData, ctrl: AnimatorControllerAPI) => {
-                ctrl.update(world, time.delta);
+            [Res(Time), Res(AnimatorController), EventWriter(AnimatorEvent)],
+            (
+                time: TimeData, ctrl: AnimatorControllerAPI,
+                events: EventWriterInstance<AnimatorEventPayload>,
+            ) => {
+                ctrl.update(world, time.delta, events);
             },
             { name: 'AnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });

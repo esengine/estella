@@ -19,7 +19,7 @@
  *          animation core from importing it.
  */
 
-import type { Entity } from '../types';
+import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import type { Pose } from './pose';
 
@@ -61,6 +61,41 @@ export function isBlend1D(m: AnimatorMotion): m is AnimatorBlend1DMotion {
 }
 
 // =============================================================================
+// What a motion says happened, and how far it asks to move
+// =============================================================================
+
+/**
+ * A window of a motion's own playback, in ANIMATOR seconds. Half-open — an event
+ * at `from` belongs to the window before this one — except on the frame a state
+ * was entered, where `from` and `to` are both 0 and a closed window is the only
+ * one that can contain an event authored at the very start of a clip.
+ */
+export interface MotionSpan {
+    from: number;
+    to: number;
+    inclusiveStart: boolean;
+}
+
+/** Something a clip declares happened at a point in its own time. */
+export interface MotionEvent {
+    name: string;
+    /** The event's numeric payload; 0 when it carries none. */
+    value: number;
+    /** The event's string payload; empty when it carries none. */
+    text: string;
+}
+
+/**
+ * How far a motion asks to move over a span, in the animated entity's OWN frame.
+ * A request, not a result: what the character ends up doing with it is the
+ * character controller's answer, and this never reaches a Transform.
+ */
+export interface RootMotionDelta {
+    position: Vec3;
+    rotation: Quat;
+}
+
+// =============================================================================
 // Driver seam
 // =============================================================================
 
@@ -83,6 +118,17 @@ export interface MotionContext {
     duration(motion: AnimatorMotion): number;
     /** Whether a nested motion repeats, and so never ends on its own. */
     loops(motion: AnimatorMotion): boolean;
+    /** Append a nested motion's events over `span` to `out`. */
+    events(motion: AnimatorMotion, span: MotionSpan, out: MotionEvent[]): void;
+    /** A nested motion's displacement over `span`; false when it states none. */
+    rootDelta(motion: AnimatorMotion, span: MotionSpan, out: RootMotionDelta): boolean;
+    /**
+     * Whether the animator is taking this motion's root track as DISPLACEMENT.
+     * A driver that can state a root pose must then leave the root's position and
+     * rotation out of what it samples: the same movement written to the entity and
+     * handed to the character controller moves it twice.
+     */
+    extractRootMotion: boolean;
 }
 
 /**
@@ -109,6 +155,18 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
     duration?(ctx: MotionContext, motion: M): number;
     /** Whether the motion repeats. A looping motion never finishes. */
     loops?(ctx: MotionContext, motion: M): boolean;
+    /**
+     * Append every event `motion` crossed over `span` to `out`, in the order the
+     * clip declares them. Wrapping belongs here for the same reason sampling does:
+     * only the driver knows how long its clip runs and whether it repeats, and a
+     * caller differencing two absolute times cannot tell a loop from a rewind.
+     */
+    events?(ctx: MotionContext, motion: M, span: MotionSpan, out: MotionEvent[]): void;
+    /**
+     * How far `motion` asks to move over `span`, into `out`. False when the motion
+     * states no root motion — which is not the same as stating none this frame.
+     */
+    rootMotion?(ctx: MotionContext, motion: M, span: MotionSpan, out: RootMotionDelta): boolean;
     /**
      * Whether the motion has ended — what gates a `hasExitTime` transition. For
      * a driver whose end is no clock the animator keeps (a sprite clip, a spine
@@ -152,6 +210,7 @@ export class MotionRegistry {
         ctx.world = world;
         ctx.entity = entity;
         ctx.params = params;
+        ctx.extractRootMotion = false;
         return ctx;
     }
 
@@ -159,12 +218,18 @@ export class MotionRegistry {
         world: null!,
         entity: 0 as Entity,
         params: {},
+        extractRootMotion: false,
         drive: (motion, enter) => { this.driverFor(motion)?.apply?.(this.ctx_, motion, enter); },
         finished: (motion) => this.driverFor(motion)?.isFinished?.(this.ctx_, motion) ?? false,
         sample: (motion, time, pose) =>
             this.driverFor(motion)?.sample?.(this.ctx_, motion, time, pose) ?? false,
         duration: (motion) => this.driverFor(motion)?.duration?.(this.ctx_, motion) ?? 0,
         loops: (motion) => this.driverFor(motion)?.loops?.(this.ctx_, motion) ?? false,
+        events: (motion, span, out) => {
+            this.driverFor(motion)?.events?.(this.ctx_, motion, span, out);
+        },
+        rootDelta: (motion, span, out) =>
+            this.driverFor(motion)?.rootMotion?.(this.ctx_, motion, span, out) ?? false,
     };
 }
 
@@ -222,5 +287,13 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     isFinished(ctx, blend) {
         const selected = blendSelection(ctx, blend);
         return selected ? ctx.finished(selected) : false;
+    },
+    events(ctx, blend, span, out) {
+        const selected = blendSelection(ctx, blend);
+        if (selected) ctx.events(selected, span, out);
+    },
+    rootMotion(ctx, blend, span, out) {
+        const selected = blendSelection(ctx, blend);
+        return selected !== null && ctx.rootDelta(selected, span, out);
     },
 };

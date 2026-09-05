@@ -24,11 +24,16 @@ import type { World } from '../ecs/world';
 import {
     MotionRegistry, blend1DMotionDriver,
     type AnimatorMotion, type AnimatorClipMotion, type AnimatorBlend1DMotion,
-    type MotionContext, type MotionDriver,
+    type MotionContext, type MotionDriver, type MotionEvent, type MotionSpan,
+    type RootMotionDelta,
 } from './motion';
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 import { Pose } from './pose';
 import { mixPoses } from './poseMix';
+import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
+import type { AnimatorEventSink } from './animatorEvent';
+import { Transform, type TransformData } from '../ecs/component';
+import { q } from '../math/quat';
 
 // =============================================================================
 // Controller definition (the graph data)
@@ -134,6 +139,13 @@ export interface AnimatorState {
     spine?: AnimatorSpineMotion;
     /** Nested machine — makes this a container state (no motion of its own). */
     stateMachine?: AnimatorSubMachine;
+    /**
+     * This state's motion states where the CHARACTER goes, not how it is posed:
+     * its root track leaves the pose and becomes a request on
+     * {@link AnimatorRootMotion}. Per state, because a locomotion state is
+     * stick-driven and a lunge is not, and the export cannot say which.
+     */
+    rootMotion?: boolean;
     speed?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
@@ -614,9 +626,13 @@ export class AnimatorControllerAPI {
 
     // -- per-frame system -----------------------------------------------------
 
-    /** `dt` seconds advance the animator's own clock, which is what a sampled
-     *  motion is evaluated against and what a crossfade progresses on. */
-    update(world: World, dt: number = 0): void {
+    /**
+     * `dt` seconds advance the animator's own clock, which is what a sampled
+     * motion is evaluated against and what a crossfade progresses on. `events`
+     * is where what the clips declared is posted; without one the animator still
+     * runs and simply says nothing, which is what a bare App is.
+     */
+    update(world: World, dt: number = 0, events?: AnimatorEventSink): void {
         const entities = world.getEntitiesWithComponents([Animator]);
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
@@ -665,10 +681,75 @@ export class AnimatorControllerAPI {
             const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
 
             if (stateChanged) {
-                this.beginState(rt, leafMotion, motion, fadeDuration);
+                this.beginState(rt, leafMotion, leaf.rootMotion === true, motion, fadeDuration);
             }
-            if (motion) this.driveMotion(ctx, world, rt, motion, stateChanged);
+            const drivesRoot = targetLeaf.rootMotion === true;
+            if (motion) this.driveMotion(ctx, world, rt, motion, drivesRoot, stateChanged);
+
+            // What the state's own clock covered this frame. Empty on the frame it
+            // was entered, and closed there rather than half-open: an event
+            // authored at the very start of a clip happens on that frame or never.
+            const span: MotionSpan = {
+                from: rt.prevTime, to: rt.time, inclusiveStart: rt.entered,
+            };
+            if (motion && events) this.emitEvents(ctx, entity, motion, span, events);
+            this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot);
         }
+    }
+
+    /**
+     * Post what the ACTIVE motion crossed. A motion being faded out states
+     * nothing: its clock is still running, so an attack cancelled into a dodge
+     * would go on landing its hit, and "how much of it is still on screen" is not
+     * an answer to whether it happened.
+     */
+    private emitEvents(
+        ctx: MotionContext, entity: Entity,
+        motion: AnimatorMotion, span: MotionSpan, events: AnimatorEventSink,
+    ): void {
+        const crossed = this.eventScratch_;
+        crossed.length = 0;
+        ctx.events(motion, span, crossed);
+        for (const e of crossed) {
+            events.send({ entity, name: e.name, value: e.value, text: e.text });
+        }
+    }
+
+    /**
+     * State what the animation asks to move, for gameplay to hand on. World space,
+     * because a consumer wants "move me this way" rather than a vector in a frame
+     * it has to reconstruct; and paired with the seconds it covers, because the
+     * consumer usually steps on a different clock than this one.
+     */
+    private publishRootMotion(
+        world: World, entity: Entity, ctx: MotionContext,
+        motion: AnimatorMotion | null, span: MotionSpan, drivesRoot: boolean,
+    ): void {
+        if (!world.has(entity, AnimatorRootMotion)) return;
+        const out = this.rootScratch_;
+        const active = drivesRoot
+            && (world.get(entity, AnimatorRootMotion) as AnimatorRootMotionData).enabled;
+        // A state that declares root motion whose clip states none asks to move
+        // nowhere — which is still the animation driving, not the stick.
+        const stated = active && motion !== null && ctx.rootDelta(motion, span, out);
+        const local = stated ? out.position : ZERO_VEC;
+        const turn = stated ? out.rotation : IDENTITY_QUAT;
+        const rotation = world.has(entity, Transform)
+            ? (world.get(entity, Transform) as TransformData).rotation
+            : null;
+        const moved = rotation ? q.rotate(rotation, local) : local;
+
+        world.update(entity, AnimatorRootMotion, (data: AnimatorRootMotionData) => {
+            data.active = active;
+            data.deltaPosition.x = moved.x;
+            data.deltaPosition.y = moved.y;
+            data.deltaPosition.z = moved.z;
+            data.deltaRotation.w = turn.w;
+            data.deltaRotation.x = turn.x;
+            data.deltaRotation.y = turn.y;
+            data.deltaRotation.z = turn.z;
+            data.deltaTime = active ? span.to - span.from : 0;
+        });
     }
 
     /**
@@ -678,12 +759,14 @@ export class AnimatorControllerAPI {
      */
     private beginState(
         rt: AnimatorRuntime,
-        leaving: AnimatorMotion | null, entering: AnimatorMotion | null, fadeDuration: number,
+        leaving: AnimatorMotion | null, leavingDrivesRoot: boolean,
+        entering: AnimatorMotion | null, fadeDuration: number,
     ): void {
         const blendable = fadeDuration > 0 && leaving !== null && entering !== null
             && this.canSample(leaving) && this.canSample(entering);
         if (blendable) {
             rt.fadeFrom = leaving;
+            rt.fadeFromRoot = leavingDrivesRoot;
             rt.fadeFromTime = rt.time;
             rt.fadeElapsed = 0;
             rt.fadeDuration = fadeDuration;
@@ -691,10 +774,14 @@ export class AnimatorControllerAPI {
             rt.fadeFrom = null;
         }
         rt.time = 0;
+        rt.prevTime = 0;
+        rt.entered = true;
     }
 
     /** Advance the state's clock, and the fade's if one is running. */
     private advance(rt: AnimatorRuntime, dt: number): void {
+        rt.prevTime = rt.time;
+        rt.entered = false;
         rt.time += dt;
         if (rt.fadeFrom === null) return;
         rt.fadeFromTime += dt;
@@ -708,12 +795,14 @@ export class AnimatorControllerAPI {
      */
     private driveMotion(
         ctx: MotionContext, world: World, rt: AnimatorRuntime,
-        motion: AnimatorMotion, enter: boolean,
+        motion: AnimatorMotion, drivesRoot: boolean, enter: boolean,
     ): void {
         if (rt.fadeFrom !== null) {
             rt.poseFrom.reset();
             rt.poseTo.reset();
+            ctx.extractRootMotion = rt.fadeFromRoot;
             const from = ctx.sample(rt.fadeFrom, rt.fadeFromTime, rt.poseFrom);
+            ctx.extractRootMotion = drivesRoot;
             const to = ctx.sample(motion, rt.time, rt.poseTo);
             if (from && to) {
                 const t = Math.min(rt.fadeElapsed / rt.fadeDuration, 1);
@@ -729,6 +818,7 @@ export class AnimatorControllerAPI {
         }
 
         rt.poseTo.reset();
+        ctx.extractRootMotion = drivesRoot;
         if (ctx.sample(motion, rt.time, rt.poseTo)) {
             rt.poseTo.applyTo(world);
             return;
@@ -752,22 +842,43 @@ export class AnimatorControllerAPI {
         let rt = this.runtimes_.get(entity);
         if (!rt) {
             rt = {
-                time: 0, fadeFrom: null, fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
+                time: 0, prevTime: 0, entered: true,
+                fadeFrom: null, fadeFromRoot: false,
+                fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
                 poseFrom: new Pose(), poseTo: new Pose(), mixed: new Pose(),
             };
             this.runtimes_.set(entity, rt);
         }
         return rt;
     }
+
+    /** Reused across entities and frames: a steady animation states no events,
+     *  and an array per animated entity per frame would be the only allocation. */
+    private readonly eventScratch_: MotionEvent[] = [];
+    private readonly rootScratch_: RootMotionDelta = {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { w: 1, x: 0, y: 0, z: 0 },
+    };
 }
+
+const ZERO_VEC = { x: 0, y: 0, z: 0 };
+const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 
 /** One entity's playback state: transient, so it lives here and not on the
  *  component, which is what a scene saves and an inspector shows. */
 interface AnimatorRuntime {
     /** Seconds the current state's motion has been playing. */
     time: number;
+    /** What {@link time} was before this frame's advance — the other end of the
+     *  window an event has to fall inside to have happened. */
+    prevTime: number;
+    /** Whether this frame is the one the state was entered on. */
+    entered: boolean;
     /** The motion being faded out, or null when nothing is. */
     fadeFrom: AnimatorMotion | null;
+    /** Whether the state being faded out was itself driving the character, so its
+     *  pose is sampled the way it was while it was the active one. */
+    fadeFromRoot: boolean;
     fadeFromTime: number;
     fadeElapsed: number;
     fadeDuration: number;
