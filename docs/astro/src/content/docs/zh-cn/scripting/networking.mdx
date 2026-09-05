@@ -106,6 +106,28 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 - **schema 比的是字节布局,不只是字段名**:握手比对字段名**和**它们的 wire
   shape。一端默认 `0`、另一端默认 `false` 的字段,名字相同、字节数不同,
   光看名字发现不了。
+- **ghost 由声明的 archetype 构建,不是把服务器的组件倒过去。** 一次 spawn 携带三样
+  东西,而它们是三份不同的契约:身份(`netId`/`owner`/父节点/名字)、**构建**键、以及
+  一份只含已声明复制字段的 baseline。别的都不过线——没有 `replicated` 字段的组件
+  永远到不了客户端,组件里未声明的字段同样到不了。
+
+  所以「一个代理要存在需要什么」必须说出来:
+
+  ```typescript
+  import { registerReplicationArchetype, Replicated, Sprite } from 'esengine';
+
+  registerReplicationArchetype('pawn', (world, entity) => {
+      world.insert(entity, Sprite, { size: { x: 36, y: 36 }, layer: 2 });
+  });
+
+  // 服务器侧:实体开始复制时给出这个键。
+  world.insert(e, Replicated, { owner: connectionId, archetype: 'pawn' });
+  ```
+
+  archetype 先跑,权威的 baseline 覆盖在上面——所以离开兴趣圈又回来的实体拿到的是
+  **当前**状态,不是一份新的默认值。客户端解析不了这个键时会**拒绝**这次 spawn,
+  而不是显示半个实体。
+
 - **结构本身也会复制,不只是值**:给活着的实体加一个 replicated 组件会发送
   它的完整状态,移除则会从每个 ghost 上移除。spawn → 组件加入 → 更新 →
   组件移除 → despawn 全部过线,并按权威端发出的顺序抵达。

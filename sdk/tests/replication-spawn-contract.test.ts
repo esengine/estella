@@ -25,7 +25,10 @@ import { describe, it, expect, afterEach, beforeAll, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
 import { clearUserComponents, defineComponent, Name, Transform, Sprite } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
-import { replicationPlugin, Net, Replicated } from '../src/net/replication';
+import {
+    replicationPlugin, Net, Replicated,
+    registerReplicationArchetype, clearReplicationArchetypes, radiusInterest,
+} from '../src/net/replication';
 import type { Entity } from '../src/types';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -38,6 +41,8 @@ const ARCHETYPE_LAYER = 7;
 const AUTHORITY_LAYER = 3;
 
 let ServerSecret: ReturnType<typeof defineComponent<{ plan: string }>>;
+/** A replicated entity reference, so the baseline has netIds to remap. */
+let Link: ReturnType<typeof defineComponent<{ target: number }>>;
 /** Two fields, one declared: the same hole a component at a time. */
 let PartlyShared: ReturnType<typeof defineComponent<{ shown: number; hidden: number }>>;
 
@@ -47,7 +52,15 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
     const opened: App[] = [];
     beforeEach(() => {
         clearUserComponents();
+        clearReplicationArchetypes();
         ServerSecret = defineComponent('ServerSecret', { plan: '' });
+        Link = defineComponent('SpawnLink', { target: 0 },
+            { replicatedFields: ['target'], entityFields: ['target'] });
+        // The construction contract, and deliberately NOT what the authority
+        // holds: "the ghost has a Sprite" must not be satisfiable by a copy.
+        registerReplicationArchetype('pawn', (world, entity) => {
+            world.insert(entity, Sprite, { layer: ARCHETYPE_LAYER });
+        });
         PartlyShared = defineComponent('PartlyShared', { shown: 0, hidden: 0 },
             { replicatedFields: ['shown'] });
     });
@@ -73,13 +86,33 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
         serverApp.world.insert(pawn, Sprite, { layer: AUTHORITY_LAYER });
         serverApp.world.insert(pawn, PartlyShared, { shown: 5, hidden: 9 });
         serverApp.world.insert(pawn, ServerSecret, { plan: 'flank at 30s' });
-        serverApp.world.insert(pawn, Replicated, { owner: connId });
+        serverApp.world.insert(pawn, Replicated, { owner: connId, archetype: 'pawn' });
 
         for (let i = 0; i < 6; i++) { await serverApp.tick(STEP); await clientApp.tick(STEP); }
         const ghost = clientApp.world.getEntitiesWithComponents([Replicated])
             .find((e) => (clientApp.world.tryGet(e, Name) as { value: string } | null)?.value === 'pawn');
         expect(ghost, 'the pawn never reached the client at all').toBeDefined();
         return { serverApp, clientApp, server, connId, pawn, ghost: ghost! };
+    }
+
+    /** Server + client with no entity yet — for the cases that build their own. */
+    async function serverWith() {
+        const serverApp = App.new();
+        serverApp.connectCpp(new module.Registry() as unknown as CppRegistry, module, { strict: false });
+        serverApp.addPlugin(replicationPlugin);
+        opened.push(serverApp);
+        const server = serverApp.getResource(Net).startServer();
+        const clientApp = App.new();
+        clientApp.connectCpp(new module.Registry() as unknown as CppRegistry, module, { strict: false });
+        clientApp.addPlugin(replicationPlugin);
+        opened.push(clientApp);
+        const [ta, tb] = MemoryTransport.pair();
+        const connId = server.attachConnection(ta);
+        await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
+        const step = async (n = 1) => {
+            for (let i = 0; i < n; i++) { await serverApp.tick(STEP); await clientApp.tick(STEP); }
+        };
+        return { serverApp, clientApp, server, connId, step };
     }
 
     it('gives the ghost the replication baseline', async () => {
@@ -95,14 +128,15 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
         expect(h.clientApp.getResource(Net).client?.ownsEntity(h.ghost)).toBe(true);
     });
 
-    it.fails('does not hand the client a component that declares nothing', async () => {
+    it('does not hand the client a component that declares nothing', async () => {
         // ServerSecret has no `replicatedFields`, and the public contract says
-        // that means never replicated. The scene projection sends it anyway.
+        // that means never replicated. Until protocol v4 the scene projection
+        // sent it anyway.
         const h = await arena();
         expect(h.clientApp.world.has(h.ghost, ServerSecret)).toBe(false);
     });
 
-    it.fails('does not hand the client the fields a component did not declare', async () => {
+    it('does not hand the client the fields a component did not declare', async () => {
         const h = await arena();
         const p = h.clientApp.world.tryGet(h.ghost, PartlyShared) as
             { shown: number; hidden: number } | null;
@@ -110,10 +144,84 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
         expect(p?.hidden, 'undeclared field arrived from the authority').toBe(0);
     });
 
-    it.fails('builds the ghost from a construction contract, not the authority dump', async () => {
-        // Sprite is not in the table, and a ghost still needs one. Where it comes
-        // from is the whole question: an explicit archetype, or whatever the
-        // server happened to be holding.
+    it('refuses a spawn whose construction key it cannot resolve', async () => {
+        const h = await serverWith();
+        const orphan = h.serverApp.world.spawn('orphan');
+        h.serverApp.world.insert(orphan, Transform, { position: { x: 4, y: 0, z: 0 } });
+        h.serverApp.world.insert(orphan, Replicated, { owner: -1, archetype: 'never-registered' });
+        await h.step(4);
+
+        // No ghost at all rather than a stripped one: a registered netId over an
+        // entity nobody can build would take this entity's deltas for the rest
+        // of the session.
+        expect(h.clientApp.world.getEntitiesWithComponents([Replicated])).toHaveLength(0);
+    });
+
+    it('remaps an entity reference in the baseline, itself and a later sibling', async () => {
+        const h = await serverWith();
+        // Both spawn in one batch, and `first` points at a netId that is only
+        // registered while the batch is still being read.
+        const first = h.serverApp.world.spawn('first');
+        const second = h.serverApp.world.spawn('second');
+        h.serverApp.world.insert(first, Link, { target: second as unknown as number });
+        h.serverApp.world.insert(second, Link, { target: second as unknown as number });
+        h.serverApp.world.insert(first, Replicated, { owner: -1 });
+        h.serverApp.world.insert(second, Replicated, { owner: -1 });
+        await h.step(4);
+
+        const named = (n: string) => h.clientApp.world.getEntitiesWithComponents([Replicated])
+            .find((e) => (h.clientApp.world.tryGet(e, Name) as { value: string } | null)?.value === n);
+        const gFirst = named('first');
+        const gSecond = named('second');
+        expect(gFirst).toBeDefined();
+        expect(gSecond).toBeDefined();
+        expect((h.clientApp.world.tryGet(gFirst!, Link) as { target: number }).target).toBe(gSecond);
+        expect((h.clientApp.world.tryGet(gSecond!, Link) as { target: number }).target).toBe(gSecond);
+    });
+
+    it('re-enters interest at the authority state, not at the archetype default', async () => {
+        const h = await serverWith();
+        registerReplicationArchetype('drifter', (world, entity) => {
+            world.insert(entity, Transform, { position: { x: -999, y: 0, z: 0 } });
+            world.insert(entity, Sprite, { layer: ARCHETYPE_LAYER });
+        });
+        const anchor = h.serverApp.world.spawn('anchor');
+        h.serverApp.world.insert(anchor, Transform, { position: { x: 0, y: 0, z: 0 } });
+        h.serverApp.world.insert(anchor, Replicated, { owner: h.connId });
+        const drifter = h.serverApp.world.spawn('drifter');
+        h.serverApp.world.insert(drifter, Transform, { position: { x: 5, y: 0, z: 0 } });
+        h.serverApp.world.insert(drifter, Replicated, { owner: -1, archetype: 'drifter' });
+        h.server.setInterestPolicy(radiusInterest(20));
+        await h.step(4);
+
+        const seen = () => h.clientApp.world.getEntitiesWithComponents([Replicated])
+            .find((e) => (h.clientApp.world.tryGet(e, Name) as { value: string } | null)?.value === 'drifter');
+        expect(seen()).toBeDefined();
+
+        const serverApp = h.serverApp;
+        // `pose`, not `t`: the silent-writes census tracks bindings by name, and
+        // this block also holds a `t` read out of the client world.
+        const move = (x: number) => {
+            serverApp.world.update(drifter, Transform, (pose) => {
+                const p = (pose as { position: { x: number } }).position;
+                p.x = x;
+            });
+        };
+        move(900);
+        await h.step(4);
+        expect(seen(), 'it never left interest, so re-entry proves nothing').toBeUndefined();
+
+        move(7);
+        await h.step(4);
+        const back = seen();
+        expect(back).toBeDefined();
+        const t = h.clientApp.world.tryGet(back!, Transform) as { position: { x: number } };
+        expect(t.position.x, 'the archetype default outranked the authority').toBe(7);
+    });
+
+    it('builds the ghost from a construction contract, not the authority dump', async () => {
+        // Sprite is not in the table and a ghost still needs one. Where it comes
+        // from is the whole question, and the answer is the declared archetype.
         const h = await arena();
         const s = h.clientApp.world.tryGet(h.ghost, Sprite) as { layer: number } | null;
         expect(s, 'the ghost has no Sprite at all').not.toBeNull();

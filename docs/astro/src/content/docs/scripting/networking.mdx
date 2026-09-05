@@ -109,6 +109,31 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   compares is field names *and* their wire shapes, since a field defaulting to
   `0` on one end and `false` on the other agrees on the name and disagrees on
   the byte count.
+- **A ghost is built from a declared archetype, not from the server's
+  components.** A spawn carries three things and they are different contracts:
+  identity (`netId`, `owner`, parent, name), the *construction* key, and a
+  baseline of declared replication fields. Nothing else crosses — a component
+  with no `replicated` fields never reaches a client, and neither do a
+  component's undeclared fields.
+
+  So anything a proxy needs in order to exist has to be said out loud:
+
+  ```typescript
+  import { registerReplicationArchetype, Replicated, Sprite } from 'esengine';
+
+  registerReplicationArchetype('pawn', (world, entity) => {
+      world.insert(entity, Sprite, { size: { x: 36, y: 36 }, layer: 2 });
+  });
+
+  // On the server, name it when the entity starts replicating.
+  world.insert(e, Replicated, { owner: connectionId, archetype: 'pawn' });
+  ```
+
+  The archetype runs first and the authority's baseline lands on top, so an
+  entity that leaves interest and comes back arrives at the *current* state
+  rather than at a fresh default. A client that has no builder for the key
+  refuses the spawn rather than showing half an entity.
+
 - **Structure replicates, not just values**: adding a replicated component to a
   live entity sends its full state; removing one removes it from every ghost.
   Spawn → component add → updates → component remove → despawn all cross the

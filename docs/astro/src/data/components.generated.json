@@ -3002,6 +3002,11 @@
           "key": "owner",
           "type": "number",
           "default": "0"
+        },
+        {
+          "key": "archetype",
+          "type": "string",
+          "default": "empty"
         }
       ],
       "animatable": [

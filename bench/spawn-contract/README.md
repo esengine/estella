@@ -83,6 +83,53 @@ archetype, or declare `Sprite.color` replicated and mean it. Same for
 `Pawn.player`. That is a migration, and it is the correct one — it turns an
 accident the source already documents into a declaration.
 
+## Acted on: protocol v4 splits the spawn into its three contracts
+
+```
+ReplSpawnEntity
+├─ protocol identity     netId, name, parentNetId, owner
+├─ ghost construction    archetype key -> a registered builder
+└─ replication baseline  table components, declared fields, refs as netIds
+```
+
+`serializeEntityComponents` is out of the networking path. `owner` became
+protocol identity rather than a field that happened to ride a component dump —
+`Replicated` declares no replicated fields and must not start. The baseline is
+built FROM the table rather than filtered against it: filtering afterwards would
+already have paid for reading every component the entity has, which is the
+expensive half.
+
+The client builds a ghost in the order the contracts stack: spawn bare, tag
+`NetGhost`, insert `Replicated` from the spawn, register the netId, run the
+archetype, then apply the baseline over it. Construction before baseline is what
+makes an entity that left interest and came back arrive at the authority's
+current state rather than at a fresh default. A key it cannot resolve is refused
+before the entity exists at all — a registered netId over a half-built ghost
+would take that entity's deltas for the rest of the session.
+
+The version is bumped because the change is semantic: a v3 endpoint parses a v4
+spawn without complaint and builds a different world from it.
+
+ABA-interleaved, three rounds, every pair the same direction:
+
+| | spawn payload | sample total |
+|---|---|---|
+| anchors | 9,877 → **2,368** (4.2x) | 20,925 → **12,730** (−39%) |
+| mixed | 9,968 → **2,586** (4.0x) | 22,317 → **16,554** (−26%) |
+
+That is on `bench/sample-budget`'s world, which carries no `Sprite`. The arena's
+pawn does, and its fifteen fields were the largest single component in the
+census — a game shaped like it gains more than this.
+
+### The arena migrated with it
+
+`buildPawn` is now one function, registered as the `pawn` archetype and called by
+the authority's own spawn, so a pawn has one definition of what it is. `Pawn.player`
+stopped transiting and is authority-side bookkeeping again; a client learns the
+same fact as `Replicated.owner`, which the spawn carries as identity. Colour is
+derived from `owner` by the same rule on both ends instead of arriving inside a
+Sprite. `check-arena-server` still passes end to end over a real socket.
+
 ## What this does not cover
 
 - One project. The arena is the certified multiplayer example and the only game

@@ -39,6 +39,7 @@ import {
     type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry, type StateFrame,
 } from './codec';
 import { NetGhost, Replicated, type ReplicatedData } from './components';
+import { getReplicationArchetype } from './archetype';
 import { NetIds } from './NetIds';
 import { InterpolationState } from './interpolation';
 
@@ -425,13 +426,33 @@ export class ReplicationClient {
         const fresh: { spawn: ReplSpawnEntity; entity: Entity }[] = [];
         for (const spawn of batch.entities) {
             if (this.netIds_.entityOf(spawn.netId) !== undefined) continue; // duplicate delivery
+            // Refused BEFORE anything exists: a ghost the client cannot build is
+            // not a ghost it should half-build, and a registered netId pointing
+            // at a stripped entity would take deltas for the rest of the session.
+            if (spawn.archetype !== '' && !getReplicationArchetype(spawn.archetype)) {
+                log.error('repl', `no replication archetype registered for "${spawn.archetype}"`
+                    + ` — refusing to construct netId ${spawn.netId}`);
+                continue;
+            }
             const e = this.world_.spawn(spawn.name || undefined);
             this.world_.insert(e, NetGhost, {});
+            // Protocol identity, from the spawn rather than from a component the
+            // authority happened to be holding.
+            this.world_.insert(e, Replicated, {
+                netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype,
+            });
             this.netIds_.register(spawn.netId, e);
             fresh.push({ spawn, entity: e });
         }
+        // Construction first, then the baseline on top: what the authority
+        // declares outranks what the archetype defaults to, so an entity that
+        // left interest and came back arrives at the current state.
         for (const { spawn, entity } of fresh) {
-            for (const comp of spawn.components) {
+            if (spawn.archetype === '') continue;
+            getReplicationArchetype(spawn.archetype)!(this.world_, entity);
+        }
+        for (const { spawn, entity } of fresh) {
+            for (const comp of spawn.baseline) {
                 const data = this.remapEntityRefs_(comp.type, comp.data);
                 loadComponent(this.world_, entity, { type: comp.type, data }, spawn.name);
             }

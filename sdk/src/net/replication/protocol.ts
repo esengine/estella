@@ -11,7 +11,13 @@
  */
 import type { SceneComponentData } from '../../scene/scene';
 
-export const REPLICATION_PROTOCOL_VERSION = 3;
+/**
+ * 4: a spawn stopped being a scene snapshot. It now carries protocol identity,
+ * a ghost-construction key, and a baseline of DECLARED replication fields only —
+ * a v3 endpoint would read the same JSON and build a different world, which is
+ * exactly what a version is for.
+ */
+export const REPLICATION_PROTOCOL_VERSION = 4;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
@@ -65,15 +71,24 @@ export interface ReplHelloError {
 
 export type ReplHelloResponse = ReplHelloOk | ReplHelloError;
 
-/** One replicated entity's spawn payload. Component data is the scene
- *  serialization shape (loadComponent applies it, out-of-band codecs and
- *  validation included); entity-ref fields arrive rewritten to netIds. */
+/**
+ * One replicated entity's spawn, in the three contracts it is actually made of.
+ * Identity is protocol, not state; construction is declared, not inferred from
+ * what the authority holds; and the baseline carries replication-table
+ * components with their DECLARED fields and nothing else.
+ */
 export interface ReplSpawnEntity {
     netId: number;
     name: string;
     /** netId of the replicated parent, or 0 for a root. */
     parentNetId: number;
-    components: SceneComponentData[];
+    /** Owning connection id. Protocol identity like `netId` — it is not a
+     *  replicated field and must not become one. */
+    owner: number;
+    /** Which registered archetype builds this ghost; '' for a bare one. */
+    archetype: string;
+    /** Table components only, declared fields only; entity refs as netIds. */
+    baseline: SceneComponentData[];
 }
 
 export interface ReplSpawnBatch {

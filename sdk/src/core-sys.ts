@@ -100,11 +100,12 @@ export {
     Replicated, NetGhost, ReplicationServer, ReplicationClient,
     REPLICATION_PROTOCOL_VERSION, REPLICATION_CHANNEL,
     radiusInterest, radiusInterestProvider,
+    registerReplicationArchetype,
     type NetRoleKind, type ReplicatedData,
     type InterestPolicy, type InterestView, type RadiusInterestOptions,
     type InterestProvider, type PreparedInterest, type InterestPoint,
     type InterestProviderPrepareView, type InterestProviderQueryView,
-    type PredictionOptions, type PredictionSmoothing,
+    type PredictionOptions, type PredictionSmoothing, type ReplicationArchetype,
 } from './net/replication';
 
 // =============================================================================

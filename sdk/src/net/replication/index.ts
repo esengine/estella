@@ -46,6 +46,9 @@ export {
     type RadiusInterestOptions,
     type InterestPoint,
 } from './interest';
+export {
+    registerReplicationArchetype, clearReplicationArchetypes, type ReplicationArchetype,
+} from './archetype';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
 export {

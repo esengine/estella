@@ -1,6 +1,7 @@
 import {
     defineSystem, Res, GetWorld,
     Time, Input, Net, Replicated, Transform, Sprite,
+    registerReplicationArchetype,
     type World, type Entity, type InputState,
 } from 'esengine';
 import { Pawn } from './components';
@@ -61,18 +62,51 @@ function applyMove(world: World, entity: Entity, actions: Record<string, unknown
     world.set(entity, Transform, transform);
 }
 
+/**
+ * What a pawn IS, in one place. The authority builds one with it and so does
+ * every client, because it is registered as the ghost's construction contract:
+ * a spawn carries identity and declared state, never a dump of the server's
+ * components, so anything a proxy needs to exist has to be said here.
+ */
+function buildPawn(world: World, entity: Entity): void {
+    world.insert(entity, Sprite, { size: { x: 36, y: 36 }, layer: 2 });
+    // `speed` is a property of the archetype; `player` is authority-side
+    // bookkeeping that provisioning reads and no client needs — ownership
+    // reaches them as `Replicated.owner`.
+    world.insert(entity, Pawn, {});
+}
+registerReplicationArchetype('pawn', buildPawn);
+
 function spawnPawn(world: World, player: number): void {
-    const slot = PLAYER_COLORS[player % PLAYER_COLORS.length];
     const e = world.spawn(`Pawn P${player + 1}`);
     world.insert(e, Transform, { position: { x: -150 + player * 100, y: -180, z: 0 } });
-    world.insert(e, Sprite, { size: { x: 36, y: 36 }, color: slot, layer: 2 });
-    world.insert(e, Pawn, { player });
+    buildPawn(world, e);
+    world.update(e, Pawn, (d) => { (d as { player: number }).player = player; });
     // Marking it Replicated is ALL it takes: the entity spawns on every client
-    // (full component payload — sprite color included), its annotated Transform
-    // pose streams as deltas, and `owner` routes that connection's input to it.
-    // Owner is assigned AT spawn — ownership rides the spawn payload.
-    world.insert(e, Replicated, { owner: player });
+    // through the `pawn` archetype, its annotated Transform pose streams as
+    // deltas, and `owner` — protocol identity, carried by the spawn itself —
+    // routes that connection's input to it and colours it at both ends.
+    world.insert(e, Replicated, { owner: player, archetype: 'pawn' });
 }
+
+/**
+ * Colour from ownership, on whichever end is looking. The fact a client is given
+ * is `owner`; the colour is derived from it by the same rule on both ends, so
+ * the Sprite an archetype builds does not have to carry it.
+ */
+export const paintPawnsSystem = defineSystem(
+    [GetWorld()],
+    (world) => {
+        for (const e of world.getEntitiesWithComponents([Pawn, Sprite, Replicated])) {
+            const owner = (world.tryGet(e, Replicated) as { owner: number }).owner;
+            const want = PLAYER_COLORS[owner % PLAYER_COLORS.length];
+            const sprite = world.tryGet(e, Sprite) as { color: { r: number; g: number; b: number } };
+            if (sprite.color.r === want.r && sprite.color.g === want.g && sprite.color.b === want.b) continue;
+            world.update(e as Entity, Sprite, (d) => { (d as { color: unknown }).color = { ...want }; });
+        }
+    },
+    { name: 'PaintPawnsSystem' },
+);
 
 /**
  * Authority-side provisioning, both directions: a player owed a pawn gets one,

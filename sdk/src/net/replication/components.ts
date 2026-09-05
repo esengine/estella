@@ -16,11 +16,19 @@ export interface ReplicatedData {
     netId: number;
     /** Owning connection id (0 = the server) — input/authority routing (N4). */
     owner: number;
+    /**
+     * Which {@link registerReplicationArchetype} builder gives this entity's
+     * ghosts their shape. Empty means a bare ghost carrying only the replication
+     * baseline. Never replicated as a FIELD — it rides the spawn as protocol
+     * metadata, like `netId` and `owner`.
+     */
+    archetype: string;
 }
 
 export const Replicated = defineComponent<ReplicatedData>('Replicated', {
     netId: 0,
     owner: 0,
+    archetype: '',
 });
 
 /** Client-side proxy of a server entity: state arrives over the wire. */
@@ -33,6 +41,6 @@ export const NetGhost = defineTag('NetGhost');
  * calls this, so any app built after a reset still serializes these.
  */
 export function ensureReplicationComponentsRegistered(): void {
-    defineComponent<ReplicatedData>('Replicated', { netId: 0, owner: 0 });
+    defineComponent<ReplicatedData>('Replicated', { netId: 0, owner: 0, archetype: '' });
     defineTag('NetGhost');
 }

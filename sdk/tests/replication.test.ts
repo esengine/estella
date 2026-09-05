@@ -110,6 +110,24 @@ describe('replication handshake', () => {
         if (!res.ok) expect(res.error).toMatch(/protocol/);
     });
 
+    it('refuses the version before this one, whose spawn meant something else', async () => {
+        // Semantic, not structural: the older endpoint parses this spawn without
+        // complaint and builds a different world from it. The handshake is the
+        // only place that difference is visible.
+        const serverApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        const [ta, tb] = MemoryTransport.pair();
+        server.attachConnection(ta);
+        const raw = new NetChannel(tb);
+        const res = await raw.request<ReplHelloResponse>(ReplMsg.hello, {
+            protocolVersion: REPLICATION_PROTOCOL_VERSION - 1,
+            abiHash: ABI_LAYOUT_HASH,
+            components: [],
+        });
+        expect(res.ok).toBe(false);
+        if (!res.ok) expect(res.error).toMatch(/protocol/);
+    });
+
     it('refuses an ABI hash mismatch', async () => {
         const serverApp = makeApp();
         const server = serverApp.getResource(Net).startServer();
@@ -202,9 +220,10 @@ describe('spawn / state / despawn replication', () => {
         const pos = clientApp.world.tryGet(ghost, NetPos)!;
         expect(pos.x).toBe(10);
         expect(pos.y).toBe(20);
-        // Spawn carries the full component payload — including non-replicated
-        // fields (spawn is scene-shaped); only per-tick deltas are filtered.
-        expect(pos.secret).toBe(42);
+        // The spawn baseline carries DECLARED fields and nothing else, so an
+        // undeclared one stays at the client's own default however the authority
+        // set it. Before protocol v4 the payload was scene-shaped and this was 42.
+        expect(pos.secret).toBe(0);
         const repl = clientApp.world.tryGet(ghost, Replicated)!;
         expect(repl.netId).toBeGreaterThan(0);
         expect(client.netIds.entityOf(repl.netId)).toBe(ghost);
@@ -240,8 +259,9 @@ describe('spawn / state / despawn replication', () => {
         const gpos = clientApp.world.tryGet(ghost, NetPos)!;
         expect(gpos.x).toBe(100);
         expect(gpos.y).toBe(2);
-        // secret keeps its spawn-time value: never re-sent per tick.
-        expect(gpos.secret).toBe(3);
+        // secret is undeclared: it did not ride the spawn baseline and no delta
+        // carries it either, so the ghost holds its own default throughout.
+        expect(gpos.secret).toBe(0);
     });
 
     it('a quiet server sends no state frames', async () => {

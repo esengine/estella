@@ -20,7 +20,7 @@ import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Name, Parent, getComponent, type AnyComponentDef } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
-import { serializeEntityComponents, type SceneComponentData } from '../../scene/scene';
+import type { SceneComponentData } from '../../scene/scene';
 import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
 import { log } from '../../util/logger';
 import {
@@ -1155,18 +1155,35 @@ export class ReplicationServer {
         this.shadow_.set(e, perComp);
     }
 
+    /**
+     * The three contracts a spawn is made of. The baseline is built FROM the
+     * table rather than filtered against it: the expensive half of a scene
+     * serialization is reading every component the entity has, and none of that
+     * work is wanted here.
+     */
     private spawnPayload_(e: Entity, netId: number): ReplSpawnEntity {
-        const components = serializeEntityComponents(this.world_, e).map((c) => this.rewriteEntityRefs_(c));
-        // Name/Parent are structural components serializeEntityComponents skips
-        // (scene records carry them beside the component list; so does this).
+        const baseline: SceneComponentData[] = [];
+        for (const te of this.table.entries) {
+            if (!this.world_.has(e, te.def)) continue;
+            const live = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
+            if (!live) continue;
+            const data: Record<string, unknown> = {};
+            for (const f of te.fields) data[f] = cloneValue(live[f]);
+            baseline.push(this.rewriteEntityRefs_({ type: te.name, data }));
+        }
+        // Name/Parent are structural; scene records carry them beside the
+        // component list, and so does this.
         const nameComp = this.world_.tryGet(e, Name) as { value: string } | null;
         const parentComp = this.world_.tryGet(e, Parent) as { entity: number } | null;
         const parentNetId = parentComp ? (this.netIds_.netIdOf(parentComp.entity as Entity) ?? 0) : 0;
+        const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
         return {
             netId,
             name: nameComp?.value ?? '',
             parentNetId,
-            components,
+            owner: repl?.owner ?? 0,
+            archetype: repl?.archetype ?? '',
+            baseline,
         };
     }
 
