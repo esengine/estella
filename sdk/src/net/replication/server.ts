@@ -523,7 +523,9 @@ export class ReplicationServer {
             if (!this.known_.has(e)) {
                 this.registerEntity_(e);
                 spawnedEntities.push(e);
+                continue;
             }
+            this.restoreNetId_(e);
         }
 
         const despawned: { entity: Entity; netId: number }[] = [];
@@ -553,6 +555,21 @@ export class ReplicationServer {
         for (const e of this.known_) this.seedShadow_(e);
         // The shadow is now the world, so the observation window starts here too.
         this.advanceObservationFloor_();
+    }
+
+    /**
+     * The identity the clients still hold, put back after a re-add blanked it:
+     * `Replicated.netId` defaults to 0, and an entity that lost and regained the
+     * component inside one window was never seen to leave. Only that blank
+     * default is restored; a netId written deliberately is an open question.
+     */
+    private restoreNetId_(e: Entity): void {
+        const held = this.knownNetIds_.get(e);
+        if (held === undefined) return;
+        const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
+        if (!repl || repl.netId !== 0) return;
+        this.world_.update(e, Replicated, (r) => { (r as ReplicatedData).netId = held; });
+        this.netIds_.register(held, e);
     }
 
     private registerEntity_(e: Entity): void {
