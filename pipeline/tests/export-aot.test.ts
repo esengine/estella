@@ -99,6 +99,7 @@ describe('the promised systems in a web package', () => {
             queries: { comp: string; mut: boolean }[][];
             resources: { name: string; mut: boolean }[];
             readers: unknown[]; writers: unknown[];
+            commands: boolean;
           }[];
         };
       };
@@ -114,6 +115,9 @@ describe('the promised systems in a web package', () => {
       // never has to tell "none" from "an older manifest".
       readers: [],
       writers: [],
+      // Declared for the same reason, and false here: this system writes
+      // components directly rather than queueing commands.
+      commands: false,
     }]);
     expect(cfg.aot?.manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
   });
