@@ -351,7 +351,7 @@ export class ReplicationServer {
      */
     beginTick(fixedDelta: number): void {
         if (fixedDelta > 0) this.fixedDelta_ = fixedDelta;
-        for (const conn of this.connections_.values()) {
+        for (const conn of [...this.connections_.values()]) {
             const next = conn.queue.shift();
             if (next) conn.applied = next;
         }
@@ -383,7 +383,7 @@ export class ReplicationServer {
 
         // Acknowledge consumed inputs: this tick's state incorporates each
         // connection's commands through the seq its gameplay ran against.
-        for (const conn of this.connections_.values()) {
+        for (const conn of [...this.connections_.values()]) {
             if (!conn.ready || !conn.applied || conn.applied.seq <= conn.ackedSeq) continue;
             conn.ackedSeq = conn.applied.seq;
             this.sendTo_(conn, (c) => c.channel.send<ReplAckMsg>(ReplMsg.ack, { tick, seq: conn.ackedSeq }));
@@ -412,7 +412,7 @@ export class ReplicationServer {
             this.broadcast_((c) => c.channel.send<ReplDespawnBatch>(ReplMsg.despawn, { tick, netIds }));
         }
 
-        for (const conn of this.connections_.values()) {
+        for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
             for (const e of spawnedEntities) conn.interest.add(e);
             for (const d of despawned) conn.interest.delete(d.entity);
@@ -469,7 +469,7 @@ export class ReplicationServer {
             return p;
         };
 
-        for (const conn of this.connections_.values()) {
+        for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
             const visible = this.visibleFor_(conn.id, candidates);
 
@@ -757,25 +757,37 @@ export class ReplicationServer {
             const netId = this.knownNetIds_.get(e);
             if (netId !== undefined) entities.push(this.spawnPayload_(e, netId));
         }
-        if (entities.length > 0) {
-            conn.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick: this.tick_, entities });
+        if (entities.length > 0
+            && !this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
+                ReplMsg.spawn, { tick: this.tick_, entities }))) {
+            // Never told the world, so never a participant in the next delta.
+            return;
         }
         conn.interest = visible;
         conn.ready = true;
     }
 
     private broadcast_(fn: (conn: Connection) => void): void {
-        for (const conn of this.connections_.values()) {
+        for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
             this.sendTo_(conn, fn);
         }
     }
 
-    private sendTo_(conn: Connection, fn: (conn: Connection) => void): void {
+    /**
+     * Hand one frame to a connection, dropping the connection if it refuses.
+     * There is ONE server-global shadow and no replay log, so a connection that
+     * misses an authoritative frame can never be brought back into step — the
+     * next sample diffs S1→S2 against a client still holding S0.
+     */
+    private sendTo_(conn: Connection, fn: (conn: Connection) => void): boolean {
         try {
             fn(conn);
+            return true;
         } catch (err) {
-            log.warn('repl', `send to connection ${conn.id} failed`, err);
+            log.warn('repl', `connection ${conn.id} could not be sent to; detaching it`, err);
+            this.detachConnection(conn.id);
+            return false;
         }
     }
 }
