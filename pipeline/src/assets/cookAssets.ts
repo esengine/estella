@@ -220,6 +220,44 @@ function rewriteFontRefs(
 }
 
 /**
+ * An animator controller names the clips its motions play as sibling files, which
+ * staging moves out from under it. The controller then loads and every state
+ * plays nothing, which reads as a broken graph rather than a missing asset.
+ */
+function rewriteAnimatorRefs(
+  bytes: Uint8Array,
+  docPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as {
+    states?: { motion?: unknown; stateMachine?: { states?: unknown[] } }[];
+  };
+  // Only a motion whose clip is an ASSET: a sprite clip and a spine animation
+  // are names their own runtime holds, and rewriting those would break them.
+  const ASSET_KINDS = new Set(['timeline']);
+  const walk = (motion: unknown): void => {
+    if (!motion || typeof motion !== 'object') return;
+    const m = motion as { kind?: string; clip?: string; thresholds?: { motion?: unknown }[] };
+    if (m.kind === 'blend1d') {
+      for (const stop of m.thresholds ?? []) walk(stop.motion);
+      return;
+    }
+    if (m.kind && ASSET_KINDS.has(m.kind) && typeof m.clip === 'string') {
+      m.clip = logicalRef(m.clip, docPath, byPath) as string;
+    }
+  };
+  const states = (list: unknown[] | undefined): void => {
+    for (const state of list ?? []) {
+      const st = state as { motion?: unknown; stateMachine?: { states?: unknown[] } };
+      walk(st.motion);
+      states(st.stateMachine?.states);
+    }
+  };
+  states(json.states);
+  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
+/**
  * A baked environment names its reflection atlas as a SIBLING file, which staging
  * moves out from under it — the runtime then asks for `assets/sky_env.png` and gets
  * a 404, and the frame silently loses every reflection the game was lit for.
@@ -634,6 +672,14 @@ export async function cookAssets(
           data = rewriteEnvironmentRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: environment ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Animator controllers: the clips their motions play → logical project paths.
+      if (ext.toLowerCase() === '.esanimator') {
+        try {
+          data = rewriteAnimatorRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: animator ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Tilemaps: relative tileset image/source refs → logical project paths, so the

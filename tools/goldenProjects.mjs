@@ -48,7 +48,7 @@ export const DEFAULT_RESPONDS = 0.15;
  * {@link KNOWN_GAPS}.
  */
 export const CAPABILITIES = [
-  'physics', 'input', 'animation',
+  'physics', 'input', 'animation', 'third-person',
   'ecs', 'particles', 'audio',
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
@@ -79,6 +79,7 @@ export const EVIDENCE = {
   input: /\b(Input|defineInputMap|isKeyDown|InputState)\b/,
   animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
   ecs: /\b(defineComponent|defineSystem)\b/,
+  'third-person': /\b(ThirdPersonController|ThirdPersonCamera)\b/,
   particles: /\bParticleEmitter\b/,
   // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
   // component, and a pattern that only knew the components read it as unused.
@@ -227,6 +228,16 @@ export const GOLDEN = [
     // moves with it — the whole picture is the solver's, so a package that lost
     // the 3D world draws an empty room rather than a still one.
     interact: { keys: ['KeyW'], frames: 40 },
+  },
+  {
+    id: 'third-person-3d',
+    certifies: ['third-person'],
+    targets: ['web'],
+    tier: 'pr',
+    // The character walks on the key it declares. What it DOES on the way is
+    // verify-third-person's, over this same package: a frame that differs says
+    // something moved, not that the world allowed it.
+    interact: { keys: ['KeyW'], frames: 60 },
   },
   {
     id: 'ui-controls',

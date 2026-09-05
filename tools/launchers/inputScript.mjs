@@ -29,6 +29,10 @@
  * so standing one up there drives its real polling path rather than poking its
  * state. Each entry sets axes/buttons over a frame range.
  *
+ * `drags` are real mouse drags — press, move over a frame range, release. What a
+ * mouse-look camera reads is the DELTA between two frames, which a single
+ * pointer position cannot say.
+ *
  * `touches` are real TouchEvents — what a phone sends and what the web platform
  * binds; a mouse pointer proves nothing about playing with a thumb. Each presses
  * at (x, y) and optionally drags to (toX, toY) over its frame range, in
@@ -66,6 +70,14 @@ export function inputScript(spec) {
   const holds = JSON.stringify(
     (spec.holds ?? []).map((h) => ({
       key: String(h.key), from: Number(h.from) || 0, to: Number(h.to ?? frames),
+    })),
+  );
+  const drags = JSON.stringify(
+    (spec.drags ?? []).map((d) => ({
+      from: Number(d.from) || 0, to: Number(d.to ?? frames),
+      x: Number(d.x) || 0, y: Number(d.y) || 0,
+      toX: d.toX === undefined ? Number(d.x) || 0 : Number(d.toX),
+      toY: d.toY === undefined ? Number(d.y) || 0 : Number(d.toY),
     })),
   );
   return `
@@ -137,6 +149,7 @@ export function inputScript(spec) {
       const taps = ${taps};
       const holds = ${holds};
       const touches = ${touches};
+      const drags = ${drags};
       const hiddenSpec = ${hidden};
       const setHidden = (h) => {
         Object.defineProperty(document, 'hidden', { value: h, configurable: true });
@@ -198,6 +211,13 @@ export function inputScript(spec) {
             fireTouch('touchend', t.id, at ? at.x : t.toX, at ? at.y : t.toY, live);
           }
         }
+        for (const d of drags) {
+          if (i === d.from) firePointer('down', d.x, d.y);
+          else if (i > d.from && i < d.to) {
+            const k = (i - d.from) / Math.max(1, d.to - d.from);
+            firePointer('move', d.x + (d.toX - d.x) * k, d.y + (d.toY - d.y) * k);
+          } else if (i === d.to) firePointer('up', d.toX, d.toY);
+        }
         for (const t of taps) {
           if (t.at !== i) continue;
           fireKey('keydown', t.key);
@@ -212,7 +232,7 @@ export function inputScript(spec) {
       for (const k of keys) fireKey('keyup', k);
       await raf();
       return keys.length + taps.length + holds.length + touches.length + padSpec.length
-        + hiddenSpec.length + (pointer ? 1 : 0);
+        + hiddenSpec.length + drags.length + (pointer ? 1 : 0);
     })()
   `;
 }

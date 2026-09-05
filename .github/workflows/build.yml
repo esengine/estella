@@ -616,6 +616,12 @@ jobs:
     - name: Launch the golden packages and compare them to the editor (PR tier)
       run: node tools/verify-golden.mjs --tier pr
 
+    # What the third-person character DOES in that package: the ramp it climbs,
+    # the step it crosses, the wall that stops it. A frame that differs says
+    # something moved; only the world's own answer says it was allowed to.
+    - name: Drive the third-person character in its package
+      run: node tools/verify-third-person.mjs
+
     # The same game packaged twice from one tree, compiled and interpreted, and
     # the two frames held against each other — the only check that sees what a
     # compiled system does to a PIXEL.

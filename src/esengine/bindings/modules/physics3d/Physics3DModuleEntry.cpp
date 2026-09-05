@@ -532,6 +532,10 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
         vertical += g().system->GetGravity().GetY() * dt;
     }
     character.SetLinearVelocity(Vec3(vx, vertical, vz));
+    // Where it stood before the sweep. GetLinearVelocity afterwards returns what
+    // we PUT there — ExtendedUpdate moves the character without rewriting it — so
+    // the only honest answer is the ground it covered over the time it had.
+    const RVec3 startedAt = character.GetPosition();
     CharacterVirtual::ExtendedUpdateSettings settings;
     settings.mWalkStairsStepUp = Vec3(0, stepUp, 0);
     settings.mStickToFloorStepDown = Vec3(0, -stepDown, 0);
@@ -544,7 +548,12 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
 
     const RVec3 position = character.GetPosition();
     const Vec3 normal = character.GetGroundNormal();
-    const Vec3 velocity = character.GetLinearVelocity();
+    // The velocity it REACHED, not the one it was given: a character shoving a
+    // wall keeps the velocity it asked for and covers no ground, and gameplay
+    // reading the request back would never know the difference.
+    const Vec3 velocity = dt > 0.0f
+        ? Vec3((position - startedAt) / dt)
+        : Vec3::sZero();
     g().queryBuffer = {
         static_cast<float>(position.GetX()), static_cast<float>(position.GetY()),
         static_cast<float>(position.GetZ()),

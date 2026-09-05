@@ -51,14 +51,14 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": 0,
+              "x": -200,
               "y": -20,
-              "z": 0
+              "z": -300
             },
             "scale": {
-              "x": 16.0,
+              "x": 30.0,
               "y": 0.4,
-              "z": 16.0
+              "z": 24.0
             }
           }
         },
@@ -72,9 +72,9 @@
           "type": "BoxCollider3D",
           "data": {
             "halfExtents": {
-              "x": 800.0,
+              "x": 1500.0,
               "y": 20.0,
-              "z": 800.0
+              "z": 1200.0
             },
             "friction": 0.6
           }
@@ -109,12 +109,12 @@
             "position": {
               "x": 420,
               "y": 120,
-              "z": 0
+              "z": -520
             },
             "scale": {
-              "x": 0.4,
+              "x": 3.0,
               "y": 2.4,
-              "z": 8.0
+              "z": 0.4
             }
           }
         },
@@ -128,9 +128,9 @@
           "type": "BoxCollider3D",
           "data": {
             "halfExtents": {
-              "x": 20.0,
+              "x": 150.0,
               "y": 120.0,
-              "z": 400.0
+              "z": 20.0
             },
             "friction": 0.6
           }
@@ -163,13 +163,13 @@
           "type": "Transform",
           "data": {
             "position": {
-              "x": -360,
-              "y": 25,
-              "z": 0
+              "x": -400,
+              "y": 15,
+              "z": -520
             },
             "scale": {
               "x": 3.0,
-              "y": 0.5,
+              "y": 0.3,
               "z": 4.0
             }
           }
@@ -185,7 +185,7 @@
           "data": {
             "halfExtents": {
               "x": 150.0,
-              "y": 25.0,
+              "y": 15.0,
               "z": 200.0
             },
             "friction": 0.6
@@ -230,9 +230,9 @@
               "z": 0
             },
             "scale": {
-              "x": 4.0,
+              "x": 3.0,
               "y": 0.3,
-              "z": 7.0
+              "z": 8.0
             }
           }
         },
@@ -246,9 +246,9 @@
           "type": "BoxCollider3D",
           "data": {
             "halfExtents": {
-              "x": 200.0,
+              "x": 150.0,
               "y": 15.0,
-              "z": 350.0
+              "z": 400.0
             },
             "friction": 0.6
           }
@@ -465,6 +465,118 @@
               "r": 0.55,
               "g": 0.66,
               "b": 0.85,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "HighStep",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -800,
+              "y": 45,
+              "z": -520
+            },
+            "scale": {
+              "x": 3.0,
+              "y": 0.9,
+              "z": 4.0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 150,
+              "y": 45,
+              "z": 200
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.45,
+              "g": 0.28,
+              "b": 0.3,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "BackWall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 420,
+              "y": 120,
+              "z": 400
+            },
+            "scale": {
+              "x": 4.0,
+              "y": 2.4,
+              "z": 0.4
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 200,
+              "y": 120,
+              "z": 20
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.4,
+              "g": 0.34,
+              "b": 0.44,
               "a": 1
             }
           }

@@ -16,7 +16,8 @@ import {
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
-  acquireWebGPUDevice,
+  acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
+  Animator, TPC_SPEED, TPC_GROUNDED,
 } from 'esengine';
 import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -143,9 +144,9 @@ async function boot(): Promise<void> {
       probe(names: string[] = []): {
         scene: string | null;
         transitioning: boolean;
-        at: Record<string, { x: number; y: number; w?: number; h?: number }>;
+        at: Record<string, { x: number; y: number; z?: number; w?: number; h?: number }>;
       } {
-        const at: Record<string, { x: number; y: number; w?: number; h?: number }> = {};
+        const at: Record<string, { x: number; y: number; z?: number; w?: number; h?: number }> = {};
         for (const name of names) {
           const entity = app.world.findEntityByName(name);
           if (entity === null || !app.world.has(entity, Transform)) continue;
@@ -153,7 +154,9 @@ async function boot(): Promise<void> {
           // parented (every UI node) the local offset answers a different question.
           const t = app.world.get(entity, Transform);
           const p = t.worldPosition ?? t.position;
-          at[name] = { x: p.x, y: p.y };
+          // z as well: a 3D driver asking where something is cannot be answered
+          // by the plane, and a character walking a ramp moves in all three.
+          at[name] = { x: p.x, y: p.y, z: p.z ?? 0 };
           // A node's own size, for a claim about a value the game COMPUTED rather
           // than about where it ended up — a spectrum bar barely moves while its
           // height carries the whole answer.
@@ -168,6 +171,68 @@ async function boot(): Promise<void> {
         // the frame loop can land in the middle of that. Half a world reads as
         // "the thing I was walking to is gone", which is a lie with a cost.
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * What a third-person character IS: where it stands, what the physics step
+       * gave it, what its animator was told. Read-only, off the same components
+       * the game runs on — pixels cannot say whether a ramp was climbed, and a
+       * unit test answers about the request rather than the result.
+       */
+      gameplay(playerName: string, cameraName?: string): {
+        found: boolean;
+        position: { x: number; y: number; z: number } | null;
+        realVelocity: { x: number; y: number; z: number } | null;
+        askedVelocity: { x: number; y: number; z: number } | null;
+        grounded: boolean;
+        animator: { speed: number; grounded: boolean; state: string } | null;
+        camera: { x: number; y: number; z: number } | null;
+        cameraDistance: number | null;
+      } {
+        const blank = {
+          found: false, position: null, realVelocity: null, askedVelocity: null,
+          grounded: false, animator: null, camera: null, cameraDistance: null,
+        };
+        const player = app.world.findEntityByName(playerName);
+        if (player === null || !app.world.has(player, Transform)) return blank;
+
+        const t = app.world.get(player, Transform);
+        const p = t.worldPosition ?? t.position;
+        const position = { x: p.x, y: p.y, z: p.z ?? 0 };
+
+        let realVelocity = null;
+        let askedVelocity = null;
+        let grounded = false;
+        if (app.world.has(player, CharacterController3D)) {
+          const c = app.world.get(player, CharacterController3D);
+          realVelocity = { x: c.realVelocity.x, y: c.realVelocity.y, z: c.realVelocity.z };
+          askedVelocity = { x: c.velocity.x, y: c.velocity.y, z: c.velocity.z };
+          grounded = c.isOnFloor;
+        }
+
+        let animator = null;
+        if (app.hasResource(AnimatorController) && app.world.has(player, Animator)) {
+          const ctrl = app.getResource(AnimatorController);
+          animator = {
+            speed: ctrl.getFloat(player, TPC_SPEED),
+            grounded: ctrl.getBool(player, TPC_GROUNDED),
+            state: app.world.get(player, Animator).currentState,
+          };
+        }
+
+        let camera = null;
+        let cameraDistance = null;
+        const eye = cameraName ? app.world.findEntityByName(cameraName)
+          : (app.world.getEntitiesWithComponents([ThirdPersonCamera])[0] ?? null);
+        if (eye !== null && eye !== undefined && app.world.has(eye, Transform)) {
+          const ct = app.world.get(eye, Transform);
+          const cp = ct.worldPosition ?? ct.position;
+          camera = { x: cp.x, y: cp.y, z: cp.z ?? 0 };
+          cameraDistance = Math.hypot(cp.x - position.x, cp.y - position.y,
+                                      (cp.z ?? 0) - position.z);
+        }
+
+        return { found: true, position, realVelocity, askedVelocity, grounded,
+                 animator, camera, cameraDistance };
       },
       /**
        * Advance the world by `frames` steps of exactly `dt`, wall clock ignored.

@@ -28,6 +28,9 @@
  *                        CSS variables the web platform reads
  *     --probe a,b,c      after settling, print where those named entities are
  *                        (opens the package with ?headless)
+ *     --gameplay p[,c]   after settling, print what the third-person character
+ *                        IS: where it stands, what the physics step gave it, and
+ *                        what its animator was told
  *     --log <regex>      also print console lines matching this (the engine's own
  *                        warnings say why a subsystem sat out; only `[engine]`
  *                        lines are forwarded otherwise, which means diagnosing
@@ -141,8 +144,9 @@ async function main() {
     return;
   }
   const PROBE = flag('probe', '');
+const GAMEPLAY = flag('gameplay', '');
   const server = await serve(DIR, flag('safe-area', ''));
-  const base = `http://127.0.0.1:${server.address().port}/${PROBE ? '?headless' : ''}`;
+  const base = `http://127.0.0.1:${server.address().port}/${PROBE || GAMEPLAY ? '?headless' : ''}`;
 
   const win = new BrowserWindow({
     // Content size, not window size: with the frame counted in, the surface came
@@ -199,6 +203,15 @@ async function main() {
       `window.__estellaCooked?.probe(${JSON.stringify(names)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  probe: ${JSON.stringify(seen)}`);
+  }
+
+  if (GAMEPLAY) {
+    const [player, camera] = GAMEPLAY.split(',').map((n) => n.trim());
+    const seen = await win.webContents.executeJavaScript(
+      `window.__estellaCooked?.gameplay(${JSON.stringify(player)}, `
+      + `${JSON.stringify(camera ?? null)}) ?? null`,
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  gameplay: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();
