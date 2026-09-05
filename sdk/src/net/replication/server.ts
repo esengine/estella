@@ -286,32 +286,7 @@ export class ReplicationServer {
         this.tick_ = tick;
         if (this.connections_.size === 0) return;
 
-        const current = this.world_.getEntitiesWithComponents([Replicated]);
-        const currentSet = new Set(current);
-
-        const spawnedEntities: Entity[] = [];
-        for (const e of current) {
-            if (!this.known_.has(e)) {
-                this.registerEntity_(e);
-                spawnedEntities.push(e);
-            }
-        }
-
-        // netIds captured before unregistering so per-connection despawns can
-        // still name entities that vanished this tick.
-        const despawned: { entity: Entity; netId: number }[] = [];
-        for (const e of [...this.known_]) {
-            if (!currentSet.has(e) || !this.world_.valid(e)) {
-                const netId = this.knownNetIds_.get(e);
-                if (netId !== undefined) {
-                    despawned.push({ entity: e, netId });
-                    this.netIds_.unregister(netId);
-                }
-                this.known_.delete(e);
-                this.knownNetIds_.delete(e);
-                this.shadow_.delete(e);
-            }
-        }
+        const { spawnedEntities, despawned } = this.reconcileRegistry_();
 
         // Diff once against the shadow; frames below share the result.
         const sample = this.collectDirty_();
@@ -465,6 +440,53 @@ export class ReplicationServer {
         return visible;
     }
 
+    /**
+     * Bring the registry level with the world, and say what moved. netIds are
+     * captured before unregistering so a per-connection despawn can still name
+     * an entity that vanished this tick.
+     */
+    private reconcileRegistry_(): {
+        spawnedEntities: Entity[];
+        despawned: { entity: Entity; netId: number }[];
+    } {
+        const current = this.world_.getEntitiesWithComponents([Replicated]);
+        const currentSet = new Set(current);
+
+        const spawnedEntities: Entity[] = [];
+        for (const e of current) {
+            if (!this.known_.has(e)) {
+                this.registerEntity_(e);
+                spawnedEntities.push(e);
+            }
+        }
+
+        const despawned: { entity: Entity; netId: number }[] = [];
+        for (const e of [...this.known_]) {
+            if (!currentSet.has(e) || !this.world_.valid(e)) {
+                const netId = this.knownNetIds_.get(e);
+                if (netId !== undefined) {
+                    despawned.push({ entity: e, netId });
+                    this.netIds_.unregister(netId);
+                }
+                this.known_.delete(e);
+                this.knownNetIds_.delete(e);
+                this.shadow_.delete(e);
+            }
+        }
+        return { spawnedEntities, despawned };
+    }
+
+    /**
+     * The registry, rebuilt from the world for a client arriving when nothing is
+     * ready. `sample` returns early with no connections, so the registry stops
+     * following the world — and the initial state is built FROM it. Shadows are
+     * re-seeded so the frame after does not re-send what the spawn carried.
+     */
+    private rebaseRegistry_(): void {
+        this.reconcileRegistry_();
+        for (const e of this.known_) this.seedShadow_(e);
+    }
+
     private registerEntity_(e: Entity): void {
         const repl = this.world_.tryGet(e, Replicated) as ReplicatedData;
         if (repl.netId === 0) {
@@ -559,6 +581,9 @@ export class ReplicationServer {
 
     private sendInitialState_(conn: Connection): void {
         if (!this.connections_.has(conn.id)) return;
+        let anyReady = false;
+        for (const c of this.connections_.values()) if (c.ready) { anyReady = true; break; }
+        if (!anyReady) this.rebaseRegistry_();
         // Everything relevant right now, full component payloads (current state
         // included — no separate baseline frame needed).
         const candidates = [...this.known_];
