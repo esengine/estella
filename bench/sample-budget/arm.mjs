@@ -25,6 +25,10 @@ const ENTITIES = Number(flag('entities', '100000'));
 const CONNECTIONS = Number(flag('connections', '32'));
 const VISIBLE = Number(flag('visible', '0.01'));
 const SCENARIO = flag('scenario', 'movement');
+/** Time the provider's own answer, to split `visibility query` at that seam.
+ *  Off by default: the budget table should not be measured through a wrapper
+ *  that only exists to take it apart. */
+const SEAM = argv.includes('--seam');
 const WARMUP = Number(flag('warmup', '12'));
 const MEASURE = Number(flag('measure', '60'));
 const STEP = 1 / 60;
@@ -59,7 +63,50 @@ const world = serverApp.world;
 
 const side = Math.ceil(Math.sqrt(ENTITIES));
 const RADIUS = VISIBLE >= 1 ? side * 2 : Math.sqrt((VISIBLE * ENTITIES) / Math.PI);
-server.setInterestProvider(sdk.radiusInterestProvider(RADIUS));
+/**
+ * The provider's own answer, timed at the seam. `visibility query` is that plus
+ * what the host does with it — copying the answer into a set it owns and forcing
+ * the owned entities into it — so the difference says which half it is.
+ */
+const inner = sdk.radiusInterestProvider(RADIUS);
+const provider = { queryNs: 0n, calls: 0 };
+if (!SEAM) server.setInterestProvider(inner);
+else server.setInterestProvider({
+    prepare(view) {
+        const prepared = inner.prepare(view);
+        return {
+            get generation() { return prepared.generation; },
+            query: (q) => {
+                const t0 = process.hrtime.bigint();
+                const r = prepared.query(q);
+                provider.queryNs += process.hrtime.bigint() - t0;
+                provider.calls++;
+                return r;
+            },
+        };
+    },
+    dispose: () => inner.dispose?.(),
+});
+
+/**
+ * What the transport itself cost, and carried. `control send` is the server's
+ * phase around `channel.send`, which is JSON encoding AND this — so encoding is
+ * that phase minus what is measured here, rather than a second guess at it.
+ */
+const wire = { controlNs: 0n, controlBytes: 0, controlMsgs: 0, binaryNs: 0n, binaryBytes: 0 };
+function meter(transport) {
+    const send = transport.send.bind(transport);
+    transport.send = (d) => {
+        const t0 = process.hrtime.bigint();
+        send(d);
+        const dt = process.hrtime.bigint() - t0;
+        if (typeof d === 'string') {
+            wire.controlNs += dt; wire.controlBytes += d.length; wire.controlMsgs++;
+        } else {
+            wire.binaryNs += dt; wire.binaryBytes += d.byteLength ?? 0;
+        }
+    };
+}
 
 const clients = [];
 for (let i = 0; i < CONNECTIONS; i++) {
@@ -67,6 +114,7 @@ for (let i = 0; i < CONNECTIONS; i++) {
     app.connectCpp(new engine.Registry(), engine, { strict: false });
     app.addPlugin(sdk.replicationPlugin);
     const [ta, tb] = sdk.MemoryTransport.pair();
+    meter(ta);
     const id = server.attachConnection(ta);
     await app.getResource(sdk.Net).connect(tb, { interpolationDelayTicks: 0 });
     clients.push({ app, id });
@@ -154,6 +202,11 @@ const visible = census();
 server.samplePhases.clear();
 server.visibilityRecomputes = 0;
 server.entersSent = 0; server.leavesSent = 0; server.payloadsBuilt = 0;
+server.journalReads = 0; server.populationScans = 0;
+server.dirtyCandidates = 0; server.deltaRowsSent = 0;
+provider.queryNs = 0n; provider.calls = 0;
+wire.controlNs = 0n; wire.controlBytes = 0; wire.controlMsgs = 0;
+wire.binaryNs = 0n; wire.binaryBytes = 0;
 server.profileSample = true;
 let tickNs = 0n;
 let fastest = Infinity;
@@ -180,6 +233,11 @@ const accounted = LEAVES.reduce((a, k) => a + phases[k], 0);
 phases.other = total - accounted;
 
 const tickUs = Number(tickNs) / 1000 / MEASURE;
+const perSample = (v) => Number(v) / MEASURE;
+// Encoding is what the phase cost minus what the transport under it cost. A
+// negative here would mean the two clocks disagree, not that encoding is free.
+const controlTransportUs = Number(wire.controlNs) / 1000 / MEASURE;
+const controlEncodeUs = phases['control send'] - controlTransportUs;
 process.stdout.write(`${JSON.stringify({
     scenario: SCENARIO, entities: ENTITIES, connections: CONNECTIONS, visible: VISIBLE,
     ...PROFILE, samples: MEASURE,
@@ -195,5 +253,31 @@ process.stdout.write(`${JSON.stringify({
     usOutsideSample: tickUs - total,
     accountedPercent: total > 0 ? (accounted / total) * 100 : 0,
     phases,
+    // `control send` split by the transport's own clock, not by a second model.
+    controlEncodeUs, controlTransportUs,
+    // `visibility query` split at the provider seam: what it computed, against
+    // what the host spent turning that into a set of its own.
+    seam: SEAM,
+    providerQueryUs: SEAM ? Number(provider.queryNs) / 1000 / MEASURE : null,
+    hostVisibilityUs: SEAM
+        ? phases['visibility query'] - Number(provider.queryNs) / 1000 / MEASURE : null,
+    /**
+     * The work, beside the time. A phase that grows because one of these grew is
+     * doing more of something real; a phase that grows while these hold still is
+     * spending more to establish that nothing happened.
+     */
+    work: {
+        visibilityRecomputes: server.visibilityRecomputes / MEASURE,
+        dirtyCandidates: server.dirtyCandidates / MEASURE,
+        journalReads: server.journalReads / MEASURE,
+        populationScans: server.populationScans / MEASURE,
+        enters: server.entersSent / MEASURE,
+        leaves: server.leavesSent / MEASURE,
+        spawnPayloadsBuilt: server.payloadsBuilt / MEASURE,
+        deltaRowsSent: server.deltaRowsSent / MEASURE,
+        controlMessages: perSample(wire.controlMsgs),
+        controlBytes: perSample(wire.controlBytes),
+        binaryBytes: perSample(wire.binaryBytes),
+    },
     ...sdkIdentity(ROOT),
 })}\n`);

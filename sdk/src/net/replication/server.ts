@@ -269,6 +269,12 @@ export class ReplicationServer {
      */
     journalReads = 0;
     populationScans = 0;
+    /** @internal Entities dirty discovery actually examined against the shadow —
+     *  the work, as against the two ways of finding it. */
+    dirtyCandidates = 0;
+    /** @internal Delta rows that reached a connection, summed over connections:
+     *  what the wire carried, against what routing considered. */
+    deltaRowsSent = 0;
 
     constructor(world: World) {
         this.world_ = world;
@@ -835,6 +841,7 @@ export class ReplicationServer {
                         const d = dirty[i]!;
                         frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
                     }
+                    this.deltaRowsSent += frame.entryCount;
                     const payload = frame.entryCount > 0 ? frame.finish() : null;
                     this.since_('frame encode', encoding);
                     if (payload) {
@@ -1232,6 +1239,7 @@ export class ReplicationServer {
             // A Set, so a component lost twice in one window is one candidate.
             for (const e of this.world_.getRemovedEntitiesSince(te.def, floor)) candidates.add(e);
 
+            this.dirtyCandidates += candidates.size;
             for (const e of candidates) {
                 const perComp = this.shadow_.get(e);
                 if (!perComp) continue;

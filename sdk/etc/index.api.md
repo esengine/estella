@@ -6653,6 +6653,8 @@ static prototype: ReplicationPlugin
 
 ## ReplicationServer — class @experimental
 ```
+@internal deltaRowsSent: number
+@internal dirtyCandidates: number
 @internal entersSent: number
 @internal fullScans: number
 @internal journalReads: number

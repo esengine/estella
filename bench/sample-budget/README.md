@@ -119,6 +119,96 @@ shadow for each candidate that really did change.
 `bench/sample-budget` reports `journalReads` and `populationScans` so a claim
 about either projection can say which one it got.
 
+## N6: the budget re-taken after the spawn split
+
+Same instrumentation, same workloads, three interleaved rounds. Medians; every
+figure a percentage of that column's total.
+
+| phase | still | movement | anchors | mixed |
+|---|---|---|---|---|
+| **visibility query** | 0 | **3,772 · 43%** | **4,435 · 31%** | **4,533 · 31%** |
+| **dirty discovery** | 1 | 1,913 · 22% | 2,165 · 15% | 3,049 · 21% |
+| **spawn payload** | 0 | 50 · 1% | 2,622 · 18% | 2,372 · 16% |
+| visibility diff | 0 | 875 · 10% | 1,392 · 10% | 1,361 · 9% |
+| control send | 2 | 61 · 1% | 1,207 · 8% | 1,061 · 7% |
+| composition | 1 | 895 · 10% | 986 · 7% | 900 · 6% |
+| interest prepare | 4 | 770 · 9% | 972 · 7% | 935 · 6% |
+| routing | 2 | 165 · 2% | 182 · 1% | 502 · 3% |
+| frame encode | 0 | 71 · 1% | 104 · 1% | 281 · 2% |
+| transport send | 0 | 55 · 1% | 43 · 0% | 41 · 0% |
+| other | 11 | 31 · 0% | 121 · 1% | 155 · 1% |
+| **total** | **25** | **8,714** | **14,249** | **14,791** |
+| accounted | 53% | **99.6%** | **99.2%** | **99.2%** |
+
+`still` is 25 µs — the idle fast path survived protocol v4, and it accounts for
+only half of itself because the instrument is 11 of those microseconds.
+
+### The work, beside the time
+
+| per sample | movement | anchors | mixed |
+|---|---|---|---|
+| visibility recomputes | 32 | 32 | 32 |
+| dirty candidates examined | **1,000** | 1,032 | 2,132 |
+| journal reads / population scans | 3 / 0 | 3 / 0 | 3 / 0 |
+| enters / leaves | 6 / 7 | 682 / 686 | 682 / 686 |
+| spawn payloads built | 6 | 682 | 682 |
+| delta rows sent | 175 | 175 | 467 |
+| control bytes | 2,262 | **178,683** | 178,703 |
+| binary bytes | 4,227 | 4,222 | 8,315 |
+
+**Dirty discovery examines exactly the entities that changed** — 1,000 candidates
+for 1,000 movers, and the journal wins the projection choice every time (3 reads,
+0 scans). That phase is now proportional to what happened.
+
+### First place is the query, and it is not overhead
+
+Timed at the provider seam (`--seam`, off by default so the table above is not
+measured through a wrapper that exists to take it apart), `visibility query`
+splits:
+
+| | provider computes | host copies |
+|---|---|---|
+| movement | 3,432 (**94%**) | 216 (6%) |
+| anchors | 4,405 (**92%**) | 399 (8%) |
+| mixed | 4,563 (**95%**) | 260 (5%) |
+
+The host's share — copying the answer into a set it owns and forcing owned
+entities into it — is 5–8%. The rest is the grid walk and the sphere test over
+about 925 entities per connection, at **0.149 µs per (connection × visible
+entity)**. And the number of queries is 32 whatever is done to them: an owned
+anchor is one of its own query's inputs, which `bench/interest-regional/`
+settled. So neither the count nor the unit is carrying obvious waste.
+
+### The spawn, split three ways
+
+| | where it is |
+|---|---|
+| ghost construction | **not on the server at all** — protocol v4 moved it to the client's archetype |
+| baseline serialization | `spawn payload`, 2,622 µs for 682 entities = **3.8 µs each** (14.7 before) |
+| control-message overhead | `control send` 1,207 µs, which the transport's own clock splits 421 encode / 786 transport |
+
+**So N5c stays closed on CPU.** Its re-open condition was spawn encoding
+becoming top-1/top-2 *with baseline encode the bulk of it*; encode is 421 µs of
+a 3,829 µs spawn cost — 11%. Object construction and transport are the rest.
+
+**But note where the bytes are.** The control plane carries 178 KB a sample
+against the binary plane's 4–8 KB: JSON spawn batches outweigh the delta frames
+by twenty to forty times. That is 10 MB/s at this churn rate, and it is not
+visible in the CPU budget at all. If `FrameWriter`-shaped baselines are ever
+worth doing, **bandwidth is the argument, not microseconds** — which is a
+different re-open condition from the one this bench was built to test.
+
+### The judgement
+
+Encode and transport are 1–2% of the sample. Every large phase is now
+proportional to something that actually happened: entities that moved, views
+that had to be re-proved because their own anchor moved, entities that genuinely
+entered a view. `other` is under 1%.
+
+**The remaining cost is mostly necessary work, and this line should stop here.**
+What is left is not scanning to establish that nothing happened — that was the
+whole shape of the first seven cuts, and it is gone.
+
 ## What this does not cover
 
 - One anchor per connection, a uniform grid world, and clients connected but not
@@ -129,6 +219,8 @@ about either projection can say which one it got.
 - `spawn payload` is serialization only. It is timed before the send that carries
   it, because inside it the two would be counted twice — which is how the first
   version of this table came out at 142% accounted.
+- The N6 table is medians of three interleaved rounds. A machine that drifts 20%
+  across a session will otherwise tell whichever story the run order suggests.
 - Phase times are means over the window; the total is reported as a mean and a
   minimum. A budget cannot be built from minima, since the phases of one sample
   are not the phases of another.
