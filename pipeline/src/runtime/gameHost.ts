@@ -17,7 +17,7 @@ import {
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
-  Animator, TPC_SPEED, TPC_GROUNDED, Particle,
+  Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
 } from 'esengine';
 import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -190,6 +190,38 @@ async function boot(): Promise<void> {
         // the frame loop can land in the middle of that. Half a world reads as
         // "the thing I was walking to is gone", which is a lie with a cost.
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * What a swing IS and what it has done to whom: the live attack instance
+       * and every named target's health. Off the same components the game runs
+       * on, and read-only — a driver that could deal damage would be answering
+       * its own question, so damage still has to come from the keyboard.
+       */
+      combat(attackerName: string, targetNames: string[] = []): {
+        attack: { id: number; hitCount: number; state: string } | null;
+        targets: Record<string, { health: number; max: number }>;
+      } {
+        const targets: Record<string, { health: number; max: number }> = {};
+        for (const name of targetNames) {
+          const entity = app.world.findEntityByName(name);
+          if (entity === null || !app.world.has(entity, Health)) continue;
+          const health = app.world.get(entity, Health);
+          targets[name] = { health: health.current, max: health.max };
+        }
+        const attacker = app.world.findEntityByName(attackerName);
+        if (attacker === null || !app.world.has(attacker, MeleeAttack)) {
+          return { attack: null, targets };
+        }
+        const melee = app.world.get(attacker, MeleeAttack);
+        return {
+          attack: {
+            id: melee.attackId,
+            hitCount: melee.hitCount,
+            state: app.world.has(attacker, Animator)
+              ? app.world.get(attacker, Animator).currentState : '',
+          },
+          targets,
+        };
       },
       /**
        * How many particles a named emitter is running. The far END of a chain

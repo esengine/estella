@@ -31,6 +31,8 @@
  *                        (opens the package with ?headless)
  *     --particles a[,b]  after settling, print how many particles named emitters
  *                        are running — the far end of an effect chain
+ *     --combat p:a[,b]   after settling, print the live swing and what each
+ *                        named target has left
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -149,11 +151,12 @@ async function main() {
   const PROBE = flag('probe', '');
 const GAMEPLAY = flag('gameplay', '');
 const PARTICLES = flag('particles', '');
+const COMBAT = flag('combat', '');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -230,6 +233,16 @@ const SCENE = flag('scene', '');
       `window.__estellaCooked?.particles(${JSON.stringify(names)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  particles: ${JSON.stringify(seen)}`);
+  }
+
+  if (COMBAT) {
+    const [attacker, targets = ''] = COMBAT.split(':');
+    const names = targets.split(',').map((n) => n.trim()).filter(Boolean);
+    const seen = await win.webContents.executeJavaScript(
+      `window.__estellaCooked?.combat(${JSON.stringify(attacker.trim())}, `
+      + `${JSON.stringify(names)}) ?? null`,
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  combat: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();

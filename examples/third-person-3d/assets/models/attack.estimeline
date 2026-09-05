@@ -1,0 +1,186 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 1,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Root",
+      "childPath": "",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": -70,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": -70,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "Bone1",
+      "childPath": "Bone1",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.35,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7,
+              "value": 0.8191520442889918,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 1,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.35,
+              "value": 1,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7,
+              "value": 0.573576436351046,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1,
+              "value": 1,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "customEvent",
+      "name": "Beats",
+      "childPath": "",
+      "events": [
+        {
+          "time": 0,
+          "name": "attack-start",
+          "payload": {}
+        },
+        {
+          "time": 0.18,
+          "name": "windup",
+          "payload": {}
+        },
+        {
+          "time": 0.45,
+          "name": "hit",
+          "payload": {}
+        },
+        {
+          "time": 0.6,
+          "name": "hit",
+          "payload": {}
+        },
+        {
+          "time": 0.9,
+          "name": "attack-end",
+          "payload": {}
+        }
+      ]
+    }
+  ]
+}

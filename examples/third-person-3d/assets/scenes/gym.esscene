@@ -343,6 +343,21 @@
           "data": {
             "enabled": true
           }
+        },
+        {
+          "type": "MeleeAttack",
+          "data": {
+            "radius": 70,
+            "damage": 25,
+            "anchor": 14
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
         }
       ]
     },
@@ -369,7 +384,9 @@
       "id": 7,
       "name": "Bone1",
       "parent": 5,
-      "children": [],
+      "children": [
+        14
+      ],
       "visible": true,
       "components": [
         {
@@ -667,6 +684,269 @@
             },
             "damping": 1.6,
             "blendMode": 0,
+            "layer": 0,
+            "simulationSpace": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "HitAnchor",
+      "parent": 7,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 80,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "DummyA",
+      "parent": null,
+      "children": [
+        16
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 129,
+              "y": 60,
+              "z": 17
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 25,
+              "y": 60,
+              "z": 25
+            },
+            "isSensor": true
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.78,
+              "g": 0.35,
+              "b": 0.32,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "HitSparkA",
+      "parent": 15,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 18,
+            "burstInterval": 0,
+            "duration": 0.05,
+            "looping": false,
+            "playOnStart": false,
+            "maxParticles": 72,
+            "lifetimeMin": 0.5,
+            "lifetimeMax": 0.9,
+            "shape": 4,
+            "shapeRadius": 12,
+            "speedMin": 90,
+            "speedMax": 240,
+            "startSizeMin": 8,
+            "startSizeMax": 14,
+            "endSizeMin": 0,
+            "endSizeMax": 4,
+            "startColor": {
+              "r": 1.0,
+              "g": 0.82,
+              "b": 0.45,
+              "a": 1.0
+            },
+            "endColor": {
+              "r": 0.95,
+              "g": 0.32,
+              "b": 0.2,
+              "a": 0.0
+            },
+            "gravity": {
+              "x": 0,
+              "y": -320,
+              "z": 0
+            },
+            "damping": 2.0,
+            "blendMode": 1,
+            "layer": 0,
+            "simulationSpace": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "DummyB",
+      "parent": null,
+      "children": [
+        18
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -129,
+              "y": 60,
+              "z": 17
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 25,
+              "y": 60,
+              "z": 25
+            },
+            "isSensor": true
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.35,
+              "g": 0.42,
+              "b": 0.72,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "HitSparkB",
+      "parent": 17,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 18,
+            "burstInterval": 0,
+            "duration": 0.05,
+            "looping": false,
+            "playOnStart": false,
+            "maxParticles": 72,
+            "lifetimeMin": 0.5,
+            "lifetimeMax": 0.9,
+            "shape": 4,
+            "shapeRadius": 12,
+            "speedMin": 90,
+            "speedMax": 240,
+            "startSizeMin": 8,
+            "startSizeMax": 14,
+            "endSizeMin": 0,
+            "endSizeMax": 4,
+            "startColor": {
+              "r": 1.0,
+              "g": 0.82,
+              "b": 0.45,
+              "a": 1.0
+            },
+            "endColor": {
+              "r": 0.95,
+              "g": 0.32,
+              "b": 0.2,
+              "a": 0.0
+            },
+            "gravity": {
+              "x": 0,
+              "y": -320,
+              "z": 0
+            },
+            "damping": 2.0,
+            "blendMode": 1,
             "layer": 0,
             "simulationSpace": 0
           }

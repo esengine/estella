@@ -69,7 +69,8 @@ function run(dir, input) {
         LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '30', '--timeout', '60000', '--scene', 'gym',
         '--input', JSON.stringify(input), '--gameplay', 'Player,Camera',
-        '--particles', 'FootDust',
+        '--particles', 'FootDust,HitSparkA,HitSparkB',
+        '--combat', 'Player:DummyA,DummyB,Player',
         '--out', path.join(WORK, 'frame.png'),
     ], { encoding: 'utf8', cwd: ROOT });
     const seen = reading(r.stdout, 'gameplay');
@@ -79,8 +80,15 @@ function run(dir, input) {
     // The far end of the effect chain, beside what the character became: the
     // reading is one launch, so asking twice would be two different games.
     seen.particles = reading(r.stdout, 'particles') ?? {};
+    seen.combat = reading(r.stdout, 'combat') ?? { attack: null, targets: {} };
     return seen;
 }
+
+/** Press the attack key at `at`, for the three frames a press needs to be seen. */
+const ATTACK = (at) => ({ key: 'KeyJ', from: at, to: at + 3 });
+/** What each named target has left, and what the swing has done. */
+const health = (r, name) => r.combat?.targets?.[name]?.health;
+const swing = (r) => r.combat?.attack ?? {};
 
 /**
  * Walk a lane: strafe to it over `strafe` frames, then hold forward to the end.
@@ -302,6 +310,82 @@ const START = { y: 60, z: 120 };
           && wallReal < 60 && (held.position?.z ?? -999) > -520,
           `state ${held.animator?.state}, asked ${wallAsked.toFixed(0)},`
           + ` real ${wallReal.toFixed(0)}, z ${held.position?.z?.toFixed(0)}`);
+}
+
+// 11. A swing: the animation decides WHEN, physics decides WHO, gameplay decides
+// what that does. Every reading is taken while the swing is still live, so the
+// attack instance itself is visible rather than inferred from the aftermath.
+{
+    // The clip's `hit` beats sit at 0.45s and 0.60s of a 1s attack; a press at
+    // frame 5 puts them around frames 32 and 41 at the rate this harness runs.
+    const attacking = (extra = [], frames = 50) =>
+        run(dir, { holds: [ATTACK(5), ...extra], frames });
+
+    // C — before the animation says it connects, nothing has happened yet.
+    const early = attacking([], 17);
+    check('a swing that has not connected yet has taken nothing off',
+          swing(early).state === 'Attack1' && swing(early).hitCount === 0
+          && health(early, 'DummyA') === 100,
+          `state ${swing(early).state}, hits ${swing(early).hitCount},`
+          + ` A ${health(early, 'DummyA')}`);
+
+    // B + E — past the beat: the one beside the swing loses health, the one on
+    // the other side of the character does not.
+    const landed = attacking();
+    check('and past it, the target the swing reached loses exactly one blow',
+          swing(landed).hitCount === 1 && health(landed, 'DummyA') === 75,
+          `hits ${swing(landed).hitCount}, A ${health(landed, 'DummyA')}`);
+    // The mirror of A through the character's forward axis, and a hit volume
+    // rather than an obstacle — a target that stood in the lanes would answer
+    // the locomotion criteria instead of this one.
+    check('while its mirror on the other side stays untouched',
+          health(landed, 'DummyB') === 100 && health(landed, 'Player') === 100,
+          `B ${health(landed, 'DummyB')}, self ${health(landed, 'Player')}`);
+    check('and the sparks are the blow’s, not an effect left running',
+          (early.particles?.HitSparkA ?? -1) === 0
+          && (landed.particles?.HitSparkA ?? 0) > 0
+          && (landed.particles?.HitSparkB ?? -1) === 0,
+          `A ${early.particles?.HitSparkA}→${landed.particles?.HitSparkA},`
+          + ` B ${landed.particles?.HitSparkB}`);
+
+    // D — the clip says `hit` twice, and the swing still lands once.
+    const twice = run(dir, { holds: [ATTACK(5), ATTACK(80)], frames: 125 });
+    check('a second swing may land on what the first one already hit',
+          swing(twice).hitCount === 1 && health(twice, 'DummyA') === 50,
+          `hits ${swing(twice).hitCount}, A ${health(twice, 'DummyA')}`);
+
+    // A — the same swing where there is nothing to reach.
+    const missed = run(dir, {
+        holds: [{ key: 'KeyS', from: 0, to: 45 }, ATTACK(50)],
+        frames: 95,
+    });
+    check('a swing with nothing in reach runs and takes nothing off',
+          swing(missed).state === 'Attack1' && (swing(missed).id ?? 0) > 0
+          && swing(missed).hitCount === 0 && health(missed, 'DummyA') === 100
+          && (missed.particles?.HitSparkA ?? -1) === 0,
+          `attack ${swing(missed).id}, hits ${swing(missed).hitCount},`
+          + ` A ${health(missed, 'DummyA')}, sparks ${missed.particles?.HitSparkA}`);
+}
+
+// 12. The attack lunges, which makes it the same question the dodge answered:
+// what the animation asks for is not what the world allows.
+{
+    const lunged = run(dir, { holds: [ATTACK(5)], frames: 70 });
+    const travelled = START.z - (lunged.position?.z ?? START.z);
+    check('an attack carries the character forward',
+          travelled > 40, `travelled ${travelled.toFixed(0)}`);
+
+    const atWall = run(dir, {
+        holds: [
+            { key: 'KeyD', from: 0, to: TO_LANE.wall },
+            { key: 'KeyW', from: TO_LANE.wall, to: TO_LANE.wall + 151 },
+            ATTACK(TO_LANE.wall + 135),
+        ],
+        frames: TO_LANE.wall + 180,
+    });
+    check('and the same attack against a wall plays without going through it',
+          swing(atWall).state === 'Attack1' && (atWall.position?.z ?? -999) > -520,
+          `state ${swing(atWall).state}, z ${atWall.position?.z?.toFixed(0)}`);
 }
 
 const failed = results.filter((r) => !r.ok);
