@@ -115,6 +115,10 @@ export interface QueryFilter {
 // World
 // =============================================================================
 
+/** Components whose value feeds the world-transform composition. Hierarchy is
+ *  in here too: a reparent moves a subtree without touching its transforms. */
+const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
+
 /**
  * The entity store, as `GetWorld()` hands it to a system — the escape hatch for
  * work the declared parameters cannot express. Prefer `Query`/`Res`/`Commands`:
@@ -610,13 +614,13 @@ export class World {
                 parents.add(child);
                 this.changes_.recordAdded(Parent, child);
             }
-            this.changes_.recordChanged(Parent, child);
+            this.recordComponentWrite_(child, Parent);
 
             if (!children.has(parent)) {
                 children.add(parent);
                 this.changes_.recordAdded(Children, parent);
             }
-            this.changes_.recordChanged(Children, parent);
+            this.recordComponentWrite_(parent, Children);
         }
 
         this.queries_.markStructuralChange();
@@ -680,7 +684,7 @@ export class World {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
             }
-            this.changes_.recordChanged(component, entity);
+            this.recordComponentWrite_(entity, component);
             notifyBridge('onComponentChanged', entity, component._name);
             return;
         }
@@ -694,7 +698,7 @@ export class World {
             this.changes_.recordAdded(component, entity);
             notifyBridge('onComponentAdded', entity, component._name);
         }
-        this.changes_.recordChanged(component, entity);
+        this.recordComponentWrite_(entity, component);
         if ((component as ComponentDef<any>)._id === Name._id) {
             this.names_.update(entity, (data as { value: string }).value);
         }
@@ -737,7 +741,7 @@ export class World {
         } finally {
             // A throwing `edit` has already written to the live object, so the
             // change is reported before the error escapes.
-            this.changes_.recordChanged(component, entity);
+            this.recordComponentWrite_(entity, component);
             if ((component as ComponentDef<any>)._id === Name._id) {
                 this.names_.update(entity, (draft as { value: string }).value);
             }
@@ -838,7 +842,7 @@ export class World {
             this.changes_.recordAdded(component, entity);
             notifyBridge('onComponentAdded', entity, component._name);
         }
-        this.changes_.recordChanged(component, entity);
+        this.recordComponentWrite_(entity, component);
         notifyBridge('onComponentChanged', entity, component._name);
         return merged;
     }
@@ -855,7 +859,7 @@ export class World {
             this.changes_.recordAdded(component, entity);
             notifyBridge('onComponentAdded', entity, component._name);
         }
-        this.changes_.recordChanged(component, entity);
+        this.recordComponentWrite_(entity, component);
         if (component._id === Name._id) {
             this.names_.update(entity, (value as { value: string }).value);
         }
@@ -1275,9 +1279,39 @@ export class World {
         return this.changes_.writeReaderCount(component);
     }
 
+    /**
+     * @internal One place for "this component was written".
+     *
+     * The composition epoch hangs off the LOGICAL mutation contract, not off the
+     * storage path: `set`, `insert`, `update` and a `Mut` write-back all arrive
+     * here whether or not the fast pointer setter moved the bytes.
+     */
+    private recordComponentWrite_(entity: Entity, component: AnyComponentDef): void {
+        if (COMPOSITION_INPUTS.has(component._name)) {
+            this.builtin_.invalidateTransformComposition();
+        }
+        this.changes_.recordChanged(component, entity);
+    }
+
+    /** @internal Say composed world transforms are stale, for a producer that
+     *  wrote the bytes without going through the mutation seam. */
+    invalidateTransformComposition(): void {
+        this.builtin_.invalidateTransformComposition();
+    }
+
+    /** @internal Compose world transforms if a producer invalidated them. */
+    ensureTransformsComposed(): void {
+        this.builtin_.ensureTransformsComposed();
+    }
+
+    /** @internal What the composition staleness counter reads. */
+    transformEpoch(): number {
+        return this.builtin_.transformEpoch();
+    }
+
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void {
-        this.changes_.recordChanged(component, entity);
+        this.recordComponentWrite_(entity, component);
     }
 
     /** @internal Whether any query is asking about `component`'s changes. */

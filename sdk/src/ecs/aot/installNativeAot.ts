@@ -199,6 +199,9 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
  * may have moved, and the Changed ticks are marked. The call itself is one
  * number crossing the boundary.
  */
+/** Components whose value feeds the world-transform composition. */
+const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
+
 class NativeAotDispatch implements AotDispatcher {
     /** The epoch the pools were last reported at. Null means never. */
     private reportedAt_: number | null | undefined = undefined;
@@ -287,6 +290,14 @@ class NativeAotDispatch implements AotDispatcher {
      */
     private markChanged_(twin: AotTwin): void {
         for (let k = 0; k < twin.decl.queries.length; k++) {
+            // Before the tracking filter below: composition staleness is not an
+            // observation and must not inherit its opt-in.
+            for (const def of twin.mutated[k] ?? []) {
+                if (COMPOSITION_INPUTS.has(def._name)) {
+                    this.world.invalidateTransformComposition();
+                    break;
+                }
+            }
             const mutated = (twin.mutated[k] ?? []).filter((def) => this.world.isChangeTracked(def));
             if (mutated.length === 0) continue;
             const comps = twin.decl.queries[k]!

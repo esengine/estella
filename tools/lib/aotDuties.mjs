@@ -54,6 +54,25 @@ export const DUTIES = [
         },
     },
     {
+        id: 'composition-stale',
+        what: 'a compiled write to a transform input says the composition is stale',
+        // Not an observation, so not behind `isChangeTracked`: a server with no
+        // Changed(Transform) consumer would otherwise move transforms nothing
+        // recomposes. Once per invocation, never per row.
+        web: ['world.invalidateTransformComposition'],
+        native: ['world.invalidateTransformComposition'],
+        differential: {
+            web: [{
+                path: 'sdk/tests/world-transform-authority.test.ts',
+                probe: /no Changed consumer anywhere/,
+            }],
+            native: [{
+                path: 'sdk/tests/world-transform-authority.test.ts',
+                probe: /no Changed consumer anywhere/,
+            }],
+        },
+    },
+    {
         id: 'layout-vouched',
         what: 'an address is reused only while something says the rows have not moved',
         web: ['world.layoutEpoch'],

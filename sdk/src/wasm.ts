@@ -423,6 +423,11 @@ export interface ESEngineModule {
     renderer_resize(width: number, height: number): void;
     renderer_beginFrame(elapsedSec: number): void;
     renderer_updateTransforms(registry: CppRegistry): void;
+    /** Address of the transform composition's staleness counter, so a producer
+     *  stores into linear memory rather than calling across it. */
+    transform_epochAddress?(): number;
+    /** Compose world transforms if a producer said the inputs moved; O(1) if not. */
+    transform_ensureComposed?(registry: CppRegistry): void;
     /** Permute component storage to the given entity order — see World.applyEntityOrder.
      *  Optional: an older core still answers every other renderer entry point. */
     renderer_setEntityDrawOrder?(registry: CppRegistry, entitiesPtr: number, count: number): void;

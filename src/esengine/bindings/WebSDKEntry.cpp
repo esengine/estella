@@ -636,6 +636,18 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #ifdef ES_ENABLE_PARTICLES
 #endif
     emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
+    // The address of the composition's staleness counter, so a producer on the
+    // JS side stores into linear memory instead of calling across it. Measured:
+    // the store is below noise, the call nearly doubles a Transform write.
+    emscripten::function("transform_epochAddress", emscripten::optional_override([]() -> uintptr_t {
+        return reinterpret_cast<uintptr_t>(&esengine::ecs::transformMutationEpoch());
+    }));
+    emscripten::function("transform_ensureComposed", emscripten::optional_override(
+        [](esengine::ecs::Registry& registry) {
+            if (auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>()) {
+                ts->ensureComposed(registry);
+            }
+        }), emscripten::allow_raw_pointers());
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
 #ifdef ES_ENABLE_PARTICLES

@@ -143,11 +143,18 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
     };
 }
 
+/**
+ * WORLD space, as the option documents: `position` is authoring input relative
+ * to the parent, so two children of different parents sharing an offset would
+ * otherwise occupy the same point. The server composes before it samples.
+ */
 function defaultPosition(world: World, entity: Entity): InterestPoint | null {
     const Transform = getComponent('Transform');
     if (!Transform || !world.has(entity, Transform)) return null;
-    const t = world.tryGet(entity, Transform) as { position?: { x: number; y: number; z?: number } } | null;
-    return t?.position ? { x: t.position.x, y: t.position.y, z: t.position.z ?? 0 } : null;
+    const t = world.tryGet(entity, Transform) as
+        { worldPosition?: { x: number; y: number; z?: number } } | null;
+    const p = t?.worldPosition;
+    return p ? { x: p.x, y: p.y, z: p.z ?? 0 } : null;
 }
 
 /**

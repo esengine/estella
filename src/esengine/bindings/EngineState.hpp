@@ -22,7 +22,6 @@ struct EngineState {
     u32 viewport_height = 720;
     glm::vec4 clear_color{0.0f, 0.0f, 0.0f, 1.0f};
     glm::mat4 current_view_projection{1.0f};
-    bool transforms_updated = false;
 };
 
 }  // namespace esengine

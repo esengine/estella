@@ -340,6 +340,7 @@ function formatBridgeDiagnostic(v: BridgeVerification): string {
 export class BuiltinBridge {
     private cppRegistry_: CppRegistry | null = null;
     private module_: ESEngineModule | null = null;
+    private transformEpochWord_ = -1;
     private memory_: MemoryProvider | null = null;
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
@@ -364,6 +365,12 @@ export class BuiltinBridge {
     ): void {
         this.cppRegistry_ = cppRegistry;
         this.module_ = module ?? null;
+        // The ADDRESS is stable; the view over it is not. Emscripten replaces
+        // every HEAP view when memory grows, and a cached one writes nowhere
+        // while looking like it worked — so only the word offset is kept.
+        this.transformEpochWord_ = module?.transform_epochAddress
+            ? module.transform_epochAddress() >>> 2
+            : -1;
         // Web derives a wasm-HEAP backend from the module; the native runtime
         // injects its own (es_<Component>_buffer). No module and no override => no
         // fast path (resolvePtr* return null), exactly as before.
@@ -400,6 +407,31 @@ export class BuiltinBridge {
         this.memory_ = null;
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
+    }
+
+    /**
+     * Say that composed world transforms are stale. Called for a write to a
+     * local transform field or to the hierarchy — never for `worldPosition` and
+     * friends, which are the composition's own output.
+     */
+    invalidateTransformComposition(): void {
+        if (this.transformEpochWord_ < 0) return;
+        const heap = this.module_?.HEAPU32;
+        if (!heap) return;
+        heap[this.transformEpochWord_] = (heap[this.transformEpochWord_] + 1) >>> 0;
+    }
+
+    /** Compose if any producer invalidated since the last one; O(1) otherwise. */
+    ensureTransformsComposed(): void {
+        if (!this.cppRegistry_) return;
+        this.module_?.transform_ensureComposed?.(this.cppRegistry_);
+    }
+
+    /** @internal What the staleness counter reads, for the fixtures that assert
+     *  a producer notified. */
+    transformEpoch(): number {
+        const heap = this.module_?.HEAPU32;
+        return this.transformEpochWord_ < 0 || !heap ? -1 : heap[this.transformEpochWord_];
     }
 
     get hasCpp(): boolean {

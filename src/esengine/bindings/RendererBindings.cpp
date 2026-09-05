@@ -410,7 +410,10 @@ void renderer_resize(u32 width, u32 height) {
 }
 
 void renderer_beginFrame(f32 elapsedSec) {
-    ctx().state().transforms_updated = false;
+    // A render frame is not a mutation: composition is invalidated by the
+    // producers that write transform inputs. A server has no frames, and one
+    // frame may run several fixed steps.
+
     if (auto* rc = ctx().tryGet<RenderContext>()) {
         rc->setFrameTime(elapsedSec, g_viewportWidth, g_viewportHeight);
     }
@@ -448,12 +451,10 @@ void renderer_end() {
     checkGLErrors("renderer_end");
 }
 
+/** Compose if a producer said the inputs moved. The renderer is a consumer of
+ *  world transforms, not the authority over when they are computed. */
 static void ensureTransformsUpdated(ecs::Registry& registry) {
-    if (!ctx().state().transforms_updated && g_transformSystem) {
-        esengine::World w{registry, ctx().services(), 0.0f};
-        g_transformSystem->update(w);
-        ctx().state().transforms_updated = true;
-    }
+    if (g_transformSystem) g_transformSystem->ensureComposed(registry);
 }
 
 #ifdef ES_ENABLE_BITMAP_TEXT
@@ -832,6 +833,10 @@ u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
 }
 
 void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu) {
+    // Writes local position and rotation for every synced body. It also writes
+    // the world fields itself — a second author for those, tracked separately —
+    // but the local write alone is what makes the composition stale.
+    ecs::invalidateTransformComposition();
     if (count < 0) return;
     const float* buffer = boundarySpan<f32>(bufferPtr, static_cast<u64>(count) * 4, "registry_batchSyncPhysicsTransforms");
     if (!buffer) return;

@@ -9536,6 +9536,7 @@ tabIndex: number | undefined
 @internal disposeWriteReader: (component: AnyComponentDef, readerId: number) => void
 @internal enableChangeTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
+@internal ensureTransformsComposed: () => void
 @internal getCppRegistry: () => CppRegistry | null
 @internal getQueryCacheStats: () => QueryCacheStats
 @internal getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
@@ -9546,6 +9547,7 @@ tabIndex: number | undefined
 @internal getWorldVersion: () => number
 @internal getWrittenEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal hasCpp: boolean
+@internal invalidateTransformComposition: () => void
 @internal isAddedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
 @internal isChangeTracked: (component: AnyComponentDef) => boolean
 @internal isChangedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
@@ -9572,6 +9574,7 @@ tabIndex: number | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal suspendIteration: () => number
 @internal topologyReaderCount: (component: AnyComponentDef) => number
+@internal transformEpoch: () => number
 @internal useScriptPoolMemory: (memory: PoolMemory) => void
 @internal writeReaderCount: (component: AnyComponentDef) => number
 despawn: (entity: Entity) => void

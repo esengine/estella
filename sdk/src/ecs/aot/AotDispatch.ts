@@ -113,6 +113,9 @@ function resolverFor(world: World, def: AnyComponentDef): (entity: Entity) => nu
     return isTagDef(def) ? () => 0 : world.addressResolver(def);
 }
 
+/** Components whose value feeds the world-transform composition. */
+const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
+
 export class AotDispatch {
     private readonly plans = new Map<AotTwin, Plan>();
 
@@ -244,6 +247,15 @@ export class AotDispatch {
             const q = plan.queries[k];
             const n = plan.counts[k];
             if (q.mutated.length === 0 || n === 0) continue;
+            // NOT an observation, so it must not inherit `isChangeTracked`'s
+            // opt-in: a server with no `Changed(Transform)` consumer would
+            // otherwise move transforms nobody recomposes.
+            for (const def of q.mutated) {
+                if (COMPOSITION_INPUTS.has(def._name)) {
+                    this.world.invalidateTransformComposition();
+                    break;
+                }
+            }
             for (const def of q.mutated) {
                 if (!this.world.isChangeTracked(def)) continue;
                 const base = plan.offsets[k];

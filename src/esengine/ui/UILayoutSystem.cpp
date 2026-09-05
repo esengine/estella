@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+#include "../ecs/TransformSystem.hpp"
 #include "./UILayoutSystem.hpp"
 #include "./UISystem.hpp"
 
@@ -509,6 +510,10 @@ void UISystem::layoutUpdate(
     // touched, which hid the aliasing by throwing the stale state away.
     if (layoutCache_ && lastRegistryId_ != registry.instanceId()) layoutCache_.reset();
     lastRegistryId_ = registry.instanceId();
+    // This pass writes Transform.position for every laid-out node, so the
+    // composition it feeds is stale afterwards. Once per pass, not per node:
+    // the epoch answers "is it stale", never "how many moved".
+    invalidateTransformComposition();
     if (!layoutCache_) {
         layoutCache_ = std::make_unique<LayoutCache>();
         layoutPrimed_ = false;  // a fresh cache has no hierarchy to reuse

@@ -24,6 +24,25 @@
 
 namespace esengine::ecs {
 
+/**
+ * @brief How many times a transform composition INPUT has changed
+ * @details One shared counter, written by every producer of a local transform
+ *          field or of the hierarchy, on either side of the wasm boundary.
+ * @note Modulo 2^32: aliasing needs 2^32 invalidations between two compositions.
+ */
+inline u32& transformMutationEpoch() {
+    static u32 epoch = 1;
+    return epoch;
+}
+
+/**
+ * @brief Say that composed world transforms are stale
+ * @details Never call this from a writer of worldPosition/worldRotation/
+ *          worldScale: those are the composition's OUTPUT, and invalidating on
+ *          them makes every composition immediately stale again.
+ */
+inline void invalidateTransformComposition() { transformMutationEpoch()++; }
+
 class TransformSystem : public System {
 public:
     static constexpr u32 MAX_HIERARCHY_DEPTH = 256;
@@ -38,9 +57,36 @@ public:
 
     void update(World& world) override {
         updateDirtyTransforms(world.registry);
+        markComposed(world.registry);
     }
 
+    /**
+     * @brief Compose if anything changed since the last one; O(1) if not
+     * @details Consumers call this rather than update(), so a renderer and a
+     *          replication sample in one generation pay for one composition.
+     * @note The registry's identity is part of the comparison — a second world
+     *       holding the same epoch number has not been composed.
+     */
+    void ensureComposed(Registry& registry) {
+        if (registry.instanceId() == composedRegistry_
+            && transformMutationEpoch() == composedEpoch_) return;
+        updateDirtyTransforms(registry);
+        markComposed(registry);
+    }
+
+    u32 composedEpoch() const { return composedEpoch_; }
+
 private:
+    // Zero, while the epoch starts at one: nothing has been composed yet, so the
+    // first ensure runs rather than believing a world it has never looked at.
+    u32 composedEpoch_ = 0;
+    u64 composedRegistry_ = 0;
+
+    void markComposed(Registry& registry) {
+        composedEpoch_ = transformMutationEpoch();
+        composedRegistry_ = registry.instanceId();
+    }
+
     std::vector<Entity> dirty_to_clear_;
 
     void updateDirtyTransforms(Registry& registry) {
@@ -219,6 +265,7 @@ inline void setParent(Registry& registry, Entity child, Entity newParent) {
     if (!registry.has<TransformDirty>(child)) {
         registry.emplace<TransformDirty>(child);
     }
+    invalidateTransformComposition();
 }
 
 /**

@@ -628,6 +628,10 @@ export class ReplicationServer {
      * other O(population) the policy shape forces.
      */
     private resolveVisibility_(): (connectionId: number) => Set<Entity> {
+        // Relevance is decided in world space, so the composition has to be
+        // current before a snapshot is taken — here rather than inside a position
+        // reader, so a caller's own reader sees the same composed fact.
+        this.world_.ensureTransformsComposed();
         const source = this.interest_;
         if (!source) {
             const all = [...this.known_];

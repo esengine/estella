@@ -3,11 +3,10 @@
 /**
  * @file  Which space is an entity's interest position in?
  *
- * `RadiusInterestOptions.position` documents its default as the Transform's
- * WORLD-space position, and `defaultPosition` reads `t.position` — the
- * authoring input, relative to the parent. Whether that is a one-line fix
- * depends on something this probe measures rather than assumes: whether a
- * composed world transform exists on an authoritative server at all.
+ * `RadiusInterestOptions.position` documents its default as WORLD space. It read
+ * the authoring input for a long time because a headless server had no composed
+ * world transform to read — composition was scheduled by the renderer. This
+ * measures whether an authoritative server has that fact now.
  *
  *   node tools/probe-interest-position-space.mjs
  *
@@ -41,6 +40,9 @@ async function measure(makeApp, label) {
     world.setParent(child, parent);
     await app.tick(1 / 60);
     await app.tick(1 / 60);
+    // What a consumer does before reading world space: composition is owned by
+    // an epoch now, not by a render frame this server never has.
+    world.ensureTransformsComposed();
     const t = world.get(child, sdk.Transform);
     console.log(`  ${label}`);
     console.log(`    child authoring position.x = ${t.position.x}`);
@@ -55,10 +57,8 @@ const headless = await measure(
     'createHeadlessApp — the authoritative-server shape',
 );
 console.log('');
-console.log(`  radiusInterest's default reads position, not worldPosition.`);
 console.log(headless === 105
-    ? '  A composed world transform IS available here, so reading it is a fix.'
-    : '  No composed world transform is available here: transform composition runs'
-      + '\n  in the renderer backend, which a headless server does not install. Reading'
-      + '\n  worldPosition instead would place every entity at the origin.');
+    ? '  A composed world transform is available here, and the radius default reads it.'
+    : '  No composed world transform is available here, so the radius default cannot'
+      + '\n  read one: every entity would sit at the origin.');
 console.log('');

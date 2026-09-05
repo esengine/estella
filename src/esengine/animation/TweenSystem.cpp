@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+#include "../ecs/TransformSystem.hpp"
 #include "TweenSystem.hpp"
 #include "EasingFunctions.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -161,6 +162,10 @@ static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag,
 
 static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value,
                             std::vector<Entity>& flagged) {
+    // Position, scale and rotation targets write local Transform fields.
+    // Notifying for colour targets too costs one recompose that changes
+    // nothing, where missing one leaves the world reading a stale transform.
+    ecs::invalidateTransformComposition();
     switch (target) {
         case TweenTarget::PositionX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
