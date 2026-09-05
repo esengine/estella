@@ -495,6 +495,92 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 | `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | 对路径做一步纯求值 → `{ nextPath, consumedTriggers }`。 |
 | `STATE_PATH_SEP` | 路径分隔符,`'/'`。 |
 
+### 动画事件
+
+剪辑可以给自己内部的时刻命名。`.estimeline` 里的 `customEvent` 轨道携带
+`{ time, name, payload }`，动画器在**跨过**该时刻的那一帧报告它——而不是正好落在
+它上面的那一帧，固定步长根本不会正好落上去。事件走 `AnimatorEvent` 总线：
+
+```typescript
+import {
+  defineSystem, EventReader, GetWorld, Res,
+  AnimatorEvent, Particle, resolveChildEntity,
+} from 'esengine';
+
+const footsteps = defineSystem(
+  [EventReader(AnimatorEvent), GetWorld(), Res(Particle)],
+  (events, world, particles) => {
+    for (const event of events) {
+      if (event.name !== 'footstep') continue;
+      const dust = resolveChildEntity(world, event.entity, 'FootDust');
+      if (dust !== null) particles.play(dust);
+    }
+  },
+  { name: 'FootstepSystem' },
+);
+```
+
+| 字段 | 说明 |
+|---|---|
+| `entity` | 被播放动画的实体——事情发生在谁身上。 |
+| `name` | 剪辑声明的事件名。 |
+| `value` | 数值负载（`payload.value`）；剪辑没写时为 `0`。 |
+| `text` | 字符串负载（`payload.text`）；剪辑没写时为空串。 |
+
+动画器给出的承诺：
+
+- 事件按一步覆盖的区间 `(上一时刻, 当前时刻]` 触发，所以再长的一帧也不会跨过去
+  漏掉，也不会为同一次跨越报两次。
+- 循环回绕算**两个**区间——本圈的尾巴，再加下一圈的开头——所以贴着两端的事件每圈
+  正好触发一次。
+- 一步内跨过多个事件，按剪辑声明的顺序触发。
+- 交叉淡化期间只有**正在进入**的状态报告事件。正在淡出的那个仍在走时钟，但什么都
+  不说——所以被闪避打断的攻击不会继续把伤害判定打出来。
+
+动画器不调用任何粒子、音频或玩法代码：它只陈述事件，由拥有这些东西的系统来回应。
+
+### 根运动
+
+一段动画如果动的是它被播放在其上的那个实体，它就不是在摆骨架的姿势——它是在说角色
+往哪走。这件事由状态声明：
+
+```json
+{
+  "name": "Dodge",
+  "motion": { "kind": "timeline", "clip": "dodge.estimeline", "loop": false },
+  "rootMotion": true,
+  "transitions": [{ "to": "Idle", "conditions": [], "hasExitTime": true }]
+}
+```
+
+动画器于是把该根轨道的 `position` 与 `rotation` 排除在姿势之外——剪辑永远不会自己
+移动实体——并把它请求的位移发布到实体的 `AnimatorRootMotion` 组件上：
+
+| 字段 | 说明 |
+|---|---|
+| `enabled` | 创作项：是否发布这个请求。 |
+| `active` | 本帧是否有声明了根运动的状态在驱动角色。 |
+| `deltaPosition` | 请求的位移，世界空间。 |
+| `deltaRotation` | 请求的转向，角色自身坐标系。 |
+| `deltaTime` | 这两个增量覆盖的秒数。 |
+
+<Aside type="caution">
+  这些增量是**请求**，不是结果。把它交给真正移动角色的东西，让世界来回答——
+  `ThirdPersonController` 正是这么做的：`active` 期间它忽略摇杆，向
+  `CharacterController3D` 请求 `deltaPosition / deltaTime`，所以撞墙的闪避会请求
+  整段距离而一步也走不了。把 `deltaPosition` 直接写进 `Transform`，等于让动画器
+  接管移动，而接管了移动的动画器会穿墙。
+</Aside>
+
+`deltaTime` 与增量一起给出，是因为动画器跑在帧时钟上，而角色控制器通常跑在固定步长
+上：请用这一对算出速率。直接把位移加上去的消费者，会在有两个固定步的帧里走两倍，在
+没有固定步的帧里一步不走。
+
+判断依据请读 `active`，而不是「增量是否非零」——闪避中间有静止的一瞬，摇杆不能在那
+一刻把控制权抢回去。实体上没有 `AnimatorRootMotion` 组件时，该状态依然拒绝去摆角色
+自身的 transform，剪辑只是原地播放。
+
+
 ## 如何选择
 
 <Aside type="tip">

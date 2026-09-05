@@ -12553,7 +12553,7 @@ ServicesPlugin
 
 ## setAnimatorStateProps — function @experimental
 ```
-(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; }): AnimatorControllerDef
+(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; rootMotion?: boolean; }): AnimatorControllerDef
 ```
 
 ## setBtNodeField — function @experimental

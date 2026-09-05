@@ -534,6 +534,100 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 | `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | One pure evaluation step over a path → `{ nextPath, consumedTriggers }`. |
 | `STATE_PATH_SEP` | The path separator, `'/'`. |
 
+### Animation events
+
+A clip can name the moments inside it. A `customEvent` track in an
+`.estimeline` carries `{ time, name, payload }`, and the animator reports each
+one on the frame whose step **crossed** it — never the frame that landed on it,
+which a fixed timestep does not do. They arrive on the `AnimatorEvent` bus:
+
+```typescript
+import {
+  defineSystem, EventReader, GetWorld, Res,
+  AnimatorEvent, Particle, resolveChildEntity,
+} from 'esengine';
+
+const footsteps = defineSystem(
+  [EventReader(AnimatorEvent), GetWorld(), Res(Particle)],
+  (events, world, particles) => {
+    for (const event of events) {
+      if (event.name !== 'footstep') continue;
+      const dust = resolveChildEntity(world, event.entity, 'FootDust');
+      if (dust !== null) particles.play(dust);
+    }
+  },
+  { name: 'FootstepSystem' },
+);
+```
+
+| Field | Description |
+|---|---|
+| `entity` | The animated entity — who this happened to. |
+| `name` | The event's name as the clip declared it. |
+| `value` | Its numeric payload (`payload.value`); `0` when the clip states none. |
+| `text` | Its string payload (`payload.text`); empty when the clip states none. |
+
+What the animator promises:
+
+- An event fires on the interval `(previous, current]` a step covered, so a long
+  frame never steps over one and never reports one twice.
+- A loop wrap is *two* intervals — the tail of the lap, then the head of the next
+  — so an event near either end fires exactly once per lap.
+- Several events in one step fire in the order the clip declares them.
+- During a crossfade only the state being **entered** reports events. The one
+  fading out keeps its clock and says nothing, so an attack cancelled into a
+  dodge does not go on landing its hit.
+
+The animator calls into no particle system, no audio and no gameplay: it states
+the event, and whoever owns those things answers it.
+
+### Root motion
+
+A clip that animates the entity it is played **on** is not posing a skeleton —
+it is saying where the character travels. A state declares that:
+
+```json
+{
+  "name": "Dodge",
+  "motion": { "kind": "timeline", "clip": "dodge.estimeline", "loop": false },
+  "rootMotion": true,
+  "transitions": [{ "to": "Idle", "conditions": [], "hasExitTime": true }]
+}
+```
+
+The animator then keeps that root track's `position` and `rotation` out of the
+pose — the clip never moves the entity — and publishes what it asked for on the
+entity's `AnimatorRootMotion` component:
+
+| Field | Description |
+|---|---|
+| `enabled` | Authoring: whether the request is published at all. |
+| `active` | A state declaring root motion is driving this frame. |
+| `deltaPosition` | The displacement asked for, in world space. |
+| `deltaRotation` | The turn asked for, in the character's own frame. |
+| `deltaTime` | The seconds the two deltas cover. |
+
+<Aside type="caution">
+  The deltas are a **request**, not a result. Hand them to whatever moves the
+  character and let the world answer — `ThirdPersonController` does exactly
+  that: while `active` it ignores the stick and asks `CharacterController3D` for
+  `deltaPosition / deltaTime`, so a dodge into a wall asks for the whole
+  distance and travels none of it. Writing `deltaPosition` onto a `Transform`
+  puts the animator in charge of movement, and an animator in charge of movement
+  walks through walls.
+</Aside>
+
+`deltaTime` comes with the deltas because the animator runs on the frame clock
+while a character controller usually steps on a fixed one: form a rate from the
+pair. A consumer that simply added the displacement would move twice on a frame
+with two fixed steps and not at all on a frame with none.
+
+Read `active` rather than "is the delta non-zero" — a dodge has a still moment in
+the middle, and the stick must not take it back there. Without an
+`AnimatorRootMotion` component the state still refuses to pose the character's
+own transform; the clip simply plays on the spot.
+
+
 ## Choosing the right tool
 
 <Aside type="tip">

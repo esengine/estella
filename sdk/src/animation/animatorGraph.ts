@@ -117,7 +117,10 @@ export function setStateMotion(
     };
 }
 
-export function setStateProps(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean }): AnimatorControllerDef {
+export function setStateProps(
+    def: AnimatorControllerDef, name: string,
+    patch: { speed?: number; loop?: boolean; rootMotion?: boolean },
+): AnimatorControllerDef {
     return { ...def, states: def.states.map((s) => (s.name === name ? { ...s, ...patch } : s)) };
 }
 

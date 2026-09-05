@@ -133,6 +133,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
 
   // ── Animation ──────────────────────────────────────────────────────────────
   Animator: { category: 'animation', summary: 'Runs an animator controller — states, transitions and blend trees — over the entity.', doc: 'animation/overview', anchor: 'animator-state-machine', anchorZh: '动画状态机' },
+  AnimatorRootMotion: { category: 'animation', summary: 'Publishes how far the active animation asks the character to move, for gameplay to hand to a character controller — a request, never a result.', doc: 'animation/overview', anchor: 'root-motion', anchorZh: '根运动' },
   SpriteAnimator: { category: 'animation', summary: 'Plays a flipbook clip by swapping the sprite frame, with speed, looping and frame events.', doc: 'animation/overview', anchor: 'sprite-animation', anchorZh: '精灵动画' },
   TimelinePlayer: { category: 'animation', summary: 'Plays a timeline asset — keyframed tracks across many entities — with wrap modes and playback control.', doc: 'animation/timeline', anchor: 'attach-a-timeline', anchorZh: '附加时间轴' },
   SpineAnimation: { category: 'animation', summary: 'A Spine skeleton: its skeleton and atlas assets, current animation, skin and mix settings.', doc: 'animation/spine', anchor: 'the-spineanimation-component', anchorZh: 'spineanimation-组件' },

@@ -24,6 +24,55 @@
       ]
     },
     {
+      "name": "AnimatorRootMotion",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "active",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "deltaPosition",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "deltaRotation",
+          "type": "Quat",
+          "default": "(0, 0, 0, 1)",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "deltaTime",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "deltaPosition.x",
+        "deltaPosition.y",
+        "deltaPosition.z",
+        "deltaRotation.w",
+        "deltaRotation.x",
+        "deltaRotation.y",
+        "deltaRotation.z",
+        "deltaTime"
+      ]
+    },
+    {
       "name": "AudioListener",
       "source": "ts",
       "fields": [
