@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Third Person 3D",
+  "description": "A skinned character walks, turns and jumps under a camera that stays out of walls \u2014 declared by components, not driven by a script.",
+  "tag": "3D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}

@@ -158,6 +158,40 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   `0` walks into everything as if it were a wall.
 </Aside>
 
+## Third person
+
+`ThirdPersonController` and `ThirdPersonCamera` are the gameplay layer above a
+character: input becomes a request, the character controller answers it, and the
+answer is what the animator hears.
+
+```typescript
+// Nothing to write. Both are components a scene declares.
+player.add(ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+rig.add(ThirdPersonCamera, { target: player, distance: 420 });
+```
+
+The stick is read in the camera's GROUND plane, so an eye angled steeply down
+still walks the character across the floor. Pitch never reaches the character.
+
+| Field | What it does |
+|---|---|
+| `moveSpeed` | Top speed on the ground, world units/second. |
+| `acceleration` / `deceleration` | How fast it reaches that speed, and sheds it. |
+| `rotationSpeed` | How fast it turns to face where it went, degrees/second. |
+| `jumpSpeed` | Upward speed a jump starts with. `0` cannot jump. |
+| `airControl` | How much of `acceleration` applies off the ground, 0..1. |
+| `camera` | Whose forward the stick is read against. |
+
+<Aside>
+  The animator is told the speed the character REACHED, not the speed it asked
+  for. A character shoving a wall has a full stick and no motion, and it must not
+  be running on the spot; the same reading is what makes a slope it cannot climb
+  look like the stop it is.
+
+  The camera sweeps the physics world between the pivot and the eye, pulling in
+  when something solid stands between. It moves nothing but itself.
+</Aside>
+
 ## Joints
 
 A door, a rope bridge, a lift, a ragdoll: none of them are one body and a shape.

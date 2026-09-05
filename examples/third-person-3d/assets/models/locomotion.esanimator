@@ -1,0 +1,76 @@
+{
+  "parameters": [
+    {
+      "name": "speed",
+      "type": "float",
+      "default": 0
+    },
+    {
+      "name": "grounded",
+      "type": "bool",
+      "default": true
+    }
+  ],
+  "initialState": "Idle",
+  "states": [
+    {
+      "name": "Idle",
+      "motion": {
+        "kind": "timeline",
+        "clip": "skinned-fade_Flat.estimeline",
+        "loop": true
+      },
+      "transitions": [
+        {
+          "to": "Locomotion",
+          "conditions": [
+            {
+              "param": "speed",
+              "op": "gt",
+              "value": 8
+            }
+          ],
+          "duration": 0.25
+        }
+      ]
+    },
+    {
+      "name": "Locomotion",
+      "motion": {
+        "kind": "blend1d",
+        "parameter": "speed",
+        "thresholds": [
+          {
+            "value": 0,
+            "motion": {
+              "kind": "timeline",
+              "clip": "skinned-fade_Flat.estimeline",
+              "loop": true
+            }
+          },
+          {
+            "value": 200,
+            "motion": {
+              "kind": "timeline",
+              "clip": "skinned-fade_Bent.estimeline",
+              "loop": true
+            }
+          }
+        ]
+      },
+      "transitions": [
+        {
+          "to": "Idle",
+          "conditions": [
+            {
+              "param": "speed",
+              "op": "lt",
+              "value": 8
+            }
+          ],
+          "duration": 0.25
+        }
+      ]
+    }
+  ]
+}

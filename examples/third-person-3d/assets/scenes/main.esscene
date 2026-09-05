@@ -1,0 +1,475 @@
+{
+  "version": 4,
+  "name": "ThirdPerson3D",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 200,
+              "z": 500
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 55,
+            "nearPlane": 10,
+            "farPlane": 4000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "ThirdPersonCamera",
+          "data": {
+            "target": 5,
+            "distance": 420,
+            "pitch": 18
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -20,
+              "z": 0
+            },
+            "scale": {
+              "x": 16.0,
+              "y": 0.4,
+              "z": 16.0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 800.0,
+              "y": 20.0,
+              "z": 800.0
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.3,
+              "g": 0.34,
+              "b": 0.3,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Wall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 420,
+              "y": 120,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.4,
+              "y": 2.4,
+              "z": 8.0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 20.0,
+              "y": 120.0,
+              "z": 400.0
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.45,
+              "g": 0.3,
+              "b": 0.28,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Step",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -360,
+              "y": 25,
+              "z": 0
+            },
+            "scale": {
+              "x": 3.0,
+              "y": 0.5,
+              "z": 4.0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 150.0,
+              "y": 25.0,
+              "z": 200.0
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.36,
+              "g": 0.32,
+              "b": 0.28,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Ramp",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 40,
+              "z": -520
+            },
+            "rotation": {
+              "w": 0.9945218953682733,
+              "x": 0.10452846326765347,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 4.0,
+              "y": 0.3,
+              "z": 7.0
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 200.0,
+              "y": 15.0,
+              "z": 350.0
+            },
+            "friction": 0.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.33,
+              "g": 0.36,
+              "b": 0.4,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Player",
+      "parent": null,
+      "children": [
+        6,
+        7,
+        8
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 80,
+              "z": 120
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 30,
+            "halfHeight": 30,
+            "stepHeight": 40,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "ThirdPersonController",
+          "data": {
+            "camera": 0,
+            "moveSpeed": 320,
+            "jumpSpeed": 520,
+            "idleThreshold": 8
+          }
+        },
+        {
+          "type": "Animator",
+          "data": {
+            "controller": "assets/models/locomotion.esanimator",
+            "currentState": "",
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Bone0",
+      "parent": 5,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Bone1",
+      "parent": 5,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Body",
+      "parent": 5,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/skinned-fade.esmesh",
+            "lit": true,
+            "opaque": true,
+            "color": {
+              "r": 0.35,
+              "g": 0.75,
+              "b": 0.45,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              6,
+              7
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 0.83394695,
+              "x": -0.52086316,
+              "y": 0.18230211,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 1,
+            "intensity": 1.05,
+            "enabled": true,
+            "color": {
+              "r": 1,
+              "g": 0.96,
+              "b": 0.9,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "intensity": 0.42,
+            "enabled": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.66,
+              "b": 0.85,
+              "a": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

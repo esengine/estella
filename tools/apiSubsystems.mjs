@@ -223,6 +223,16 @@ export const SUBSYSTEMS = [
         entry: ['Video'],
     },
     {
+        id: 'gameplay',
+        title: 'Gameplay — third-person character and camera',
+        titleZh: 'Gameplay —— 第三人称角色与相机',
+        source: ['gameplay'],
+        tier: 'experimental',
+        why: 'the newest layer in the engine, and the one a game shapes hardest: what a character owes its animator settled first, everything above it has not',
+        whyZh: '引擎里最新的一层，也是最被具体游戏塑形的一层：角色欠动画什么已经定了，它之上的还没有',
+        entry: ['ThirdPersonController', 'ThirdPersonCamera'],
+    },
+    {
         id: 'ai',
         title: 'AI — navigation, FSM, behaviour trees',
         titleZh: 'AI —— 导航、状态机、行为树',

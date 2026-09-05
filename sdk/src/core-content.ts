@@ -859,6 +859,34 @@ export {
 } from './ai';
 
 // =============================================================================
+// Gameplay (third-person character + camera)
+// =============================================================================
+
+export {
+    GameplayPlugin,
+    gameplayPlugin,
+    ThirdPersonController,
+    ThirdPersonCamera,
+    TPC_SPEED,
+    TPC_GROUNDED,
+    desiredDirection,
+    approachVelocity,
+    facingYaw,
+    shortestAngleDelta,
+    turnToward,
+    yawQuaternion,
+    yawOfQuaternion,
+    cameraGroundBasis,
+    orbitOffset,
+    dampFactor,
+    clampPitch,
+    WORLD_BASIS,
+    type ThirdPersonControllerData,
+    type ThirdPersonCameraData,
+    type MoveBasis,
+} from './gameplay';
+
+// =============================================================================
 // Timeline (Sequencer)
 // =============================================================================
 

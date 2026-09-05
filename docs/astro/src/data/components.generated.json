@@ -4081,6 +4081,172 @@
       ]
     },
     {
+      "name": "ThirdPersonCamera",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "target",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The transform this camera orbits."
+        },
+        {
+          "key": "distance",
+          "type": "number",
+          "default": "420"
+        },
+        {
+          "key": "yaw",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "pitch",
+          "type": "number",
+          "default": "15"
+        },
+        {
+          "key": "minPitch",
+          "type": "number",
+          "default": "-30"
+        },
+        {
+          "key": "maxPitch",
+          "type": "number",
+          "default": "70"
+        },
+        {
+          "key": "sensitivity",
+          "type": "number",
+          "default": "0.2"
+        },
+        {
+          "key": "followDamping",
+          "type": "number",
+          "default": "12",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "targetOffset",
+          "type": "Vec3",
+          "default": "(0, 90, 0)"
+        },
+        {
+          "key": "obstruction",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "obstructionRadius",
+          "type": "number",
+          "default": "15",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "obstructionLayers",
+          "type": "number",
+          "default": "0",
+          "range": "0–15, step 1",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "target",
+        "distance",
+        "yaw",
+        "pitch",
+        "minPitch",
+        "maxPitch",
+        "sensitivity",
+        "followDamping",
+        "targetOffset.x",
+        "targetOffset.y",
+        "targetOffset.z",
+        "obstructionRadius",
+        "obstructionLayers"
+      ]
+    },
+    {
+      "name": "ThirdPersonController",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "moveSpeed",
+          "type": "number",
+          "default": "320"
+        },
+        {
+          "key": "acceleration",
+          "type": "number",
+          "default": "2400"
+        },
+        {
+          "key": "deceleration",
+          "type": "number",
+          "default": "3200"
+        },
+        {
+          "key": "rotationSpeed",
+          "type": "number",
+          "default": "720"
+        },
+        {
+          "key": "jumpSpeed",
+          "type": "number",
+          "default": "0",
+          "doc": "Upward speed a jump starts with. 0 = cannot jump.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "airControl",
+          "type": "number",
+          "default": "0.3",
+          "range": "0–1, step 0.05",
+          "advanced": true
+        },
+        {
+          "key": "cameraRelative",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "camera",
+          "type": "Entity",
+          "default": "none",
+          "doc": "Whose forward the stick is read against."
+        },
+        {
+          "key": "idleThreshold",
+          "type": "number",
+          "default": "8",
+          "range": "≥ 0, step 0.05",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "moveSpeed",
+        "acceleration",
+        "deceleration",
+        "rotationSpeed",
+        "jumpSpeed",
+        "airControl",
+        "camera",
+        "idleThreshold"
+      ]
+    },
+    {
       "name": "Tilemap",
       "source": "ts",
       "fields": [

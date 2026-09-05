@@ -142,6 +142,36 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   更重的要给更多,而 `0` 会让它把所有东西都当成墙。
 </Aside>
 
+## 第三人称
+
+`ThirdPersonController` 与 `ThirdPersonCamera` 是角色之上的 gameplay 层：输入
+变成一个请求，角色控制器给出答复，而动画听到的是这个答复。
+
+```typescript
+// 不需要写脚本，两者都是场景声明的组件。
+player.add(ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+rig.add(ThirdPersonCamera, { target: player, distance: 420 });
+```
+
+摇杆是在相机的**地面**平面里读的，所以镜头再怎么俯视，角色仍然沿地面走。俯仰
+永远不会传到角色身上。
+
+| 字段 | 作用 |
+|---|---|
+| `moveSpeed` | 地面上的最高速度，世界单位/秒。 |
+| `acceleration` / `deceleration` | 加速到该速度的快慢，以及减速的快慢。 |
+| `rotationSpeed` | 转向「实际去过的方向」的角速度，度/秒。 |
+| `jumpSpeed` | 起跳的初始向上速度。`0` 表示不能跳。 |
+| `airControl` | 离地时 `acceleration` 生效的比例，0..1。 |
+| `camera` | 摇杆以谁的前方为准。 |
+
+<Aside>
+  告诉动画的是角色**实际达到**的速度，而不是它请求的速度。顶着墙的角色摇杆推满
+  却没有位移，它不该在原地跑步；爬不上去的斜坡也靠同一个读数表现为「停住」。
+
+  相机会在支点与眼睛之间扫掠物理世界，有实体挡住时把自己拉近。它只移动自己。
+</Aside>
+
 ## 关节
 
 门、绳桥、升降台、布娃娃:它们都不是「一个刚体加一个形状」,
