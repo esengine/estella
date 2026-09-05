@@ -16,6 +16,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
+import { ScreenLayout, screenLayoutRect } from '../ui/core/screen-layout';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
@@ -590,6 +591,13 @@ function syncUICameraInfo(
         // and a shipped build lay UI out in one box.
         const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
         const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
+        // The screen domain is published from here because this is where the fit
+        // is resolved, and from NOTHING here: `screenLayoutRect` takes the fit and
+        // the viewport, and a camera has no way to reach it.
+        if (app.hasResource(ScreenLayout)) {
+            Object.assign(app.getResource(ScreenLayout),
+                          screenLayoutRect(fit, uiCam.vpW, uiCam.vpH));
+        }
         const rect = uiLayoutRect(cam, fit, width, height, previewAspect);
         uiCam.worldLeft = rect.left;
         uiCam.worldRight = rect.right;

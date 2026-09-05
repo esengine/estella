@@ -11,6 +11,7 @@ import { defineComponent, registerComponent } from '../../ecs/component';
 import { Res } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { UICameraInfo } from '../core/ui-camera-info';
+import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
 import type { UICameraData } from '../core/ui-camera-info';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
@@ -107,7 +108,7 @@ export class SafeAreaPlugin implements Plugin {
         let cachedInsets: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
         let stale = true;
         let prevScreenH = 0;
-        let prevWorldH = 0;
+        let prevLayoutH = 0;
 
         if (isWeChat()) {
             const g = globalThis as unknown as WxGlobal;
@@ -118,14 +119,14 @@ export class SafeAreaPlugin implements Plugin {
         }
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(UICameraInfo)],
-            (camera: UICameraData) => {
-                if (!camera.valid || camera.screenH === 0) return;
+            [Res(ScreenLayout)],
+            (layout: ScreenLayoutData) => {
+                if (!layout.valid || layout.viewportH === 0) return;
 
-                const worldH = camera.worldTop - camera.worldBottom;
-                if (camera.screenH !== prevScreenH || worldH !== prevWorldH) {
-                    prevScreenH = camera.screenH;
-                    prevWorldH = worldH;
+                const layoutH = layout.top - layout.bottom;
+                if (layout.viewportH !== prevScreenH || layoutH !== prevLayoutH) {
+                    prevScreenH = layout.viewportH;
+                    prevLayoutH = layoutH;
                     stale = true;
                 }
 
@@ -138,7 +139,7 @@ export class SafeAreaPlugin implements Plugin {
                 }
 
                 const dpr = platformDevicePixelRatio();
-                const insetScale = isWeChat() ? (worldH / camera.screenH) : (dpr * worldH / camera.screenH);
+                const insetScale = isWeChat() ? (1 / layout.scale) : (dpr / layout.scale);
 
                 // UINode targets (CSS box): safe-area insets map to the node's
                 // absolute insets. The node is expected to be position:Absolute.

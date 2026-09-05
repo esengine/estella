@@ -10,6 +10,7 @@ import type { Entity, Vec2 } from '../../types';
 
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
+import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
 import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
@@ -223,8 +224,8 @@ export class UIBehaviorPlugin implements Plugin {
         let lastOffset: Vec2 = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo), Res(Time)],
-            (input: InputState, camera: UICameraData, time: TimeData) => {
+            [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout)],
+            (input: InputState, camera: UICameraData, time: TimeData, layout: ScreenLayoutData) => {
                 if (!camera.valid) return;
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
@@ -254,8 +255,7 @@ export class UIBehaviorPlugin implements Plugin {
                     } else {
                         const dx = worldMouse.x - grabStartWorld.x;
                         const dy = worldMouse.y - grabStartWorld.y;
-                        const worldSpan = camera.worldRight - camera.worldLeft;
-                        const screenDist = Math.hypot(dx, dy) * (worldSpan !== 0 ? camera.vpW / worldSpan : 1);
+                        const screenDist = Math.hypot(dx, dy) * layout.scale;
                         if (screenDist >= SCROLL_DRAG_THRESHOLD_PX) {
                             activeEntity = pendingEntity;
                             pendingEntity = null;

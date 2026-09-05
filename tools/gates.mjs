@@ -250,6 +250,7 @@ export const GATES = [
   // the temp tree a test made comes back ENOTEMPTY at random. Node's retry loop
   // is right there and defaults to OFF.
   { id: 'script-failure', run: 'node tools/check-script-failure.mjs' },
+  { id: 'screen-domain', run: 'node tools/check-screen-domain.mjs' },
   { id: 'rm-retries', run: 'node tools/check-rm-retries.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },

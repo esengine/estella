@@ -18,6 +18,7 @@ import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo } from '../core/ui-camera-info';
+import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
 import type { UICameraData } from '../core/ui-camera-info';
 import { playModeOnly } from '../../ecs/env';
 import { getEntityDepth } from '../util/helpers';
@@ -91,8 +92,8 @@ export class DragPlugin implements Plugin {
         let activeEntity: Entity | null = null;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo)],
-            (input: InputState, camera: UICameraData) => {
+            [Res(Input), Res(UICameraInfo), Res(ScreenLayout)],
+            (input: InputState, camera: UICameraData, layout: ScreenLayoutData) => {
                 if (!camera.valid) return;
 
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
@@ -157,7 +158,7 @@ export class DragPlugin implements Plugin {
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     const draggable = world.get(pendingEntity, Draggable) as DraggableData;
 
-                    const screenDist = dist * (camera.vpW / (camera.worldRight - camera.worldLeft));
+                    const screenDist = dist * layout.scale;
                     if (screenDist >= draggable.dragThreshold) {
                         activeEntity = pendingEntity;
                         pendingEntity = null;
