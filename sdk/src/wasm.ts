@@ -428,6 +428,12 @@ export interface ESEngineModule {
     transform_epochAddress?(): number;
     /** Compose world transforms if a producer said the inputs moved; O(1) if not. */
     transform_ensureComposed?(registry: CppRegistry): void;
+    /** The same composition, also answering WHICH entities' composed output moved.
+     *  `ptr` addresses `changed` raw entity ids; the buffer is reused every call.
+     *  Measured by bench/transform-composition; no shipped path calls it. */
+    transform_composeCollecting?(registry: CppRegistry): {
+        ran: boolean; visited: number; changed: number; ptr: number;
+    };
     /** Permute component storage to the given entity order — see World.applyEntityOrder.
      *  Optional: an older core still answers every other renderer entry point. */
     renderer_setEntityDrawOrder?(registry: CppRegistry, entitiesPtr: number, count: number): void;
