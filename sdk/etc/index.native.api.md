@@ -9715,6 +9715,7 @@ tabIndex: number | undefined
 @internal queryCostEnabled: boolean
 @internal queryEntities: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => readonly Entity[]
 @internal registerRemovedReader: (component: AnyComponentDef) => number
+@internal registerRemovedReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
 @internal removedReaderCount: (component: AnyComponentDef) => number
 @internal resetIterationDepth: () => void
 @internal resetQueryCacheStats: () => void

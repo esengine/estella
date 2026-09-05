@@ -73,13 +73,23 @@ export class ChangeTracker {
      * ownership is never ambiguous.
      */
     registerRemovedReader(component: AnyComponentDef): number {
+        return this.registerRemovedReaderFrom(component, this.worldTick_ + 1);
+    }
+
+    /**
+     * A claim starting at an explicit tick, for a reader whose window is not
+     * "since I last ran". A sampler that reads with a one-tick overlap must
+     * claim from that same floor, or another reader's prune can take a row it
+     * was always going to ask for.
+     */
+    registerRemovedReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
         let readers = this.removedReaders_.get(component._id);
         if (!readers) {
             readers = new Map();
             this.removedReaders_.set(component._id, readers);
         }
         const id = this.nextReaderId_++;
-        readers.set(id, this.worldTick_ + 1);
+        readers.set(id, retainFromTick);
         return id;
     }
 

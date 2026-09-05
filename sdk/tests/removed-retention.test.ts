@@ -230,6 +230,33 @@ describe('removal history retention', () => {
         expect(world.removedReaderCount(Bullet)).toBe(0);
     });
 
+    /**
+     * A sampler reading with a one-tick overlap claims from THAT floor, not from
+     * the tick after it. With a second reader on the same component, the default
+     * claim would sit one tick above the row the sampler is about to ask for,
+     * and that reader's prune takes it.
+     */
+    it('an overlapping claim survives another reader pruning the same tick', () => {
+        const world = new World();
+        world.advanceTick();
+        const T = world.getWorldTick();
+
+        // A `Removed()` system reader, and a sampler that reads `tick > T - 1`.
+        const perSystem = world.registerRemovedReader(Bullet);
+        world.registerRemovedReaderFrom(Bullet, T);
+
+        const e = world.spawn();
+        world.insert(e, Bullet, { n: 1 });
+        world.remove(e, Bullet);
+        expect(world.getRemovedEntitiesSince(Bullet, T - 1)).toEqual([e]);
+
+        // The system reader finishes its run at T and gives up everything through
+        // it. The sampler has not read yet, so the row must survive.
+        world.advanceRemovedReader(Bullet, perSystem, T);
+
+        expect(world.getRemovedEntitiesSince(Bullet, T - 1)).toEqual([e]);
+    });
+
     it('change tracking alone does not accumulate removal rows', async () => {
         const app = App.new();
         const world = app.world;

@@ -1202,6 +1202,12 @@ export class World {
         return this.changes_.registerRemovedReader(component);
     }
 
+    /** @internal A claim from an explicit tick, for a reader that reads with an
+     *  overlap rather than "since I last ran". */
+    registerRemovedReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
+        return this.changes_.registerRemovedReaderFrom(component, retainFromTick);
+    }
+
     /** @internal That reader is done with everything up to `lastRunTick`. */
     advanceRemovedReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
         this.changes_.advanceRemovedReader(component, readerId, lastRunTick);
