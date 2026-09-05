@@ -1223,6 +1223,32 @@ export class World {
         return this.changes_.removedReaderCount(component);
     }
 
+    /** @internal A claim on `component`'s MEMBERSHIP journal — who gained or
+     *  lost it — independent of ordinary change tracking. */
+    registerTopologyReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
+        return this.changes_.registerTopologyReaderFrom(component, retainFromTick);
+    }
+
+    /** @internal Entities worth re-reading because their membership moved. */
+    getTopologyChangedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
+        return this.changes_.getTopologyChangedEntitiesSince(component, sinceTick);
+    }
+
+    /** @internal That reader is done with everything up to `lastRunTick`. */
+    advanceTopologyReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        this.changes_.advanceTopologyReader(component, readerId, lastRunTick);
+    }
+
+    /** @internal The reader is gone; its share of the watermark goes with it. */
+    disposeTopologyReader(component: AnyComponentDef, readerId: number): void {
+        this.changes_.disposeTopologyReader(component, readerId);
+    }
+
+    /** @internal How many readers hold `component`'s membership journal. */
+    topologyReaderCount(component: AnyComponentDef): number {
+        return this.changes_.topologyReaderCount(component);
+    }
+
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void {
         this.changes_.recordChanged(component, entity);

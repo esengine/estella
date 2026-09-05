@@ -6774,6 +6774,7 @@ static prototype: ReplicationPlugin
 
 ## ReplicationServer — class @experimental
 ```
+@internal fullScans: number
 attachConnection: (transport: ReliableOrderedTransport) => number
 beginTick: (fixedDelta: number) => void
 clientIds: number[]
@@ -9742,6 +9743,7 @@ tabIndex: number | undefined
 @internal addressResolver: (component: AnyComponentDef) => (entity: Entity) => number | undefined
 @internal advanceRemovedReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal advanceTick: () => void
+@internal advanceTopologyReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void
 @internal beginIteration: () => void
@@ -9750,12 +9752,14 @@ tabIndex: number | undefined
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
 @internal disconnectCpp: () => void
 @internal disposeRemovedReader: (component: AnyComponentDef, readerId: number) => void
+@internal disposeTopologyReader: (component: AnyComponentDef, readerId: number) => void
 @internal enableChangeTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
 @internal getCppRegistry: () => CppRegistry | null
 @internal getQueryCacheStats: () => QueryCacheStats
 @internal getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getStorageSizes: () => { entities: number; indexSlots: number; spawnCallbacks: number; despawnCallbacks: number; names: ReturnType<NameIndex["sizes"]>; scripts: ReturnType<ScriptStorage["sizes"]>; changes: ReturnType<ChangeTracker["sizes"]>; queryCacheEntries: number; }
+@internal getTopologyChangedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getWasmModule: () => ESEngineModule | null
 @internal getWorldTick: () => number
 @internal getWorldVersion: () => number
@@ -9771,6 +9775,7 @@ tabIndex: number | undefined
 @internal queryEntities: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => readonly Entity[]
 @internal registerRemovedReader: (component: AnyComponentDef) => number
 @internal registerRemovedReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
+@internal registerTopologyReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
 @internal removedReaderCount: (component: AnyComponentDef) => number
 @internal resetIterationDepth: () => void
 @internal resetQueryCacheStats: () => void
@@ -9783,6 +9788,7 @@ tabIndex: number | undefined
 @internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal suspendIteration: () => number
+@internal topologyReaderCount: (component: AnyComponentDef) => number
 @internal useScriptPoolMemory: (memory: PoolMemory) => void
 despawn: (entity: Entity) => void
 entityCount: () => number

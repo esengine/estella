@@ -140,6 +140,15 @@ export class ReplicationServer {
     private changeFloor_ = -1;
     private readonly offDespawn_: () => void;
     private disposed_ = false;
+    /**
+     * The registry's own window and claim. Separate from `changeFloor_` on
+     * purpose: field observation installs with the LAZY table, this one watches
+     * the fixed `Replicated` marker and lives as long as the server does.
+     */
+    private registryFloor_: number;
+    private readonly registryReader_: number;
+    /** @internal Full-world reconciliations run — a steady-state sample must do none. */
+    fullScans = 0;
 
     constructor(world: World) {
         this.world_ = world;
@@ -147,6 +156,8 @@ export class ReplicationServer {
             // Sampling handles replicated despawns; this catches direct holes.
             this.netIds_.unregisterEntity(e);
         });
+        this.registryFloor_ = world.getWorldTick() - 1;
+        this.registryReader_ = world.registerTopologyReaderFrom(Replicated, this.registryFloor_ + 1);
     }
 
     /** Lazily built so components defined after plugin install still count. */
@@ -186,6 +197,14 @@ export class ReplicationServer {
         this.changeFloor_ = nextFloor;
     }
 
+    /** The registry's window, closed the same way and at the same moment. Two
+     *  functions rather than one: the two lifecycles have already diverged once. */
+    private advanceRegistryFloor_(): void {
+        const nextFloor = this.world_.getWorldTick() - 1;
+        this.world_.advanceTopologyReader(Replicated, this.registryReader_, nextFloor);
+        this.registryFloor_ = nextFloor;
+    }
+
     /**
      * Give back everything this server holds outside itself: its channels, its
      * claims on removal history, and its despawn subscription. Idempotent — the
@@ -198,6 +217,7 @@ export class ReplicationServer {
         for (const id of [...this.connections_.keys()]) this.detachConnection(id);
         for (const o of this.observations_) this.world_.disposeRemovedReader(o.def, o.readerId);
         this.observations_.length = 0;
+        this.world_.disposeTopologyReader(Replicated, this.registryReader_);
         this.offDespawn_();
     }
 
@@ -344,12 +364,13 @@ export class ReplicationServer {
         this.tick_ = tick;
         if (this.connections_.size === 0) {
             // No world scan, but the claims still move: a reader parked on an old
-            // floor pins removal history for as long as the server runs empty.
+            // floor pins history for as long as the server runs empty.
             this.advanceObservationFloor_();
+            this.advanceRegistryFloor_();
             return;
         }
 
-        const { spawnedEntities, despawned } = this.reconcileRegistry_();
+        const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();
 
         // Diff once against the shadow; frames below share the result.
         const sample = this.collectDirty_();
@@ -368,8 +389,9 @@ export class ReplicationServer {
             this.sendTo_(conn, (c) => c.channel.send<ReplAckMsg>(ReplMsg.ack, { tick, seq: conn.ackedSeq }));
         }
 
-        // Last: the window is given up only once its rows are on the wire.
+        // Last: the windows are given up only once their rows are on the wire.
         this.advanceObservationFloor_();
+        this.advanceRegistryFloor_();
     }
 
     /** Fast path (no policy): everything to every ready connection on shared
@@ -507,14 +529,16 @@ export class ReplicationServer {
     }
 
     /**
-     * Bring the registry level with the world, and say what moved. netIds are
-     * captured before unregistering so a per-connection despawn can still name
-     * an entity that vanished this tick.
+     * The registry rebuilt against the whole world — a baseline, not a steady
+     * state. A reconciliation, not a reconstruction: entities still present keep
+     * the netId the clients hold. netIds are captured before unregistering so a
+     * per-connection despawn can still name what vanished this tick.
      */
-    private reconcileRegistry_(): {
+    private reconcileRegistryFromWorld_(): {
         spawnedEntities: Entity[];
         despawned: { entity: Entity; netId: number }[];
     } {
+        this.fullScans++;
         const current = this.world_.getEntitiesWithComponents([Replicated]);
         const currentSet = new Set(current);
 
@@ -545,16 +569,54 @@ export class ReplicationServer {
     }
 
     /**
+     * Which entities entered or left replication. Topology history SELECTS
+     * candidates; `known × current world` DECIDES: added-and-removed before the
+     * sample is one candidate that is neither known nor live, removed-and-re-added
+     * is one that is both, and the clients hear about neither.
+     */
+    private reconcileRegistryIncremental_(): {
+        spawnedEntities: Entity[];
+        despawned: { entity: Entity; netId: number }[];
+    } {
+        const spawnedEntities: Entity[] = [];
+        const despawned: { entity: Entity; netId: number }[] = [];
+        const candidates = new Set(
+            this.world_.getTopologyChangedEntitiesSince(Replicated, this.registryFloor_),
+        );
+        for (const e of candidates) {
+            const isKnown = this.known_.has(e);
+            const isLive = this.world_.valid(e) && this.world_.has(e, Replicated);
+            if (!isKnown && isLive) {
+                this.registerEntity_(e);
+                spawnedEntities.push(e);
+            } else if (isKnown && !isLive) {
+                const netId = this.knownNetIds_.get(e);
+                if (netId !== undefined) {
+                    despawned.push({ entity: e, netId });
+                    this.netIds_.unregister(netId);
+                }
+                this.known_.delete(e);
+                this.knownNetIds_.delete(e);
+                this.shadow_.delete(e);
+            } else if (isKnown && isLive) {
+                this.restoreNetId_(e);
+            }
+        }
+        return { spawnedEntities, despawned };
+    }
+
+    /**
      * The registry, rebuilt from the world for a client arriving when nothing is
      * ready. `sample` returns early with no connections, so the registry stops
      * following the world — and the initial state is built FROM it. Shadows are
      * re-seeded so the frame after does not re-send what the spawn carried.
      */
     private rebaseRegistry_(): void {
-        this.reconcileRegistry_();
+        this.reconcileRegistryFromWorld_();
         for (const e of this.known_) this.seedShadow_(e);
-        // The shadow is now the world, so the observation window starts here too.
+        // The shadow is now the world, so both windows start here too.
         this.advanceObservationFloor_();
+        this.advanceRegistryFloor_();
     }
 
     /**

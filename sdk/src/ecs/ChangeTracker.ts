@@ -8,19 +8,102 @@
 import { Entity } from '../types';
 import { AnyComponentDef } from './component';
 
+/**
+ * Per-component history with per-component retention: rows exist only while a
+ * reader holds the component, pruned to the LOWEST claim on it. Two of these
+ * exist — removal history and membership topology — because a consumer of one
+ * must not keep the other alive; the ownership rule is written once.
+ */
+class ReaderOwnedJournal {
+    private rows_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();
+    private readers_ = new Map<symbol, Map<number, number>>();
+
+    hasReaders(componentId: symbol): boolean {
+        return this.readers_.has(componentId);
+    }
+
+    record(componentId: symbol, entity: Entity, tick: number): void {
+        let buffer = this.rows_.get(componentId);
+        if (!buffer) {
+            buffer = [];
+            this.rows_.set(componentId, buffer);
+        }
+        buffer.push({ entity, tick });
+    }
+
+    /** Rows after `sinceTick`, in the order they happened. May repeat an entity. */
+    since(componentId: symbol, sinceTick: number): Entity[] {
+        const buffer = this.rows_.get(componentId);
+        if (!buffer) return [];
+        const out: Entity[] = [];
+        for (const row of buffer) if (row.tick > sinceTick) out.push(row.entity);
+        return out;
+    }
+
+    register(componentId: symbol, readerId: number, retainFromTick: number): void {
+        let readers = this.readers_.get(componentId);
+        if (!readers) {
+            readers = new Map();
+            this.readers_.set(componentId, readers);
+        }
+        readers.set(readerId, retainFromTick);
+    }
+
+    advance(componentId: symbol, readerId: number, lastTick: number): void {
+        const readers = this.readers_.get(componentId);
+        if (!readers?.has(readerId)) return;
+        readers.set(readerId, lastTick + 1);
+        this.prune_(componentId);
+    }
+
+    dispose(componentId: symbol, readerId: number): void {
+        const readers = this.readers_.get(componentId);
+        if (!readers) return;
+        readers.delete(readerId);
+        this.prune_(componentId);
+    }
+
+    readerCount(componentId: symbol): number {
+        return this.readers_.get(componentId)?.size ?? 0;
+    }
+
+    totalRows(): number {
+        let n = 0;
+        for (const buffer of this.rows_.values()) n += buffer.length;
+        return n;
+    }
+
+    private prune_(componentId: symbol): void {
+        const readers = this.readers_.get(componentId);
+        if (!readers || readers.size === 0) {
+            this.readers_.delete(componentId);
+            this.rows_.delete(componentId);
+            return;
+        }
+        const buffer = this.rows_.get(componentId);
+        if (!buffer) return;
+        let safe = Infinity;
+        for (const from of readers.values()) if (from < safe) safe = from;
+        let writeIdx = 0;
+        for (let i = 0; i < buffer.length; i++) {
+            if (buffer[i].tick >= safe) buffer[writeIdx++] = buffer[i];
+        }
+        buffer.length = writeIdx;
+        if (writeIdx === 0) this.rows_.delete(componentId);
+    }
+}
+
 export class ChangeTracker {
     private worldTick_ = 0;
     private componentAddedTicks_ = new Map<symbol, Map<Entity, number>>();
     private componentChangedTicks_ = new Map<symbol, Map<Entity, number>>();
-    private componentRemovedBuffer_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();
+    private readonly removals_ = new ReaderOwnedJournal();
+    /** Membership moves, independent of ordinary change tracking. */
+    private readonly topology_ = new ReaderOwnedJournal();
     private trackedComponents_ = new Set<symbol>();
     // The most recent worldTick at which ANY entity changed each component — an
     // O(1) "did anything change since tick T" gate (vs scanning the per-entity map).
     private componentLastChangedTick_ = new Map<symbol, number>();
-    // Who still needs removal history, and from which tick. Removal rows are
-    // produced ONLY for a component in here: `Changed(C)` needs to know the
-    // topology moved, never which entity lost C at tick 738.
-    private removedReaders_ = new Map<symbol, Map<number, number>>();
     private nextReaderId_ = 1;
 
     advanceTick(): void {
@@ -56,15 +139,35 @@ export class ChangeTracker {
     }
 
     getRemovedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
-        const buffer = this.componentRemovedBuffer_.get(component._id);
-        if (!buffer) return [];
-        const result: Entity[] = [];
-        for (const entry of buffer) {
-            if (entry.tick > sinceTick) {
-                result.push(entry.entity);
-            }
-        }
-        return result;
+        return this.removals_.since(component._id, sinceTick);
+    }
+
+    /**
+     * Entities whose MEMBERSHIP in `component` moved after `sinceTick` — gained
+     * or lost, and deliberately not saying which. A consumer re-reads the world
+     * to find out; this only says who is worth re-reading.
+     */
+    getTopologyChangedEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
+        return this.topology_.since(component._id, sinceTick);
+    }
+
+    registerTopologyReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
+        const id = this.nextReaderId_++;
+        this.topology_.register(component._id, id, retainFromTick);
+        return id;
+    }
+
+    advanceTopologyReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        this.topology_.advance(component._id, readerId, lastRunTick);
+    }
+
+    disposeTopologyReader(component: AnyComponentDef, readerId: number): void {
+        this.topology_.dispose(component._id, readerId);
+    }
+
+    /** @internal How many readers hold `component`'s membership journal. */
+    topologyReaderCount(component: AnyComponentDef): number {
+        return this.topology_.readerCount(component._id);
     }
 
     /**
@@ -83,13 +186,8 @@ export class ChangeTracker {
      * was always going to ask for.
      */
     registerRemovedReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
-        let readers = this.removedReaders_.get(component._id);
-        if (!readers) {
-            readers = new Map();
-            this.removedReaders_.set(component._id, readers);
-        }
         const id = this.nextReaderId_++;
-        readers.set(id, retainFromTick);
+        this.removals_.register(component._id, id, retainFromTick);
         return id;
     }
 
@@ -99,52 +197,28 @@ export class ChangeTracker {
      * `tick > lastRunTick`, which is why the claim is the tick after.
      */
     advanceRemovedReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
-        const readers = this.removedReaders_.get(component._id);
-        if (!readers?.has(readerId)) return;
-        readers.set(readerId, lastRunTick + 1);
-        this.pruneRemoved_(component._id);
+        this.removals_.advance(component._id, readerId, lastRunTick);
     }
 
     /** Give up the claim, and let the watermark move at once — history with no
      *  owner is not history anyone can ask for. */
     disposeRemovedReader(component: AnyComponentDef, readerId: number): void {
-        const readers = this.removedReaders_.get(component._id);
-        if (!readers) return;
-        readers.delete(readerId);
-        this.pruneRemoved_(component._id);
+        this.removals_.dispose(component._id, readerId);
     }
 
     /** @internal How many readers hold `component`'s history — for the fixtures
      *  that assert a disposed reader stopped pinning it. */
     removedReaderCount(component: AnyComponentDef): number {
-        return this.removedReaders_.get(component._id)?.size ?? 0;
-    }
-
-    /**
-     * Drop what no reader of THIS component can still ask for. Per component,
-     * never global: a slow reader of one component has no business pinning
-     * another's history.
-     */
-    private pruneRemoved_(componentId: symbol): void {
-        const readers = this.removedReaders_.get(componentId);
-        if (!readers || readers.size === 0) {
-            this.removedReaders_.delete(componentId);
-            this.componentRemovedBuffer_.delete(componentId);
-            return;
-        }
-        const buffer = this.componentRemovedBuffer_.get(componentId);
-        if (!buffer) return;
-        let safe = Infinity;
-        for (const from of readers.values()) if (from < safe) safe = from;
-        let writeIdx = 0;
-        for (let i = 0; i < buffer.length; i++) {
-            if (buffer[i].tick >= safe) buffer[writeIdx++] = buffer[i];
-        }
-        buffer.length = writeIdx;
-        if (writeIdx === 0) this.componentRemovedBuffer_.delete(componentId);
+        return this.removals_.readerCount(component._id);
     }
 
     recordAdded(component: AnyComponentDef, entity: Entity): void {
+        // BEFORE the tracking gate: a membership journal is what lets a consumer
+        // follow arrivals and departures WITHOUT enrolling the component in
+        // ordinary change tracking, and paying that tax on every field write.
+        if (this.topology_.hasReaders(component._id)) {
+            this.topology_.record(component._id, entity, this.worldTick_);
+        }
         if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentAddedTicks_.get(component._id);
         if (!map) {
@@ -185,16 +259,15 @@ export class ChangeTracker {
      * recorded for one kind and dropped for the other.
      */
     recordRemovedById(componentId: symbol, entity: Entity): void {
+        // Same reason as `recordAdded`: first, and gated on its own readers.
+        if (this.topology_.hasReaders(componentId)) {
+            this.topology_.record(componentId, entity, this.worldTick_);
+        }
         // A row is stored only for a component someone reads history of. With
         // `Changed(C)` alone this is the whole difference between a buffer that
         // grows with every despawn for the life of the world, and none at all.
-        if (this.removedReaders_.has(componentId)) {
-            let buffer = this.componentRemovedBuffer_.get(componentId);
-            if (!buffer) {
-                buffer = [];
-                this.componentRemovedBuffer_.set(componentId, buffer);
-            }
-            buffer.push({ entity, tick: this.worldTick_ });
+        if (this.removals_.hasReaders(componentId)) {
+            this.removals_.record(componentId, entity, this.worldTick_);
         }
         if (!this.trackedComponents_.has(componentId)) return;
         this.componentAddedTicks_.get(componentId)?.delete(entity);
@@ -220,8 +293,7 @@ export class ChangeTracker {
             for (const m of maps.values()) n += m.size;
             return n;
         };
-        let removedRows = 0;
-        for (const buffer of this.componentRemovedBuffer_.values()) removedRows += buffer.length;
+        const removedRows = this.removals_.totalRows();
         return {
             tracked: this.trackedComponents_.size,
             addedRows: rowsIn(this.componentAddedTicks_),

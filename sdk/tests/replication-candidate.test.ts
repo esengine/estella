@@ -284,3 +284,112 @@ describe('the server owns what it registered', () => {
         expect(serverApp.world.getStorageSizes().changes.removedRows).toBeLessThan(10);
     });
 });
+
+describe('the registry runs on candidates too', () => {
+    it('gives back its membership claim on dispose', () => {
+        const app = makeApp();
+        const net = app.getResource(Net);
+        const world = app.world;
+        const before = world.topologyReaderCount(Replicated);
+
+        net.startServer();
+        expect(world.topologyReaderCount(Replicated)).toBe(before + 1);
+
+        net.stop();
+        expect(world.topologyReaderCount(Replicated)).toBe(before);
+
+        net.startServer();
+        net.stop();
+        net.stop();
+        expect(world.topologyReaderCount(Replicated)).toBe(before);
+    });
+
+    it('does no full world scan in a steady-state sample', async () => {
+        const { serverApp, server, step } = await connected();
+        spawn(serverApp, 1);
+        await step();
+
+        // The baseline is behind us; from here the registry must run on the
+        // membership journal alone. A helper that "just checks" with a full scan
+        // is what this counts, whatever it is called.
+        const baseline = server.fullScans;
+        await step(5);
+        expect(server.fullScans).toBe(baseline);
+    });
+
+    it('does exactly one when a client arrives to a quiet server', async () => {
+        const { serverApp, server, step } = await connected();
+        spawn(serverApp, 1);
+        await step();
+        for (let id = 0; id < 8; id++) server.detachConnection(id);
+        const before = server.fullScans;
+
+        const [sb, cb] = MemoryTransport.pair();
+        server.attachConnection(sb);
+        const appB = makeApp();
+        await appB.getResource(Net).connect(cb, { interpolationDelayTicks: 0 });
+
+        expect(server.fullScans).toBe(before + 1);
+    });
+
+    it('handles an entity slot reused by a new generation', async () => {
+        const { serverApp, server, clientApp, step } = await connected();
+        const world = serverApp.world;
+        const old = spawn(serverApp, 1);
+        await step();
+        const oldNetId = server.netIds.netIdOf(old);
+        expect(oldNetId).toBeGreaterThan(0);
+
+        world.despawn(old);
+        // Same slot, new generation: two DIFFERENT candidates in one window.
+        const fresh = spawn(serverApp, 2);
+        expect(fresh).not.toBe(old);
+        expect(world.valid(old)).toBe(false);
+        expect(world.valid(fresh)).toBe(true);
+
+        await step(2);
+
+        expect(server.netIds.entityOf(oldNetId!)).toBeUndefined();
+        const freshNetId = server.netIds.netIdOf(fresh);
+        expect(freshNetId).toBeGreaterThan(0);
+        expect(freshNetId).not.toBe(oldNetId);
+        expect(clientApp.world.getEntitiesWithComponents([Replicated]).length).toBe(1);
+    });
+
+    it('reconciles the registry BEFORE collecting fields, on the way out', async () => {
+        const { serverApp, seen, step } = await connected();
+        const world = serverApp.world;
+        const e = spawn(serverApp, 1);
+        world.insert(e, Tag, { v: 7 });
+        await step();
+        seen.sent.length = 0;
+
+        // The registry drops the entity first, so the field pass never sees a
+        // shadow to reconcile. The other order emits a componentRemove for an
+        // entity the client is about to be told no longer exists.
+        world.despawn(e);
+        await step(2);
+
+        expect(removes(seen.sent)).toBe(0);
+    });
+
+    it('reconciles the registry BEFORE collecting fields, on the way in', async () => {
+        const { serverApp, clientApp, seen, step } = await connected();
+        const world = serverApp.world;
+        await step();
+        seen.sent.length = 0;
+
+        // Arrives and is written in the same window: the spawn payload carries
+        // the current value, so the field pass must find nothing left to send.
+        const e = world.spawn();
+        world.insert(e, Replicated, { owner: 0 });
+        world.insert(e, NetPos, { x: 5, y: 0, z: 0 });
+        world.set(e, NetPos, { x: 6, y: 0, z: 0 });
+        await step();
+
+        expect(deltas(seen.sent)).toBe(0);
+        const xs = clientApp.world.getEntitiesWithComponents([Replicated])
+            .map((g) => (clientApp.world.tryGet(g, NetPos) as { x: number } | null)?.x);
+        expect(xs).toContain(6);
+    });
+});
