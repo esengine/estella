@@ -24,13 +24,17 @@ import { Animator, AnimatorController, type AnimatorControllerAPI } from '../ani
 import {
     AnimatorRootMotion, type AnimatorRootMotionData,
 } from '../animation/animatorRootMotion';
+import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorEvent';
+import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
+import { Damage, applyDamage, type DamagePayload } from './Health';
+import { MeleeAttacks, resolveMeleeHits } from './MeleeAttack';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
-    yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, type MoveBasis,
+    yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY, type MoveBasis,
 } from './ThirdPersonController';
 import {
     ThirdPersonCamera, type ThirdPersonCameraData,
@@ -42,6 +46,8 @@ export const TPC_SPEED = 'speed';
 export const TPC_GROUNDED = 'grounded';
 /** The trigger a dodge press sets. Whether any state answers it is the graph's. */
 export const TPC_DODGE = 'dodge';
+/** The trigger an attack press sets. The graph decides which state answers it. */
+export const TPC_ATTACK = 'attack';
 
 /**
  * What the animation is asking this character to do, or null when nothing is.
@@ -85,8 +91,11 @@ export function requestMotion(
         const data = world.get(entity, ThirdPersonController) as ThirdPersonControllerData;
         if (!data.enabled) continue;
 
-        if (animator && world.has(entity, Animator) && input.isKeyPressed(DODGE_KEY)) {
-            animator.setTrigger(entity, TPC_DODGE);
+        if (animator && world.has(entity, Animator)) {
+            // A press asks for the ACTION; which clip that is, and whether this
+            // character has one at all, stays the animator graph's answer.
+            if (input.isKeyPressed(DODGE_KEY)) animator.setTrigger(entity, TPC_DODGE);
+            if (input.isKeyPressed(ATTACK_KEY)) animator.setTrigger(entity, TPC_ATTACK);
         }
 
         const character = world.get(entity, CharacterController3D) as CharacterController3DData;
@@ -257,10 +266,39 @@ export function updateCameras(
 export class GameplayPlugin implements Plugin {
     name = 'gameplay';
     private offDespawn_: (() => void) | null = null;
+    /** Per App, not per module: two Apps in one process must not share swings. */
+    private readonly attacks_ = new MeleeAttacks();
 
     build(app: App): void {
         const world = app.world;
-        this.offDespawn_ = world.onDespawn((entity: Entity) => { lastPointer.delete(entity); });
+        const attacks = this.attacks_;
+        this.offDespawn_ = world.onDespawn((entity: Entity) => {
+            lastPointer.delete(entity);
+            attacks.forget(entity);
+        });
+
+        // BEFORE this frame's animator: the events are last frame's, and the
+        // joints still hold the pose that posted them. Running after would ask
+        // the query about a swing that has already moved on.
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+            [EventReader(AnimatorEvent), EventWriter(Damage)],
+            (
+                events: Iterable<AnimatorEventPayload>,
+                damage: EventWriterInstance<DamagePayload>,
+            ) => {
+                const queries = app.hasResource(Physics3D) ? app.getResource(Physics3D) : null;
+                resolveMeleeHits(world, attacks, queries, events, damage);
+            },
+            { name: 'MeleeAttackSystem' },
+        ), { runIf: playModeOnly });
+
+        // The only writer of Health, and it reads a request rather than being
+        // called by whatever swung.
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+            [EventReader(Damage)],
+            (blows: Iterable<DamagePayload>) => { applyDamage(world, blows); },
+            { name: 'DamageSystem' },
+        ), { runIf: playModeOnly });
 
         // Before the physics step: what the player is asking for.
         app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
@@ -299,6 +337,7 @@ export class GameplayPlugin implements Plugin {
         this.offDespawn_?.();
         this.offDespawn_ = null;
         lastPointer.clear();
+        this.attacks_.clear();
     }
 }
 

@@ -23,6 +23,9 @@ import type { Vec3 } from '../types';
 /** The key a dodge is asked for on; the animator decides whether there is one. */
 export const DODGE_KEY = 'ShiftLeft';
 
+/** The key an attack is asked for on. Same rule: a request, not a clip name. */
+export const ATTACK_KEY = 'KeyJ';
+
 /** The fields of the `ThirdPersonController` component. @experimental */
 export interface ThirdPersonControllerData {
     /** Top speed on the ground, world units per second. */
