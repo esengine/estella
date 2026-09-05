@@ -53,7 +53,9 @@ export {
     leafStateOf,
     resolveParams,
     selectBlendClip,
+    motionOf,
     STATE_PATH_SEP,
+    SPINE_MOTION,
     type AnimatorData,
     type AnimatorBlend1D,
     type AnimatorBlendThreshold,
@@ -81,6 +83,7 @@ export {
     renameState as renameAnimatorState,
     setInitial as setAnimatorInitial,
     setStateClip as setAnimatorStateClip,
+    setStateMotion as setAnimatorStateMotion,
     setStateProps as setAnimatorStateProps,
     addTransition as addAnimatorTransition,
     removeTransition as removeAnimatorTransition,
@@ -130,3 +133,22 @@ export {
     type AnimClipVec2,
     type AnimClipSizing,
 } from './AnimClipLoader';
+
+export {
+    MotionRegistry,
+    selectBlendStop,
+    blend1DMotionDriver,
+    isBlend1D,
+    type AnimatorMotion,
+    type AnimatorClipMotion,
+    type AnimatorBlend1DMotion,
+    type AnimatorBlendStop,
+    type MotionContext,
+    type MotionDriver,
+    type MotionParams,
+} from './motion';
+
+export {
+    SPRITE_MOTION,
+    spriteMotionDriver,
+} from './spriteMotion';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     Animator,
     AnimatorControllerAPI,
@@ -171,6 +171,12 @@ function makeWorld() {
     return {
         insert(e: number, c: unknown, data: unknown) { mapOf(c).set(e, data); },
         get(e: number, c: unknown) { return mapOf(c).get(e); },
+        update(e: number, c: unknown, edit: (draft: any) => void) {
+            const draft = mapOf(c).get(e);
+            if (draft === undefined) throw new Error('update: entity does not carry it');
+            edit(draft);
+            mapOf(c).set(e, draft);
+        },
         has(e: number, c: unknown) { return mapOf(c).has(e); },
         getEntitiesWithComponents(comps: unknown[]) {
             const [first, ...rest] = comps;

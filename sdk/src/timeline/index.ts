@@ -78,7 +78,16 @@ export {
 export {
     TimelinePlugin,
     timelinePlugin,
-    TimelinePlayer,
-    type TimelinePlayerData,
 } from './TimelinePlugin';
 
+export {
+    TimelinePlayer,
+    resolveWrapMode,
+    type TimelinePlayerData,
+} from './TimelinePlayerComponent';
+
+
+export {
+    TIMELINE_MOTION,
+    createTimelineMotionDriver,
+} from './timelineMotion';

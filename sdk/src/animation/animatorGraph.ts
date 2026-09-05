@@ -21,6 +21,7 @@ import type {
     AnimatorParam,
     AnimatorParamType,
 } from './Animator';
+import type { AnimatorMotion } from './motion';
 import {
     type GraphSpec, type GraphEdge,
     graphEdges, addGraphState, removeGraphState, moveGraphState, renameGraphState,
@@ -80,15 +81,39 @@ export function setInitial(def: AnimatorControllerDef, name: string): AnimatorCo
     return setGraphInitial(spec, def, name);
 }
 
-/** Set the state's motion to a single sprite clip (clears blend/spine/nested). */
+/**
+ * What a state plays, of any kind. Rebuilt rather than merged: a state names ONE
+ * motion, so the fields spelling every other way of naming one have to go, or a
+ * state would carry two and the reader would have to rank them.
+ */
+function withMotion(s: AnimatorState, motion: Partial<AnimatorState>): AnimatorState {
+    return {
+        name: s.name, x: s.x, y: s.y,
+        transitions: s.transitions, speed: s.speed, loop: s.loop,
+        ...motion,
+    };
+}
+
+/** Set the state's motion to a single sprite clip (clears any other motion). */
 export function setStateClip(def: AnimatorControllerDef, name: string, clip: string): AnimatorControllerDef {
     return {
         ...def,
         states: def.states.map((s) =>
-            s.name === name
-                ? { name: s.name, x: s.x, y: s.y, transitions: s.transitions, speed: s.speed, loop: s.loop, ...(clip ? { clip } : {}) }
-                : s,
-        ),
+            s.name === name ? withMotion(s, clip ? { clip } : {}) : s),
+    };
+}
+
+/**
+ * Point the state at a motion of any registered kind — a timeline, a blend over
+ * either. Null clears it, leaving a state that plays nothing.
+ */
+export function setStateMotion(
+    def: AnimatorControllerDef, name: string, motion: AnimatorMotion | null,
+): AnimatorControllerDef {
+    return {
+        ...def,
+        states: def.states.map((s) =>
+            s.name === name ? withMotion(s, motion ? { motion } : {}) : s),
     };
 }
 

@@ -4,55 +4,23 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
-import { defineComponent, getComponent } from '../ecs/component';
+import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { Audio, type AudioAPI } from '../audio/Audio';
-import { wrapModeFromName, isWrapModeName, TrackType, WrapMode, type TimelineAsset,
+import { TrackType, type TimelineAsset,
          type AnimFramesTrack, type PublishedTimeline } from './TimelineTypes';
+import { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './TimelinePlayerComponent';
 import { Timeline, TimelineAPI } from './TimelineControl';
+import { AnimatorController } from '../animation/Animator';
+import { TIMELINE_MOTION, createTimelineMotionDriver } from './timelineMotion';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import type { SampleDeps } from './TimelineEvaluator';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
-
-export interface TimelinePlayerData {
-    timeline: string;
-    playing: boolean;
-    speed: number;
-    /** Overrides the wrap mode the CLIP declares; empty means the clip's own. */
-    wrapMode: string;
-    /**
-     * Latched true when a Once clip completes; cleared when `playing` is raised
-     * again (which replays from the top). Runtime-observable — don't author it.
-     */
-    finished: boolean;
-}
-
-/**
- * Which wrap mode a playing clip runs under: the CLIP's, unless the player names
- * one to override it with. A string that is not a wrap mode name is a typo, not
- * a choice, and leaves the clip's own mode standing.
- */
-export function resolveWrapMode(playerWrapMode: string, assetWrapMode: WrapMode): WrapMode {
-    return isWrapModeName(playerWrapMode) ? wrapModeFromName(playerWrapMode) : assetWrapMode;
-}
-
-export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlayer', {
-    timeline: '',
-    playing: false,
-    speed: 1.0,
-    wrapMode: '',
-    finished: false,
-}, {
-    assetFields: [{ field: 'timeline', type: 'timeline' }],
-    fields: {
-        wrapMode: { tooltip: "Override the clip's own wrap mode: once, loop or pingPong. Empty uses what the clip declares." },
-        finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to replay.' },
-    },
-});
+export { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './TimelinePlayerComponent';
 
 interface AnimFramesState {
     tracks: AnimFramesTrack[];
@@ -89,6 +57,15 @@ export class TimelinePlugin implements Plugin {
                 ? app.getResource(Assets).resolveRegistryAsset<PublishedTimeline>('timeline', ref)?.asset
                 : undefined),
         );
+
+        // Let an animator state play a timeline. Guarded rather than assumed:
+        // the animation plugin is registered before this one in every plugin set,
+        // and a build without it still plays timelines through TimelinePlayer.
+        if (app.hasResource(AnimatorController)) {
+            app.getResource(AnimatorController).registerMotionDriver(
+                TIMELINE_MOTION, createTimelineMotionDriver(app.getResource(Timeline)),
+            );
+        }
 
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);

@@ -15,7 +15,7 @@
 
 import { aiRegistry, type AiContext } from './fsm/AiContext';
 import type { AiAction, AiActionInput, AiCondition, AiParamValue, AiTouches } from './fsm/registry';
-import { TimelinePlayer } from '../timeline/TimelinePlugin';
+import { TimelinePlayer } from '../timeline/TimelinePlayerComponent';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import { setEntityProperty } from '../ecs/propertyPath';
 

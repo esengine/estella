@@ -2,15 +2,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    Animator.ts
- * @brief   Animation state machine (pure TypeScript), built on the existing
- *          sprite-animation channel.
+ * @brief   Animation state machine (pure TypeScript) over motions of any kind.
  *
  * Design (per REARCH_2D_PARITY.md T2): the state machine is a *strategy layer*
- * over the existing animation channels — it does not run its own clip playback.
- * A state names a sprite clip; when a transition fires, the Animator switches the
- * entity's {@link SpriteAnimator}.clip. Frame playback stays the single
- * responsibility of {@link SpriteAnimationAPI}. Parameters/triggers drive
- * transitions, mirroring the Unity Animator's SetFloat/SetBool/SetTrigger model.
+ * over the engine's animation channels — it does not run its own clip playback.
+ * A state names a MOTION; a {@link MotionDriver} registered for that motion's
+ * kind is what plays it, so the graph is the same whether the entity is a sprite
+ * sheet or a skinned model, and a new kind of animation is a registration rather
+ * than another branch through here. Parameters/triggers drive transitions,
+ * mirroring the Unity Animator's SetFloat/SetBool/SetTrigger model.
  *
  * The transition evaluator ({@link evaluateAnimatorTransitions}) is pure — no
  * World, no side effects — so it is fully unit-testable.
@@ -21,7 +21,12 @@ import { defineResource } from '../ecs/resource';
 import { isUuidRef } from '../asset/AssetRegistry';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
-import { SpriteAnimator, type SpriteAnimatorData } from './SpriteAnimator';
+import {
+    MotionRegistry, blend1DMotionDriver,
+    type AnimatorMotion, type AnimatorClipMotion, type AnimatorBlend1DMotion,
+    type MotionContext, type MotionDriver,
+} from './motion';
+import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 
 // =============================================================================
 // Controller definition (the graph data)
@@ -107,6 +112,12 @@ export interface AnimatorSubMachine {
 
 export interface AnimatorState {
     name: string;
+    /**
+     * What this state plays, of any registered kind (`sprite`, `timeline`, a
+     * blend over either). Takes precedence over the single-kind fields below,
+     * which are the same thing spelled for one kind and are migrated to this.
+     */
+    motion?: AnimatorMotion;
     /** Single sprite clip this state plays. Mutually exclusive with `blend`/`spine`/`stateMachine`. */
     clip?: string;
     /** 1D blend selection. Mutually exclusive with `clip`/`spine`/`stateMachine`. */
@@ -322,6 +333,58 @@ export function selectBlendClip(blend: AnimatorBlend1D, value: number): Animator
     return chosen;
 }
 
+/** Motion kind for a Spine animation; the spine module registers its driver. */
+export const SPINE_MOTION = 'spine';
+
+/**
+ * Migrated motions, keyed by the state that spelled one the single-kind way.
+ * A controller's states are stable objects, so this converts once rather than
+ * every frame — and keeps `motionOf` free to return a fresh shape without
+ * allocating one per tick.
+ */
+const migratedMotions = new WeakMap<AnimatorState, AnimatorMotion | null>();
+
+/** A legacy 1D blend over sprite clips, as the equivalent blend over motions.
+ *  A stop's own speed/loop wins over the state's, which is what it did before. */
+function spriteBlendMotion(st: AnimatorState, blend: AnimatorBlend1D): AnimatorBlend1DMotion {
+    return {
+        kind: 'blend1d',
+        parameter: blend.parameter,
+        thresholds: blend.thresholds.map(t => ({
+            value: t.value,
+            motion: {
+                kind: SPRITE_MOTION,
+                clip: t.clip,
+                speed: t.speed ?? st.speed,
+                loop: t.loop ?? st.loop,
+            } satisfies AnimatorClipMotion,
+        })),
+    };
+}
+
+/**
+ * What a state plays, whichever way it was authored: `motion`, or the
+ * `clip`/`blend`/`spine` fields every controller written before motions used.
+ * Read here rather than rewritten on load, so those keep working untouched.
+ * Null for a state with no motion of its own (a container).
+ */
+export function motionOf(st: AnimatorState): AnimatorMotion | null {
+    const cached = migratedMotions.get(st);
+    if (cached !== undefined) return cached;
+
+    let motion: AnimatorMotion | null = null;
+    if (st.motion) motion = st.motion;
+    else if (st.spine) {
+        motion = { kind: SPINE_MOTION, clip: st.spine.animation, loop: st.spine.loop };
+    } else if (st.blend) motion = spriteBlendMotion(st, st.blend);
+    else if (st.clip) {
+        motion = { kind: SPRITE_MOTION, clip: st.clip, speed: st.speed, loop: st.loop };
+    }
+
+    migratedMotions.set(st, motion);
+    return motion;
+}
+
 /** Merge a controller's declared parameter defaults with per-entity overrides. */
 export function resolveParams(
     def: AnimatorControllerDef,
@@ -413,12 +476,50 @@ export class AnimatorControllerAPI {
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
-    private spineDriver_: SpineAnimationDriver | null = null;
+    private readonly motions_ = new MotionRegistry();
+
+    constructor() {
+        // The kinds the animation core itself can play. Everything else — a
+        // timeline, a spine track — is registered by the module that owns it,
+        // which is what keeps this file from importing them.
+        this.motions_.register(SPRITE_MOTION, spriteMotionDriver);
+        this.motions_.register('blend1d', blend1DMotionDriver);
+    }
+
+    /**
+     * Teach this animator a kind of motion. Called by the plugin that owns the
+     * kind (TimelinePlugin, SpinePlugin); a state naming an unregistered kind is
+     * inert rather than an error, since a scene may be authored against a module
+     * this build does not load.
+     */
+    registerMotionDriver<M extends AnimatorMotion>(
+        kind: M['kind'], driver: MotionDriver<M>,
+    ): void {
+        this.motions_.register(kind, driver);
+    }
+
+    /** Whether some driver can play `kind` here. */
+    hasMotionDriver(kind: string): boolean {
+        return this.motions_.has(kind);
+    }
 
     /** Inject the Spine driver (SpinePlugin wires SpineManager here). Optional —
      *  without it, spine-targeting states are inert. */
     setSpineDriver(driver: SpineAnimationDriver | null): void {
-        this.spineDriver_ = driver;
+        if (!driver) {
+            this.motions_.unregister(SPINE_MOTION);
+            return;
+        }
+        this.motions_.register<AnimatorClipMotion>(SPINE_MOTION, {
+            // On entry only: SpineManager owns track playback and mixing, and
+            // re-setting the animation every frame would restart it every frame.
+            apply: (ctx: MotionContext, motion: AnimatorClipMotion, enter: boolean) => {
+                if (enter) driver.setAnimation(ctx.entity, motion.clip, motion.loop ?? true);
+            },
+            // Track completion lives in SpineManager, which this seam does not
+            // read; an exit-time transition out of a spine state needs a condition.
+            isFinished: () => false,
+        });
     }
 
     // -- controller registry --------------------------------------------------
@@ -518,16 +619,12 @@ export class AnimatorControllerAPI {
 
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const triggerSet = this.triggers.get(entity);
-            // The leaf clip has finished when its SpriteAnimator is playing exactly
-            // that clip and has stopped — not merely stopped (also true before the
-            // clip is ever applied, e.g. the frame a state is entered). Only a
-            // sprite leaf reports this; a spine leaf's completion is SpineManager's.
-            const spNow = world.has(entity, SpriteAnimator)
-                ? (world.get(entity, SpriteAnimator) as SpriteAnimatorData)
-                : null;
-            const expectedClip = !leaf.spine ? this.motionClipOf(leaf, params).clip : '';
-            const clipFinished = expectedClip !== '' && spNow != null
-                && spNow.clip === expectedClip && !spNow.playing;
+            const ctx = this.motions_.context(world, entity, params);
+            // Whether the motion has ended is the motion's to answer. A leaf with
+            // none (or whose kind has no driver here) reports false, so an
+            // exit-time transition waits rather than firing on nothing.
+            const leafMotion = motionOf(leaf);
+            const clipFinished = leafMotion !== null && ctx.finished(leafMotion);
 
             const { nextPath, consumedTriggers } = evaluateAnimatorPath(
                 def, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
@@ -541,53 +638,13 @@ export class AnimatorControllerAPI {
                 world.insert(entity, Animator, a);
             }
             const targetLeaf = nextPath ? leafStateOf(def, target) : leaf;
-            // Apply the active leaf's motion every frame: a 1D-blend leaf's selected
-            // clip can change as its parameter crosses a threshold without any state
-            // change. A single-clip leaf in steady state is a no-op (cheap).
-            if (targetLeaf) this.applyMotion(world, entity, targetLeaf, params, stateChanged);
+            if (!targetLeaf) continue;
+            // Drive the active leaf every frame: a blend's selection can change as
+            // its parameter crosses a threshold without any state change. A driver
+            // is a no-op in steady state, which is what keeps that cheap.
+            const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
+            if (motion) ctx.drive(motion, stateChanged);
         }
-    }
-
-    /**
-     * Drive the entity's SpriteAnimator from a leaf state's motion (single clip or
-     * 1D-blend selection). Writes only when the desired clip differs or the state
-     * just changed — restarting from frame 0 on a switch.
-     */
-    private applyMotion(
-        world: World, entity: Entity, st: AnimatorState,
-        params: AnimatorParamValues, forceRestart: boolean,
-    ): void {
-        // Spine state: set the skeletal animation on entry (SpineManager owns the
-        // track playback/mixing); don't re-set every frame or touch SpriteAnimator.
-        if (st.spine) {
-            if (forceRestart && this.spineDriver_) {
-                this.spineDriver_.setAnimation(entity, st.spine.animation, st.spine.loop ?? true);
-            }
-            return;
-        }
-
-        if (!world.has(entity, SpriteAnimator)) return;
-        const sel = this.motionClipOf(st, params);
-        const sp = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
-        if (sp.clip === sel.clip && !forceRestart) return;
-
-        sp.clip = sel.clip;
-        sp.speed = sel.speed ?? st.speed ?? 1.0;
-        sp.loop = sel.loop ?? st.loop ?? true;
-        sp.currentFrame = 0;
-        sp.frameTimer = 0;
-        sp.playing = true;
-        sp.finished = false;
-        sp.enabled = true;
-        world.insert(entity, SpriteAnimator, sp);
-    }
-
-    /** The clip (and its speed/loop) a state would play for the given params:
-     *  the single clip, or the 1D-blend selection. */
-    private motionClipOf(st: AnimatorState, params: AnimatorParamValues): AnimatorBlendThreshold {
-        return st.blend
-            ? selectBlendClip(st.blend, Number(params[st.blend.parameter] ?? 0))
-            : { value: 0, clip: st.clip ?? '', speed: st.speed, loop: st.loop };
     }
 }
 
