@@ -324,6 +324,7 @@ postprocess_init: (width: number, height: number) => boolean
 postprocess_isInitialized: () => boolean
 postprocess_resize: (width: number, height: number) => void
 postprocess_setBypass: (bypass: boolean) => void
+postprocess_setMsaaSamples: (samples: number) => void
 postprocess_setOutputTransform: ((transform: number) => void) | undefined
 postprocess_setOutputViewport: (x: number, y: number, w: number, h: number) => void
 postprocess_setPassScale: (name: string, scale: number) => void

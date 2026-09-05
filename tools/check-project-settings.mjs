@@ -92,6 +92,7 @@ const PARSE_KEY = {
   outputTransform: 'r.outputTransform',
   renderBackend: 'r.backend',
   screenFit: 'r.cameraScaleMode',
+  msaaSamples: 'r.msaa',
 };
 
 /** Field names of the RuntimeProjectConfig interface, in declaration order. */

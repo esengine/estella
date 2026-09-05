@@ -2329,6 +2329,7 @@ world: World
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
+msaaSamples: number | undefined
 outputTransform: OutputTransform | undefined
 plugins: Plugin[] | undefined
 randomSeed: number | undefined
@@ -5314,6 +5315,7 @@ colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 entryScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
+msaaSamples: number | undefined
 outputTransform: "none" | "aces" | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
@@ -6052,6 +6054,7 @@ isInitialized: () => boolean
 resize: (width: number, height: number) => void
 screenStack: PostProcessStack | null
 setBypass: (bypass: boolean) => void
+setMsaaSamples: (samples: number) => void
 setOutputTransform: (transform: OutputTransform) => void
 setOutputViewport: (x: number, y: number, w: number, h: number) => void
 setPresentRequired: (required: boolean) => void
@@ -9675,6 +9678,7 @@ static prototype: WeChatSocket
 colorSpace: "gamma" | "linear" | undefined
 depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
+msaaSamples: number | undefined
 outputTransform: OutputTransform | undefined
 plugins: Plugin[] | undefined
 randomSeed: number | undefined
@@ -11723,7 +11727,7 @@ NavPlugin
 
 ## packagedAppOptions — function @experimental
 ```
-(config: Pick<PackagedGameConfig, "ySortLayers" | "depthLayers" | "colorSpace" | "outputTransform" | "screenFit">): { ySortLayers?: number; depthLayers?: number; colorSpace?: "gamma" | "linear"; outputTransform?: "none" | "aces"; renderBackend?: "webgl2" | "webgpu"; screenFit?: PackagedGameConfig["screenFit"]; }
+(config: Pick<PackagedGameConfig, "ySortLayers" | "depthLayers" | "colorSpace" | "outputTransform" | "screenFit" | "msaaSamples">): { ySortLayers?: number; depthLayers?: number; colorSpace?: "gamma" | "linear"; outputTransform?: "none" | "aces"; msaaSamples?: number; renderBackend?: "webgl2" | "webgpu"; screenFit?: PackagedGameConfig["screenFit"]; }
 ```
 
 ## packagedRuntimeInit — function @experimental

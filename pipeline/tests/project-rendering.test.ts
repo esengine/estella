@@ -26,6 +26,25 @@ describe('parseManifest — rendering.outputTransform', () => {
   });
 });
 
+describe('parseManifest — rendering.msaa', () => {
+  // The parser is a whitelist, and a field the TYPE declares but the parser
+  // never reads is dropped in silence: the setting rides the manifest, survives
+  // the type check, and reaches the export as nothing at all.
+  it('keeps a non-default sample count', () => {
+    for (const v of [1, 2, 8] as const) {
+      const m = parseManifest({ name: 'X', features: { rendering: { msaa: v } } });
+      expect(m.features?.rendering?.msaa).toBe(v);
+    }
+  });
+
+  it('drops 4 (default = absence) and counts no target can be made with', () => {
+    for (const v of [4, 3, 16, 0, -1, '4', true, null]) {
+      const m = parseManifest({ name: 'X', features: { rendering: { msaa: v } } });
+      expect(m.features?.rendering?.msaa).toBeUndefined();
+    }
+  });
+});
+
 describe('parseManifest — rendering.colorSpace', () => {
   it("keeps 'linear'", () => {
     const m = parseManifest({ name: 'X', features: { rendering: { colorSpace: 'linear' } } });

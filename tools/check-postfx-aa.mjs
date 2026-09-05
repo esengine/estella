@@ -30,28 +30,44 @@ const findings = [];
 const pipe = read(PIPE_CPP);
 
 // 1. The scene target — the one target geometry is rasterised into — takes its
-//    sample count from the member, never from a literal.
+//    sample count from the effective member, never from a literal.
 const assign = /sceneDesc\.samples\s*=\s*([^;]+);/.exec(pipe);
 if (!assign) {
     findings.push(`${PIPE_CPP}: the scene target sets no sample count — a post chain would `
         + 'draw the scene single-sampled and the frame would lose its edges.');
 } else if (assign[1].trim() !== 'scene_samples_') {
     findings.push(`${PIPE_CPP}: the scene target's sample count is \`${assign[1].trim()}\`, not `
-        + 'scene_samples_. A literal here is how the chain silently drops antialiasing; '
-        + 'the count belongs to the target and comes from the device.');
+        + 'scene_samples_. A literal here is how the chain silently drops antialiasing.');
 }
 
-// 2. scene_samples_ is the DEVICE's answer, not a constant somebody picked.
+// 2. The effective count is a REQUEST clamped by a CAPABILITY. A device that
+//    decides quality drags every low-end target up to whatever its driver
+//    allows; a request nobody clamps asks for samples that cannot be created.
 const derived = /scene_samples_\s*=\s*([^;]+);/.exec(pipe);
 if (!derived) {
     findings.push(`${PIPE_CPP}: scene_samples_ is never assigned.`);
-} else if (!/maxSamples\s*\(\s*\)/.test(derived[1])) {
-    findings.push(`${PIPE_CPP}: scene_samples_ is \`${derived[1].trim()}\`, which never asks the `
-        + 'device. A backend with no multisampling must be able to answer 1, and one with '
-        + 'multisampling must not be capped by a guess.');
+} else {
+    const expr = derived[1].replace(/\s+/g, ' ').trim();
+    if (!/maxSamples\s*\(\s*\)/.test(expr)) {
+        findings.push(`${PIPE_CPP}: the effective sample count \`${expr}\` is never clamped by `
+            + 'device.maxSamples(). A target cannot be created with more samples than the '
+            + 'backend has.');
+    }
+    if (!/requested_samples_/.test(expr)) {
+        findings.push(`${PIPE_CPP}: the effective sample count \`${expr}\` does not come from a `
+            + 'request. maxSamples() answers what the device CAN do, never what the project '
+            + 'SHOULD do — let it decide and every low-end target inherits its driver.');
+    }
 }
 
-// 3. A multisampled target resolves ITSELF. Without the resolve attachments a
+// 3. The request reaches the pipeline from outside it. Without a setter the
+//    policy is a constant in the renderer, which is the same mistake one level up.
+if (!/void PostProcessPipeline::setRequestedSamples/.test(pipe)) {
+    findings.push(`${PIPE_CPP}: nothing outside the renderer can set the multisampling `
+        + 'request, so the policy lives in the backend after all.');
+}
+
+// 4. A multisampled target resolves ITSELF. Without the resolve attachments a
 //    sampler reads the multisampled side, which cannot be sampled at all.
 const fb = read(FB_CPP);
 if (!/resolveColor_\s*=\s*device_->createTexture/.test(fb)) {
@@ -62,6 +78,21 @@ if (!/resolveColor_\s*=\s*device_->createTexture/.test(fb)) {
 if (!/createFramebuffer\(\{[^}]*resolveColor_/s.test(fb)) {
     findings.push(`${FB_CPP}: the resolve attachments are created but not handed to `
         + 'createFramebuffer, so the device has nothing to resolve into.');
+}
+
+// 5. WebGPU answers 1 because it has no MSAA. That API resolves COLOUR only, so
+//    raising the ceiling without an engine-owned depth resolve hands every
+//    depth-reading effect an attachment it cannot sample.
+const WGPU_CPP = 'src/esengine/renderer/webgpu/WebGPUDevice.cpp';
+const wgpu = read(WGPU_CPP);
+const ceiling = /u32 WebGPUDevice::maxSamples\(\)\s*\{\s*return\s+([^;]+);/.exec(wgpu);
+if (!ceiling) {
+    findings.push(`${WGPU_CPP}: WebGPUDevice::maxSamples() is gone or unrecognisable.`);
+} else if (ceiling[1].trim() !== '1' && !/texture_depth_multisampled_2d|resolveDepth/.test(wgpu)) {
+    findings.push(`${WGPU_CPP}: maxSamples() now answers \`${ceiling[1].trim()}\` with no depth `
+        + 'resolve in sight. WebGPU resolves colour only, and a multisampled colour attachment '
+        + 'forces a multisampled depth one that no post effect can sample — SSAO, fog and '
+        + 'depth-outline would read an attachment they cannot read.');
 }
 
 if (findings.length) {

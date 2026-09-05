@@ -140,6 +140,10 @@ export interface ProjectFeatures {
      *  'aces' engages the capture on its own, so it applies with an empty effect
      *  stack. Absent ⇒ none, which is the exact round trip flat content wants. */
     outputTransform?: 'aces';
+    /** Multisampling for the scene target: 1 turns it off, 4 is the default and
+     *  what a browser gives its own drawing buffer. Clamped by what the device
+     *  supports. A low-end target turns this down; nothing else should. */
+    msaa?: 1 | 2 | 4 | 8;
     /** GPU backend a shipped build asks for. 'webgpu' takes it where the machine
      *  serves one and falls back to WebGL2 where it does not, so a project can
      *  opt in without giving up the browsers that have neither. Absent ⇒ WebGL2,
@@ -567,6 +571,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';
       // Same shape: only the curve persists, no transform is absence.
       if (r.outputTransform === 'aces') rendering.outputTransform = 'aces';
+      // Only a NON-default count persists; 4 is absence, like the fields above.
+      if (r.msaa === 1 || r.msaa === 2 || r.msaa === 8) rendering.msaa = r.msaa;
       // Same shape: only the opt-in persists, WebGL2 is absence.
       if (r.backend === 'webgpu') rendering.backend = 'webgpu';
       // Camera fit — 'none' (off) is the default, expressed by absence.

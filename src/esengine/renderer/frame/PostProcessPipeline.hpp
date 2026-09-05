@@ -133,6 +133,8 @@ public:
      * @return Index of the added pass
      */
     u32 addPass(const std::string& name, resource::ShaderHandle shader);
+    /// The project's multisampling request; 1 = off. Clamped by the device.
+    void setRequestedSamples(u32 samples);
     /// Draw @p passName at @p scale of the chain size (clamped to (0, 1]).
     void setPassScale(const std::string& passName, f32 scale);
 
@@ -402,8 +404,13 @@ private:
     bool bypass_ = false;
     bool linear_output_ = false;
     bool scene_needs_depth_ = false;
-    /// Samples the scene target rasterises with; the backend's ceiling, capped.
+    /// What the PROJECT asked for (policy). 4 matches what a browser gives its
+    /// own drawing buffer, which is the quality a chain-less frame always had.
+    u32 requested_samples_ = 4;
+    /// What the scene target actually rasterises with: the request clamped by
+    /// the device's ceiling. Never read the ceiling as if it were the answer.
     u32 scene_samples_ = 1;
+    void applySampleRequest();
     OutputTransform output_transform_ = OutputTransform::None;
     /// The graph resource the scene is drawn into, live between begin() and end().
     rg::ResourceId sceneResource_ = rg::kNoResource;

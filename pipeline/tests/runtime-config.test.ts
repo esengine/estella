@@ -20,6 +20,9 @@ describe('runtimeConfigOf', () => {
     expect(rc.ySortLayers).toBe(0);
     expect(rc.depthLayers).toBe(0);
     expect(rc.colorSpace).toBe('gamma');
+    // The device clamps this later; 4 is what the project asks for by default,
+    // which is what a browser gives its own drawing buffer.
+    expect(rc.msaaSamples).toBe(4);
     expect(rc.outputTransform).toBe('none');
     expect(rc.uiTheme).toBe('dark');
     expect(rc.uiThemeColors).toEqual({});
@@ -90,14 +93,14 @@ describe('packagedRuntimeFields', () => {
       features: {
         rendering: {
           ySortLayers: [1], depthLayers: [2], colorSpace: 'linear',
-          outputTransform: 'aces', cameraScaleMode: 'expand',
+          outputTransform: 'aces', cameraScaleMode: 'expand', msaa: 1,
         },
         ui: { theme: 'light', colors: { accent: '#ff0000ff' } },
       },
     }));
     expect(Object.keys(fields).sort()).toEqual(
-      ['colorSpace', 'depthLayers', 'outputTransform', 'screenFit', 'uiTheme', 'uiThemeColors',
-       'ySortLayers'],
+      ['colorSpace', 'depthLayers', 'msaaSamples', 'outputTransform', 'screenFit', 'uiTheme',
+       'uiThemeColors', 'ySortLayers'],
     );
     expect(fields.screenFit).toEqual({
       designWidth: 800, designHeight: 600, scaleMode: 2, matchWidthOrHeight: 0.5, renderPolicy: 0

@@ -65,6 +65,10 @@ u32 postprocess_addPass(const std::string& name, u32 shaderHandle) {
     return g_postProcessPipeline->addPass(name, resource::ShaderHandle(shaderHandle));
 }
 
+void postprocess_setMsaaSamples(u32 samples) {
+    if (g_postProcessPipeline) g_postProcessPipeline->setRequestedSamples(samples);
+}
+
 void postprocess_setPassScale(const std::string& passName, f32 scale) {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->setPassScale(passName, scale);

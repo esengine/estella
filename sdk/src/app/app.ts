@@ -1629,6 +1629,12 @@ export interface WebAppOptions {
      */
     outputTransform?: OutputTransform;
     /**
+     * Scene-target multisampling (Project Settings → Rendering). 1 turns it off;
+     * 4 is the default and what a browser gives its own drawing buffer. The
+     * device clamps it, so this is what the project WANTS, not what it gets.
+     */
+    msaaSamples?: number;
+    /**
      * Seed the engine's randomness so this run reproduces — a replay, a bug
      * report, a pixel assertion. Absent, every run differs, which is what a
      * player wants of particles.
@@ -1695,6 +1701,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // pipeline is created by the renderer, and a curve declared before it exists
     // reaches nothing.
     module.postprocess_setOutputTransform?.(outputTransformCode(options?.outputTransform));
+    module.postprocess_setMsaaSamples?.((options?.msaaSamples ?? 4) >>> 0);
 
     app.addPlugin(corePlugin);
     app.setPipeline(new RenderPipeline());

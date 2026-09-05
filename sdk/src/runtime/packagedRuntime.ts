@@ -55,6 +55,9 @@ export interface PackagedGameConfig {
     colorSpace?: 'gamma' | 'linear';
     /** The curve the frame applies on the way to the display; absent = none. */
     outputTransform?: 'none' | 'aces';
+    /** Scene-target multisampling the project asked for; absent ⇒ 4. Clamped by
+     *  the device, which answers capability and never policy. */
+    msaaSamples?: number;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -161,12 +164,14 @@ export function registerPackagedSideModules(config: Pick<PackagedGameConfig, 'si
  */
 export function packagedAppOptions(
     config: Pick<PackagedGameConfig,
-        'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'>,
+        'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'
+        | 'msaaSamples'>,
 ): {
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     outputTransform?: 'none' | 'aces';
+    msaaSamples?: number;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -177,6 +182,7 @@ export function packagedAppOptions(
         depthLayers: config.depthLayers,
         colorSpace: config.colorSpace,
         outputTransform: config.outputTransform,
+        msaaSamples: config.msaaSamples,
         screenFit: config.screenFit,
     };
 }

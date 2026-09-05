@@ -71,11 +71,19 @@ export interface RuntimeProjectConfig {
   colorSpace: 'gamma' | 'linear';
   /** The curve on the way to the display; 'none' is the default. */
   outputTransform: 'none' | 'aces';
+  /** Scene-target multisampling the project asks for; 4 is the default. The
+   *  device clamps it — this is the policy half, never the capability. */
+  msaaSamples: number;
   /** GPU backend the build asks for; 'webgl2' is the default. Boot-fixed, and a
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
   /** Main-camera fit of the design resolution; `scaleMode < 0` = off. */
   screenFit: RuntimeScreenFit;
+}
+
+/** Only the counts a target can actually be created with; anything else is 4. */
+function msaaOf(v: unknown): number {
+  return v === 1 || v === 2 || v === 8 ? v : 4;
 }
 
 /** Bit i set ⇒ sorting layer i is in `list`. Layers outside 0..31 have no bit. */
@@ -147,6 +155,7 @@ export function runtimeConfigOf(
     depthLayers: layerMask(f?.rendering?.depthLayers),
     colorSpace: f?.rendering?.colorSpace === 'linear' ? 'linear' : 'gamma',
     outputTransform: f?.rendering?.outputTransform === 'aces' ? 'aces' : 'none',
+    msaaSamples: msaaOf(f?.rendering?.msaa),
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -156,6 +165,7 @@ export function runtimeConfigOf(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
+  | 'msaaSamples'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId'
 >;
@@ -175,6 +185,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.depthLayers ? { depthLayers: rc.depthLayers } : {}),
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
     ...(rc.outputTransform === 'aces' ? { outputTransform: rc.outputTransform } : {}),
+    ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or

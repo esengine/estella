@@ -63,9 +63,7 @@ void PostProcessPipeline::init(u32 width, u32 height) {
         return;
     }
 
-    // Capped at 4: what a browser offers a drawing buffer, past which a sample
-    // buys less than its bandwidth. A backend with no MSAA answers 1.
-    scene_samples_ = std::min(4u, device_.maxSamples());
+    applySampleRequest();
 
     initialized_ = true;
 }
@@ -240,6 +238,21 @@ u32 PostProcessPipeline::addPass(const std::string& name, resource::ShaderHandle
 
     passes_.push_back(pass);
     return static_cast<u32>(passes_.size() - 1);
+}
+
+/**
+ * The device answers what it CAN do; the project says what it SHOULD do. The
+ * effective count is the second clamped by the first — a backend must never
+ * pick the quality level, or every low-end target inherits whatever its driver
+ * happens to allow.
+ */
+void PostProcessPipeline::applySampleRequest() {
+    scene_samples_ = std::clamp(requested_samples_, 1u, device_.maxSamples());
+}
+
+void PostProcessPipeline::setRequestedSamples(u32 samples) {
+    requested_samples_ = samples < 1u ? 1u : samples;
+    if (initialized_) applySampleRequest();
 }
 
 void PostProcessPipeline::setPassScale(const std::string& passName, f32 scale) {

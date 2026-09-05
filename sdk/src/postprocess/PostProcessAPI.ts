@@ -19,7 +19,8 @@ type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
     | 'postprocess_clearPasses' | 'postprocess_addPass' | 'postprocess_setPassScale'
     | 'postprocess_setPassTexture'
     | 'postprocess_setUniformFloat' | 'postprocess_setUniformVec4'
-    | 'postprocess_setBypass' | 'postprocess_setOutputTransform' | 'postprocess_setPresentRequired'
+    | 'postprocess_setBypass' | 'postprocess_setOutputTransform' | 'postprocess_setMsaaSamples'
+    | 'postprocess_setPresentRequired'
     | 'postprocess_setOutputViewport'
     | 'postprocess_beginScreenCapture' | 'postprocess_endScreenCapture'
     | 'postprocess_executeScreenPasses' | 'postprocess_addScreenPass'
@@ -253,6 +254,19 @@ export class PostProcessAPI {
             getModule().postprocess_setOutputTransform(outputTransformCode(transform));
         } catch (e) {
             handleWasmError(e, 'PostProcess.setOutputTransform');
+        }
+    }
+
+    /**
+     * Multisampling the scene target should rasterise with; 1 turns it off. The
+     * device clamps it, so this is the project's ASK, not what it gets — a
+     * backend with no MSAA answers 1 whatever is set here.
+     */
+    setMsaaSamples(samples: number): void {
+        try {
+            getModule().postprocess_setMsaaSamples(samples >>> 0);
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.setMsaaSamples');
         }
     }
 
