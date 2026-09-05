@@ -80,9 +80,31 @@ world.ensureTransformsComposed();
 const cppRegistry = world.getCppRegistry();
 const EMPTY = new Uint32Array(0);
 function composeCollecting() {
-    const r = engine.transform_composeCollecting(cppRegistry);
-    if (!r.ran || r.changed === 0) return EMPTY;
-    return new Uint32Array(engine.HEAPU32.buffer, r.ptr, r.changed);
+    engine.transform_setChangeTracking(true);
+    world.ensureTransformsComposed();
+    const r = engine.transform_compositionChanges();
+    const ids = r.count === 0 ? EMPTY : new Uint32Array(engine.HEAPU32.buffer, r.ptr, r.count);
+    // Copied before acknowledging: the view is over the engine's own vector.
+    const out = ids.length === 0 ? EMPTY : Uint32Array.from(ids);
+    engine.transform_takeChanges();
+    return out;
+}
+
+// Arm P is the SHIPPED provider, driven the way the server drives it — the arms
+// above are this bench's own reproduction of the path, and a number that
+// describes a copy is a number about the copy.
+const shipped = ARM === 'P' ? sdk.radiusInterestProvider(RADIUS) : null;
+let shippedPrepared = null;
+let shippedSeeded = false;
+// Its position reads happen inside the SDK, so they are counted where the
+// canonical reader takes them rather than where this file would.
+let counting = false;
+if (shipped) {
+    const original = world.tryGet.bind(world);
+    world.tryGet = (e, c) => {
+        if (counting && c === ctx.Pos) stats.visited.positionReads++;
+        return original(e, c);
+    };
 }
 
 const liveGrid = ARM === 'D1' ? newLiveGrid(RADIUS) : null;
@@ -127,9 +149,37 @@ function sampleOnce(measuring) {
     const cache = ARM === 'C0' ? buildPositionCache(world, ctx, shared) : null;
     const grid = ARM === 'C1' ? buildGrid(world, ctx, shared, RADIUS)
         : ARM === 'D1' ? (updateLiveGrid(world, ctx, shared, liveGrid, changed), liveGrid) : null;
+    if (shipped) {
+        const t = process.hrtime.bigint();
+        shippedPrepared = shipped.prepare({
+            world, entities: ctx.entities, entityCount: ctx.entities.length,
+            // The server's membership feed: everything enters once, and this
+            // workload spawns and despawns nothing after that.
+            entered: shippedSeeded ? [] : ctx.entities, left: [], rechecked: [],
+        });
+        shippedSeeded = true;
+        if (measuring) shared.ns.build += process.hrtime.bigint() - t;
+    }
 
     for (let c = 0; c < CONNECTIONS; c++) {
         const use = measuring ? stats : newStats();
+        if (shipped) {
+            const owned = ctx.owned.get(c) ?? [];
+            const t = process.hrtime.bigint();
+            const answer = shippedPrepared.query({ connectionId: c, owned });
+            const visible = answer === 'all' ? new Set(candidates) : new Set(answer);
+            // The server's own invariant, applied where the server applies it.
+            for (const e of owned) visible.add(e);
+            if (measuring) use.ns.radius += process.hrtime.bigint() - t;
+            if (VERIFY) {
+                const truth = visibleForA(world, ctx, c, candidates, R2, newStats());
+                if (truth.size !== visible.size) mismatches++;
+                else for (const e of truth) if (!visible.has(e)) { mismatches++; break; }
+            }
+            diffAndFilter(visible, previous.get(c), dirty, removals, use);
+            previous.set(c, visible);
+            continue;
+        }
         const visible = ARM === 'C1' || ARM === 'D1'
             ? visibleForC1(ctx, c, candidates, R2, use, ctx.owned, grid, RADIUS)
             : ARM === 'C0'
@@ -157,6 +207,7 @@ function sampleOnce(measuring) {
 }
 
 function run(count, measuring) {
+    counting = measuring;
     for (let t = 0; t < count; t++) {
         const tick = measuring ? WARMUP + t : t;
         movedTotal += applyMovement(world, ctx, tick, MOVE_COUNT);

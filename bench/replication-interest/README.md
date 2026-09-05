@@ -154,15 +154,40 @@ Three properties are asserted rather than assumed:
   cache and 74 positions drift; stop re-celling and 74 cells do.
 - **Every entity the composition reported was one the grid knew about.**
 
+### What ships, measured rather than inferred
+
+D1 is this file's reproduction of the idea. **P is `radiusInterestProvider`
+itself**, driven the way the server drives it — prepared once per sample with the
+membership delta, queried per connection, with the server's owned-forcing applied
+where the server applies it. Only its position reads are counted, because the
+rest happens inside the SDK.
+
+| population | connections | C1 | D1 | **P** |
+|---|---|---|---|---|
+| 10k | 8 | 20% | 1% | **1%** |
+| 10k | 32 | 20% | 2% | **2%** |
+| 100k | 8 | 240% | 9% | **8%** |
+| 100k | 32 | 195% | 17% | **18%** |
+
+Position reads per sample: **68** at 10k and **668** at 100k, the same numbers the
+prototype produces, and **0** with nothing moving. P is in the differential too:
+it saw exactly what the full scan saw, every connection, every sample.
+
+Running it found that the provider was not reachable. `radiusInterestProvider`
+was exported from the replication barrel and never from the SDK's entry point, so
+no game could install the thing this whole line of work was for.
+
 ### What a kept grid still needs, and this does not have
 
 **The changed set is a value-change journal, not a membership journal.** Measured,
 not reasoned: a new entity spawned at the origin is not reported, because its
 composed output equals what its fields already held; a despawned entity is not
 reported at all; a new entity anywhere else is reported only incidentally,
-because its value differs from the default. A shipped provider takes membership
-from the membership journal it already runs on, and movement from here. This
-workload spawns and despawns nothing after startup, so none of that is measured.
+because its value differs from the default. The shipped provider takes membership
+from the server's enter/leave and movement from here, and a third feed for
+entities that LOST the component the cached position came from. This workload
+spawns and despawns nothing after startup, so none of that is measured here —
+`sdk/tests/replication-interest-persistent.test.ts` is where it is.
 
 ## Confirmation on the authoritative world-space path
 

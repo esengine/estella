@@ -23,12 +23,13 @@ const ROOT = path.resolve(HERE, '..', '..');
 const ARM = path.join(HERE, 'arm.mjs');
 const QUICK = process.argv.includes('--quick');
 
-const ARMS = ['B', 'C0', 'C1', 'D1'];
+const ARMS = ['B', 'C0', 'C1', 'D1', 'P'];
 const ARM_MEANING = {
     B: 'as shipped: every connection reads every candidate\'s position',
     C0: 'positions read once per sample, cached; same full walk',
     C1: 'grid rebuilt per sample; only nearby cells are walked',
     D1: 'the same grid, KEPT — only the entities the composition says moved',
+    P: 'the SHIPPED radiusInterestProvider, driven the way the server drives it',
 };
 /** Arm B reads a builtin position per candidate per connection, so 100k x 32 is
  *  already 50 seconds of work per simulated second. Points stay few. */
@@ -41,7 +42,7 @@ const FIXED = {
 };
 const VERIFY_POINTS = QUICK ? [[10000, 8]] : [[10000, 8], [10000, 32], [100000, 8]];
 /** The arms whose answer has to be checked against the full scan's, not just timed. */
-const VERIFY_ARMS = ['C1', 'D1'];
+const VERIFY_ARMS = ['C1', 'D1', 'P'];
 
 const CACHE = path.join(HERE, `.sweep-${QUICK ? 'quick' : 'matrix'}.jsonl`);
 const buildId = () => sdkIdentity(ROOT).sdkArtifactSha256;
@@ -173,6 +174,10 @@ say('--- WHAT THIS SEPARATES ---');
 say('  C0/B   reading each position ONCE per sample instead of once per connection');
 say('  C1/C0  spatial locality on top of that');
 say('  build  the price of rebuilding, paid every sample whatever moved');
+say('');
+say('');
+say('  P is the code that ships, not this file\'s reproduction of it: only its');
+say('  position reads are counted, because the rest happens inside the SDK.');
 say('');
 say('  Rebuilding is what lets this support an arbitrary position() function:');
 say('  nothing is carried between samples, so there is no invalidation to get');

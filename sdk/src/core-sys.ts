@@ -99,9 +99,11 @@ export {
     replicationPlugin, ReplicationPlugin, Net, NetSession,
     Replicated, NetGhost, ReplicationServer, ReplicationClient,
     REPLICATION_PROTOCOL_VERSION, REPLICATION_CHANNEL,
-    radiusInterest,
+    radiusInterest, radiusInterestProvider,
     type NetRoleKind, type ReplicatedData,
     type InterestPolicy, type InterestView, type RadiusInterestOptions,
+    type InterestProvider, type PreparedInterest, type InterestPoint,
+    type InterestProviderPrepareView, type InterestProviderQueryView,
     type PredictionOptions, type PredictionSmoothing,
 } from './net/replication';
 

@@ -44,6 +44,7 @@ export {
     type InterestProviderQueryView,
     type PreparedInterest,
     type RadiusInterestOptions,
+    type InterestPoint,
 } from './interest';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
