@@ -220,6 +220,30 @@ export class ReplicationServer {
      * that is the whole claim of the stamp.
      */
     visibilityRecomputes = 0;
+    /** @internal Entities entering and leaving views — what spawn serialization
+     *  and the control plane are actually paid for. */
+    entersSent = 0;
+    leavesSent = 0;
+    /** @internal Distinct entities serialized into a spawn payload this run. */
+    payloadsBuilt = 0;
+    /**
+     * @internal Milliseconds attributed to each LEAF phase of `sample`, plus
+     * `total` for the whole call. Nothing nests, so `total` minus the rest is
+     * exactly what the decomposition fails to explain — a budget with a large
+     * remainder has not been decomposed. Off unless `profileSample` is set.
+     */
+    readonly samplePhases = new Map<string, number>();
+    /** @internal Turns the phase accounting on; it costs two clock reads a phase. */
+    profileSample = false;
+
+    private mark_(): number {
+        return this.profileSample && typeof performance !== 'undefined' ? performance.now() : 0;
+    }
+
+    private since_(phase: string, at: number): void {
+        if (!this.profileSample || typeof performance === 'undefined') return;
+        this.samplePhases.set(phase, (this.samplePhases.get(phase) ?? 0) + (performance.now() - at));
+    }
 
     /**
      * How many (entity, connection) links the reverse-interest index holds.
@@ -584,14 +608,21 @@ export class ReplicationServer {
             return;
         }
 
+        const started = this.mark_();
+        let at = started;
         const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();
+        this.since_('registry', at);
 
         // Before anything reads ownership: an owner that changed this frame must
         // place the view THIS sample, not the next one.
+        at = this.mark_();
         this.refreshOwnerIndex_();
+        this.since_('owner index', at);
 
         // Diff once against the shadow; frames below share the result.
+        at = this.mark_();
         const sample = this.collectDirty_();
+        this.since_('dirty discovery', at);
 
         if (!this.interest_) {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
@@ -601,16 +632,21 @@ export class ReplicationServer {
 
         // Acknowledge consumed inputs: this tick's state incorporates each
         // connection's commands through the seq its gameplay ran against.
+        at = this.mark_();
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready || !conn.applied || conn.applied.seq <= conn.ackedSeq) continue;
             conn.ackedSeq = conn.applied.seq;
             this.sendTo_(conn, (c) => c.channel.send<ReplAckMsg>(ReplMsg.ack, { tick, seq: conn.ackedSeq }));
         }
+        this.since_('ack', at);
 
         // Last: the windows are given up only once their rows are on the wire.
+        at = this.mark_();
         this.advanceObservationFloor_();
         this.advanceRegistryFloor_();
         this.advanceOwnerFloor_();
+        this.since_('reader floors', at);
+        this.since_('total', started);
     }
 
     /** Fast path (no policy): everything to every ready connection on shared
@@ -713,7 +749,10 @@ export class ReplicationServer {
                 continue;
             }
             this.visibilityRecomputes++;
+            let at = this.mark_();
             const visible = visibility.visible(conn.id);
+            this.since_('visibility query', at);
+            at = this.mark_();
             const enters: Entity[] = [];
             for (const e of visible) {
                 if (conn.interest.has(e)) continue;
@@ -730,10 +769,13 @@ export class ReplicationServer {
             conn.interest = visible;
             conn.provenance = stamp;
             plans.push({ conn, visible, enters, leaveIds, entered: new Set(enters) });
+            this.since_('visibility diff', at);
         }
 
         // Whose debt is whose.
+        const routing = this.mark_();
         const routed = this.route_(plans, dirty, removals);
+        this.since_('routing', routing);
 
         // The wire. Spawn payloads serialize once per entity per tick, however
         // many connections it enters.
@@ -741,16 +783,25 @@ export class ReplicationServer {
         const payloadOf = (e: Entity): ReplSpawnEntity => {
             let p = payloads.get(e);
             if (!p) {
+                const at = this.mark_();
                 p = this.spawnPayload_(e, this.knownNetIds_.get(e)!);
+                this.since_('spawn payload', at);
+                this.payloadsBuilt++;
                 payloads.set(e, p);
             }
             return p;
         };
         for (const { conn, enters, leaveIds } of plans) {
             const mine = routed.get(conn.id)!;
+            this.entersSent += enters.length;
+            this.leavesSent += leaveIds.length;
             this.sendTo_(conn, (c) => {
-                if (enters.length > 0) {
-                    c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities: enters.map(payloadOf) });
+                // Serialized before `control send` is timed: `payloadOf` has a
+                // phase of its own and would otherwise be counted twice.
+                const spawning = enters.length > 0 ? enters.map(payloadOf) : null;
+                const control = this.mark_();
+                if (spawning) {
+                    c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities: spawning });
                 }
                 if (leaveIds.length > 0) {
                     c.channel.send<ReplDespawnBatch>(ReplMsg.despawn, { tick, netIds: leaveIds });
@@ -759,13 +810,21 @@ export class ReplicationServer {
                     c.channel.send<ReplComponentRemoveBatch>(
                         ReplMsg.componentRemove, removeBatch(tick, mine.removals.map((i) => removals[i]!)));
                 }
+                this.since_('control send', control);
                 if (mine.dirty.length > 0) {
+                    const encoding = this.mark_();
                     const frame = new FrameWriter(tick);
                     for (const i of mine.dirty) {
                         const d = dirty[i]!;
                         frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
                     }
-                    if (frame.entryCount > 0) c.channel.sendBinary(REPLICATION_CHANNEL, frame.finish());
+                    const payload = frame.entryCount > 0 ? frame.finish() : null;
+                    this.since_('frame encode', encoding);
+                    if (payload) {
+                        const sending = this.mark_();
+                        c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                        this.since_('transport send', sending);
+                    }
                 }
             });
         }
@@ -877,7 +936,9 @@ export class ReplicationServer {
         // Relevance is decided in world space, so the composition has to be
         // current before a snapshot is taken — here rather than inside a position
         // reader, so a caller's own reader sees the same composed fact.
+        const composed = this.mark_();
         this.world_.ensureTransformsComposed();
+        this.since_('composition', composed);
         const source = this.interest_;
         if (!source) {
             const all = [...this.known_];
@@ -885,6 +946,7 @@ export class ReplicationServer {
         }
         if (source.kind === 'provider') {
             const known = this.known_;
+            const prepping = this.mark_();
             const prepared = source.value.prepare({
                 world: this.world_,
                 // A wrapper, not the registry itself: a caller that casts the
@@ -893,6 +955,7 @@ export class ReplicationServer {
                 entityCount: known.size,
                 ...membership,
             });
+            this.since_('interest prepare', prepping);
             return {
                 snapshot: prepared.generation ?? null,
                 visible: (connectionId) => {

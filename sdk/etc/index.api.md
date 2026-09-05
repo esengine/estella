@@ -6647,8 +6647,12 @@ static prototype: ReplicationPlugin
 
 ## ReplicationServer — class @experimental
 ```
+@internal entersSent: number
 @internal fullScans: number
 @internal ownerScanVisits: number
+@internal payloadsBuilt: number
+@internal profileSample: boolean
+@internal samplePhases: Map<string, number>
 @internal viewerLinks: number
 @internal visibilityRecomputes: number
 attachConnection: (transport: ReliableOrderedTransport) => number
@@ -6658,6 +6662,7 @@ connectionCount: number
 detachConnection: (id: number) => void
 dispose: () => void
 inputOf: (connectionId: number) => ReplInputMsg | null
+leavesSent: number
 netIds: NetIds
 sample: (tick: number) => void
 setInterestPolicy: (policy: InterestPolicy | null) => void
