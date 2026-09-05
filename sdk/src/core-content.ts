@@ -897,7 +897,6 @@ export {
     Hunter,
     decideHunterState,
     huntTargets,
-    driveHunterRootMotion,
     type HunterData,
     type HunterState,
     type HunterSituation,

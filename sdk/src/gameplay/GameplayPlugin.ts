@@ -28,7 +28,7 @@ import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorE
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Damage, applyDamage, type DamagePayload } from './Health';
 import { MeleeAttacks, resolveMeleeHits } from './MeleeAttack';
-import { huntTargets, driveHunterRootMotion } from './Hunter';
+import { huntTargets } from './Hunter';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -316,14 +316,6 @@ export class GameplayPlugin implements Plugin {
                 requestMotion(world, input, time.fixedDelta, animator);
             },
             { name: 'ThirdPersonControllerSystem' },
-        ), { runIf: playModeOnly });
-
-        // Last writer before the step, after navigation's steering: a lunge is
-        // the animation's to override, and the same rule the player follows.
-        app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
-            [],
-            () => { driveHunterRootMotion(world); },
-            { name: 'HunterRootMotionSystem' },
         ), { runIf: playModeOnly });
 
         // After it: what the world allowed. The animator hears this one.

@@ -28,10 +28,9 @@ import { Perception, type PerceptionData } from '../ai/perception/components';
 import { NavAgent, setNavDestination, stopNavAgent } from '../ai/nav/NavAgent';
 import { Animator } from '../animation/Animator';
 import type { AnimatorControllerAPI } from '../animation/Animator';
-import { AnimatorRootMotion, type AnimatorRootMotionData } from '../animation/animatorRootMotion';
 import { Health, type HealthData } from './Health';
 import {
-    facingYaw, turnToward, yawQuaternion, yawOfQuaternion, rootMotionVelocity,
+    facingYaw, turnToward, yawQuaternion, yawOfQuaternion,
     TPC_SPEED, TPC_GROUNDED,
 } from './ThirdPersonController';
 
@@ -198,27 +197,6 @@ export function huntTargets(
         world.update(entity, Hunter, (h: HunterData) => {
             h.state = state;
             h.cooldown = cooldown;
-        });
-    }
-}
-
-/**
- * Hand a hunter's live root motion to its character controller, as the rate it
- * covers. Last writer before the step, because navigation wrote a steering
- * velocity earlier in the frame and a lunge is the animation's to override.
- */
-export function driveHunterRootMotion(world: World): void {
-    for (const entity of world.getEntitiesWithComponents(
-        [Hunter, AnimatorRootMotion, CharacterController3D],
-    )) {
-        const data = world.get(entity, Hunter) as HunterData;
-        if (!data.enabled) continue;
-        const request = world.get(entity, AnimatorRootMotion) as AnimatorRootMotionData;
-        if (!request.active) continue;
-        const v = rootMotionVelocity(request.deltaPosition, request.deltaTime);
-        world.update(entity, CharacterController3D, (c: CharacterController3DData) => {
-            c.velocity.x = v.x;
-            c.velocity.z = v.z;
         });
     }
 }

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    Hunter, decideHunterState, huntTargets, driveHunterRootMotion,
+    Hunter, decideHunterState, huntTargets,
     TPC_SPEED, TPC_GROUNDED, TPC_ATTACK,
     type HunterData,
 } from '../src/gameplay';
@@ -14,7 +14,6 @@ import { Health, type HealthData } from '../src/gameplay';
 import { Perception, type PerceptionData } from '../src/ai/perception/components';
 import { NavAgent, type NavAgentData } from '../src/ai/nav/NavAgent';
 import { CharacterController3D, type CharacterController3DData } from '../src/physics3d/Physics3DComponents';
-import { AnimatorRootMotion, type AnimatorRootMotionData } from '../src/animation';
 import { Animator, AnimatorControllerAPI, type AnimatorData } from '../src/animation';
 import { Transform, type TransformData } from '../src/ecs/component';
 import { q } from '../src/math/quat';
@@ -272,34 +271,5 @@ describe('which way a hunter looks', () => {
         for (let i = 0; i < 5; i++) hunt(world);
         expect(hunter(world).state).toBe('attack');
         expect(yawOf(world)).toBeCloseTo(90, 3);
-    });
-});
-
-describe('a hunter’s lunge goes through the character controller', () => {
-    it('becomes the rate the animation asked for', () => {
-        const world = scene();
-        world.insert(ENEMY, AnimatorRootMotion, {
-            enabled: true, active: true,
-            deltaPosition: { x: 0, y: 0, z: -4 },
-            deltaRotation: { w: 1, x: 0, y: 0, z: 0 },
-            deltaTime: 1 / 60,
-        } as AnimatorRootMotionData);
-        driveHunterRootMotion(world);
-        expect(body(world).velocity.z).toBeCloseTo(-240, 5);
-    });
-
-    it('and leaves the steering alone when no animation is driving', () => {
-        const world = scene();
-        world.insert(ENEMY, AnimatorRootMotion, {
-            enabled: true, active: false,
-            deltaPosition: { x: 0, y: 0, z: -4 },
-            deltaRotation: { w: 1, x: 0, y: 0, z: 0 },
-            deltaTime: 1 / 60,
-        } as AnimatorRootMotionData);
-        world.update(ENEMY, CharacterController3D, (c: CharacterController3DData) => {
-            c.velocity.z = -77;
-        });
-        driveHunterRootMotion(world);
-        expect(body(world).velocity.z).toBe(-77);
     });
 });
