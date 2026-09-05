@@ -833,9 +833,8 @@ u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
 }
 
 void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu) {
-    // Writes local position and rotation for every synced body. It also writes
-    // the world fields itself — a second author for those, tracked separately —
-    // but the local write alone is what makes the composition stale.
+    // Physics is a producer of transform INPUTS. The composed world fields are
+    // TransformSystem's, and writing them here made this a second author of them.
     ecs::invalidateTransformComposition();
     if (count < 0) return;
     const float* buffer = boundarySpan<f32>(bufferPtr, static_cast<u64>(count) * 4, "registry_batchSyncPhysicsTransforms");
@@ -858,11 +857,6 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
         transform.position.x = px;
         transform.position.y = py;
         transform.rotation = rot;
-
-        transform.worldPosition.x = px;
-        transform.worldPosition.y = py;
-        transform.worldRotation = rot;
-        transform.decomposed_ = true;
     }
 }
 

@@ -345,14 +345,6 @@ function syncOneWayPlatforms(
 // Dynamic transform readback (wasm -> ECS Transform components)
 // =============================================================================
 
-const syncTransformBuf_ = {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { w: 1, x: 0, y: 0, z: 0 },
-    scale: { x: 1, y: 1, z: 1 },
-    worldPosition: { x: 0, y: 0, z: 0 },
-    worldRotation: { w: 1, x: 0, y: 0, z: 0 },
-    worldScale: { x: 1, y: 1, z: 1 },
-};
 
 const PHYSICS_BODY_STRIDE = 4; // u32 entity + 3x f32 (x, y, angle)
 const PHYSICS_BODY_BYTES = PHYSICS_BODY_STRIDE * 4;
@@ -418,6 +410,11 @@ export function applyPhysics2DTransforms(
         }
     }
 
+    // The per-body loop writes the component heap directly and calls no C++, so
+    // the composition is told here. The batch path above says so itself, and one
+    // parented body sends EVERY body down this one.
+    app.world.invalidateTransformComposition();
+
     const transformPtrFn = engineMod?.getTransformPtr;
     const getTransformPtr = transformPtrFn
         ? (e: Entity) => transformPtrFn.call(engineMod, registry!, e as number)
@@ -429,7 +426,6 @@ export function applyPhysics2DTransforms(
     // the heap — add one to this loop and these must be re-read per iteration.
     const engF32 = engineMod?.HEAPF32;
     const addFn = (!getTransformPtr || !engF32) ? registry.addTransform.bind(registry) : null;
-    const t = syncTransformBuf_;
 
     // A parented body's pose has to be expressed in its parent's space, which only
     // the registry can answer — so these go one at a time, over the same buffer.
@@ -469,10 +465,9 @@ export function applyPhysics2DTransforms(
             const tPtr = getTransformPtr(entityId);
             if (tPtr) {
                 const fi = tPtr >> 2;
-                // Physics owns position + rotation only; scale (fi+7..9 local,
-                // fi+17..19 world) is left untouched, matching the batch path —
-                // clobbering it to 1 shrank a scaled dynamic body the moment any
-                // physics body gained a Parent (which routes all bodies here).
+                // The local INPUT fields and nothing else. Scale (fi+7..9) is the
+                // scene's — clobbering it to 1 shrank a scaled dynamic body — and
+                // the composed world fields (fi+10..19) are TransformSystem's.
                 engF32[fi]      = localX;
                 engF32[fi + 1]  = localY;
                 engF32[fi + 2]  = 0;
@@ -480,31 +475,25 @@ export function applyPhysics2DTransforms(
                 engF32[fi + 4]  = 0;
                 engF32[fi + 5]  = sinH;
                 engF32[fi + 6]  = cosH;
-                engF32[fi + 10] = localX;
-                engF32[fi + 11] = localY;
-                engF32[fi + 12] = 0;
-                engF32[fi + 13] = 0;
-                engF32[fi + 14] = 0;
-                engF32[fi + 15] = sinH;
-                engF32[fi + 16] = cosH;
                 continue;
             }
         }
 
-        t.position.x = localX;
-        t.position.y = localY;
-        t.rotation.w = cosH;
-        t.rotation.x = 0;
-        t.rotation.y = 0;
-        t.rotation.z = sinH;
-        t.worldPosition.x = localX;
-        t.worldPosition.y = localY;
-        t.worldRotation.w = cosH;
-        t.worldRotation.x = 0;
-        t.worldRotation.y = 0;
-        t.worldRotation.z = sinH;
-
-        addFn!(entityId, t);
+        // Reading first means this path has to ask what the batch and pointer
+        // paths get from the registry for free: the body may name an entity that
+        // is gone, or one that never carried a Transform.
+        if (!app.world.valid(entityId) || !app.world.has(entityId, Transform)) continue;
+        // This path REPLACES the whole component, so the composed fields have to
+        // be carried across as they stand: a value from this loop would be this
+        // path authoring them.
+        const current = app.world.get(entityId, Transform) as TransformData;
+        current.position.x = localX;
+        current.position.y = localY;
+        current.rotation.w = cosH;
+        current.rotation.x = 0;
+        current.rotation.y = 0;
+        current.rotation.z = sinH;
+        addFn!(entityId, current);
     }
 }
 

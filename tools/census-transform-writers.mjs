@@ -65,6 +65,21 @@ const SEAMS = [
     },
 ];
 
+/**
+ * Who may write the composition's OUTPUT. A second author is invisible to
+ * anything fed by what the composition reports: a spatial index built on the
+ * composed delta would not contain one physics-driven entity.
+ */
+const OUTPUT_AUTHORS = new Map([
+    ['src/esengine/ecs/TransformSystem.hpp', 'the canonical composer'],
+    ['src/esengine/ecs/components/Transform.hpp', '`ensureDecomposed`, the composer\'s own lazy half'],
+]);
+const OUTPUT_FIELDS = ['worldPosition', 'worldRotation', 'worldScale', 'cachedMatrix_', 'decomposed_'];
+/** A write to one, through anything or through nothing. No binding heuristic:
+ *  a struct with these field names IS a Transform, and the point is to leave no
+ *  spelling of the write that the scan does not see. */
+const OUTPUT_WRITE = new RegExp(String.raw`(?:(?:\.|->)\s*|^\s*)(${OUTPUT_FIELDS.join('|')})\s*(?:\.\w+\s*)?=[^=]`);
+
 /** The hierarchy is the composition's other input, and one function writes it. */
 const HIERARCHY_WRITER = { file: 'src/esengine/ecs/TransformSystem.hpp', fn: 'setParent' };
 
@@ -79,6 +94,10 @@ const TS_PRODUCERS = [
     ['Query(Mut(Transform)) write-back', 'ptr setter → wasm heap'],
     ['Web AOT Mut(Transform)', 'compiled code → component address'],
     ['Native AOT Mut(Transform)', 'compiled code → component address'],
+    // Deliberately outside recordComponentWrite_: it rewrites every dynamic body
+    // every step, so reporting Changed(Transform) would drown that signal. It
+    // announces staleness directly instead.
+    ['2D physics writeback', 'resolved Transform pointer, by word index'],
 ];
 
 const FIELDS = String.raw`(position|rotation|scale)`;
@@ -129,8 +148,24 @@ function depths(lines) {
     return out;
 }
 
-const { files, missing } = listTrackedSources(['src']);
+const { files, missing } = listTrackedSources(['src', 'sdk/src']);
 const cpp = files.filter((f) => /\.(cpp|hpp)$/.test(f));
+
+/**
+ * The composed output's word range in the Transform pointer layout, read from
+ * the generated table rather than counted here: a TS producer writes those slots
+ * by index, and a number in this file would be the one that went stale.
+ */
+function composedOutputWords() {
+    const text = readFileSync(path.join(ROOT, 'sdk/src/wasm/ptrLayouts.generated.ts'), 'utf8');
+    const block = /Transform:\s*\{[\s\S]*?fields:\s*\[([\s\S]*?)\]/.exec(text);
+    if (!block) return null;
+    const fields = [...block[1].matchAll(/name:\s*'(\w+)',\s*type:\s*'(\w+)',\s*offset:\s*(\d+)/g)]
+        .map((m) => ({ name: m[1], words: { vec3: 3, quat: 4, f32: 1 }[m[2]] ?? 1, word: Number(m[3]) / 4 }));
+    const out = fields.filter((f) => OUTPUT_FIELDS.includes(f.name));
+    if (out.length === 0) return null;
+    return new Set(out.flatMap((f) => Array.from({ length: f.words }, (_, i) => f.word + i)));
+}
 
 const hits = [];
 const bodies = new Map();
@@ -179,6 +214,49 @@ for (const seam of SEAMS) {
         }
     }
 }
+// ── Who writes the composition's OUTPUT ──
+const outputWrites = [];
+for (const rel of cpp) {
+    if (OUTPUT_AUTHORS.has(rel)) continue;
+    const lines = readFileSync(path.join(ROOT, rel), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+        if (COMMENT.test(line)) return;
+        const m = OUTPUT_WRITE.exec(line);
+        if (m) outputWrites.push({ file: rel, line: i + 1, field: m[1], code: line.trim().slice(0, 70) });
+    });
+}
+for (const w of outputWrites) {
+    errors.push(`${w.file}:${w.line} — writes ${w.field}, which only the composition may author`);
+}
+for (const [file] of OUTPUT_AUTHORS) {
+    const text = missing.some((m) => file.startsWith(m)) ? null : readFileSync(path.join(ROOT, file), 'utf8');
+    if (text && !OUTPUT_WRITE.test(text.split('\n').find((l) => OUTPUT_WRITE.test(l) && !COMMENT.test(l)) ?? '')) {
+        errors.push(`${file} — declared as an author of the composed output and writes none of it`);
+    }
+}
+
+// The TS producers reach the same fields by INDEX, through a resolved pointer:
+// `engF32[fi + 10] = x` is a worldPosition write that no search for the name
+// finds, and that is how the physics writeback stayed a second author.
+const outputWords = composedOutputWords();
+if (!outputWords) {
+    errors.push('the Transform pointer layout no longer says where the composed output lives');
+} else {
+    const INDEXED = /\[\s*(\w+)\s*\+\s*(\d+)\s*\]\s*=[^=]/g;
+    for (const rel of files.filter((f) => /^sdk\/src\/.*\.ts$/.test(f) && !f.includes('.generated.'))) {
+        const text = readFileSync(path.join(ROOT, rel), 'utf8');
+        if (!text.includes('getTransformPtr')) continue;
+        text.split('\n').forEach((line, i) => {
+            if (COMMENT.test(line)) return;
+            for (const m of line.matchAll(INDEXED)) {
+                if (outputWords.has(Number(m[2]))) {
+                    errors.push(`${rel}:${i + 1} — writes word ${m[2]} of a Transform, which is composed output`);
+                }
+            }
+        });
+    }
+}
+
 {
     const text = readFileSync(path.join(ROOT, HIERARCHY_WRITER.file), 'utf8');
     const i = text.split('\n').findIndex((l) => l.includes(`${HIERARCHY_WRITER.fn}(`) && l.includes('Registry&'));
@@ -204,6 +282,9 @@ say(`  ${HIERARCHY_WRITER.fn.padEnd(w)}   hierarchy  announces`);
 say(`  ${' '.repeat(w)}  ${HIERARCHY_WRITER.file}`);
 say(`  ${' '.repeat(w)}  a reparent moves a subtree without touching one transform field`);
 say('');
+say('  The composition\'s OUTPUT has one author:');
+for (const [file, why] of OUTPUT_AUTHORS) say(`    ${file}  —  ${why}`);
+say('');
 say('  From TypeScript, through a pointer setter that calls no C++:');
 for (const [who, how] of TS_PRODUCERS) say(`    ${who.padEnd(w)}  ${how}`);
 say('');
@@ -212,10 +293,11 @@ if (missing.length) say(`  NOT scanned: ${missing.join(', ')}`);
 say('');
 
 if (errors.length) {
-    console.error('Writers with no seam:\n');
+    console.error('Transform authorship is not what it says:\n');
     for (const e of errors) console.error(`  ${e}`);
-    console.error('\nA new producer needs an entry in SEAMS saying how the composition learns of it.');
-    console.error(`Either call ${SEAM_CALL}() once per pass, or compose the registry you wrote in place.`);
+    console.error('\nAn INPUT writer needs an entry in SEAMS saying how the composition learns of it:');
+    console.error(`call ${SEAM_CALL}() once per pass, or compose the registry you wrote in place.`);
+    console.error('The OUTPUT has one author. Write the local fields and let the composition run.');
     if (GATE) process.exit(1);
 } else if (GATE) {
     console.log(`transform writers OK: ${hits.length} write site(s), every one under a declared seam.`);

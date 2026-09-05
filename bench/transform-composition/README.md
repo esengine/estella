@@ -93,12 +93,11 @@ never move their probe, so the check is live where movement is.
 
 ## What this does not cover
 
-- **Physics is a second author of the composed output.** `registry_batchSync-
-  PhysicsTransforms` writes the world fields itself, `decomposed_ = true`,
-  without going through `TransformSystem`. A journal built on this collection
-  would not contain those entities. **Not production-complete until that
-  ownership is resolved** — the composition has a canonical author now, which is
-  what makes it a question with an answer, but it is not this one.
+- ~~Physics is a second author of the composed output.~~ **Closed**: the 2D
+  writeback produces local inputs and announces staleness, so physics-driven
+  entities arrive in this set like any other. 3D physics already wrote only
+  local inputs — but it treats the solver pose as local unconditionally, which
+  is a parented-body bug of its own and not an authorship one.
 - Nothing ships. `composeCollecting` has one caller and it is this bench; the
   shipped `ensureComposed` path collects nothing and pays one predictable branch
   per entity, which the A column is what says is affordable.
