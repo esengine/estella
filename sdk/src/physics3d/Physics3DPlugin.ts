@@ -76,8 +76,10 @@ export class Physics3DPlugin implements Plugin {
                 module._physics3d_setLayerMask(layer, mask);
             });
             runtime.module = module;
-            app.insertResource(Physics3D, new Physics3DQueries(module,
-                                                              this.config_.pixelsPerUnit));
+            // The character map, not a copy of it: characters are created lazily
+            // by the step, so a snapshot taken here would never hold one.
+            app.insertResource(Physics3D, new Physics3DQueries(
+                module, this.config_.pixelsPerUnit, runtime.characters));
             app.addSystemToSchedule(Schedule.FixedUpdate, defineSystem([], () => {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
                               runtime.characters, events, runtime.joints);

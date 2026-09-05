@@ -138,6 +138,7 @@ const REQUIRED_EXPORTS = [
     '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
     '_physics3d_transforms', '_physics3d_transformsBytes',
     '_physics3d_addCharacter', '_physics3d_moveCharacter', '_physics3d_removeCharacter',
+    '_physics3d_setCharacterPosition',
     '_physics3d_sphereCast', '_physics3d_overlapSphere', '_physics3d_overlapBox',
     '_physics3d_contactEnters', '_physics3d_contactEntersBytes',
     '_physics3d_sensorEnters', '_physics3d_sensorEntersBytes',

@@ -40,7 +40,24 @@ export interface Overlap3DHit {
  */
 export class Physics3DQueries {
     constructor(private readonly module_: Physics3DWasmModule,
-                private readonly ppu_: number) {}
+                private readonly ppu_: number,
+                private readonly characters_: ReadonlyMap<Entity, number> = new Map()) {}
+
+    /**
+     * Put a character somewhere, rather than moving it there. Its position is an
+     * OUTPUT — the step writes it into `Transform` every frame — so this is the
+     * only way to say it, and the velocity is dropped with the move.
+     *
+     * Answers false for an entity the world has no character for.
+     */
+    teleportCharacter(entity: Entity, position: { x: number; y: number; z: number }): boolean {
+        const id = this.characters_.get(entity);
+        if (id === undefined) return false;
+        const p = this.ppu_;
+        this.module_._physics3d_setCharacterPosition(
+            id, position.x / p, position.y / p, position.z / p);
+        return true;
+    }
 
     /** The nearest body along a ray, or null. `direction` carries its length. */
     raycast(origin: { x: number; y: number; z: number },
