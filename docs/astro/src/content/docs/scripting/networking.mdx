@@ -157,11 +157,44 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 
 - **Owned entities are never culled** — a policy can't hide a client's own pawn.
 - **Re-entering is seamless**: the respawn carries the entity's *current* state.
-- `radiusInterest` reads `Transform.position` by default (override with
-  `{ position }`); placeless entities are always relevant, and it fails open
-  while a connection owns no positioned entity yet.
+- `radiusInterest` reads the composed **world** position of `Transform` by
+  default (override with `{ position }`); placeless entities are always relevant,
+  and it fails open while a connection owns no positioned entity yet.
 - Installing, replacing, or removing the policy mid-session is safe — the next
   tick reconciles every connection's ghost set.
+
+#### Scaling it: `radiusInterestProvider`
+
+A policy is handed the population **per connection**, so whatever it reads it
+reads once per connection. A *provider* prepares one spatial index per sample and
+answers every connection from it:
+
+```typescript
+import { radiusInterestProvider } from 'esengine';
+
+server.setInterestProvider(radiusInterestProvider(800));
+```
+
+It answers exactly what the policy answers, and it has two modes — a difference
+in **capability**, not a fallback:
+
+| reader | what it does | why |
+|---|---|---|
+| the default `Transform` | keeps its index between samples and moves only the entities that actually moved | the engine reports which world transforms a composition changed |
+| a custom `position` | rebuilds the index every sample | nothing can know when an arbitrary function would answer differently |
+
+At 100,000 entities and 32 connections the kept index costs **18% of one core**
+against 195% for rebuilding it every sample, and reads 668 positions per sample
+instead of 100,000. With nothing moving it reads none.
+
+Two things follow from the kept index, and neither is a limitation you can work
+around by writing the reader differently:
+
+- If you supply `position`, you get the per-sample rebuild. That is the correct
+  answer for an arbitrary function, and it is still far cheaper than a policy.
+- Physics-driven and parent-driven movement both reach it, because both go
+  through the same composition. A game that writes `worldPosition` itself does
+  not — that field is the composition's output, not an input.
 
 ### Client prediction — zero-latency input
 

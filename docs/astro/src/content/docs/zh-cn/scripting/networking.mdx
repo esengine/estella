@@ -147,9 +147,37 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 
 - **自有实体永不被剔除**——策略藏不掉客户端自己的 pawn。
 - **重进无缝**:重新 spawn 携带实体的*当前*状态。
-- `radiusInterest` 默认读 `Transform.position`(可用 `{ position }` 覆盖);
-  无位置的实体恒相关;连接尚无带位置的自有实体时 fail-open(看到全部)。
+- `radiusInterest` 默认读 `Transform` 合成后的**世界**位置(可用 `{ position }`
+  覆盖);无位置的实体恒相关;连接尚无带位置的自有实体时 fail-open(看到全部)。
 - 会话中安装/替换/移除策略都是安全的——下一 tick 会调和每个连接的 ghost 集。
+
+#### 上规模:`radiusInterestProvider`
+
+策略是**按连接**拿到整个population的,所以它读什么就读几遍。而 *provider* 每次
+采样只准备一次空间索引,然后用它回答所有连接:
+
+```typescript
+import { radiusInterestProvider } from 'esengine';
+
+server.setInterestProvider(radiusInterestProvider(800));
+```
+
+它给出的答案与策略逐个实体一致,并且有两种模式——这是**能力**差别,不是降级:
+
+| 读取器 | 行为 | 原因 |
+|---|---|---|
+| 默认的 `Transform` | 索引跨采样保留,只移动真正动过的实体 | 引擎会报告一次合成改变了哪些世界变换 |
+| 自定义 `position` | 每次采样重建索引 | 没有人能知道一个任意函数何时会给出不同答案 |
+
+10 万实体、32 个连接时,保留索引占 **18% 单核**,而每采样重建是 195%;每采样读
+668 次位置而不是 10 万次。完全没有东西移动时读 0 次。
+
+保留索引带来两条结论,都不是换个写法就能绕开的:
+
+- 你传了 `position`,就走每采样重建。对任意函数来说这是正确答案,而且仍然远比
+  策略便宜。
+- 物理驱动和父节点驱动的移动都会到达索引,因为两者都经过同一次合成。自己去写
+  `worldPosition` 的游戏则不会——那个字段是合成的输出,不是输入。
 
 ### 客户端预测——零延迟输入
 
