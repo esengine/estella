@@ -127,6 +127,41 @@ describe('the pose mixer', () => {
         expect(read(world).pos.x).toBeCloseTo(4, 6);
     });
 
+    it('mixes each entity on its own, as a skeleton\u2019s joints are', () => {
+        const world = makeWorld();
+        const def = probe();
+        const base = () => ({
+            lift: 0, pos: { x: 0, y: 0, z: 0 },
+            rot: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
+        });
+        const JOINTS = [10, 11, 12];
+        for (const j of JOINTS) world.insert(j, def, base());
+
+        // Two poses over three entities: what one joint blends to must not
+        // depend on what its neighbours are doing.
+        const posed = (values: Record<number, number>): Pose => {
+            const pose = new Pose();
+            pose.reset();
+            for (const [entity, lift] of Object.entries(values)) {
+                const track = pose.track(world, Number(entity), def)!;
+                track.data.lift = lift;
+                track.touched.add('lift');
+            }
+            return pose;
+        };
+        const a = posed({ 10: 0, 11: 100, 12: 50 });
+        const b = posed({ 10: 100, 11: 0, 12: 50 });
+
+        const out = new Pose();
+        mixPoses([{ pose: a, weight: 0.25 }, { pose: b, weight: 0.75 }], out, world);
+        out.applyTo(world);
+
+        const liftOf = (e: number) => (world.get(e, def) as { lift: number }).lift;
+        expect(liftOf(10)).toBeCloseTo(75, 6);
+        expect(liftOf(11)).toBeCloseTo(25, 6);
+        expect(liftOf(12)).toBeCloseTo(50, 6);
+    });
+
     it('is the same answer whichever order the poses arrive in', () => {
         const run = (swap: boolean) => {
             const world = seedWorld();
