@@ -33,6 +33,8 @@
  *                        are running — the far end of an effect chain
  *     --combat p:a[,b]   after settling, print the live swing and what each
  *                        named target has left
+ *     --ai <enemy>       after settling, print what an autonomous character is
+ *                        doing, and what the world let it do
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -152,11 +154,12 @@ async function main() {
 const GAMEPLAY = flag('gameplay', '');
 const PARTICLES = flag('particles', '');
 const COMBAT = flag('combat', '');
+const AI = flag('ai', '');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES || COMBAT) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -243,6 +246,13 @@ const SCENE = flag('scene', '');
       + `${JSON.stringify(names)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  combat: ${JSON.stringify(seen)}`);
+  }
+
+  if (AI) {
+    const seen = await win.webContents.executeJavaScript(
+      `window.__estellaCooked?.ai(${JSON.stringify(AI.trim())}) ?? null`,
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  ai: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();

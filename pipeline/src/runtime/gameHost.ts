@@ -18,6 +18,7 @@ import {
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
+  Hunter, NavAgent, Perception, AnimatorRootMotion,
 } from 'esengine';
 import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -190,6 +191,73 @@ async function boot(): Promise<void> {
         // the frame loop can land in the middle of that. Half a world reads as
         // "the thing I was walking to is gone", which is a lie with a cost.
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * What an autonomous character is doing, and on whose terms. Read-only and
+       * off the same components the game runs on: a driver that could set the
+       * state would be answering its own question, so a chase still has to be
+       * caused by walking into what the enemy can see.
+       */
+      ai(enemyName: string): {
+        found: boolean;
+        state: string;
+        animator: string;
+        visible: boolean;
+        distance: number;
+        hasTarget: boolean;
+        target: { x: number; y: number; z: number } | null;
+        askedVelocity: { x: number; z: number } | null;
+        realVelocity: { x: number; z: number } | null;
+        lunge: { x: number; z: number } | null;
+        position: { x: number; y: number; z: number } | null;
+        attackId: number;
+        health: number;
+      } {
+        const blank = {
+          found: false, state: '', animator: '', visible: false, distance: 0, hasTarget: false,
+          target: null, askedVelocity: null, realVelocity: null, lunge: null, position: null,
+          attackId: 0, health: 0,
+        };
+        const enemy = app.world.findEntityByName(enemyName);
+        if (enemy === null || !app.world.has(enemy, Hunter)) return blank;
+        // The composed placement is stale until something asks: a reading taken
+        // between frames would otherwise report where the enemy was, beside a
+        // distance computed from where it is.
+        app.world.ensureTransformsComposed();
+
+        const hunter = app.world.get(enemy, Hunter);
+        const sight = app.world.has(enemy, Perception) ? app.world.get(enemy, Perception) : null;
+        const agent = app.world.has(enemy, NavAgent) ? app.world.get(enemy, NavAgent) : null;
+        const body = app.world.has(enemy, CharacterController3D)
+          ? app.world.get(enemy, CharacterController3D) : null;
+        const root = app.world.has(enemy, AnimatorRootMotion)
+          ? app.world.get(enemy, AnimatorRootMotion) : null;
+        const t = app.world.has(enemy, Transform) ? app.world.get(enemy, Transform) : null;
+        const p = t ? (t.worldPosition ?? t.position) : null;
+        return {
+          found: true,
+          state: hunter.state,
+          animator: app.world.has(enemy, Animator)
+            ? app.world.get(enemy, Animator).currentState : '',
+          visible: sight?.visible ?? false,
+          // The ground plane, which is what the hunter itself decides on — and
+          // zero when nothing is seen, since the fields it would be read from
+          // are stale rather than empty.
+          distance: sight?.visible && p
+            ? Math.hypot(sight.targetX - p.x, sight.targetZ - (p.z ?? 0)) : 0,
+          hasTarget: agent?.hasTarget ?? false,
+          target: agent ? { x: agent.targetX, y: agent.targetY, z: agent.targetZ } : null,
+          askedVelocity: body ? { x: body.velocity.x, z: body.velocity.z } : null,
+          realVelocity: body ? { x: body.realVelocity.x, z: body.realVelocity.z } : null,
+          // What the ATTACK is asking for, as the rate it covers — the request the
+          // steering velocity above has already been overwritten with or cleared.
+          lunge: root?.active && root.deltaTime > 0
+            ? { x: root.deltaPosition.x / root.deltaTime, z: root.deltaPosition.z / root.deltaTime }
+            : null,
+          position: p ? { x: p.x, y: p.y, z: p.z ?? 0 } : null,
+          attackId: app.world.has(enemy, MeleeAttack) ? app.world.get(enemy, MeleeAttack).attackId : 0,
+          health: app.world.has(enemy, Health) ? app.world.get(enemy, Health).current : 0,
+        };
       },
       /**
        * What a swing IS and what it has done to whom: the live attack instance

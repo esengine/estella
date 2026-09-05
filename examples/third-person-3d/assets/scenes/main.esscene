@@ -358,6 +358,10 @@
             "current": 100,
             "max": 100
           }
+        },
+        {
+          "type": "PerceptionTarget",
+          "data": {}
         }
       ]
     },
@@ -771,134 +775,10 @@
       ]
     },
     {
-      "id": 16,
-      "name": "DummyA",
-      "parent": null,
-      "children": [
-        17
-      ],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 129,
-              "y": 60,
-              "z": 17
-            }
-          }
-        },
-        {
-          "type": "RigidBody3D",
-          "data": {
-            "bodyType": 0
-          }
-        },
-        {
-          "type": "BoxCollider3D",
-          "data": {
-            "halfExtents": {
-              "x": 25,
-              "y": 60,
-              "z": 25
-            },
-            "isSensor": true
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "builtin:cube",
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": true,
-            "color": {
-              "r": 0.78,
-              "g": 0.35,
-              "b": 0.32,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "Health",
-          "data": {
-            "current": 100,
-            "max": 100
-          }
-        }
-      ]
-    },
-    {
-      "id": 17,
-      "name": "HitSparkA",
-      "parent": 16,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "ParticleEmitter",
-          "data": {
-            "rate": 0,
-            "burstCount": 18,
-            "burstInterval": 0,
-            "duration": 0.05,
-            "looping": false,
-            "playOnStart": false,
-            "maxParticles": 72,
-            "lifetimeMin": 0.5,
-            "lifetimeMax": 0.9,
-            "shape": 4,
-            "shapeRadius": 12,
-            "speedMin": 90,
-            "speedMax": 240,
-            "startSizeMin": 8,
-            "startSizeMax": 14,
-            "endSizeMin": 0,
-            "endSizeMax": 4,
-            "startColor": {
-              "r": 1.0,
-              "g": 0.82,
-              "b": 0.45,
-              "a": 1.0
-            },
-            "endColor": {
-              "r": 0.95,
-              "g": 0.32,
-              "b": 0.2,
-              "a": 0.0
-            },
-            "gravity": {
-              "x": 0,
-              "y": -320,
-              "z": 0
-            },
-            "damping": 2.0,
-            "blendMode": 1,
-            "layer": 0,
-            "simulationSpace": 0
-          }
-        }
-      ]
-    },
-    {
       "id": 18,
       "name": "DummyB",
       "parent": null,
-      "children": [
-        19
-      ],
+      "children": [],
       "visible": true,
       "components": [
         {
@@ -954,8 +834,8 @@
     },
     {
       "id": 19,
-      "name": "HitSparkB",
-      "parent": 18,
+      "name": "HitSpark",
+      "parent": null,
       "children": [],
       "visible": true,
       "components": [
@@ -964,7 +844,7 @@
           "data": {
             "position": {
               "x": 0,
-              "y": 0,
+              "y": -4000,
               "z": 0
             }
           }
@@ -1010,6 +890,224 @@
             "blendMode": 1,
             "layer": 0,
             "simulationSpace": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Enemy",
+      "parent": null,
+      "children": [
+        21,
+        22,
+        23
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 129,
+              "y": 60,
+              "z": 17
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 30,
+            "halfHeight": 30,
+            "stepHeight": 40,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "NavAgent",
+          "data": {
+            "speed": 320,
+            "radius": 30,
+            "arriveRadius": 40,
+            "repathInterval": 0.35
+          }
+        },
+        {
+          "type": "Perceiver",
+          "data": {
+            "range": 420,
+            "fovDegrees": 360,
+            "losLayers": 1
+          }
+        },
+        {
+          "type": "Perception",
+          "data": {}
+        },
+        {
+          "type": "Hunter",
+          "data": {
+            "attackRange": 100,
+            "attackInterval": 1.6
+          }
+        },
+        {
+          "type": "Animator",
+          "data": {
+            "controller": "assets/models/locomotion.esanimator",
+            "currentState": "",
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeleeAttack",
+          "data": {
+            "radius": 110,
+            "damage": 20,
+            "anchor": 24
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 50,
+            "max": 50
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Bone0",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Bone1",
+      "parent": 20,
+      "children": [
+        24
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "EnemyBody",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/skinned-fade.esmesh",
+            "lit": true,
+            "opaque": true,
+            "color": {
+              "r": 0.82,
+              "g": 0.32,
+              "b": 0.3,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              21,
+              22
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "EnemyHitAnchor",
+      "parent": 22,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 80,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "NavVolume",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 125,
+              "z": -300
+            }
+          }
+        },
+        {
+          "type": "NavVolume",
+          "data": {
+            "halfExtents": {
+              "x": 900,
+              "y": 220,
+              "z": 900
+            },
+            "cellSize": 25,
+            "cellHeight": 10,
+            "agentHeight": 120,
+            "agentRadius": 30,
+            "stepHeight": 40
           }
         }
       ]

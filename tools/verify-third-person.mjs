@@ -63,14 +63,21 @@ function reading(stdout, label) {
     }
 }
 
-/** Drive the package with one gesture and read what the character became. */
-function run(dir, input) {
+/**
+ * Drive the package with one gesture and read what the character became.
+ *
+ * `scene` picks the fixture: `gym` answers to what a character DOES, `arena` to
+ * what an autonomous one decides. Two, because a target one criterion needs
+ * standing somewhere answers another's question — a solid one already did.
+ */
+function run(dir, input, scene = 'gym') {
     const r = runElectron([
         LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
-        '--settle', '30', '--timeout', '60000', '--scene', 'gym',
+        '--settle', '30', '--timeout', '60000', '--scene', scene,
         '--input', JSON.stringify(input), '--gameplay', 'Player,Camera',
-        '--particles', 'FootDust,HitSparkA,HitSparkB',
-        '--combat', 'Player:DummyA,DummyB,Player',
+        '--particles', 'FootDust,HitSpark',
+        '--combat', 'Player:DummyA,DummyB,Player,Enemy',
+        '--ai', 'Enemy',
         '--out', path.join(WORK, 'frame.png'),
     ], { encoding: 'utf8', cwd: ROOT });
     const seen = reading(r.stdout, 'gameplay');
@@ -81,6 +88,7 @@ function run(dir, input) {
     // reading is one launch, so asking twice would be two different games.
     seen.particles = reading(r.stdout, 'particles') ?? {};
     seen.combat = reading(r.stdout, 'combat') ?? { attack: null, targets: {} };
+    seen.ai = reading(r.stdout, 'ai') ?? { found: false };
     return seen;
 }
 
@@ -342,11 +350,9 @@ const START = { y: 60, z: 120 };
           health(landed, 'DummyB') === 100 && health(landed, 'Player') === 100,
           `B ${health(landed, 'DummyB')}, self ${health(landed, 'Player')}`);
     check('and the sparks are the blow’s, not an effect left running',
-          (early.particles?.HitSparkA ?? -1) === 0
-          && (landed.particles?.HitSparkA ?? 0) > 0
-          && (landed.particles?.HitSparkB ?? -1) === 0,
-          `A ${early.particles?.HitSparkA}→${landed.particles?.HitSparkA},`
-          + ` B ${landed.particles?.HitSparkB}`);
+          (early.particles?.HitSpark ?? -1) === 0
+          && (landed.particles?.HitSpark ?? 0) > 0,
+          `sparks ${early.particles?.HitSpark}→${landed.particles?.HitSpark}`);
 
     // D — the clip says `hit` twice, and the swing still lands once.
     const twice = run(dir, { holds: [ATTACK(5), ATTACK(80)], frames: 125 });
@@ -362,9 +368,9 @@ const START = { y: 60, z: 120 };
     check('a swing with nothing in reach runs and takes nothing off',
           swing(missed).state === 'Attack1' && (swing(missed).id ?? 0) > 0
           && swing(missed).hitCount === 0 && health(missed, 'DummyA') === 100
-          && (missed.particles?.HitSparkA ?? -1) === 0,
+          && (missed.particles?.HitSpark ?? -1) === 0,
           `attack ${swing(missed).id}, hits ${swing(missed).hitCount},`
-          + ` A ${health(missed, 'DummyA')}, sparks ${missed.particles?.HitSparkA}`);
+          + ` A ${health(missed, 'DummyA')}, sparks ${missed.particles?.HitSpark}`);
 }
 
 // 12. The attack lunges, which makes it the same question the dodge answered:
@@ -386,6 +392,84 @@ const START = { y: 60, z: 120 };
     check('and the same attack against a wall plays without going through it',
           swing(atWall).state === 'Attack1' && (atWall.position?.z ?? -999) > -520,
           `state ${swing(atWall).state}, z ${atWall.position?.z?.toFixed(0)}`);
+}
+
+// 13. An autonomous character, in the arena fixture. Everything below is caused
+// by the keyboard: the player walks into what the enemy can see, and every state
+// the enemy reaches after that is its own.
+{
+    const arena = (input, frames) => run(dir, { ...input, frames }, 'arena');
+    /** The player closes far enough to be seen; the enemy does the rest. */
+    const seen = (frames, extra = []) =>
+        arena({ holds: [{ key: 'KeyW', from: 0, to: 25 }, ...extra] }, frames);
+    const ai = (r) => r.ai ?? {};
+    const speed = (r) => Math.hypot(ai(r).realVelocity?.x ?? 0, ai(r).realVelocity?.z ?? 0);
+
+    // 1. Detection. The pair is the claim: a chase that started on its own says
+    // nothing about perception.
+    const alone = arena({}, 40);
+    check('an enemy that has seen nobody stands still',
+          ai(alone).state === 'idle' && ai(alone).visible === false,
+          `state ${ai(alone).state}, visible ${ai(alone).visible}`);
+
+    const spotted = seen(40);
+    check('and takes up the chase once the player walks into what it can see',
+          ai(spotted).state === 'chase' && ai(spotted).visible === true
+          && ai(spotted).hasTarget === true,
+          `state ${ai(spotted).state}, visible ${ai(spotted).visible}`);
+
+    // 2. The route. A wall it can see over stands between the two, so walking at
+    // the player is not walking to the player.
+    const rounding = seen(70);
+    check('and goes around the barrier rather than into it',
+          Math.abs(ai(rounding).position?.x ?? 0) > 150,
+          `x ${ai(rounding).position?.x?.toFixed(0)} (straight would hold 0)`);
+
+    // 3. Arrival, and the swing that follows — through the SAME pipeline: an
+    // animator trigger, a beat the clip declares, MeleeAttack, Damage, Health.
+    const swinging = seen(142);
+    check('a swing of its own opens with the player still whole',
+          ai(swinging).animator === 'Attack1' && ai(swinging).attackId > 0
+          && health(swinging, 'Player') === 100,
+          `anim ${ai(swinging).animator}, attack ${ai(swinging).attackId},`
+          + ` player ${health(swinging, 'Player')}`);
+
+    const struck = seen(175);
+    check('and past the beat the player has lost exactly one blow',
+          health(struck, 'Player') === 80 && (struck.particles?.HitSpark ?? 0) >= 0,
+          `player ${health(struck, 'Player')}`);
+
+    // 4. Out of reach again: a state that only left on its own would swing at air.
+    const fleeing = seen(230, [{ key: 'KeyD', from: 170, to: 260 }]);
+    check('a player who backs off is chased again rather than swung at',
+          ai(fleeing).state === 'chase' && ai(fleeing).distance > 100,
+          `state ${ai(fleeing).state}, distance ${ai(fleeing).distance?.toFixed(0)}`);
+
+    // 5. Somewhere it cannot get to. The route ends where the mesh does, and the
+    // enemy stops there — it does not pass through, and it does not give up.
+    const stuck = arena({ holds: [{ key: 'KeyW', from: 0, to: 400 }] }, 340);
+    const at = ai(stuck).position ?? { x: 0, z: 0 };
+    const insideBarrier = Math.abs(at.x) < 230 && at.z > -160 && at.z < -40;
+    check('a target it cannot reach leaves it stopped short, still trying',
+          ai(stuck).state === 'chase' && speed(stuck) < 5 && !insideBarrier
+          && health(stuck, 'Player') === 100,
+          `state ${ai(stuck).state}, speed ${speed(stuck).toFixed(0)},`
+          + ` at (${at.x.toFixed(0)}, ${at.z.toFixed(0)}), player ${health(stuck, 'Player')}`);
+
+    // 6. And it can be killed, by the player's swing through the same pipeline.
+    // One press: the player's own attack lunges, so a second would carry it back
+    // out of reach before the first answer is in.
+    const swings = [{ key: 'KeyA', from: 120, to: 150 }, ATTACK(170)];
+    const dead = seen(260, swings);
+    check('the player’s swing takes it down the same way its own works',
+          ai(dead).state === 'dead' && health(dead, 'Enemy') === 0,
+          `state ${ai(dead).state}, enemy ${health(dead, 'Enemy')}`);
+
+    const after = seen(360, swings);
+    check('and once it is down it stops moving and stops swinging',
+          speed(after) < 5 && health(after, 'Player') === health(dead, 'Player'),
+          `speed ${speed(after).toFixed(0)},`
+          + ` player ${health(dead, 'Player')}→${health(after, 'Player')}`);
 }
 
 const failed = results.filter((r) => !r.ok);

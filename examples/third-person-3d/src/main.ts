@@ -1,10 +1,9 @@
-// Movement is declared, not scripted: ThirdPersonController and
-// ThirdPersonCamera are components the scene carries. What a game DOES own is
-// what an animation and a blow MEAN — here, dust under a footstep and sparks
-// where a sword lands.
+// Movement is declared, not scripted — ThirdPersonController, ThirdPersonCamera
+// and Hunter are components the scene carries. What a game DOES own is what an
+// animation and a blow MEAN: dust under a footstep, sparks where a sword lands.
 import {
     addSystemToSchedule, Schedule, defineSystem, EventReader, GetWorld, Res,
-    AnimatorEvent, Damage, Children, ParticleEmitter, Particle, resolveChildEntity,
+    AnimatorEvent, Damage, Transform, Particle, resolveChildEntity,
 } from 'esengine';
 
 /**
@@ -25,18 +24,21 @@ const footstepDustSystem = defineSystem(
 );
 
 /**
- * Sparks where a blow landed. Driven by the blow itself, so nothing burns while
- * nothing is being hit — and by the effect the TARGET carries, so the engine
- * never has to know which sword makes which sparks.
+ * Sparks where a blow landed — moved to the contact point the blow carries,
+ * which is the only moment it can be used: by the time this runs, the swing
+ * that produced it has moved on. Driven by the blow, so nothing burns while
+ * nothing is being hit, and by the same one for a player and for an enemy.
  */
 const hitSparkSystem = defineSystem(
     [EventReader(Damage), GetWorld(), Res(Particle)],
     (blows, world, particles) => {
         for (const blow of blows) {
-            if (!world.has(blow.target, Children)) continue;
-            for (const child of world.get(blow.target, Children).entities) {
-                if (world.has(child, ParticleEmitter)) particles.play(child);
-            }
+            const spark = world.findEntityByName('HitSpark');
+            if (spark === null || !world.has(spark, Transform)) continue;
+            world.update(spark, Transform, (t) => {
+                t.position.x = blow.x; t.position.y = blow.y; t.position.z = blow.z;
+            });
+            particles.play(spark);
         }
     },
     { name: 'HitSparkSystem' },
