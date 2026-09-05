@@ -126,10 +126,6 @@ export const BLIND = {
     // when a player binds a mouse button, so a certified game runs it without any
     // import list ever naming it.
     MouseButton: 'built by InputMap\'s rebind scan on the game\'s behalf — run by a golden project, named by none',
-    // Same shape of blindness: the engine maintains this one from Parent, so a
-    // game reads it and every golden project's layout walks it every frame, but
-    // nothing imports the name.
-    Children: 'engine-maintained from Parent — walked every frame, named in no import list',
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,
