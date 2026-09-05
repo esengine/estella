@@ -45,6 +45,7 @@ export async function connectEngine(sdk, app, root) {
     const factory = (await import(pathToFileURL(path.join(dir, 'esengine.js')).href)).default;
     const module = await factory({ locateFile: (f) => path.join(dir, f) });
     app.connectCpp(new module.Registry(), module, { strict: false });
+    return module;
 }
 
 export function defineComponents(sdk) {
@@ -63,7 +64,7 @@ export function newStats() {
         },
         visited: {
             candidates: 0, positionReads: 0, anchor: 0, radius: 0, distanceTests: 0,
-            cells: 0, spatialCandidates: 0, owner: 0,
+            cells: 0, spatialCandidates: 0, owner: 0, unindexed: 0,
             enter: 0, leave: 0, removals: 0, dirty: 0,
         },
         visibleTotal: 0,
@@ -230,6 +231,90 @@ export function buildGrid(world, ctx, stats, cellSize) {
     }
     stats.ns.build += process.hrtime.bigint() - t;
     return { cells, placeless, cache, cellSize };
+}
+
+/**
+ * A uniform grid that is KEPT. The price of not rebuilding is an invalidation
+ * contract: right only while every author of a world position reaches the
+ * composition that reports the change. Buckets are arrays and the cache is the
+ * map C1 builds, so the QUERY side is byte for byte C1's.
+ */
+export function newLiveGrid(cellSize) {
+    return { cells: new Map(), placeless: new Set(), cache: new Map(), at: new Map(), cellSize };
+}
+
+function place(grid, e, p) {
+    if (!p) { grid.placeless.add(e); return; }
+    const key = cellKey(p.x, p.y, p.z ?? 0, grid.cellSize);
+    let bucket = grid.cells.get(key);
+    if (!bucket) { bucket = []; grid.cells.set(key, bucket); }
+    grid.at.set(e, { key, idx: bucket.length });
+    bucket.push(e);
+}
+
+/** Swap with the last and pop, fixing the moved entity's index — a cell is an
+ *  array so the radius pass walks it exactly as C1's does. */
+function displace(grid, e) {
+    const at = grid.at.get(e);
+    if (!at) { grid.placeless.delete(e); return; }
+    const bucket = grid.cells.get(at.key);
+    const last = bucket[bucket.length - 1];
+    bucket[at.idx] = last;
+    grid.at.get(last).idx = at.idx;
+    bucket.pop();
+    grid.at.delete(e);
+}
+
+/** Once, at startup: the same walk C1 pays for every sample. */
+export function seedLiveGrid(world, ctx, stats, grid) {
+    const t = process.hrtime.bigint();
+    for (const e of ctx.entities) {
+        stats.visited.positionReads++;
+        const p = positionOf(world, ctx.Pos, e);
+        grid.cache.set(e, p);
+        place(grid, e, p);
+    }
+    stats.ns.build += process.hrtime.bigint() - t;
+}
+
+/** Arm D1's whole build column: only the entities the composition said moved. */
+export function updateLiveGrid(world, ctx, stats, grid, changed) {
+    const t = process.hrtime.bigint();
+    for (const e of changed) {
+        if (!grid.cache.has(e)) { stats.visited.unindexed++; continue; }
+        stats.visited.positionReads++;
+        const p = positionOf(world, ctx.Pos, e);
+        grid.cache.set(e, p);
+        const at = grid.at.get(e);
+        const key = p ? cellKey(p.x, p.y, p.z ?? 0, grid.cellSize) : null;
+        // Most movement is within a cell, and then the coordinate cache was the
+        // entire update — the bucket it belongs to has not changed.
+        if (at && key === at.key) continue;
+        displace(grid, e);
+        place(grid, e, p);
+    }
+    stats.ns.build += process.hrtime.bigint() - t;
+}
+
+/** What a kept grid holds against what a rebuilt one would: zero on every count,
+ *  or it has been carrying a lie since whichever update dropped it. */
+export function gridDrift(live, fresh) {
+    const d = { position: 0, cell: 0, missing: 0, extra: 0 };
+    for (const [e, b] of fresh.cache) {
+        const a = live.cache.get(e);
+        if (!a !== !b || (a && b && (a.x !== b.x || a.y !== b.y || (a.z ?? 0) !== (b.z ?? 0)))) d.position++;
+    }
+    const held = new Map();
+    for (const [key, bucket] of live.cells) for (const e of bucket) held.set(e, key);
+    const want = new Map();
+    for (const [key, bucket] of fresh.cells) for (const e of bucket) want.set(e, key);
+    for (const [e, key] of want) {
+        const k = held.get(e);
+        if (k === undefined) d.missing++;
+        else if (k !== key) d.cell++;
+    }
+    for (const e of held.keys()) if (!want.has(e)) d.extra++;
+    return d;
 }
 
 /** Arm C0: cached coordinates, same full walk. */

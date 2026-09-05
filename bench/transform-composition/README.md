@@ -102,8 +102,12 @@ never move their probe, so the check is live where movement is.
 - Nothing ships. `composeCollecting` has one caller and it is this bench; the
   shipped `ensureComposed` path collects nothing and pays one predictable branch
   per entity, which the A column is what says is affordable.
-- The set is COUNTED here, not consumed. What an index costs to update from it —
-  cell removal, reinsertion, and the ownership of entities that left the world
-  entirely — is the next measurement, not this one.
+- **The set is a value-change journal, not a membership one.** A new entity
+  spawned at the origin is not in it — its composed output equals what its fields
+  already held — and a despawned entity is never in it. A consumer that maintains
+  a structure needs membership from wherever it already gets membership.
+- Consuming it is measured next door: `bench/replication-interest` keeps a grid
+  from this set and takes the interest path at 100k x 32 from 200% of a core to
+  15%, with the kept grid holding exactly what a rebuilt one would.
 - One compose per pass. A frame that runs several fixed steps composes several
   times, and the changed sets would have to be unioned or consumed per step.

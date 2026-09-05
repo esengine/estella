@@ -23,11 +23,12 @@ const ROOT = path.resolve(HERE, '..', '..');
 const ARM = path.join(HERE, 'arm.mjs');
 const QUICK = process.argv.includes('--quick');
 
-const ARMS = ['B', 'C0', 'C1'];
+const ARMS = ['B', 'C0', 'C1', 'D1'];
 const ARM_MEANING = {
     B: 'as shipped: every connection reads every candidate\'s position',
     C0: 'positions read once per sample, cached; same full walk',
     C1: 'grid rebuilt per sample; only nearby cells are walked',
+    D1: 'the same grid, KEPT — only the entities the composition says moved',
 };
 /** Arm B reads a builtin position per candidate per connection, so 100k x 32 is
  *  already 50 seconds of work per simulated second. Points stay few. */
@@ -39,6 +40,8 @@ const FIXED = {
     simHz: 60, replHz: 20, warmup: QUICK ? 4 : 6, measure: QUICK ? 9 : 18,
 };
 const VERIFY_POINTS = QUICK ? [[10000, 8]] : [[10000, 8], [10000, 32], [100000, 8]];
+/** The arms whose answer has to be checked against the full scan's, not just timed. */
+const VERIFY_ARMS = ['C1', 'D1'];
 
 const CACHE = path.join(HERE, `.sweep-${QUICK ? 'quick' : 'matrix'}.jsonl`);
 const buildId = () => sdkIdentity(ROOT).sdkArtifactSha256;
@@ -94,7 +97,7 @@ function measure(arm, entities, connections, verify) {
 buildSdkOnce();
 
 const points = [];
-const total = POINTS.length * ARMS.length + VERIFY_POINTS.length;
+const total = POINTS.length * ARMS.length + VERIFY_POINTS.length * VERIFY_ARMS.length;
 let done = 0;
 for (const [entities, connections] of POINTS) {
     for (const arm of ARMS) {
@@ -106,10 +109,12 @@ for (const [entities, connections] of POINTS) {
 }
 const verifies = [];
 for (const [entities, connections] of VERIFY_POINTS) {
-    const { result, fresh } = measure('C1', entities, connections, true);
-    process.stderr.write(`[${++done}/${total}] differential  ${entities}  ${connections} conn`
-        + `${fresh ? '' : '  (cached)'}\n`);
-    verifies.push(result);
+    for (const arm of VERIFY_ARMS) {
+        const { result, fresh } = measure(arm, entities, connections, true);
+        process.stderr.write(`[${++done}/${total}] differential ${arm}  ${entities}  ${connections} conn`
+            + `${fresh ? '' : '  (cached)'}\n`);
+        verifies.push(result);
+    }
 }
 
 const at = (arm, e, c) => points.find((p) => p.arm === arm && p.entities === e && p.connections === c);
@@ -123,10 +128,22 @@ say('');
 for (const arm of ARMS) say(`  ${arm}  ${ARM_MEANING[arm]}`);
 say('');
 const clean = verifies.every((v) => v.mismatches === 0);
+const stranded = verifies.concat(points).reduce((n, v) => n + (v.visitedPerSample?.unindexed ?? 0), 0);
 say(clean
-    ? `  DIFFERENTIAL: the grid saw exactly what the full scan saw, every connection,`
+    ? `  DIFFERENTIAL: both grids saw exactly what the full scan saw, every connection,`
       + ` every sample (${verifies.length} point(s)).`
-    : '  DIFFERENTIAL: MISMATCHED — the grid changed what a connection sees.');
+    : '  DIFFERENTIAL: MISMATCHED — a grid changed what a connection sees.');
+say(stranded === 0
+    ? '  Every entity the composition reported was one the kept grid knew about.'
+    : `  ${stranded} reported entit(ies) were not in the kept grid — it is missing rows.`);
+// The kept grid against a rebuilt one, which is the claim it makes: a cell that
+// drifted only reaches the visible-set check if it changes somebody's view.
+const drifts = points.concat(verifies).map((p) => p.drift).filter(Boolean);
+const drifted = drifts.reduce((n, d) => n + d.position + d.cell + d.missing + d.extra, 0);
+say(drifts.length === 0 ? '  NO KEPT GRID WAS COMPARED against a rebuilt one.'
+    : drifted === 0
+        ? `  The kept grid held exactly what a rebuilt one would, at ${drifts.length} point(s).`
+        : `  The kept grid DRIFTED from a rebuilt one: ${drifted} entr(ies) across ${drifts.length} point(s).`);
 say('');
 say('  us per simulated second, and the share of one core');
 say('      pop    conn  arm       total  1 core    build    radius   vs B');

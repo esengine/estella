@@ -660,6 +660,13 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
             out.set("ran", ran);
             out.set("visited", ts ? ts->visited() : 0u);
             out.set("changed", static_cast<esengine::u32>(ran ? changed.size() : 0));
+            // The ids themselves, as an address into linear memory: a JS array of
+            // a hundred thousand handles would cost more than the walk that found
+            // them. Valid until the next call, which reuses the vector.
+            static_assert(sizeof(esengine::Entity) == sizeof(esengine::u32),
+                          "the changed set is read as a Uint32Array of raw ids");
+            out.set("ptr", static_cast<esengine::u32>(
+                reinterpret_cast<uintptr_t>(changed.data())));
             return out;
         }), emscripten::allow_raw_pointers());
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);

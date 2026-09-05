@@ -106,7 +106,63 @@ What remains is the radius scan, and a per-sample rebuilt grid takes 100k × 32
 from 46 cores to 1.8 while keeping arbitrary `position()` support and matching
 the full scan entity for entity. The build is 93% of what is left, so an
 incremental index is worth designing — but it is now a question about
-maintaining a structure, not about whether locality helps.
+maintaining a structure, not about whether locality helps. That question is the
+third one below, and the answer is 15% of a core.
+
+## Third question: what the grid costs when it is KEPT
+
+The build column is the whole remaining cost, and it is paid every sample
+whatever moved. `TransformSystem` knows exactly which entities' composed output
+differs — costed in `bench/transform-composition` at 1.3% of a core — so a fourth
+arm keeps its grid and moves only those between cells.
+
+| | positions | grid |
+|---|---|---|
+| **C1** | read once per sample, all of them | rebuilt every sample |
+| **D1** | read for the entities that moved | kept; those entities re-celled |
+
+D1's query side is byte for byte C1's — the same cell arrays, the same cache map,
+the same `visibleForC1` — so what the two differ by is the build column alone.
+
+| population | connections | C1 | D1 | D1 build | C1 build | D1/B |
+|---|---|---|---|---|---|---|
+| 10k | 8 | 19% | **1%** | 1,852 | 177,024 | 0.007 |
+| 10k | 32 | 19% | **2%** | 1,638 | 170,694 | 0.004 |
+| 100k | 8 | 226% | **12%** | 22,026 | 2,179,859 | 0.009 |
+| 100k | 32 | 200% | **15%** | 17,034 | 1,834,928 | 0.003 |
+
+Position reads per sample go from 100,000 to **668**. The rest of the mechanism
+is unchanged: 864 cells, 83,267 spatial candidates, 83,267 distance tests — the
+same numbers C1 produces.
+
+**At 100k × 32 the interest path goes from 5,559% of a core to 15%.** The grid
+cost 200% while it was rebuilt and costs 15% while it is kept, and the build
+inside that falls by 108×.
+
+Seeding is one full build — 105 ms at 100k — paid once at startup, against the 92
+ms C1 pays every sample.
+
+Three properties are asserted rather than assumed:
+
+- **D1 saw exactly what the full scan saw**, every connection, every sample, at
+  three points.
+- **The kept grid holds what a rebuilt one would.** Compared against a fresh
+  build at the end of every point: zero drifted positions, zero drifted cells,
+  nothing missing, nothing extra. This is the check that matters, because a stale
+  cell only reaches the visible-set differential if it changes somebody's view —
+  and at 1% visible, most of the world is nobody's. Stop updating the coordinate
+  cache and 74 positions drift; stop re-celling and 74 cells do.
+- **Every entity the composition reported was one the grid knew about.**
+
+### What a kept grid still needs, and this does not have
+
+**The changed set is a value-change journal, not a membership journal.** Measured,
+not reasoned: a new entity spawned at the origin is not reported, because its
+composed output equals what its fields already held; a despawned entity is not
+reported at all; a new entity anywhere else is reported only incidentally,
+because its value differs from the default. A shipped provider takes membership
+from the membership journal it already runs on, and movement from here. This
+workload spawns and despawns nothing after startup, so none of that is measured.
 
 ## Confirmation on the authoritative world-space path
 

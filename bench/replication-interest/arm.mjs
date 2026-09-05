@@ -11,6 +11,7 @@ import {
     loadSdk, connectEngine, buildWorld, applyMovement, newStats,
     visibleForA, visibleForB, visibleForC0, visibleForC1,
     buildPositionCache, buildGrid, diffAndFilter,
+    newLiveGrid, seedLiveGrid, updateLiveGrid, gridDrift,
 } from './workload.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -37,7 +38,7 @@ const VERIFY = argv.includes('--verify');
 const REPL_EVERY = Math.round(SIM_HZ / REPL_HZ);
 const sdk = await loadSdk(ROOT);
 const app = sdk.App.new();
-await connectEngine(sdk, app, ROOT);
+const engine = await connectEngine(sdk, app, ROOT);
 const world = app.world;
 const ctx = buildWorld(sdk, world, {
     population: ENTITIES, connections: CONNECTIONS, anchorsPerConn: ANCHORS,
@@ -73,6 +74,25 @@ world.ensureTransformsComposed();
     world.despawn(p);
 }
 
+// The ids come back as an address into the engine's own memory — a JS array of a
+// hundred thousand handles would cost more than the walk that found them. The
+// view is rebuilt each call: growing the heap detaches the old one.
+const cppRegistry = world.getCppRegistry();
+const EMPTY = new Uint32Array(0);
+function composeCollecting() {
+    const r = engine.transform_composeCollecting(cppRegistry);
+    if (!r.ran || r.changed === 0) return EMPTY;
+    return new Uint32Array(engine.HEAPU32.buffer, r.ptr, r.changed);
+}
+
+const liveGrid = ARM === 'D1' ? newLiveGrid(RADIUS) : null;
+let seedUs = 0;
+if (liveGrid) {
+    const seedStats = newStats();
+    seedLiveGrid(world, ctx, seedStats, liveGrid);
+    seedUs = Number(seedStats.ns.build) / 1000;
+}
+
 const stats = newStats();
 const previous = new Map();
 for (let c = 0; c < CONNECTIONS; c++) previous.set(c, new Set());
@@ -89,7 +109,7 @@ function sampleOnce(measuring) {
     // What a server does before an interest snapshot. With no transform mutation
     // since the last one this is the epoch comparison and nothing else.
     const et = process.hrtime.bigint();
-    world.ensureTransformsComposed();
+    const changed = ARM === 'D1' ? composeCollecting() : (world.ensureTransformsComposed(), null);
     if (measuring) stats.ns.ensure += process.hrtime.bigint() - et;
     const mt = process.hrtime.bigint();
     const candidates = [...ctx.entities];
@@ -105,11 +125,12 @@ function sampleOnce(measuring) {
     // safe here: nothing is carried between samples to go stale.
     const shared = measuring ? stats : newStats();
     const cache = ARM === 'C0' ? buildPositionCache(world, ctx, shared) : null;
-    const grid = ARM === 'C1' ? buildGrid(world, ctx, shared, RADIUS) : null;
+    const grid = ARM === 'C1' ? buildGrid(world, ctx, shared, RADIUS)
+        : ARM === 'D1' ? (updateLiveGrid(world, ctx, shared, liveGrid, changed), liveGrid) : null;
 
     for (let c = 0; c < CONNECTIONS; c++) {
         const use = measuring ? stats : newStats();
-        const visible = ARM === 'C1'
+        const visible = ARM === 'C1' || ARM === 'D1'
             ? visibleForC1(ctx, c, candidates, R2, use, ctx.owned, grid, RADIUS)
             : ARM === 'C0'
                 ? visibleForC0(ctx, c, candidates, R2, use, ctx.owned, cache)
@@ -148,13 +169,18 @@ function run(count, measuring) {
 run(WARMUP, false);
 run(MEASURE, true);
 
+// The invariant a KEPT structure lives or dies by. The per-sample visible-set
+// check does not reach it: a stale cell shows up there only if it changes
+// somebody's view, and at 1% visible most of the world is nobody's.
+const drift = liveGrid ? gridDrift(liveGrid, buildGrid(world, ctx, newStats(), RADIUS)) : null;
+
 const simSeconds = MEASURE / SIM_HZ;
 const us = (ns) => Number(ns) / 1000;
 const per = (v) => v / simSeconds;
 process.stdout.write(`${JSON.stringify({
     arm: ARM, entities: ENTITIES, connections: CONNECTIONS, anchors: ANCHORS,
     visible: VISIBLE, movement: MOVEMENT, radius: RADIUS, verify: VERIFY,
-    simSeconds, samples, mismatches, movedTotal,
+    simSeconds, samples, mismatches, movedTotal, seedUs, drift,
     totalUsPerSimSecond: per(us(totalNs)),
     segmentUsPerSimSecond: Object.fromEntries(
         Object.entries(stats.ns).map(([k, v]) => [k, per(us(v))]),
