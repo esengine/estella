@@ -24,6 +24,10 @@ export interface InterestView {
     world: World;
     /** Every currently replicated entity — the set to filter. */
     candidates: readonly Entity[];
+    /** The entities this connection owns, when the host keeps an index of them.
+     *  A policy that needs its own anchors should prefer this over reading
+     *  `Replicated.owner` off every candidate; absent, fall back to that. */
+    owned?: readonly Entity[];
 }
 
 /**
@@ -60,11 +64,16 @@ export interface RadiusInterestOptions {
 export function radiusInterest(radius: number, options: RadiusInterestOptions = {}): InterestPolicy {
     const r2 = radius * radius;
     const positionOf = options.position ?? defaultPosition;
-    return ({ connectionId, world, candidates }) => {
+    return ({ connectionId, world, candidates, owned }) => {
         const anchors: InterestPoint[] = [];
-        for (const e of candidates) {
-            const repl = world.tryGet(e, Replicated) as ReplicatedData | null;
-            if (repl?.owner !== connectionId) continue;
+        // The host's own index when it offers one: finding this connection's
+        // entities by reading `owner` off every candidate is O(population) per
+        // connection, and the answer is already known.
+        for (const e of owned ?? candidates) {
+            if (!owned) {
+                const repl = world.tryGet(e, Replicated) as ReplicatedData | null;
+                if (repl?.owner !== connectionId) continue;
+            }
             const p = positionOf(world, e);
             if (p) anchors.push(p);
         }

@@ -100,6 +100,13 @@ export class ChangeTracker {
     private readonly removals_ = new ReaderOwnedJournal();
     /** Membership moves, independent of ordinary change tracking. */
     private readonly topology_ = new ReaderOwnedJournal();
+    /**
+     * Components WRITTEN, for a consumer that needs to enumerate them sparsely.
+     * `isChangedSince` answers about one entity at a time; finding which entities
+     * changed through it means walking the per-entity map, which is the O(E) a
+     * candidate consumer is trying to avoid.
+     */
+    private readonly writes_ = new ReaderOwnedJournal();
     private trackedComponents_ = new Set<symbol>();
     // The most recent worldTick at which ANY entity changed each component — an
     // O(1) "did anything change since tick T" gate (vs scanning the per-entity map).
@@ -170,6 +177,31 @@ export class ChangeTracker {
         return this.topology_.readerCount(component._id);
     }
 
+    /** Entities whose `component` was written after `sinceTick`. Says nothing
+     *  about WHICH field, or whether the value actually differs. */
+    getWrittenEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
+        return this.writes_.since(component._id, sinceTick);
+    }
+
+    registerWriteReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
+        const id = this.nextReaderId_++;
+        this.writes_.register(component._id, id, retainFromTick);
+        return id;
+    }
+
+    advanceWriteReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        this.writes_.advance(component._id, readerId, lastRunTick);
+    }
+
+    disposeWriteReader(component: AnyComponentDef, readerId: number): void {
+        this.writes_.dispose(component._id, readerId);
+    }
+
+    /** @internal How many readers hold `component`'s write journal. */
+    writeReaderCount(component: AnyComponentDef): number {
+        return this.writes_.readerCount(component._id);
+    }
+
     /**
      * Take out a claim on `component`'s removal history. History begins HERE:
      * a new reader does not inherit rows another reader happened to leave, so
@@ -238,6 +270,12 @@ export class ChangeTracker {
     }
 
     recordChanged(component: AnyComponentDef, entity: Entity): void {
+        // Before the tracking gate, like the other two journals: a consumer that
+        // enumerates writes should not have to enrol the component in `Changed`
+        // tracking, whose per-entity map it cannot enumerate cheaply anyway.
+        if (this.writes_.hasReaders(component._id)) {
+            this.writes_.record(component._id, entity, this.worldTick_);
+        }
         if (!this.trackedComponents_.has(component._id)) return;
         let map = this.componentChangedTicks_.get(component._id);
         if (!map) {

@@ -4008,6 +4008,7 @@ raycastTarget: boolean
 ```
 candidates: readonly number[]
 connectionId: number
+owned: readonly number[] | undefined
 world: World
 ```
 
@@ -6534,6 +6535,7 @@ static prototype: ReplicationPlugin
 ## ReplicationServer — class @experimental
 ```
 @internal fullScans: number
+@internal ownerScanVisits: number
 attachConnection: (transport: ReliableOrderedTransport) => number
 beginTick: (fixedDelta: number) => void
 clientIds: number[]
@@ -9497,6 +9499,7 @@ tabIndex: number | undefined
 @internal advanceRemovedReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal advanceTick: () => void
 @internal advanceTopologyReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
+@internal advanceWriteReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void
 @internal beginIteration: () => void
@@ -9506,6 +9509,7 @@ tabIndex: number | undefined
 @internal disconnectCpp: () => void
 @internal disposeRemovedReader: (component: AnyComponentDef, readerId: number) => void
 @internal disposeTopologyReader: (component: AnyComponentDef, readerId: number) => void
+@internal disposeWriteReader: (component: AnyComponentDef, readerId: number) => void
 @internal enableChangeTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
 @internal getCppRegistry: () => CppRegistry | null
@@ -9516,6 +9520,7 @@ tabIndex: number | undefined
 @internal getWasmModule: () => ESEngineModule | null
 @internal getWorldTick: () => number
 @internal getWorldVersion: () => number
+@internal getWrittenEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal hasCpp: boolean
 @internal isAddedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
 @internal isChangeTracked: (component: AnyComponentDef) => boolean
@@ -9529,6 +9534,7 @@ tabIndex: number | undefined
 @internal registerRemovedReader: (component: AnyComponentDef) => number
 @internal registerRemovedReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
 @internal registerTopologyReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
+@internal registerWriteReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
 @internal removedReaderCount: (component: AnyComponentDef) => number
 @internal resetIterationDepth: () => void
 @internal resetQueryCacheStats: () => void
@@ -9543,6 +9549,7 @@ tabIndex: number | undefined
 @internal suspendIteration: () => number
 @internal topologyReaderCount: (component: AnyComponentDef) => number
 @internal useScriptPoolMemory: (memory: PoolMemory) => void
+@internal writeReaderCount: (component: AnyComponentDef) => number
 despawn: (entity: Entity) => void
 entityCount: () => number
 findEntityByName: (name: string) => Entity | null

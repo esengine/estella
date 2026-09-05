@@ -147,8 +147,22 @@ export class ReplicationServer {
      */
     private registryFloor_: number;
     private readonly registryReader_: number;
+    /**
+     * Who owns what, so neither the anchor lookup nor the server's forced-owner
+     * pass has to read every candidate to find out. Installed with the first
+     * interest policy — a broadcast server never pays for it — and kept for the
+     * server's life, since a policy can be swapped mid-session.
+     */
+    private ownedByConnection_: Map<number, Set<Entity>> | null = null;
+    /** The index's own record of who owned each entity: a write says the NEW
+     *  owner, and the old one is needed to take the entity off its set. */
+    private readonly ownerOfEntity_ = new Map<Entity, number>();
+    private ownerFloor_ = -1;
+    private ownerReader_: number | null = null;
     /** @internal Full-world reconciliations run — a steady-state sample must do none. */
     fullScans = 0;
+    /** @internal Candidates read to answer "who owns this" — zero once indexed. */
+    ownerScanVisits = 0;
 
     constructor(world: World) {
         this.world_ = world;
@@ -218,6 +232,10 @@ export class ReplicationServer {
         for (const o of this.observations_) this.world_.disposeRemovedReader(o.def, o.readerId);
         this.observations_.length = 0;
         this.world_.disposeTopologyReader(Replicated, this.registryReader_);
+        if (this.ownerReader_ !== null) {
+            this.world_.disposeWriteReader(Replicated, this.ownerReader_);
+            this.ownerReader_ = null;
+        }
         this.offDespawn_();
     }
 
@@ -256,7 +274,60 @@ export class ReplicationServer {
      * set against the new policy.
      */
     setInterestPolicy(policy: InterestPolicy | null): void {
+        if (policy && !this.ownedByConnection_) this.installOwnerIndex_();
         this.policy_ = policy;
+    }
+
+    /** Claim the write journal, then seed from what is already known — in that
+     *  order, so nothing written between the two is missed. */
+    private installOwnerIndex_(): void {
+        this.ownerFloor_ = this.world_.getWorldTick() - 1;
+        this.ownerReader_ = this.world_.registerWriteReaderFrom(Replicated, this.ownerFloor_ + 1);
+        this.ownedByConnection_ = new Map();
+        for (const e of this.known_) this.indexOwner_(e);
+    }
+
+    /** Put `e` under its current owner, taking it off the previous one's set. */
+    private indexOwner_(e: Entity): void {
+        const index = this.ownedByConnection_;
+        if (!index) return;
+        const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
+        const now = repl ? repl.owner : undefined;
+        const before = this.ownerOfEntity_.get(e);
+        if (before === now) return;
+        if (before !== undefined) this.ownedByConnection_?.get(before)?.delete(e);
+        if (now === undefined) { this.ownerOfEntity_.delete(e); return; }
+        let set = index.get(now);
+        if (!set) { set = new Set(); index.set(now, set); }
+        set.add(e);
+        this.ownerOfEntity_.set(e, now);
+    }
+
+    /** Drop `e` from the index entirely — it has left replication. */
+    private unindexOwner_(e: Entity): void {
+        const before = this.ownerOfEntity_.get(e);
+        if (before === undefined) return;
+        this.ownedByConnection_?.get(before)?.delete(e);
+        this.ownerOfEntity_.delete(e);
+    }
+
+    /**
+     * Refresh the index from the entities whose `Replicated` was written. Write
+     * history SELECTS candidates; the index's own record against the current
+     * world DECIDES — a write that did not move ownership costs one comparison.
+     */
+    private refreshOwnerIndex_(): void {
+        if (this.ownerReader_ === null) return;
+        for (const e of this.world_.getWrittenEntitiesSince(Replicated, this.ownerFloor_)) {
+            if (this.known_.has(e)) this.indexOwner_(e);
+        }
+    }
+
+    private advanceOwnerFloor_(): void {
+        if (this.ownerReader_ === null) return;
+        const nextFloor = this.world_.getWorldTick() - 1;
+        this.world_.advanceWriteReader(Replicated, this.ownerReader_, nextFloor);
+        this.ownerFloor_ = nextFloor;
     }
 
     /** Accept a transport (server-side end of one client link). */
@@ -367,10 +438,15 @@ export class ReplicationServer {
             // floor pins history for as long as the server runs empty.
             this.advanceObservationFloor_();
             this.advanceRegistryFloor_();
+            this.advanceOwnerFloor_();
             return;
         }
 
         const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();
+
+        // Before anything reads ownership: an owner that changed this frame must
+        // place the view THIS sample, not the next one.
+        this.refreshOwnerIndex_();
 
         // Diff once against the shadow; frames below share the result.
         const sample = this.collectDirty_();
@@ -392,6 +468,7 @@ export class ReplicationServer {
         // Last: the windows are given up only once their rows are on the wire.
         this.advanceObservationFloor_();
         this.advanceRegistryFloor_();
+        this.advanceOwnerFloor_();
     }
 
     /** Fast path (no policy): everything to every ready connection on shared
@@ -518,9 +595,21 @@ export class ReplicationServer {
      *  applied on top: a connection always sees the entities it owns (input
      *  routing and prediction anchor on them, so a policy cannot cull them). */
     private visibleFor_(connectionId: number, candidates: readonly Entity[]): Set<Entity> {
-        const result = this.policy_!({ connectionId, world: this.world_, candidates });
+        const owned = this.ownedByConnection_?.get(connectionId);
+        const result = this.policy_!({
+            connectionId, world: this.world_, candidates,
+            owned: owned ? [...owned] : undefined,
+        });
         const visible = result === 'all' ? new Set(candidates) : new Set(result);
+        // The server's invariant, not the policy's: an entity a connection owns
+        // is always visible to it. From the index when there is one — reading it
+        // off every candidate is the same question asked a second time.
+        if (owned) {
+            for (const e of owned) visible.add(e);
+            return visible;
+        }
         for (const e of candidates) {
+            this.ownerScanVisits++;
             if (visible.has(e)) continue;
             const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
             if (repl && repl.owner === connectionId) visible.add(e);
@@ -546,10 +635,12 @@ export class ReplicationServer {
         for (const e of current) {
             if (!this.known_.has(e)) {
                 this.registerEntity_(e);
+                this.indexOwner_(e);
                 spawnedEntities.push(e);
                 continue;
             }
             this.restoreNetId_(e);
+            this.indexOwner_(e);
         }
 
         const despawned: { entity: Entity; netId: number }[] = [];
@@ -588,8 +679,10 @@ export class ReplicationServer {
             const isLive = this.world_.valid(e) && this.world_.has(e, Replicated);
             if (!isKnown && isLive) {
                 this.registerEntity_(e);
+                this.indexOwner_(e);
                 spawnedEntities.push(e);
             } else if (isKnown && !isLive) {
+                this.unindexOwner_(e);
                 const netId = this.knownNetIds_.get(e);
                 if (netId !== undefined) {
                     despawned.push({ entity: e, netId });
@@ -617,6 +710,8 @@ export class ReplicationServer {
         // The shadow is now the world, so both windows start here too.
         this.advanceObservationFloor_();
         this.advanceRegistryFloor_();
+        this.refreshOwnerIndex_();
+        this.advanceOwnerFloor_();
     }
 
     /**

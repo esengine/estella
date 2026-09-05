@@ -1249,6 +1249,32 @@ export class World {
         return this.changes_.topologyReaderCount(component);
     }
 
+    /** @internal A claim on `component`'s WRITE journal — which entities had it
+     *  written, enumerable sparsely, unlike the per-entity changed map. */
+    registerWriteReaderFrom(component: AnyComponentDef, retainFromTick: number): number {
+        return this.changes_.registerWriteReaderFrom(component, retainFromTick);
+    }
+
+    /** @internal Entities whose `component` was written after `sinceTick`. */
+    getWrittenEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
+        return this.changes_.getWrittenEntitiesSince(component, sinceTick);
+    }
+
+    /** @internal That reader is done with everything up to `lastRunTick`. */
+    advanceWriteReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
+        this.changes_.advanceWriteReader(component, readerId, lastRunTick);
+    }
+
+    /** @internal The reader is gone; its share of the watermark goes with it. */
+    disposeWriteReader(component: AnyComponentDef, readerId: number): void {
+        this.changes_.disposeWriteReader(component, readerId);
+    }
+
+    /** @internal How many readers hold `component`'s write journal. */
+    writeReaderCount(component: AnyComponentDef): number {
+        return this.changes_.writeReaderCount(component);
+    }
+
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void {
         this.changes_.recordChanged(component, entity);
