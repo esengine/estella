@@ -6533,6 +6533,7 @@ beginTick: (fixedDelta: number) => void
 clientIds: number[]
 connectionCount: number
 detachConnection: (id: number) => void
+dispose: () => void
 inputOf: (connectionId: number) => ReplInputMsg | null
 netIds: NetIds
 sample: (tick: number) => void

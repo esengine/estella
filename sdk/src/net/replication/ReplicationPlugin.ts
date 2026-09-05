@@ -70,6 +70,9 @@ export class NetSession {
 
     stop(): void {
         this.client_?.disconnect();
+        // Dropping the reference is not releasing what the server holds: its
+        // removal-history claims and its despawn subscription outlive it.
+        this.server_?.dispose();
         this.client_ = null;
         this.server_ = null;
         this.role_ = 'offline';

@@ -18,7 +18,7 @@
  */
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { Name, Parent, getComponent } from '../../ecs/component';
+import { Name, Parent, getComponent, type AnyComponentDef } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import { serializeEntityComponents, type SceneComponentData } from '../../scene/scene';
 import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
@@ -129,10 +129,21 @@ export class ReplicationServer {
     private policy_: InterestPolicy | null = null;
     private tick_ = 0;
     private fixedDelta_ = 0;
+    /** Removal-history claims, one per replicated component. */
+    private readonly observations_: { def: AnyComponentDef; readerId: number }[] = [];
+    /**
+     * The floor every observation reads from, one tick BEHIND the world.
+     * `worldTick` moves once per App frame while a frame may run several fixed
+     * steps, and a write after a sample carries the tick it just closed — a
+     * floor at the current tick drops both. The shadow filters the overlap.
+     */
+    private changeFloor_ = -1;
+    private readonly offDespawn_: () => void;
+    private disposed_ = false;
 
     constructor(world: World) {
         this.world_ = world;
-        world.onDespawn((e) => {
+        this.offDespawn_ = world.onDespawn((e) => {
             // Sampling handles replicated despawns; this catches direct holes.
             this.netIds_.unregisterEntity(e);
         });
@@ -140,7 +151,54 @@ export class ReplicationServer {
 
     /** Lazily built so components defined after plugin install still count. */
     get table(): ReplicationTable {
-        return (this.table_ ??= buildReplicationTable());
+        if (!this.table_) {
+            const table = buildReplicationTable();
+            // Installed HERE, with the table: doing it in the constructor would
+            // freeze the table before the game's own components exist, and the
+            // observation set would then describe a smaller world than the table.
+            this.installObservation_(table);
+            this.table_ = table;
+        }
+        return this.table_;
+    }
+
+    /** Track every replicated component, and claim its removal history. */
+    private installObservation_(table: ReplicationTable): void {
+        this.changeFloor_ = this.world_.getWorldTick() - 1;
+        for (const te of table.entries) {
+            this.world_.enableChangeTracking(te.def);
+            // The query is `tick > changeFloor_`, so the claim starts one after.
+            const readerId = this.world_.registerRemovedReaderFrom(te.def, this.changeFloor_ + 1);
+            this.observations_.push({ def: te.def, readerId });
+        }
+    }
+
+    /**
+     * Close the window this sample read, and open the next one. Retention is
+     * given up only after the rows were consumed — the same order a system's
+     * `Removed` reader releases in.
+     */
+    private advanceObservationFloor_(): void {
+        const nextFloor = this.world_.getWorldTick() - 1;
+        for (const o of this.observations_) {
+            this.world_.advanceRemovedReader(o.def, o.readerId, nextFloor);
+        }
+        this.changeFloor_ = nextFloor;
+    }
+
+    /**
+     * Give back everything this server holds outside itself: its channels, its
+     * claims on removal history, and its despawn subscription. Idempotent — the
+     * world would otherwise keep a dead server reachable, and its claims would
+     * pin removal rows for a session nobody is running.
+     */
+    dispose(): void {
+        if (this.disposed_) return;
+        this.disposed_ = true;
+        for (const id of [...this.connections_.keys()]) this.detachConnection(id);
+        for (const o of this.observations_) this.world_.disposeRemovedReader(o.def, o.readerId);
+        this.observations_.length = 0;
+        this.offDespawn_();
     }
 
     get netIds(): NetIds {
@@ -284,7 +342,12 @@ export class ReplicationServer {
      *  one filtered frame per connection with one). Runs in FixedPostUpdate. */
     sample(tick: number): void {
         this.tick_ = tick;
-        if (this.connections_.size === 0) return;
+        if (this.connections_.size === 0) {
+            // No world scan, but the claims still move: a reader parked on an old
+            // floor pins removal history for as long as the server runs empty.
+            this.advanceObservationFloor_();
+            return;
+        }
 
         const { spawnedEntities, despawned } = this.reconcileRegistry_();
 
@@ -304,6 +367,9 @@ export class ReplicationServer {
             conn.ackedSeq = conn.applied.seq;
             this.sendTo_(conn, (c) => c.channel.send<ReplAckMsg>(ReplMsg.ack, { tick, seq: conn.ackedSeq }));
         }
+
+        // Last: the window is given up only once its rows are on the wire.
+        this.advanceObservationFloor_();
     }
 
     /** Fast path (no policy): everything to every ready connection on shared
@@ -485,6 +551,8 @@ export class ReplicationServer {
     private rebaseRegistry_(): void {
         this.reconcileRegistry_();
         for (const e of this.known_) this.seedShadow_(e);
+        // The shadow is now the world, so the observation window starts here too.
+        this.advanceObservationFloor_();
     }
 
     private registerEntity_(e: Entity): void {
@@ -540,15 +608,34 @@ export class ReplicationServer {
 
     /** Diff every known entity against its shadow (updating the shadow), and
      *  return this tick's dirty component entries. */
+    /**
+     * What to put on the wire this sample. History SELECTS candidates; shadow ×
+     * current world DECIDES truth — a component removed and re-added between
+     * samples is one candidate whose shadow and world both hold it, so it
+     * reduces to a field diff, or to nothing if the value came back the same.
+     */
     private collectDirty_(): DirtySample {
         const out: DirtyEntry[] = [];
         const removals: RemovalEntry[] = [];
-        for (const e of this.known_) {
-            const perComp = this.shadow_.get(e);
-            if (!perComp) continue;
-            const netId = this.knownNetIds_.get(e);
-            if (netId === undefined) continue;
-            for (const te of this.table.entries) {
+        const floor = this.changeFloor_;
+        for (const te of this.table.entries) {
+            const candidates = new Set<Entity>();
+            // O(1) gate first: with nothing changed this component is skipped
+            // without walking the population at all.
+            if (this.world_.anyChangedSince(te.def, floor)) {
+                for (const e of this.known_) {
+                    if (this.world_.isChangedSince(e, te.def, floor)) candidates.add(e);
+                }
+            }
+            // A Set, so a component lost twice in one window is one candidate.
+            for (const e of this.world_.getRemovedEntitiesSince(te.def, floor)) candidates.add(e);
+
+            for (const e of candidates) {
+                const perComp = this.shadow_.get(e);
+                if (!perComp) continue;
+                const netId = this.knownNetIds_.get(e);
+                if (netId === undefined) continue;
+                const held = perComp.get(te.id);
                 if (!this.world_.has(e, te.def)) {
                     // The shadow is the record of what the clients were told
                     // exists. Its snapshot disappearing IS the removal — there
@@ -557,12 +644,10 @@ export class ReplicationServer {
                     continue;
                 }
                 const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
-                let snap = perComp.get(te.id);
-                if (!snap) {
-                    // Component added after spawn: replicate all fields.
-                    snap = {};
-                    perComp.set(te.id, snap);
-                }
+                // Absent from the shadow means the client has never been told it
+                // exists, whether it arrived now or came back: send every field.
+                const snap = held ?? {};
+                if (!held) perComp.set(te.id, snap);
                 let mask = 0;
                 for (let i = 0; i < te.fields.length; i++) {
                     const f = te.fields[i];
