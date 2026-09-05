@@ -6763,6 +6763,7 @@ static prototype: ReplicationPlugin
 ```
 @internal fullScans: number
 @internal ownerScanVisits: number
+@internal viewerLinks: number
 attachConnection: (transport: ReliableOrderedTransport) => number
 beginTick: (fixedDelta: number) => void
 clientIds: number[]

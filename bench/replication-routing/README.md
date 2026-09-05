@@ -201,6 +201,32 @@ removals, same delta entries, same sequence. Push and pull both build their
 buckets out of order and sort them — on the rows actually SENT, which is 598 at
 the mixed workload against the 66,848 visits the sort replaces.
 
+### Shipped, and re-measured on the same bench
+
+`route_` chooses per sample now, from `U + F` against `S`, with `U >= S` deciding
+for free. The reverse index is the server's — the projection of `conn.interest`,
+maintained from the enters and leaves the visibility pass already produces.
+
+| workload | before | after |
+|---|---|---|
+| floor: 1% movement | 14,477 | 14,105 |
+| dirty 1% | 19,343 | 19,541 |
+| dirty 10% | 33,756 | **30,324** |
+| **dirty 100%** | 90,828 | **66,742** (545% → 400% of a core) |
+| removals 10% | 21,587 | **19,068** |
+| mixed | 19,563 | **17,921** |
+
+Unambiguous where routing was the cost and inside the noise where it was not,
+which is what N3a said would happen: the two filters were 26% of a realistic
+sample, so removing almost all of them moves that sample by under a tenth. The
+floor itself varies by 3% between runs, so nothing smaller than that in the top
+rows is a claim.
+
+The shape of the win is the point rather than its size today. What used to grow
+with `connections x rows` now grows with the smaller of `affected + fanout` and
+`total interest membership` — so a game that dirties a tenth of its world stopped
+paying 352,000 visits a sample to send 3,201 rows.
+
 ## What this does not cover
 
 - **Encoding is inside the totals and not separated.** It is proportional to what

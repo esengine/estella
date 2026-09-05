@@ -123,6 +123,14 @@ export class ReplicationServer {
     /** Last broadcast value per entity × table entry: entity → componentId → field record. */
     private readonly shadow_ = new Map<Entity, Map<number, Record<string, unknown>>>();
     private readonly known_ = new Set<Entity>();
+
+    /**
+     * Which connections can see an entity — the reverse projection of every
+     * `conn.interest`, maintained from the enters and leaves the visibility pass
+     * produces. Null with no interest source: broadcasting would rebuild, as a
+     * Map, exactly the O(C x E) this exists to avoid.
+     */
+    private viewersByEntity_: Map<Entity, Set<number>> | null = null;
     /** known entity → netId, owned by sampling. Survives the onDespawn hook
      *  clearing netIds_, so a despawn can still broadcast its id. */
     private readonly knownNetIds_ = new Map<Entity, number>();
@@ -168,6 +176,20 @@ export class ReplicationServer {
     private ownerReader_: number | null = null;
     /** @internal Full-world reconciliations run — a steady-state sample must do none. */
     fullScans = 0;
+
+    /**
+     * How many (entity, connection) links the reverse-interest index holds.
+     * A diagnostic, and the only way to see that a detached connection or a
+     * failed initial send left nothing behind — routing guards against a stale
+     * link, so one costs memory and bandwidth rather than correctness.
+     *
+     * @internal
+     */
+    get viewerLinks(): number {
+        let n = 0;
+        for (const seen of this.viewersByEntity_?.values() ?? []) n += seen.size;
+        return n;
+    }
     /** @internal Candidates read to answer "who owns this" — zero once indexed. */
     ownerScanVisits = 0;
 
@@ -304,6 +326,40 @@ export class ReplicationServer {
         }
         if (next && !this.ownedByConnection_) this.installOwnerIndex_();
         this.interest_ = next;
+        if (!next) { this.viewersByEntity_ = null; return; }
+        // Seeded from what the connections already hold: coming from broadcast,
+        // `interest` is a superset of `visible`, so nothing would ever ENTER and
+        // the index would stay empty while every connection watched everything.
+        if (!this.viewersByEntity_) {
+            this.viewersByEntity_ = new Map();
+            for (const conn of this.connections_.values()) {
+                for (const e of conn.interest) this.watch_(e, conn.id);
+            }
+        }
+    }
+
+    /** @internal One connection now sees this entity. */
+    private watch_(entity: Entity, connectionId: number): void {
+        const index = this.viewersByEntity_;
+        if (!index) return;
+        let seen = index.get(entity);
+        if (!seen) { seen = new Set(); index.set(entity, seen); }
+        seen.add(connectionId);
+    }
+
+    /** @internal It no longer does. */
+    private unwatch_(entity: Entity, connectionId: number): void {
+        const seen = this.viewersByEntity_?.get(entity);
+        if (!seen) return;
+        seen.delete(connectionId);
+        if (seen.size === 0) this.viewersByEntity_!.delete(entity);
+    }
+
+    /** Everything a leaving connection was watching. O(its view), and a detach
+     *  is not a steady-state path — twelve enters and leaves a sample are. */
+    private forgetViewer_(conn: Connection): void {
+        if (!this.viewersByEntity_) return;
+        for (const e of conn.interest) this.unwatch_(e, conn.id);
     }
 
     /** Claim the write journal, then seed from what is already known — in that
@@ -419,6 +475,7 @@ export class ReplicationServer {
     detachConnection(id: number): void {
         const conn = this.connections_.get(id);
         if (!conn) return;
+        this.forgetViewer_(conn);
         conn.channel.dispose();
         this.connections_.delete(id);
     }
@@ -552,9 +609,13 @@ export class ReplicationServer {
         }
     }
 
-    /** Interest path: evaluate the policy per ready connection; spawn entering
-     *  entities (full current state), despawn leaving ones, and write that
-     *  connection's delta frame from the shared dirty list. */
+    /**
+     * Interest path in three parts: visibility, routing, sending.
+     *
+     * @note Routing is separate because one of the two ways needs every
+     *       connection's visibility settled first. A failed send is not rolled
+     *       back — that connection is a dead participant (see sendTo_).
+     */
     private sampleWithInterest_(
         tick: number,
         spawnedEntities: Entity[],
@@ -571,8 +632,38 @@ export class ReplicationServer {
             // reports, and a provider caching a fact READ from one has to hear.
             rechecked: removals.map((r) => r.entity),
         });
-        // Spawn payloads serialize once per entity per tick, however many
-        // connections it enters.
+
+        // What each connection can see, and the index that answers the reverse
+        // question.
+        const plans: {
+            conn: Connection; visible: Set<Entity>; enters: Entity[];
+            leaveIds: number[]; entered: Set<Entity>;
+        }[] = [];
+        for (const conn of [...this.connections_.values()]) {
+            if (!conn.ready) continue;
+            const visible = visibleFor(conn.id);
+            const enters: Entity[] = [];
+            for (const e of visible) {
+                if (conn.interest.has(e)) continue;
+                enters.push(e);
+                this.watch_(e, conn.id);
+            }
+            const leaveIds: number[] = [];
+            for (const e of conn.interest) {
+                if (visible.has(e)) continue;
+                this.unwatch_(e, conn.id);
+                const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
+                if (netId !== undefined) leaveIds.push(netId);
+            }
+            conn.interest = visible;
+            plans.push({ conn, visible, enters, leaveIds, entered: new Set(enters) });
+        }
+
+        // Whose debt is whose.
+        const routed = this.route_(plans, dirty, removals);
+
+        // The wire. Spawn payloads serialize once per entity per tick, however
+        // many connections it enters.
         const payloads = new Map<Entity, ReplSpawnEntity>();
         const payloadOf = (e: Entity): ReplSpawnEntity => {
             let p = payloads.get(e);
@@ -582,23 +673,8 @@ export class ReplicationServer {
             }
             return p;
         };
-
-        for (const conn of [...this.connections_.values()]) {
-            if (!conn.ready) continue;
-            const visible = visibleFor(conn.id);
-
-            const enters: Entity[] = [];
-            for (const e of visible) {
-                if (!conn.interest.has(e)) enters.push(e);
-            }
-            const leaveIds: number[] = [];
-            for (const e of conn.interest) {
-                if (visible.has(e)) continue;
-                const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
-                if (netId !== undefined) leaveIds.push(netId);
-            }
-            conn.interest = visible;
-
+        for (const { conn, enters, leaveIds } of plans) {
+            const mine = routed.get(conn.id)!;
             this.sendTo_(conn, (c) => {
                 if (enters.length > 0) {
                     c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities: enters.map(payloadOf) });
@@ -606,26 +682,105 @@ export class ReplicationServer {
                 if (leaveIds.length > 0) {
                     c.channel.send<ReplDespawnBatch>(ReplMsg.despawn, { tick, netIds: leaveIds });
                 }
-                const entered = new Set(enters);
-                // Same rule as the delta below: an entity that just entered was
-                // serialized without the component, so it owes no removal.
-                const mine = removals.filter((r) => visible.has(r.entity) && !entered.has(r.entity));
-                if (mine.length > 0) {
-                    c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, removeBatch(tick, mine));
+                if (mine.removals.length > 0) {
+                    c.channel.send<ReplComponentRemoveBatch>(
+                        ReplMsg.componentRemove, removeBatch(tick, mine.removals.map((i) => removals[i]!)));
                 }
-                // Entities that just entered skip the delta — their spawn
-                // payload already carries this tick's state.
-                let frame: FrameWriter | null = null;
-                for (const d of dirty) {
-                    if (!visible.has(d.entity) || entered.has(d.entity)) continue;
-                    frame ??= new FrameWriter(tick);
-                    frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
-                }
-                if (frame && frame.entryCount > 0) {
-                    c.channel.sendBinary(REPLICATION_CHANNEL, frame.finish());
+                if (mine.dirty.length > 0) {
+                    const frame = new FrameWriter(tick);
+                    for (const i of mine.dirty) {
+                        const d = dirty[i]!;
+                        frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
+                    }
+                    if (frame.entryCount > 0) c.channel.sendBinary(REPLICATION_CHANNEL, frame.finish());
                 }
             });
         }
+    }
+
+    /**
+     * This sample's debt, merged per ENTITY. An entity with two dirty components
+     * and a removal is one reverse lookup and one map probe, not three, and the
+     * wire still carries removals before the delta.
+     */
+    private static byEntity(dirty: DirtyEntry[], removals: RemovalEntry[]):
+    Map<Entity, { dirty: number[]; removals: number[] }> {
+        const affected = new Map<Entity, { dirty: number[]; removals: number[] }>();
+        const of = (e: Entity) => {
+            let debt = affected.get(e);
+            if (!debt) { debt = { dirty: [], removals: [] }; affected.set(e, debt); }
+            return debt;
+        };
+        for (let i = 0; i < removals.length; i++) of(removals[i]!.entity).removals.push(i);
+        for (let i = 0; i < dirty.length; i++) of(dirty[i]!.entity).dirty.push(i);
+        return affected;
+    }
+
+    /**
+     * Which rows each connection owes, by whichever projection of the same truth
+     * is smaller THIS sample: pushing costs `U + F`, pulling `S`. No threshold.
+     *
+     * @note `U + F >= U`, so `U >= S` settles it without measuring F, which
+     *       would cost push's dominant term to decide against push.
+     */
+    private route_(
+        plans: { conn: Connection; visible: Set<Entity>; entered: Set<Entity> }[],
+        dirty: DirtyEntry[],
+        removals: RemovalEntry[],
+    ): Map<number, { dirty: number[]; removals: number[] }> {
+        const out = new Map<number, { dirty: number[]; removals: number[] }>();
+        for (const { conn } of plans) out.set(conn.id, { dirty: [], removals: [] });
+        if (dirty.length === 0 && removals.length === 0) return out;
+
+        const affected = ReplicationServer.byEntity(dirty, removals);
+        let membership = 0;
+        for (const { visible } of plans) membership += visible.size;
+
+        const viewers = this.viewersByEntity_;
+        if (viewers && affected.size < membership) {
+            const rows: [Entity, { dirty: number[]; removals: number[] }, Set<number> | undefined][] = [];
+            let units = affected.size;
+            for (const [e, debt] of affected) {
+                const seen = viewers.get(e);
+                rows.push([e, debt, seen]);
+                units += seen ? seen.size : 0;
+            }
+            if (units < membership) {
+                const entered = new Map(plans.map((p) => [p.conn.id, p.entered]));
+                for (const [e, debt, seen] of rows) {
+                    if (!seen) continue;
+                    for (const id of seen) {
+                        const mine = out.get(id);
+                        // An entity that entered this sample was serialized with
+                        // its current state, so it owes no delta and no removal.
+                        if (!mine || entered.get(id)!.has(e)) continue;
+                        for (const i of debt.removals) mine.removals.push(i);
+                        for (const i of debt.dirty) mine.dirty.push(i);
+                    }
+                }
+                // Back into the order the rows were discovered in: the frame a
+                // connection receives is the same one either way, and this costs
+                // only what is actually SENT.
+                for (const mine of out.values()) {
+                    mine.removals.sort((a, b) => a - b);
+                    mine.dirty.sort((a, b) => a - b);
+                }
+                return out;
+            }
+        }
+
+        for (const { conn, visible, entered } of plans) {
+            const mine = out.get(conn.id)!;
+            for (const e of visible) {
+                const debt = affected.get(e);
+                if (!debt || entered.has(e)) continue;
+                for (const i of debt.removals) mine.removals.push(i);
+                for (const i of debt.dirty) mine.dirty.push(i);
+            }
+            mine.removals.sort((a, b) => a - b);
+            mine.dirty.sort((a, b) => a - b);
+        }
+        return out;
     }
 
     /**
@@ -941,6 +1096,10 @@ export class ReplicationServer {
         }
         conn.interest = visible;
         conn.ready = true;
+        // After the send, not before: a connection that never heard about the
+        // world is not a viewer of it, and the early return above is the only
+        // other way out of this function.
+        for (const e of visible) this.watch_(e, conn.id);
     }
 
     private broadcast_(fn: (conn: Connection) => void): void {
