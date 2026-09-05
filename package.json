@@ -32,6 +32,7 @@
     "verify:mutation": "node tools/mutation-contract.mjs",
     "census:mutation": "node tools/mutation-census.mjs",
     "probe:interest-space": "node tools/probe-interest-position-space.mjs",
+    "probe:headless-transform": "node tools/probe-headless-transform.mjs",
     "verify:render": "node tools/verify-render.mjs",
     "test": "vitest run --config vitest.engine.config.ts",
     "verify:aot": "rm -rf .aot-verify && node pipeline/bin/estella.mjs export examples/ecs-basics --out .aot-verify && node tools/run-electron.mjs tools/launchers/headless-aot-verify.mjs .aot-verify",
