@@ -563,10 +563,19 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
     };
 }
 
+/**
+ * @brief Puts a character somewhere, rather than moving it there.
+ * @details The velocity goes with it. A CharacterVirtual carries its own
+ *          vertical speed between steps, so a character teleported mid-fall
+ *          would arrive still falling and drive itself through the floor it
+ *          was placed on.
+ */
 EMSCRIPTEN_KEEPALIVE
 void physics3d_setCharacterPosition(uint32_t characterId, float px, float py, float pz) {
     auto found = g().characters.find(characterId);
-    if (found != g().characters.end()) found->second->SetPosition(RVec3(px, py, pz));
+    if (found == g().characters.end()) return;
+    found->second->SetPosition(RVec3(px, py, pz));
+    found->second->SetLinearVelocity(Vec3::sZero());
 }
 
 // Queries

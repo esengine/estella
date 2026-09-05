@@ -271,7 +271,8 @@ overlapBox: (centre: { x: number; y: number; z: number; }, halfExtents: { x: num
 overlapSphere: (centre: { x: number; y: number; z: number; }, radius: number, layerMask?: number) => Overlap3DHit[]
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
 sphereCast: (origin: { x: number; y: number; z: number; }, radius: number, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
-static new (module_: Physics3DWasmModule, ppu_: number): Physics3DQueries
+teleportCharacter: (entity: Entity, position: { x: number; y: number; z: number; }) => boolean
+static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>): Physics3DQueries
 static prototype: Physics3DQueries
 ```
 

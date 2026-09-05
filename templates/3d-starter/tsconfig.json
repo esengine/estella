@@ -12,7 +12,8 @@
     "rootDir": ".",
     "paths": {
       "esengine": ["./.esengine/sdk/index.d.ts"],
-      "esengine/wasm": ["./.esengine/sdk/wasm.d.ts"]
+      "esengine/wasm": ["./.esengine/sdk/wasm.d.ts"],
+      "esengine/physics3d": ["./.esengine/sdk/physics3d/index.d.ts"]
     }
   },
   "include": ["src/**/*"],
