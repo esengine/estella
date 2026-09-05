@@ -35,6 +35,13 @@ class ReaderOwnedJournal {
         buffer.push({ entity, tick });
     }
 
+    /** How many rows are buffered, at any tick. An UPPER bound on what `since`
+     *  would return, in O(1) — enough for a caller choosing between reading this
+     *  journal and a scan it can size, without materializing either. */
+    buffered(componentId: symbol): number {
+        return this.rows_.get(componentId)?.length ?? 0;
+    }
+
     /** Rows after `sinceTick`, in the order they happened. May repeat an entity. */
     since(componentId: symbol, sinceTick: number): Entity[] {
         const buffer = this.rows_.get(componentId);
@@ -185,6 +192,10 @@ export class ChangeTracker {
      *  about WHICH field, or whether the value actually differs. */
     getWrittenEntitiesSince(component: AnyComponentDef, sinceTick: number): Entity[] {
         return this.writes_.since(component._id, sinceTick);
+    }
+
+    bufferedWriteRows(component: AnyComponentDef): number {
+        return this.writes_.buffered(component._id);
     }
 
     registerWriteReaderFrom(component: AnyComponentDef, retainFromTick: number): number {

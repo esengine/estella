@@ -1264,6 +1264,12 @@ export class World {
         return this.changes_.getWrittenEntitiesSince(component, sinceTick);
     }
 
+    /** @internal An O(1) upper bound on what `getWrittenEntitiesSince` returns,
+     *  for a caller choosing between reading the journal and a scan. */
+    bufferedWriteRows(component: AnyComponentDef): number {
+        return this.changes_.bufferedWriteRows(component);
+    }
+
     /** @internal That reader is done with everything up to `lastRunTick`. */
     advanceWriteReader(component: AnyComponentDef, readerId: number, lastRunTick: number): void {
         this.changes_.advanceWriteReader(component, readerId, lastRunTick);

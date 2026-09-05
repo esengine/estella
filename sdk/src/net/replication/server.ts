@@ -179,7 +179,9 @@ export class ReplicationServer {
     private tick_ = 0;
     private fixedDelta_ = 0;
     /** Removal-history claims, one per replicated component. */
-    private readonly observations_: { def: AnyComponentDef; readerId: number }[] = [];
+    private readonly observations_: {
+        def: AnyComponentDef; readerId: number; writeReaderId: number;
+    }[] = [];
     /**
      * The floor every observation reads from, one tick BEHIND the world.
      * `worldTick` moves once per App frame while a frame may run several fixed
@@ -260,6 +262,13 @@ export class ReplicationServer {
     }
     /** @internal Candidates read to answer "who owns this" — zero once indexed. */
     ownerScanVisits = 0;
+    /**
+     * @internal Which projection dirty discovery took, per component per sample.
+     * Both are correct, so a criterion meaning to exercise one of them has to be
+     * able to say which it got.
+     */
+    journalReads = 0;
+    populationScans = 0;
 
     constructor(world: World) {
         this.world_ = world;
@@ -291,7 +300,11 @@ export class ReplicationServer {
             this.world_.enableChangeTracking(te.def);
             // The query is `tick > changeFloor_`, so the claim starts one after.
             const readerId = this.world_.registerRemovedReaderFrom(te.def, this.changeFloor_ + 1);
-            this.observations_.push({ def: te.def, readerId });
+            // The write journal ENUMERATES what changed where change tracking can
+            // only be asked entity by entity. Both are claimed because neither
+            // dominates: see collectDirty_.
+            const writeReaderId = this.world_.registerWriteReaderFrom(te.def, this.changeFloor_ + 1);
+            this.observations_.push({ def: te.def, readerId, writeReaderId });
         }
     }
 
@@ -304,6 +317,7 @@ export class ReplicationServer {
         const nextFloor = this.world_.getWorldTick() - 1;
         for (const o of this.observations_) {
             this.world_.advanceRemovedReader(o.def, o.readerId, nextFloor);
+            this.world_.advanceWriteReader(o.def, o.writeReaderId, nextFloor);
         }
         this.changeFloor_ = nextFloor;
     }
@@ -326,7 +340,10 @@ export class ReplicationServer {
         if (this.disposed_) return;
         this.disposed_ = true;
         for (const id of [...this.connections_.keys()]) this.detachConnection(id);
-        for (const o of this.observations_) this.world_.disposeRemovedReader(o.def, o.readerId);
+        for (const o of this.observations_) {
+            this.world_.disposeRemovedReader(o.def, o.readerId);
+            this.world_.disposeWriteReader(o.def, o.writeReaderId);
+        }
         this.observations_.length = 0;
         this.world_.disposeTopologyReader(Replicated, this.registryReader_);
         if (this.ownerReader_ !== null) {
@@ -1179,11 +1196,20 @@ export class ReplicationServer {
         const floor = this.changeFloor_;
         for (const te of this.table.entries) {
             const candidates = new Set<Entity>();
-            // O(1) gate first: with nothing changed this component is skipped
-            // without walking the population at all.
-            if (this.world_.anyChangedSince(te.def, floor)) {
-                for (const e of this.known_) {
-                    if (this.world_.isChangedSince(e, te.def, floor)) candidates.add(e);
+            // The cheaper of two projections, per sample: the journal costs its
+            // rows (the whole world's writes, not this server's), the scan costs
+            // the population however few moved. Buffered rows bound the first.
+            if (this.world_.bufferedWriteRows(te.def) < this.known_.size) {
+                this.journalReads++;
+                for (const e of this.world_.getWrittenEntitiesSince(te.def, floor)) {
+                    if (this.known_.has(e)) candidates.add(e);
+                }
+            } else {
+                this.populationScans++;
+                if (this.world_.anyChangedSince(te.def, floor)) {
+                    for (const e of this.known_) {
+                        if (this.world_.isChangedSince(e, te.def, floor)) candidates.add(e);
+                    }
                 }
             }
             // A Set, so a component lost twice in one window is one candidate.

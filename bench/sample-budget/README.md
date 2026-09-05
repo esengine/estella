@@ -94,6 +94,31 @@ Whether either is worth fixing. This is a budget, not a plan: `dirty discovery` 
 the biggest item at realistic movement and `spawn payload` the biggest when views
 churn, and which of those a game is actually shaped like decides the order.
 
+## Acted on: dirty discovery now takes the cheaper projection
+
+The scan is gone as the only option. A replicated component belongs to the whole
+world, so the write journal lists everything written to it — including entities
+this server does not replicate — while the scan asks each known entity and costs
+the population however few moved. Neither dominates, so the pass picks per
+sample, on the same `U >= S` shape the router uses: buffered rows bound what the
+journal would return, in O(1), so neither side is materialized to choose.
+
+Measured **ABA-interleaved**, three rounds, because the machine drifted 20% over
+the session and a straight before/after had already produced one 45,814 µs
+reading of code that runs at 22,627:
+
+| | dirty discovery | sample total |
+|---|---|---|
+| movement | 4,772 → **1,828** (2.6x) | 12,269 → **8,674** (−29%) |
+| mixed | 8,028 → **2,866** (2.8x) | 27,955 → **22,627** (−19%) |
+
+Every interleaved pair had the new side lower. What is left in the phase is the
+work rather than the search: a `tryGet` and a field-by-field compare against the
+shadow for each candidate that really did change.
+
+`bench/sample-budget` reports `journalReads` and `populationScans` so a claim
+about either projection can say which one it got.
+
 ## What this does not cover
 
 - One anchor per connection, a uniform grid world, and clients connected but not

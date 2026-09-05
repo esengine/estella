@@ -6644,6 +6644,7 @@ static prototype: ReplicationPlugin
 ```
 @internal entersSent: number
 @internal fullScans: number
+@internal journalReads: number
 @internal ownerScanVisits: number
 @internal payloadsBuilt: number
 @internal profileSample: boolean
@@ -6659,6 +6660,7 @@ dispose: () => void
 inputOf: (connectionId: number) => ReplInputMsg | null
 leavesSent: number
 netIds: NetIds
+populationScans: number
 sample: (tick: number) => void
 setInterestPolicy: (policy: InterestPolicy | null) => void
 setInterestProvider: (provider: InterestProvider | null) => void
@@ -9690,6 +9692,7 @@ tabIndex: number | undefined
 @internal anyChangedSince: (component: AnyComponentDef, sinceTick: number) => boolean
 @internal applyEntityOrder: (entities: readonly Entity[]) => void
 @internal beginIteration: () => void
+@internal bufferedWriteRows: (component: AnyComponentDef) => number
 @internal builtin: BuiltinBridge
 @internal changes_: ChangeTracker
 @internal compositionChanges: () => CompositionDelta | null
