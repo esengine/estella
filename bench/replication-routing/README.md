@@ -1,5 +1,8 @@
 # The interest send path, once visibility is local
 
+> Part of a closed phase — the rulings and their reopen conditions are in
+> [`bench/REPLICATION_SCALING.md`](../REPLICATION_SCALING.md).
+
 The provider took the spatial question from 5504% of a core to 18%. What is left
 in `sampleWithInterest_` is per connection, and two of its passes walk a GLOBAL
 list every time:

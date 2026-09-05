@@ -1,5 +1,8 @@
 # What a replication sample is actually spent on
 
+> Part of a closed phase — the rulings and their reopen conditions are in
+> [`bench/REPLICATION_SCALING.md`](../REPLICATION_SCALING.md).
+
 Seven population scans came out of this path — registry, dirty discovery,
 ownership, position reads, grid rebuild, row routing, idle visibility. Guessing
 the next wall from the source after that is how you start optimising second-order

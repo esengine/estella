@@ -1,5 +1,8 @@
 # What a spawn payload carries, and under which contract
 
+> Part of a closed phase — the rulings and their reopen conditions are in
+> [`bench/REPLICATION_SCALING.md`](../REPLICATION_SCALING.md).
+
 `spawnPayload_` builds its payload with `serializeEntityComponents` — the SCENE
 projection. Scene serialization answers *how is this entity restored in full*.
 Replication answers a different question: *which facts is this client authorized

@@ -1,5 +1,8 @@
 # Does one entity moving have to invalidate every connection?
 
+> Part of a closed phase — the rulings and their reopen conditions are in
+> [`bench/REPLICATION_SCALING.md`](../REPLICATION_SCALING.md).
+
 N3e made the sample in which NOTHING moved free — 3,863 µs to 17 at 100k × 32.
 What it did not touch is the sample in which something moved *somewhere else*:
 there is one spatial generation, so a single write re-proves all C views.
