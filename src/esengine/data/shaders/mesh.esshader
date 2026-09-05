@@ -160,10 +160,12 @@ void main() {
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v_worldPos, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
 #endif
-    // The general form at a 2D surface's own parameters, but with the position it
-    // really has: a shadow is cast on a point in space, and xy is not one.
+    // A rough dielectric, and the position it really has: a shadow is cast on a
+    // point in space, and xy is not one. Specular stays ON — switching it off is
+    // not a cheaper PBR, it is a different surface, and a mesh whose material
+    // says nothing must still be lit the way the same mesh out of a glTF is.
     fragColor = vec4(applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
-                                      0.0, 1.0, 0.0, 1.0), base.a);
+                                      0.0, 1.0, 1.0, 1.0), base.a);
 #else
     fragColor = base;
 #endif
@@ -302,10 +304,12 @@ struct VSOut {
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v.v_worldPos, v.v_texCoord, sampleNormal(t1, s1, v.v_texCoord));
 #endif
-    // The general form at a 2D surface's own parameters, but with the position it
-    // really has: a shadow is cast on a point in space, and xy is not one.
+    // A rough dielectric, and the position it really has: a shadow is cast on a
+    // point in space, and xy is not one. Specular stays ON — switching it off is
+    // not a cheaper PBR, it is a different surface, and a mesh whose material
+    // says nothing must still be lit the way the same mesh out of a glTF is.
     return vec4f(applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
-                                  0.0, 1.0, 0.0, 1.0), base.a);
+                                  0.0, 1.0, 1.0, 1.0), base.a);
 #else
     return base;
 #endif
