@@ -22,9 +22,18 @@ export function hasEditor() {
     return existsSync(path.join(ROOT, EDITOR, 'package.json'));
 }
 
+// A hook exports GIT_DIR, and it beats `cwd`: asking the submodule about itself
+// then answers out of the OUTER repo's index, which lists none of its files —
+// the failure this file refuses, arriving through the environment.
+const GIT_ENV = { ...process.env };
+delete GIT_ENV.GIT_DIR;
+delete GIT_ENV.GIT_WORK_TREE;
+delete GIT_ENV.GIT_INDEX_FILE;
+delete GIT_ENV.GIT_COMMON_DIR;
+
 function ls(cwd, args) {
     if (!args.length) return [];
-    const tracked = execFileSync('git', ['ls-files', ...args], { cwd, encoding: 'utf8' })
+    const tracked = execFileSync('git', ['ls-files', ...args], { cwd, encoding: 'utf8', env: GIT_ENV })
         .split('\n').filter(Boolean);
     // The index still lists a file deleted from the working tree until the
     // deletion is staged, and every caller goes on to READ what it is handed —
@@ -46,7 +55,12 @@ export function listTrackedSources(roots) {
     if (!hasEditor()) return { files, missing: editorRoots };
 
     const inner = editorRoots.map((r) => (r === EDITOR ? '.' : r.slice(EDITOR.length + 1)));
-    for (const rel of ls(path.join(ROOT, EDITOR), inner)) files.push(`${EDITOR}/${rel}`);
+    const editorFiles = ls(path.join(ROOT, EDITOR), inner);
+    // A checkout that lists nothing is not an empty editor, it is an editor
+    // nobody asked properly. Reported as missing so the caller says so out loud
+    // rather than judging what is left.
+    if (!editorFiles.length) return { files, missing: editorRoots };
+    for (const rel of editorFiles) files.push(`${EDITOR}/${rel}`);
     return { files, missing: [] };
 }
 
