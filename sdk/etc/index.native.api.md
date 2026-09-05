@@ -5,7 +5,7 @@ Symbols: 113 public · 89 beta · 1579 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"97a5a526f33a8a4b"
+"fac7d5103ea562aa"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -3038,10 +3038,12 @@ Partial<Record<SideModuleId, EmbeddedSideModuleEntry>>
 
 ## EmitterShape — enum @beta
 ```
+Box = 2
 Circle = 1
 Cone = 3
+Hemisphere = 5
 Point = 0
-Rectangle = 2
+Sphere = 4
 ```
 
 ## EngineApi — type @experimental
@@ -5541,6 +5543,7 @@ play: (entity: Entity) => void
 reset: (entity: Entity) => void
 setColorLut: (entity: Entity, lut: Float32Array | null) => void
 setSizeLut: (entity: Entity, lut: Float32Array | null) => void
+setSpeedLut: (entity: Entity, lut: Float32Array | null) => void
 stop: (entity: Entity) => void
 update: (dt: number) => void
 static new (module: NonNullable<EngineApi>, registry: CppRegistry): ParticleAPI

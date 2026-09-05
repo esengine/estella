@@ -309,6 +309,7 @@ particle_play: ((registry: CppRegistry, entity: number) => void) | undefined
 particle_reset: ((registry: CppRegistry, entity: number) => void) | undefined
 particle_set_color_lut: ((entity: number, ptr: number, count: number) => void) | undefined
 particle_set_size_lut: ((entity: number, ptr: number, count: number) => void) | undefined
+particle_set_speed_lut: ((entity: number, ptr: number, count: number) => void) | undefined
 particle_stop: ((registry: CppRegistry, entity: number) => void) | undefined
 particle_update: ((registry: CppRegistry, dt: number) => void) | undefined
 postprocess_addPass: (name: string, shaderHandle: number) => number

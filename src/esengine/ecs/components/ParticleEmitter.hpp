@@ -9,12 +9,16 @@
 
 namespace esengine::ecs {
 
+// Local +Y is the axis every directed shape points along, so an unrotated
+// emitter aims up — where every 2D cone has always aimed. Values are serialized.
 ES_ENUM(stability=beta)
 enum class EmitterShape : i32 {
     Point = 0,
     Circle = 1,
-    Rectangle = 2,
+    Box = 2,
     Cone = 3,
+    Sphere = 4,
+    Hemisphere = 5,
 };
 
 // Single source of the easing choice serialized by sizeEasing/colorEasing; the
@@ -78,10 +82,12 @@ struct ParticleEmitter {
     ES_PROPERTY(enum=EmitterShape, category=Shape)
     i32 shape{static_cast<i32>(EmitterShape::Cone)};
 
-    ES_PROPERTY(min=0, category=Shape, shown_when=shape:Circle|Cone)
+    ES_PROPERTY(min=0, category=Shape, shown_when=shape:Circle|Cone|Sphere|Hemisphere)
     f32 shapeRadius{100.0f};
 
-    ES_PROPERTY(category=Shape, shown_when=shape:Rectangle)
+    // A filled VOLUME, not a surface: shapeSize.z of 0 is the flat rectangle every
+    // 2D emitter spawned from, so one field spells both.
+    ES_PROPERTY(category=Shape, shown_when=shape:Box)
     glm::vec3 shapeSize{100.0f, 100.0f, 0.0f};
 
     ES_PROPERTY(unit="°", category=Shape, shown_when=shape:Cone)
@@ -94,10 +100,13 @@ struct ParticleEmitter {
     ES_PROPERTY(category=Velocity)
     f32 speedMax{500.0f};
 
-    ES_PROPERTY(unit="°", category=Velocity)
+    // Aim for the shapes that HAVE no aim of their own (Point, Box): an angle in
+    // the emitter's local XY plane. Circle, Cone, Sphere and Hemisphere carry a
+    // direction intrinsically and ignore these.
+    ES_PROPERTY(unit="°", category=Velocity, shown_when=shape:Point|Box)
     f32 angleSpreadMin{0.0f};
 
-    ES_PROPERTY(unit="°", category=Velocity)
+    ES_PROPERTY(unit="°", category=Velocity, shown_when=shape:Point|Box)
     f32 angleSpreadMax{360.0f};
 
     // Size

@@ -25,6 +25,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             pending_play_.erase(entity);
             colorLuts_.erase(entity);
             sizeLuts_.erase(entity);
+            speedLuts_.erase(entity);
         });
     }
 
@@ -124,21 +125,19 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             }
         }
 
-        glm::vec3 emitterPos = transform.worldPosition;
-        f32 emitterAngle = 0.0f;
-        if (transform.worldRotation.w != 1.0f || transform.worldRotation.z != 0.0f) {
-            emitterAngle = 2.0f * std::atan2(transform.worldRotation.z,
-                                             transform.worldRotation.w);
-        }
+        const EmitterFrame frame{transform.worldPosition, transform.worldRotation,
+                                 transform.worldScale};
         bool isWorldSpace = emitter.simulationSpace ==
                             static_cast<i32>(ecs::SimulationSpace::World);
 
         auto lutIt = colorLuts_.find(entity);
         auto sizeIt = sizeLuts_.find(entity);
+        auto speedIt = speedLuts_.find(entity);
         updateParticles(emitter, state, dt,
                         lutIt != colorLuts_.end() ? &lutIt->second : nullptr,
                         sizeIt != sizeLuts_.end() ? &sizeIt->second : nullptr,
-                        emitterPos, emitterAngle, isWorldSpace);
+                        speedIt != speedLuts_.end() ? &speedIt->second : nullptr,
+                        frame, isWorldSpace);
 
         // Fire the child sub-emitter's burst at every birth/death queued this frame.
         if (emitter.subEmitter != 0 && !subemit_requests_.empty()) {
@@ -200,6 +199,15 @@ void ParticleSystem::setSizeLut(Entity entity, const f32* values, i32 count) {
     for (std::size_t i = 0; i < kColorLutSize; ++i) lut[i] = values[i];
 }
 
+void ParticleSystem::setSpeedLut(Entity entity, const f32* values, i32 count) {
+    if (count != kColorLutSize || values == nullptr) {
+        speedLuts_.erase(entity);
+        return;
+    }
+    SizeLut& lut = speedLuts_[entity];
+    for (std::size_t i = 0; i < kColorLutSize; ++i) lut[i] = values[i];
+}
+
 u32 ParticleSystem::aliveCount(Entity entity) const {
     auto it = states_.find(entity);
     if (it != states_.end()) {
@@ -234,30 +242,19 @@ const EmitterState* ParticleSystem::getState(Entity entity) const {
     return it != states_.end() ? &it->second : nullptr;
 }
 
-// Turn a vector about Z by a precomputed cos/sin — the emitter's own rotation,
-// which is a turn in the plane whether or not the particle has depth. Depth rides
-// through it, as it does under any rotation about the axis it lies on.
-static inline glm::vec3 rotate2(glm::vec3 v, f32 cosA, f32 sinA) {
-    return glm::vec3(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA, v.z);
-}
-
 void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
                                     const ecs::Transform& transform,
                                     EmitterState& state, u32 count) {
-    glm::vec3 emitterPos = transform.worldPosition;
-    f32 emitterAngle = 0.0f;
-    if (transform.worldRotation.w != 1.0f || transform.worldRotation.z != 0.0f) {
-        emitterAngle = 2.0f * std::atan2(transform.worldRotation.z,
-                                           transform.worldRotation.w);
-    }
+    const EmitterFrame frame{transform.worldPosition, transform.worldRotation,
+                             transform.worldScale};
     bool isWorldSpace = emitter.simulationSpace ==
                         static_cast<i32>(ecs::SimulationSpace::World);
-    emitInto(emitter, state, emitterPos, emitterAngle, isWorldSpace, glm::vec3(0.0f), count,
+    emitInto(emitter, state, frame, isWorldSpace, glm::vec3(0.0f), count,
              /*allowBirthTrigger=*/true);
 }
 
 void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState& state,
-                              glm::vec3 emitterPos, f32 emitterAngle, bool isWorldSpace,
+                              const EmitterFrame& frame, bool isWorldSpace,
                               glm::vec3 velocityBias, u32 count, bool allowBirthTrigger) {
     // Record each spawned particle for a Birth-triggered sub-emitter (in world
     // space, since a sub-burst is a world event).
@@ -265,8 +262,6 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
                        emitter.subEmitter != 0 &&
                        emitter.subEmitterTrigger ==
                            static_cast<i32>(ecs::SubEmitterTrigger::Birth);
-    f32 cosA = std::cos(emitterAngle);
-    f32 sinA = std::sin(emitterAngle);
 
     for (u32 i = 0; i < count; ++i) {
         Particle* p = state.pool.allocate();
@@ -296,58 +291,25 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
         p->angular_velocity = randomRange(emitter.angularVelocityMin,
                                            emitter.angularVelocityMax);
 
-        glm::vec3 offset = randomShapeOffset(emitter);
-        if (isWorldSpace) {
-            // Rotate the spawn footprint by the emitter angle so the emission
-            // shape agrees with the (already-rotated) velocity below; otherwise a
-            // rotated world-space cone/box spawns along its unrotated axis while
-            // the flow points elsewhere. `offset` itself stays unrotated — the
-            // Circle aim reads it and gets the same rotation applied once, below.
-            p->position = emitterPos + rotate2(offset, cosA, sinA);
-        } else {
-            p->position = offset;
-        }
+        // ONE question to the shape, and the simulation asks nothing else: a new
+        // shape cannot teach the integrator a new kind of aim.
+        const SpawnSample sample =
+            sampleShape(emitter, [this](f32 a, f32 b) { return randomRange(a, b); });
 
-        f32 speed = randomRange(emitter.speedMin, emitter.speedMax);
-        glm::vec3 dir;
-        auto shape = static_cast<ecs::EmitterShape>(emitter.shape);
-        switch (shape) {
-            case ecs::EmitterShape::Circle: {
-                f32 offsetLen = glm::length(offset);
-                if (offsetLen > 0.001f) {
-                    dir = offset / offsetLen;
-                } else {
-                    dir = randomDirection(0.0f, 360.0f);
-                }
-                break;
-            }
-            case ecs::EmitterShape::Cone: {
-                f32 halfAngle = emitter.shapeAngle * 0.5f * math::DEG_TO_RAD;
-                f32 angle = randomRange(-halfAngle, halfAngle);
-                dir = glm::vec3(std::sin(angle), std::cos(angle), 0.0f);
-                break;
-            }
-            // Point and Rectangle share one aiming rule: the shape decides WHERE a
-            // particle spawns (a single point vs. a filled box), while angleSpread
-            // decides which way it flies. Circle and Cone override this with their
-            // own radial / conic aim, which is intrinsic to those shapes.
-            case ecs::EmitterShape::Rectangle:
-            case ecs::EmitterShape::Point:
-            default:
-                dir = randomDirection(emitter.angleSpreadMin, emitter.angleSpreadMax);
-                break;
-        }
-        if (isWorldSpace) {
-            dir = rotate2(dir, cosA, sinA);
-        }
+        p->position = isWorldSpace ? worldPointOf(sample.position, frame)
+                                   : sample.position * frame.scale;
+
+        const f32 speed = randomRange(emitter.speedMin, emitter.speedMax);
+        const glm::vec3 dir = isWorldSpace ? worldDirOf(sample.direction, frame)
+                                           : sample.direction;
         p->velocity = dir * speed + velocityBias;
 
         p->sprite_frame = 0;
 
         if (recordBirth) {
             glm::vec3 worldPos = isWorldSpace ? p->position
-                                              : emitterPos + rotate2(p->position, cosA, sinA);
-            glm::vec3 worldVel = isWorldSpace ? p->velocity : rotate2(p->velocity, cosA, sinA);
+                                              : frame.position + frame.rotation * p->position;
+            glm::vec3 worldVel = isWorldSpace ? p->velocity : frame.rotation * p->velocity;
             subemit_requests_.push_back({worldPos, worldVel});
         }
     }
@@ -383,7 +345,11 @@ void ParticleSystem::drainSubEmitters(ecs::Registry& registry, Entity child,
         if (chance < 1.0f && randomRange(0.0f, 1.0f) >= chance) {
             continue;
         }
-        emitInto(childEmitter, childState, req.position, 0.0f, /*isWorldSpace=*/true,
+        // A sub-burst happens where the parent particle died, unrotated and
+        // unscaled: the child's own shape is what aims it, and a particle carries
+        // no orientation to inherit.
+        emitInto(childEmitter, childState, EmitterFrame{req.position, glm::quat(1, 0, 0, 0),
+                                                        glm::vec3(1.0f)}, /*isWorldSpace=*/true,
                  req.velocity * inheritVelocity, count, /*allowBirthTrigger=*/false);
     }
 }
@@ -446,7 +412,8 @@ static void applyForceField(const ForceFieldInstance& ff, Particle& p, f32 dt) {
 void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
                                       EmitterState& state, f32 dt,
                                       const ColorLut* colorLut, const SizeLut* sizeLut,
-                                      glm::vec3 emitterPos, f32 emitterAngle,
+                                      const SizeLut* speedLut,
+                                      const EmitterFrame& frame,
                                       bool isWorldSpace) {
     auto sizeEasing = static_cast<EasingType>(emitter.sizeEasing);
     auto colorEasing = static_cast<EasingType>(emitter.colorEasing);
@@ -457,8 +424,6 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     bool recordDeath = emitter.subEmitter != 0 &&
                        emitter.subEmitterTrigger ==
                            static_cast<i32>(ecs::SubEmitterTrigger::Death);
-    f32 cosA = std::cos(emitterAngle);
-    f32 sinA = std::sin(emitterAngle);
 
     // Noise/Turbulence: a curl-noise flow field advected onto position. Strength 0
     // samples nothing (the whole module is free when unused). The scroll offset
@@ -482,8 +447,8 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         if (p.age >= p.lifetime) {
             if (recordDeath) {
                 glm::vec3 worldPos = isWorldSpace ? p.position
-                                                  : emitterPos + rotate2(p.position, cosA, sinA);
-                glm::vec3 worldVel = isWorldSpace ? p.velocity : rotate2(p.velocity, cosA, sinA);
+                                                  : frame.position + frame.rotation * p.position;
+                glm::vec3 worldVel = isWorldSpace ? p.velocity : frame.rotation * p.velocity;
                 subemit_requests_.push_back({worldPos, worldVel});
             }
             u32 idx = static_cast<u32>(&p - &state.pool.particles()[0]);
@@ -500,7 +465,10 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         if (emitter.damping > 0.0f) {
             p.velocity *= (1.0f - emitter.damping * dt);
         }
-        p.position += p.velocity * dt;
+        // Applied to the STEP, not to velocity, so speed-over-life cannot become
+        // a second force system: gravity, damping and noise still accumulate into
+        // velocity exactly as before.
+        p.position += p.velocity * (speedLut ? sampleSizeLut(*speedLut, t) : 1.0f) * dt;
 
         if (noiseOn) {
             // The curl field is a 2D flow, sampled on the plane the particle is
@@ -594,39 +562,4 @@ f32 ParticleSystem::randomRange(f32 min, f32 max) {
 // An aim in the emitter's own plane: an angle names a direction there, and the
 // emitter's rotation is what turns the plane. Aiming out of it is the emitter's
 // job to be turned, not this one's to invent a second angle nobody authored.
-glm::vec3 ParticleSystem::randomDirection(f32 angleMin, f32 angleMax) {
-    f32 angleDeg = randomRange(angleMin, angleMax);
-    f32 angleRad = angleDeg * math::DEG_TO_RAD;
-    return glm::vec3(std::cos(angleRad), std::sin(angleRad), 0.0f);
-}
-
-glm::vec3 ParticleSystem::randomShapeOffset(const ecs::ParticleEmitter& emitter) {
-    auto shape = static_cast<ecs::EmitterShape>(emitter.shape);
-    switch (shape) {
-        case ecs::EmitterShape::Circle: {
-            f32 angle = randomRange(0.0f, math::TWO_PI);
-            f32 radius = randomRange(0.0f, emitter.shapeRadius);
-            return glm::vec3(std::cos(angle) * radius, std::sin(angle) * radius, 0.0f);
-        }
-        case ecs::EmitterShape::Rectangle: {
-            // A BOX where the scene gives it depth: `shapeSize.z` of 0 is the flat
-            // rectangle every 2D emitter has spawned from, so one field covers both.
-            f32 x = randomRange(-emitter.shapeSize.x * 0.5f, emitter.shapeSize.x * 0.5f);
-            f32 y = randomRange(-emitter.shapeSize.y * 0.5f, emitter.shapeSize.y * 0.5f);
-            f32 z = emitter.shapeSize.z > 0.0f
-                ? randomRange(-emitter.shapeSize.z * 0.5f, emitter.shapeSize.z * 0.5f) : 0.0f;
-            return glm::vec3(x, y, z);
-        }
-        case ecs::EmitterShape::Cone: {
-            f32 halfAngle = emitter.shapeAngle * 0.5f * math::DEG_TO_RAD;
-            f32 angle = randomRange(-halfAngle, halfAngle);
-            return glm::vec3(std::sin(angle), std::cos(angle), 0.0f)
-                * randomRange(0.0f, emitter.shapeRadius);
-        }
-        case ecs::EmitterShape::Point:
-        default:
-            return glm::vec3(0.0f);
-    }
-}
-
 }  // namespace esengine::particle

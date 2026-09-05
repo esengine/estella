@@ -2394,8 +2394,10 @@
           "values": [
             "Point",
             "Circle",
-            "Rectangle",
-            "Cone"
+            "Box",
+            "Cone",
+            "Sphere",
+            "Hemisphere"
           ]
         },
         {

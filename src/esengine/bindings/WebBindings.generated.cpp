@@ -152,8 +152,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::EmitterShape>("EmitterShape")
         .value("Point", esengine::ecs::EmitterShape::Point)
         .value("Circle", esengine::ecs::EmitterShape::Circle)
-        .value("Rectangle", esengine::ecs::EmitterShape::Rectangle)
-        .value("Cone", esengine::ecs::EmitterShape::Cone);
+        .value("Box", esengine::ecs::EmitterShape::Box)
+        .value("Cone", esengine::ecs::EmitterShape::Cone)
+        .value("Sphere", esengine::ecs::EmitterShape::Sphere)
+        .value("Hemisphere", esengine::ecs::EmitterShape::Hemisphere);
 
     enum_<esengine::ecs::FlexDirection>("FlexDirection")
         .value("Row", esengine::ecs::FlexDirection::Row)
@@ -3116,7 +3118,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "97a5a526f33a8a4b";
+static const char* kEsAbiLayoutHash = "fac7d5103ea562aa";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

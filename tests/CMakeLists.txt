@@ -189,6 +189,16 @@ add_test(NAME test_clip_depth COMMAND test_clip_depth)
 # the arithmetic a frame cannot show: which square a claim hands out, and what a
 # refused one leaves behind. Whether a light READS the square it was given is a
 # pixel question, and point-shadow asks it.
+# Emission shapes: the sampler is a pure function of the emitter's config, so the
+# distributions are asked here rather than through a frame that could not show a
+# bias along the view axis. Header-only — no engine to link.
+add_executable(test_particle_shapes particle/test_particle_shapes.cpp)
+target_include_directories(test_particle_shapes PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_particle_shapes COMMAND test_particle_shapes)
+
 add_executable(test_shadow_atlas renderer/test_shadow_atlas.cpp)
 target_include_directories(test_shadow_atlas PRIVATE
     ${CMAKE_SOURCE_DIR}/src

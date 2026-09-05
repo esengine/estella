@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '97a5a526f33a8a4b';
+export const ABI_LAYOUT_HASH = 'fac7d5103ea562aa';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -597,14 +597,14 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             maxParticles: { min: 1, step: 1, category: "Emission" },
             lifetimeMin: { min: 0, category: "Lifetime" },
             lifetimeMax: { min: 0, category: "Lifetime" },
-            shape: { enum: [{ label: 'Point', value: 0 }, { label: 'Circle', value: 1 }, { label: 'Rectangle', value: 2 }, { label: 'Cone', value: 3 }], category: "Shape" },
-            shapeRadius: { min: 0, category: "Shape", shownWhen: { field: "shape", values: [1, 3] } },
+            shape: { enum: [{ label: 'Point', value: 0 }, { label: 'Circle', value: 1 }, { label: 'Box', value: 2 }, { label: 'Cone', value: 3 }, { label: 'Sphere', value: 4 }, { label: 'Hemisphere', value: 5 }], category: "Shape" },
+            shapeRadius: { min: 0, category: "Shape", shownWhen: { field: "shape", values: [1, 3, 4, 5] } },
             shapeSize: { category: "Shape", shownWhen: { field: "shape", values: [2] } },
             shapeAngle: { unit: "°", category: "Shape", shownWhen: { field: "shape", values: [3] } },
             speedMin: { category: "Velocity" },
             speedMax: { category: "Velocity" },
-            angleSpreadMin: { unit: "°", category: "Velocity" },
-            angleSpreadMax: { unit: "°", category: "Velocity" },
+            angleSpreadMin: { unit: "°", category: "Velocity", shownWhen: { field: "shape", values: [0, 2] } },
+            angleSpreadMax: { unit: "°", category: "Velocity", shownWhen: { field: "shape", values: [0, 2] } },
             startSizeMin: { min: 0, category: "Size" },
             startSizeMax: { min: 0, category: "Size" },
             endSizeMin: { min: 0, category: "Size" },

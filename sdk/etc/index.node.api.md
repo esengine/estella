@@ -3025,10 +3025,12 @@ Partial<Record<SideModuleId, EmbeddedSideModuleEntry>>
 
 ## EmitterShape — enum @beta
 ```
+Box = 2
 Circle = 1
 Cone = 3
+Hemisphere = 5
 Point = 0
-Rectangle = 2
+Sphere = 4
 ```
 
 ## EngineApi — type @experimental
@@ -5353,6 +5355,7 @@ play: (entity: Entity) => void
 reset: (entity: Entity) => void
 setColorLut: (entity: Entity, lut: Float32Array | null) => void
 setSizeLut: (entity: Entity, lut: Float32Array | null) => void
+setSpeedLut: (entity: Entity, lut: Float32Array | null) => void
 stop: (entity: Entity) => void
 update: (dt: number) => void
 static new (module: NonNullable<EngineApi>, registry: CppRegistry): ParticleAPI

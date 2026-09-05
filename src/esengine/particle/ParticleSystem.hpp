@@ -10,6 +10,7 @@
 #include "../ecs/components/ParticleForceField.hpp"
 #include "Particle.hpp"
 #include "ParticleEasing.hpp"
+#include "ParticleShapes.hpp"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -99,18 +100,23 @@ public:
     /** Set/clear an entity's size-over-life multiplier LUT (× the particle's start size). */
     void setSizeLut(Entity entity, const f32* values, i32 count);
 
+    /** Set/clear an entity's speed-over-life multiplier LUT. It scales how fast a
+     *  particle travels along the trajectory it already has — it is not a force,
+     *  and gravity, damping and noise still accumulate into velocity as before. */
+    void setSpeedLut(Entity entity, const f32* values, i32 count);
+
 private:
     void emitParticles(const ecs::ParticleEmitter& emitter,
                        const ecs::Transform& transform,
                        EmitterState& state, u32 count);
 
-    // Shared spawn core: seed `count` particles into `state` from `emitter`'s config,
-    // originating at world `emitterPos`/`emitterAngle`, adding `velocityBias` to each
-    // (used by sub-emitter bursts to inherit the parent particle's motion).
+    // Shared spawn core: seed `count` particles into `state` from `emitter`'s
+    // config at `frame`, adding `velocityBias` to each (a sub-emitter burst
+    // inherits the parent particle's motion that way).
     // `allowBirthTrigger` records Birth events for a nested sub-emitter; false for a
     // sub-burst's own spawn so a drain can't re-enter the request buffer it's reading.
     void emitInto(const ecs::ParticleEmitter& emitter, EmitterState& state,
-                  glm::vec3 emitterPos, f32 emitterAngle, bool isWorldSpace,
+                  const EmitterFrame& frame, bool isWorldSpace,
                   glm::vec3 velocityBias, u32 count, bool allowBirthTrigger);
 
     // Fire the referenced child emitter's burst at each pending sub-emit request.
@@ -119,11 +125,11 @@ private:
 
     void updateParticles(const ecs::ParticleEmitter& emitter, EmitterState& state, f32 dt,
                          const ColorLut* colorLut, const SizeLut* sizeLut,
-                         glm::vec3 emitterPos, f32 emitterAngle, bool isWorldSpace);
+                         const SizeLut* speedLut,
+                         const EmitterFrame& frame, bool isWorldSpace);
     f32 randomRange(f32 min, f32 max);
 
-    glm::vec3 randomDirection(f32 angleMin, f32 angleMax);
-    glm::vec3 randomShapeOffset(const ecs::ParticleEmitter& emitter);
+
 
     // A parent particle's birth/death position + velocity, queued during a parent's
     // update and drained into its child sub-emitter right after.
@@ -136,6 +142,7 @@ private:
     std::unordered_set<Entity> pending_play_;
     std::unordered_map<Entity, ColorLut> colorLuts_;
     std::unordered_map<Entity, SizeLut> sizeLuts_;
+    std::unordered_map<Entity, SizeLut> speedLuts_;
     std::mt19937 rng_;
     std::vector<u32> dead_particle_indices_;
     // Active scene force fields, rebuilt each update() and applied to world-space

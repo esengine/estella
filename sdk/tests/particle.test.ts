@@ -72,7 +72,7 @@ describe('Particle Enums', () => {
         const { EmitterShape } = await import('../src/ecs/component');
         expect(EmitterShape.Point).toBe(0);
         expect(EmitterShape.Circle).toBe(1);
-        expect(EmitterShape.Rectangle).toBe(2);
+        expect(EmitterShape.Box).toBe(2);
         expect(EmitterShape.Cone).toBe(3);
     });
 

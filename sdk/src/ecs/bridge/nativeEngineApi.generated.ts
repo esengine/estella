@@ -78,6 +78,7 @@ export interface NativeEngineApi {
     particle_reset?(registry: unknown, entity: number): void;
     particle_set_color_lut?(entity: number, ptr: number, count: number): void;
     particle_set_size_lut?(entity: number, ptr: number, count: number): void;
+    particle_set_speed_lut?(entity: number, ptr: number, count: number): void;
     particle_stop?(registry: unknown, entity: number): void;
     particle_update?(registry: unknown, dt: number): void;
     postprocess_addPass?(name: string, shaderHandle: number): number;
@@ -316,6 +317,7 @@ export function createNativeEngineApi(
     bind('particle_reset', 'es_particle_reset', true);
     bind('particle_set_color_lut', 'es_particle_set_color_lut', false);
     bind('particle_set_size_lut', 'es_particle_set_size_lut', false);
+    bind('particle_set_speed_lut', 'es_particle_set_speed_lut', false);
     bind('particle_stop', 'es_particle_stop', true);
     bind('particle_update', 'es_particle_update', true);
     bind('postprocess_addPass', 'es_postprocess_addPass', false);

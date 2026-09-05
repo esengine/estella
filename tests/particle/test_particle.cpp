@@ -354,7 +354,7 @@ TEST_CASE("system_noise_advects_otherwise_static_particles") {
     emitter.speedMin = emitter.speedMax = 0.0f;
     emitter.gravity = glm::vec3(0.0f);
     // Spread the spawn across the field so particles sample varied, non-zero curl.
-    emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Box);
     emitter.shapeSize = glm::vec3(800.0f, 800.0f, 0.0f);
     emitter.noiseStrength = 500.0f;
     emitter.noiseFrequency = 0.01f;
@@ -859,7 +859,7 @@ TEST_CASE("shape_rectangle_within_bounds") {
     Entity e = registry.create();
     registry.emplace<ecs::Transform>(e);
     auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
-    emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Box);
     emitter.shapeSize = glm::vec3(10.0f, 6.0f, 0.0f);
     emitter.rate = 1000.0f;
     emitter.lifetimeMin = 10.0f;
@@ -1361,7 +1361,7 @@ TEST_CASE("shape_rectangle_direction_follows_angle_spread") {
     Entity e = registry.create();
     registry.emplace<ecs::Transform>(e);
     auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
-    emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Box);
     emitter.shapeSize = glm::vec3(10.0f, 6.0f, 0.0f);
     emitter.rate = 1000.0f;
     emitter.lifetimeMin = 10.0f;

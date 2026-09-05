@@ -105,8 +105,10 @@ export enum EasingType {
 export enum EmitterShape {
     Point = 0,
     Circle = 1,
-    Rectangle = 2,
+    Box = 2,
     Cone = 3,
+    Sphere = 4,
+    Hemisphere = 5,
 }
 
 export enum FlexDirection {

@@ -459,6 +459,7 @@ export interface ESEngineModule {
     particle_set_color_lut?(entity: number, ptr: number, count: number): void;
     /** Upload/clear an entity's baked size-over-life multiplier LUT. */
     particle_set_size_lut?(entity: number, ptr: number, count: number): void;
+    particle_set_speed_lut?(entity: number, ptr: number, count: number): void;
     trail_update?(registry: CppRegistry, dt: number): void;
     trail_clear?(registry: CppRegistry, entity: number): void;
 

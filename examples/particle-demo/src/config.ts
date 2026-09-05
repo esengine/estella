@@ -110,7 +110,7 @@ export const SHOWCASES: Showcase[] = [
         emitters: [
             { x: 0, y: 380, data: {
                 rate: 90, maxParticles: 800, lifetimeMin: 5, lifetimeMax: 8,
-                shape: EmitterShape.Rectangle, shapeSize: { x: 1320, y: 12, z: 0 },
+                shape: EmitterShape.Box, shapeSize: { x: 1320, y: 12, z: 0 },
                 speedMin: 40, speedMax: 90, angleSpreadMin: 250, angleSpreadMax: 290,
                 startSizeMin: 5, startSizeMax: 11, endSizeMin: 5, endSizeMax: 11,
                 startColor: { r: 1, g: 1, b: 1, a: 0.9 }, endColor: { r: 0.85, g: 0.92, b: 1, a: 0.5 },
@@ -123,7 +123,7 @@ export const SHOWCASES: Showcase[] = [
         emitters: [
             { x: 0, y: 0, data: {
                 rate: 70, maxParticles: 320, lifetimeMin: 1.0, lifetimeMax: 2.2,
-                shape: EmitterShape.Rectangle, shapeSize: { x: 1120, y: 620, z: 0 },
+                shape: EmitterShape.Box, shapeSize: { x: 1120, y: 620, z: 0 },
                 speedMin: 5, speedMax: 25, startSizeMin: 3, startSizeMax: 9,
                 endSizeMin: 0, endSizeMax: 0, sizeEasing: ParticleEasing.EaseInOut,
                 startColor: { r: 1, g: 1, b: 0.8, a: 1 }, endColor: { r: 0.6, g: 0.8, b: 1, a: 0 },

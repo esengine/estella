@@ -59,6 +59,15 @@ export class ParticleAPI {
         this.uploadLut(this.module_.particle_set_size_lut, entity, lut, 1);
     }
 
+    /**
+     * Speed-over-life multiplier. Scales how fast a particle travels along the
+     * trajectory it already has — gravity, damping and noise still accumulate
+     * into its velocity, so this is not a second force system.
+     */
+    setSpeedLut(entity: Entity, lut: Float32Array | null): void {
+        this.uploadLut(this.module_.particle_set_speed_lut, entity, lut, 1);
+    }
+
     // Copy a Float32Array into the core's heap and hand its offset + element count
     // (length / `stride`) to the C++ setter, then free; null/empty clears. The heap
     // is wasm linear memory on the web and the host's arena on a device — the same
