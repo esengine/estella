@@ -166,6 +166,49 @@ registerFsm('intro', {
   <LinkCard title="组件层之下" href="/docs/zh-cn/gameplay/ai/advanced/" description="手动寻路、感知内幕,以及裸 App 接线。" />
 </CardGrid>
 
+## 不用写代码的近战敌人
+
+`Hunter` 是 `ThirdPersonController` 的具体孪生：那个把**输入**变成请求，这个把
+**感知**变成请求。往下的一切都是玩家走的同一套机器——路线是导航的，移动是角色控制器的，
+动画器听到的速度是世界允许的那个，而一次挥击是一个动画器触发器、并且从同一个
+`MeleeAttack` 回来。攻击者是程序而不是人，不改变任何机制。
+
+```typescript
+enemy.add(Perceiver, { range: 420 });
+enemy.add(Perception, {});
+enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
+enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
+enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
+enemy.add(Health, { current: 50, max: 50 });
+```
+
+| 字段 | 作用 |
+|---|---|
+| `attackRange` | 地平面上靠近到多远才挥击。 |
+| `attackInterval` | 两次挥击之间的秒数。 |
+| `rotationSpeed` | 转身速度，度/秒。 |
+| `idleThreshold` | 低于这个速度就告诉动画器它站着不动。 |
+| `state` | 引擎写入：`idle` / `chase` / `attack` / `dead`。 |
+| `cooldown` | 引擎写入：还有多少秒才能再挥。 |
+
+四个状态，没有任何创作面——这是一个具体的敌人，不是框架。上面的 FSM 与行为树运行时才是
+**游戏**声明自己 AI 的地方；等到第二种敌人想有不同行为时再去拿它们。
+
+<Aside>
+  状态每帧重算而不是锁存，所以在挥击中途走开的目标会被重新追，而不是被对着空气挥。
+  「朝哪看」是两个问题不是一个：追击时朝它**实际走**的方向，挥击时朝目标——
+  一刀顺着残余漂移挥出去，会落在它本来瞄的东西旁边。
+</Aside>
+
+<Aside type="caution">
+  导航会**跳过**没有目的地的 agent，所以清掉目标不等于停下——它上一次写的速度会带着身体
+  继续走。`Hunter` 会把速度一并清零，任何别的「让 agent 停下」的代码也必须这么做。
+</Aside>
+
+`Health` 归零就是 `dead`：导航停止，动画器被告知站着不动，不再设触发器。主人倒下时
+已经挥在空中的那一刀不会打到任何人——那一半是 `MeleeAttack` 的责任，所以不用指望
+谁记得去关掉什么开关。
+
 ## 组合起来
 
 [`enemy-ai` 示例](https://github.com/esengine/estella/tree/master/examples/enemy-ai)

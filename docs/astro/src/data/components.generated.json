@@ -1755,6 +1755,64 @@
       ]
     },
     {
+      "name": "Hunter",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "attackRange",
+          "type": "number",
+          "default": "110",
+          "doc": "How close it gets before it swings.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "attackInterval",
+          "type": "number",
+          "default": "1.6",
+          "range": "≥ 0"
+        },
+        {
+          "key": "rotationSpeed",
+          "type": "number",
+          "default": "540",
+          "range": "≥ 0"
+        },
+        {
+          "key": "idleThreshold",
+          "type": "number",
+          "default": "8",
+          "range": "≥ 0, step 0.05",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "state",
+          "type": "string",
+          "default": "\"idle\"",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "cooldown",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "attackRange",
+        "attackInterval",
+        "rotationSpeed",
+        "idleThreshold",
+        "cooldown"
+      ]
+    },
+    {
       "name": "Interactable",
       "source": "cpp",
       "fields": [

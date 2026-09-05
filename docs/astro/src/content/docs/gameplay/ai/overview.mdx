@@ -186,6 +186,57 @@ unlocks when it completes, and R replays it — with zero registered actions.
   <LinkCard title="Below the components" href="/docs/gameplay/ai/advanced/" description="Pathfinding by hand, perception internals, and bare-App wiring." />
 </CardGrid>
 
+## A melee enemy without writing one
+
+`Hunter` is the concrete twin of `ThirdPersonController`: that one turns INPUT
+into a request, this one turns PERCEPTION into one. Everything downstream is the
+same machinery a player goes through — the route is navigation's, the movement is
+the character controller's, the speed the animator hears is the one the world
+allowed, and a swing is an animator trigger that comes back through the same
+`MeleeAttack`. An attacker being a program rather than a person changes nothing
+about the mechanism.
+
+```typescript
+enemy.add(Perceiver, { range: 420 });
+enemy.add(Perception, {});
+enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
+enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
+enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
+enemy.add(Health, { current: 50, max: 50 });
+```
+
+| Field | What it does |
+|---|---|
+| `attackRange` | Ground-plane distance it closes to before it swings. |
+| `attackInterval` | Seconds between swings. |
+| `rotationSpeed` | How fast it turns to face, degrees/second. |
+| `idleThreshold` | Speed under which the animator is told it is standing still. |
+| `state` | Engine-written: `idle` / `chase` / `attack` / `dead`. |
+| `cooldown` | Engine-written: seconds until it may swing again. |
+
+Four states, and no authoring surface — this is a concrete enemy, not a
+framework. The FSM and behaviour-tree runtimes above are how a GAME declares its
+own; reach for those the moment two enemies want to behave differently.
+
+<Aside>
+  The state is recomputed every frame rather than latched, so a target that steps
+  away mid-swing is chased again instead of being swung at. Which way it looks is
+  two questions, not one: while chasing it faces where it actually WENT, and
+  while swinging it faces the target — a swing aimed down the last of a drift
+  lands beside what it was aimed at.
+</Aside>
+
+<Aside type="caution">
+  Navigation SKIPS an agent with no destination, so clearing the target is not
+  stopping — the velocity it last wrote would carry the body on. `Hunter` zeroes
+  it as well, and anything else that stops an agent must do the same.
+</Aside>
+
+`Health` reaching zero is what makes it `dead`: navigation stops, the animator is
+told it is standing still, and no trigger is set. A swing already in the air when
+its owner went down lands on nobody — that half is `MeleeAttack`'s, so it is not
+left to whoever remembers to switch something off.
+
 ## Putting it together
 
 The [`enemy-ai` example](https://github.com/esengine/estella/tree/master/examples/enemy-ai)
