@@ -235,6 +235,10 @@ export const SCENES = [
   // be left in a camera's list while the panel under it moved. Under this
   // perspective camera such text lands nowhere and the panel comes back blue.
   { id: "ui-screen-text", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-text.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-text.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "6", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.4, \"y\": 0.5, \"rgb\": [255, 255, 0], \"tol\": 40}, {\"x\": 0.525, \"y\": 0.5, \"rgb\": [255, 255, 0], \"tol\": 40}, {\"x\": 0.5, \"y\": 0.5, \"rgb\": [0, 0, 153], \"tol\": 40}, {\"x\": 0.05, \"y\": 0.5, \"rgb\": [0, 0, 153], \"tol\": 40}]" } },
+  // A Canvas and NO Camera. The screen is a surface and a design fit, so neither
+  // the layout NOR the presentation needs a view to exist — this is the scene
+  // that keeps that a promise rather than an accident of the mask union.
+  { id: "ui-screen-no-camera", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-no-camera.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-no-camera.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.25, \"y\": 0.25, \"rgb\": [255, 0, 0], \"tol\": 30}, {\"x\": 0.75, \"y\": 0.75, \"rgb\": [0, 255, 0], \"tol\": 30}]" } },
     // Y-sort: same scene twice — mask on flips the overlap to the lower (higher-Y-key) entity; mask off preserves submission order. Both asserted so neither path can silently regress.
   // Slices of one continuous pattern, each its OWN texture, at a fractional
   // world-units-per-pixel — seamless art and a non-integer ratio are what a seam

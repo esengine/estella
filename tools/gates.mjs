@@ -46,6 +46,7 @@ export const GATES = [
   { id: 'gl-boundary', run: 'node tools/check-gl-boundary.mjs' },
   { id: 'draw-command-boundary', run: 'node tools/check-draw-command-boundary.mjs' },
   { id: 'shadow-pass', run: 'node tools/check-shadow-pass.mjs' },
+  { id: 'frame-lifecycle', run: 'node tools/check-frame-lifecycle.mjs' },
   { id: 'postfx-aa', run: 'node tools/check-postfx-aa.mjs' },
   { id: 'sidemodule-gates', run: 'node tools/check-sidemodule-gates.mjs' },
   { id: 'engine-exports', run: 'node tools/check-engine-exports.mjs' },

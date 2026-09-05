@@ -1,0 +1,132 @@
+{
+  "version": 4,
+  "name": "A Canvas and NO Camera. The layout authority owes a camera nothing, and this asks whether the PRESENTATION does either: with no camera there is no view to derive a viewport or a layer mask from, only a surface.",
+  "entities": [
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        2,
+        3
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "TopLeft",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "BottomRight",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

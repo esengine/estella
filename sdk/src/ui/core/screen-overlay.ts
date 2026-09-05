@@ -17,9 +17,13 @@
  *          In a shipped frame the projection is {@link screenProjection} over the
  *          whole surface: no camera, no world. The editor's design view is the
  *          one place it is anything else — there the screen box is shown IN the
- *          scene, zoomed and panned like the content it will sit over, so the
- *          view's own projection presents it. That is a value this carries, not
- *          a branch the renderer takes.
+ *          scene, zoomed and panned like the content it will sit over. That is a
+ *          value this carries, not a branch the renderer takes.
+ *
+ *          A frame with NO camera still presents: the surface and the design fit
+ *          are the whole of it (gated by `ui-screen-no-camera`). Needing a camera
+ *          for the projection, the viewport or the mask would put one back in the
+ *          screen's path by a side door.
  */
 import { defineResource } from '../../ecs/resource';
 
@@ -45,10 +49,10 @@ export interface ScreenOverlayData {
     pointerX: number;
     pointerY: number;
     /**
-     * Sorting layers this frame shows, as a bitmask (a Canvas contributes its
-     * own layer's bit). Which layers a frame shows is a frame-level fact, so the
-     * overlay reads it here rather than from whichever camera happens to be
-     * first; where a HUD SITS still owes a camera nothing.
+     * Sorting layers this frame shows, as a bitmask — frame-level VISIBILITY
+     * POLICY, assembled from the rendering cameras' masks and nothing else about
+     * them. It does not make the overlay theirs: the projection, the viewport and
+     * the order stay the screen's. With no camera it is every layer.
      */
     layerMask: number;
 }
