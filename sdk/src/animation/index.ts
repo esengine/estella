@@ -152,3 +152,6 @@ export {
     SPRITE_MOTION,
     spriteMotionDriver,
 } from './spriteMotion';
+
+export { Pose, type PoseTrack, type PoseWorld } from './pose';
+export { mixPoses, type WeightedPose } from './poseMix';

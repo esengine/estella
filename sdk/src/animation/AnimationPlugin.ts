@@ -67,9 +67,9 @@ export class AnimationPlugin implements Plugin {
         // The state machine runs before the sprite animator so a transition's
         // clip switch applies the same frame it fires.
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(AnimatorController)],
-            (ctrl: AnimatorControllerAPI) => {
-                ctrl.update(world);
+            [Res(Time), Res(AnimatorController)],
+            (time: TimeData, ctrl: AnimatorControllerAPI) => {
+                ctrl.update(world, time.delta);
             },
             { name: 'AnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });

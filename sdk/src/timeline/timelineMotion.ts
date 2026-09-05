@@ -5,60 +5,69 @@
  * @brief   The `timeline` motion kind: an animator state driving an `.estimeline`.
  *
  * @details This is what lets one animator graph animate a skinned model. A
- *          skeletal clip IS a timeline — property tracks writing each joint
- *          entity's Transform — so the driver only points the entity's
- *          TimelinePlayer at a clip and reads back whether it ended. Sampling,
- *          and therefore the single path from joint Transform to MeshSkin, stays
- *          TimelinePlugin's: the animator adds no second owner of a bone pose.
+ *          skeletal clip IS a timeline - property tracks writing each joint
+ *          entity's Transform - so this driver samples the same asset with the
+ *          same evaluator, and what it produces is a pose rather than a write.
+ *          The path from joint Transform to MeshSkin is unchanged: the animator
+ *          adds no second owner of a bone pose.
+ *
+ *          It does not touch TimelinePlayer. That component carries a clip's own
+ *          clock for standalone playback, and one clock cannot serve two clips
+ *          at once - which crossfade needs. The animator keeps the time and
+ *          hands it in; TimelinePlayer stays what a timeline plays on when no
+ *          animator is involved.
  */
 
 import type { MotionDriver, AnimatorClipMotion, MotionContext } from '../animation/motion';
-import { TimelinePlayer, type TimelinePlayerData } from './TimelinePlayerComponent';
+import type { Pose } from '../animation/pose';
+import { getComponent } from '../ecs/component';
+import { applyWrapMode, sampleTimelineIntoPose, type SampleDeps } from './TimelineEvaluator';
+import { resolveChildEntity } from './TimelineRuntime';
+import { WrapMode, type TimelineAsset } from './TimelineTypes';
 import type { TimelineAPI } from './TimelineControl';
 
 export const TIMELINE_MOTION = 'timeline';
 
-/** Which wrap mode a motion asks for; empty leaves the clip's own standing. */
-function wrapModeFor(loop: boolean | undefined): string {
-    return loop === undefined ? '' : loop ? 'loop' : 'once';
+/** How the motion wants the clip wrapped; unstated leaves the clip's own. */
+function wrapOf(motion: AnimatorClipMotion, asset: TimelineAsset): WrapMode {
+    if (motion.loop === undefined) return asset.wrapMode;
+    return motion.loop ? WrapMode.Loop : WrapMode.Once;
 }
 
+const speedOf = (motion: AnimatorClipMotion): number => Math.max(motion.speed ?? 1, 1e-4);
+
 /**
- * The driver, over the app's own {@link TimelineAPI} — the clock a clip runs on
- * is per App, so this is built per App rather than being a module-level value.
+ * The driver, over the app's own {@link TimelineAPI}: which clip a name resolves
+ * to is per App, so this is built per App rather than being a module value.
  */
 export function createTimelineMotionDriver(timeline: TimelineAPI): MotionDriver<AnimatorClipMotion> {
-    return {
-        apply({ world, entity }: MotionContext, motion, enter) {
-            if (!world.has(entity, TimelinePlayer)) return;
-            const current = world.get(entity, TimelinePlayer) as TimelinePlayerData;
-            if (current.timeline === motion.clip && !enter) return;
+    // One deps record, re-aimed per call. The sampler asks it for the world and
+    // the child resolver; both are the same for every entity in a frame except
+    // the world reference, which the context supplies.
+    const deps: SampleDeps = {
+        world: null!,
+        getComponent,
+        resolveChild: (root, childPath) => resolveChildEntity(deps.world as never, root, childPath),
+    };
 
-            world.update(entity, TimelinePlayer, (p: TimelinePlayerData) => {
-                p.timeline = motion.clip;
-                p.speed = motion.speed ?? 1.0;
-                p.wrapMode = wrapModeFor(motion.loop);
-                p.playing = true;
-                p.finished = false;
-            });
-            // The clock lives beside the component, not in it, and a clip that
-            // replaces another must start at its own beginning rather than
-            // wherever the previous one had got to.
-            const state = timeline.getState(entity);
-            if (state) {
-                state.time = 0;
-                state.prevTime = 0;
-                state.spineClipIndices = {};
-            }
+    return {
+        sample(ctx: MotionContext, motion: AnimatorClipMotion, time: number, pose: Pose): boolean {
+            const asset = timeline.getAsset(motion.clip);
+            if (!asset) return false;
+            const local = applyWrapMode(time * speedOf(motion), asset.duration, wrapOf(motion, asset));
+            deps.world = ctx.world;
+            sampleTimelineIntoPose(asset, local.time, ctx.entity, deps, pose);
+            return true;
         },
 
-        isFinished({ world, entity }: MotionContext, motion) {
-            if (!world.has(entity, TimelinePlayer)) return false;
-            const p = world.get(entity, TimelinePlayer) as TimelinePlayerData;
-            // Playing THIS clip and latched finished. A looping clip never
-            // latches, so an exit-time transition out of one never fires — which
-            // is what it means for the clip to have no end.
-            return p.timeline === motion.clip && p.finished;
+        /** In the animator's own seconds, which is why the speed divides out. */
+        duration(_ctx: MotionContext, motion: AnimatorClipMotion): number {
+            return (timeline.getAsset(motion.clip)?.duration ?? 0) / speedOf(motion);
+        },
+
+        loops(_ctx: MotionContext, motion: AnimatorClipMotion): boolean {
+            const asset = timeline.getAsset(motion.clip);
+            return asset ? wrapOf(motion, asset) !== WrapMode.Once : false;
         },
     };
 }

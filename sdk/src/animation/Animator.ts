@@ -27,6 +27,8 @@ import {
     type MotionContext, type MotionDriver,
 } from './motion';
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
+import { Pose } from './pose';
+import { mixPoses } from './poseMix';
 
 // =============================================================================
 // Controller definition (the graph data)
@@ -55,6 +57,12 @@ export interface AnimatorTransition {
     to: string;
     /** All conditions must hold (AND). Empty = unconditional. */
     conditions: AnimatorCondition[];
+    /**
+     * Seconds to blend from the state being left into the one being entered.
+     * Absent or 0 cuts. Honoured only where both motions can be sampled: a
+     * sprite sheet is switched, having nothing to be halfway between.
+     */
+    duration?: number;
     /**
      * Only fire once the current state's clip has finished (a non-looping sprite
      * clip reached its end). Combined with `conditions`, both must hold. With no
@@ -184,7 +192,7 @@ function firstReady(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
-): { to: string; usedTriggers: string[] } | null {
+): { to: string; usedTriggers: string[]; fadeDuration: number } | null {
     for (const t of list) {
         if (t.hasExitTime && !clipFinished) continue;
         const used: string[] = [];
@@ -193,7 +201,7 @@ function firstReady(
             if (!conditionHolds(c, params, triggers)) { ok = false; break; }
             if (c.op === 'trigger') used.push(c.param);
         }
-        if (ok) return { to: t.to, usedTriggers: used };
+        if (ok) return { to: t.to, usedTriggers: used, fadeDuration: t.duration ?? 0 };
     }
     return null;
 }
@@ -266,6 +274,8 @@ export interface AnimatorPathEvalResult {
     /** Target path if a transition fired, else null (stay). */
     nextPath: string | null;
     consumedTriggers: string[];
+    /** Seconds the fired transition blends over; 0 when it cuts. */
+    fadeDuration: number;
 }
 
 /**
@@ -285,7 +295,7 @@ export function evaluateAnimatorPath(
 ): AnimatorPathEvalResult {
     const segments = currentPath ? currentPath.split(STATE_PATH_SEP) : [];
     const resolved = resolveStatePath(def, segments);
-    if (!resolved) return { nextPath: null, consumedTriggers: [] };
+    if (!resolved) return { nextPath: null, consumedTriggers: [], fadeDuration: 0 };
     const { scopes, states } = resolved;
     const depth = states.length;
 
@@ -305,10 +315,14 @@ export function evaluateAnimatorPath(
         const fired = firstReady(entry.list, params, triggers, clipFinished);
         if (fired) {
             const next = [...entry.base, ...enterStatePath(entry.scope, fired.to)];
-            return { nextPath: next.join(STATE_PATH_SEP), consumedTriggers: fired.usedTriggers };
+            return {
+                nextPath: next.join(STATE_PATH_SEP),
+                consumedTriggers: fired.usedTriggers,
+                fadeDuration: fired.fadeDuration,
+            };
         }
     }
-    return { nextPath: null, consumedTriggers: [] };
+    return { nextPath: null, consumedTriggers: [], fadeDuration: 0 };
 }
 
 /** The leaf (motion-bearing) state of a resolved path, or null if unresolvable. */
@@ -476,6 +490,7 @@ export class AnimatorControllerAPI {
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
+    private readonly runtimes_ = new Map<Entity, AnimatorRuntime>();
     private readonly motions_ = new MotionRegistry();
 
     constructor() {
@@ -578,10 +593,11 @@ export class AnimatorControllerAPI {
         return this.params.get(entity)?.get(name) === true;
     }
 
-    /** Drop an entity's parameter/trigger state (wire to world.onDespawn). */
+    /** Drop an entity's parameter/trigger/playback state (wire to world.onDespawn). */
     removeEntity(entity: Entity): void {
         this.params.delete(entity);
         this.triggers.delete(entity);
+        this.runtimes_.delete(entity);
     }
 
     private paramStore(entity: Entity): Map<string, number | boolean> {
@@ -598,7 +614,9 @@ export class AnimatorControllerAPI {
 
     // -- per-frame system -----------------------------------------------------
 
-    update(world: World): void {
+    /** `dt` seconds advance the animator's own clock, which is what a sampled
+     *  motion is evaluated against and what a crossfade progresses on. */
+    update(world: World, dt: number = 0): void {
         const entities = world.getEntitiesWithComponents([Animator]);
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
@@ -620,13 +638,15 @@ export class AnimatorControllerAPI {
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const triggerSet = this.triggers.get(entity);
             const ctx = this.motions_.context(world, entity, params);
-            // Whether the motion has ended is the motion's to answer. A leaf with
-            // none (or whose kind has no driver here) reports false, so an
-            // exit-time transition waits rather than firing on nothing.
+            const rt = this.runtimeFor(entity);
+            // Advance BEFORE asking whether the motion ran out: judging the clip
+            // on the previous frame's clock holds every exit-time transition one
+            // frame past the clip it was waiting for.
+            this.advance(rt, dt);
             const leafMotion = motionOf(leaf);
-            const clipFinished = leafMotion !== null && ctx.finished(leafMotion);
+            const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, rt.time);
 
-            const { nextPath, consumedTriggers } = evaluateAnimatorPath(
+            const { nextPath, consumedTriggers, fadeDuration } = evaluateAnimatorPath(
                 def, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
             );
             if (triggerSet) for (const t of consumedTriggers) triggerSet.delete(t);
@@ -643,9 +663,117 @@ export class AnimatorControllerAPI {
             // its parameter crosses a threshold without any state change. A driver
             // is a no-op in steady state, which is what keeps that cheap.
             const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
-            if (motion) ctx.drive(motion, stateChanged);
+
+            if (stateChanged) {
+                this.beginState(rt, leafMotion, motion, fadeDuration);
+            }
+            if (motion) this.driveMotion(ctx, world, rt, motion, stateChanged);
         }
     }
+
+    /**
+     * Enter a state: the clock restarts, and the motion being left keeps running
+     * as the thing to fade out of. Only when BOTH can be sampled - a switched
+     * motion has no partial state to hold, so a fade over one would be a pause.
+     */
+    private beginState(
+        rt: AnimatorRuntime,
+        leaving: AnimatorMotion | null, entering: AnimatorMotion | null, fadeDuration: number,
+    ): void {
+        const blendable = fadeDuration > 0 && leaving !== null && entering !== null
+            && this.canSample(leaving) && this.canSample(entering);
+        if (blendable) {
+            rt.fadeFrom = leaving;
+            rt.fadeFromTime = rt.time;
+            rt.fadeElapsed = 0;
+            rt.fadeDuration = fadeDuration;
+        } else {
+            rt.fadeFrom = null;
+        }
+        rt.time = 0;
+    }
+
+    /** Advance the state's clock, and the fade's if one is running. */
+    private advance(rt: AnimatorRuntime, dt: number): void {
+        rt.time += dt;
+        if (rt.fadeFrom === null) return;
+        rt.fadeFromTime += dt;
+        rt.fadeElapsed += dt;
+        if (rt.fadeElapsed >= rt.fadeDuration) rt.fadeFrom = null;
+    }
+
+    /**
+     * Put the motion on the entity. Through a pose where it can be sampled - two
+     * composed while a fade runs - so what lands does not depend on sample order.
+     */
+    private driveMotion(
+        ctx: MotionContext, world: World, rt: AnimatorRuntime,
+        motion: AnimatorMotion, enter: boolean,
+    ): void {
+        if (rt.fadeFrom !== null) {
+            rt.poseFrom.reset();
+            rt.poseTo.reset();
+            const from = ctx.sample(rt.fadeFrom, rt.fadeFromTime, rt.poseFrom);
+            const to = ctx.sample(motion, rt.time, rt.poseTo);
+            if (from && to) {
+                const t = Math.min(rt.fadeElapsed / rt.fadeDuration, 1);
+                rt.mixed.reset();
+                mixPoses(
+                    [{ pose: rt.poseFrom, weight: 1 - t }, { pose: rt.poseTo, weight: t }],
+                    rt.mixed, world,
+                );
+                rt.mixed.applyTo(world);
+                return;
+            }
+            rt.fadeFrom = null;
+        }
+
+        rt.poseTo.reset();
+        if (ctx.sample(motion, rt.time, rt.poseTo)) {
+            rt.poseTo.applyTo(world);
+            return;
+        }
+        ctx.drive(motion, enter);
+    }
+
+    /** Whether a motion has run out. A clip whose length the driver states is
+     *  judged against our clock; anything else answers for itself. */
+    private motionEnded(ctx: MotionContext, motion: AnimatorMotion, time: number): boolean {
+        if (ctx.loops(motion)) return false;
+        const duration = ctx.duration(motion);
+        return duration > 0 ? time >= duration : ctx.finished(motion);
+    }
+
+    private canSample(motion: AnimatorMotion): boolean {
+        return this.motions_.driverFor(motion)?.sample !== undefined;
+    }
+
+    private runtimeFor(entity: Entity): AnimatorRuntime {
+        let rt = this.runtimes_.get(entity);
+        if (!rt) {
+            rt = {
+                time: 0, fadeFrom: null, fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
+                poseFrom: new Pose(), poseTo: new Pose(), mixed: new Pose(),
+            };
+            this.runtimes_.set(entity, rt);
+        }
+        return rt;
+    }
+}
+
+/** One entity's playback state: transient, so it lives here and not on the
+ *  component, which is what a scene saves and an inspector shows. */
+interface AnimatorRuntime {
+    /** Seconds the current state's motion has been playing. */
+    time: number;
+    /** The motion being faded out, or null when nothing is. */
+    fadeFrom: AnimatorMotion | null;
+    fadeFromTime: number;
+    fadeElapsed: number;
+    fadeDuration: number;
+    poseFrom: Pose;
+    poseTo: Pose;
+    mixed: Pose;
 }
 
 const EMPTY_PARAMS: ReadonlyMap<string, number | boolean> = new Map();

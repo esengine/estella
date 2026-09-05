@@ -455,7 +455,7 @@ setFloat: (entity: Entity, name: string, value: number) => void
 setSpineDriver: (driver: SpineAnimationDriver | null) => void
 setTrigger: (entity: Entity, name: string) => void
 unregisterController: (name: string) => void
-update: (world: World) => void
+update: (world: World, dt?: number) => void
 static new (): AnimatorControllerAPI
 static prototype: AnimatorControllerAPI
 ```
@@ -515,6 +515,7 @@ Readonly<Record<string, number | boolean>>
 ## AnimatorPathEvalResult — interface @experimental
 ```
 consumedTriggers: string[]
+fadeDuration: number
 nextPath: string | null
 ```
 
@@ -554,6 +555,7 @@ states: AnimatorState[]
 ## AnimatorTransition — interface @experimental
 ```
 conditions: AnimatorCondition[]
+duration: number | undefined
 hasExitTime: boolean | undefined
 to: string
 ```
@@ -4850,16 +4852,22 @@ shift: boolean
 ## MotionContext — interface @experimental
 ```
 drive: (motion: AnimatorMotion, enter: boolean) => void
+duration: (motion: AnimatorMotion) => number
 entity: number
 finished: (motion: AnimatorMotion) => boolean
+loops: (motion: AnimatorMotion) => boolean
 params: Readonly<Record<string, number | boolean>>
+sample: (motion: AnimatorMotion, time: number, pose: Pose) => boolean
 world: World
 ```
 
 ## MotionDriver — interface @experimental
 ```
-apply: (ctx: MotionContext, motion: M, enter: boolean) => void
-isFinished: (ctx: MotionContext, motion: M) => boolean
+apply: ((ctx: MotionContext, motion: M, enter: boolean) => void) | undefined
+duration: ((ctx: MotionContext, motion: M) => number) | undefined
+isFinished: ((ctx: MotionContext, motion: M) => boolean) | undefined
+loops: ((ctx: MotionContext, motion: M) => boolean) | undefined
+sample: ((ctx: MotionContext, motion: M, time: number, pose: Pose) => boolean) | undefined
 ```
 
 ## MotionRegistry — class @experimental

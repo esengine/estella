@@ -21,6 +21,7 @@
 
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
+import type { Pose } from './pose';
 
 /** Parameter values a graph exposes to its motions (floats and bools). */
 export type MotionParams = Readonly<Record<string, number | boolean>>;
@@ -76,22 +77,45 @@ export interface MotionContext {
     drive(motion: AnimatorMotion, enter: boolean): void;
     /** Whether a nested motion has run to its end. */
     finished(motion: AnimatorMotion): boolean;
+    /** Sample a nested motion into `pose`; false when its kind cannot be sampled. */
+    sample(motion: AnimatorMotion, time: number, pose: Pose): boolean;
+    /** One pass of a nested motion in seconds; 0 when it does not say. */
+    duration(motion: AnimatorMotion): number;
+    /** Whether a nested motion repeats, and so never ends on its own. */
+    loops(motion: AnimatorMotion): boolean;
 }
 
+/**
+ * How one kind of motion is played. A driver supplies EITHER `sample` — stating
+ * values for something else to compose — or `apply`, for a motion that can only
+ * be switched to, a sprite sheet having no meaning halfway between two clips.
+ * Only a motion that states values without writing them can be blended.
+ */
 export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
     /**
      * Drive `motion` on the context's entity. Called every frame the state is
      * active, so a driver must be idempotent in steady state; `enter` is true
      * only on the frame the state was entered, and means restart from the top.
      */
-    apply(ctx: MotionContext, motion: M, enter: boolean): void;
+    apply?(ctx: MotionContext, motion: M, enter: boolean): void;
     /**
-     * Whether the motion has run to its end — what gates a `hasExitTime`
-     * transition. A looping motion never finishes. A driver that cannot tell
-     * answers false: an exit-time transition that never fires is visible in the
-     * graph's behaviour, whereas one that fires early looks like a timing bug.
+     * Evaluate `motion` at `time` seconds into `pose`, writing no component;
+     * wrapping belongs here, only the driver knowing how long its clip runs.
+     * Returns whether anything was sampled — a composite whose chosen child
+     * cannot be must answer false, or the caller takes silence for a pose.
      */
-    isFinished(ctx: MotionContext, motion: M): boolean;
+    sample?(ctx: MotionContext, motion: M, time: number, pose: Pose): boolean;
+    /** One pass in seconds. Absent, or 0, means the motion does not say. */
+    duration?(ctx: MotionContext, motion: M): number;
+    /** Whether the motion repeats. A looping motion never finishes. */
+    loops?(ctx: MotionContext, motion: M): boolean;
+    /**
+     * Whether the motion has ended — what gates a `hasExitTime` transition. For
+     * a driver whose end is no clock the animator keeps (a sprite clip, a spine
+     * track); one reporting a `duration` is judged on the animator's own time.
+     * Absent answers false: a transition that never fires is the visible failure.
+     */
+    isFinished?(ctx: MotionContext, motion: M): boolean;
 }
 
 /**
@@ -135,8 +159,12 @@ export class MotionRegistry {
         world: null!,
         entity: 0 as Entity,
         params: {},
-        drive: (motion, enter) => { this.driverFor(motion)?.apply(this.ctx_, motion, enter); },
-        finished: (motion) => this.driverFor(motion)?.isFinished(this.ctx_, motion) ?? false,
+        drive: (motion, enter) => { this.driverFor(motion)?.apply?.(this.ctx_, motion, enter); },
+        finished: (motion) => this.driverFor(motion)?.isFinished?.(this.ctx_, motion) ?? false,
+        sample: (motion, time, pose) =>
+            this.driverFor(motion)?.sample?.(this.ctx_, motion, time, pose) ?? false,
+        duration: (motion) => this.driverFor(motion)?.duration?.(this.ctx_, motion) ?? 0,
+        loops: (motion) => this.driverFor(motion)?.loops?.(this.ctx_, motion) ?? false,
     };
 }
 
@@ -178,6 +206,18 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     apply(ctx, blend, enter) {
         const selected = blendSelection(ctx, blend);
         if (selected) ctx.drive(selected, enter);
+    },
+    sample(ctx, blend, time, pose) {
+        const selected = blendSelection(ctx, blend);
+        return selected !== null && ctx.sample(selected, time, pose);
+    },
+    duration(ctx, blend) {
+        const selected = blendSelection(ctx, blend);
+        return selected ? ctx.duration(selected) : 0;
+    },
+    loops(ctx, blend) {
+        const selected = blendSelection(ctx, blend);
+        return selected ? ctx.loops(selected) : false;
     },
     isFinished(ctx, blend) {
         const selected = blendSelection(ctx, blend);

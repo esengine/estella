@@ -23,6 +23,7 @@
 import { TrackType, InterpType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
+import type { Pose, PoseTrack, PoseWorld } from '../animation/pose';
 import { q } from '../math/quat';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
@@ -183,13 +184,53 @@ export interface SampleOptions {
 }
 
 /**
- * Evaluate every property track at `time` and write the results to the world.
- * P1 covers property tracks only; spine/audio/spriteAnim/activation side-effects
- * land in P3/P4. Each track touches one component on one resolved entity, so it
- * reads/writes that component once (all channels folded into a single set).
+ * Where a sampled track's values land: the world, for standalone playback and
+ * the editor preview, or a {@link Pose}, for blending — values already written
+ * cannot be weighed against each other. One traversal serves both.
  */
-export function sampleTimeline(
-    asset: TimelineAsset, time: number, rootEntity: Entity, deps: SampleDeps, opts?: SampleOptions,
+export interface SampleSink {
+    /** The component data to write into, or null to skip this track. */
+    open(entity: Entity, def: AnyComponentDef): Record<string, unknown> | null;
+    /** Finish a track whose `touched` top-level fields were written. */
+    close(
+        entity: Entity, def: AnyComponentDef,
+        data: Record<string, unknown>, touched: ReadonlySet<string>,
+    ): void;
+}
+
+/** The sink that writes the world directly. */
+export function worldSink(world: SampleWorld): SampleSink {
+    return {
+        open: (entity, def) => (world.has(entity, def) ? world.get(entity, def) : null),
+        close: (entity, def, data) => { world.set(entity, def, data); },
+    };
+}
+
+/** The sink that records into a pose for later composition. */
+export function poseSink(pose: Pose, world: PoseWorld): SampleSink {
+    let current: PoseTrack | null = null;
+    return {
+        open: (entity, def) => {
+            current = pose.track(world, entity, def);
+            return current?.data ?? null;
+        },
+        close: (_entity, _def, _data, touched) => {
+            if (!current) return;
+            for (const field of touched) current.touched.add(field);
+            current = null;
+        },
+    };
+}
+
+/**
+ * Evaluate every property track at `time` into `sink`. Property tracks only —
+ * spine, audio, spriteAnim and activation carry side effects a sink cannot hold.
+ * Each track touches one component on one entity, so it opens that component
+ * once and folds every channel into a single write.
+ */
+export function sampleTimelineInto(
+    asset: TimelineAsset, time: number, rootEntity: Entity,
+    deps: SampleDeps, sink: SampleSink, opts?: SampleOptions,
 ): void {
     for (const track of asset.tracks) {
         if (track.type !== TrackType.Property) continue;
@@ -198,9 +239,11 @@ export function sampleTimeline(
         if (!def) continue;
 
         const entity = deps.resolveChild(rootEntity, track.childPath);
-        if (entity == null || !deps.world.has(entity, def)) continue;
+        if (entity == null) continue;
 
-        const data = deps.world.get(entity, def);
+        const data = sink.open(entity, def);
+        if (!data) continue;
+
         let changed = false;
         const touched = new Set<string>();
         for (const ch of track.channels) {
@@ -214,9 +257,27 @@ export function sampleTimeline(
         }
         if (changed) {
             finishQuaternions(data, track.component, touched);
-            deps.world.set(entity, def, data);
+            sink.close(entity, def, data, touched);
         }
     }
+}
+
+/** Evaluate every property track at `time` and write the results to the world. */
+export function sampleTimeline(
+    asset: TimelineAsset, time: number, rootEntity: Entity, deps: SampleDeps, opts?: SampleOptions,
+): void {
+    sampleTimelineInto(asset, time, rootEntity, deps, worldSink(deps.world), opts);
+}
+
+/**
+ * Evaluate every property track at `time` into `pose`, touching no component.
+ * What a motion says, held apart from what the entity becomes.
+ */
+export function sampleTimelineIntoPose(
+    asset: TimelineAsset, time: number, rootEntity: Entity,
+    deps: SampleDeps, pose: Pose, opts?: SampleOptions,
+): void {
+    sampleTimelineInto(asset, time, rootEntity, deps, poseSink(pose, deps.world), opts);
 }
 
 /**
