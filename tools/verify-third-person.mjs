@@ -13,6 +13,11 @@
  * Input goes in as key and mouse events on the page, and the only thing read
  * back is `__estellaCooked.gameplay` — an observation seam, not a second way to
  * play. Lanes run in -Z, so a run strafes to one and then walks it.
+ *
+ * The scene is `gym`, and it is a FIXTURE: its coordinates, sizes and materials
+ * answer to these claims and to nothing else. The project's entry scene is a
+ * level, and a level moves when it is being designed — a bridge widened there
+ * must not read here as a physics regression.
  */
 import { spawnSync } from 'node:child_process';
 import { rmSync, mkdirSync } from 'node:fs';
@@ -51,7 +56,7 @@ function packageGame() {
 function run(dir, input) {
     const r = runElectron([
         LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
-        '--settle', '30', '--timeout', '60000',
+        '--settle', '30', '--timeout', '60000', '--scene', 'gym',
         '--input', JSON.stringify(input), '--gameplay', 'Player,Camera',
         '--out', path.join(WORK, 'frame.png'),
     ], { encoding: 'utf8', cwd: ROOT });
@@ -154,7 +159,57 @@ const START = { y: 60, z: 120 };
           `lifted ${lifted.toFixed(0)}, z ${high.position?.z?.toFixed(0)}`);
 }
 
-// 6. Camera-relative movement, turned by a real mouse drag.
+// 6. The jump as an arc rather than an outcome: landing on the far side of
+// something is also what walking there looks like. Leaves the ground, gets high
+// enough to be worth having, comes back, and travels while it is up there.
+{
+    const APEX_MIN = 80;
+    const rising = run(dir, { holds: [{ key: 'Space', from: 0, to: 3 }], frames: 20 });
+    const airborne = (rising.position?.y ?? 0) - START.y;
+    check('a jump leaves the ground',
+          airborne > 30 && rising.grounded === false,
+          `rose ${airborne.toFixed(0)}, grounded ${rising.grounded}`);
+
+    const apex = run(dir, { holds: [{ key: 'Space', from: 0, to: 3 }], frames: 40 });
+    const height = (apex.position?.y ?? 0) - START.y;
+    check('and reaches an apex worth having',
+          height > APEX_MIN, `apex ${height.toFixed(0)} (needs > ${APEX_MIN})`);
+
+    const landed = run(dir, { holds: [{ key: 'Space', from: 0, to: 3 }], frames: 140 });
+    const settled = (landed.position?.y ?? 0) - START.y;
+    check('and comes back down to the floor it left',
+          Math.abs(settled) < 4 && landed.grounded === true,
+          `settled ${settled.toFixed(1)}, grounded ${landed.grounded}`);
+
+    // Authority in the air is partial by design (airControl), so the claim is
+    // that the run CONTINUES through the arc, not that it is unchanged.
+    const jumped = run(dir, {
+        holds: [{ key: 'KeyW', from: 0, to: 90 }, { key: 'Space', from: 20, to: 23 }],
+        frames: 90,
+    });
+    const walked = run(dir, { holds: [{ key: 'KeyW', from: 0, to: 90 }], frames: 90 });
+    const jumpedDz = START.z - (jumped.position?.z ?? START.z);
+    const walkedDz = START.z - (walked.position?.z ?? START.z);
+    check('and keeps travelling while it is off the ground',
+          jumpedDz > walkedDz * 0.5, `jumped ${jumpedDz.toFixed(0)} vs walked ${walkedDz.toFixed(0)}`);
+
+    // The step it cannot walk over, it can jump onto: the pair above says the
+    // 90-unit step stops a walk, so arriving on top of it is the jump's doing.
+    const onto = run(dir, {
+        holds: [
+            { key: 'KeyA', from: 0, to: TO_LANE.highStep },
+            { key: 'KeyW', from: TO_LANE.highStep, to: TO_LANE.highStep + 150 },
+            { key: 'Space', from: TO_LANE.highStep + 88, to: TO_LANE.highStep + 91 },
+        ],
+        frames: TO_LANE.highStep + 150,
+    });
+    const stood = (onto.position?.y ?? 0) - START.y;
+    check('a step too tall to walk over can be jumped onto',
+          stood > 40 && onto.grounded === true,
+          `stood ${stood.toFixed(0)}, grounded ${onto.grounded}`);
+}
+
+// 7. Camera-relative movement, turned by a real mouse drag.
 {
     const straight = run(dir, { keys: ['KeyW'], frames: 90 });
     // sensitivity 0.2 deg/px over a 960-wide surface: 450 px is a quarter turn.
@@ -174,7 +229,7 @@ const START = { y: 60, z: 120 };
           `dx ${turnedDx.toFixed(0)}, dz ${turnedDz.toFixed(0)}`);
 }
 
-// 7. Camera obstruction, against the same wall the character cannot pass.
+// 8. Camera obstruction, against the same wall the character cannot pass.
 {
     const open = run(dir, { frames: 40 });
     const against = run(dir, standIn(TO_LANE.wall, 'KeyD'));

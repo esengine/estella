@@ -19,6 +19,7 @@
  *     --w / --h          surface size (default 640x360)
  *     --settle <n>       frames to let run before capturing (default 30)
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
+ *     --scene <name>     boot this named scene instead of the package's entry
  *     --allow-flat       accept a single-colour frame (a deliberately blank scene)
  *     --input <json>     drive it: {"keys":["ArrowRight"]} or {"pointer":{"x":.5,"y":.5}}
  *     --touch            present as a touch device (maxTouchPoints > 0), so a
@@ -145,8 +146,14 @@ async function main() {
   }
   const PROBE = flag('probe', '');
 const GAMEPLAY = flag('gameplay', '');
+/** Boot a named scene from the package instead of its entry. */
+const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
-  const base = `http://127.0.0.1:${server.address().port}/${PROBE || GAMEPLAY ? '?headless' : ''}`;
+  const query = new URLSearchParams();
+  if (PROBE || GAMEPLAY) query.set('headless', '');
+  if (SCENE) query.set('scene', SCENE);
+  const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
+  const base = `http://127.0.0.1:${server.address().port}/${search}`;
 
   const win = new BrowserWindow({
     // Content size, not window size: with the frame counted in, the surface came

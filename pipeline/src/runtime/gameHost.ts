@@ -66,7 +66,15 @@ async function boot(): Promise<void> {
   const index = indexPackagedManifest(
     (await (await fetch('./asset-manifest.json')).json()) as AddressableManifest,
   );
-  const sceneData = (await (await fetch(`./${cfg.entryScene}`)).json()) as SceneData;
+  // A named scene from the query boots instead of the entry, so a conformance
+  // harness can drive a fixture scene in the real package rather than needing a
+  // project of its own. Unknown names are refused rather than silently ignored.
+  const wanted = new URLSearchParams(location.search).get('scene');
+  const chosen = wanted
+    ? (cfg.scenes ?? []).find((s) => s.name === wanted)?.path
+    : cfg.entryScene;
+  if (!chosen) throw new Error(`[estella] no scene named "${wanted}" in this package`);
+  const sceneData = (await (await fetch(`./${chosen}`)).json()) as SceneData;
 
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
