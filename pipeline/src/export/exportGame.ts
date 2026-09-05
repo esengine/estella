@@ -660,6 +660,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     errors.push(`cook manifest: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  /** What the host must import, or null when this build has no project code. */
+  let scriptsFile: string | null = null;
+
   // Also emit the AddressableManifest (v2.0) beside the flat one — the SAME
   // model every target now shares, so `loadGroup` / remote-group / hot-update
   // work on web + desktop too (not just mini-games). Additive: the eager boot
@@ -695,6 +698,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     //    where `esengine` is the globalThis.ESEngine the host installed.
     const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
     if (scriptsAbs && existsSync(scriptsAbs)) {
+      scriptsFile = nativeContent ? 'scripts.js' : 'scripts.mjs';
       progress({ phase: 'Bundling project scripts' });
       const proj = nativeContent
         ? await build({
@@ -801,6 +805,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // spelled differently here — the two sides share one declaration.
   const gameConfig: PackagedGameConfig = {
     entryScene: opts.entryScene, scenes,
+    ...(scriptsFile ? { scripts: scriptsFile } : {}),
     ...packagedRuntimeFields(runtime),
     ...(hotUpdate ? { hotUpdate } : {}),
     ...(sideModuleDeclarations(projectModules, platform).length > 0

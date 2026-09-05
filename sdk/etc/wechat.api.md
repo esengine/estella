@@ -5320,6 +5320,7 @@ physicsEnabled: boolean | undefined
 renderBackend: "webgl2" | "webgpu" | undefined
 scenes: { name: string; path: string; }[] | undefined
 screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
+scripts: string | undefined
 sideModules: { id: string; file: string; globalName?: string; }[] | undefined
 steamAppId: number | undefined
 uiTheme: "light" | undefined

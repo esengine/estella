@@ -40,6 +40,13 @@ export interface PackagedGameConfig {
     entryScene: string;
     /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
     scenes?: Array<{ name: string; path: string }>;
+    /**
+     * The project's own bundled code, as a payload-relative file name. Absent
+     * means this build has none — which is how a host tells "no project script"
+     * from "the project script failed to load". Guessing between those with a
+     * catch runs the empty world and calls it a success.
+     */
+    scripts?: string;
     /** Bitmask of render layers (0..31) that y-sort within the layer. */
     ySortLayers?: number;
     /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */

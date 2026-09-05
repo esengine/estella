@@ -36,15 +36,26 @@ async function boot(): Promise<void> {
   window.addEventListener('resize', resize);
   resize();
 
-  // Register the project's own components/systems first (side-effect import; its
-  // `import 'esengine'` resolves through the page import map to the shared SDK).
-  try {
-    await import(/* @vite-ignore */ new URL('./scripts.mjs', import.meta.url).href);
-  } catch {
-    /* no project bundle — builtin-only */
-  }
-
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
+
+  // The project's own components and systems. The config SAYS whether this build
+  // has any, so a load failure is a failure rather than a build that turned out
+  // not to have scripts — catching the difference boots an empty world.
+  if (cfg.scripts) {
+    const url = new URL(`./${cfg.scripts}`, import.meta.url).href;
+    try {
+      await import(/* @vite-ignore */ url);
+    } catch (err) {
+      const cause = err instanceof Error ? err : new Error(String(err));
+      // Logged as well as thrown: a rejected boot is observable to automation
+      // through either, and only one of them survives a host that awaits this.
+      console.error(`[estella] project scripts failed to load (${url})`, cause);
+      throw new Error(
+        `[estella] startup failed: project scripts "${cfg.scripts}" did not load — ${cause.message}`,
+        { cause },
+      );
+    }
+  }
   // Before anything acquires: the project's own modules were staged into wasm/
   // beside the engine's, and this is what makes their ids resolvable.
   registerPackagedSideModules(cfg);
