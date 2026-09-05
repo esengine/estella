@@ -39,6 +39,7 @@ import { setRendererBackend } from '../../render/renderer';
 import { RenderPipeline } from '../../render/renderPipeline';
 import { cameraPlugin } from '../../camera/CameraPlugin';
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
+import { ScreenLayout } from '../../ui/core/screen-layout';
 import { DEFAULT_UI_CAMERA_INFO } from '../../app/corePlugin';
 import { uiPlugin } from '../../ui/ui-plugin';
 import { SpinePlugin } from '../../spine';
@@ -239,6 +240,7 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
     setRendererBackend(createNativeRendererBackend(scope));
     app.setPipeline(new RenderPipeline());
     app.insertResource(UICameraInfo, { ...DEFAULT_UI_CAMERA_INFO });
+    app.insertResource(ScreenLayout, { ...ScreenLayout._default });
     // The viewport is read per frame, so a rotation reaches the projection without
     // anyone pushing a resize event.
     app.addPlugin(cameraPlugin(() => nativeSurfaceSize(scope)));

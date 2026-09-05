@@ -124,6 +124,9 @@ export class TextPlugin implements Plugin {
             // Design→device scale beyond DPR (vpW is device px); the bitmap
             // atlas folds it into rasterization. Resolved per frame — the
             // camera plugin may build after this one.
+            // Camera-scaled ON PURPOSE, and correct for WORLD text: zooming in
+            // rasterizes sharper. Screen text wants the layout domain, which
+            // needs the two told apart — the collection split, not here.
             const uiCamera = app.getResource(UICameraInfo) as UICameraData | undefined;
             const dpr = platformDevicePixelRatio();
             const contentScale = glyphContentScale(uiCamera, dpr);
