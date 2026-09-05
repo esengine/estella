@@ -152,6 +152,10 @@ function fakeWorld() {
             edit(value as T);
         },
         valid(e: Entity): boolean { return store.has(e); },
+        // Nothing composes here, so this is the honest answer for a store with no
+        // composer: what the solver's world pose becomes under a PARENT is
+        // checked against the real one in physics3d-transform-space.
+        ensureTransformsComposed(): void {},
         queryEntities(defs: unknown[]): Entity[] {
             return [...store.entries()]
                 .filter(([, comps]) => defs.every((d) => comps.has(d)))

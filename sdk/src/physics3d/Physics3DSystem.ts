@@ -12,8 +12,11 @@
  *          behaves nothing like itself when a character is 180 units tall.
  */
 import type { App } from '../app/app';
-import { Transform } from '../ecs/component';
-import type { TransformData } from '../ecs/component.generated';
+import { Parent, Transform } from '../ecs/component';
+import type { ParentData, TransformData } from '../ecs/component.generated';
+import { q } from '../math/quat';
+import { v3 } from '../math/vec3';
+import type { Quat, Vec3 } from '../types';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
     MeshCollider3D, ConvexCollider3D,
@@ -103,9 +106,12 @@ function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyM
 
         if (!app.world.has(entity, Transform)) continue;
         const t = app.world.get(entity, Transform) as TransformData;
-        t.position.x = f32[base]! * ppu;
-        t.position.y = f32[base + 1]! * ppu;
-        t.position.z = f32[base + 2]! * ppu;
+        const placed = localFromWorld(app, entity, {
+            x: f32[base]! * ppu, y: f32[base + 1]! * ppu, z: f32[base + 2]! * ppu,
+        });
+        t.position.x = placed.position.x;
+        t.position.y = placed.position.y;
+        t.position.z = placed.position.z;
         app.world.set(entity, Transform, t);
     }
     for (const [entity, id] of characters) {
@@ -113,6 +119,35 @@ function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyM
         module._physics3d_removeCharacter(id);
         characters.delete(entity);
     }
+}
+
+/**
+ * @brief The local pose that composes to `world` under this entity's parent
+ * @details A body goes to the solver at its composed WORLD pose, so what comes
+ *          back is one too, and under a parent that transform has to come back
+ *          out or composing adds it twice. Non-uniform parent scale keeps the
+ *          translation exact; the rotation carries the skew the docs name.
+ */
+function localFromWorld(app: App, entity: Entity, world: Vec3, rotation?: Quat):
+{ position: Vec3; rotation?: Quat } {
+    const link = app.world.has(entity, Parent)
+        ? (app.world.get(entity, Parent) as ParentData) : null;
+    const parent = link?.entity;
+    if (parent === undefined || !app.world.valid(parent) || !app.world.has(parent, Transform)) {
+        return { position: world, rotation };
+    }
+    const p = app.world.get(parent, Transform) as TransformData;
+    const inverse = q.conjugate(p.worldRotation as Quat);
+    const offset = q.rotate(inverse, v3.sub(world, p.worldPosition as Vec3));
+    const s = p.worldScale as Vec3;
+    return {
+        position: {
+            x: s.x !== 0 ? offset.x / s.x : offset.x,
+            y: s.y !== 0 ? offset.y / s.y : offset.y,
+            z: s.z !== 0 ? offset.z / s.z : offset.z,
+        },
+        rotation: rotation ? q.mul(inverse, rotation) : undefined,
+    };
 }
 
 function motionOf(body: RigidBody3DData): number {
@@ -234,6 +269,10 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
                               events?: Physics3DEventsData,
                               joints: Joint3DMap = new Map()): void {
     const ppu = config.pixelsPerUnit;
+    // Both directions read a parent's COMPOSED transform — the pose a body is
+    // created at, and the local pose its answer is turned back into — so the
+    // composition is made current first. O(1) when nothing moved.
+    app.world.ensureTransformsComposed();
     moveCharacters(app, module, characters, config);
 
     const live = new Set<Entity>();
@@ -259,6 +298,10 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         bodies.delete(entity);
     }
 
+    // Characters have just written local poses of their own, and a body may be
+    // parented to one.
+    app.world.ensureTransformsComposed();
+
     module._physics3d_step(config.fixedTimestep, config.collisionSteps);
     // Drained immediately after the step that produced them: the module's buffers
     // hold one step's worth and the next step clears them.
@@ -278,13 +321,16 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         const t = app.world.get(entity, Transform) as TransformData;
         // Position and rotation are the solver's; scale is the scene's and is
         // left alone, the same division of ownership the 2D path makes.
-        t.position.x = f32[o + 1]! * ppu;
-        t.position.y = f32[o + 2]! * ppu;
-        t.position.z = f32[o + 3]! * ppu;
-        t.rotation.x = f32[o + 4]!;
-        t.rotation.y = f32[o + 5]!;
-        t.rotation.z = f32[o + 6]!;
-        t.rotation.w = f32[o + 7]!;
+        const placed = localFromWorld(app, entity, {
+            x: f32[o + 1]! * ppu, y: f32[o + 2]! * ppu, z: f32[o + 3]! * ppu,
+        }, { x: f32[o + 4]!, y: f32[o + 5]!, z: f32[o + 6]!, w: f32[o + 7]! });
+        t.position.x = placed.position.x;
+        t.position.y = placed.position.y;
+        t.position.z = placed.position.z;
+        t.rotation.x = placed.rotation!.x;
+        t.rotation.y = placed.rotation!.y;
+        t.rotation.z = placed.rotation!.z;
+        t.rotation.w = placed.rotation!.w;
         app.world.set(entity, Transform, t);
     }
 }
