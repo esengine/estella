@@ -12,6 +12,8 @@ bool postprocess_init(u32 width, u32 height);
 void postprocess_shutdown();
 void postprocess_resize(u32 width, u32 height);
 u32 postprocess_addPass(const std::string& name, u32 shaderHandle);
+/** Draw a pass at a fraction of the chain size; the next pass upsamples it. */
+void postprocess_setPassScale(const std::string& passName, f32 scale);
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value);
 void postprocess_setPassTexture(const std::string& passName,

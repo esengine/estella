@@ -6257,7 +6257,7 @@ static prototype: PostProcessPlugin
 
 ## PostProcessStack — class @experimental
 ```
-addPass: (name: string, shader: ShaderHandle) => PostProcessStack
+addPass: (name: string, shader: ShaderHandle, scale?: number) => PostProcessStack
 clearDirty: () => void
 clearPasses: () => PostProcessStack
 destroy: () => void

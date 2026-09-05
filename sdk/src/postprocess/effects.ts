@@ -28,6 +28,12 @@ export interface EffectTextureDef {
 export interface EffectSubPass {
     name: string;
     factory: () => ShaderHandle;
+    /**
+     * Fraction of the chain size this sub-pass draws at (default 1). The chain's
+     * LAST pass always draws full size — it feeds the blit — so a fractional
+     * effect ends on a pass that reads the small result and writes the big one.
+     */
+    scale?: number;
 }
 
 export interface EffectDef {
@@ -200,6 +206,36 @@ registerEffect({
     ],
     // u_fogColor keeps its shader default: EffectDef surfaces floats and textures,
     // and a colour row is an editor surface of its own rather than part of this.
+});
+
+registerEffect({
+    type: 'ssao',
+    label: 'Ambient Occlusion',
+    factory: () => postProcessEffects.createSsaoAo(),
+    // Four knobs, each a term in the estimator. Sample count, spiral turns and
+    // the blur's slope limit stay constants in the shader: a number nobody can
+    // set right is not a setting, it is a way to break the effect.
+    uniforms: [
+        // A WORLD length: positions come back in world space, so this is "how far
+        // around a point counts as its neighbourhood", not a pixel count.
+        { name: 'u_radius', label: 'Radius', min: 1, max: 400, step: 1, defaultValue: 60 },
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        // How far above the tangent plane a sample must sit to count. This is
+        // what keeps a flat floor from occluding itself into grey.
+        { name: 'u_bias', label: 'Bias', min: 0, max: 0.6, step: 0.005, defaultValue: 0.12 },
+        // Contrast on the finished term; neutral at 1, so a blend toward "no
+        // effect" has to fade toward 1 and not 0.
+        { name: 'u_power', label: 'Power', min: 0.5, max: 4, step: 0.05, defaultValue: 1.6, neutralValue: 1 },
+    ],
+    // Half resolution for the three passes that carry the term, full for the one
+    // that applies it — the chain's last pass feeds the blit and is full size
+    // regardless, so the composite is where the upsample has to happen.
+    multiPass: [
+        { name: 'ssao_ao', factory: () => postProcessEffects.createSsaoAo(), scale: 0.5 },
+        { name: 'ssao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5 },
+        { name: 'ssao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5 },
+        { name: 'ssao_composite', factory: () => postProcessEffects.createSsaoComposite() },
+    ],
 });
 
 registerEffect({

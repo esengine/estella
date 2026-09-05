@@ -65,6 +65,12 @@ u32 postprocess_addPass(const std::string& name, u32 shaderHandle) {
     return g_postProcessPipeline->addPass(name, resource::ShaderHandle(shaderHandle));
 }
 
+void postprocess_setPassScale(const std::string& passName, f32 scale) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setPassScale(passName, scale);
+    }
+}
+
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value) {
     if (g_postProcessPipeline) {

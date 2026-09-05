@@ -61,6 +61,11 @@ struct PostProcessPass {
     /// (0 = input, 1 = scene).
     std::vector<std::pair<std::string, u32>> textureUniforms;
 
+    /// Fraction of the chain's size this pass draws at; the pass consuming it
+    /// upsamples. The graph resolves the fraction, and u_viewport still reports
+    /// the CANVAS, so a fractional pass must read its extent off its texture.
+    f32 scale = 1.0f;
+
     /// #pragma-param shaders: the pass's packed MaterialConstants payload +
     /// its UBO (binding 1) — the same reflected block a material would use.
     /// Rebuilt from float/vec4Uniforms over the layout defaults when dirty.
@@ -128,6 +133,8 @@ public:
      * @return Index of the added pass
      */
     u32 addPass(const std::string& name, resource::ShaderHandle shader);
+    /// Draw @p passName at @p scale of the chain size (clamped to (0, 1]).
+    void setPassScale(const std::string& passName, f32 scale);
 
 
 

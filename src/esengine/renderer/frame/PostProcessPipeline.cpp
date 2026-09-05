@@ -238,6 +238,14 @@ u32 PostProcessPipeline::addPass(const std::string& name, resource::ShaderHandle
     return static_cast<u32>(passes_.size() - 1);
 }
 
+void PostProcessPipeline::setPassScale(const std::string& passName, f32 scale) {
+    if (auto* pass = findPass(passName)) {
+        // A pass that draws at zero has no pixels and one that draws above the
+        // chain size would resample upward for nothing: neither is a fraction.
+        pass->scale = std::clamp(scale, 0.01f, 1.0f);
+    }
+}
+
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);
@@ -568,7 +576,11 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         // composite (bloom's last link) needs the un-blurred image, and the
         // shaders address it as unit 1 — the declaration IS that wiring.
         node.reads = {input, scene};
-        node.write = graph_->createTarget(i == lastEnabled ? blitDesc : desc);
+        // The last pass feeds the blit, which copies into the output rect at the
+        // chain's size — so it draws full-size whatever fraction it asked for.
+        rg::TargetDesc writeDesc = (i == lastEnabled) ? blitDesc : desc;
+        if (i != lastEnabled) writeDesc.scale = pass.scale;
+        node.write = graph_->createTarget(writeDesc);
         node.execute = [this, &pass](const rg::PassContext& ctx) { renderPass(pass, ctx); };
         input = node.write;
         graph_->addPass(std::move(node));

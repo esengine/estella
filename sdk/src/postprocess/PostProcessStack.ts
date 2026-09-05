@@ -11,6 +11,12 @@ export interface PassConfig {
     vec4Uniforms: Map<string, Vec4>;
     /** Effect-declared textures (LUTs, masks): sampler uniform -> SDK texture handle. */
     textureUniforms: Map<string, number>;
+    /**
+     * Fraction of the chain size this pass draws at. 1 is every pass that has
+     * ever existed here; a fraction is for an effect whose result is smooth
+     * enough to compute small and read back big (SSAO's occlusion term).
+     */
+    scale: number;
 }
 
 /**
@@ -53,7 +59,7 @@ export class PostProcessStack {
         state.stacks.set(this.id, this);
     }
 
-    addPass(name: string, shader: ShaderHandle): this {
+    addPass(name: string, shader: ShaderHandle, scale = 1): this {
         this.passes_.push({
             name,
             shader,
@@ -61,6 +67,7 @@ export class PostProcessStack {
             floatUniforms: new Map(),
             vec4Uniforms: new Map(),
             textureUniforms: new Map(),
+            scale,
         });
         this.dirty_ = true;
         return this;

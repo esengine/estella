@@ -16,6 +16,63 @@
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
 
+/**
+ * Depth-reading helpers the three SSAO passes share, in both languages. One
+ * definition each: a fix that reached only the first of three copies compiled
+ * fine and drew a black screen.
+ */
+const SSAO_GLSL = `/// A SCREEN texel: +y up, origin bottom-left, and the same number on both
+/// backends. Its inverse round-trips through a uv, which is backend-independent
+/// because one vertex stage serves both.
+ivec2 screenTexel(vec2 uv, ivec2 size) {
+    return clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
+}
+vec2 uvOfTexel(ivec2 t, ivec2 size) {
+    return (vec2(t) + 0.5) / vec2(size);
+}
+/// The one place the row order matters: GL numbers rows from the BOTTOM, so a
+/// screen texel is already the row.
+float depthAt(ivec2 t, ivec2 size) {
+    ivec2 q = clamp(t, ivec2(0), size - ivec2(1));
+    return texelFetch(u_sceneDepth, q, 0).r;
+}
+vec3 worldAt(ivec2 t, ivec2 size) {
+    ivec2 q = clamp(t, ivec2(0), size - ivec2(1));
+    return worldFromDepth(uvOfTexel(q, size), depthAt(q, size));
+}
+/// World distance along the view ray per unit of window depth, at THIS pixel.
+/// One derivative here replaces an un-projection per tap. Measured rather than
+/// assumed, so it holds for both projections.
+float worldPerDepth(vec2 uv, float d, vec3 P) {
+    float e = max((1.0 - d) * 0.01, 1e-5);
+    // Signed so the probe stays inside the depth range at the far plane.
+    float de = d + e > 1.0 ? -e : e;
+    return length(worldFromDepth(uv, d + de) - P) / abs(de);
+}`;
+
+const SSAO_WGSL = `fn screenTexel(uv : vec2f, size : vec2i) -> vec2i {
+    return clamp(vec2i(uv * vec2f(size)), vec2i(0), size - vec2i(1));
+}
+fn uvOfTexel(t : vec2i, size : vec2i) -> vec2f {
+    return (vec2f(t) + 0.5) / vec2f(size);
+}
+// The one place the row order matters: row 0 is the TOP here and the BOTTOM on
+// GL, so a screen texel is the mirrored row.
+fn depthAt(t : vec2i, size : vec2i) -> f32 {
+    let q = clamp(t, vec2i(0), size - vec2i(1));
+    return textureLoad(t7, vec2i(q.x, size.y - 1 - q.y), 0);
+}
+fn worldAt(t : vec2i, size : vec2i) -> vec3f {
+    let q = clamp(t, vec2i(0), size - vec2i(1));
+    return worldFromDepth(uvOfTexel(q, size), depthAt(q, size));
+}
+fn worldPerDepth(uv : vec2f, d : f32, P : vec3f) -> f32 {
+    let e = max((1.0 - d) * 0.01, 1e-5);
+    var e2 = e;
+    if (d + e > 1.0) { e2 = -e; }
+    return length(worldFromDepth(uv, d + e2) - P) / abs(e2);
+}`;
+
 export const postProcessEffects = {
     createLutGrade(): ShaderHandle {
         // True LUT color grading: a 2D-packed 32^3 LUT (1024x32 — 32 slices of
@@ -829,6 +886,396 @@ void main() {
     let blocks = tc.u_viewport.xy / max(mc.u_pixelSize, 1.0);
     let uv = (floor(v.v_texCoord * blocks) + 0.5) / blocks;
     return textureSampleLevel(t0, s0, uv, 0.0);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
+    /**
+     * SSAO, pass 1 of 4: the occlusion term, at half resolution. No G-buffer —
+     * scene depth and the injected `worldFromDepth` are the whole input, and
+     * positions come back in WORLD space, so the radius is a world length.
+     * Coordinates are SCREEN texels (+y up); only `depthAt` knows the row order.
+     */
+    createSsaoAo(): ShaderHandle {
+        const source = `#pragma shader "PP SSAO"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_radius float default(60) range(1,400)
+#pragma param u_intensity float default(1) range(0,2)
+#pragma param u_bias float default(0.12) range(0,0.6)
+#pragma param u_power float default(1.6) range(0.5,4)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+${SSAO_GLSL}
+
+const int K = 12;
+const float TAU = 6.28318530718;
+
+void main() {
+    // Depth is full resolution and this pass is not, so the texel comes from the
+    // uv — gl_FragCoord here counts THIS pass's smaller grid.
+    ivec2 size = textureSize(u_sceneDepth, 0);
+    ivec2 c = screenTexel(v_texCoord, size);
+    float d = depthAt(c, size);
+    // The cleared far plane is the absence of a surface: nothing there is
+    // occluded, and shading it would ring the sky in grey.
+    if (d >= 1.0) { fragColor = vec4(1.0); return; }
+
+    // The TEXEL CENTRE, not this pass's uv: at half resolution they differ by
+    // half a depth texel, and the tangents below are one texel long. Mixing the
+    // two conventions reconstructs noise instead of a normal.
+    vec2 cuv = uvOfTexel(c, size);
+    vec3 P = worldFromDepth(cuv, d);
+
+    // The NEARER neighbour on each axis. Across a silhouette the far side is a
+    // different surface, and a centred derivative would average the two into a
+    // normal facing neither — the smeared ring a naive reconstruction leaves.
+    float dl = depthAt(c + ivec2(-1, 0), size);
+    float dr = depthAt(c + ivec2( 1, 0), size);
+    float dd = depthAt(c + ivec2(0, -1), size);
+    float du = depthAt(c + ivec2(0,  1), size);
+    vec3 ax = abs(dr - d) < abs(dl - d) ? worldAt(c + ivec2(1, 0), size) - P
+                                        : P - worldAt(c + ivec2(-1, 0), size);
+    vec3 ay = abs(du - d) < abs(dd - d) ? worldAt(c + ivec2(0, 1), size) - P
+                                        : P - worldAt(c + ivec2(0, -1), size);
+    vec3 N = normalize(cross(ax, ay));
+    // Which side each pick came from decides the sign of the cross; the camera
+    // settles it, because a visible surface faces the eye.
+    if (dot(N, viewDirection(P)) < 0.0) N = -N;
+
+    // A world radius spans different pixel counts near and far. One texel step
+    // un-projected AT THIS DEPTH measures that scale without a projection matrix
+    // or a neighbour's geometry. The ceiling is the bandwidth budget.
+    float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(size.x), 0.0), d) - P), 1e-6);
+    float radiusTexels = clamp(u_radius / worldPerTexel, 2.0, 96.0);
+
+    // A 4x4 rotation scrambled by a factor coprime to 16, so the blur averages a
+    // pattern and not a band. Keyed to THIS pass's pixel — c counts full-res
+    // texels, and raw it would give a half-res pass every other phase.
+    ivec2 rp = c / 2;
+    int idx = ((rp.x & 3) * 4 + (rp.y & 3)) * 7;
+    float rot = float(idx - (idx / 16) * 16) * (TAU / 16.0);
+
+    // Every sample votes equally: the result is the fraction of the
+    // neighbourhood closed off. Weighting near taps louder is the tempting
+    // mistake — they land back on this surface and would vote OPEN loudest.
+    float occl = 0.0;
+    for (int i = 0; i < K; ++i) {
+        float a = (float(i) + 0.5) / float(K);
+        float ang = a * 7.0 * TAU + rot;
+        vec2 off = vec2(cos(ang), sin(ang)) * (a * radiusTexels);
+        ivec2 st = c + ivec2(floor(off + 0.5));
+        float ds = depthAt(st, size);
+        // Sky: nothing in that direction, so it votes OPEN by contributing
+        // nothing. This is what lightens the top of a wall toward its edge.
+        if (ds >= 1.0) continue;
+
+        // Measured in radii, so the estimator keeps its shape when the radius
+        // changes and u_bias keeps one meaning.
+        vec3 u = (worldAt(st, size) - P) / max(u_radius, 1e-4);
+        float uu = dot(u, u);
+        // Elevation above the tangent plane, less the bias that stops a flat
+        // surface from occluding itself into grey.
+        float sinE = dot(u, N) / max(sqrt(uu), 1e-6);
+        // Beyond the radius a sample is a different surface, not an occluder:
+        // this is what stops a silhouette haloing what is behind it. Faded, not
+        // cut, or the term pops as geometry crosses the edge under camera motion.
+        float range = 1.0 - smoothstep(0.6, 1.0, uu);
+        occl += max(sinE - u_bias, 0.0) * range;
+    }
+
+    float ao = 1.0 - clamp(occl / float(K) * u_intensity, 0.0, 1.0);
+    fragColor = vec4(vec3(pow(ao, u_power)), 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+${SSAO_WGSL}
+
+const K : i32 = 12;
+const TAU : f32 = 6.28318530718;
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let size = vec2i(textureDimensions(t7, 0));
+    let c = screenTexel(v.v_texCoord, size);
+    let d = depthAt(c, size);
+    if (d >= 1.0) { return vec4f(1.0); }
+
+    let cuv = uvOfTexel(c, size);
+    let P = worldFromDepth(cuv, d);
+
+    let dl = depthAt(c + vec2i(-1, 0), size);
+    let dr = depthAt(c + vec2i( 1, 0), size);
+    let dd = depthAt(c + vec2i(0, -1), size);
+    let du = depthAt(c + vec2i(0,  1), size);
+    var ax = P - worldAt(c + vec2i(-1, 0), size);
+    if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
+    var ay = P - worldAt(c + vec2i(0, -1), size);
+    if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
+    var N = normalize(cross(ax, ay));
+    if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
+
+    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P), 1e-6);
+    let radiusTexels = clamp(mc.u_radius / worldPerTexel, 2.0, 96.0);
+
+    let rp = c / 2;
+    let idx = ((rp.x & 3) * 4 + (rp.y & 3)) * 7;
+    let rot = f32(idx - (idx / 16) * 16) * (TAU / 16.0);
+
+    var occl = 0.0;
+    for (var i : i32 = 0; i < K; i = i + 1) {
+        let a = (f32(i) + 0.5) / f32(K);
+        let ang = a * 7.0 * TAU + rot;
+        let off = vec2f(cos(ang), sin(ang)) * (a * radiusTexels);
+        let st = c + vec2i(floor(off + 0.5));
+        let ds = depthAt(st, size);
+        if (ds >= 1.0) { continue; }
+
+        let u = (worldAt(st, size) - P) / max(mc.u_radius, 1e-4);
+        let uu = dot(u, u);
+        let sinE = dot(u, N) / max(sqrt(uu), 1e-6);
+        let range = 1.0 - smoothstep(0.6, 1.0, uu);
+        occl = occl + max(sinE - mc.u_bias, 0.0) * range;
+    }
+
+    let ao = 1.0 - clamp(occl / f32(K) * mc.u_intensity, 0.0, 1.0);
+    return vec4f(vec3f(pow(ao, mc.u_power)), 1.0);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
+    /**
+     * SSAO, passes 2 and 3: a separable blur that will not cross a depth edge,
+     * or a contact shadow ends up on the wall behind. Each tap is weighted by
+     * its gap ALONG THE VIEW RAY in world units against the pixel's own scale,
+     * so one constant holds near and far where a raw depth compare would not.
+     */
+    createSsaoBlur(axis: 0 | 1): ShaderHandle {
+        const step = axis === 0 ? 'vec2(1.0, 0.0)' : 'vec2(0.0, 1.0)';
+        const stepW = axis === 0 ? 'vec2f(1.0, 0.0)' : 'vec2f(0.0, 1.0)';
+        const source = `#pragma shader "PP SSAO Blur ${axis.toFixed(0)}"
+#pragma version 300 es
+#pragma domain PostProcess
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+${SSAO_GLSL}
+
+const int R = 3;
+/// A tap whose view-ray gap exceeds this many texel-widths is another surface.
+const float SLOPE = 4.0;
+
+void main() {
+    ivec2 dsize = textureSize(u_sceneDepth, 0);
+    ivec2 hsize = textureSize(u_texture, 0);
+    ivec2 dc = screenTexel(v_texCoord, dsize);
+    float d = depthAt(dc, dsize);
+    if (d >= 1.0) { fragColor = texture(u_texture, v_texCoord); return; }
+
+    vec2 cuv = uvOfTexel(dc, dsize);
+    vec3 P = worldFromDepth(cuv, d);
+    // The pixel's own world scale, from one texel step at ITS depth — the same
+    // measure the AO pass sizes its radius with.
+    float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(dsize.x), 0.0), d) - P), 1e-6);
+    float tol = worldPerTexel * SLOPE;
+    float perDepth = worldPerDepth(cuv, d, P);
+
+    vec2 stepUv = ${step} / vec2(hsize);
+    float sum = 0.0;
+    float wsum = 0.0;
+    for (int i = -R; i <= R; ++i) {
+        vec2 uv = v_texCoord + stepUv * float(i);
+        float g = exp(-float(i * i) / 8.0);
+
+        ivec2 dt = screenTexel(uv, dsize);
+        float dj = depthAt(dt, dsize);
+        // Off the far plane there is no surface to agree with; the Gaussian
+        // alone would let the sky pull the edge of a silhouette toward white.
+        float w = dj >= 1.0 ? 0.0
+                            : g * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
+        sum += texture(u_texture, uv).r * w;
+        wsum += w;
+    }
+    // Every neighbour rejected (a one-pixel sliver): keep this pixel's own value
+    // rather than dividing by nothing.
+    float ao = wsum > 1e-5 ? sum / wsum : texture(u_texture, v_texCoord).r;
+    fragColor = vec4(vec3(ao), 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+${SSAO_WGSL}
+
+const R : i32 = 3;
+const SLOPE : f32 = 4.0;
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let dsize = vec2i(textureDimensions(t7, 0));
+    let hsize = vec2i(textureDimensions(t0, 0));
+    let dc = screenTexel(v.v_texCoord, dsize);
+    let d = depthAt(dc, dsize);
+    if (d >= 1.0) { return textureSampleLevel(t0, s0, v.v_texCoord, 0.0); }
+
+    let cuv = uvOfTexel(dc, dsize);
+    let P = worldFromDepth(cuv, d);
+    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(dsize.x), 0.0), d) - P), 1e-6);
+    let tol = worldPerTexel * SLOPE;
+    let perDepth = worldPerDepth(cuv, d, P);
+
+    let stepUv = ${stepW} / vec2f(hsize);
+    var sum = 0.0;
+    var wsum = 0.0;
+    for (var i : i32 = -R; i <= R; i = i + 1) {
+        let uv = v.v_texCoord + stepUv * f32(i);
+        let g = exp(-f32(i * i) / 8.0);
+
+        let dt = screenTexel(uv, dsize);
+        let dj = depthAt(dt, dsize);
+        var w = 0.0;
+        if (dj < 1.0) {
+            w = g * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
+        }
+        sum = sum + textureSampleLevel(t0, s0, uv, 0.0).r * w;
+        wsum = wsum + w;
+    }
+    var ao = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).r;
+    if (wsum > 1e-5) { ao = sum / wsum; }
+    return vec4f(vec3f(ao), 1.0);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
+    /**
+     * SSAO, pass 4 of 4: upsample the half-resolution term and apply it. Plain
+     * bilinear would undo the blur's care — a half-res texel straddling a
+     * silhouette bleeds back across it — so the four candidates carry the same
+     * view-ray gap weight. The scene arrives at unit 1, as bloom's composite.
+     */
+    createSsaoComposite(): ShaderHandle {
+        const source = `#pragma shader "PP SSAO Composite"
+#pragma version 300 es
+#pragma domain PostProcess
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform sampler2D u_sceneTexture;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+${SSAO_GLSL}
+
+const float SLOPE = 4.0;
+
+void main() {
+    vec4 scene = texture(u_sceneTexture, v_texCoord);
+    ivec2 dsize = textureSize(u_sceneDepth, 0);
+    ivec2 dc = screenTexel(v_texCoord, dsize);
+    float d = depthAt(dc, dsize);
+    if (d >= 1.0) { fragColor = scene; return; }
+
+    vec2 cuv = uvOfTexel(dc, dsize);
+    vec3 P = worldFromDepth(cuv, d);
+    float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(dsize.x), 0.0), d) - P), 1e-6);
+    float tol = worldPerTexel * SLOPE;
+    float perDepth = worldPerDepth(cuv, d, P);
+
+    // The four half-resolution texels this pixel falls between, in SCREEN texel
+    // space so the bilinear weights mean the same on both backends.
+    ivec2 hsize = textureSize(u_texture, 0);
+    vec2 hf = v_texCoord * vec2(hsize) - 0.5;
+    ivec2 base = ivec2(floor(hf));
+    vec2 frac = hf - vec2(base);
+
+    float sum = 0.0;
+    float wsum = 0.0;
+    for (int j = 0; j < 4; ++j) {
+        ivec2 o = ivec2(j & 1, j >> 1);
+        ivec2 t = clamp(base + o, ivec2(0), hsize - ivec2(1));
+        vec2 uv = uvOfTexel(t, hsize);
+        float bw = (o.x == 1 ? frac.x : 1.0 - frac.x) * (o.y == 1 ? frac.y : 1.0 - frac.y);
+
+        ivec2 dt = screenTexel(uv, dsize);
+        float dj = depthAt(dt, dsize);
+        float w = dj >= 1.0 ? 0.0
+                            : bw * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
+        sum += texture(u_texture, uv).r * w;
+        wsum += w;
+    }
+    // No candidate agreed: this pixel is its own sliver, so take the term
+    // straight rather than leaving it unshaded.
+    float ao = wsum > 1e-5 ? sum / wsum : texture(u_texture, v_texCoord).r;
+    fragColor = vec4(scene.rgb * ao, scene.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+${SSAO_WGSL}
+
+const SLOPE : f32 = 4.0;
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
+    let dsize = vec2i(textureDimensions(t7, 0));
+    let dc = screenTexel(v.v_texCoord, dsize);
+    let d = depthAt(dc, dsize);
+    if (d >= 1.0) { return scene; }
+
+    let cuv = uvOfTexel(dc, dsize);
+    let P = worldFromDepth(cuv, d);
+    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(dsize.x), 0.0), d) - P), 1e-6);
+    let tol = worldPerTexel * SLOPE;
+    let perDepth = worldPerDepth(cuv, d, P);
+
+    let hsize = vec2i(textureDimensions(t0, 0));
+    let hf = v.v_texCoord * vec2f(hsize) - 0.5;
+    let base = vec2i(floor(hf));
+    let frac = hf - vec2f(base);
+
+    var sum = 0.0;
+    var wsum = 0.0;
+    for (var j : i32 = 0; j < 4; j = j + 1) {
+        let o = vec2i(j & 1, j >> 1);
+        let t = clamp(base + o, vec2i(0), hsize - vec2i(1));
+        let uv = uvOfTexel(t, hsize);
+        var bwx = 1.0 - frac.x;
+        if (o.x == 1) { bwx = frac.x; }
+        var bwy = 1.0 - frac.y;
+        if (o.y == 1) { bwy = frac.y; }
+        let bw = bwx * bwy;
+
+        let dt = screenTexel(uv, dsize);
+        let dj = depthAt(dt, dsize);
+        var w = 0.0;
+        if (dj < 1.0) {
+            w = bw * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
+        }
+        sum = sum + textureSampleLevel(t0, s0, uv, 0.0).r * w;
+        wsum = wsum + w;
+    }
+    var ao = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).r;
+    if (wsum > 1e-5) { ao = sum / wsum; }
+    return vec4f(scene.rgb * ao, scene.a);
 }
 #pragma end
 `;

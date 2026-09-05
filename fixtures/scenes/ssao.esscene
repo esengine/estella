@@ -1,0 +1,342 @@
+{
+  "version": 4,
+  "name": "Ssao",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 320,
+              "z": 480
+            },
+            "rotation": {
+              "x": -0.284,
+              "y": 0,
+              "z": 0,
+              "w": 0.9588
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 10,
+            "farPlane": 3000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "ssao",
+                "enabled": true,
+                "uniforms": {
+                  "u_radius": 100,
+                  "u_intensity": 1,
+                  "u_bias": 0.12,
+                  "u_power": 1.6
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Floor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -200
+            },
+            "scale": {
+              "x": 14,
+              "y": 1,
+              "z": 14
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:plane",
+            "color": {
+              "r": 0.75,
+              "g": 0.75,
+              "b": 0.75,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "WallBack",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 125,
+              "z": -600
+            },
+            "scale": {
+              "x": 14,
+              "y": 2.5,
+              "z": 0.2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0.7,
+              "g": 0.72,
+              "b": 0.78,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "WallLeft",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -600,
+              "y": 125,
+              "z": -200
+            },
+            "scale": {
+              "x": 0.2,
+              "y": 2.5,
+              "z": 8
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0.7,
+              "g": 0.72,
+              "b": 0.78,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Step",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -330,
+              "y": 25,
+              "z": -80
+            },
+            "scale": {
+              "x": 2,
+              "y": 0.5,
+              "z": 2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0.65,
+              "g": 0.75,
+              "b": 0.6,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "BoxContact",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -110,
+              "y": 50,
+              "z": -80
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0.8,
+              "g": 0.55,
+              "b": 0.4,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "BoxFloating",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 110,
+              "y": 100,
+              "z": -80
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "color": {
+              "r": 0.45,
+              "g": 0.65,
+              "b": 0.8,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Sphere",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 330,
+              "y": 50,
+              "z": -80
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "color": {
+              "r": 0.78,
+              "g": 0.7,
+              "b": 0.5,
+              "a": 1
+            },
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

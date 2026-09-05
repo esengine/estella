@@ -37,6 +37,26 @@
             "distance": 420,
             "pitch": 18
           }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "ssao",
+                "enabled": true,
+                "uniforms": {
+                  "u_radius": 70,
+                  "u_intensity": 1,
+                  "u_bias": 0.12,
+                  "u_power": 1.6
+                }
+              }
+            ]
+          }
         }
       ]
     },

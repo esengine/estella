@@ -109,7 +109,7 @@ function applyBlendedEffects(
         if (def.multiPass) {
             for (const subPass of def.multiPass) {
                 const shader = getOrCreateShader(api, subPass.name, subPass.factory);
-                stack.addPass(subPass.name, shader);
+                stack.addPass(subPass.name, shader, subPass.scale ?? 1);
                 for (const [uniformName, uniformValue] of effectData.uniforms) {
                     stack.setUniform(subPass.name, uniformName, uniformValue);
                 }
