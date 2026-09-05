@@ -253,6 +253,12 @@ describe('what the animator says is not what combat does', () => {
         expect(swing(world, new MeleeAttacks(), ['footstep', 'windup', 'recover'])).toEqual([]);
     });
 
+    it('lands nothing once the attacker itself is down', () => {
+        const world = scene();
+        world.insert(ATTACKER, Health, health(0));
+        expect(swing(world, new MeleeAttacks(), [COMBAT_ATTACK_START, COMBAT_HIT])).toEqual([]);
+    });
+
     it('does nothing at all while the attack is disabled', () => {
         const world = scene({ enabled: false });
         expect(swing(world, new MeleeAttacks(), [COMBAT_ATTACK_START, COMBAT_HIT])).toEqual([]);

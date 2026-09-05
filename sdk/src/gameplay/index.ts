@@ -8,6 +8,10 @@ export {
     shortestAngleDelta,
     turnToward,
     rootMotionVelocity,
+    TPC_SPEED,
+    TPC_GROUNDED,
+    TPC_DODGE,
+    TPC_ATTACK,
     yawQuaternion,
     yawOfQuaternion,
     WORLD_BASIS,
@@ -25,6 +29,16 @@ export {
     clampPitch,
     type ThirdPersonCameraData,
 } from './ThirdPersonCamera';
+
+export {
+    Hunter,
+    decideHunterState,
+    huntTargets,
+    driveHunterRootMotion,
+    type HunterData,
+    type HunterState,
+    type HunterSituation,
+} from './Hunter';
 
 export {
     Health,
@@ -48,10 +62,6 @@ export {
 export {
     GameplayPlugin,
     gameplayPlugin,
-    TPC_SPEED,
-    TPC_GROUNDED,
-    TPC_DODGE,
-    TPC_ATTACK,
     requestMotion,
     observeMotion,
     updateCameras,

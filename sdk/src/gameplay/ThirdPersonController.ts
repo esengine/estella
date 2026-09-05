@@ -20,6 +20,16 @@ import { defineComponent, type ComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
 import type { Vec3 } from '../types';
 
+/**
+ * Animator parameters a controller writes, and the triggers it sets. Names, not
+ * clips — and shared with {@link Hunter}, so one graph drives a player and an
+ * enemy and neither can drift into a private vocabulary.
+ */
+export const TPC_SPEED = 'speed';
+export const TPC_GROUNDED = 'grounded';
+export const TPC_DODGE = 'dodge';
+export const TPC_ATTACK = 'attack';
+
 /** The key a dodge is asked for on; the animator decides whether there is one. */
 export const DODGE_KEY = 'ShiftLeft';
 

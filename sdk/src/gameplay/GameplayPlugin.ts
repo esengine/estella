@@ -28,26 +28,20 @@ import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorE
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Damage, applyDamage, type DamagePayload } from './Health';
 import { MeleeAttacks, resolveMeleeHits } from './MeleeAttack';
+import { huntTargets, driveHunterRootMotion } from './Hunter';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
-    yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY, type MoveBasis,
+    yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY,
+    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, type MoveBasis,
 } from './ThirdPersonController';
 import {
     ThirdPersonCamera, type ThirdPersonCameraData,
     orbitOffset, cameraGroundBasis, dampFactor, clampPitch,
 } from './ThirdPersonCamera';
-
-/** Animator parameters this controller writes. Names, not clips. */
-export const TPC_SPEED = 'speed';
-export const TPC_GROUNDED = 'grounded';
-/** The trigger a dodge press sets. Whether any state answers it is the graph's. */
-export const TPC_DODGE = 'dodge';
-/** The trigger an attack press sets. The graph decides which state answers it. */
-export const TPC_ATTACK = 'attack';
 
 /**
  * What the animation is asking this character to do, or null when nothing is.
@@ -300,6 +294,19 @@ export class GameplayPlugin implements Plugin {
             { name: 'DamageSystem' },
         ), { runIf: playModeOnly });
 
+        // Perception wrote what each hunter can see this frame; navigation plans
+        // in Update. Deciding between the two is what makes a destination set
+        // here the one planned on the same frame it was chosen.
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+            [Res(Time)],
+            (time: TimeData) => {
+                const animator = app.hasResource(AnimatorController)
+                    ? app.getResource(AnimatorController) : null;
+                huntTargets(world, animator, TPC_ATTACK, time.delta);
+            },
+            { name: 'HunterSystem' },
+        ), { runAfter: ['PerceptionSystem'], runIf: playModeOnly });
+
         // Before the physics step: what the player is asking for.
         app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
             [Res(Time), Res(Input)],
@@ -309,6 +316,14 @@ export class GameplayPlugin implements Plugin {
                 requestMotion(world, input, time.fixedDelta, animator);
             },
             { name: 'ThirdPersonControllerSystem' },
+        ), { runIf: playModeOnly });
+
+        // Last writer before the step, after navigation's steering: a lunge is
+        // the animation's to override, and the same rule the player follows.
+        app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
+            [],
+            () => { driveHunterRootMotion(world); },
+            { name: 'HunterRootMotionSystem' },
         ), { runIf: playModeOnly });
 
         // After it: what the world allowed. The animator hears this one.

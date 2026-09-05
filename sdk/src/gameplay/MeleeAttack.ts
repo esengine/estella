@@ -26,7 +26,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import type { Overlap3DHit } from '../physics3d/Physics3DQueries';
 import type { AnimatorEventPayload } from '../animation/animatorEvent';
-import { Health, type DamagePayload } from './Health';
+import { Health, type DamagePayload, type HealthData } from './Health';
 
 /**
  * The events a clip declares that this reads. Names rather than times: a state
@@ -190,6 +190,11 @@ export function resolveMeleeHits(
         if (!world.valid(attacker) || !world.has(attacker, MeleeAttack)) continue;
         const attack = world.get(attacker, MeleeAttack) as MeleeAttackData;
         if (!attack.enabled) continue;
+        // A swing already in the air when its owner went down lands on nobody:
+        // the animator keeps playing whatever it was playing, and "the attack
+        // stops" cannot be left to whoever remembers to switch this off.
+        if (world.has(attacker, Health)
+            && (world.get(attacker, Health) as HealthData).current <= 0) continue;
 
         if (event.name === COMBAT_ATTACK_START) {
             attacks.open(attacker);
