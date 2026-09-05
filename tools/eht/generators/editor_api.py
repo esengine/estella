@@ -8,7 +8,7 @@ Generates EditorAPI.generated.cpp with:
 
 import hashlib
 from typing import List, Set
-from ..data import Component, Enum, HIERARCHY_COMPONENTS
+from ..data import Component, Enum, HIERARCHY_COMPONENTS, WRITE_HOOKS
 from ..type_system import TypeSystem
 from ..field_utils import get_sub_components, get_editor_type, is_color_field
 
@@ -172,6 +172,16 @@ class EditorAPIGenerator:
     def _is_readonly(self, prop) -> bool:
         return 'readonly' in prop.annotations
 
+    def _write_hook(self, comp: Component) -> List[str]:
+        """What a successful set on this component has to announce, if anything.
+
+        Emitted once per branch rather than per field: every field that reaches a
+        setter is writable (readonly ones are filtered out above), so reaching the
+        end of the chain already means a real write happened.
+        """
+        hook = WRITE_HOOKS.get(comp.name)
+        return [f'        {hook}'] if hook else []
+
     def _get_all_fields(self, comp: Component) -> list:
         """Get all editable fields as (key, editor_type, group, enum_values) tuples."""
         fields = []
@@ -225,6 +235,12 @@ class EditorAPIGenerator:
                 # A bare Parent names no one, and TransformSystem skips anything that
                 # has one — the link is made by naming a parent, not by adding this.
                 lines.append(f'        return false;')
+            elif WRITE_HOOKS.get(comp.name):
+                # Structural, and still a composition input: a Transform added
+                # under a parent is at the origin until something composes it.
+                hook = WRITE_HOOKS[comp.name]
+                lines.append(f'        if (!reg.has<{full}>(entity)) {{ reg.emplace<{full}>(entity); {hook} }}')
+                lines.append(f'        return true;')
             else:
                 lines.append(f'        if (!reg.has<{full}>(entity)) reg.emplace<{full}>(entity);')
                 lines.append(f'        return true;')
@@ -379,6 +395,7 @@ class EditorAPIGenerator:
                     idx += 1
 
             lines.append('        else { return false; }')
+            lines.extend(self._write_hook(comp))
             lines.append('        return true;')
 
         if not first_comp:
@@ -499,6 +516,7 @@ class EditorAPIGenerator:
                     lines.append(f'        {prefix} (field == "{key}") {{ c.{cpp_path} = static_cast<{cpp_type}>(value); }}')
 
             lines.append('        else { return false; }')
+            lines.extend(self._write_hook(comp))
             lines.append('        return true;')
 
         if not first_comp:
@@ -599,6 +617,7 @@ class EditorAPIGenerator:
                 lines.append(f'        {prefix} (field == "{key}") {{ c.{cpp_path} = value; }}')
 
             lines.append('        else { return false; }')
+            lines.extend(self._write_hook(comp))
             lines.append('        return true;')
 
         if not first_comp:
@@ -695,6 +714,7 @@ class EditorAPIGenerator:
             side_effect = _STRING_SET_SIDE_EFFECTS.get(comp.name)
             if side_effect:
                 lines.append(f'        {side_effect}')
+            lines.extend(self._write_hook(comp))
             lines.append('        return true;')
 
         if not first_comp:

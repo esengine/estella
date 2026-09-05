@@ -40,6 +40,15 @@ READ_HOOKS: Dict[str, str] = {'Transform': 'ensureDecomposed'}
 HIERARCHY_COMPONENTS: Set[str] = {'Parent', 'Children'}
 
 
+# The write-side twin of READ_HOOKS. A composed world transform is a function of
+# Transform's WRITABLE fields, so a generated setter for one of them has to say the
+# composition went stale: a world composes on that epoch alone, and a headless one
+# has no frame to schedule it instead. Keyed by component, never by field name —
+# the readonly fields are the composition's OUTPUT and no setter is generated for
+# them at all, which is what keeps this from invalidating on its own result.
+WRITE_HOOKS: Dict[str, str] = {'Transform': 'esengine::ecs::invalidateTransformComposition();'}
+
+
 @dataclass
 class Enum:
     """An ES_ENUM enum class."""

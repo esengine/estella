@@ -46,7 +46,16 @@ if (failed) {
 // 2. The generator runs.
 const out = mkdtempSync(path.join(tmpdir(), 'estella-nfb-'));
 const generated = path.join(out, 'NativeFunctionBindings.generated.cpp');
-const python = process.env.PYTHON || 'python';
+// `python` is not a command macOS ships; `python3` is. Asking the same resolver
+// the build asks is why this gate can run on a developer's machine at all — it
+// was CI-only on the belief that it could not.
+const { resolvePython } = await import('../build-tools/utils/emscripten.js');
+const python = await resolvePython();
+if (!python) {
+    console.log('check-native-bindings: no Python 3 on PATH — cannot run EHT, so nothing was checked.');
+    rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    process.exit(2);
+}
 try {
     execFileSync(python, [
         path.join(ROOT, 'tools', 'eht.py'),

@@ -807,7 +807,7 @@ bool editor_addComponent(Registry& reg, u32 e, const std::string& name) {
         if (!reg.has<esengine::ecs::TrailRenderer>(entity)) reg.emplace<esengine::ecs::TrailRenderer>(entity);
         return true;
     } else if (name == "Transform") {
-        if (!reg.has<esengine::ecs::Transform>(entity)) reg.emplace<esengine::ecs::Transform>(entity);
+        if (!reg.has<esengine::ecs::Transform>(entity)) { reg.emplace<esengine::ecs::Transform>(entity); esengine::ecs::invalidateTransformComposition(); }
         return true;
     } else if (name == "UIInteraction") {
         if (!reg.has<esengine::ecs::UIInteraction>(entity)) reg.emplace<esengine::ecs::UIInteraction>(entity);
@@ -1417,6 +1417,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
             c.rotation = eulerDegToQuat(euler);
         }
         else { return false; }
+        esengine::ecs::invalidateTransformComposition();
         return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;

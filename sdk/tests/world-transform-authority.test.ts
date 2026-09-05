@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
-import { Transform } from '../src/ecs/component';
+import { Sprite, Transform } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -167,6 +167,94 @@ describe('a compiled system that moves transforms', () => {
         world.ensureTransformsComposed();
         expect((world.get(child, Transform) as { worldPosition: { x: number } }).worldPosition.x)
             .toBe(205);
+        world.disconnectCpp();
+    });
+});
+
+/**
+ * The editor's generated field setter writes the same bytes every other producer
+ * writes, and until now said nothing. It got away with it because an editor
+ * always has a renderer — so these run without one, which is the only way to tell
+ * "it announced" apart from "something else was drawing anyway".
+ */
+describe.skipIf(!HAS_WASM)('the editor writes through the same authority', () => {
+    let module: ESEngineModule;
+    beforeAll(async () => { module = await loadWasmModule(); });
+
+    interface EditorApi {
+        editor_setFloat(reg: CppRegistry, e: number, comp: string, field: string, v: number): boolean;
+        editor_addComponent(reg: CppRegistry, e: number, name: string): boolean;
+    }
+    const editor = (): EditorApi => module as unknown as EditorApi;
+    const worldPosX = (reg: CppRegistry, e: number): number =>
+        (reg as unknown as { getTransform(e: number): { worldPosition: { x: number } } })
+            .getTransform(e).worldPosition.x;
+
+    /** A parent at 100 and a child 5 to its right, with no renderer installed. */
+    function parented() {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, module);
+        const world = app.world;
+        const parent = world.spawn('parent');
+        world.insert(parent, Transform, { position: { x: 100, y: 0, z: 0 } });
+        const child = world.spawn('child');
+        world.insert(child, Transform, { position: { x: 5, y: 0, z: 0 } });
+        world.setParent(child, parent);
+        world.ensureTransformsComposed();
+        return { app, world, registry, parent, child };
+    }
+
+    it('a generated field setter recomposes a world that has no renderer', () => {
+        const { world, registry, parent, child } = parented();
+        expect(worldPosX(registry, child)).toBe(105);
+
+        const before = world.transformEpoch();
+        expect(editor().editor_setFloat(registry, parent, 'Transform', 'position.x', 300)).toBe(true);
+        expect(world.transformEpoch()).not.toBe(before);
+
+        world.ensureTransformsComposed();
+        expect(worldPosX(registry, child)).toBe(305);
+        world.disconnectCpp();
+    });
+
+    it('the euler path announces too, not just the vector fields', () => {
+        const { world, registry, parent } = parented();
+        const before = world.transformEpoch();
+        expect(editor().editor_setFloat(registry, parent, 'Transform', 'rotation.z', 90)).toBe(true);
+        expect(world.transformEpoch()).not.toBe(before);
+        world.disconnectCpp();
+    });
+
+    it('a setter for any other component announces nothing', () => {
+        const { world, registry, parent } = parented();
+        world.insert(parent, Sprite, {});
+        const before = world.transformEpoch();
+
+        // Staleness is about the composition's inputs. A generated setter that
+        // bumped the epoch for every component would recompose the whole world on
+        // any editor edit, and no test of the composition would catch it.
+        expect(editor().editor_setFloat(registry, parent, 'Sprite', 'size.x', 42)).toBe(true);
+        expect(world.transformEpoch()).toBe(before);
+        world.disconnectCpp();
+    });
+
+    it('adding a Transform under a parent composes it into place', () => {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, module);
+        const world = app.world;
+        const parent = world.spawn('parent');
+        world.insert(parent, Transform, { position: { x: 100, y: 0, z: 0 } });
+        // Parented, but carrying no Transform: nothing composes it, and nothing
+        // should — it has no world position to have.
+        const child = world.spawn('child');
+        world.setParent(child, parent);
+        world.ensureTransformsComposed();
+
+        expect(editor().editor_addComponent(registry, child, 'Transform')).toBe(true);
+        world.ensureTransformsComposed();
+        expect(worldPosX(registry, child)).toBe(100);
         world.disconnectCpp();
     });
 });

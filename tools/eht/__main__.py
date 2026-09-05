@@ -79,6 +79,11 @@ def main() -> int:
                         help='Output directory for C++ bindings')
     parser.add_argument('--ts-output', type=Path, default=Path('sdk'),
                         help='Output directory for TypeScript')
+    # Addressable like the other two outputs, so a freshness check can generate a
+    # whole set into a scratch tree and compare — rather than writing over the
+    # committed files it is trying to judge.
+    parser.add_argument('--aot-output', type=Path, default=Path('src/esengine/aot'),
+                        help='Output directory for the AOT component resolvers')
     parser.add_argument('--entity-header', type=Path,
                         default=Path('src/esengine/core/Types.hpp'),
                         help='Header declaring Entity::Layout = PackedId<index, gen>')
@@ -190,13 +195,15 @@ def main() -> int:
     print(f"ABI layout hash: {abi_hash}")
 
     # ── C++ Editor API ──
+    # Before the first write, not between the two: the editor API landed in a
+    # directory nobody had created yet whenever the output root was fresh.
+    args.output.mkdir(parents=True, exist_ok=True)
     editor_api_path = args.output / 'EditorAPI.generated.cpp'
     print(f"Generating: {editor_api_path}")
     editor_gen = EditorAPIGenerator(cpp_parser.components, cpp_parser.enums)
     editor_api_path.write_text(editor_gen.generate(), encoding='utf-8')
 
     # ── C++ Embind Bindings ──
-    args.output.mkdir(parents=True, exist_ok=True)
     embind_path = args.output / 'WebBindings.generated.cpp'
     print(f"Generating: {embind_path}")
     embind_gen = EmbindGenerator(
@@ -209,7 +216,7 @@ def main() -> int:
     # ── Component resolvers for compiled systems ──
     # Committed like the two above: a host that dispatches a compiled system
     # needs the type half of the contract, and it must not be a second table.
-    aot_dir = Path('src/esengine/aot')
+    aot_dir = args.aot_output
     aot_dir.mkdir(parents=True, exist_ok=True)
     aot_gen = AotComponentsGenerator(cpp_parser.components, cpp_parser.enums)
     for name, text in (('AotComponents.generated.hpp', aot_gen.generate_header()),

@@ -51,12 +51,11 @@ export const GATES = [
   { id: 'fixture-scenes', run: 'node tools/check-fixture-scenes.mjs' },
   { id: 'doc-imports', run: 'node tools/check-doc-imports.mjs' },
   { id: 'architecture-doc', run: 'node tools/check-architecture-doc.mjs' },
-  {
-    id: 'native-bindings',
-    run: 'node tools/check-native-bindings.mjs',
-    where: 'ci',
-    why: 'the EHT generator shells out to `python`, which macOS does not ship a runnable one of; run it by hand where you have one',
-  },
+  { id: 'native-bindings', run: 'node tools/check-native-bindings.mjs' },
+  // The generator's output is checked in, so its authority and its artifact can
+  // disagree with nothing between them to notice.
+  { id: 'generated-fresh', run: 'node tools/check-generated-fresh.mjs' },
+  { id: 'transform-seam', run: 'node tools/check-transform-seam.mjs' },
   { id: 'api-surface', run: 'node tools/api-surface.mjs --check' },
   // Reads the snapshot the gate above just proved current, against the one the
   // last release tag shipped — drift says the surface moved, this says a promise did.
