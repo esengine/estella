@@ -11,8 +11,8 @@
  * CharacterController3D, real Animator over TimelineMotion, real skin.
  *
  * Input goes in as key and mouse events on the page, and the only thing read
- * back is `__estellaCooked.gameplay` — an observation seam, not a second way to
- * play. Lanes run in -Z, so a run strafes to one and then walks it.
+ * back is `__estellaCooked` — an observation seam, not a second way to play.
+ * Lanes run in -Z, so a run strafes to one and then walks it.
  *
  * The scene is `gym`, and it is a FIXTURE: its coordinates, sizes and materials
  * answer to these claims and to nothing else. The project's entry scene is a
@@ -52,23 +52,34 @@ function packageGame() {
     return out;
 }
 
+/** The JSON a launcher printed after `label:`, or null when it printed none. */
+function reading(stdout, label) {
+    const line = (stdout || '').split('\n').find((l) => l.includes(`${label}:`));
+    if (!line) return null;
+    try {
+        return JSON.parse(line.slice(line.indexOf('{')));
+    } catch {
+        return null;
+    }
+}
+
 /** Drive the package with one gesture and read what the character became. */
 function run(dir, input) {
     const r = runElectron([
         LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '30', '--timeout', '60000', '--scene', 'gym',
         '--input', JSON.stringify(input), '--gameplay', 'Player,Camera',
+        '--particles', 'FootDust',
         '--out', path.join(WORK, 'frame.png'),
     ], { encoding: 'utf8', cwd: ROOT });
-    const line = (r.stdout || '').split('\n').find((l) => l.includes('gameplay:'));
-    if (!line) {
+    const seen = reading(r.stdout, 'gameplay');
+    if (!seen) {
         return { error: `no reading — ${(r.stdout || r.stderr || '').trim().slice(-200)}` };
     }
-    try {
-        return JSON.parse(line.slice(line.indexOf('{')));
-    } catch (e) {
-        return { error: `unreadable reading: ${e.message}` };
-    }
+    // The far end of the effect chain, beside what the character became: the
+    // reading is one launch, so asking twice would be two different games.
+    seen.particles = reading(r.stdout, 'particles') ?? {};
+    return seen;
 }
 
 /**
@@ -238,6 +249,59 @@ const START = { y: 60, z: 120 };
     check('and pulls in when the wall is behind the character',
           (against.cameraDistance ?? 999) < (open.cameraDistance ?? 0) - 40,
           `distance ${against.cameraDistance?.toFixed(0)} vs ${open.cameraDistance?.toFixed(0)}`);
+}
+
+// 9. The footstep the WALK CLIP declares, reaching the effect that answers it.
+// The emitter starts nothing itself, so a live particle means clip → animator →
+// event → the project's system. Standing still is the other half of the pair.
+{
+    const still = run(dir, { frames: 60 });
+    check('standing still throws up no dust',
+          (still.particles?.FootDust ?? -1) === 0,
+          `alive ${still.particles?.FootDust}`);
+
+    const running = run(dir, { keys: ['KeyW'], frames: 90 });
+    check('a footstep the clip declares reaches the effect that answers it',
+          (running.particles?.FootDust ?? 0) > 0,
+          `alive ${running.particles?.FootDust}, state ${running.animator?.state}`);
+}
+
+// 10. A dodge: an action whose MOVEMENT is the animation's. The stick is never
+// touched, so anything that happens is the clip's doing — and the wall says the
+// difference between what it asked for and what it got.
+{
+    const dodgeFrom = (holds, frames) => run(dir, { holds, frames });
+    const DODGE = (at) => ({ key: 'ShiftLeft', from: at, to: at + 3 });
+
+    const still = run(dir, { frames: 45 });
+    const dodged = dodgeFrom([DODGE(5)], 45);
+    const stillZ = still.position?.z ?? 0;
+    const travelled = stillZ - (dodged.position?.z ?? stillZ);
+    check('a dodge moves the character with no stick at all',
+          travelled > 200,
+          `travelled ${travelled.toFixed(0)} against a standing ${stillZ.toFixed(0)}`);
+
+    const during = dodgeFrom([DODGE(5)], 20);
+    const asked = Math.hypot(during.askedVelocity?.x ?? 0, during.askedVelocity?.z ?? 0);
+    const real = Math.hypot(during.realVelocity?.x ?? 0, during.realVelocity?.z ?? 0);
+    check('and while it runs, the animation is what the controller was asked for',
+          during.animator?.state === 'Dodge' && asked > 400 && real > 200,
+          `state ${during.animator?.state}, asked ${asked.toFixed(0)}, real ${real.toFixed(0)}`);
+
+    // The same gesture against the wall the walk cannot pass. The request is the
+    // clip's either way; only the world's answer differs.
+    const held = dodgeFrom([
+        { key: 'KeyD', from: 0, to: TO_LANE.wall },
+        { key: 'KeyW', from: TO_LANE.wall, to: TO_LANE.wall + 160 },
+        DODGE(TO_LANE.wall + 145),
+    ], TO_LANE.wall + 160);
+    const wallAsked = Math.hypot(held.askedVelocity?.x ?? 0, held.askedVelocity?.z ?? 0);
+    const wallReal = Math.hypot(held.realVelocity?.x ?? 0, held.realVelocity?.z ?? 0);
+    check('a dodge into a wall asks for the whole distance and is given none',
+          held.animator?.state === 'Dodge' && wallAsked > 400
+          && wallReal < 60 && (held.position?.z ?? -999) > -520,
+          `state ${held.animator?.state}, asked ${wallAsked.toFixed(0)},`
+          + ` real ${wallReal.toFixed(0)}, z ${held.position?.z?.toFixed(0)}`);
 }
 
 const failed = results.filter((r) => !r.ok);

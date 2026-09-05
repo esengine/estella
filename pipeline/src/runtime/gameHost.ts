@@ -17,7 +17,7 @@ import {
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
-  Animator, TPC_SPEED, TPC_GROUNDED,
+  Animator, TPC_SPEED, TPC_GROUNDED, Particle,
 } from 'esengine';
 import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -190,6 +190,23 @@ async function boot(): Promise<void> {
         // the frame loop can land in the middle of that. Half a world reads as
         // "the thing I was walking to is gone", which is a lie with a cost.
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * How many particles a named emitter is running. The far END of a chain
+       * that starts in a clip: nothing else can say a moment the animation
+       * declared reached the effect a project chose to answer it with, since a
+       * position cannot and a unit test stops at the event being posted.
+       */
+      particles(names: string[] = []): Record<string, number> {
+        const out: Record<string, number> = {};
+        if (!app.hasResource(Particle)) return out;
+        const api = app.getResource(Particle);
+        for (const name of names) {
+          const entity = app.world.findEntityByName(name);
+          if (entity === null) continue;
+          out[name] = api.getAliveCount(entity);
+        }
+        return out;
       },
       /**
        * What a third-person character IS: where it stands, what the physics step

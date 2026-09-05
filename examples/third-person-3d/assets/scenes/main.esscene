@@ -337,6 +337,12 @@
             "currentState": "",
             "enabled": true
           }
+        },
+        {
+          "type": "AnimatorRootMotion",
+          "data": {
+            "enabled": true
+          }
         }
       ]
     },
@@ -624,10 +630,15 @@
         {
           "type": "ParticleEmitter",
           "data": {
-            "rate": 14,
-            "maxParticles": 48,
-            "lifetimeMin": 0.35,
-            "lifetimeMax": 0.6,
+            "rate": 0,
+            "burstCount": 12,
+            "burstInterval": 0,
+            "duration": 0.05,
+            "looping": false,
+            "playOnStart": false,
+            "maxParticles": 64,
+            "lifetimeMin": 0.6,
+            "lifetimeMax": 1.0,
             "shape": 5,
             "shapeRadius": 18,
             "speedMin": 18,
@@ -641,7 +652,7 @@
               "r": 0.74,
               "g": 0.68,
               "b": 0.56,
-              "a": 0.22
+              "a": 0.35
             },
             "endColor": {
               "r": 0.66,

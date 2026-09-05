@@ -1,9 +1,43 @@
 {
   "version": "1.2",
   "type": "timeline",
-  "duration": 1,
+  "duration": 0.5,
   "wrapMode": "once",
   "tracks": [
+    {
+      "type": "property",
+      "name": "Root",
+      "childPath": "",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.35,
+              "value": -260,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": -280,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
     {
       "type": "property",
       "name": "Bone1",
@@ -21,7 +55,7 @@
               "interpolation": "linear"
             },
             {
-              "time": 1,
+              "time": 0.5,
               "value": 0,
               "inTangent": 0,
               "outTangent": 0,
@@ -40,7 +74,7 @@
               "interpolation": "linear"
             },
             {
-              "time": 1,
+              "time": 0.5,
               "value": 0,
               "inTangent": 0,
               "outTangent": 0,
@@ -53,14 +87,21 @@
           "keyframes": [
             {
               "time": 0,
-              "value": 0.7071067690849304,
+              "value": 0,
               "inTangent": 0,
               "outTangent": 0,
               "interpolation": "linear"
             },
             {
-              "time": 1,
-              "value": 0.7071067690849304,
+              "time": 0.25,
+              "value": -0.5,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0,
               "inTangent": 0,
               "outTangent": 0,
               "interpolation": "linear"
@@ -72,14 +113,21 @@
           "keyframes": [
             {
               "time": 0,
-              "value": 0.7071067690849304,
+              "value": 1,
               "inTangent": 0,
               "outTangent": 0,
               "interpolation": "linear"
             },
             {
-              "time": 1,
-              "value": 0.7071067690849304,
+              "time": 0.25,
+              "value": 0.866,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 1,
               "inTangent": 0,
               "outTangent": 0,
               "interpolation": "linear"
@@ -90,22 +138,13 @@
     },
     {
       "type": "customEvent",
-      "name": "Steps",
+      "name": "Beats",
       "childPath": "",
       "events": [
         {
-          "time": 0.25,
-          "name": "footstep",
-          "payload": {
-            "text": "left"
-          }
-        },
-        {
-          "time": 0.75,
-          "name": "footstep",
-          "payload": {
-            "text": "right"
-          }
+          "time": 0,
+          "name": "dodge-start",
+          "payload": {}
         }
       ]
     }

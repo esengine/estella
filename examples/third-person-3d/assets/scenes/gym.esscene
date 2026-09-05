@@ -297,7 +297,8 @@
       "children": [
         6,
         7,
-        8
+        8,
+        13
       ],
       "visible": true,
       "components": [
@@ -334,6 +335,12 @@
           "data": {
             "controller": "assets/models/locomotion.esanimator",
             "currentState": "",
+            "enabled": true
+          }
+        },
+        {
+          "type": "AnimatorRootMotion",
+          "data": {
             "enabled": true
           }
         }
@@ -599,6 +606,69 @@
               "b": 0.44,
               "a": 1
             }
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "FootDust",
+      "parent": 5,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -78,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 12,
+            "burstInterval": 0,
+            "duration": 0.05,
+            "looping": false,
+            "playOnStart": false,
+            "maxParticles": 64,
+            "lifetimeMin": 0.6,
+            "lifetimeMax": 1.0,
+            "shape": 5,
+            "shapeRadius": 18,
+            "speedMin": 18,
+            "speedMax": 42,
+            "startSizeMin": 10,
+            "startSizeMax": 16,
+            "endSizeMin": 22,
+            "endSizeMax": 30,
+            "sizeEasing": 2,
+            "startColor": {
+              "r": 0.74,
+              "g": 0.68,
+              "b": 0.56,
+              "a": 0.35
+            },
+            "endColor": {
+              "r": 0.66,
+              "g": 0.62,
+              "b": 0.54,
+              "a": 0.0
+            },
+            "gravity": {
+              "x": 0,
+              "y": 26,
+              "z": 0
+            },
+            "damping": 1.6,
+            "blendMode": 0,
+            "layer": 0,
+            "simulationSpace": 0
           }
         }
       ]

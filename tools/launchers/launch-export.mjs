@@ -29,6 +29,8 @@
  *                        CSS variables the web platform reads
  *     --probe a,b,c      after settling, print where those named entities are
  *                        (opens the package with ?headless)
+ *     --particles a[,b]  after settling, print how many particles named emitters
+ *                        are running — the far end of an effect chain
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -146,11 +148,12 @@ async function main() {
   }
   const PROBE = flag('probe', '');
 const GAMEPLAY = flag('gameplay', '');
+const PARTICLES = flag('particles', '');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -219,6 +222,14 @@ const SCENE = flag('scene', '');
       + `${JSON.stringify(camera ?? null)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  gameplay: ${JSON.stringify(seen)}`);
+  }
+
+  if (PARTICLES) {
+    const names = PARTICLES.split(',').map((n) => n.trim()).filter(Boolean);
+    const seen = await win.webContents.executeJavaScript(
+      `window.__estellaCooked?.particles(${JSON.stringify(names)}) ?? null`,
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  particles: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();

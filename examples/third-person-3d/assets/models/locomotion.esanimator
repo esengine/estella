@@ -9,6 +9,10 @@
       "name": "grounded",
       "type": "bool",
       "default": true
+    },
+    {
+      "name": "dodge",
+      "type": "trigger"
     }
   ],
   "initialState": "Idle",
@@ -71,6 +75,35 @@
           "duration": 0.25
         }
       ]
+    },
+    {
+      "name": "Dodge",
+      "motion": {
+        "kind": "timeline",
+        "clip": "dodge.estimeline",
+        "loop": false
+      },
+      "rootMotion": true,
+      "transitions": [
+        {
+          "to": "Idle",
+          "conditions": [],
+          "hasExitTime": true,
+          "duration": 0.12
+        }
+      ]
+    }
+  ],
+  "anyStateTransitions": [
+    {
+      "to": "Dodge",
+      "conditions": [
+        {
+          "param": "dodge",
+          "op": "trigger"
+        }
+      ],
+      "duration": 0.08
     }
   ]
 }
