@@ -21,12 +21,16 @@ import { CharacterController3D, type CharacterController3DData } from '../physic
 import { Physics3D } from '../physics3d/Physics3DPlugin';
 import type { Physics3DQueries } from '../physics3d/Physics3DQueries';
 import { Animator, AnimatorController, type AnimatorControllerAPI } from '../animation/Animator';
+import {
+    AnimatorRootMotion, type AnimatorRootMotionData,
+} from '../animation/animatorRootMotion';
+import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
-    desiredDirection, approachVelocity, facingYaw, turnToward,
-    yawQuaternion, yawOfQuaternion, WORLD_BASIS, type MoveBasis,
+    desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
+    yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, type MoveBasis,
 } from './ThirdPersonController';
 import {
     ThirdPersonCamera, type ThirdPersonCameraData,
@@ -36,6 +40,19 @@ import {
 /** Animator parameters this controller writes. Names, not clips. */
 export const TPC_SPEED = 'speed';
 export const TPC_GROUNDED = 'grounded';
+/** The trigger a dodge press sets. Whether any state answers it is the graph's. */
+export const TPC_DODGE = 'dodge';
+
+/**
+ * What the animation is asking this character to do, or null when nothing is.
+ * Presence of the component is the opt-in and `active` is the switch — "the
+ * delta is non-zero" is not, being false in the still moment inside a dodge.
+ */
+function rootMotionRequest(world: World, entity: Entity): AnimatorRootMotionData | null {
+    if (!world.has(entity, AnimatorRootMotion)) return null;
+    const data = world.get(entity, AnimatorRootMotion) as AnimatorRootMotionData;
+    return data.active ? data : null;
+}
 
 /** The stick, from the keys a keyboard stands in for one with. */
 function readStick(input: InputState): { x: number; y: number } {
@@ -60,27 +77,44 @@ function basisFor(world: World, data: ThirdPersonControllerData): MoveBasis {
  * character controller will try to honour. The vertical component is left alone
  * unless a jump starts one, because the character controller carries it.
  */
-export function requestMotion(world: World, input: InputState, dt: number): void {
+export function requestMotion(
+    world: World, input: InputState, dt: number,
+    animator: AnimatorControllerAPI | null = null,
+): void {
     for (const entity of world.getEntitiesWithComponents([ThirdPersonController, CharacterController3D])) {
         const data = world.get(entity, ThirdPersonController) as ThirdPersonControllerData;
         if (!data.enabled) continue;
 
+        if (animator && world.has(entity, Animator) && input.isKeyPressed(DODGE_KEY)) {
+            animator.setTrigger(entity, TPC_DODGE);
+        }
+
         const character = world.get(entity, CharacterController3D) as CharacterController3DData;
-        const direction = desiredDirection(readStick(input), basisFor(world, data));
-        const target = {
-            x: direction.x * data.moveSpeed,
-            z: direction.z * data.moveSpeed,
-        };
-        // Off the ground the player has only as much say as airControl allows.
-        const authority = character.isOnFloor ? 1 : Math.max(0, Math.min(1, data.airControl));
-        const next = approachVelocity(
-            { x: character.velocity.x, z: character.velocity.z }, target,
-            data.acceleration * authority, data.deceleration * authority, dt,
-        );
+        // Which of the two states the character's movement: the stick, or the
+        // animation that declared itself in charge. Chosen HERE and not by the
+        // animator, which states a request and never a position.
+        const driven = rootMotionRequest(world, entity);
+        let next: { x: number; z: number };
+        if (driven) {
+            next = rootMotionVelocity(driven.deltaPosition, driven.deltaTime);
+        } else {
+            const direction = desiredDirection(readStick(input), basisFor(world, data));
+            const target = {
+                x: direction.x * data.moveSpeed,
+                z: direction.z * data.moveSpeed,
+            };
+            // Off the ground the player has only as much say as airControl allows.
+            const authority = character.isOnFloor ? 1 : Math.max(0, Math.min(1, data.airControl));
+            next = approachVelocity(
+                { x: character.velocity.x, z: character.velocity.z }, target,
+                data.acceleration * authority, data.deceleration * authority, dt,
+            );
+        }
 
         // A jump is the one time the vertical is ours to set; every other frame
-        // it stays 0, which the character controller reads as "walk".
-        const jumping = data.jumpSpeed > 0 && character.isOnFloor
+        // it stays 0, which the character controller reads as "walk". Not while an
+        // animation is driving: two things setting the vertical is one too many.
+        const jumping = !driven && data.jumpSpeed > 0 && character.isOnFloor
             && (input.isKeyPressed('Space') || input.isKeyDown('Space'));
 
         world.update(entity, CharacterController3D, (c: CharacterController3DData) => {
@@ -110,14 +144,33 @@ export function observeMotion(world: World, animator: AnimatorControllerAPI | nu
             animator.setBool(entity, TPC_GROUNDED, character.isOnFloor);
         }
 
+        if (!world.has(entity, Transform)) continue;
+
+        // While an animation is driving, the heading is the animation's too —
+        // turning to face the motion as well would be a second author of the
+        // yaw, and the two disagree the moment a dodge goes sideways.
+        const driven = rootMotionRequest(world, entity);
+        if (driven) {
+            if (driven.deltaTime <= 0) continue;
+            // This step's share of the frame's turn: the animator states one per
+            // rendered frame, and this runs once per fixed step inside it.
+            const step = q.scaled(driven.deltaRotation, Math.min(dt / driven.deltaTime, 1));
+            world.update(entity, Transform, (t: TransformData) => {
+                const turned = q.normalize(q.mul(t.rotation, step));
+                t.rotation.w = turned.w; t.rotation.x = turned.x;
+                t.rotation.y = turned.y; t.rotation.z = turned.z;
+            });
+            continue;
+        }
+
         // Face where it is going, not where it was asked to go - and hold the
         // last heading when it stops, rather than snapping back to world forward.
-        if (speed < data.idleThreshold || !world.has(entity, Transform)) continue;
+        if (speed < data.idleThreshold) continue;
         const wanted = facingYaw({ x: moved.x, y: 0, z: moved.z });
         world.update(entity, Transform, (t: TransformData) => {
             const turned = turnToward(yawOfQuaternion(t.rotation), wanted, data.rotationSpeed, dt);
-            const q = yawQuaternion(turned);
-            t.rotation.w = q.w; t.rotation.x = q.x; t.rotation.y = q.y; t.rotation.z = q.z;
+            const yaw = yawQuaternion(turned);
+            t.rotation.w = yaw.w; t.rotation.x = yaw.x; t.rotation.y = yaw.y; t.rotation.z = yaw.z;
         });
     }
 }
@@ -213,7 +266,9 @@ export class GameplayPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
             [Res(Time), Res(Input)],
             (time: TimeData, input: InputState) => {
-                requestMotion(world, input, time.fixedDelta);
+                const animator = app.hasResource(AnimatorController)
+                    ? app.getResource(AnimatorController) : null;
+                requestMotion(world, input, time.fixedDelta, animator);
             },
             { name: 'ThirdPersonControllerSystem' },
         ), { runIf: playModeOnly });

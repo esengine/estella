@@ -154,4 +154,20 @@ export const q = {
 
     /** The Z turn of a 2D rotation, in radians. */
     angleZ(a: Pick<Quat, 'z' | 'w'>): number { return 2 * Math.atan2(a.z, a.w); },
+
+    /**
+     * The same turn, `t` of the way through it — the shortest arc, so a rotation
+     * stored as -q scales the short way round rather than the long one. What a
+     * caller handed one frame's worth of turn needs to spend it over two steps.
+     */
+    scaled(a: Quat, t: number): Quat {
+        const n = this.normalize(a);
+        const sign = n.w < 0 ? -1 : 1;
+        const w = Math.min(1, n.w * sign);
+        const sin = Math.sqrt(Math.max(0, 1 - w * w));
+        if (sin < 1e-8) return { w: 1, x: 0, y: 0, z: 0 };
+        const half = Math.acos(w) * t;
+        const k = (Math.sin(half) / sin) * sign;
+        return { w: Math.cos(half), x: n.x * k, y: n.y * k, z: n.z * k };
+    },
 };

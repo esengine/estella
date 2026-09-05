@@ -20,6 +20,9 @@ import { defineComponent, type ComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
 import type { Vec3 } from '../types';
 
+/** The key a dodge is asked for on; the animator decides whether there is one. */
+export const DODGE_KEY = 'ShiftLeft';
+
 /** The fields of the `ThirdPersonController` component. @experimental */
 export interface ThirdPersonControllerData {
     /** Top speed on the ground, world units per second. */
@@ -137,6 +140,18 @@ export function shortestAngleDelta(from: number, to: number): number {
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
     return delta;
+}
+
+/**
+ * The velocity a root-motion request comes to over the seconds it covers. A RATE,
+ * because the animator states one per rendered frame while the character steps on
+ * its own clock: adding the displacement moves twice on a frame with two steps.
+ */
+export function rootMotionVelocity(
+    delta: { x: number; z: number }, seconds: number,
+): { x: number; z: number } {
+    if (seconds <= 0) return { x: 0, z: 0 };
+    return { x: delta.x / seconds, z: delta.z / seconds };
 }
 
 /**

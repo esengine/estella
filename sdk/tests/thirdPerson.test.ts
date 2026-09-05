@@ -7,13 +7,17 @@
 import { describe, it, expect } from 'vitest';
 import {
     ThirdPersonController, ThirdPersonCamera, requestMotion, observeMotion, updateCameras,
-    TPC_SPEED, TPC_GROUNDED, cameraGroundBasis, desiredDirection, approachVelocity,
-    facingYaw, turnToward,
+    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, cameraGroundBasis, desiredDirection, approachVelocity,
+    facingYaw, turnToward, rootMotionVelocity, DODGE_KEY,
     type ThirdPersonControllerData, type ThirdPersonCameraData,
 } from '../src/gameplay';
 import { CharacterController3D, type CharacterController3DData } from '../src/physics3d/Physics3DComponents';
-import { Animator, AnimatorControllerAPI, type AnimatorData } from '../src/animation';
+import {
+    Animator, AnimatorControllerAPI, AnimatorRootMotion,
+    type AnimatorData, type AnimatorRootMotionData,
+} from '../src/animation';
 import { Transform, type TransformData } from '../src/ecs/component';
+import { q } from '../src/math/quat';
 
 const PLAYER = 1;
 const CAMERA = 2;
@@ -280,5 +284,139 @@ describe('the pure decisions', () => {
     it('turns the short way across the seam', () => {
         expect(turnToward(170, -170, 3600, 1 / 60)).toBeCloseTo(-170, 6);
         expect(turnToward(170, -170, 60, 0.1)).toBeCloseTo(176, 6);
+    });
+});
+
+// =============================================================================
+// An animation that drives the character
+// =============================================================================
+
+/** Give the player a root-motion request of `delta` over `seconds`. */
+function asksToMove(
+    world: any, delta: { x: number; y: number; z: number },
+    seconds: number, turnDeg = 0, active = true,
+): void {
+    world.insert(PLAYER, AnimatorRootMotion, {
+        enabled: true,
+        active,
+        deltaPosition: { ...delta },
+        deltaRotation: q.axis('y', (turnDeg * Math.PI) / 180),
+        deltaTime: seconds,
+    } as AnimatorRootMotionData);
+}
+
+describe('a root-motion request becomes a rate', () => {
+    it('is the displacement over the seconds it covers', () => {
+        expect(rootMotionVelocity({ x: 2, z: -6 }, 0.5)).toEqual({ x: 4, z: -12 });
+    });
+
+    it('is nothing at all when it covers no time', () => {
+        expect(rootMotionVelocity({ x: 2, z: -6 }, 0)).toEqual({ x: 0, z: 0 });
+    });
+});
+
+describe('while an animation is driving', () => {
+    it('the character controller is asked for the animation, not the stick', () => {
+        const world = scene(0);
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 60);
+        // A full stick the other way: if it reached the controller at all, the
+        // sign of x would show it.
+        requestMotion(world, stubInput(['KeyD']), 1 / 60);
+
+        const v = askedVelocity(world);
+        expect(v.z).toBeCloseTo(-12, 5);
+        expect(v.x).toBeCloseTo(0, 6);
+    });
+
+    it('and the stick is back in charge the moment it stops', () => {
+        const world = scene(0);
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 60, 0, false);
+        requestMotion(world, stubInput(['KeyD']), 1 / 60);
+        expect(askedVelocity(world).x).toBeCloseTo(4, 5);
+    });
+
+    it('a jump is refused, so nothing else is setting the vertical', () => {
+        const world = scene(0, { jumpSpeed: 5 });
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 60);
+        requestMotion(world, stubInput(['Space']), 1 / 60);
+        expect(askedVelocity(world).y).toBe(0);
+    });
+
+    it('the request still moves no transform of its own', () => {
+        const world = scene(0);
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 60);
+        const before = { ...(world.get(PLAYER, Transform) as TransformData).position };
+        requestMotion(world, stubInput([]), 1 / 60);
+        expect((world.get(PLAYER, Transform) as TransformData).position).toEqual(before);
+    });
+
+    it('what the animator hears is still what the world allowed', () => {
+        const world = scene(0);
+        const animator = new AnimatorControllerAPI();
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 60);
+        requestMotion(world, stubInput([]), 1 / 60);
+
+        // The request is large and the wall gave nothing back.
+        expect(askedVelocity(world).z).toBeCloseTo(-12, 5);
+        observeMotion(world, animator, 1 / 60);
+        expect(animator.getFloat(PLAYER, TPC_SPEED)).toBe(0);
+    });
+
+    it('the heading is the animation’s turn, spent over the steps of its frame', () => {
+        const world = scene(0);
+        const animator = new AnimatorControllerAPI();
+        // One rendered frame's worth of turn, consumed by two fixed steps.
+        asksToMove(world, { x: 0, y: 0, z: -0.2 }, 1 / 30, 90);
+        observeMotion(world, animator, 1 / 60);
+        observeMotion(world, animator, 1 / 60);
+
+        const rotation = (world.get(PLAYER, Transform) as TransformData).rotation;
+        expect(q.toEuler(rotation)[1]).toBeCloseTo(90, 4);
+    });
+
+    it('and the character does not also turn to face where it went', () => {
+        const world = scene(0);
+        const animator = new AnimatorControllerAPI();
+        // Moving hard along -X, which turn-to-face would answer with a quarter turn.
+        world.update(PLAYER, CharacterController3D, (c: CharacterController3DData) => {
+            c.realVelocity.x = -4;
+        });
+        asksToMove(world, { x: -0.2, y: 0, z: 0 }, 1 / 60, 0);
+        observeMotion(world, animator, 1 / 60);
+
+        const rotation = (world.get(PLAYER, Transform) as TransformData).rotation;
+        expect(q.toEuler(rotation)[1]).toBeCloseTo(0, 6);
+    });
+});
+
+describe('asking for a dodge', () => {
+    /** Idle until something sets the trigger; the controller names no state. */
+    const graph = {
+        parameters: [{ name: TPC_DODGE, type: 'trigger' as const }],
+        initialState: 'Idle',
+        states: [
+            {
+                name: 'Idle',
+                transitions: [{ to: 'Dodge', conditions: [{ param: TPC_DODGE, op: 'trigger' as const }] }],
+            },
+            { name: 'Dodge', transitions: [] },
+        ],
+    };
+
+    function press(keys: string[]): string {
+        const world = scene(0);
+        const animator = new AnimatorControllerAPI();
+        animator.registerController('x', graph);
+        requestMotion(world, stubInput(keys), 1 / 60, animator);
+        animator.update(world, 1 / 60);
+        return (world.get(PLAYER, Animator) as AnimatorData).currentState;
+    }
+
+    it('lets the graph decide there is one', () => {
+        expect(press([DODGE_KEY])).toBe('Dodge');
+    });
+
+    it('and stays put when nobody asked', () => {
+        expect(press([])).toBe('Idle');
     });
 });
