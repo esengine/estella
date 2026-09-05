@@ -24,6 +24,7 @@
  *                                scale the finished image (1 = design, 2 = integer)
  *   ESTELLA_VERIFY_PREFAB    .esprefab instantiated into the scene after load
  *   ESTELLA_VERIFY_SET_FIELD one inspector field written after load (JSON)
+ *   ESTELLA_VERIFY_ANIMATOR  drive an animator to a point in time (JSON)
  *   ESTELLA_VERIFY_PICK      hit-test a viewport point, asserting the entity (JSON)
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
@@ -208,6 +209,7 @@ app.whenReady().then(async () => {
     let meshMaterial = null;
     let meshPrefab = null;
     let setField = null;
+    let animator = null;
     let pick = null;
     await exec('window.__estellaHeadless.ready');
     // ESTELLA_VERIFY_SCALE = {"copies":N,"cols":C,"spacing":[x,y]}: the fixture holds ONE
@@ -334,6 +336,25 @@ app.whenReady().then(async () => {
         const out = window.__estellaHeadless.renderToTexture(${JSON.stringify(spec)});
         await window.__estellaHeadless.api.step(3, 1 / 60);
         return out;
+      })()`);
+    }
+
+    // ESTELLA_VERIFY_ANIMATOR={"entity","param","value","warmup","frames"}: settle,
+    // write one animator parameter, advance a FIXED number of frames. A crossfade
+    // is a stretch of time, so a gate wanting a point inside one must stop at it.
+    if (process.env.ESTELLA_VERIFY_ANIMATOR) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_ANIMATOR);
+      animator = await exec(`(async () => {
+        const api = window.__estellaHeadless.api;
+        api.setRunMode(true);
+        await api.step(${Number(spec.warmup ?? 2)}, 1 / 60);
+        api.setAnimatorParam(${JSON.stringify(spec.entity)},
+                             ${JSON.stringify(spec.param)}, ${JSON.stringify(spec.value)});
+        const before = api.animatorReport(${JSON.stringify(spec.entity)});
+        await api.step(${Number(spec.frames ?? 1)}, 1 / 60);
+        const after = api.animatorReport(${JSON.stringify(spec.entity)});
+        return { param: ${JSON.stringify(spec.param)}, frames: ${Number(spec.frames ?? 1)},
+                 before, after };
       })()`);
     }
 
@@ -741,7 +762,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

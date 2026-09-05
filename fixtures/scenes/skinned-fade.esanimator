@@ -1,0 +1,42 @@
+{
+  "parameters": [
+    {
+      "name": "bend",
+      "type": "float",
+      "default": 0
+    }
+  ],
+  "initialState": "Flat",
+  "states": [
+    {
+      "name": "Flat",
+      "motion": {
+        "kind": "timeline",
+        "clip": "skinned-fade_Flat.estimeline",
+        "loop": true
+      },
+      "transitions": [
+        {
+          "to": "Bent",
+          "conditions": [
+            {
+              "param": "bend",
+              "op": "gt",
+              "value": 0
+            }
+          ],
+          "duration": 1.0
+        }
+      ]
+    },
+    {
+      "name": "Bent",
+      "motion": {
+        "kind": "timeline",
+        "clip": "skinned-fade_Bent.estimeline",
+        "loop": true
+      },
+      "transitions": []
+    }
+  ]
+}

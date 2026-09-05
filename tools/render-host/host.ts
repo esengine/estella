@@ -23,7 +23,7 @@ import {
     finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
-    ProfileRecorder,
+    ProfileRecorder, AnimatorController, Timeline,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -487,6 +487,48 @@ const api = {
         const data = app!.world.get(entity, comp) as Record<string, unknown>;
         writeFieldPath(data, key, coerceToShape(readFieldPath(data, key), value));
         app!.world.set(entity, comp, data);
+    },
+
+    /**
+     * Writes one animator parameter, the door gameplay uses. Not setField: a
+     * parameter is not a component field, it is per-entity state the controller
+     * keeps, and a crossfade gate has no other way to make a transition fire.
+     */
+    setAnimatorParam(id: number, param: string, value: number | boolean): void {
+        const entity = requireEntity(id);
+        const ctrl = app!.getResource(AnimatorController);
+        if (typeof value === 'boolean') ctrl.setBool(entity, param, value);
+        else ctrl.setFloat(entity, param, value);
+    },
+
+    /**
+     * What the animator on this entity actually resolved to. A crossfade gate
+     * that only reads pixels cannot tell "the graph did not move" from "the
+     * controller never loaded", and those want different fixes.
+     */
+    animatorReport(id: number): {
+        controller: string; state: string; controllerLoaded: boolean;
+        timelineDriver: boolean; clips: Record<string, boolean>;
+    } {
+        const entity = requireEntity(id);
+        const def = getComponent('Animator');
+        if (!def) throw new Error('animatorReport: this build has no Animator component');
+        const data = app!.world.get(entity, def) as { controller: string; currentState: string };
+        const ctrl = app!.getResource(AnimatorController);
+        const graph = ctrl.getController(data.controller);
+        const timeline = app!.getResource(Timeline);
+        const clips: Record<string, boolean> = {};
+        for (const state of graph?.states ?? []) {
+            const clip = (state.motion as { clip?: string } | undefined)?.clip;
+            if (clip) clips[clip] = !!timeline.getAsset(clip);
+        }
+        return {
+            controller: data.controller,
+            state: data.currentState,
+            controllerLoaded: !!graph,
+            timelineDriver: ctrl.hasMotionDriver('timeline'),
+            clips,
+        };
     },
 
     getEntity(id: number): { id: number; name: string; components: string[] } | null {
