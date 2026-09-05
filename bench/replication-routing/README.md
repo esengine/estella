@@ -100,6 +100,107 @@ leave events per sample across all 32 connections — the interest sets barely m
 once the world is steady, which is the same fact that makes the enter/leave DIFF
 (29,547 comparisons to find 12 events) look the way it does.
 
+## N3b: routing the debt, four ways
+
+`node bench/replication-routing/probe.mjs`. The same five workloads, but only the
+ROUTING: all four arms consume one canonical truth — this sample's dirty rows,
+its removals, and the shipped provider's real visibility — and must produce the
+same plan before any time is believed.
+
+| | how it gets a row to a connection |
+|---|---|
+| **A** | every connection walks every row — what ships |
+| **P** | each affected ENTITY is handed to the connections that can see it |
+| **L** | each connection asks its own view what happened to it |
+| **H** | whichever of the two is smaller, from this sample's own counts |
+
+Debt is merged per entity first: an entity with two dirty components and a
+removal is one reverse lookup on the push side and one map probe on the pull
+side, not three. The wire still carries removals before the delta.
+
+The reverse index is the server's, not the provider's — `viewersByEntity` is the
+projection of `conn.interest`, maintained from the enters and leaves the
+visibility pass already produces.
+
+### Visits
+
+| workload | A | P | L | H |
+|---|---|---|---|---|
+| scattered mixed | 66,920 | **2,710** | 29,566 | 2,710 |
+| clustered mixed | 66,920 | **2,385** | 15,683 | 2,385 |
+| everything dirty | 3,200,000 | 129,509 | **29,509** | 29,509 |
+| removals 10% | 352,000 | **14,078** | 29,481 | 14,078 |
+| movement only | 32,000 | **1,243** | 29,444 | 1,243 |
+
+### Microseconds, and what counts as a difference
+
+`L2` is `L` again, by the same call from a second site. Two arms running
+identical code came out **31% apart**, so nothing closer than that is a
+difference this harness can see — and every conclusion below is outside it.
+
+| workload | A | P | L | L2 | **H** | H picked |
+|---|---|---|---|---|---|---|
+| scattered mixed | 783.5 | 110.7 | 352.1 | 367.2 | **85.1** | push |
+| clustered mixed | 720.8 | 43.5 | 103.4 | 94.8 | **42.2** | push |
+| everything dirty | 37,434.2 | 6,353.1 | 3,872.4 | 2,966.1 | **3,090.7** | pull |
+| removals 10% | 4,191.5 | 474.3 | 701.8 | 692.6 | **471.4** | push |
+| movement only | 382.2 | 37.6 | 397.3 | 399.2 | **34.2** | push |
+
+- **A costs 9 to 12 times the adaptive router at every point.**
+- **The choice is worth making.** Push beats pull by 3.2x at the mixed workload;
+  pull beats push by 1.6x with everything dirty. Both are outside the floor.
+- **H picked the right side every sample of every point** — never the mixed
+  workload by pull, never everything-dirty by push — and lands within the noise
+  floor of the better arm each time.
+
+### The chooser, and the one thing it must not do
+
+```
+U = affected entities          F = their exact viewer fanout
+S = total interest membership          push while U + F < S
+```
+
+No rate, no average, no threshold. The 29,000 that N3a's counts crossed at is an
+observation about one workload and does not belong in the engine.
+
+But measuring `F` costs `U` reverse lookups, which is push's own dominant term —
+so an exact chooser that always measures it pays to decide **not** to push. That
+is not hypothetical: the first version ran 4x slower than pull with everything
+dirty, having spent 20,000 lookups to conclude it should not do 20,000 lookups.
+
+The fix is exact rather than a guess: `U + F >= U`, so once `U >= S` push cannot
+win whatever the fanout turns out to be, and the answer is pull for free. Below
+that, `U < S` bounds the probe by the pull it is being compared against. The
+`how` column says which branch decided:
+
+| workload | U + F | S | picked | how |
+|---|---|---|---|---|
+| scattered mixed | 2,703 | 29,558 | push | exact |
+| clustered mixed | 2,366 | 15,669 | push | exact |
+| everything dirty | 100,000 | 29,510 | pull | `U >= S` |
+| removals 10% | 14,077 | 29,479 | push | exact |
+| movement only | 1,231 | 29,431 | push | exact |
+
+Scale changes the answer, which is the whole argument for deciding per sample:
+at 20k entities and 8 connections the same `removals 10%` workload picks **pull**
+(U = 2,000 against S = 1,341), and at 100k with 32 connections it picks push.
+
+### The shapes, checked before any of it is timed
+
+Seven cases where a router can be wrong in a way a total would hide, run as plain
+inputs with no world at all — and the probe refuses to report a single time until
+all four arms agree on every one:
+
+an entity with several dirty components · dirty and a removal on the same entity ·
+an entity that entered this sample (spawn carries its state, so it owes nothing
+else) · an entity that left (nobody hears about it) · one entity visible to eight
+connections · an entity nobody can see · nothing happened at all.
+
+Plans are compared as row INDICES in order, which is the decoded wire: same
+removals, same delta entries, same sequence. Push and pull both build their
+buckets out of order and sort them — on the rows actually SENT, which is 598 at
+the mixed workload against the 66,848 visits the sort replaces.
+
 ## What this does not cover
 
 - **Encoding is inside the totals and not separated.** It is proportional to what
@@ -115,3 +216,10 @@ once the world is steady, which is the same fact that makes the enter/leave DIFF
   are arranged: 1.00 spread across the map, 8.10 packed into a thousandth of it.
 - Client apps are connected but not ticked during measurement. What is timed is
   the server's own sample.
+- **The N3b probe routes; it does not send.** Its arms are timed over the same
+  inputs the server computes, but nothing is installed on a server and no bytes
+  are encoded. What it answers is whether JavaScript's maps and sets overturn the
+  crossover the counts predict — they do not, at these points.
+- The probe's arm A is a transcription of `sampleWithInterest_`'s two filters,
+  not the server running them. The absolute numbers for the shipped path are the
+  section above, measured on the real server.
