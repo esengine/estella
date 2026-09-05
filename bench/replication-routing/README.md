@@ -235,18 +235,75 @@ above: 783 µs to 85 at the mixed workload, 37,434 to 3,091 with everything dirt
 The shape is the result. What used to grow with `connections × rows` now grows
 with the smaller of `affected + fanout` and `total interest membership`.
 
+## N3e: the sample nothing moved in
+
+The floor above is `C x V` because every connection is asked, every sample, to
+prove a view whose inputs nobody touched. A provider that KEEPS its index knows
+better than that, and can now say so: it publishes what snapshot it is, and a
+connection holding an answer stamped with the same snapshot, the same installed
+source and the same owned set is holding the answer.
+
+So the server does not ask. Not a cheaper query — no query, no copy of the
+result, and neither the enter nor the leave scan over it.
+
+```
+same interest source
+AND same prepared generation      ->   keep conn.interest
+AND same owned generation
+```
+
+Visibility unchanged is not "this connection has nothing coming": routing and
+sending run exactly as before, off the reverse index that is already the
+projection of what the connection holds. A field that changed on a ghost still
+reaches it.
+
+A/B on one machine, pristine sources against these, same harness, `usPerSampleMin`:
+
+| workload | before | after |
+|---|---|---|
+| **still — nothing moves at all** | 3,863 | **17** |
+| still, 8 connections | 650 | **11** |
+| still, 2% visible | 8,175 | **18** |
+| still, quarter the population | 2,833 | **14** |
+| floor: 1% movement, nothing else | 9,539 / 9,598 | 9,561 / 9,855 |
+| mixed — 1% dirty, 0.1% removed | 13,269 | 13,735 |
+
+**The still column stopped being a function of anything.** Eleven to eighteen
+microseconds whether it is 8 connections or 32, 1% visible or 2%, 25k entities or
+100k — 0.06% to 0.11% of a core, against 4% to 49%. What is left is the prepare
+that consumes the composition delta, and it is the microsecond the idle-
+maintenance probe measured.
+
+The two moving rows are the point of the table as much as the still ones: they
+must not have moved, and two runs of the before column already differ by 0.6%.
+
+> These absolute numbers are lower than the top of this page for the still row
+> and higher for the moving ones because they were taken on a different day —
+> the moving arms run about 9% slower here than they did then. Read the A/B,
+> not one column against the earlier table.
+
+**1% movement is unchanged on purpose.** One entity moving bumps the one spatial
+generation the snapshot publishes, and all 32 connections are proved again. What
+this buys is the sample where nothing moved; a generation per region, so that a
+connection is only re-proved when something moved near IT, is a different and
+larger question.
+
+The rebuilt lane — a custom `position()` — publishes no generation at all, and is
+queried every sample. Nothing can know when an arbitrary function would answer
+differently, so nothing certifies it.
+
 ## What this does not cover
 
 - **Encoding is inside the totals and not separated.** It is proportional to what
   is actually SENT — 598 entries at the mixed point — so it is the floor a
   perfect router leaves behind, not part of the wall. Separating it needs the
   frame writer, which is not on the SDK's entry.
-- **The still floor is C × V and nothing else.** 3,573 µs with nothing moving,
-  and `µs per (connection × visible entity)` comes out 0.112 to 0.121 across
-  every point of the sweep — a quarter of the population at the same C × V costs
-  the same, and eight connections cost a quarter of thirty-two. There is no
-  population term and no constant. The constant the broken harness appeared to
-  have was the `'all'` connection.
+- **The still floor WAS C × V and nothing else** — 3,573 µs with nothing moving,
+  and `µs per (connection × visible entity)` 0.112 to 0.121 across every point of
+  the sweep, with no population term and no constant. That measurement is what
+  the section above acted on; the tables in this page up to it describe the shape
+  before it. The constant the broken harness appeared to have was the `'all'`
+  connection.
 - One anchor per connection, and a uniform grid world. `viewers per entity` is
   the number the push/pull choice turns on, and it is a property of how players
   are arranged: 1.00 spread across the map, 8.10 packed into a thousandth of it.

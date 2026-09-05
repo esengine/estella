@@ -13,6 +13,10 @@ import { AnyComponentDef } from './component';
  * reader holds the component, pruned to the LOWEST claim on it. Two of these
  * exist — removal history and membership topology — because a consumer of one
  * must not keep the other alive; the ownership rule is written once.
+ *
+ * A reader is a LEASE: it must advance or be disposed. Nothing prunes past a
+ * parked one, deliberately — it is indistinguishable from one about to catch up
+ * — so a holder that can go idle advances anyway.
  */
 class ReaderOwnedJournal {
     private rows_ = new Map<symbol, Array<{ entity: Entity; tick: number }>>();

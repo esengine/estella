@@ -80,6 +80,14 @@ export interface InterestProviderQueryView {
 
 /** One snapshot, queried by every connection evaluated against it. @experimental */
 export interface PreparedInterest {
+    /**
+     * This snapshot's identity, in the provider's own numbering. The same number
+     * twice certifies the same answer to the same query inputs, so the host does
+     * not ask again; absent, every connection is queried.
+     *
+     * @experimental
+     */
+    readonly generation?: number;
     query(view: InterestProviderQueryView): ReadonlySet<Entity> | 'all';
 }
 
@@ -181,6 +189,10 @@ function defaultPosition(world: World, entity: Entity): InterestPoint | null {
  * composition says changed. A custom `position` rebuilds every sample, because
  * nothing can know when an arbitrary function would answer differently.
  *
+ * The kept lane also publishes a {@link PreparedInterest.generation}, so a
+ * sample in which nothing entered, left or MOVED is one no connection has to be
+ * queried for. The rebuilt lane publishes none.
+ *
  * @experimental
  * @see radiusInterest
  */
@@ -205,6 +217,12 @@ export function radiusInterestProvider(
     /** Whether this core can report what a composition changed. Null until asked. */
     let reports: boolean | null = null;
     let heldWorld: World | null = null;
+    /**
+     * Bumped by every change to the answers below — membership, a move, a
+     * rebuild. Monotonic and never reset: a disposed index coming back must not
+     * hand out a number a caller is still holding.
+     */
+    let generation = 0;
 
     function place(world: World, e: Entity): void {
         const p = positionOf(world, e);
@@ -231,16 +249,24 @@ export function radiusInterestProvider(
         where.delete(e);
     }
 
-    /** Read an entity's place again, and move it if the cell changed. */
+    /**
+     * Read an entity's place again, and move it if the cell changed. Bumps the
+     * generation only when the PLACE changed: the change feed reports a
+     * composition, and a rotation composes without moving anybody in or out of
+     * anybody's radius.
+     */
     function refresh(world: World, e: Entity): void {
         const p = positionOf(world, e);
         const slot = where.get(e);
         if (!p) {
-            if (slot || at.has(e)) displace(e);
+            if (slot || at.has(e)) { displace(e); generation++; }
+            else if (!placeless.has(e)) generation++;
             placeless.add(e);
             return;
         }
-        placeless.delete(e);
+        if (placeless.delete(e)) generation++;
+        const was = at.get(e);
+        if (!was || was.x !== p.x || was.y !== p.y || (was.z ?? 0) !== (p.z ?? 0)) generation++;
         const k = key(p.x, p.y, p.z ?? 0);
         if (slot && slot.key === k) { at.set(e, p); return; }
         displace(e);
@@ -262,6 +288,7 @@ export function radiusInterestProvider(
         clear();
         for (const e of entities) place(world, e);
         seeded = true;
+        generation++;
     }
 
     /**
@@ -274,6 +301,7 @@ export function radiusInterestProvider(
         const delta = world.compositionChanges();
         if (!delta || delta.overflowed) return false;
 
+        if (left.length > 0 || entered.length > 0) generation++;
         for (const e of left) displace(e);
         for (const e of entered) { placeless.delete(e); displace(e); place(world, e); }
         // Duplicates cost a second read and nothing else; ids for entities this
@@ -289,43 +317,51 @@ export function radiusInterestProvider(
         return true;
     }
 
-    const prepared: PreparedInterest = {
-        query({ owned }) {
-            const anchors: InterestPoint[] = [];
-            for (const e of owned) {
-                const p = at.get(e);
-                if (p) anchors.push(p);
-            }
-            // No place to look from: the same fail-open the policy has.
-            if (anchors.length === 0) return 'all';
+    function answer({ owned }: InterestProviderQueryView): ReadonlySet<Entity> | 'all' {
+        const anchors: InterestPoint[] = [];
+        for (const e of owned) {
+            const p = at.get(e);
+            if (p) anchors.push(p);
+        }
+        // No place to look from: the same fail-open the policy has.
+        if (anchors.length === 0) return 'all';
 
-            const visible = new Set<Entity>(placeless);
-            for (const a of anchors) {
-                const cx = Math.floor(a.x / cell);
-                const cy = Math.floor(a.y / cell);
-                const cz = Math.floor((a.z ?? 0) / cell);
-                for (let dx = -1; dx <= 1; dx++) {
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dz = -1; dz <= 1; dz++) {
-                            const bucket = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
-                            if (!bucket) continue;
-                            for (const e of bucket) {
-                                if (visible.has(e)) continue;
-                                const p = at.get(e)!;
-                                // A cell is a box and the rule is a sphere: being
-                                // in the neighbourhood is not being in range.
-                                const ddx = p.x - a.x;
-                                const ddy = p.y - a.y;
-                                const ddz = (p.z ?? 0) - (a.z ?? 0);
-                                if (ddx * ddx + ddy * ddy + ddz * ddz <= r2) visible.add(e);
-                            }
+        const visible = new Set<Entity>(placeless);
+        for (const a of anchors) {
+            const cx = Math.floor(a.x / cell);
+            const cy = Math.floor(a.y / cell);
+            const cz = Math.floor((a.z ?? 0) / cell);
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dz = -1; dz <= 1; dz++) {
+                        const bucket = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
+                        if (!bucket) continue;
+                        for (const e of bucket) {
+                            if (visible.has(e)) continue;
+                            const p = at.get(e)!;
+                            // A cell is a box and the rule is a sphere: being
+                            // in the neighbourhood is not being in range.
+                            const ddx = p.x - a.x;
+                            const ddy = p.y - a.y;
+                            const ddz = (p.z ?? 0) - (a.z ?? 0);
+                            if (ddx * ddx + ddy * ddy + ddz * ddz <= r2) visible.add(e);
                         }
                     }
                 }
             }
-            return visible;
-        },
-    };
+        }
+        return visible;
+    }
+
+    /**
+     * The kept lane publishes its generation; the rebuilt one cannot. Nothing
+     * can know when an arbitrary reader would answer differently, so a caller
+     * offered a number for it would be told the world stood still while it
+     * moved.
+     */
+    const prepared: PreparedInterest = custom
+        ? { query: answer }
+        : { get generation() { return generation; }, query: answer };
 
     return {
         prepare(view): PreparedInterest {

@@ -59,6 +59,26 @@ interface Connection {
     droppedInputs: number;
     /** Entities this connection currently knows (has been sent a spawn for). */
     interest: Set<Entity>;
+    /**
+     * What `interest` was last PROVED from. When every part of it still holds,
+     * the same source would answer the same set, so it is not asked: no query,
+     * no copy of the answer, and no scan for what entered or left. Null while
+     * nothing certified it — the connection is queried.
+     */
+    provenance: VisibilityStamp | null;
+}
+
+/**
+ * The three facts one connection's visibility is a function of. Equal on all
+ * three across two samples and the answer cannot have moved.
+ *
+ * @note `source` is here because generations are each provider's own numbering:
+ *       two providers both on their fifth snapshot are not the same snapshot.
+ */
+interface VisibilityStamp {
+    source: number;
+    snapshot: number;
+    owned: number;
 }
 
 /** Queued-but-unconsumed input cap. Beyond it the NEW command is refused, not
@@ -103,6 +123,14 @@ function removeBatch(tick: number, removals: readonly RemovalEntry[]): ReplCompo
     return { tick, entries: [...byNetId].map(([netId, componentIds]) => ({ netId, componentIds })) };
 }
 
+/** The plan of a connection that was not asked again: nothing entered it. */
+const NOBODY: ReadonlySet<Entity> = new Set<Entity>();
+
+function sameVisibility(held: VisibilityStamp | null, now: VisibilityStamp): boolean {
+    return held !== null && held.source === now.source
+        && held.snapshot === now.snapshot && held.owned === now.owned;
+}
+
 function fieldEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
     if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
@@ -142,6 +170,12 @@ export class ReplicationServer {
     private interest_: { kind: 'policy'; value: InterestPolicy }
         | { kind: 'provider'; value: InterestProvider }
         | null = null;
+    /**
+     * Which source the stamps in flight belong to. Bumped by every install, so
+     * a new provider whose numbering happens to land on the outgoing one's
+     * cannot be mistaken for it.
+     */
+    private interestEpoch_ = 0;
     private tick_ = 0;
     private fixedDelta_ = 0;
     /** Removal-history claims, one per replicated component. */
@@ -172,10 +206,20 @@ export class ReplicationServer {
     /** The index's own record of who owned each entity: a write says the NEW
      *  owner, and the old one is needed to take the entity off its set. */
     private readonly ownerOfEntity_ = new Map<Entity, number>();
+    /** How many times a connection's owned set changed. The other half of what
+     *  a spatial answer is a function of: the snapshot can stand still while
+     *  the anchors a connection looks from change hands. */
+    private readonly ownedEpoch_ = new Map<number, number>();
     private ownerFloor_ = -1;
     private ownerReader_: number | null = null;
     /** @internal Full-world reconciliations run — a steady-state sample must do none. */
     fullScans = 0;
+    /**
+     * @internal Connections whose visibility was proved again — queried, copied
+     * and diffed. A sample in which no relevance input moved must do none, and
+     * that is the whole claim of the stamp.
+     */
+    visibilityRecomputes = 0;
 
     /**
      * How many (entity, connection) links the reverse-interest index holds.
@@ -321,6 +365,7 @@ export class ReplicationServer {
 
     private setInterest_(next: typeof this.interest_): void {
         const previous = this.interest_;
+        this.interestEpoch_++;
         if (previous?.kind === 'provider' && previous.value !== (next as { value?: unknown })?.value) {
             previous.value.dispose?.();
         }
@@ -379,12 +424,21 @@ export class ReplicationServer {
         const now = repl ? repl.owner : undefined;
         const before = this.ownerOfEntity_.get(e);
         if (before === now) return;
-        if (before !== undefined) this.ownedByConnection_?.get(before)?.delete(e);
+        if (before !== undefined) {
+            this.ownedByConnection_?.get(before)?.delete(e);
+            this.bumpOwned_(before);
+        }
         if (now === undefined) { this.ownerOfEntity_.delete(e); return; }
         let set = index.get(now);
         if (!set) { set = new Set(); index.set(now, set); }
         set.add(e);
         this.ownerOfEntity_.set(e, now);
+        this.bumpOwned_(now);
+    }
+
+    /** This connection looks from somewhere else now than it did. */
+    private bumpOwned_(connectionId: number): void {
+        this.ownedEpoch_.set(connectionId, (this.ownedEpoch_.get(connectionId) ?? 0) + 1);
     }
 
     /** Drop `e` from the index entirely — it has left replication. */
@@ -393,6 +447,7 @@ export class ReplicationServer {
         if (before === undefined) return;
         this.ownedByConnection_?.get(before)?.delete(e);
         this.ownerOfEntity_.delete(e);
+        this.bumpOwned_(before);
     }
 
     /**
@@ -422,7 +477,7 @@ export class ReplicationServer {
             id, channel, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
-            interest: new Set(),
+            interest: new Set(), provenance: null,
         };
         this.connections_.set(id, conn);
 
@@ -478,6 +533,8 @@ export class ReplicationServer {
         this.forgetViewer_(conn);
         conn.channel.dispose();
         this.connections_.delete(id);
+        // Ids are never reused, so this is the whole lifetime of the count.
+        this.ownedEpoch_.delete(id);
     }
 
     /** The latest input command a connection sent (null before the first).
@@ -625,7 +682,7 @@ export class ReplicationServer {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
         // One snapshot for every connection this sample: a provider prepares
         // here, and never on the per-connection path below.
-        const visibleFor = this.resolveVisibility_({
+        const visibility = this.resolveVisibility_({
             entered: spawnedEntities,
             left: despawned.map((d) => d.entity),
             // A component going away is not something that component's value feed
@@ -636,12 +693,27 @@ export class ReplicationServer {
         // What each connection can see, and the index that answers the reverse
         // question.
         const plans: {
-            conn: Connection; visible: Set<Entity>; enters: Entity[];
-            leaveIds: number[]; entered: Set<Entity>;
+            conn: Connection; visible: ReadonlySet<Entity>; enters: Entity[];
+            leaveIds: number[]; entered: ReadonlySet<Entity>;
         }[] = [];
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
-            const visible = visibleFor(conn.id);
+            const stamp = visibility.snapshot === null ? null : {
+                source: this.interestEpoch_,
+                snapshot: visibility.snapshot,
+                owned: this.ownedEpoch_.get(conn.id) ?? 0,
+            };
+            // Nothing this answer is a function of moved: no query, no copy of
+            // a result, neither scan over it. Routing needs no help — the
+            // reverse index is already what this connection holds.
+            if (stamp && sameVisibility(conn.provenance, stamp)) {
+                plans.push({
+                    conn, visible: conn.interest, enters: [], leaveIds: [], entered: NOBODY,
+                });
+                continue;
+            }
+            this.visibilityRecomputes++;
+            const visible = visibility.visible(conn.id);
             const enters: Entity[] = [];
             for (const e of visible) {
                 if (conn.interest.has(e)) continue;
@@ -656,6 +728,7 @@ export class ReplicationServer {
                 if (netId !== undefined) leaveIds.push(netId);
             }
             conn.interest = visible;
+            conn.provenance = stamp;
             plans.push({ conn, visible, enters, leaveIds, entered: new Set(enters) });
         }
 
@@ -724,7 +797,7 @@ export class ReplicationServer {
      *       would cost push's dominant term to decide against push.
      */
     private route_(
-        plans: { conn: Connection; visible: Set<Entity>; entered: Set<Entity> }[],
+        plans: { conn: Connection; visible: ReadonlySet<Entity>; entered: ReadonlySet<Entity> }[],
         dirty: DirtyEntry[],
         removals: RemovalEntry[],
     ): Map<number, { dirty: number[]; removals: number[] }> {
@@ -788,12 +861,19 @@ export class ReplicationServer {
      * connection from it. A provider prepares ONCE — that is the whole reason
      * it exists — and never sees a materialized candidate array, which is the
      * other O(population) the policy shape forces.
+     *
+     * `snapshot` is what the source says this snapshot IS, when it says
+     * anything. Null means the answers below have to be asked for; a number
+     * means a connection whose stamp already carries it holds the same answer.
      */
     private resolveVisibility_(membership: {
         entered: readonly Entity[];
         left: readonly Entity[];
         rechecked: readonly Entity[];
-    } = { entered: [], left: [], rechecked: [] }): (connectionId: number) => Set<Entity> {
+    } = { entered: [], left: [], rechecked: [] }): {
+        snapshot: number | null;
+        visible: (connectionId: number) => Set<Entity>;
+    } {
         // Relevance is decided in world space, so the composition has to be
         // current before a snapshot is taken — here rather than inside a position
         // reader, so a caller's own reader sees the same composed fact.
@@ -801,7 +881,7 @@ export class ReplicationServer {
         const source = this.interest_;
         if (!source) {
             const all = [...this.known_];
-            return () => new Set(all);
+            return { snapshot: null, visible: () => new Set(all) };
         }
         if (source.kind === 'provider') {
             const known = this.known_;
@@ -813,17 +893,22 @@ export class ReplicationServer {
                 entityCount: known.size,
                 ...membership,
             });
-            return (connectionId) => {
-                const owned = this.ownedByConnection_?.get(connectionId);
-                const ownedList = owned ? [...owned] : [];
-                const result = prepared.query({ connectionId, owned: ownedList });
-                const visible = result === 'all' ? new Set(this.known_) : new Set(result);
-                for (const e of ownedList) visible.add(e);
-                return visible;
+            return {
+                snapshot: prepared.generation ?? null,
+                visible: (connectionId) => {
+                    const owned = this.ownedByConnection_?.get(connectionId);
+                    const ownedList = owned ? [...owned] : [];
+                    const result = prepared.query({ connectionId, owned: ownedList });
+                    const visible = result === 'all' ? new Set(this.known_) : new Set(result);
+                    for (const e of ownedList) visible.add(e);
+                    return visible;
+                },
             };
         }
         const candidates = [...this.known_];
-        return (connectionId) => this.visibleFor_(connectionId, candidates);
+        // A policy is handed the population and asked; there is nothing for it
+        // to certify a repeat answer with.
+        return { snapshot: null, visible: (connectionId) => this.visibleFor_(connectionId, candidates) };
     }
 
     /** The policy's answer for one connection, with the server's invariant
@@ -1082,7 +1167,7 @@ export class ReplicationServer {
         if (!anyReady) this.rebaseRegistry_();
         // Everything relevant right now, full component payloads (current state
         // included — no separate baseline frame needed).
-        const visible = this.resolveVisibility_()(conn.id);
+        const visible = this.resolveVisibility_().visible(conn.id);
         const entities: ReplSpawnEntity[] = [];
         for (const e of visible) {
             const netId = this.knownNetIds_.get(e);

@@ -187,6 +187,14 @@ At 100,000 entities and 32 connections the kept index costs **18% of one core**
 against 195% for rebuilding it every sample, and reads 668 positions per sample
 instead of 100,000. With nothing moving it reads none.
 
+And when nothing entered, left or moved, **no connection is queried at all**. The
+kept index says it is the same snapshot it was; a connection whose owned entities
+have not changed hands either is already holding the answer, so it keeps it. A
+stationary sample at that scale costs microseconds instead of a fifth of a core.
+
+That is about visibility, not about traffic: a field changing on an entity you
+can see still reaches you, whether or not your view moved.
+
 Two things follow from the kept index, and neither is a limitation you can work
 around by writing the reader differently:
 
