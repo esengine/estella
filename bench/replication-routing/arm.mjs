@@ -77,14 +77,20 @@ for (let i = 0; i < ENTITIES; i++) {
     world.insert(e, Health, { hp: 100 });
     entities[i] = e;
 }
-/** One anchor per connection, spread so a view is a neighbourhood, not a corner. */
+/**
+ * One anchor per connection, spread so a view is a neighbourhood, not a corner.
+ *
+ * @note Keyed by the id the SERVER gave the connection, not the loop counter:
+ *       ids start at one, so owning `c` left the last connection owning nothing
+ *       and failing open to `'all'`.
+ */
 const owned = new Map();
 const span = Math.max(1, Math.floor(ENTITIES * CLUSTER));
 const stride = Math.max(1, Math.floor(span / CONNECTIONS));
-for (let c = 0; c < CONNECTIONS; c++) {
+for (const [c, client] of clients.entries()) {
     const e = entities[(c * stride) % ENTITIES];
-    world.set(e, sdk.Replicated, { owner: c });
-    owned.set(c, [e]);
+    world.set(e, sdk.Replicated, { owner: client.id });
+    owned.set(client.id, [e]);
 }
 
 const MOVE = Math.round(ENTITIES * MOVEMENT);
@@ -154,8 +160,8 @@ function census(made) {
     world.ensureTransformsComposed();
     const prepared = oracle.prepare({ world, entities, entityCount: entities.length });
     const seenBy = new Map();
-    for (let c = 0; c < CONNECTIONS; c++) {
-        const answer = prepared.query({ connectionId: c, owned: owned.get(c) });
+    for (const [c, anchors] of owned) {
+        const answer = prepared.query({ connectionId: c, owned: anchors });
         const visible = answer === 'all' ? new Set(entities) : answer;
         totals.visible += visible.size;
         for (const e of visible) seenBy.set(e, (seenBy.get(e) ?? 0) + 1);
@@ -177,6 +183,17 @@ function census(made) {
     totals.dirtyVisits += CONNECTIONS * made.dirtied.length;
     totals.removalVisits += CONNECTIONS * made.removed.length;
     totals.samples++;
+
+    // The server's own view against the oracle's. They diverged silently for a
+    // whole campaign, and every wall time was the difference: one connection
+    // owning nothing fails open to 'all' and is handed the whole population.
+    const links = server.viewerLinks;
+    const counted = totals.visible / totals.samples;
+    if (Math.abs(links - counted) > CONNECTIONS) {
+        process.stderr.write(`the server holds ${links} viewer links where the oracle counts `
+            + `${Math.round(counted)} — they are not looking at the same world\n`);
+        process.exit(1);
+    }
 }
 
 let ns = 0n;
@@ -202,6 +219,7 @@ const per = (v) => v / totals.samples;
 const usPerSample = us / ticks;
 process.stdout.write(`${JSON.stringify({
     entities: ENTITIES, connections: CONNECTIONS, visible: VISIBLE, movement: MOVEMENT,
+    viewerLinks: server.viewerLinks,
     cluster: CLUSTER,
     dirty: DIRTY, removals: REMOVALS, samples: totals.samples,
     usPerSample, usPerSampleMin: fastest,

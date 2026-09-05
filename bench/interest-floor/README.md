@@ -1,8 +1,15 @@
 # What a sample costs when nothing has happened
 
-With no dirty row and no removal, a stationary server spends **7,334 µs a sample
-— 44% of one core** at 100,000 entities and 32 connections. Nothing moved,
+With no dirty row and no removal, a stationary server spends **3,573 µs a sample
+— 21% of one core** at 100,000 entities and 32 connections. Nothing moved,
 nothing entered anyone's view, nothing left it, and nothing was sent.
+
+> That figure was 7,334 when this was first written, because the bench it came
+> from had one connection owning nothing, failing open to `'all'`, and being
+> handed the whole population every sample. Nothing in THIS probe was affected —
+> it drives the provider directly with its own consistent keys — but the share it
+> was said to be of has changed: the visibility pass is not 47% of a stationary
+> sample, it is nearly all of one.
 
 `node bench/interest-floor/probe.mjs`. Nothing here is installed on a server;
 the counterfactual arms remove one layer at a time from a transcription of the
@@ -11,7 +18,8 @@ server's visibility pass.
 ## Where it goes
 
 The visibility pass — ask the provider, copy the answer, walk it for arrivals,
-walk the previous view for departures — is **3,439 µs**, 47% of the sample.
+walk the previous view for departures — is **3,439 µs**, which is essentially the
+whole stationary sample.
 
 | | µs | |
 |---|---|---|
@@ -71,13 +79,16 @@ would leave 82% of the floor on the table.
 So the contract to design is one the provider consults BEFORE walking cells, not
 one the server consumes after. Nothing is designed here — this measures.
 
-## And the other half of the sample
+## And the rest of the sample
 
-3,439 µs of 7,334 is the visibility pass. The remaining **3,895 µs is everything
-else a sample does when nothing has happened**: reconciling the registry against
-its topology journal, diffing the shadow, refreshing the owner index, advancing
-three reader floors. None of it is measured here, and at 53% of a stationary
-sample it is the larger unknown of the two.
+There is almost none. `bench/idle-maintenance` measures what a sample does
+BESIDES visibility when nothing has happened — reconciling the registry against
+its topology journal, gating the change journal, reading empty removal windows,
+giving three kinds of reader a new floor — and it is **about 1.3 µs**. Timed
+inside the real server: reconcile 0.4, owner refresh 0.1, dirty collection 0.8.
+
+The 3,895 µs of "idle maintenance" this section used to claim was the same
+`'all'` connection, counted a second time.
 
 ## What this does not cover
 

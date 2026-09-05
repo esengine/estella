@@ -33,24 +33,32 @@ only ever makes a sample slower, and the fastest reproduces to the microsecond
 between runs where the mean moves by 5%. Two arms run back to back once differed
 by 40% on the mean and not at all on the minimum.
 
+> **These numbers were re-measured.** The first run of this bench keyed each
+> connection's anchor by the loop counter while connection ids start at one, so
+> the last connection owned nothing, failed open to `'all'`, and was handed a
+> hundred-thousand-entry Set every sample. Every wall time was that Set. The
+> counts, which came from an oracle with its own consistent keys, were never
+> affected. `arm.mjs` now compares the server's own `viewerLinks` against the
+> oracle's total each census and refuses to report if they disagree.
+
 ## First: the two filters are not the wall
 
 | workload | µs/sample | one core | over the floor |
 |---|---|---|---|
-| **nothing moves at all** | 7,690 | 46% | — |
-| floor: 1% movement, nothing else | 14,477 | 87% | — |
-| dirty 0.1% | 17,524 | 105% | +3,047 |
-| **dirty 1%** | 19,343 | 116% | +4,866 |
-| dirty 10% | 33,756 | 203% | +19,279 |
-| dirty 100% | 90,828 | 545% | +76,351 |
-| removals 0.1% | 17,763 | 107% | +3,285 |
-| removals 1% | 18,007 | 108% | +3,530 |
-| removals 10% | 21,587 | 130% | +7,110 |
-| **mixed — 1% dirty, 0.1% removed** | 19,563 | 117% | +5,086 |
+| **nothing moves at all** | 3,573 | 21% | — |
+| floor: 1% movement, nothing else | 8,751 | 53% | — |
+| dirty 0.1% | 11,234 | 67% | +2,483 |
+| **dirty 1%** | 11,662 | 70% | +2,910 |
+| dirty 10% | 19,273 | 116% | +10,522 |
+| dirty 100% | 42,463 | 255% | +33,712 |
+| removals 0.1% | 11,225 | 67% | +2,473 |
+| removals 1% | 12,055 | 72% | +3,303 |
+| removals 10% | 15,697 | 94% | +6,945 |
+| **mixed — 1% dirty, 0.1% removed** | 12,234 | 73% | +3,483 |
 
-At the rates a game actually runs at, **three quarters of the sample is there
-before a single extra dirty row exists**. Routing the mixed workload's rows adds
-26%. The filters only take over past 10% dirty, where they add 19 ms.
+At the rates a game actually runs at, **more than two thirds of the sample is
+there before a single extra dirty row exists**. Routing the mixed workload's rows
+adds 28%. The filters only take over past 10% dirty.
 
 ## But what they visit is almost all waste
 
@@ -207,25 +215,25 @@ the mixed workload against the 66,848 visits the sort replaces.
 for free. The reverse index is the server's — the projection of `conn.interest`,
 maintained from the enters and leaves the visibility pass already produces.
 
+Measured against the old shape put back under the same (fixed) harness, at 100k
+entities and 32 connections:
+
 | workload | before | after |
 |---|---|---|
-| floor: 1% movement | 14,477 | 14,105 |
-| dirty 1% | 19,343 | 19,541 |
-| dirty 10% | 33,756 | **30,324** |
-| **dirty 100%** | 90,828 | **66,742** (545% → 400% of a core) |
-| removals 10% | 21,587 | **19,068** |
-| mixed | 19,563 | **17,921** |
+| **dirty 100%** | 69,289 | **42,463** (a 39% cut) |
+| dirty 1% | 12,837 | 11,662 |
+| mixed | 12,426 | 12,234 |
+| removals 10% | 15,525 | 15,697 |
 
-Unambiguous where routing was the cost and inside the noise where it was not,
-which is what N3a said would happen: the two filters were 26% of a realistic
-sample, so removing almost all of them moves that sample by under a tenth. The
-floor itself varies by 3% between runs, so nothing smaller than that in the top
-rows is a claim.
+Only the saturation case is outside what separate processes vary by. That is not
+a disappointment, it is N3a's decomposition holding: at realistic rates the two
+filters were a quarter of the sample, so removing almost all of them moves the
+whole sample by less than the harness can resolve. What the ROUTING itself costs
+is measured where it can be — same process, alternating arms — in the section
+above: 783 µs to 85 at the mixed workload, 37,434 to 3,091 with everything dirty.
 
-The shape of the win is the point rather than its size today. What used to grow
-with `connections x rows` now grows with the smaller of `affected + fanout` and
-`total interest membership` — so a game that dirties a tenth of its world stopped
-paying 352,000 visits a sample to send 3,201 rows.
+The shape is the result. What used to grow with `connections × rows` now grows
+with the smaller of `affected + fanout` and `total interest membership`.
 
 ## What this does not cover
 
@@ -233,10 +241,12 @@ paying 352,000 visits a sample to send 3,201 rows.
   is actually SENT — 598 entries at the mixed point — so it is the floor a
   perfect router leaves behind, not part of the wall. Separating it needs the
   frame writer, which is not on the SDK's entry.
-- **The still floor is not explained here.** 7,690 µs with nothing moving is
-  about 0.14 µs per (connection × visible entity) plus a constant that does not
-  follow the population — a quarter of the entities at the same C × V costs
-  3,675. Whatever that constant is, it is not C × D and not C × R.
+- **The still floor is C × V and nothing else.** 3,573 µs with nothing moving,
+  and `µs per (connection × visible entity)` comes out 0.112 to 0.121 across
+  every point of the sweep — a quarter of the population at the same C × V costs
+  the same, and eight connections cost a quarter of thirty-two. There is no
+  population term and no constant. The constant the broken harness appeared to
+  have was the `'all'` connection.
 - One anchor per connection, and a uniform grid world. `viewers per entity` is
   the number the push/pull choice turns on, and it is a property of how players
   are arranged: 1.00 spread across the map, 8.10 packed into a thousandth of it.
