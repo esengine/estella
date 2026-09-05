@@ -146,6 +146,14 @@ Three things are asserted rather than assumed:
 - The per-connection dirty and removal filters are timed and counted but stay
   tiny at these rates. If a provider removes the interest query, `C × (D + R)`
   is the next thing to look at — measured, not guessed.
+- **The composed output has a second author, and an incremental provider is not
+  production-complete until that is resolved.** `registry_batchSyncPhysics-
+  Transforms` writes `worldPosition`/`worldRotation`/`worldScale` itself, marks
+  the transform decomposed, and bypasses `TransformSystem` — so a provider fed by
+  what the COMPOSITION says changed would silently not contain any physics-driven
+  entity. Composition has a canonical author now, which is what turns that into a
+  question with an answer; it is not this one. See
+  `bench/transform-composition/README.md` for what the composition can hand over.
 - Custom `position()` readers are why a provider cannot simply index everything:
   the server has no way to know when a caller's arbitrary function would return
   something new. That is a design constraint on any provider, not a cost measured here.

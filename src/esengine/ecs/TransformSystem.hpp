@@ -76,6 +76,30 @@ public:
 
     u32 composedEpoch() const { return composedEpoch_; }
 
+    /**
+     * @brief Compose, and answer which entities' composed OUTPUT actually moved
+     * @param changed Receives those entities; cleared first
+     * @return Whether it composed at all (false = nothing was stale)
+     * @details Not the set the walk VISITED: a non-static root is recomposed
+     *          unconditionally. Costed in bench/transform-composition.
+     * @note A root publishes decomposed world TRS and a child publishes
+     *       `cachedMatrix_`, so each is compared against the one it publishes.
+     */
+    bool composeCollecting(Registry& registry, std::vector<Entity>& changed) {
+        changed.clear();
+        visited_ = 0;
+        if (registry.instanceId() == composedRegistry_
+            && transformMutationEpoch() == composedEpoch_) return false;
+        changed_ = &changed;
+        updateDirtyTransforms(registry);
+        changed_ = nullptr;
+        markComposed(registry);
+        return true;
+    }
+
+    /** How many entities the last collecting compose actually wrote. */
+    u32 visited() const { return visited_; }
+
 private:
     // Zero, while the epoch starts at one: nothing has been composed yet, so the
     // first ensure runs rather than believing a world it has never looked at.
@@ -88,6 +112,11 @@ private:
     }
 
     std::vector<Entity> dirty_to_clear_;
+
+    // Null on the shipped path: composition answers "are they stale", and only a
+    // caller building an incremental structure pays for "which ones moved".
+    std::vector<Entity>* changed_ = nullptr;
+    u32 visited_ = 0;
 
     void updateDirtyTransforms(Registry& registry) {
         dirty_to_clear_.clear();
@@ -127,6 +156,15 @@ private:
     }
 
     void updateRootTransform(Registry& registry, Entity entity, Transform& transform) {
+        if (changed_) {
+            ++visited_;
+            if (!transform.decomposed_
+                || transform.worldPosition != transform.position
+                || transform.worldRotation != transform.rotation
+                || transform.worldScale != transform.scale) {
+                changed_->push_back(entity);
+            }
+        }
         transform.worldPosition = transform.position;
         transform.worldRotation = transform.rotation;
         transform.worldScale = transform.scale;
@@ -183,6 +221,13 @@ private:
         glm::mat4 localMatrix = math::compose(transform.position, transform.rotation, transform.scale);
         glm::mat4 worldMatrix = parentWorldMatrix * localMatrix;
 
+        if (changed_) {
+            ++visited_;
+            // `decomposed_` is not part of the output: a READ flips it (the ptr
+            // accessor decomposes on the way out), so testing it here reports
+            // every child anyone looked at as having moved.
+            if (worldMatrix != transform.cachedMatrix_) changed_->push_back(entity);
+        }
         transform.cachedMatrix_ = worldMatrix;
         transform.decomposed_ = false;
 

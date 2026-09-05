@@ -648,6 +648,20 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
                 ts->ensureComposed(registry);
             }
         }), emscripten::allow_raw_pointers());
+    // The same composition, asked to also say WHICH entities' output moved — the
+    // set an incremental spatial index would maintain itself from. Costed in
+    // bench/transform-composition; no shipped path calls it.
+    emscripten::function("transform_composeCollecting", emscripten::optional_override(
+        [](esengine::ecs::Registry& registry) -> emscripten::val {
+            static std::vector<esengine::Entity> changed;
+            auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>();
+            auto out = emscripten::val::object();
+            const bool ran = ts && ts->composeCollecting(registry, changed);
+            out.set("ran", ran);
+            out.set("visited", ts ? ts->visited() : 0u);
+            out.set("changed", static_cast<esengine::u32>(ran ? changed.size() : 0));
+            return out;
+        }), emscripten::allow_raw_pointers());
     emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
     emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
 #ifdef ES_ENABLE_PARTICLES

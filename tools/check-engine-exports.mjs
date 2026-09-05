@@ -30,7 +30,10 @@ const byName = new Set([...layouts.matchAll(/ptrFn:\s*'(\w+)'/g)].map((m) => m[1
 // read back through another binding. `wasm.ts` declares the surface rather than
 // calling it, and generated files name every entry by construction.
 const { files, missing } = listTrackedSources(
-    ['sdk/src', 'sdk/tests', 'desktop/src', 'desktop/electron', 'desktop/tests', 'tools', 'pipeline/src']);
+    ['sdk/src', 'sdk/tests', 'desktop/src', 'desktop/electron', 'desktop/tests', 'tools', 'pipeline/src',
+        // A bench is a host too, and some entry points exist to be measured
+        // before anything is designed around them. Exercised is exercised.
+        'bench']);
 if (missing.length) {
     console.log(`check-engine-exports: no editor checkout — ${missing.join(', ')} not scanned for callers.`);
 }
