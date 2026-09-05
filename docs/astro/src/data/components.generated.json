@@ -1581,6 +1581,28 @@
       ]
     },
     {
+      "name": "Health",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "current",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        }
+      ],
+      "animatable": [
+        "current",
+        "max"
+      ]
+    },
+    {
       "name": "HingeJoint2D",
       "source": "ts",
       "fields": [
@@ -1885,6 +1907,64 @@
           "type": "object",
           "default": "empty"
         }
+      ]
+    },
+    {
+      "name": "MeleeAttack",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "60",
+          "range": "≥ 0"
+        },
+        {
+          "key": "damage",
+          "type": "number",
+          "default": "25",
+          "range": "≥ 0"
+        },
+        {
+          "key": "layers",
+          "type": "number",
+          "default": "0",
+          "range": "0–15, step 1",
+          "advanced": true
+        },
+        {
+          "key": "anchor",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The animated socket the swing reaches from."
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "attackId",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "hitCount",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "radius",
+        "damage",
+        "layers",
+        "anchor",
+        "attackId",
+        "hitCount"
       ]
     },
     {

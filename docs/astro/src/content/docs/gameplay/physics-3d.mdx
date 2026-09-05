@@ -192,6 +192,82 @@ still walks the character across the floor. Pitch never reaches the character.
   when something solid stands between. It moves nothing but itself.
 </Aside>
 
+## Melee combat
+
+Three facts, and the whole of a combat system is keeping them apart:
+
+```text
+an animation event   ≠   a hit   ≠   damage
+```
+
+The clip says only that the swing reached its effective moment. What was in that
+space is the physics world's answer. What that does to anyone is gameplay's.
+Collapse any two and you get a combat system that cannot be re-aimed, re-timed
+or re-balanced without touching the other two.
+
+`MeleeAttack` sits beside an `Animator` whose attack clip declares three beats
+on a `customEvent` track — `attack-start`, `hit`, `attack-end`:
+
+```typescript
+player.add(MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+dummy.add(Health, { current: 100, max: 100 });
+```
+
+| Field | What it does |
+|---|---|
+| `radius` | Radius of the sphere a `hit` beat tests, world units. |
+| `damage` | What a landed blow takes off. |
+| `layers` | Physics layers the swing can reach; `0` is every layer. |
+| `anchor` | The entity whose WORLD placement the query is centred on. |
+| `attackId` | Engine-written: the live swing, `0` when none is running. |
+| `hitCount` | Engine-written: how many targets it has landed on. |
+
+<Aside type="caution">
+  `anchor` should be a socket parented to an animated joint, not the character.
+  Centre the query on the character and the reach is an offset from its feet:
+  the skeleton is drawn but never consulted, and a swing that misses on screen
+  still lands. The anchor's world placement is composed before the query, so
+  what it asks about is what the animation did.
+</Aside>
+
+A swing is an INSTANCE with its own id and its own set of who it has already
+reached, so one swing lands on one target once and the next one may land again.
+A hit window is normally several `hit` beats, and leaning on "the event only
+fires once" instead breaks the first time a clip declares two — silently, as
+double damage, which reads as a balance problem rather than a bug.
+
+Nothing in the swing writes health. A landed blow is sent on the `Damage` bus and
+one system answers it, so `Health` has a single author and every rule that will
+ever sit between a hit and a health bar has one seam to sit in:
+
+```typescript
+import { defineSystem, EventReader, GetWorld, Res, Damage, Children, ParticleEmitter, Particle } from 'esengine';
+
+const hitSparks = defineSystem(
+  [EventReader(Damage), GetWorld(), Res(Particle)],
+  (blows, world, particles) => {
+    for (const blow of blows) {
+      if (!world.has(blow.target, Children)) continue;
+      for (const child of world.get(blow.target, Children).entities) {
+        if (world.has(child, ParticleEmitter)) particles.play(child);
+      }
+    }
+  },
+  { name: 'HitSparkSystem' },
+);
+```
+
+A blow carries `target`, `source`, `amount` and the point it landed at — that
+point cannot be recovered later, because by the time a spark is drawn the swing
+has moved on. The bus is double buffered, so a blow sent this frame lands on the
+next.
+
+<Aside type="tip">
+  The physics query answers with colliders and nothing else. Self, already-hit
+  and not-damageable are gameplay's rules and live with the swing — the floor is
+  a collider too, and it is `Health` that says an entity can be hurt at all.
+</Aside>
+
 ## Joints
 
 A door, a rope bridge, a lift, a ragdoll: none of them are one body and a shape.

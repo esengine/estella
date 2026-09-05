@@ -172,6 +172,74 @@ rig.add(ThirdPersonCamera, { target: player, distance: 420 });
   相机会在支点与眼睛之间扫掠物理世界，有实体挡住时把自己拉近。它只移动自己。
 </Aside>
 
+## 近战
+
+三件事，把它们分开就是战斗系统的全部：
+
+```text
+动画事件   ≠   命中   ≠   伤害
+```
+
+剪辑只说明这一刀到了它的有效时刻。那片空间里有谁，是物理世界的答案。这对谁造成什么，
+是玩法的事。任何两件合并，就得到一个不改另外两件就无法重新瞄准、重新配时、重新平衡的
+战斗系统。
+
+`MeleeAttack` 挂在一个 `Animator` 旁边，它的攻击剪辑用 `customEvent` 轨道声明三个节拍
+——`attack-start`、`hit`、`attack-end`：
+
+```typescript
+player.add(MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+dummy.add(Health, { current: 100, max: 100 });
+```
+
+| 字段 | 作用 |
+|---|---|
+| `radius` | `hit` 节拍测试的球半径，世界单位。 |
+| `damage` | 一次落地的攻击扣掉多少。 |
+| `layers` | 这一刀能够到的物理层；`0` 表示所有层。 |
+| `anchor` | 查询以哪个实体的**世界**位置为中心。 |
+| `attackId` | 引擎写入：正在进行的那一刀，没有时为 `0`。 |
+| `hitCount` | 引擎写入：这一刀已经打中了几个目标。 |
+
+<Aside type="caution">
+  `anchor` 应该是挂在动画骨骼下的插槽，而不是角色本身。把查询放在角色身上，攻击范围
+  就变成了从脚底算起的一个固定偏移：骨架被画出来了，却从来没有被问过，屏幕上明明挥空
+  的一刀照样命中。查询前会先合成 anchor 的世界位置，所以它问的就是动画真正做到的地方。
+</Aside>
+
+一刀是一个带自己 id、自己「已经打到过谁」集合的**实例**，所以一刀对一个目标最多命中
+一次，而下一刀可以再次命中。命中窗口通常就是好几个 `hit` 节拍，靠「事件只触发一次」来
+保证单次命中，在剪辑第一次声明两个节拍时就会破——而且是静默地破，表现为双倍伤害，
+看起来像数值没配好而不是 bug。
+
+这一刀不写任何血量。落地的攻击发到 `Damage` 总线上，由一个系统来回应，所以 `Health`
+只有一个作者，将来任何要坐在「命中」与「血条」之间的规则都有唯一一个位置可坐：
+
+```typescript
+import { defineSystem, EventReader, GetWorld, Res, Damage, Children, ParticleEmitter, Particle } from 'esengine';
+
+const hitSparks = defineSystem(
+  [EventReader(Damage), GetWorld(), Res(Particle)],
+  (blows, world, particles) => {
+    for (const blow of blows) {
+      if (!world.has(blow.target, Children)) continue;
+      for (const child of world.get(blow.target, Children).entities) {
+        if (world.has(child, ParticleEmitter)) particles.play(child);
+      }
+    }
+  },
+  { name: 'HitSparkSystem' },
+);
+```
+
+一次攻击携带 `target`、`source`、`amount` 和它落在哪个点——这个点事后是找不回来的，
+等火花画出来的时候，那一刀早就挥过去了。总线是双缓冲的，本帧发出的攻击在下一帧落地。
+
+<Aside type="tip">
+  物理查询只回答碰撞体，别的什么都不答。「不能打自己」「已经打过了」「打不动」这三条是
+  玩法的规则，跟着这一刀走——地板也是碰撞体，而一个实体能不能被打，是 `Health` 说了算。
+</Aside>
+
 ## 关节
 
 门、绳桥、升降台、布娃娃:它们都不是「一个刚体加一个形状」,
