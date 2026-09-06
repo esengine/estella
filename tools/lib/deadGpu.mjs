@@ -118,12 +118,34 @@ export function resultMeasured(result) {
 }
 
 /**
+ * The runner's own words for a GPU that DID come up. OUTRANKS every heuristic
+ * here, which guess a cause from a failure where this reads the cause itself:
+ * an emptied readback is `ok:false` with no capture, which {@link resultMeasured}
+ * calls "no measurement" and the policy would then blame on a dead GPU.
+ */
+export function gpuCameUp(output) {
+    return /webgpu adapter:\s*\S/i.test(output) && /WebGPU device injected/i.test(output);
+}
+
+/**
+ * The device arrived and then went. Still an outage rather than the subject's
+ * fault, so it survives the veto above — "came up" is not "stayed up".
+ */
+function gpuWentAway(output) {
+    return /GPU device lost/.test(output);
+}
+
+/**
  * Whether this attempt reached a verdict at all. `measured` is the run's own
  * answer and wins, except that a run whose engine could not draw has measured
  * nothing whatever else it managed to print.
  */
 function reachedNoVerdict(last) {
     const output = last.output ?? '';
+    // A GPU that demonstrably arrived and did not go makes every later failure
+    // the subject's own — including a capture that came back empty, which is a
+    // statement ABOUT the frame and not the absence of one to judge.
+    if (gpuCameUp(output) && !gpuWentAway(output)) return false;
     if (engineCouldNotDraw(output)) return true;
     if (typeof last.measured === 'boolean') return !last.measured;
     return gpuNeverCameUp(output);

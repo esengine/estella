@@ -11,10 +11,16 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
 import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured,
-    launchNeverHappened } from '../lib/deadGpu.mjs';
+    launchNeverHappened, gpuCameUp } from '../lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
 const BLANK = 'painted=true live=false errors=0';
+/** What the runner prints when the device DID arrive, on the two lines above the
+ *  failure. Verbatim from the run that exposed the frame-lifecycle regression. */
+const GPU_UP = '[renderer] [engine] webgpu adapter: apple metal-3 (default)\n'
+    + "[renderer] [wasm] [INFO ] WebGPU device injected for '#canvas' (640x360)";
+/** The regression's own shape: a device that came up, and a readback that did not. */
+const EMPTY_CAPTURE = `${GPU_UP}\ncaptureViewportPixels: no pixels — the engine refused the readback`;
 
 /** Drive the policy over a scripted sequence of attempt outputs; `null` = success. */
 function run(outputs: Array<string | null>) {
@@ -84,7 +90,47 @@ describe('resultMeasured', () => {
     });
 });
 
+describe('gpuCameUp', () => {
+    it('reads the two lines that say a device arrived', () => {
+        expect(gpuCameUp(GPU_UP)).toBe(true);
+        expect(gpuCameUp(EMPTY_CAPTURE)).toBe(true);
+    });
+
+    it('an adapter alone is not a device', () => {
+        expect(gpuCameUp('[renderer] [engine] webgpu adapter: apple metal-3 (default)')).toBe(false);
+    });
+
+    it('says nothing about a runner that printed neither', () => {
+        expect(gpuCameUp(DEAD)).toBe(false);
+        expect(gpuCameUp(BLANK)).toBe(false);
+    });
+});
+
 describe('retryOnDeadGpu', () => {
+    it('an empty capture from a device that CAME UP is the subject\u2019s failure', () => {
+        // `measured: false` is the half that makes this invisible: an error with
+        // no capture is what resultMeasured calls "no measurement", and without
+        // the veto the policy retries six times and blames the runner.
+        const r = runReporting([{ ok: false, output: EMPTY_CAPTURE, measured: false }]);
+        expect(r.ok).toBe(false);
+        expect(r.attempts).toBe(1);
+        expect(r.notes).toEqual([]);
+        expect(r.gpuDied).toBeUndefined();
+    });
+
+    it('still retries when the device that came up was then LOST', () => {
+        // "Came up" is not "stayed up": a device that goes mid-run took the
+        // measurement with it, and that is the runner's story after all.
+        const r = runReporting([
+            { ok: false, output: `${GPU_UP}\nGPU device lost`, measured: false },
+            { ok: true },
+        ]);
+        expect(r.ok).toBe(true);
+        expect(r.attempts).toBe(2);
+        expect(r.notes).toEqual([true]);
+    });
+
+
     it('a game that draws nothing fails on the first attempt', () => {
         // The whole point: no retry may stand between a black frame and a red gate.
         const r = run([BLANK]);
