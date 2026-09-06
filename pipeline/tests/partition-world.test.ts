@@ -28,7 +28,7 @@ function entity(
     return { id, name, parent: extra.parent ?? null, children: [], visible: true, components };
 }
 
-const declaration: Component = { type: 'StreamedWorld', data: { cellSize: SIZE, enabled: true } };
+const declaration: Component = { type: 'StreamedWorld', data: { cellSize: SIZE } };
 
 function scene(...entities: Array<Record<string, unknown>>): SceneData {
     return { version: 4, name: 'main', entities } as unknown as SceneData;
@@ -184,12 +184,5 @@ describe('partitionWorld', () => {
             entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: 0 } }] }),
         ))!;
         expect(partition.errors.join('\n')).toContain('no positive cellSize');
-    });
-
-    it('answers null for a world whose streaming is switched off', () => {
-        expect(cut(scene(
-            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, enabled: false } }] }),
-            entity(1, 'RockA', [500, 0, 500]),
-        ))).toBeNull();
     });
 });

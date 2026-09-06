@@ -4015,6 +4015,22 @@
       ]
     },
     {
+      "name": "StreamedWorld",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "cellSize",
+          "type": "number",
+          "default": "1000",
+          "doc": "Edge of one cell on the XZ plane.",
+          "range": "≥ 1"
+        }
+      ],
+      "animatable": [
+        "cellSize"
+      ]
+    },
+    {
       "name": "Text",
       "source": "ts",
       "fields": [
@@ -5462,6 +5478,41 @@
         "upperTranslation",
         "maxMotorTorque",
         "motorSpeed"
+      ]
+    },
+    {
+      "name": "WorldPersistent",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
+      "name": "WorldStreamingSource",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "loadRadius",
+          "type": "number",
+          "default": "2000",
+          "doc": "Cells this close are brought in.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "unloadRadius",
+          "type": "number",
+          "default": "3000",
+          "doc": "Resident cells are kept until past this.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "loadRadius",
+        "unloadRadius"
       ]
     }
   ]

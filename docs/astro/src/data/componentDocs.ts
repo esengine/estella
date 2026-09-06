@@ -75,6 +75,9 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   PostProcessVolume: { category: 'graphics', summary: 'A stack of full-screen effects (bloom, vignette, colour grading) applied after the scene is drawn.', doc: 'graphics/post-processing', anchor: 'using-a-postprocessvolume', anchorZh: '使用-postprocessvolume' },
   MeshRenderer: { category: 'graphics', summary: 'Geometry drawn as an entity — your own vertices or an imported mesh, with a material and a sorting layer.', doc: 'graphics/drawing', anchor: 'custom-meshes-meshrenderer', anchorZh: '自定义网格meshrenderer' },
   MeshSkin: { category: 'graphics', summary: 'The joint entities that deform a MeshRenderer — an imported skin, in the order its bind matrices are in.', doc: 'assets/models', anchor: 'skinning', anchorZh: '蒙皮' },
+  StreamedWorld: { category: 'world', summary: 'Declares the scene a streamed world and how big the cook cuts its cells.', doc: 'world/streaming', anchor: 'declaring-a-streamed-world', anchorZh: '声明一个流送世界' },
+  WorldPersistent: { category: 'world', summary: 'Keeps an entity\'s whole subtree out of the partition — it belongs to the persistent world.', doc: 'world/streaming', anchor: 'declaring-a-streamed-world', anchorZh: '声明一个流送世界' },
+  WorldStreamingSource: { category: 'world', summary: 'Asks for the places near it to exist; several sources are unioned.', doc: 'world/streaming', anchor: 'asking-for-places-streaming-sources', anchorZh: '请求地方存在流送源' },
   LODGroup: { category: 'graphics', summary: 'Cheaper stand-in meshes for a MeshRenderer, chosen by how much of the screen the object covers.', doc: 'performance/level-of-detail', anchor: 'the-lodgroup-component', anchorZh: 'lodgroup-组件' },
   Video: { category: 'graphics', summary: 'Plays a video stream onto a surface in the world or the UI.', doc: 'graphics/video', anchor: 'the-video-component', anchorZh: 'video-组件' },
 

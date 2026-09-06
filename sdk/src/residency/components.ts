@@ -22,20 +22,20 @@ export interface StreamedWorldData {
      * partition: a cell is a vertical column, so a tower's floors are one place.
      */
     cellSize: number;
-    enabled: boolean;
 }
 
 /**
  * Declares the scene carrying it a streamed world, and how the cook cuts it.
  *
  * Its entity is persistent by construction — it is what says the world streams.
- * Without this component a scene loads whole, which is what a small one should.
+ * Presence is the switch: remove it and the scene loads whole, which is what a
+ * small one should do and what every scene did before.
  *
  * @experimental
  */
 export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<StreamedWorldData>(
     'StreamedWorld',
-    { cellSize: 1000, enabled: true },
+    { cellSize: 1000 },
     {
         fields: {
             cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the XZ plane.' },

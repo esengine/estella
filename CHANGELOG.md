@@ -16,6 +16,49 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **World streaming: a place exists because something is near it, and stops
+  existing when nothing is.** A scene loads whole, which is right until the world
+  is bigger than a machine wants resident at once — and then the question stops
+  being what is DRAWN and becomes what EXISTS. The cook cuts an authored world
+  into square cells on the XZ plane; at runtime `WorldStreamingSource` asks for
+  the places near it, and `WorldStreamer` is the one thing that decides.
+
+  Three authored declarations and no policy: `StreamedWorld` says a scene is cut
+  and how big the cells are, `WorldPersistent` keeps a subtree out of the
+  cutting, and `WorldStreamingSource` states one need. Several sources are
+  UNIONED rather than folded — a fold lets the last one written decide, and the
+  frame after a second camera exists it deletes the world the first is standing
+  in — which makes split screen, a spectator, a cinematic camera and an editor
+  preview one kind of thing. Distance is measured to a cell's box, not its
+  centre, because a centre answers the same for a source on a diagonal corner as
+  for one a whole cell away. A cell comes in at `loadRadius` and leaves only past
+  `unloadRadius`, so a source breathing on a boundary does not rebuild a place
+  every frame.
+
+  **Unloading is a real destroy.** A cell is an additively-loaded scene, so it
+  leaves through the scene lifecycle transaction that already exists: its
+  entities, its physics bodies, its navigating agents and its asset receipts all
+  go. A place that is merely hidden still costs memory, still collides, and still
+  lets an enemy nobody can see attack the player.
+
+  **A subtree is the unit of residency.** Only top-level entities are placed, so
+  a door cannot be sorted away from its house even when its own world position
+  falls in the next cell — the version that places each entity separately strands
+  children when their parent unloads. Hard entity references may not cross a
+  residency boundary: same cell is fine, and so is a cell naming the persistent
+  world, but one cell naming another's entity fails the build rather than
+  shipping a handle that dangles the first time a player walks away.
+
+  Residency owns existence and not continuity: a reloaded cell is rebuilt from
+  what was authored, so an enemy you walked away from comes back at full health.
+  What survives is the authored identity, which a save system can be built on.
+  `worldResidencyReport(app)` publishes counts of things that ARE, per cell,
+  because a cell that is not drawn and a cell that is not there look the same
+  from a camera. See the guide: **World → World Streaming**.
+
+  Not in this version: HLOD, streaming priority or prefetch, an asset memory
+  budget, navmesh or texture streaming, and world origin rebasing.
+
 - **Level of detail: an object can hand over to a cheaper mesh once it is small
   on screen.** A rock a hundred units away and a rock two thousand units away
   were drawn with the same number of triangles, and at two thousand almost all of

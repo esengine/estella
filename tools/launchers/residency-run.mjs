@@ -172,7 +172,7 @@ async function main() {
   const read = async () => ({
     streaming: await exec('window.__estellaCooked.streaming()'),
     at: (await exec(`window.__estellaCooked.probe(${JSON.stringify(NAMES)})`)).at,
-    combat: await exec(`window.__estellaCooked.combat("Player", ${JSON.stringify(['Enemy', 'Canary', 'Player'])})`),
+    combat: await exec(`window.__estellaCooked.combat("Player", ${JSON.stringify(['Enemy', 'Canary', 'Player', 'Wall', 'RockA', 'Arch', 'ArchTop', 'Beacon'])})`),
     ai: await exec('window.__estellaCooked.ai("Enemy")'),
   });
 
@@ -233,6 +233,31 @@ async function main() {
       continue;
     }
     if (step.do === 'tap') { await exec(tapScript(step.key, step.frames ?? 10)); continue; }
+    if (step.do === 'time') {
+      // Wall time for a batch of engine frames, with the clock already handed
+      // over: what a held world costs per frame, rather than what the runner had
+      // spare. Settled first, so an arrival is not charged to the steady state.
+      await settle();
+      const began = performance.now();
+      await exec(holdScript([], step.frames ?? 300));
+      const ms = performance.now() - began;
+      const streaming = await exec('window.__estellaCooked.streaming()');
+      console.log(`timing ${step.as}: ${JSON.stringify({
+        frames: step.frames ?? 300, ms, msPerFrame: ms / (step.frames ?? 300), streaming,
+      })}`);
+      continue;
+    }
+    if (step.do === 'arrive') {
+      // How long a gesture's worth of residency takes to finish — the load or the
+      // unload it asked for, IO included, which is what a player waits through.
+      const began = performance.now();
+      if (step.key) await exec(tapScript(step.key, 1));
+      const settled = await settle();
+      const ms = performance.now() - began;
+      const streaming = await exec('window.__estellaCooked.streaming()');
+      console.log(`timing ${step.as}: ${JSON.stringify({ ms, settled, streaming })}`);
+      continue;
+    }
     if (step.do === 'hold') { await exec(holdScript(step.keys ?? [], step.frames ?? 30)); continue; }
     if (step.do === 'walkTo') {
       if (!(await calibrate())) { stop(); server.close(); return fail('holding a key moved the character nowhere', 1); }

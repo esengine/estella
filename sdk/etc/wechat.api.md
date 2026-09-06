@@ -8143,7 +8143,6 @@ ComponentDef<StreamedWorldData>
 ## StreamedWorldData — interface @experimental
 ```
 cellSize: number
-enabled: boolean
 ```
 
 ## SubEmitterTrigger — enum @beta
@@ -10119,9 +10118,8 @@ assetRefsByCell: Record<string, number>
 authoredCellEntityCounts: Record<string, number>
 cellCount: number
 cellEntityCounts: Record<string, number>
-cellHandles: Record<string, number[]>
 cellRenderCounts: Record<string, number>
-cellStableIds: Record<string, number[]>
+cellRows: Record<string, { id: number; entity: number; }[]>
 desiredCells: string[]
 loadCount: number
 loadingCells: string[]

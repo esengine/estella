@@ -47,7 +47,12 @@ const components = JSON.parse(
 // `examples` is in the list because some fields exist to be read by a GAME:
 // Perception writes what it saw and the engine never looks at it again, so
 // judging that one by engine sources alone would call an output a dead knob.
-const { files, missing } = listTrackedSources(['src', 'sdk/src', 'desktop/src', 'native', 'plugins', 'examples']);
+//
+// `pipeline/src` because some are read by the COOK and by nothing at runtime:
+// `StreamedWorld.cellSize` decides how a world is cut. A reader still has to
+// name the component, so this widens nothing else.
+const { files, missing } = listTrackedSources(
+    ['src', 'sdk/src', 'desktop/src', 'native', 'plugins', 'examples', 'pipeline/src']);
 // A reader this gate cannot see is a field it will call dead. Naming the gap
 // beats judging a smaller corpus and printing the same green either way.
 if (missing.length) {

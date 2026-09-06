@@ -50,24 +50,26 @@ const bobberSystem = defineSystem(
  * The pair is the point: the canary proves the gesture reached the damage bus,
  * so the enemy being untouched is a handle refused, not a key that did nothing.
  */
-let remembered = 0;
+const remembered: Record<string, number> = { Enemy: 0, Beacon: 0 };
 const staleBlowSystem = defineSystem(
     [Res(Input), GetWorld(), EventWriter(Damage)],
     (input: InputState, world: World, damage: EventWriterInstance<DamagePayload>) => {
-        // Remembered ONCE. Refreshing it every frame is how a test for a stale
-        // handle quietly becomes a test for a live one: after the cell comes back
-        // the name resolves again, to a different entity.
-        if (remembered === 0) {
-            const enemy = world.findEntityByName('Enemy');
-            if (enemy !== null) remembered = enemy;
+        // Remembered ONCE each. Refreshing them is how a test for a stale handle
+        // quietly becomes a test for a live one: after the cell comes back the
+        // name resolves again, to a different entity.
+        for (const name of Object.keys(remembered)) {
+            if (remembered[name] !== 0) continue;
+            const entity = world.findEntityByName(name);
+            if (entity !== null) remembered[name] = entity;
         }
-        if (!input.isKeyPressed('KeyJ') || remembered === 0) return;
+        if (!input.isKeyPressed('KeyJ')) return;
         const player = world.findEntityByName('Player') ?? 0;
-        const canary = world.findEntityByName('Canary');
-        damage.send({ target: remembered, source: player, amount: 25, x: 0, y: 0, z: 0 });
-        if (canary !== null) {
-            damage.send({ target: canary, source: player, amount: 25, x: 0, y: 0, z: 0 });
-        }
+        const blow = (target: number): void => {
+            if (target !== 0) damage.send({ target, source: player, amount: 25, x: 0, y: 0, z: 0 });
+        };
+        blow(remembered.Enemy);
+        blow(remembered.Beacon);
+        blow(world.findEntityByName('Canary') ?? 0);
     },
     { name: 'StaleBlowSystem' },
 );

@@ -1,0 +1,130 @@
+---
+title: World Streaming
+description: Cut a large world into cells at cook time and let residency decide which of them exist — streaming sources, load and unload radii, what a persistent world holds, and the rules a cell has to obey.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A scene loads whole. That is the right answer until the world is bigger than a
+machine wants resident at once — and then the question stops being "what is
+drawn" and becomes **"what exists"**. World streaming answers the second one: the
+cook cuts an authored world into square cells, and at runtime a cell exists
+because something is near it, and stops existing when nothing is.
+
+Nothing about this is a visibility trick. A cell that leaves is destroyed: its
+entities, its physics bodies, its navigating agents and its asset references all
+go. That is the point — a place that is merely hidden still costs memory, still
+collides, and still lets an enemy nobody can see attack the player.
+
+## Declaring a streamed world
+
+Two components, both authored in the scene:
+
+```typescript
+// On the world's settings entity: this scene is cut into 1000-unit cells.
+world.insert(settings, StreamedWorld, { cellSize: 1000 });
+
+// On everything that must never be streamed away.
+world.insert(player, WorldPersistent, {});
+world.insert(camera, WorldPersistent, {});
+world.insert(sun, WorldPersistent, {});
+```
+
+Everything else is placed into a cell by **where its top-level entity stands**.
+A scene with no `StreamedWorld` in it is not a streamed world and loads exactly
+as it always did.
+
+<Aside type="note">
+`WorldPersistent` is not scene persistence. `SceneContext.setPersistent` decides
+whether an entity survives a scene *switch*; `WorldPersistent` decides which
+cooked scene an entity is written into, and therefore whether residency can
+remove it at all.
+</Aside>
+
+## Asking for places: streaming sources
+
+A cell exists because a **source** is near it:
+
+```typescript
+world.insert(player, WorldStreamingSource, {
+    loadRadius: 2000,     // cells this close are brought in
+    unloadRadius: 3000,   // resident cells are kept until past this
+});
+```
+
+Several sources may exist, and what they ask for is **unioned** — a cell any one
+of them needs stays resident. That is what makes split screen, a spectator
+camera, a cinematic camera and an editor preview the same kind of thing rather
+than four special cases. Nothing folds them into a single focus, because a fold
+lets the last one written decide, and the frame after a second camera exists it
+deletes the world the first is standing in.
+
+Distance is measured to the cell's **box**, not its centre: to a centre, a source
+standing on a diagonal corner reads the same as one a whole cell away, which is
+where holes open along the diagonals of a grid.
+
+### The band between the two radii
+
+A cell comes in at `loadRadius` and only leaves once it is past `unloadRadius`.
+The gap between them is the whole reason both exist: a source standing on a
+boundary would otherwise spend every frame instantiating and destroying a place.
+Set `unloadRadius` comfortably larger than `loadRadius` — half again is a good
+starting point.
+
+## What the cook produces
+
+Partitioning happens at **cook time**, not at boot:
+
+```
+main.esscene ──cook──▶ main.esscene          the persistent world
+                       world/main.world.json the manifest
+                       world/main.cell_0_0.json
+                       world/main.cell_1_0.json ...
+```
+
+The entry scene the package boots is what is left after the cells are taken out
+of it — the things residency never removes. Cells are **not** switchable scenes:
+they are content residency brings in, and a game never names one.
+
+Cells are cut on the XZ plane only. A cell is a vertical column, so a tower's
+floors are one place.
+
+## The rules a streamed world has to obey
+
+**A subtree is the unit of residency.** Only top-level entities are placed, so a
+door cannot be sorted away from its house even if the door's world position falls
+in the next cell. A cell's box grows to cover its content, so a prop hanging over
+the edge does not pop in at the boundary.
+
+**Hard entity references may not cross a residency boundary.** Two entities in
+one cell may reference each other; so may anything in the persistent world; and a
+cell may reference the persistent world, which outlives it. A reference from one
+cell into another — or from the persistent world into a cell — fails the build,
+because either one points at something residency is entitled to delete.
+
+**Residency owns existence; it does not own continuity.** A cell that unloads
+loses its runtime state, and reloading rebuilds it from what was authored. An
+enemy at 25 health that you walk away from comes back at full health. What does
+survive is the entity's authored identity, which is what a save system will be
+built on later.
+
+## Reading what is resident
+
+```typescript
+const report = worldResidencyReport(app);
+report.residentCells;        // ['main.cell_1_0', 'main.cell_2_0']
+report.cellEntityCounts;     // live entities each resident cell owns
+report.loadCount;            // places brought in since boot
+```
+
+Counts rather than a picture, because a cell that is not drawn and a cell that
+does not exist look the same from a camera.
+
+## What this version does not do
+
+Cells load asynchronously through the same scene loading a game already uses, but
+there is no priority, no prefetch and no budget yet: a large cell arriving is a
+hitch. There is no HLOD, so a place that is not resident is not represented at
+all in the distance. Navigation meshes are not streamed — a world-sized navmesh
+stays resident. Neither is texture streaming, and the world origin is never
+rebased.

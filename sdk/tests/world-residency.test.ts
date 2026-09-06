@@ -11,6 +11,9 @@ import {
 } from '../src/residency/cells';
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
 import type { WorldManifest } from '../src/residency/cells';
+import { World } from '../src/ecs/world';
+import { Health, applyDamage } from '../src/gameplay/Health';
+import { makeEntity, entityIndex, entityGeneration } from '../src/types';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 
@@ -191,5 +194,29 @@ describe('WorldStreamer', () => {
         streamer.update([source(50, 50, 10, 20)]);
         await flush();
         expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+    });
+});
+
+describe('a handle that no longer names its entity', () => {
+    it('does not reach the entity holding its slot', () => {
+        // What residency makes ordinary: an event in flight carries a handle
+        // whose index is live and whose generation is not, and anything keying by
+        // index lands the blow on a stranger.
+        const world = new World();
+        const live = world.spawn();
+        world.insert(live, Health, { current: 25, max: 25 });
+
+        const stale = makeEntity(entityIndex(live), entityGeneration(live) + 1);
+        expect(entityIndex(stale)).toBe(entityIndex(live));
+        expect(stale).not.toBe(live);
+        expect(world.valid(stale)).toBe(false);
+
+        applyDamage(world, [{ target: stale, source: live, amount: 25, x: 0, y: 0, z: 0 }]);
+        expect(world.get(live, Health).current).toBe(25);
+
+        // …and the live handle still works, so the refusal above is about the
+        // generation and not about damage being broken.
+        applyDamage(world, [{ target: live, source: live, amount: 10, x: 0, y: 0, z: 0 }]);
+        expect(world.get(live, Health).current).toBe(15);
     });
 });

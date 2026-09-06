@@ -31,6 +31,8 @@ const A = 'main.cell_0_0';
 const B = 'main.cell_1_0';
 const C = 'main.cell_2_0';
 const D = 'main.cell_0_5';
+/** The enemy's authored row in the fixture — what its handle is looked up by. */
+const ENEMY_ROW = 31;
 
 function packageGame() {
     rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
@@ -98,6 +100,16 @@ function main() {
         { do: 'read', as: 'scoutOff' },
         { do: 'tap', key: 'KeyM', frames: 20 },
         { do: 'watch', as: 'bobbed', name: 'Bobber', axis: 'z', frames: 400, every: 20 },
+        // One cell, alone: nothing else loads between its unload and its reload,
+        // so the handle slot it gives up is the one it gets back — which is the
+        // arrangement a stale handle is actually dangerous in.
+        { do: 'read', as: 'beaconFirst' },
+        { do: 'tap', key: 'KeyM', frames: 30 },
+        { do: 'read', as: 'beaconGone' },
+        { do: 'tap', key: 'KeyM', frames: 30 },
+        { do: 'read', as: 'beaconBack' },
+        { do: 'tap', key: 'KeyJ', frames: 30 },
+        { do: 'read', as: 'beaconBlown' },
     ]);
 
     const initial = start.initial;
@@ -136,6 +148,24 @@ function main() {
     claim(resident(bobbed, D) && loads === 1 && unloads === 0,
         'and a boundary it breathes across loads the place once and keeps it',
         `${loads} load(s), ${unloads} unload(s) over 400 frames`);
+
+    // ---- 10a. A blow held across ONE cell's whole lifetime ---------------
+    const wasBeacon = (start.beaconFirst.streaming.cellRows[D] ?? [])[0];
+    const isBeacon = (start.beaconBack.streaming.cellRows[D] ?? [])[0];
+    claim(start.beaconGone.at.Beacon === undefined && isBeacon !== undefined
+        && wasBeacon !== undefined && wasBeacon.entity !== isBeacon.entity,
+        'a place that leaves and comes back mints a new handle for the same row',
+        `row ${wasBeacon?.id}: ${wasBeacon?.entity} then ${isBeacon?.entity}`);
+    // Which slot comes back is the allocator's business, not a contract, so it is
+    // reported rather than claimed. The generation's guarantee is held to where it
+    // lives — sdk/tests/world-residency.test.ts fabricates a handle to test it.
+    console.log(`  slot ${slot(wasBeacon?.entity ?? 0)} gave way to slot ${slot(isBeacon?.entity ?? 0)}`);
+    claim(start.beaconBlown.combat.targets.Beacon.health
+        === start.beaconBlown.combat.targets.Beacon.max
+        && start.beaconBlown.combat.targets.Canary.health < 100,
+        'and the blow held over that lifetime lands on nobody while the live one lands',
+        `beacon at ${start.beaconBlown.combat.targets.Beacon.health}, `
+        + `canary at ${start.beaconBlown.combat.targets.Canary.health}`);
 
     // ---- 2/3/4/7/8. The journey ------------------------------------------
     const trip = drive(dir, 'journey', [
@@ -187,13 +217,12 @@ function main() {
         && back.streaming.hunters === 1 && back.streaming.navAgents === 1,
         'coming back builds the place once, not twice',
         `${entities(back, B)}/${authored(back, B)} entities, ${back.streaming.hunters} hunter(s)`);
-    const sameRows = JSON.stringify(back.streaming.cellStableIds[B])
-        === JSON.stringify(atB.streaming.cellStableIds[B]);
-    const newHandles = JSON.stringify(back.streaming.cellHandles[B])
-        !== JSON.stringify(atB.streaming.cellHandles[B]);
-    claim(sameRows && newHandles,
+    const rowsOf = (r) => (r.streaming.cellRows[B] ?? []).map((row) => row.id);
+    const handlesOf = (r) => (r.streaming.cellRows[B] ?? []).map((row) => row.entity);
+    claim(JSON.stringify(rowsOf(back)) === JSON.stringify(rowsOf(atB))
+        && JSON.stringify(handlesOf(back)) !== JSON.stringify(handlesOf(atB)),
         'with the same authored rows and different runtime handles',
-        `rows ${JSON.stringify(back.streaming.cellStableIds[B])}`);
+        `rows ${JSON.stringify(rowsOf(back))}`);
 
     // ---- 7. The persistent world is not rebuilt --------------------------
     const persistent = JSON.stringify(trip.atA.streaming.persistentHandles);
@@ -237,21 +266,32 @@ function main() {
         { do: 'tap', key: 'KeyJ', frames: 30 },
         { do: 'read', as: 'blown' },
     ]);
-    const before = stale.met.streaming.cellHandles[B] ?? [];
-    const after = stale.back.streaming.cellHandles[B] ?? [];
-    const reused = before.some((h) => after.some((n) => slot(n) === slot(h) && n !== h));
+    const before = stale.met.streaming.cellRows[B] ?? [];
+    const after = stale.back.streaming.cellRows[B] ?? [];
+    const remembered = before.find((row) => row.id === ENEMY_ROW);
+    // Whoever holds that slot NOW — anywhere, since a freed one goes to whichever
+    // place loads next. Every cell entity carries Health on purpose, so a blow
+    // that landed is visible whichever of them inherited it.
+    const everywhere = Object.values(stale.blown.streaming.cellRows).flat();
+    const current = after.find((row) => row.id === ENEMY_ROW);
+    const inherited = everywhere.find((row) => slot(row.entity) === slot(remembered?.entity ?? -1));
     claim(stale.gone.at.Enemy === undefined && after.length === before.length,
         'the enemy a blow was aimed at really did stop existing');
+    claim(remembered !== undefined && current !== undefined && remembered.entity !== current.entity,
+        'and the handle it was aimed at no longer names it',
+        `row ${remembered?.id}: ${remembered?.entity} then ${current?.entity}`
+        + (inherited ? `; its slot is now row ${inherited.id}` : '; its slot is unheld'));
     claim(stale.blown.combat.targets.Canary.health < 100,
         'the gesture reached the damage bus',
         `canary at ${stale.blown.combat.targets.Canary.health}`);
-    claim(stale.blown.combat.targets.Enemy.health === stale.blown.combat.targets.Enemy.max,
+    const hurt = Object.entries(stale.blown.combat.targets)
+        .filter(([name, t]) => name !== 'Canary' && name !== 'Player' && t.health !== t.max)
+        .map(([name, t]) => `${name} at ${t.health}`);
+    claim(hurt.length === 0,
         'and the blow held for the entity that left landed on nobody',
-        `enemy at ${stale.blown.combat.targets.Enemy.health}, slot reused: ${reused}`);
-    // Without a reused slot the claim above is true for a duller reason, so say so.
-    if (!reused) {
-        console.log('  note: no handle slot was recycled in this run — the claim is weaker than it reads');
-    }
+        hurt.length === 0
+            ? `${Object.keys(stale.blown.combat.targets).length} targets, all whole`
+            : hurt.join(', '));
 
     const failed = results.filter((r) => !r.ok).length;
     console.log(`\nworld-residency: ${results.length - failed}/${results.length}`);

@@ -199,7 +199,6 @@ export function partitionWorld(
     for (const entry of entries) {
         if (!hasComponent(entry, 'StreamedWorld')) continue;
         const declaration = componentData(entry, 'StreamedWorld');
-        if (declaration && declaration.enabled === false) return null;
         cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
         break;
     }

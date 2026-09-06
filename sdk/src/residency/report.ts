@@ -40,10 +40,12 @@ export interface WorldResidencyReport {
     assetRefsByCell: Record<string, number>;
     /** What the cook put in each cell — the number a live count is checked against. */
     authoredCellEntityCounts: Record<string, number>;
-    /** The authored rows each resident cell instantiated; unchanged by a reload. */
-    cellStableIds: Record<string, number[]>;
-    /** The runtime handles those rows currently have; a reload mints new ones. */
-    cellHandles: Record<string, number[]>;
+    /**
+     * Each resident cell's authored rows and the handle each one currently has.
+     * The row survives a reload and the handle does not, which is the difference
+     * between an identity and a way to reach something that exists.
+     */
+    cellRows: Record<string, Array<{ id: number; entity: number }>>;
     /** Live entities the persistent world owns; residency never touches these. */
     persistentEntities: number;
     /** Their handles. Unchanged for the life of the world — that is the claim. */
@@ -55,7 +57,7 @@ const EMPTY: WorldResidencyReport = {
     desiredCells: [], residentCells: [], loadingCells: [], unloadingCells: [],
     loadCount: 0, unloadCount: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
-    authoredCellEntityCounts: {}, cellStableIds: {}, cellHandles: {},
+    authoredCellEntityCounts: {}, cellRows: {},
     persistentEntities: 0, persistentHandles: [],
 };
 
@@ -76,8 +78,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
     const cellRenderCounts: Record<string, number> = {};
     const assetRefsByCell: Record<string, number> = {};
     const authoredCellEntityCounts: Record<string, number> = {};
-    const cellStableIds: Record<string, number[]> = {};
-    const cellHandles: Record<string, number[]> = {};
+    const cellRows: Record<string, Array<{ id: number; entity: number }>> = {};
     const drawing = renderableComponents();
     for (const cell of manifest.cells) {
         authoredCellEntityCounts[cell.name] = cell.entityCount;
@@ -86,18 +87,15 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         // between "not here" and "here and empty" that a zero would hide.
         if (context === null) continue;
         let drawn = 0;
-        const stable: number[] = [];
-        const handles: number[] = [];
+        const rows: Array<{ id: number; entity: number }> = [];
         for (const entity of context.entities) {
             if (drawing.some((component) => app.world.has(entity, component))) drawn++;
             const authored = stableEntityId(app, entity);
-            if (authored !== undefined) stable.push(authored);
-            handles.push(entity);
+            if (authored !== undefined) rows.push({ id: authored, entity });
         }
         cellEntityCounts[cell.name] = context.entities.size;
         cellRenderCounts[cell.name] = drawn;
-        cellStableIds[cell.name] = stable.sort((a, b) => a - b);
-        cellHandles[cell.name] = handles.sort((a, b) => a - b);
+        cellRows[cell.name] = rows.sort((a, b) => a.id - b.id);
         assetRefsByCell[cell.name] = scenes.assetScopeFor(cell.name)?.size ?? 0;
     }
 
@@ -113,7 +111,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         loadCount: status.loadCount,
         unloadCount: status.unloadCount,
         cellEntityCounts, cellRenderCounts, assetRefsByCell, authoredCellEntityCounts,
-        cellStableIds, cellHandles,
+        cellRows,
         persistentEntities: persistent.length,
         persistentHandles: persistent,
     };

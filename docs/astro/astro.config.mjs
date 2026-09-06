@@ -287,6 +287,7 @@ export default defineConfig({
             { label: 'Prefabs', translations: { 'zh-CN': '预制体' }, slug: 'world/prefabs' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'world/tilemaps' },
             { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'world/particles' },
+            { label: 'World Streaming', translations: { 'zh-CN': '世界流送' }, slug: 'world/streaming' },
           ],
         },
         {

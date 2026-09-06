@@ -64,8 +64,7 @@
         {
           "type": "StreamedWorld",
           "data": {
-            "cellSize": 600,
-            "enabled": true
+            "cellSize": 600
           }
         }
       ]
@@ -436,6 +435,13 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
         }
       ]
     },
@@ -491,6 +497,13 @@
               "b": 0.3,
               "a": 1
             }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
           }
         }
       ]
@@ -633,6 +646,13 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
         }
       ]
     },
@@ -672,6 +692,13 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
         }
       ]
     },
@@ -710,6 +737,13 @@
               "b": 0.4,
               "a": 1
             }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
           }
         }
       ]
