@@ -485,18 +485,20 @@ async function boot(): Promise<void> {
        * shows on no system timer, while registering what it spawned happens
        * inside systems on the frames after. Engaging the stats fills this.
        */
-      costs(top = 8): { on: boolean; systems: Array<{ name: string; ms: number }> } {
+      costs(): { on: boolean; systems: Array<{ name: string; ms: number; domain: string }> } {
         // Engaged once. Re-enabling every call swaps the maps the frame just
         // filled, which reads as an engine that costs nothing.
         if (!statsOn) { app.enableStats(); statsOn = true; }
         const costs = app.getFrameCosts();
         if (!costs) return { on: false, systems: [] };
+        // EVERY system, not the dearest few: what a caller wants to know about
+        // an arrival frame is how much of it the breakdown explains, and a
+        // truncated list can only ever be a lower bound on its own total.
         return {
           on: true,
           systems: [...costs.systems]
-            .map((s) => ({ name: s.name, ms: s.ms }))
-            .sort((a, b) => b.ms - a.ms)
-            .slice(0, top),
+            .map((s) => ({ name: s.name, ms: s.ms, domain: s.domain }))
+            .sort((a, b) => b.ms - a.ms),
         };
       },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.

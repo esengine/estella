@@ -253,7 +253,7 @@ async function main() {
         // Stats need a frame to fill, so they are engaged before the first
         // sample rather than by the first expensive one — which is the frame
         // whose breakdown matters most.
-        window.__estellaCooked.costs(1);
+        window.__estellaCooked.costs();
         await window.__estellaCooked.step(1, 1 / 60);
         ${step.key ? `send('keydown', ${JSON.stringify(step.key)});` : ''}
         const out = [];
@@ -265,9 +265,17 @@ async function main() {
           const s = window.__estellaCooked.streaming();
           const row = { ms, resident: s.residentCells.length, loading: s.loadingCells.length,
                         entities: s.entities, bodies: s.physicsBodies, physicsUp: s.physicsUp };
-          // Only where it can matter: a system breakdown of every frame is more
-          // data than a profile of one arrival needs.
-          if (ms > ${step.costsAbove ?? 1.5}) row.costs = window.__estellaCooked.costs(6);
+          // Rolled up here, per frame: a steady state needs the cheap frames
+          // broken down too, and sending every system of every frame overruns
+          // the pipe to the bench (which reads as "nothing was measured").
+          const costs = window.__estellaCooked.costs();
+          row.on = costs.on;
+          row.domains = {};
+          for (const c of costs.systems) row.domains[c.domain] = (row.domains[c.domain] ?? 0) + c.ms;
+          for (const d of Object.keys(row.domains)) row.domains[d] = Math.round(row.domains[d] * 1000) / 1000;
+          // The per-SYSTEM detail only where it can matter: which system inside a
+          // domain is a question worth asking of an expensive frame alone.
+          if (ms > ${step.costsAbove ?? 1.5}) row.costs = costs.systems.filter((c) => c.ms > 0.01);
           out.push(row);
           // A macrotask turn between frames. Awaiting a step only drains
           // MICROtasks, and a cell arrives over the network — so a loop without
