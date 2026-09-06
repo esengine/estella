@@ -57,6 +57,7 @@ export const progressSystem = defineSystem(
                 if (point.reached || z > point.armZ) continue;
                 point.reached = true;
                 run.respawn = { x: at.position.x, y: at.position.y, z: at.position.z };
+                run.checkpoint = point.id;
             }
         }
     },

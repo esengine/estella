@@ -33,6 +33,9 @@ export const Checkpoint = defineComponent('Checkpoint', {
     /** Z the runner must reach for this to become the one it returns to. */
     armZ: 0,
     reached: false,
+    /** What this place is called, for anything outside the game that has to name
+     *  it. A stable id and not an entity: re-serialising a scene renumbers one. */
+    id: '',
 });
 
 export const HealthMeter = defineTag('HealthMeter');

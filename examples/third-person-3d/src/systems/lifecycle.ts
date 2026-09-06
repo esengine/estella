@@ -53,6 +53,7 @@ export const lifecycleSystem = defineSystem(
             run.cores = 0;
             run.elapsed = 0;
             run.respawn = { ...SPAWN };
+            run.checkpoint = '';
             for (const [, core, mesh] of cores) { core.taken = false; mesh.enabled = true; }
             for (const [, gate, mesh] of gates) { gate.open = false; mesh.enabled = true; }
             for (const [, point] of checkpoints) point.reached = false;

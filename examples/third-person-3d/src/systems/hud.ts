@@ -2,7 +2,7 @@ import {
     defineSystem, Res, ResMut, Query, Mut,
     Text, UIVisual, Health, Playthrough, type PlaythroughData,
 } from 'esengine';
-import { Runner, HealthMeter, ObjectiveText, PromptText, OverlayText } from '../components';
+import { Runner, Gate, HealthMeter, ObjectiveText, PromptText, OverlayText } from '../components';
 import { Run, MAX_HEALTH, CORES_NEEDED, type RunData } from '../resources';
 
 const clock = (seconds: number): string => {
@@ -67,22 +67,24 @@ export const openingSystem = defineSystem(
  * judged on, published by the game that owns them.
  */
 export const factsSystem = defineSystem(
-    [Res(Run), Query(Health, Runner), ResMut(Playthrough)],
-    (run: RunData, runners, factsMut) => {
+    [Res(Run), Query(Health, Runner), Query(Gate), ResMut(Playthrough)],
+    (run: RunData, runners, gates, factsMut) => {
         let health = 0;
         for (const [, hp] of runners) health = hp.current;
+        let gateOpen = false;
+        for (const [, gate] of gates) gateOpen = gateOpen || gate.open;
         const out = factsMut.get() as PlaythroughData;
+        // `phase` is the authority on what the run IS; nothing here restates it
+        // as a second flag. `dead` and `paused` are the two a route stops on.
         out.facts = {
             phase: run.phase,
             health,
             dead: run.phase === 'dead',
             paused: run.phase === 'paused',
-            victory: run.phase === 'won',
-            cores: run.cores,
-            coresNeeded: CORES_NEEDED,
-            gateOpen: run.cores >= CORES_NEEDED,
-            checkpointZ: run.respawn.z,
-            elapsed: Math.round(run.elapsed),
+            checkpoint: run.checkpoint,
+            coresCollected: run.cores,
+            coresRequired: CORES_NEEDED,
+            gateOpen,
         };
     },
     { name: 'PlaythroughFactsSystem' },
