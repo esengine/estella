@@ -4,8 +4,9 @@
  * The claim: a character off the ground stops looking like one standing on it.
  * Through the SHIPPED graph and clip — a fixture pair proves nothing about them.
  *
- * Two cases here pass alone and fail in a full-suite run, and have since before
- * the Streaming Delivery work. See "Known debt" in `sdk/tests/README.md`.
+ * Two cases here fail under this package's vitest config and pass under the repo
+ * root's, because the shared `tests/setup.ts` clears engine components. See
+ * "Known debt" in `sdk/tests/README.md`.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

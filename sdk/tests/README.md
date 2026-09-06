@@ -19,28 +19,45 @@ and `--update` refuses to add any.
 
 ## Known debt
 
-### `airborne.test.ts` is order-dependent in full-suite runs
+### `airborne.test.ts`: the shared setup clears engine components
 
 Two of its cases (`tilts about X, which every ground clip leaves alone` and
-`is far enough from every other shipped pose to be told apart`) **pass on their
-own and fail in a full-suite run**:
+`is far enough from every other shipped pose to be told apart`) fail under this
+package's vitest config and pass under the repo root's — **the same single file,
+the same code, no other test running**:
 
 ```bash
-npx vitest run sdk/tests/airborne.test.ts   # 10 passed
-cd sdk && npx vitest run                    # 2 failed
+npx vitest run sdk/tests/airborne.test.ts   # from the repo root: 10 passed
+cd sdk && npx vitest run tests/airborne.test.ts   # 2 failed
 ```
 
-Four facts, so nobody investigates this as a new red:
+So this is **not** order dependence, and not cross-file state leakage. It was
+first recorded as "order-dependent in full-suite runs"; that reading came from
+comparing a root-config run against a package-config run and reading the
+difference as isolation. Bisecting the config difference names the trigger
+exactly: with `setupFiles: ['tests/setup.ts']` removed and everything else
+identical, the file passes 10/10.
 
-- Isolated: green. Full suite: red. The two runs disagree about the same code.
-- Reproduced on a **worktree at HEAD before the Streaming Delivery work**, and
-  again with that work's own test file excluded. It predates those changes.
-- **No evidence ties it to residency / prefetch / publication.** Its imports are
-  gameplay, animation, timeline and ECS; nothing it reads was touched.
-- The fix is to find what leaks state between files and restore isolation.
-  **Widening the assertions, retrying, or pinning the execution order are not
-  fixes** — they hide the leak, and the leak is what makes some other suite's
-  green untrustworthy too.
+`tests/setup.ts` runs `clearUserComponents()` before every test. Engine
+components — animation, timeline, AI, audio, physics joints, UI text, tilemap —
+`defineComponent` at SDK module load into the **same per-app user registry** a
+project's own components use (see the comment above `markEngineComponentBaseline`
+in `src/ecs/component.ts`). Clearing it drops those too, with nothing to put them
+back, so the animator writes nothing into the joint and the sampled pose stays
+identity — which is a pose no clip can be told apart from.
+
+**The obvious one-line fix does not work.** `seedEngineComponents()` exists for
+exactly this, but it is a no-op until `markEngineComponentBaseline()` has run,
+and setup files execute *before* the test file's imports — so at setup time the
+engine components this file needs are not registered yet and there is nothing to
+snapshot. Any fix has to establish the baseline after collection (the first
+`beforeEach` is the earliest such point) and reseed after each clear, which
+changes the component-registry lifetime for all 509 test files. That deserves its
+own change with a full-suite before/after, not a patch here.
+
+**Widening the assertions, retrying, or pinning execution order are not fixes** —
+they hide a registry lifetime bug that makes some other suite's green
+untrustworthy too.
 
 ## Running Tests
 
