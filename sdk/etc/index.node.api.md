@@ -10234,6 +10234,7 @@ prefetchRequests: number
 prepareCount: number
 preparedCells: string[]
 preparedWithRenderClaim: string[]
+renderClaims: Record<string, RenderReadinessStamp & { restamps: number; }>
 residentCells: string[]
 sourceCount: number
 streamed: boolean

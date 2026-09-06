@@ -61,7 +61,8 @@ function drive(dir, name, steps) {
     ], { encoding: 'utf8', cwd: ROOT });
     const readings = {};
     for (const line of (r.stdout || '').split('\n')) {
-        const at = Math.max(line.indexOf('reading '), line.indexOf('watching '));
+        const at = Math.max(...['reading ', 'watching ', 'lostDevice ', 'readiness ', 'counters ']
+            .map((p) => line.indexOf(p)));
         if (at < 0) continue;
         const label = line.slice(line.indexOf(' ', at) + 1, line.indexOf(':', at));
         try {
@@ -344,6 +345,78 @@ function main() {
         hurt.length === 0
             ? `${Object.keys(stale.blown.combat.targets).length} targets, all whole`
             : hurt.join(', '));
+
+    // ---- 5. A readiness claim across a device generation ----------------
+    //
+    // The epoch says readiness taken before a rebuild is worth nothing, and
+    // publication is where that debt comes due. All four facts are read.
+    const CELL_COMPILES = 'render.mesh.programCompiles';
+    const revalidate = drive(dir, 'readiness-across-loss', [
+        { do: 'step', frames: 30 },
+        // Engage the profiler before the interesting frames, not during them.
+        { do: 'counters', as: 'warmup' },
+        { do: 'readiness', as: 'beforeLoss', cell: C },
+        { do: 'loseDevice', as: 'lost' },
+        { do: 'readiness', as: 'afterLoss', cell: C },
+        // Demand C. Publication has to re-establish readiness before it can show
+        // anything, and the peak across the window is where a cold compile lands.
+        { do: 'tap', key: 'KeyL', frames: 1 },
+        { do: 'counters', as: 'atReveal', frames: 60 },
+        { do: 'readiness', as: 'afterPublish', cell: C },
+        { do: 'read', as: 'revealed' },
+    ]);
+
+    const preLoss = revalidate.beforeLoss;
+    const afterLoss = revalidate.afterLoss;
+    const afterPublish = revalidate.afterPublish;
+    claim(preLoss.claim !== null && preLoss.claim.restamps === 0,
+        'a readied cell holds a claim before anything takes the device away',
+        `claim ${JSON.stringify(preLoss.claim)}`);
+    claim(afterLoss.device.generation > preLoss.device.generation,
+        'losing the device and recovering advances the device generation',
+        `generation ${preLoss.device.generation} → ${afterLoss.device.generation}`);
+    claim(afterLoss.device.programEpoch > preLoss.device.programEpoch,
+        'and the program epoch too, independently — the stock cache went cold',
+        `epoch ${preLoss.device.programEpoch} → ${afterLoss.device.programEpoch}`);
+    claim(afterLoss.claim !== null
+        && afterLoss.claim.programEpoch === preLoss.claim?.programEpoch,
+        'the claim the cell is holding is now from a dead epoch, and it still holds it',
+        `still ${JSON.stringify(afterLoss.claim)}`);
+    claim(afterPublish.claim !== null
+        && afterPublish.claim.programEpoch === afterLoss.device.programEpoch
+        && afterPublish.claim.restamps === 1,
+        'publishing it replaced the stale claim with one from the live epoch',
+        `claim ${JSON.stringify(afterPublish.claim)}`);
+    claim(resident(revalidate.revealed, C),
+        'the cell published', `resident ${JSON.stringify(revalidate.revealed.streaming.residentCells)}`);
+    // Soundness, not attribution: this fixture's cells share variants with the one
+    // the player stands in, whose draws rebuild them after a loss regardless. A
+    // zero says no first frame met a cold program; who warmed it is readiness.mjs's.
+    claim((revalidate.atReveal[CELL_COMPILES] ?? 0) === 0,
+        'and nothing compiled on the frames that first showed it',
+        `${CELL_COMPILES} peaked at ${revalidate.atReveal[CELL_COMPILES] ?? 0}`);
+
+    // The control arm. Without it, a publication that re-readies unconditionally
+    // passes everything above while paying the cost prefetching exists to avoid.
+    const quiet = drive(dir, 'readiness-no-loss', [
+        { do: 'step', frames: 30 },
+        { do: 'counters', as: 'warmup' },
+        { do: 'readiness', as: 'beforePublish', cell: C },
+        { do: 'tap', key: 'KeyL', frames: 1 },
+        { do: 'counters', as: 'atReveal', frames: 60 },
+        { do: 'readiness', as: 'afterPublish', cell: C },
+        { do: 'read', as: 'revealed' },
+    ]);
+    claim(quiet.afterPublish.claim !== null && quiet.afterPublish.claim.restamps === 0,
+        'a dwell in which nothing moved publishes on the claim it was prepared with',
+        `restamps ${quiet.afterPublish.claim?.restamps}`);
+    claim(quiet.afterPublish.claim?.digestLo === quiet.beforePublish.claim?.digestLo
+        && quiet.afterPublish.claim?.programEpoch === quiet.beforePublish.claim?.programEpoch,
+        'and the claim it publishes on is the same claim, not a fresh one',
+        `${JSON.stringify(quiet.beforePublish.claim)} → ${JSON.stringify(quiet.afterPublish.claim)}`);
+    claim((quiet.atReveal[CELL_COMPILES] ?? 0) === 0,
+        'with nothing compiled at first sight either',
+        `${CELL_COMPILES} peaked at ${quiet.atReveal[CELL_COMPILES] ?? 0}`);
 
     const failed = results.filter((r) => !r.ok).length;
     console.log(`\nworld-residency: ${results.length - failed}/${results.length}`);

@@ -19,7 +19,8 @@
  *     --log <regex>      also print console lines matching this
  *
  * A script is a list of steps: {do:"read",as},  {do:"walkTo",x,z},
- * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count}. Each read
+ * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count},
+ * {do:"loseDevice",as}, {do:"readiness",as,cell}, {do:"counters",as}. Each read
  * prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
@@ -222,6 +223,45 @@ async function main() {
       continue;
     }
     if (step.do === 'step') { await exec(holdScript([], step.frames ?? 30)); continue; }
+    if (step.do === 'loseDevice') {
+      // One action, then wait. Whether recovery is CORRECT belongs to the
+      // renderer's own device-loss corpus; what this exists for is what an old
+      // readiness claim is worth once recovery has finished.
+      const supported = await exec('window.__estellaCooked.loseDevice()');
+      if (!supported) { stop(); server.close(); return fail('no WEBGL_lose_context here', 2); }
+      const wanted = step.generation ?? 1;
+      let device = null;
+      for (let waited = 0; waited < (step.frames ?? 600); waited += 20) {
+        await exec(holdScript([], 20));
+        device = await exec('window.__estellaCooked.device()');
+        if (!device.lost && device.generation >= wanted) break;
+      }
+      console.log(`lostDevice ${step.as}: ${JSON.stringify(device)}`);
+      continue;
+    }
+    if (step.do === 'readiness') {
+      await settle();
+      const claim = await exec(
+        `window.__estellaCooked.readiness(${JSON.stringify(step.cell)})`);
+      const device = await exec('window.__estellaCooked.device()');
+      console.log(`readiness ${step.as}: ${JSON.stringify({ claim, device })}`);
+      continue;
+    }
+    if (step.do === 'counters') {
+      // The PEAK across the window, not the last frame's. A cold compile happens
+      // on one frame — the first one that shows the content — and a single
+      // reading taken after it reports the zero of every frame since.
+      const seen = {};
+      for (let i = 0; i < (step.frames ?? 1); i++) {
+        if (i > 0) await exec(holdScript([], 1));
+        const c = await exec('window.__estellaCooked.render()');
+        for (const [k, v] of Object.entries(c)) {
+          seen[k] = Math.max(seen[k] ?? 0, Number(v) || 0);
+        }
+      }
+      console.log(`counters ${step.as}: ${JSON.stringify(seen)}`);
+      continue;
+    }
     if (step.do === 'watch') {
       // Sample while it runs, so a claim about a source CROSSING a threshold can
       // say it crossed. One reading at the end cannot: a source that never moved

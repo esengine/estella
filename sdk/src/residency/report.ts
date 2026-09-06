@@ -17,6 +17,7 @@
 import type { App } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, type CellDelivery } from './WorldStreamer';
+import type { RenderReadinessStamp } from '../render/renderReadiness';
 import { stableEntityId } from './identity';
 import { renderableComponents } from '../ecs/component';
 
@@ -35,6 +36,9 @@ export interface WorldResidencyReport {
     /** Of those, the ones holding a render-program claim. A prepared cell with
      *  none was readied by a host that has no renderer to ready. */
     preparedWithRenderClaim: string[];
+    /** Each of those claims, and how often publication found one stale. Absent
+     *  from the map = that cell holds none. */
+    renderClaims: Record<string, RenderReadinessStamp & { restamps: number }>;
     loadingCells: string[];
     unloadingCells: string[];
     loadCount: number;
@@ -78,7 +82,7 @@ export interface WorldResidencyReport {
 const EMPTY: WorldResidencyReport = {
     streamed: false, cellCount: 0, sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
-    preparedWithRenderClaim: [],
+    preparedWithRenderClaim: [], renderClaims: {},
     loadingCells: [], unloadingCells: [],
     loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0,
     prefetchRequests: 0, cancelledRefs: 0,
@@ -137,6 +141,11 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         preparedCells: status.preparedCells,
         preparedWithRenderClaim:
             status.preparedCells.filter((c) => streamer.renderReadinessOf(c) !== null),
+        renderClaims: Object.fromEntries(
+            [...status.preparedCells, ...status.residentCells]
+                .map((c) => [c, streamer.renderReadinessOf(c)])
+                .filter((row): row is [string, RenderReadinessStamp] => row[1] !== null)
+                .map(([c, stamp]) => [c, { ...stamp, restamps: streamer.restampsOf(c) }])),
         loadingCells: status.loadingCells,
         unloadingCells: status.unloadingCells,
         loadCount: status.loadCount,

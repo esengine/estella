@@ -129,9 +129,9 @@ function drive(name, options) {
     const script = path.join(WORK, `${name}.json`);
     writeFileSync(script, JSON.stringify([
         { do: 'step', frames: 30 },
-        // Readied but NOT published, so the document pass asks first. After
-        // publication the first collect has already built everything, and
-        // "nothing left to compile" is true of any two warm calls.
+        // Prefetching now READIES the cell — preparation owes a claim — so the
+        // compile is already paid before either pass runs. What these two judge
+        // is whether document and entities agree about WHAT was needed.
         { do: 'arrive', as: 'primed', key: 'Digit2' },
         { do: 'prewarm', as: 'document', cell: CELL_NAME, from: 'document' },
         { do: 'arrive', as: 'published', key: 'Digit1' },
@@ -200,15 +200,12 @@ function main() {
         check(doc.claimValid === 1,
             `${name}: and the readying produced a claim — nothing moved underneath it`,
             `claimValid=${doc.claimValid}`);
-        // The entity pass runs second, so what it still builds is what the
-        // document did not know about — and this is non-vacuous only if the
-        // document pass built something at all.
-        check(doc.compiles > 0,
-            `${name}: the document pass is the one that pays, so this is a real test`,
-            `${doc.compiles} compile(s) from the document`);
-        check(live.compiles === 0,
-            `${name}: and readying from the document left nothing for them to compile`,
-            `${live.compiles} late compile(s)`);
+        // Non-vacuous through the digests above: a derivation producing nothing
+        // would not match the entity side, which reads a live world and cannot
+        // be empty.
+        check(doc.compiles === 0 && live.compiles === 0,
+            `${name}: preparation already paid, so neither pass has anything to build`,
+            `${doc.compiles} then ${live.compiles} compile(s)`);
         check(doc.programEpoch === live.programEpoch,
             `${name}: and both were taken under the same program epoch`,
             `${doc.programEpoch} against ${live.programEpoch}`);
@@ -228,7 +225,7 @@ function main() {
                 'material: the material-owned path is enumerated, and the same both ways',
                 `${doc.materialAsks} against ${live.materialAsks} ask(s)`);
             check(live.materialCompiles === 0,
-                'material: and its programs were built by the document pass',
+                'material: and its programs were built before either pass ran',
                 `${live.materialCompiles} late material compile(s)`);
         }
     }

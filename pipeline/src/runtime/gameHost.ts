@@ -553,6 +553,43 @@ async function boot(): Promise<void> {
         }
       },
       /**
+       * Take the GPU away, and read what the renderer says about itself after.
+       *
+       * Deliberately narrow: whether recovery is CORRECT is the renderer's own
+       * device-loss corpus to judge. What this exists for is the question only
+       * residency can answer — what an old readiness claim is worth afterwards.
+       */
+      device(): Record<string, number | boolean> {
+        const m = module as unknown as {
+          renderer_deviceGeneration?(): number;
+          renderer_programEpoch?(): number;
+        };
+        return {
+          generation: m.renderer_deviceGeneration?.() ?? -1,
+          programEpoch: m.renderer_programEpoch?.() ?? -1,
+          lost: gl ? gl.isContextLost() : false,
+        };
+      },
+      loseDevice(): boolean {
+        const ext = gl?.getExtension('WEBGL_lose_context') as
+          { loseContext(): void; restoreContext(): void } | null;
+        if (!ext) return false;
+        ext.loseContext();
+        // Standing in for the browser, which hands a context back on its own.
+        // The ENGINE's recovery is not driven here: AssetPlugin does that, and a
+        // harness that drove it would be testing its own driver.
+        setTimeout(() => ext.restoreContext(), 50);
+        return true;
+      },
+
+      /** The render-program claim a cell is holding, if any. Through the report,
+       *  because residency has one author and this is not it. */
+      readiness(cell: string): Record<string, number> | null {
+        const claim = worldResidencyReport(app).renderClaims?.[cell];
+        return claim ? { ...claim } : null;
+      },
+
+      /**
        * What residency did, and what the subsystems still hold.
        *
        * The counts are the whole point: a far cell that is not DRAWN and one
