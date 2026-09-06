@@ -281,8 +281,10 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     mesh_compiled_[variant] = true;
     // Counted because the cost of this function is entirely the times it does
     // NOT return above: every frame asks once per mesh, and only the first frame
-    // that needs a variant pays for it.
+    // that needs a variant pays for it. WHICH one is the other half — a readiness
+    // that missed a requirement is named by the key that had to be built late.
     ++compiled_this_frame_;
+    last_compiled_variant_ = variant;
 
     std::vector<std::string> features;
     if (normals) features.emplace_back("MESH_NORMALS");
@@ -692,6 +694,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     ES_PROFILE_COUNTER("render.mesh.lodGathers", lodGathers);
     ES_PROFILE_COUNTER("render.mesh.programAsks", programAsks);
     ES_PROFILE_COUNTER("render.mesh.programCompiles", compiled_this_frame_);
+    if (compiled_this_frame_ > 0) {
+        ES_PROFILE_COUNTER("render.mesh.compiledKey", last_compiled_variant_);
+    }
     compiled_this_frame_ = 0;
 }
 

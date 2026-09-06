@@ -38,6 +38,8 @@ public:
 private:
     /** Shader variants compiled during the current collect — see meshProgram. */
     u32 compiled_this_frame_ = 0;
+    /** The last one built, so a late compile can be named rather than counted. */
+    u32 last_compiled_variant_ = 0;
     std::vector<BatchVertex> scratch_;  ///< Reused per mesh; amortizes the transform buffer.
     /// Resident-geometry programs, indexed by {has normals, lit, normal-mapped,
     /// skinned, depth-only, environment-mapped}: what the geometry carries and what
