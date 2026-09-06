@@ -98,18 +98,10 @@ u32 material_compileEsshader(const std::string& source, const std::string& featu
             // Kept so the same material can be compiled for another vertex source
             // (GPU-resident geometry) without the author's file being read again.
             rc->materials().rememberSource(handle, source, featuresCsv);
-            // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
-            // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
-            // Sampler seeding is a GLSL concept; on WGSL the unit rides the bind group.
-            if (s->language() == GfxShaderLanguage::GLSL_ES300) {
-                s->bind();
-                for (const auto& p : parsed.properties) {
-                    if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
-                        s->setUniform(p.name, static_cast<i32>(p.textureUnit));
-                    }
-                }
-                s->unbind();
-            }
+            // Through the store's own seeding, not a copy of it: a device
+            // recovery has to redo exactly this, and two spellings of "which
+            // unit does this sampler read" is how one of them stops being done.
+            MaterialStore::seedSamplers(*s, parsed);
         }
     }
     return handle.id();

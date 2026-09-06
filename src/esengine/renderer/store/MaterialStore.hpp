@@ -34,6 +34,7 @@
 #include <vector>
 
 namespace esengine {
+namespace resource { struct ParsedShader; }
 
 namespace resource { class ResourceManager; }
 
@@ -159,6 +160,16 @@ public:
     /// Re-resolves each material's cached program id from its shader handle, after
     /// the device rebuilt the programs behind them.
     void refreshShaderPrograms(resource::ResourceManager& resources);
+
+    /**
+     * @brief Point each of @p shader's texture params at its unit.
+     *
+     * @details GLSL ES 300 has no `layout(binding=)`, so a program carries this
+     *          as uniform state — which a relink clears. Public and shared so
+     *          registration and device recovery seed by one rule; they did not,
+     *          and a recovered material sampled every texture from unit 0.
+     */
+    static void seedSamplers(Shader& shader, const resource::ParsedShader& parsed);
 
     /// Keeps a material shader's SOURCE beside its handle, so the same material can
     /// be compiled for another vertex source later. Without it the store holds only

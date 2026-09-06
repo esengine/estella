@@ -535,6 +535,10 @@ export const SCENES = [
   // Takes the GPU away for real and captures AFTER the cycle: the four points
   // sample the atlas, so they fail unless the content came back. A vertex-colour
   // scene passed with the re-upload deleted. No webgpu — no GL extension there.
+  // A MATERIAL across a recovery. The two below are tilemaps, which read no
+  // material sampler — so a recovered material sampling every texture from unit
+  // 0 looked exactly like one with no normal map, and nothing could tell.
+  { id: "device-loss-material", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },
   { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
   // The player's case: nothing asks for the recovery, only frames pass, and it
   // happens FOUR times — backgrounding a tab is not a one-off, a recovery that

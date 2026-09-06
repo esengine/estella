@@ -119,17 +119,7 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
         mesh_programs_[key] = 0;
         return 0;
     }
-    // Same sampler seeding the batch variant gets: GLSL ES 300 has no
-    // layout(binding=), so each program points its texture params at their units.
-    if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
-        shader->bind();
-        for (const auto& p : parsed.properties) {
-            if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
-                shader->setUniform(p.name, static_cast<i32>(p.textureUnit));
-            }
-        }
-        shader->unbind();
-    }
+    seedSamplers(*shader, parsed);
     // No layout of its own: uniforms pack through the material's shaderRef, and
     // this variant declares the same params, so its handle is never looked up.
     const u32 program = shader->getProgramId();
@@ -137,12 +127,32 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     return program;
 }
 
+void MaterialStore::seedSamplers(Shader& shader, const resource::ParsedShader& parsed) {
+    if (shader.language() != GfxShaderLanguage::GLSL_ES300) return;
+    shader.bind();
+    for (const auto& p : parsed.properties) {
+        if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
+            shader.setUniform(p.name, static_cast<i32>(p.textureUnit));
+        }
+    }
+    shader.unbind();
+}
+
 void MaterialStore::refreshShaderPrograms(resource::ResourceManager& resources) {
     // The cached program id is the one thing a record holds that the device can
     // invalidate; shaderRef is what makes recomputing it possible at all.
     for (auto& [id, rec] : materials_) {
         rec.shader = 0;
-        if (Shader* shader = resources.getShader(rec.shaderRef)) rec.shader = shader->getProgramId();
+        Shader* shader = resources.getShader(rec.shaderRef);
+        if (!shader) continue;
+        rec.shader = shader->getProgramId();
+        // And the sampler units, which the relink behind that id cleared. Reading
+        // the id back is half of restoring a program: the other half is the
+        // uniform state that says which unit each texture param reads.
+        auto src = sources_.find(rec.shaderRef.id());
+        if (src != sources_.end()) {
+            seedSamplers(*shader, resource::ShaderParser::parse(src->second.source));
+        }
     }
 }
 
