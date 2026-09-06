@@ -1,6 +1,7 @@
 import {
     defineSystem, Res, ResMut, Query, Mut, GetWorld,
     Time, Transform, MeshRenderer, CharacterController3D, Health,
+    Damage, restoreToFull, EventWriter,
     type World, type Entity, type TimeData, type HealthData,
 } from 'esengine';
 import { Physics3D, type Physics3DQueries } from 'esengine/physics3d';
@@ -32,8 +33,9 @@ export const lifecycleSystem = defineSystem(
         Query(Mut(Core), Mut(MeshRenderer)),
         Query(Mut(Gate), Mut(MeshRenderer)),
         Query(Mut(Checkpoint)),
+        EventWriter(Damage),
     ],
-    (world, runMut, timeMut, queries, runners, cores, gates, checkpoints) => {
+    (world, runMut, timeMut, queries, runners, cores, gates, checkpoints, damage) => {
         const run = runMut.get() as RunData;
         const time = timeMut.get() as TimeData;
 
@@ -47,7 +49,7 @@ export const lifecycleSystem = defineSystem(
         // Restart is available from every state, including the two that end it.
         if (run.restartPressed) {
             run.phase = 'playing';
-            if (health) health.current = MAX_HEALTH;
+            if (runner !== null) restoreToFull(world, runner);
             run.cores = 0;
             run.elapsed = 0;
             run.respawn = { ...SPAWN };
@@ -61,10 +63,18 @@ export const lifecycleSystem = defineSystem(
 
         if (run.phase === 'playing') {
             if (run.pausePressed) { run.phase = 'paused'; time.scale = 0; return; }
-            const drowned = at !== null && at.y < VOID_Y;
-            if ((health !== null && health.current <= 0) || drowned) {
+            // The void kills by DAMAGE, so death is read off health here exactly
+            // as it is for a blow — a phase set beside a health this system wrote
+            // is two authors agreeing by luck.
+            if (at !== null && at.y < VOID_Y && runner !== null && health !== null
+                && health.current > 0) {
+                damage.send({
+                    target: runner, source: runner, amount: health.current,
+                    x: at.x, y: at.y, z: at.z,
+                });
+            }
+            if (health !== null && health.current <= 0) {
                 run.phase = 'dead';
-                if (health) health.current = 0;
                 time.scale = 0;
             }
             return;
@@ -80,8 +90,10 @@ export const lifecycleSystem = defineSystem(
             // cores already taken stay taken. R is the whole level again.
             if (!run.interactPressed) return;
             run.phase = 'playing';
-            if (health) health.current = MAX_HEALTH;
-            if (runner !== null) place(world, queries, runner, run.respawn);
+            if (runner !== null) {
+                place(world, queries, runner, run.respawn);
+                restoreToFull(world, runner);
+            }
             time.scale = 1;
         }
     },
