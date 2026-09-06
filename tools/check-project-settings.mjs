@@ -19,10 +19,25 @@
  *   editor    applied to the edit session, so authoring shows what ships
  *   play      forwarded into the play realm
  *   packaged  written into a shipped build
+ *   authoring a CREATOR can set it, and this says where
  *
  * A field that legitimately cannot reach one of them declares that HERE, with a
  * reason. The point is not that everything reaches everywhere; it is that a gap
  * is a sentence somebody wrote, not an omission nobody noticed.
+ *
+ * `authoring` is the one that is not about transport. The four above ask whether
+ * a value SURVIVES the trip; that question was green for `msaaSamples` while the
+ * only way to set it was to hand-edit project.esproject, because nothing here
+ * asked whether a human could reach it at all. So it answers a different
+ * question, and it has its own vocabulary:
+ *
+ *   ui        a row in the settings registry — the id is named and checked
+ *   manual    deliberately manifest-only (advanced, or edited as a file), + why
+ *   internal  not creator-authored: derived, or a machine's business, + why
+ *   owed      creator-facing, reachable from no editor surface. Debt, recorded
+ *             as debt — an entry leaves by growing a UI, never by being explained
+ *
+ * No answer is not an option: a setting nobody decided about fails here.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -34,6 +49,8 @@ const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const RUNTIME_CONFIG = 'pipeline/src/project/runtimeConfig.ts';
 const FORMAT = 'pipeline/src/project/format.ts';
 const STORE = 'desktop/src/project/ProjectStore.ts';
+/** Where a project setting becomes a row a creator can see. */
+const SETTINGS = 'desktop/src/settings/projectSettings.ts';
 
 /**
  * Where each field of RuntimeProjectConfig has to show up, and the reason when
@@ -95,6 +112,35 @@ const PARSE_KEY = {
   msaaSamples: 'r.msaa',
 };
 
+/**
+ * How a CREATOR sets each field — see the header for the four answers. `ui` names
+ * the settings-registry id, which is looked for in that file rather than trusted:
+ * a claim of "there is a UI" that nobody checked is the same as no UI.
+ */
+const AUTHORING = {
+  achievements: { ui: 'project.packaging.achievements' },
+  steamAppId: { ui: 'project.packaging.desktop.steam.appId' },
+  physicsEnabled: { ui: 'project.physics.enabled' },
+  physicsConfig: { ui: ['project.physics.gravityX', 'project.physics.gravityY', 'project.physics.fixedTimestep'] },
+  audioConfig: {
+    owed: 'buses, effects and duck rules are forwarded to Play and shipped, and the only '
+      + 'door into them is the automation surface (setSettings.audio) — ProjectStore.setAudio '
+      + 'has no human caller, so a person authors the mixer by editing project.esproject',
+  },
+  uiTheme: { ui: 'project.ui.theme' },
+  uiThemeColors: { ui: 'project.ui.color.' },
+  ySortLayers: { ui: 'project.rendering.ySortLayers' },
+  depthLayers: { ui: 'project.rendering.depthLayers' },
+  colorSpace: { ui: 'project.rendering.colorSpace' },
+  outputTransform: { ui: 'project.rendering.outputTransform' },
+  msaaSamples: {
+    owed: 'parsed, applied to the edit viewport, forwarded to Play and written into every '
+      + 'build — and set nowhere but by hand in project.esproject',
+  },
+  renderBackend: { ui: 'project.rendering.backend' },
+  screenFit: { ui: 'project.display.cameraFit' },
+};
+
 /** Field names of the RuntimeProjectConfig interface, in declaration order. */
 function runtimeConfigFields(src) {
   const body = src.slice(src.indexOf('export interface RuntimeProjectConfig {'));
@@ -105,6 +151,7 @@ function runtimeConfigFields(src) {
 const runtimeSrc = read(RUNTIME_CONFIG);
 const formatSrc = read(FORMAT);
 const storeSrc = read(STORE);
+const settingsSrc = read(SETTINGS);
 const fields = runtimeConfigFields(runtimeSrc);
 
 if (fields.length === 0) {
@@ -134,8 +181,32 @@ const CONSUMERS = {
   packaged: inPackagedSlice,
 };
 
+/**
+ * The authoring answer for one field, as a problem string or null. Kept apart
+ * from CONSUMERS because it is not the same question: those ask whether a value
+ * survives a trip, this asks whether anybody can set it in the first place.
+ */
+function authoringProblem(field) {
+  const answer = AUTHORING[field];
+  if (!answer) {
+    return `${field} says nothing about authoring — declare one of ui / manual / internal `
+      + `in tools/check-project-settings.mjs (AUTHORING.${field}), or record it as owed`;
+  }
+  const [kind] = Object.keys(answer);
+  if (kind === 'manual' || kind === 'internal' || kind === 'owed') {
+    return answer[kind] ? null : `${field} declares "${kind}" with no reason`;
+  }
+  if (kind !== 'ui') return `${field} declares an unknown authoring kind "${kind}"`;
+  const ids = Array.isArray(answer.ui) ? answer.ui : [answer.ui];
+  const missing = ids.filter((id) => !settingsSrc.includes(id));
+  return missing.length
+    ? `${field} claims a settings row (${missing.join(', ')}) that ${SETTINGS} does not register`
+    : null;
+}
+
 const problems = [];
 const gaps = [];
+const owed = [];
 for (const field of fields) {
   for (const [role, carries] of Object.entries(CONSUMERS)) {
     const declared = DECLARED_GAPS[field]?.[role];
@@ -152,6 +223,9 @@ for (const field of fields) {
       );
     }
   }
+  const authoring = authoringProblem(field);
+  if (authoring) problems.push(authoring);
+  if (AUTHORING[field]?.owed) owed.push(`  ${field} → ${AUTHORING[field].owed}`);
   // A field nobody parses is a field a manifest can hold and nothing will read.
   if (!PARSE_KEY[field]) {
     problems.push(`${field} has no PARSE_KEY entry — say which manifest branch reads it.`);
@@ -161,6 +235,7 @@ for (const field of fields) {
 if (process.argv.includes('--list')) {
   console.log(`project settings (${fields.length}): ${fields.join(', ')}`);
   if (gaps.length) console.log(`declared gaps:\n${gaps.join('\n')}`);
+  if (owed.length) console.log(`owed — creator-facing, authorable from no editor surface:\n${owed.join('\n')}`);
 }
 
 if (problems.length) {
@@ -169,4 +244,5 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`check-project-settings: ${fields.length} settings, ${gaps.length} declared gaps — ok`);
+console.log(`check-project-settings: ${fields.length} settings, ${gaps.length} declared gaps,`
+  + ` ${owed.length} owed an authoring surface (--list names them) — ok`);
