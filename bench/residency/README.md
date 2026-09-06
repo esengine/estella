@@ -387,6 +387,8 @@ real measurement, which is the interesting part.
 | ~~The later 9–15 ms spikes are the delayed arrival.~~ | They are `render.finalize`, a separate mechanism, and they carry no collect at all. | Scoping the spike frames rather than the window. |
 | ~~GPU upload is not a cost this path has.~~ | GPU upload is not the author of the ARRIVAL frame. `render.finalize` — where `pool_.upload()` lives — is 9–15 ms elsewhere. | The same scoping; the first claim was true of one frame and stated of the path. |
 | ~~The `costs()` probe was broken, so the old 3.5 ms arrival frames were a bad instrument's reading.~~ | The frame's wall time was always the driver's own clock around `step()`. The probe bug hid only the breakdown. | Reading what `f.ms` is actually measured by. |
+| ~~The first-visibility hitch is something a streaming design has to absorb.~~ | It was one cold shader-variant compile, and readiness moves it out of first visibility entirely. Streaming's own share was the publication transaction all along. | Production readiness disconnected: HIT first-visible 2.9 → 14.6 ms, one compile returns, BUDGET red. Reconnected: 0 compiles on every arm. |
+| ~~Readiness needs prefetch headroom to hide the compile, so a miss must pay it at first visibility.~~ | Publication itself owes the claim. A cell with no dwell readies inside the publication transaction, so first visibility is clean on the miss path too. | The `miss` arm: 0 compiles, first-visible 2.9 ms, publication 6.6 ms — unchanged from the disconnected control's 6.4 ms. |
 
 ## Streaming Delivery v1 — NOT frozen
 
@@ -432,6 +434,9 @@ share of the budget violation is the 6.4 ms, and the other half belongs to
 shader-variant readiness. Both have to close before this freezes; they close
 separately.
 
+**The shader half is now closed** — see below. Delivery's own 6.4 ms publication
+transaction is what remains, and it is the only thing still holding this open.
+
 Deliberately still not built: velocity prediction, adaptive prefetch radius,
 memory budget, priority scheduling. Each now has a number that would justify it.
 None is the next thing to build.
@@ -445,17 +450,65 @@ realization, optimising a 2 ms one is choosing the second question. Both are
 recorded here and left alone.
 
 That cut is done, and it named the mechanism: one cold shader-variant compile.
-So the next one is **Shader Variant Readiness** — whether the variants
-already-prefetched content will need can be made ready before first visibility,
-rather than compiled at it. Not by precompiling everything: the question is
-whether the exact variant key is derivable at `prepared`, at `publish`, or only
-once a camera looks, because those three have different answers and only the
-first is free.
+The cut that followed it — **Shader Variant Readiness** — is complete, and the
+answer to "is the exact variant key derivable at `prepared`" turned out to be
+yes: a cell's own document names every requirement before a single entity of it
+exists.
+
+### Shader Variant Readiness — COMPLETE
+
+Three conclusions, each with a counterfactual behind it rather than a
+before-and-after:
+
+**Cold shader compilation was the author of the first-visibility mesh hitch.**
+Disconnecting production readiness brings the compile back and the hitch with
+it — HIT first-visible 2.9 → 14.6 ms, BLIND reveal 0.8 → 12.7 ms, one
+`programCompiles` in each, BUDGET red in both. Nothing else about the arrival
+changes.
+
+**Prepared cells satisfy shader-program readiness before publication, where the
+host has a renderer to satisfy it with.** `prepared` means every mandatory
+preparation obligation is paid, not just the assets; a host with no renderer
+satisfies the render one by not having it rather than by inventing a claim.
+Publication then re-derives the exact requirements and re-checks them against
+the claim's digest AND its program epoch, so a claim that was true when the cell
+was readied cannot publish a cell whose requirements moved or whose programs
+went cold.
+
+**The work moved into prefetch headroom, not into publication or first
+visibility.** Publication is 6.6–7.7 ms wired and 6.4–6.9 ms disconnected: the
+compile did not relocate there. First visibility is 0.8–2.9 ms with zero
+compiles on every arm.
+
+| arm | first-visible | publication | `programCompiles` | BUDGET |
+| --- | --- | --- | --- | --- |
+| hit | 2.9 ms | 7.7 ms | 0 | ✓ 1.92 / 8.33 ms |
+| miss | 2.9 ms | 6.6 ms | 0 | ✓ 1.88 / 8.33 ms |
+| blind → published | 3.6 ms | 7.1 ms | 0 | ✓ 2.95 / 8.33 ms |
+| blind → revealed | 0.8 ms | — | 0 | ✓ |
+| hit, readiness disconnected | **14.6 ms** | 6.9 ms | **1** | ✗ 13.63 / 8.33 ms |
+| blind → revealed, disconnected | **12.7 ms** | — | **1** | ✗ 11.58 / 8.33 ms |
+
+`blind → revealed` is the attribution: the cell is already published and
+invisible, so nothing but first visibility can be paying. It is 0.8 ms wired and
+12.7 ms disconnected, on the same content in the same frame.
+
+What this bench cannot say, and `verify-world-residency` says so where it makes
+the same measurement: `world-streaming-3d`'s cells share their variants with the
+one the player stands in, so a zero there is soundness rather than attribution.
+Attribution lives here, on a fixture whose cell needs a variant nothing else
+does — which is why disconnecting readiness changes this number and not that one.
 
 **Do not optimise `MeshPlugin::collect`.** It is where the lazy compile is called
 from and nothing more; the evidence clears it. Moving 6 ms from the first visible
 frame into the publication transaction would not be a fix either — a hitch
-relocated is still a hitch.
+relocated is still a hitch. The numbers above are what makes that a settled
+question rather than a principle: publication did not move.
+
+**Next is not more readiness.** The `render.finalize` spikes of 9–15 ms are a
+separate mechanism that has been visible in every run here and has never been
+decomposed — they carry no collect, and they land outside every arrival window.
+That is the next cut.
 
 ### Instrumentation, and how it is kept honest
 

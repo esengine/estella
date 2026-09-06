@@ -245,7 +245,11 @@ function main() {
                      profile('arrival', 'Digit1')]],
     ];
 
-    for (const [arm, steps] of arms) {
+    // `--arms hit,blind` narrows a remeasure to the question being asked. Each
+    // arm is its own Electron, so running the ones nobody is reading is minutes
+    // spent on a number nobody will look at.
+    const wanted = flag('arms', '').split(',').filter(Boolean);
+    for (const [arm, steps] of arms.filter(([a]) => wanted.length === 0 || wanted.includes(a))) {
         const runs = drive(out, arm, steps);
         for (const [as, { frames, delivery }] of runs) {
             report(`${arm}${runs.size > 1 ? `/${as}` : ''}`, frames, delivery);
@@ -391,6 +395,15 @@ function report(arm, frames, delivery) {
             if (calm >= QUIET) break;
         }
     }
+
+    // On every frame of the window, not only the expensive ones: a cheap first
+    // visibility is exactly where a compile is easiest to miss.
+    const compiledInRun = Math.max(0, ...frames.map((f) => f.compiles ?? 0));
+    const compiledInWindow = Math.max(0, ...window.map((f) => f.compiles ?? 0));
+    check(compiledInWindow === 0,
+        'nothing was compiled on the frames the arrival is made of',
+        `peak render.mesh.programCompiles ${compiledInWindow} in the window,`
+        + ` ${compiledInRun} across the run`);
 
     // Which clock brackets the publication transaction depends on where it runs:
     // between frames the streamer's wall time does; inside the frame that spans

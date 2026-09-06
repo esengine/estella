@@ -331,6 +331,10 @@ async function main() {
             + (counters['render.text'] ?? 0) + (counters['render.shapes'] ?? 0)
             + (counters['render.particles'] ?? 0);
           row.collect = costs.native['render.collect'] ?? 0;
+          // Every frame, not only the expensive ones: a cold compile is what
+          // makes a frame expensive, so recording it only there cannot answer
+          // whether a cheap arrival had one.
+          row.compiles = counters['render.mesh.programCompiles'] ?? 0;
           row.domains = {};
           for (const c of costs.systems) row.domains[c.domain] = (row.domains[c.domain] ?? 0) + c.ms;
           for (const d of Object.keys(row.domains)) row.domains[d] = Math.round(row.domains[d] * 1000) / 1000;
