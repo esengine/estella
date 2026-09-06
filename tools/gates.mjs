@@ -129,7 +129,13 @@ export const GATES = [
   // The multiplayer half of that claim: an authority runs as a plain Node
   // process over a real socket. Also the only check of two facts the editor's
   // preview has no way to reach — no local player, and a connection that LEAVES.
-  { id: 'arena-server', run: 'node tools/check-arena-server.mjs' },
+  {
+    id: 'arena-server',
+    run: 'node tools/check-arena-server.mjs',
+    where: 'local',
+    why: 'the server it starts runs the real engine wasm, and the fast CI lane builds none;'
+      + ' the engine-coupled job runs it where the artifact is, under ESTELLA_REQUIRE_WASM',
+  },
   { id: 'cycles', run: 'node tools/check-cycles.mjs' },
   { id: 'layers', run: 'node tools/check-layers.mjs' },
   // A system's parameters are what the schedule knows about it; the World

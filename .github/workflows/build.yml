@@ -244,6 +244,14 @@ jobs:
         ESTELLA_REQUIRE_WASM: '1'
       run: node tools/check-physics2d.mjs
 
+    # The multiplayer authority, run where the engine binary actually is. The
+    # fast lane cannot: it builds no wasm, and this gate needs a real engine to
+    # start a real server over a real socket.
+    - name: Check the arena server
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-arena-server.mjs
+
     - name: Check performance snapshot
       env:
         ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web

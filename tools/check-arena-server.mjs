@@ -24,7 +24,7 @@
  *   node tools/check-arena-server.mjs
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -37,6 +37,21 @@ const WASM = path.join(ROOT, 'build', 'wasm', 'web');
 /** Arena bounds, from the example's own movement rule. */
 const BOUND_X = 420;
 const STEP = 1 / 60;
+
+// The server runs a REAL engine, so a checkout without one cannot answer this.
+// Skipped where building it is a choice, an error where CI has the artifact:
+// otherwise "no binary" and "the server is broken" report identically.
+if (!existsSync(path.join(WASM, 'esengine.wasm'))) {
+  const build = 'node build-tools/cli.js build -t web';
+  if (process.env.ESTELLA_REQUIRE_WASM) {
+    console.error('check-arena-server: ESTELLA_REQUIRE_WASM is set and there is no engine wasm'
+      + ` at build/wasm/web.\n  ${build}`);
+    process.exit(1);
+  }
+  console.log('check-arena-server: no engine wasm at build/wasm/web — skipped'
+    + ` (build it with \`${build}\`; the engine-coupled CI job sets ESTELLA_REQUIRE_WASM).`);
+  process.exit(0);
+}
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-arena-'));
 let server = null;
