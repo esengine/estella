@@ -613,6 +613,15 @@ function realization(window, arrival) {
         if (ms < 0.05) continue;
         console.log(`      ${name.padEnd(30)}${ms.toFixed(2).padStart(7)} ms`);
     }
+    // Divisors, so a phase that GREW and one whose unit cost grew are told
+    // apart: the same milliseconds over ten items and over a thousand are two
+    // different findings.
+    const counts = Object.entries(arrival?.counters ?? {})
+        .filter(([k]) => k.startsWith('render.mesh.') || k === 'render.meshes');
+    if (counts.length > 0) {
+        console.log('\n    what it walked on that frame:');
+        for (const [k, v] of counts) console.log(`      ${k.padEnd(30)}${String(v).padStart(7)}`);
+    }
     const renderSystem = (arrival?.costs ?? []).find((c) => c.name === 'RenderSystem');
     if (renderSystem) {
         const js = rows.filter((r) => r.where === 'js' && r.system === 'RenderSystem'

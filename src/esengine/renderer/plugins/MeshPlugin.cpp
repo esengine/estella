@@ -12,6 +12,7 @@
 #include "../../resource/Mesh.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
+#include "../../core/FrameProfiler.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -192,6 +193,10 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, boo
     const u32 variant = meshVariant(normals, lit, normalMapped, skinned, depthOnly, envMapped);
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
+    // Counted because the cost of this function is entirely the times it does
+    // NOT return above: every frame asks once per mesh, and only the first frame
+    // that needs a variant pays for it.
+    ++compiled_this_frame_;
 
     std::vector<std::string> features;
     if (normals) features.emplace_back("MESH_NORMALS");
@@ -251,13 +256,29 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
     u32 litProgram = 0;
 
+    // Accumulated, not scoped per mesh: a ScopeTimer pair per phase per entity
+    // puts its own cost inside the number it reports. One clock read per
+    // boundary, and the end of one phase is the start of the next.
+    const bool timing = FrameProfiler::get().enabled();
+    f64 phase[5] = {0, 0, 0, 0, 0};
+    f64 mark = timing ? es_profile_now_ms() : 0.0;
+    u32 walked = 0, coldDecompose = 0, lodGathers = 0, programAsks = 0;
+    const auto tick = [&](int slot) {
+        if (!timing) return;
+        const f64 now = es_profile_now_ms();
+        phase[slot] += now - mark;
+        mark = now;
+    };
+
     for (auto entity : meshView) {
+        ++walked;
         const auto& mesh = meshView.get<ecs::MeshRenderer>(entity);
         // Empty indices no longer mean "nothing to draw": a resident mesh keeps
         // its geometry on the GPU and its inline payload deliberately empty.
         if (!mesh.enabled || (mesh.indices.empty() && !mesh.mesh.isValid())) continue;
 
         auto& transform = meshView.get<ecs::Transform>(entity);
+        if (!transform.decomposed_) ++coldDecompose;
         // Parallax is a CAMERA trick — a renderable shifted toward the view centre to
         // scroll slower. A shadow pass looks from a light, whose centre means nothing to
         // it, and its map is fitted to unshifted bounds: a caster stands where it is.
@@ -267,6 +288,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
+        tick(0);
 
         // Bounds come from whichever geometry this is: a resident mesh keeps its
         // own, and the inline payload's are recomputed on upload. Reading the
@@ -284,12 +306,15 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const ecs::LODGroup* group = nullptr;
         if (collect_ctx.lod.state && resident) {
             const auto* declared = registry.tryGet<ecs::LODGroup>(entity);
-            if (declared && declared->enabled
-                && gatherLodLevels(ctx.resources, *declared, *resident, levels)) {
-                group = declared;
-                reportLodAuthoring(levels, warned_lod_);
+            if (declared && declared->enabled) {
+                ++lodGathers;
+                if (gatherLodLevels(ctx.resources, *declared, *resident, levels)) {
+                    group = declared;
+                    reportLodAuthoring(levels, warned_lod_);
+                }
             }
         }
+        tick(1);
         const glm::vec3 localMin = group ? levels.localMin
                                  : resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
         const glm::vec3 localMax = group ? levels.localMax
@@ -297,7 +322,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin, localMax, aabbCenter, halfExtents);
-        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) { ++collect_ctx.culled; continue; }
+        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
+            ++collect_ctx.culled;
+            tick(2);
+            continue;
+        }
 
         // Nothing visible is worth measuring precisely, so the cull runs first; what
         // survives it is measured on the sphere the whole group shares.
@@ -319,9 +348,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // would put it in a shipped frame's profile.
             if (collect_ctx.lod.counts) collect_ctx.lod.counts->record(level);
             const u8 shown = state.drawn(view, entity, level, levels.set.count);
-            if (shown == lod::kCulled) { ++collect_ctx.culled; continue; }
+            if (shown == lod::kCulled) { ++collect_ctx.culled; tick(2); continue; }
             resident = levels.mesh[shown];
         }
+        tick(2);
 
         u32 textureId = ctx.white_texture_id;
         if (mesh.texture.isValid()) {
@@ -406,10 +436,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // `lit` is the draw's own word and is honoured either way: geometry
             // with normals can be drawn unlit, and geometry without them takes
             // light off the constant normal a 2D surface has.
+            tick(4);
+            ++programAsks;
             const u32 residentShader =
                 meshProgram(ctx, resident->hasNormals, mesh.lit && !shadowDepth,
                             normalTextureId != 0 && !shadowDepth, skinned, shadowDepth,
                             key.envTextureId != 0);
+            tick(3);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
                                  : resident->hasNormals ? MESH_INSTANCE_STRIDE_LIT
@@ -493,6 +526,25 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                            scratch_.data(), static_cast<u32>(scratch_.size()),
                            mesh.indices.data(), static_cast<u32>(mesh.indices.size()), key);
     }
+    tick(4);
+
+    if (timing) {
+        auto& profiler = FrameProfiler::get();
+        profiler.add("render.collect.mesh.decompose", phase[0]);
+        profiler.add("render.collect.mesh.lod", phase[1]);
+        profiler.add("render.collect.mesh.bounds", phase[2]);
+        profiler.add("render.collect.mesh.program", phase[3]);
+        profiler.add("render.collect.mesh.emit", phase[4]);
+    }
+    // The counts beside the time, because a phase that grew and one whose UNIT
+    // cost grew are different problems and the milliseconds cannot tell them
+    // apart. `coldDecompose` is the one that only a first look can be high.
+    ES_PROFILE_COUNTER("render.mesh.walked", walked);
+    ES_PROFILE_COUNTER("render.mesh.coldDecompose", coldDecompose);
+    ES_PROFILE_COUNTER("render.mesh.lodGathers", lodGathers);
+    ES_PROFILE_COUNTER("render.mesh.programAsks", programAsks);
+    ES_PROFILE_COUNTER("render.mesh.programCompiles", compiled_this_frame_);
+    compiled_this_frame_ = 0;
 }
 
 }  // namespace esengine
