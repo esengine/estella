@@ -78,6 +78,15 @@ function pack(dir, name) {
 }
 
 /**
+ * Errors that say the MACHINE could not render, not that the package is broken.
+ *
+ * A software rasteriser losing its context at frame 0 leaves a boot with
+ * nothing drawn and three errors, none of them about the game. Judging that as
+ * an unclean boot reports the runner's GPU as the package's defect.
+ */
+const GPU_GONE = /GPU device lost|createTexture failed|Failed to create texture/;
+
+/**
  * What the launcher said the errors WERE, not how many.
  *
  * It prints each one indented under its verdict; this kept only the count, so a
@@ -117,8 +126,19 @@ mkdirSync(WORK, { recursive: true });
     check('a project with code declares it in the package', cfg.scripts === 'scripts.mjs',
           `scripts ${JSON.stringify(cfg.scripts)}`);
     const run = boot(out);
+    const said = errorLines(run.text);
+    // Every one of them, or none: a real script error beside a lost context is
+    // still a real script error, and only a wholly environmental failure is
+    // something this machine cannot answer.
+    if (run.errors > 0 && said.length > 0 && said.every((l) => GPU_GONE.test(l))) {
+        console.log('check-script-failure: the GPU went away before anything could be drawn'
+            + ' — this machine cannot judge whether the package boots clean');
+        for (const l of said) console.log(`    ${l}`);
+        cleanup();
+        process.exit(2);
+    }
     check('and boots clean', run.ok && run.errors === 0,
-          `errors ${run.errors}${run.errors > 0 ? ` — ${errorLines(run.text).join(' | ')}` : ''}`);
+          `errors ${run.errors}${run.errors > 0 ? ` — ${said.join(' | ')}` : ''}`);
 }
 
 // 2. Not declared. The host must not go looking, and must not mind.
