@@ -298,6 +298,14 @@ public:
     /** @brief Gets the device buffer handle */
     BufferHandle handle() const { return handle_; }
 
+    /**
+     * @brief Forgets the GPU buffer, which died with its device.
+     * @details Not a delete: the object is already gone, and asking a dead device
+     *          to free an id it no longer has is at best a no-op. Forgetting it
+     *          is what keeps the destructor from doing exactly that later.
+     */
+    void abandonGpuBuffer() { handle_ = BufferHandle::Invalid; }
+
     // =========================================================================
     // Raw API for internal use only
     // =========================================================================
@@ -401,6 +409,14 @@ public:
 
     /** @brief Gets the device buffer handle */
     BufferHandle handle() const { return handle_; }
+
+    /**
+     * @brief Forgets the GPU buffer, which died with its device.
+     * @details Not a delete: the object is already gone, and asking a dead device
+     *          to free an id it no longer has is at best a no-op. Forgetting it
+     *          is what keeps the destructor from doing exactly that later.
+     */
+    void abandonGpuBuffer() { handle_ = BufferHandle::Invalid; }
 
     /** @brief Returns true if using 16-bit indices */
     bool is16Bit() const { return is16Bit_; }

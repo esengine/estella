@@ -245,6 +245,27 @@ target_include_directories(test_texture_cache PRIVATE
 )
 add_test(NAME test_texture_cache COMMAND test_texture_cache)
 
+# Persistent mesh identity across a device generation. Same shape as the texture
+# cache harness: the REAL ResourceManager.cpp against MockGfxDevice, so what it
+# asserts is the engine's invalidation and not a model of it.
+add_executable(test_mesh_recovery
+    resource/test_mesh_recovery.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/resource/ResourceManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/text/BitmapFont.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Shader.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Buffer.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawParams.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_mesh_recovery PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tests
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+    ${CMAKE_SOURCE_DIR}/third_party/stb
+)
+add_test(NAME test_mesh_recovery COMMAND test_mesh_recovery)
 
 # Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
 # directly — no GL/engine link — and checks #pragma feature parsing + #define injection.

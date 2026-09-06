@@ -466,7 +466,7 @@ public:
     MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                           const glm::vec3& localMin, const glm::vec3& localMax,
-                          ConstSpan<f32> inverseBind = {});
+                          MeshRecovery recovery, ConstSpan<f32> inverseBind = {});
 
     /** @brief The mesh a handle names, or null. */
     Mesh* getMesh(MeshHandle handle);
@@ -474,6 +474,30 @@ public:
 
     /** @brief Releases a mesh and the buffers it owns. */
     void releaseMesh(MeshHandle handle);
+
+    /**
+     * @brief Ends every mesh's GPU realization, keeping every MeshHandle valid.
+     *
+     * @details The realization died with the device; the handles did not, so it
+     *          is dropped and the identity stands. A SourceReplayable mesh is
+     *          enqueued; a HostOnly one is COUNTED, since silence there reports
+     *          success over content nothing can bring back.
+     *
+     * @return How many meshes are awaiting rematerialization.
+     */
+    u32 invalidateGpuMeshes();
+
+    /**
+     * @brief Meshes whose realization is gone and whose source has not replaced it.
+     * @details A copy, and only ever emptied by a rematerialization that
+     *          SUCCEEDED: a debt drained by the act of reading it is a debt the
+     *          engine forgets the moment its holder fails to pay.
+     */
+    std::vector<MeshHandle> meshesAwaitingRematerialization() const;
+
+    /** @brief Meshes the last loss ended for good, because no source can replay
+     *         them. Never part of the awaiting list, never silently skipped. */
+    u32 meshesLostNonRecoverable() const { return meshes_lost_non_recoverable_; }
 
     // =========================================================================
     // Environment Resources
@@ -641,6 +665,8 @@ private:
     /// Handles whose GPU texture died with the device, still showing the
     /// placeholder. Empty means the content is whole again.
     std::vector<TextureHandle> awaitingReupload_;
+    std::vector<MeshHandle> awaitingRematerialization_;
+    u32 meshes_lost_non_recoverable_ = 0;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
     LoaderRegistry loaderRegistry_;

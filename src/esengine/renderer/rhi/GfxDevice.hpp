@@ -106,6 +106,14 @@ public:
                device_status_ == GfxDeviceStatus::Recovering;
     }
 
+    /**
+     * @brief Which generation of the device the live GPU objects belong to.
+     * @details Bumped by every successful rebuild. A resource can record the
+     *          generation it was realized on, so a diagnostic can say whether it
+     *          truly came back — a non-zero handle only looks like it did.
+     */
+    u64 deviceGeneration() const { return device_generation_; }
+
     /** @brief The loss report, or null while the device is Live. */
     const GfxDeviceLostInfo* deviceLostInfo() const {
         return device_status_ == GfxDeviceStatus::Live ? nullptr : &device_info_;
@@ -157,6 +165,7 @@ public:
             device_status_ = GfxDeviceStatus::Lost;
             return false;
         }
+        ++device_generation_;
         return true;
     }
 
@@ -701,6 +710,7 @@ private:
     GfxDeviceIdentity identity_;
     GfxDeviceLostInfo device_info_;
     u64 device_frame_ = 0;
+    u64 device_generation_ = 0;
     std::function<void(const GfxDeviceLostInfo&)> device_lost_handler_;
 };
 

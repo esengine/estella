@@ -488,7 +488,7 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                                        ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                                        const glm::vec3& localMin, const glm::vec3& localMax,
-                                       ConstSpan<f32> inverseBind) {
+                                       MeshRecovery recovery, ConstSpan<f32> inverseBind) {
     if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return MeshHandle();
 
     // The mesh describes its own vertices; the per-object transform is the
@@ -550,6 +550,8 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     mesh->indexBuffer = ib ? ib->handle() : BufferHandle::Invalid;
     mesh->layout = device_->createVertexLayout(layout);
     mesh->indexCount = static_cast<u32>(indices.size());
+    mesh->recovery = recovery;
+    mesh->realizationGeneration = device_->deviceGeneration();
     mesh->hasNormals = hasNormals;
     mesh->localMin = localMin;
     mesh->localMax = localMax;
@@ -569,6 +571,34 @@ const Mesh* ResourceManager::getMesh(MeshHandle handle) const {
     return meshes_.get(handle);
 }
 
+u32 ResourceManager::invalidateGpuMeshes() {
+    awaitingRematerialization_.clear();
+    meshes_lost_non_recoverable_ = 0;
+    meshes_.forEachAlive([&](MeshHandle handle, Mesh& mesh) {
+        // Abandoned, never deleted: the GPU objects went with the device, so the
+        // records are told to forget them rather than ask a dead device to free
+        // ids it no longer has.
+        if (auto* vb = vertexBuffers_.get(mesh.vertices)) vb->abandonGpuBuffer();
+        if (auto* ib = indexBuffers_.get(mesh.indices)) ib->abandonGpuBuffer();
+        mesh.vertexBuffer = BufferHandle::Invalid;
+        mesh.indexBuffer = BufferHandle::Invalid;
+        mesh.layout = VertexLayoutHandle::Invalid;
+
+        if (mesh.recovery == MeshRecovery::SourceReplayable) {
+            awaitingRematerialization_.push_back(handle);
+        } else {
+            ++meshes_lost_non_recoverable_;
+        }
+    });
+    ES_LOG_INFO("Device loss: {} mesh(es) awaiting rematerialization, {} host-only mesh(es) gone"
+                " for good", awaitingRematerialization_.size(), meshes_lost_non_recoverable_);
+    return static_cast<u32>(awaitingRematerialization_.size());
+}
+
+std::vector<MeshHandle> ResourceManager::meshesAwaitingRematerialization() const {
+    return awaitingRematerialization_;
+}
+
 void ResourceManager::releaseMesh(MeshHandle handle) {
     Mesh* mesh = meshes_.get(handle);
     if (!mesh) return;
@@ -577,6 +607,16 @@ void ResourceManager::releaseMesh(MeshHandle handle) {
     releaseVertexBuffer(mesh->vertices);
     releaseIndexBuffer(mesh->indices);
     meshes_.release(handle.id());
+
+    // A released mesh cannot be owed: the identity the debt named is gone, and a
+    // rematerialization aimed at it would land on whatever reuses the slot.
+    for (usize i = 0; i < awaitingRematerialization_.size(); ++i) {
+        if (awaitingRematerialization_[i] == handle) {
+            awaitingRematerialization_[i] = awaitingRematerialization_.back();
+            awaitingRematerialization_.pop_back();
+            break;
+        }
+    }
 }
 
 // =============================================================================

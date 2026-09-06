@@ -44,6 +44,14 @@ std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm);
 /** @brief Moves a freshly loaded texture's GPU object onto an existing handle. */
 bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source);
 
+/** @brief Meshes whose realization is gone, as comma-separated handle ids. No
+ *         path: the engine never knew one, and the asset layer holds it. */
+std::string rm_meshesAwaitingRemat(resource::ResourceManager& rm);
+
+/** @brief Meshes the last loss ended for good — host-only geometry no source
+ *         can replay. Reported so recovery cannot call them recovered. */
+u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm);
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes);
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);

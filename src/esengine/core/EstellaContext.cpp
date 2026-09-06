@@ -139,13 +139,20 @@ bool EstellaContext::recoverDevice() {
     // Last: the placeholder now exists to park them on. Their CONTENT is still
     // missing, which is why this leaves the device Recovering, not Live.
     resources->invalidateGpuTextures(renderContext->getWhiteTexture());
+    // Meshes have no placeholder to park on — geometry cannot be stood in for —
+    // so they lose their realization outright and the draw path skips them until
+    // a source replaces it.
+    resources->invalidateGpuMeshes();
     return true;
 }
 
 u32 EstellaContext::finishDeviceRecovery() {
     auto* resources = services_.getService<resource::ResourceManager>();
+    // Both debts, not just the textures: a device declared Live with geometry
+    // still missing is a screen with holes in it reporting that it recovered.
     const u32 pending = resources
-        ? static_cast<u32>(resources->texturesAwaitingReupload().size())
+        ? static_cast<u32>(resources->texturesAwaitingReupload().size()
+                           + resources->meshesAwaitingRematerialization().size())
         : 0;
     if (pending > 0) return pending;
     if (auto* device = services_.getService<GfxDevice>()) device->markDeviceRestored();

@@ -92,6 +92,18 @@ export interface CppResourceManager {
      * behind. Optional: absent on an older wasm build.
      */
     adoptTextureContent?(target: number, source: number): boolean;
+    /**
+     * The meshes whose GPU realization died with the device, as comma-separated
+     * handle ids. No path travels with them: the engine never knew one, and the
+     * asset layer holds the provenance. Optional: absent on an older wasm build.
+     */
+    meshesAwaitingRemat?(): string;
+    /**
+     * Meshes the loss ended for good — host-only geometry no source can replay.
+     * Reported rather than skipped, so recovery cannot count them as recovered.
+     * Optional: absent on an older wasm build.
+     */
+    meshesLostNonRecoverable?(): number;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;

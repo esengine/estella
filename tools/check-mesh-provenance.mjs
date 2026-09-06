@@ -18,6 +18,10 @@
  * producer is gone is worse than no table: it reads as an answered question. A
  * one-way census becomes a graveyard, and a graveyard is what a reader trusts.
  *
+ * The third question is whether the table and the code agree: a producer's class
+ * here and the MeshRecovery it hands createMesh are the same answer written
+ * twice, and recovery acts on the one no person reads.
+ *
  * What this gate deliberately does NOT do is let recovery infer the answer at
  * runtime. Missing provenance for a mesh declared recoverable is a defect to be
  * reported, not evidence that the mesh was host-only all along.
@@ -113,7 +117,7 @@ function bodyName(head) {
     return m ? m[1].replace(/\s+/g, '') : null;
 }
 
-const NEEDLES = ['createMesh(', `${MINT.pool}.add(`];
+const NEEDLES = ['createMesh(', `${MINT.pool}.add(`, 'MeshRecovery::'];
 
 /** Each needle occurrence with the function it sits in. */
 function occurrences(code) {
@@ -130,6 +134,7 @@ function occurrences(code) {
                 found.push({
                     index: i,
                     needle,
+                    enumName: (/^\w+/.exec(code.slice(i + needle.length)) ?? [])[0] ?? null,
                     fn: stack.find((s) => s.fn)?.fn ?? null,
                     qualifier: (/([A-Za-z_]\w*)\s*::\s*$/.exec(code.slice(Math.max(0, i - 96), i))
                         ?? [])[1] ?? null,
@@ -162,6 +167,8 @@ if (files.length === 0) problems.push(`no engine sources under ${ROOTS.join(', '
 const declared = new Map(MESH_PRODUCERS.map((p) => [p.id, p]));
 /** Producers this run actually found in the sources, for the backwards half. */
 const discovered = new Map();
+/** The MeshRecovery each function hands createMesh, for the table-vs-code half. */
+const policies = new Map();
 let mints = 0;
 
 for (const file of files) {
@@ -169,6 +176,13 @@ for (const file of files) {
     const code = blank(readFileSync(file, 'utf8'));
     for (const hit of occurrences(code)) {
         const where = `${rel}:${lineOf(code, hit.index)}`;
+        if (hit.needle === 'MeshRecovery::') {
+            if (hit.fn && hit.enumName) {
+                if (!policies.has(hit.fn)) policies.set(hit.fn, []);
+                policies.get(hit.fn).push(hit.enumName);
+            }
+            continue;
+        }
         if (hit.needle !== 'createMesh(') {
             mints++;
             if (rel !== MINT.file || hit.fn !== MINT.fn) {
@@ -203,10 +217,24 @@ if (mints === 0) {
 }
 
 for (const p of MESH_PRODUCERS) {
-    if (discovered.has(p.id)) continue;
-    problems.push(`${p.id} is declared ${p.class} in tools/meshProducers.mjs and no longer mints`
-        + ` a mesh in ${p.file}. A declaration outliving its producer reads as an answered`
-        + ' question; drop the row.');
+    if (!discovered.has(p.id)) {
+        problems.push(`${p.id} is declared ${p.class} in tools/meshProducers.mjs and no longer`
+            + ` mints a mesh in ${p.file}. A declaration outliving its producer reads as an`
+            + ' answered question; drop the row.');
+        continue;
+    }
+    // The table says one thing and the code hands the engine another: recovery
+    // would act on the second, and only the first is ever read by a person.
+    const want = CLASSES[p.class]?.policy;
+    const said = policies.get(p.id) ?? [];
+    if (said.length === 0) {
+        problems.push(`${p.id} is declared ${p.class} and names no MeshRecovery where it mints.`
+            + ` Hand createMesh MeshRecovery::${want}, so the engine holds the same answer the`
+            + ' table does.');
+    } else if (said.length > 1 || said[0] !== want) {
+        problems.push(`${p.id} is declared ${p.class} (MeshRecovery::${want}) and hands`
+            + ` createMesh ${said.map((n) => `MeshRecovery::${n}`).join(', ')}`);
+    }
 }
 
 if (problems.length > 0) {

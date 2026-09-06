@@ -37,15 +37,21 @@ export const MINT = {
  * `source` (recoverable) and `why` (non-recoverable) are each owed: a class on
  * its own is a label, and the sentence beside it is what a later reader checks
  * the class against.
+ *
+ * `policy` is the same answer in the engine's own words — the MeshRecovery a
+ * producer hands createMesh. Naming it here is what stops the table and the code
+ * drifting into two different answers, one of which recovery would act on.
  */
 export const CLASSES = {
     'asset-backed-recoverable': {
         owes: 'source',
+        policy: 'SourceReplayable',
         means: 'the geometry is replayable from an asset the loader can load again;'
             + ' a handle of this class with no recorded source is a contract violation',
     },
     'host-only-non-recoverable': {
         owes: 'why',
+        policy: 'HostOnly',
         means: 'the geometry exists only in the process that built it, by design;'
             + ' a device generation ends it, and no source can bring it back',
     },

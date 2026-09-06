@@ -301,6 +301,7 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                                  ConstSpan<u32>(indices, indexCount),
                                  ConstSpan<GfxVertexAttribute>(channels, channelCount), vertexStride,
                                  glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ),
+                                 MeshRecovery::SourceReplayable,
                                  bind ? ConstSpan<f32>(bind, bindFloats) : ConstSpan<f32>());
     return handle.id();
 }
@@ -351,11 +352,14 @@ u32 freezeMeshGeometry(ecs::MeshRenderer* mesh) {
         verts[i] = { in.position.x, in.position.y, 0.0f, in.uv.x, in.uv.y, in.color };
     }
 
+    // HostOnly: the payload below is cleared on the way out, so this geometry
+    // exists in no file and a device generation ends it for good.
     auto handle = rm->createMesh(
         ConstSpan<u8>(reinterpret_cast<const u8*>(verts.data()), verts.size() * sizeof(MeshVertex)),
         ConstSpan<u32>(mesh->indices.data(), mesh->indices.size()),
         ConstSpan<GfxVertexAttribute>(kStandardMeshChannels, 3), sizeof(MeshVertex),
-        glm::vec3(mesh->localMin, 0.0f), glm::vec3(mesh->localMax, 0.0f));
+        glm::vec3(mesh->localMin, 0.0f), glm::vec3(mesh->localMax, 0.0f),
+        MeshRecovery::HostOnly);
     if (!handle.isValid()) return 0;
 
     mesh->mesh = handle;

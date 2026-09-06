@@ -492,6 +492,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
         .function("retargetExternalTexture", &esengine::rm_retargetExternalTexture)
         .function("texturesAwaitingReupload", &esengine::rm_texturesAwaitingReupload)
+        .function("meshesAwaitingRemat", &esengine::rm_meshesAwaitingRemat)
+        .function("meshesLostNonRecoverable", &esengine::rm_meshesLostNonRecoverable)
         .function("adoptTextureContent", &esengine::rm_adoptTextureContent)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("getTextureRefCount", &esengine::rm_getTextureRefCount)

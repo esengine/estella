@@ -149,6 +149,19 @@ std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm) {
     return out;
 }
 
+std::string rm_meshesAwaitingRemat(resource::ResourceManager& rm) {
+    std::string out;
+    for (resource::MeshHandle handle : rm.meshesAwaitingRematerialization()) {
+        if (!out.empty()) out += ',';
+        out += std::to_string(handle.id());
+    }
+    return out;
+}
+
+u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm) {
+    return rm.meshesLostNonRecoverable();
+}
+
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
                                      u32 width, u32 height, u32 bytes) {
     auto handle = rm.registerExternalTexture(glTextureId, width, height,
