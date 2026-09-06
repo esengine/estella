@@ -75,14 +75,13 @@ export const DECISIONS = [
     id: 'shadow.atlasAllocation',
     what: 'Which casters get shadow tiles, how many cascades the sun keeps, and who is denied.',
     kind: 'contended-resource',
-    owner: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /shadow_atlas_\.allocate\(want, kShadowCascadeCells\)/ },
-    runtime: {
+    owner: { path: 'src/esengine/renderer/store/ShadowPlan.hpp', probe: /inline ShadowGrant claimTiles/ },
+    runtime: { has: true, cite: { path: 'src/esengine/renderer/store/ShadowPlan.hpp', probe: /grant\.refusal = why/ } },
+    editor: {
       has: false,
-      owed: 'a caster the atlas cannot fit keeps plan[i].count == 0 and casts nothing. Tiles and draws '
-        + 'are counted; DENIALS are not, and no log names the light. The light cap two hundred lines '
-        + 'up warns — this one is silent, in the same file',
+      owed: 'the frame now records who was refused and why (ShadowPlanReport, render.shadow.denied), '
+        + 'and nothing reads it — a light stops casting and the viewport still gives no reason',
     },
-    editor: { has: false, owed: 'a light stops casting and the viewport gives no reason' },
     agent: { has: false, owed: 'nothing to read' },
   },
   {

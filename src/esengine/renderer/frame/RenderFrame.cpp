@@ -947,6 +947,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         GpuLight gpu;
         bool castsMeshShadow = false;
         ShadowCaster caster;
+        caster.light = entity;
         gpu.color = glm::vec4(rgb, light.intensity);
         // shadow.x = penumbra softness (all types); shadow.y = directional march distance (only the
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
@@ -1209,22 +1210,39 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         u32 count = 0;
     };
     std::vector<TilePlan> plan(shadow_casters_.size());
+    shadow_plan_.clear();
+    shadow_plan_.atlasSize = kShadowAtlasSize;
+    shadow_plan_.cellSize = kShadowCellSize;
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
-        const ShadowShape shape = shadow_casters_[i].shape;
-        if (shape == ShadowShape::Box) continue;
-        const u32 want = shape == ShadowShape::Cube ? SHADOW_CUBE_FACES : 1;
-        const i32 at = shadow_atlas_.allocate(want, 1);
-        if (at >= 0) plan[i] = {static_cast<u32>(at), want};
+        const ShadowCaster& caster = shadow_casters_[i];
+        if (caster.shape == ShadowShape::Box) continue;
+        const u32 want = caster.shape == ShadowShape::Cube ? SHADOW_CUBE_FACES : 1;
+        i32 at = -1;
+        const ShadowGrant grant = claimTiles(shadow_atlas_, caster.light, want, 1, at);
+        if (at >= 0) plan[i] = {static_cast<u32>(at), grant.granted};
+        shadow_plan_.grants.push_back(grant);
     }
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];
         if (caster.shape != ShadowShape::Box) continue;
         // A fixed reach is the author saying what the map covers; splitting it would
         // hand the rest of the atlas to slices they never asked for.
-        u32 want = (perspective && caster.extent <= 0.0f) ? MAX_SHADOW_CASCADES : 1;
-        for (; want > 0; --want) {
-            const i32 at = shadow_atlas_.allocate(want, kShadowCascadeCells);
-            if (at >= 0) { plan[i] = {static_cast<u32>(at), want}; break; }
+        const u32 want = (perspective && caster.extent <= 0.0f) ? MAX_SHADOW_CASCADES : 1;
+        i32 at = -1;
+        const ShadowGrant grant = claimTiles(shadow_atlas_, caster.light, want,
+                                             kShadowCascadeCells, at);
+        if (at >= 0) plan[i] = {static_cast<u32>(at), grant.granted};
+        shadow_plan_.grants.push_back(grant);
+    }
+    for (const ShadowGrant& g : shadow_plan_.grants) {
+        shadow_plan_.requestedTiles += g.requested;
+        shadow_plan_.grantedTiles += g.granted;
+        // The light cap two hundred lines up warns when it drops a light. This is the
+        // same contention over the same frame and said nothing at all, which is how a
+        // light that stopped casting became a question with no answer in the engine.
+        if (g.denied()) {
+            ES_LOG_WARN("shadow atlas: light {} asked for {} tile(s) and got none ({})",
+                        g.light.raw, g.requested, refusalName(g.refusal));
         }
     }
 
@@ -1353,6 +1371,11 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     }
 
     ES_PROFILE_COUNTER("render.shadow.collects", static_cast<u32>(shadow_views_.size()));
+    // Asked for BESIDE handed out: the two being equal is the only reading under
+    // which "16 tiles" says the frame got what it wanted.
+    ES_PROFILE_COUNTER("render.shadow.requested", shadow_plan_.requestedTiles);
+    ES_PROFILE_COUNTER("render.shadow.denied", shadow_plan_.deniedCasters());
+    ES_PROFILE_COUNTER("render.shadow.reduced", shadow_plan_.reducedCasters());
     if (!anyTile) return;
 
     // Borrowed, not held for the run: 2048² with depth is ~32MB. External because

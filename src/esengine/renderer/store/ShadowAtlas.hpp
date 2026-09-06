@@ -22,6 +22,31 @@
 
 namespace esengine {
 
+/**
+ * @brief Why a claim was turned down. Three different answers on purpose: raising
+ *        the atlas size fixes @ref NoSpace and neither of the others.
+ */
+enum class AtlasRefusal : u8 {
+    None = 0,
+    /// More tiles than the shader's arrays are sized for (@ref MAX_SHADOW_TILES).
+    TileBudget,
+    /// One tile is wider than the whole atlas — the request cannot fit at any size.
+    TooLarge,
+    /// The atlas has no free block that size left. The one raising the size fixes.
+    NoSpace,
+};
+
+/** @brief The refusal as a word, for a log line and, later, for a reader. */
+inline const char* refusalName(AtlasRefusal why) {
+    switch (why) {
+        case AtlasRefusal::TileBudget: return "tile budget";
+        case AtlasRefusal::TooLarge:   return "tile larger than the atlas";
+        case AtlasRefusal::NoSpace:    return "atlas full";
+        case AtlasRefusal::None:       break;
+    }
+    return "none";
+}
+
 /** @brief One tile's square, in atlas texels. */
 struct ShadowTile {
     u32 x = 0;
@@ -52,18 +77,32 @@ public:
 
     /**
      * @brief Claims @p count tiles of @p cells x @p cells cells each.
+     * @param why Set to the reason on a refusal, @ref AtlasRefusal::None otherwise.
      * @return The first tile's index, or -1 when the atlas or the tile budget has no
      *         room for all of them — all or nothing, so a caller never renders half a
      *         cascade set and leaves the rest reading someone else's depths.
+     *
+     * @details The reason is an OUT PARAMETER rather than something a caller may ask
+     *          for: every refusal here is a light that silently stops casting, and a
+     *          signature nobody had to read is how that went unrecorded for as long
+     *          as it did.
      */
-    i32 allocate(u32 count, u32 cells) {
-        if (count == 0 || cells == 0 || cells > cols_) return -1;
-        if (tiles_.size() + count > MAX_SHADOW_TILES) return -1;
+    i32 allocate(u32 count, u32 cells, AtlasRefusal& why) {
+        why = AtlasRefusal::None;
+        if (count == 0 || cells == 0 || cells > cols_) {
+            why = AtlasRefusal::TooLarge;
+            return -1;
+        }
+        if (tiles_.size() + count > MAX_SHADOW_TILES) {
+            why = AtlasRefusal::TileBudget;
+            return -1;
+        }
         const usize before = tiles_.size();
         for (u32 i = 0; i < count; ++i) {
             if (!claim(cells)) {
                 tiles_.resize(before);
                 rebuildUsed();
+                why = AtlasRefusal::NoSpace;
                 return -1;
             }
         }

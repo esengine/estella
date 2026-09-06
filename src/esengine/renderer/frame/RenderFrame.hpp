@@ -8,6 +8,7 @@
 #include "./RenderContext.hpp"
 #include "../store/LightConstants.hpp"
 #include "../store/ShadowAtlas.hpp"
+#include "../store/ShadowPlan.hpp"
 #include "../graph/TargetPool.hpp"
 #include "../graph/RenderGraph.hpp"
 #include "../RenderTypePlugin.hpp"
@@ -311,6 +312,14 @@ public:
     usize lodPreviewCount() const { return lod_view_state_.previewCount(); }
 
     /**
+     * @brief What each caster asked the shadow atlas for last frame, and what it got.
+     *
+     * @details The answer to "why does this object have no shadow", which the engine
+     *          could not give at all: tiles handed out were counted, refusals were not.
+     */
+    const ShadowPlanReport& shadowPlan() const { return shadow_plan_; }
+
+    /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).
      * @details Sets the global ES_LINEAR shader input, linearizes CPU-side
      *          authored colors (lights, clears), and forces the post-process
@@ -597,6 +606,9 @@ private:
      */
     struct ShadowCaster {
         u32 slot = 0;
+        /// The light that asked. Carried for the same reason `slot` is — the cap sort
+        /// reorders these, and a refusal has to be able to name who was refused.
+        Entity light{};
         ShadowShape shape = ShadowShape::Box;
         /// Which way it points — the aim, not the direction light travels. A cube aims
         /// six ways of its own and reads none of it.
@@ -676,6 +688,7 @@ private:
     /// Who owns which square of the atlas. Rebuilt every frame: a tile means
     /// nothing once the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};
+    ShadowPlanReport shadow_plan_;
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
     u32 shadow_texture_id_ = 0;
     /// The frame environment's reflection atlas, on the same terms. 0 = none this frame.
