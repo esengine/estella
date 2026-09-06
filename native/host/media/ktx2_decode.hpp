@@ -26,12 +26,20 @@ struct KTX2Result {
     int handle;   ///< ResourceManager texture id, or < 0 on failure.
     int width;
     int height;
+    /// GfxCompressedFormat ordinal uploaded, or < 0 when it decoded to RGBA32.
+    /// The fallback is otherwise indistinguishable from success: the texture
+    /// draws correctly at four times the memory somebody paid cook time to avoid.
+    int format;
+    /// A device format WAS available and this image is not whole blocks of it.
+    /// Kept apart from "the device offered none" because only this one is fixed
+    /// by the asset — the other is fixed by the build target, or not at all.
+    bool blockRefused;
 };
 
 /** Transcode + upload a KTX2 clip (mip level 0). @p srgb selects the sRGB GPU
  *  format variant (the block data is identical). Picks the best format the
  *  @p device supports, falling back to RGBA32 so it always succeeds if the file
- *  is valid. */
+ *  is valid — and says in the result which of those happened. */
 KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
                          esengine::resource::ResourceManager& rm, esengine::GfxDevice& device);
 

@@ -141,33 +141,47 @@ export function engineFormatCode(format: CompressedTextureFormat, srgb: boolean)
     return ENGINE_FORMAT_CODE[format][srgb ? 1 : 0];
 }
 
-/** Best target the ENGINE says it can sample, in quality/size order. */
+/**
+ * Quality/size order: ASTC (best), ETC2 (the WebGL2 baseline), S3TC (desktop).
+ *
+ * ONE list. The GL path and the engine-upload path ask different oracles about
+ * the same device; a second ordering would let a texture land in a different
+ * format depending on which backend loaded it.
+ */
+export const TARGET_PREFERENCE: readonly CompressedTextureFormat[] = [
+    CompressedTextureFormat.ASTC_4x4,
+    CompressedTextureFormat.ETC2_RGBA8,
+    CompressedTextureFormat.S3TC_DXT5,
+];
+
+/** Best target the ENGINE says it can sample, in {@link TARGET_PREFERENCE} order. */
 export function chooseEngineTargetFormat(
     supports: (code: number) => boolean, srgb = false,
 ): CompressedTextureFormat | null {
-    const order = [
-        CompressedTextureFormat.ASTC_4x4,
-        CompressedTextureFormat.ETC2_RGBA8,
-        CompressedTextureFormat.S3TC_DXT5,
-    ];
-    for (const f of order) if (supports(engineFormatCode(f, srgb))) return f;
+    for (const f of TARGET_PREFERENCE) if (supports(engineFormatCode(f, srgb))) return f;
     return null;
 }
 
 /**
- * Best available target in quality/size order: ASTC > ETC2 > S3TC. null = none.
+ * Best available target in {@link TARGET_PREFERENCE} order. null = none.
  * With `srgb` (linear pipeline) a format only qualifies when its sRGB variant is
  * uploadable — S3TC needs the separate s3tc_srgb extension; ASTC/ETC2 sRGB ride
  * the same extension as their UNORM twins. The transcoded block data is
- * identical either way; only the sampling interpretation differs.
+ * identical either way; only the sampling interpretation differs, which is why
+ * "can this be uploaded" IS whether an internalformat exists for it.
  */
 export function chooseTargetFormat(
     support: CompressedTextureSupport, srgb = false,
 ): CompressedTextureFormat | null {
-    if (support.astc) return CompressedTextureFormat.ASTC_4x4;
-    if (support.etc) return CompressedTextureFormat.ETC2_RGBA8;
-    if (srgb ? support.s3tcSrgb : support.s3tc) return CompressedTextureFormat.S3TC_DXT5;
+    for (const f of TARGET_PREFERENCE) if (glInternalFormat(support, f, srgb) !== null) return f;
     return null;
+}
+
+/** Every target this device samples, best first — the capability, not a choice. */
+export function supportedTargetFormats(
+    supports: (f: CompressedTextureFormat) => boolean,
+): CompressedTextureFormat[] {
+    return TARGET_PREFERENCE.filter(supports);
 }
 
 /** WebGL `internalformat` enum for a chosen format, from its enabling extension. */
@@ -286,6 +300,91 @@ export function uploadRgbaTexture(
 // Orchestration (the compressed-vs-fallback decision — the testable core)
 // =============================================================================
 
+/** What a texture ended up as on the GPU. */
+export type UploadedGpuFormat = CompressedTextureFormat | 'rgba8';
+
+/**
+ * Why an upload landed on the format it did.
+ *
+ * `uncompressed-payload` is not a fallback — an ordinary image asked for
+ * nothing. The other three each name a different thing to change: the DEVICE
+ * samples none, the FILE would not transcode, or its size is not whole blocks.
+ */
+export type TextureUploadReason =
+    | 'compressed'
+    | 'no-device-format'
+    | 'transcode-failed'
+    | 'not-block-aligned'
+    | 'uncompressed-payload';
+
+/**
+ * What one texture upload did with a cooked payload, on THIS device.
+ *
+ * The second half; the first is what the build shipped
+ * (pipeline/src/assets/textureCookDecision.ts). Kept apart because a cook that
+ * shipped raw is a build setting and a device that decoded it is a device.
+ */
+export interface TextureUploadDecision {
+    /** What arrived: a transcodable container, or a plain image. */
+    readonly payload: 'ktx2' | 'raw';
+    /** The best format this device offered for it; null when it offered none. */
+    readonly target: CompressedTextureFormat | null;
+    readonly effective: UploadedGpuFormat;
+    readonly reason: TextureUploadReason;
+}
+
+/** The decision a compressed payload came to, given the device's answer and
+ *  whether the transcode to it worked. Pure — the three cases hold without a
+ *  GL context, a device or the basis module. */
+export function compressedUploadDecision(
+    target: CompressedTextureFormat | null, transcoded: boolean,
+): TextureUploadDecision {
+    if (target === null) {
+        return { payload: 'ktx2', target: null, effective: 'rgba8', reason: 'no-device-format' };
+    }
+    if (!transcoded) {
+        return { payload: 'ktx2', target, effective: 'rgba8', reason: 'transcode-failed' };
+    }
+    return { payload: 'ktx2', target, effective: target, reason: 'compressed' };
+}
+
+/** The target an engine ordinal names, or null when it names none of the three
+ *  (an RGBA upload, or a format no loader targets). */
+export function formatFromEngineCode(code: number): CompressedTextureFormat | null {
+    for (const f of TARGET_PREFERENCE) {
+        const [unorm, srgb] = ENGINE_FORMAT_CODE[f];
+        if (code === unorm || code === srgb) return f;
+    }
+    return null;
+}
+
+/**
+ * What a native host's own KTX2 upload came to.
+ *
+ * `format` is the engine ordinal it uploaded, negative when it decoded to RGBA.
+ * `blockRefused` separates the two ways that happens — an image that was not
+ * whole blocks, or a device that offered nothing. Only the first is the asset's.
+ */
+export function hostUploadDecision(format: number, blockRefused: boolean): TextureUploadDecision {
+    const target = formatFromEngineCode(format);
+    if (target) return { payload: 'ktx2', target, effective: target, reason: 'compressed' };
+    return {
+        payload: 'ktx2', target: null, effective: 'rgba8',
+        reason: blockRefused ? 'not-block-aligned' : 'no-device-format',
+    };
+}
+
+/** A texture that was never a compressed payload — an ordinary image upload. */
+export const RAW_PAYLOAD_UPLOAD: TextureUploadDecision = {
+    payload: 'raw', target: null, effective: 'rgba8', reason: 'uncompressed-payload',
+};
+
+export interface LoadedCompressedTexture extends UploadedTexture {
+    /** What this upload came to, and why — the fallback is otherwise an
+     *  else-branch that counts nothing. */
+    readonly decision: TextureUploadDecision;
+}
+
 /**
  * Load a KTX2 buffer into a GPU texture: prefer a device-supported compressed
  * format, fall back to RGBA8 when none is available or the compressed transcode
@@ -294,15 +393,15 @@ export function uploadRgbaTexture(
 export function loadCompressedTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule,
     transcoder: BasisTranscoder, bytes: Uint8Array, opts?: CompressedUploadOptions,
-): UploadedTexture {
+): LoadedCompressedTexture {
     const support = detectCompressedTextureSupport(gl);
     const target = chooseTargetFormat(support, opts?.srgb ?? false);
-    if (target !== null) {
-        const t = transcoder.transcode(bytes, target);
-        if (t) return uploadCompressedTexture(gl, module, support, target, t, opts);
-        // transcode to the chosen format failed → fall through to RGBA.
+    const t = target !== null ? transcoder.transcode(bytes, target) : null;
+    const decision = compressedUploadDecision(target, t !== null);
+    if (target !== null && t) {
+        return { ...uploadCompressedTexture(gl, module, support, target, t, opts), decision };
     }
     const rgba = transcoder.transcodeToRgba(bytes);
     if (!rgba) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
-    return uploadRgbaTexture(gl, module, rgba, opts);
+    return { ...uploadRgbaTexture(gl, module, rgba, opts), decision };
 }

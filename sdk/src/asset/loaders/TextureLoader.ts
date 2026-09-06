@@ -10,8 +10,12 @@ import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
     isKtx2, isKtx2Path, loadCompressedTexture, chooseEngineTargetFormat, engineFormatCode,
-    type BasisTranscoder,
+    compressedUploadDecision, detectCompressedTextureSupport, glInternalFormat,
+    supportedTargetFormats, hostUploadDecision, RAW_PAYLOAD_UPLOAD,
+    CompressedTextureFormat,
+    type BasisTranscoder, type TextureUploadDecision,
 } from '../compressed';
+import { TextureFormatLog, type TextureFormatReport } from '../textureFormatReport';
 import { uploadBoundTextureImage, applyBoundTextureSampling } from '../glTextureUpload';
 import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
 
@@ -94,6 +98,17 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         this.transcoder_ = await this.transcoderPending_;
         return this.transcoder_;
     }
+    /**
+     * What every texture this loader uploaded became, and the device capability
+     * that constrained it. Owned by the loader, so it is scoped to the realm that
+     * took the decisions and cannot outlive the textures it describes.
+     */
+    private readonly formats_ = new TextureFormatLog();
+    /** The decision the in-flight upload came to. Set by the one entry point that
+     *  chooses a path (decodeAndUpload_) and read by the one that records. */
+    private lastDecision_: TextureUploadDecision = RAW_PAYLOAD_UPLOAD;
+    private deviceFormats_: CompressedTextureFormat[] | null = null;
+
     private canvas_: PlatformCanvas | null = null;
     private ctx_: PlatformCanvas2DContext | null = null;
     /**
@@ -183,6 +198,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
         const result = await this.decodeAndUpload_(path, ctx, flip, settings);
+        // Recorded HERE, once, for every path into the loader — the compressed
+        // paths, the pixel decoder and the <img> upload alike. A record kept only
+        // where a fallback happens cannot say that everything else was fine.
+        this.formats_.record(textureResidencyKey(path, flip), this.lastDecision_);
         // Path identity in the C++ pool: after the last release the texture can
         // survive as an evictable cache entry (budget permitting) and the next
         // load revives it by this key instead of re-fetching + re-decoding.
@@ -195,6 +214,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async decodeAndUpload_(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
+        this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
         if (isKtx2Path(path)) {
             return this.loadCompressed(path, ctx, settings);
         }
@@ -232,6 +252,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (rm.createTextureFromKTX2) {
             const r = rm.createTextureFromKTX2(bytes, linearColorSpace());
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
+            // A host that reports no format says nothing rather than claiming
+            // success: -1 with no block refusal reads as "this device offered
+            // none", the honest reading of an absent answer.
+            this.lastDecision_ = hostUploadDecision(r.format ?? -1, r.blockRefused ?? false);
             return { handle: r.handle, width: r.width, height: r.height };
         }
         const transcoder = await this.ensureTranscoder_();
@@ -251,6 +275,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // above on the missing gl); the KTX2 path is web-only.
         const r = loadCompressedTexture(gl, this.module_!, transcoder, bytes,
             { ...settings, srgb: linearColorSpace() });
+        this.lastDecision_ = r.decision;
         return { handle: r.handle, width: r.width, height: r.height };
     }
 
@@ -268,17 +293,22 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             const target = chooseEngineTargetFormat((code) => supports(code), srgb);
-            if (target) {
-                const t = transcoder.transcode(bytes, target);
-                if (t) {
-                    const code = engineFormatCode(target, srgb);
-                    const handle = withMalloc(module, t.data.length, (ptr) => {
-                        module.HEAPU8.set(t.data, ptr);
-                        return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1);
-                    });
-                    if (handle) return { handle, width: t.width, height: t.height };
-                }
+            const t = target ? transcoder.transcode(bytes, target) : null;
+            this.lastDecision_ = compressedUploadDecision(target, t !== null);
+            if (target && t) {
+                const code = engineFormatCode(target, srgb);
+                const handle = withMalloc(module, t.data.length, (ptr) => {
+                    module.HEAPU8.set(t.data, ptr);
+                    return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1);
+                });
+                if (handle) return { handle, width: t.width, height: t.height };
+                // The upload itself failed after a good transcode — the payload
+                // still becomes RGBA, and saying "compressed" here would be a
+                // record of what was intended rather than what happened.
+                this.lastDecision_ = compressedUploadDecision(target, false);
             }
+        } else {
+            this.lastDecision_ = compressedUploadDecision(null, false);
         }
         const rgba = transcoder.transcodeToRgba(bytes);
         if (!rgba) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
@@ -333,6 +363,37 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
         return findWebGL2Context(this.module_?.GL);
+    }
+
+    /**
+     * Which compressed formats this device samples, best first.
+     *
+     * The INPUT to every upload decision, and the half a realm answers without
+     * loading one. Null when nothing could be asked — an empty list would read as
+     * a capability. Cached, since `getExtension` also ENABLES.
+     */
+    deviceFormats(): CompressedTextureFormat[] | null {
+        if (this.deviceFormats_) return this.deviceFormats_;
+        const srgb = linearColorSpace();
+        const gl = this.getWebGL2Context();
+        if (gl) {
+            const support = detectCompressedTextureSupport(gl);
+            return (this.deviceFormats_ =
+                supportedTargetFormats((f) => glInternalFormat(support, f, srgb) !== null));
+        }
+        const rm = requireResourceManager();
+        if (rm.supportsCompressedFormat) {
+            const supports = rm.supportsCompressedFormat.bind(rm);
+            return (this.deviceFormats_ =
+                supportedTargetFormats((f) => supports(engineFormatCode(f, srgb))));
+        }
+        return null;
+    }
+
+    /** What the textures this loader uploaded became, and on what device. */
+    formatReport(): TextureFormatReport {
+        const formats = this.deviceFormats();
+        return this.formats_.report(formats ?? [], formats !== null);
     }
 
     private createTextureWebGL2(

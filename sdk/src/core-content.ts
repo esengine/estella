@@ -97,6 +97,15 @@ export {
     type SpineCullingRect,
     type SpineCullingContract,
     type SpineManifestContract,
+    CompressedTextureFormat,
+    compressedUploadDecision,
+    RAW_PAYLOAD_UPLOAD,
+    type TextureUploadDecision,
+    type TextureUploadReason,
+    type UploadedGpuFormat,
+    textureFormatOf,
+    type TextureFormatReport,
+    type TextureFormatRecord,
 } from './asset';
 
 /** When the live bindings that READ the asset graph have caught up with it —

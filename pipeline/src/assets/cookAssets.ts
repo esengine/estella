@@ -26,6 +26,13 @@ import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba,
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
 import { readTextureCookSettings } from '../project/importSettings';
+// The compression a build gives one texture, and the one reason it is that.
+// The branch below IS this function — a cook that re-derived the choice would
+// be a second answer to the question an inspector asks before a build runs.
+import {
+  decideTextureCook, cookIntentDefeated, explainTextureCook,
+  type TextureCookDecision,
+} from './textureCookDecision';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
@@ -65,6 +72,14 @@ export interface CookManifestEntry extends AssetEntry {
   sourcePath: string;
   /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
   compressedFormats?: string[];
+  /**
+   * What this build did to the texture's compression request, for images only.
+   *
+   * `compressedFormats` says a payload can transcode; it cannot say why one is
+   * absent, and a request defeated by the image's own dimensions and one
+   * defeated by the Build dialog are fixed in different places.
+   */
+  cook?: TextureCookDecision;
   /**
    * Addressable group this asset belongs to. `'main'` ships in the main package
    * (loaded eagerly); any other name is a lazy subpackage (folder convention:
@@ -473,6 +488,10 @@ export async function cookAssets(
 
   const manifestEntries: CookManifestEntry[] = [];
   const staged = new Set<string>();  // staged output paths, for content-addressed dedup
+  // Images that asked to be compressed and are not PNG. Named together: this is
+  // one fact about the project's source art, and one line per JPEG would bury
+  // the per-asset findings that each need their own fix.
+  const defeatedByFormat: string[] = [];
 
   // ---- Auto-atlas (`<name>.atlas/` folder convention) -----------------------
   // Pack the reachable PNGs of each atlas directory into pages BEFORE the
@@ -550,6 +569,16 @@ export async function cookAssets(
     const framePlan = atlasPlan.get(entry.path);
     if (framePlan) {
       const fg = resolveAssetGroup(entry.path, groupsConfig);
+      // A frame's own Compress rows never reach an encoder: the page is what
+      // ships. Saying so is the point — the row still reads as if it applied.
+      const frameTex = readTextureCookSettings(entry.importer, platform);
+      const frameCook = decideTextureCook({
+        compressTextures, atlasTextures, inAtlas: true, raster: true,
+        compress: frameTex.compress, format: frameTex.format, size: null,
+      });
+      if (cookIntentDefeated(frameCook)) {
+        warnings.push(`${entry.path}: ${explainTextureCook(frameCook)}`);
+      }
       manifestEntries.push({
         uuid: entry.uuid,
         path: framePlan.pageOutRel,
@@ -561,6 +590,7 @@ export async function cookAssets(
         group: fg.name,
         groupMode: fg.delivery,
         ...(framePlan.compressedFormats ? { compressedFormats: framePlan.compressedFormats } : {}),
+        cook: frameCook,
         atlas: {
           page: framePlan.page,
           frame: framePlan.frame,
@@ -581,41 +611,49 @@ export async function cookAssets(
         : await readFile(path.join(root, entry.path));
       let ext = path.extname(entry.path);
       let compressedFormats: string[] | undefined;
-      // Encode raster textures (PNG) to GPU-compressed KTX2 — they stay compressed
-      // in VRAM, the runtime transcodes per device. Hash + name reflect the ENCODED
-      // bytes, so this composes with content-addressing below.
-      if (textureEnc && entry.type !== 'scene' && ext.toLowerCase() === '.png') {
+      let cook: TextureCookDecision | undefined;
+      // Every image takes the decision, not only the ones an encoder accepts: a
+      // JPEG whose Compress row reads ON leaves no other trace. Hash + name below
+      // reflect the ENCODED bytes, so this composes with content-addressing.
+      if (entry.type !== 'scene' && getAssetTypeEntry(entry.path)?.contentType === 'image') {
         const tex = readTextureCookSettings(entry.importer, platform);
+        const raster = ext.toLowerCase() === '.png';
         // maxSize downscale first — it applies even when a texture opts OUT of
-        // compression (a huge UI sprite can ship as a smaller raw PNG).
+        // compression (a huge UI sprite can ship as a smaller raw PNG), and the
+        // ENCODED size is what block alignment is judged on.
         let rgba: Uint8Array | null = null;
         let tw = 0, th = 0;
-        try {
-          const dims = pngDimensions(data);
-          if (tex.maxSize < Math.max(dims.width, dims.height)) {
-            const scaled = downscaleRgba(decodePngImage(entry.path, data), tex.maxSize);
-            rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
-            if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
+        if (textureEnc && raster) {
+          try {
+            const dims = pngDimensions(data);
+            if (tex.maxSize < Math.max(dims.width, dims.height)) {
+              const scaled = downscaleRgba(decodePngImage(entry.path, data), tex.maxSize);
+              rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
+              if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
+            }
+          } catch (err) {
+            warnings.push(`${entry.path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
           }
-        } catch (err) {
-          warnings.push(`${entry.path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
         }
-        // Per-asset compression: KTX2 (Basis) in the texture's chosen format, or
-        // ship the raw/shrunk PNG when the asset opted out. Hash + name below
-        // reflect the ENCODED bytes, so this composes with content-addressing.
-        // WebGPU refuses a compressed texture whose size is not a multiple of its
-        // 4x4 block, so a 70x70 sprite fails CreateTexture on the native runtime
-        // and the game draws nothing. Ship those raw instead.
-        const size = rgba ? { width: tw, height: th } : safePngDimensions(data);
-        const blockAligned = size !== null && size.width % 4 === 0 && size.height % 4 === 0;
-        if (tex.compress && !blockAligned) {
-          warnings.push(`${entry.path}: shipped raw — ${size ? `${size.width}x${size.height}` : 'its size'} `
-            + 'is not a multiple of 4, which a block-compressed texture must be');
+        const size = raster ? (rgba ? { width: tw, height: th } : safePngDimensions(data)) : null;
+        cook = decideTextureCook({
+          compressTextures, atlasTextures, inAtlas: false, raster,
+          compress: tex.compress, format: tex.format, size,
+        });
+        if (cookIntentDefeated(cook)) {
+          // A source format the encoder does not take is a property of the whole
+          // project's art, not of one asset — it is summarized once, below.
+          if (cook.reason === 'not-raster') defeatedByFormat.push(entry.path);
+          else warnings.push(`${entry.path}: ${explainTextureCook(cook, size)}`);
         }
-        if (tex.compress && blockAligned) {
+        if (cook.selected !== 'raw') {
+          // Only a build that encodes can select an encoding, and that is exactly
+          // when the encoder was loaded — an absent one here is a broken invariant
+          // and should say so rather than silently ship raw.
+          const enc = textureEnc!;
           data = rgba
-            ? await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: tex.format, srgb: tex.srgb })
-            : await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.PNG, data }, { mode: tex.format, srgb: tex.srgb });
+            ? await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: cook.selected, srgb: tex.srgb })
+            : await enc.encodeToKtx2({ type: enc.ImageType.PNG, data }, { mode: cook.selected, srgb: tex.srgb });
           ext = '.ktx2';
           compressedFormats = COMPRESSED_TARGETS;
         }
@@ -733,6 +771,7 @@ export async function cookAssets(
         group,
         groupMode: delivery,
         ...(compressedFormats ? { compressedFormats } : {}),
+        ...(cook ? { cook } : {}),
       });
       // The video's audio track ships as its own manifest entry addressed as
       // `<source path>.m4a` / uuid `<video uuid>-audio` — the runtime resolves
@@ -792,6 +831,11 @@ export async function cookAssets(
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
   const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
+  if (defeatedByFormat.length) {
+    const shown = defeatedByFormat.slice(0, 3).join(', ');
+    warnings.push(`${defeatedByFormat.length} image(s) ask to be compressed but are not PNG, so they `
+      + `ship as they are — ${shown}${defeatedByFormat.length > 3 ? ', …' : ''}`);
+  }
   return {
     ok: failed.length === 0,
     outDir: absOut, manifestPath, included: [...reachable], includedPaths, unused, warnings, failed,

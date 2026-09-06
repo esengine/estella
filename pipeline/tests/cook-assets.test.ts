@@ -10,12 +10,13 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookAssets } from '../src/assets/cookAssets';
+import type { TextureCookDecision } from '../src/assets/textureCookDecision';
 import { decodePngImage } from '../src/assets/atlasPacker';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 interface AssetManifest {
   version: string;
-  entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number; compressedFormats?: string[] }>;
+  entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number; compressedFormats?: string[]; cook?: TextureCookDecision }>;
 }
 
 let root: string;
@@ -311,6 +312,10 @@ describe('cookAssets (A4)', () => {
       expect(tex.path).toMatch(/\.png$/);
       expect(tex.compressedFormats).toBeUndefined();
       expect(res.warnings.some((w) => w.includes('70x70') && w.includes('multiple of 4'))).toBe(true);
+      // The manifest carries the decision, not just its consequence: an absent
+      // `compressedFormats` cannot say whether the build, the asset or the image
+      // is why, and those are three different things to go and change.
+      expect(tex.cook).toEqual({ requested: 'uastc', selected: 'raw', reason: 'not-block-aligned' });
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

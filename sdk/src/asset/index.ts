@@ -56,3 +56,17 @@ export {
 export { type AssetLoader, type LoadContext, type TextureResult, type TextureResult as TextureInfo, type SpineResult, type SpineLoadResult, type MaterialResult, type FontResult, type AudioResult, type LocaleResult, type JsonResult } from './AssetLoader';
 export { TextureLoader, type TextureImportSettings, type TextureImportSettingsResolver } from './loaders/TextureLoader';
 export { SceneHandle } from './SceneHandle';
+
+// A texture's compression is decided twice — the build picks a payload, the
+// device decides what it becomes. This is the second half; the first is the
+// cook's own record, in the manifest entry it wrote.
+export {
+    CompressedTextureFormat,
+    compressedUploadDecision,
+    RAW_PAYLOAD_UPLOAD,
+    type TextureUploadDecision,
+    type TextureUploadReason,
+    type UploadedGpuFormat,
+} from './compressed';
+export { textureFormatOf } from './textureFormatReport';
+export type { TextureFormatReport, TextureFormatRecord } from './textureFormatReport';

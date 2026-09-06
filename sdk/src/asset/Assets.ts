@@ -17,6 +17,7 @@ import type { ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
+import type { TextureFormatReport } from './textureFormatReport';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { AssetScope, type AssetLease } from './AssetLease';
@@ -2069,6 +2070,18 @@ export class Assets {
 
     getTextureLoader(): TextureLoader {
         return this.textureLoader_;
+    }
+
+    /**
+     * What the textures this realm loaded became on the GPU, and which compressed
+     * formats the device samples at all. @experimental
+     *
+     * The upload half; what the BUILD shipped is the cook's own record. A realm
+     * that plays source images still answers `deviceFormats` — the capability a
+     * cooked payload would meet here.
+     */
+    textureFormatReport(): TextureFormatReport {
+        return this.textureLoader_.formatReport();
     }
 
     setAssetRefResolver(resolver: AssetRefResolver): void {

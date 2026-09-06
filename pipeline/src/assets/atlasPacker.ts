@@ -173,12 +173,29 @@ export function encodePagePng(page: AtlasPage): Uint8Array {
  * into the shrunk result. Pure + deterministic — composes with content-addressed
  * staging exactly like the packer.
  */
+/**
+ * The size a Max Size cap gives an image, without decoding it.
+ *
+ * Block alignment is judged on the ENCODED size, so predicting what a build does
+ * to a texture needs this number rather than the source's — from the same
+ * arithmetic the resize uses, or the prediction is right until a rounding case.
+ */
+export function downscaledSize(
+    width: number, height: number, maxDim: number,
+): { width: number; height: number } {
+    const longest = Math.max(width, height);
+    if (!(maxDim > 0) || longest <= maxDim) return { width, height };
+    const scale = maxDim / longest;
+    return {
+        width: Math.max(1, Math.round(width * scale)),
+        height: Math.max(1, Math.round(height * scale)),
+    };
+}
+
 export function downscaleRgba(img: AtlasInputImage, maxDim: number): AtlasInputImage {
     const longest = Math.max(img.width, img.height);
     if (!(maxDim > 0) || longest <= maxDim) return img;
-    const scale = maxDim / longest;
-    const nw = Math.max(1, Math.round(img.width * scale));
-    const nh = Math.max(1, Math.round(img.height * scale));
+    const { width: nw, height: nh } = downscaledSize(img.width, img.height, maxDim);
     const out = new Uint8Array(nw * nh * 4);
     for (let y = 0; y < nh; y++) {
         const sy0 = Math.floor((y * img.height) / nh);

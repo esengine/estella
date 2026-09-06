@@ -48,7 +48,7 @@ namespace eshost {
 
 KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
                          resource::ResourceManager& rm, GfxDevice& device) {
-    const KTX2Result fail{-1, 0, 0};
+    const KTX2Result fail{-1, 0, 0, -1, false};
     ensureBasis();
 
     basist::ktx2_transcoder t;
@@ -60,13 +60,20 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     basist::transcoder_texture_format basisFmt = basist::transcoder_texture_format::cTFRGBA32;
     GfxCompressedFormat gfxFmt = GfxCompressedFormat::ETC2_RGBA8;
     bool compressed = false;
+    // The two ways this loop comes up empty are different findings: a device that
+    // samples none of these, or an image the device WOULD have taken at a
+    // different size. Only the second is the asset's to fix.
+    bool blockRefused = false;
     // WebGPU refuses a compressed copy whose size is not whole blocks — a 70x70
     // sprite fails CreateTexture and the game draws nothing. Device support is not
     // the only question, and the block is the FORMAT's, not always 4x4.
     for (const FormatChoice& c : kChoices) {
         const GfxCompressedFormat want = srgb ? c.srgb : c.linear;
         if (!device.supportsCompressedFormat(want)) continue;
-        if (gfxWholeBlockLevels(want, w, h, 1) == 0) continue;
+        if (gfxWholeBlockLevels(want, w, h, 1) == 0) {
+            blockRefused = true;
+            continue;
+        }
         basisFmt = c.basisFmt;
         gfxFmt = want;
         compressed = true;
@@ -110,7 +117,9 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
         ? rm.createCompressedTexture(w, h, gfxFmt, span, uploaded)
         : rm.createTexture(w, h, span, srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8, false);
     if (!handle.isValid()) return fail;
-    return KTX2Result{static_cast<int>(handle.id()), static_cast<int>(w), static_cast<int>(h)};
+    return KTX2Result{static_cast<int>(handle.id()), static_cast<int>(w), static_cast<int>(h),
+                      compressed ? static_cast<int>(gfxFmt) : -1,
+                      !compressed && blockRefused};
 }
 
 }  // namespace eshost

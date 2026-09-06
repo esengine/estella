@@ -56,7 +56,14 @@ export interface CppResourceManager {
     /** Transcode + upload a KTX2/Basis container to a device-supported compressed
      *  format (or RGBA32). Native only (the basis transcoder lives in the host);
      *  the web KTX2 path is WebGL2 + the wasm transcoder instead. */
-    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean): { handle: number; width: number; height: number } | null;
+    /** Transcode + upload a KTX2 natively. `format` is the GfxCompressedFormat
+     *  ordinal uploaded, negative when it decoded to RGBA; `blockRefused` says a
+     *  supported format existed and the image was not whole blocks of it. Both
+     *  optional — an absent answer must not read as a compressed one. */
+    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean): {
+        handle: number; width: number; height: number;
+        format?: number; blockRefused?: boolean;
+    } | null;
     /** Whether the ACTIVE backend samples this compressed format (the C++
      *  `GfxCompressedFormat` ordinal). Absent on an older wasm build. */
     supportsCompressedFormat?(format: number): boolean;

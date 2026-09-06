@@ -124,7 +124,13 @@ describe('loadCompressedTexture', () => {
         expect(gl.compressedTexImage2D.mock.calls[0][2]).toBe(ASTC);
         expect(gl.texImage2D).not.toHaveBeenCalled();
         expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4);
-        expect(r).toEqual({ handle: 42, width: 4, height: 4 });
+        expect(r).toEqual({
+            handle: 42, width: 4, height: 4,
+            decision: {
+                payload: 'ktx2', target: CompressedTextureFormat.ASTC_4x4,
+                effective: CompressedTextureFormat.ASTC_4x4, reason: 'compressed',
+            },
+        });
     });
 
     it('falls back to RGBA8 when no compressed format is supported', () => {
@@ -137,16 +143,27 @@ describe('loadCompressedTexture', () => {
         expect(gl.compressedTexImage2D).not.toHaveBeenCalled();
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
         expect(r.handle).toBe(42);
+        // The DEVICE turned it down — nothing about the file is wrong, and the
+        // fix is a build target rather than the asset.
+        expect(r.decision).toEqual({
+            payload: 'ktx2', target: null, effective: 'rgba8', reason: 'no-device-format',
+        });
     });
 
     it('falls back to RGBA8 when the compressed transcode fails', () => {
         const gl = makeGl({ etc: true });
         const transcoder = makeTranscoder({ transcode: vi.fn(() => null) });
-        loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
+        const r = loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
 
         expect(transcoder.transcode).toHaveBeenCalledOnce();
         expect(transcoder.transcodeToRgba).toHaveBeenCalledOnce();
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
+        // The device DID offer a format; the payload would not become it. Reported
+        // apart from "no-device-format" because only this one names the file.
+        expect(r.decision).toEqual({
+            payload: 'ktx2', target: CompressedTextureFormat.ETC2_RGBA8,
+            effective: 'rgba8', reason: 'transcode-failed',
+        });
     });
 
     it('throws when both compressed and RGBA decode fail', () => {

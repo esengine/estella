@@ -39,10 +39,13 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?) -> { id, width, height } | null.
+// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?)
+//   -> { id, width, height, format, blockRefused } | null.
 // Transcodes a KTX2/Basis container to the best device-supported compressed format
 // (or RGBA32) and uploads it. Native-only: the web transcodes in a wasm module and
 // uploads through WebGL2, so there is no engine entry point shared with it.
+// `format`/`blockRefused` carry the CHOICE out: an RGBA upload is otherwise a
+// correct picture at four times the memory, with nothing saying it happened.
 JSValue js_createTextureKTX2(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     if (argc < 1) return JS_NULL;
     std::vector<u8> bytes;
@@ -56,6 +59,8 @@ JSValue js_createTextureKTX2(JSContext* ctx, JSValueConst, int argc, JSValueCons
     JS_SetPropertyStr(ctx, o, "id", JS_NewInt32(ctx, r.handle));
     JS_SetPropertyStr(ctx, o, "width", JS_NewInt32(ctx, r.width));
     JS_SetPropertyStr(ctx, o, "height", JS_NewInt32(ctx, r.height));
+    JS_SetPropertyStr(ctx, o, "format", JS_NewInt32(ctx, r.format));
+    JS_SetPropertyStr(ctx, o, "blockRefused", JS_NewBool(ctx, r.blockRefused));
     return o;
 }
 

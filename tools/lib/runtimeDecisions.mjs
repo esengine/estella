@@ -51,12 +51,8 @@ export const DECISIONS = [
     kind: 'request-vs-capability',
     owner: { path: 'src/esengine/renderer/frame/PostProcessPipeline.cpp', probe: /scene_samples_ = std::clamp/ },
     runtime: { has: true, cite: { path: 'src/esengine/bindings/PostProcessBindings.cpp', probe: /postprocess_maxMsaaSamples/ } },
-    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /msaaCapability\(\)/ } },
-    agent: {
-      has: false,
-      owed: 'the effective count is on no tool; an agent tuning quality reads the request back and '
-        + 'cannot tell whether the device granted it',
-    },
+    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /EditorControlSurface\.msaaSamples\(\)/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_msaa_samples'/ } },
   },
   {
     id: 'residency.cellDemand',
@@ -103,18 +99,26 @@ export const DECISIONS = [
     editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /EditorControlSurface\.hdrFormat\(\)/ } },
     agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_hdr_format'/ } },
   },
+  // A texture's compression is TWO decisions in two lifetimes. Folding them keeps
+  // the only thing worth knowing out of the answer: which layer lost it. A build
+  // that shipped raw is a dialog; a device that decoded it is a device.
   {
-    id: 'texture.compressedFormat',
-    what: 'Whether a cooked compressed texture was uploaded compressed, or decoded to full RGBA.',
+    id: 'texture.cookFormat',
+    what: 'Which payload a build ships for a texture — a KTX2 in the asked-for mode, or the image.',
     kind: 'request-vs-capability',
-    owner: { path: 'sdk/src/asset/loaders/TextureLoader.ts', probe: /chooseEngineTargetFormat/ },
-    runtime: {
-      has: false,
-      owed: 'the RGBA path is the else-branch of a capability test and counts nothing; a project that '
-        + 'spent cook time on compression pays 4x the VRAM with no sign of it',
-    },
-    editor: { has: false, owed: 'the Import Settings row says what was asked for, never what was uploaded' },
-    agent: { has: false, owed: 'resource_census counts bytes, not why they are that many' },
+    owner: { path: 'pipeline/src/assets/textureCookDecision.ts', probe: /export function decideTextureCook/ },
+    runtime: { has: true, cite: { path: 'pipeline/src/assets/cookAssets.ts', probe: /\.\.\.\(cook \? \{ cook \} : \{\}\)/ } },
+    editor: { has: true, cite: { path: 'desktop/src/panels/Details.tsx', probe: /textureShipFormat\(\{/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_texture_format'/ } },
+  },
+  {
+    id: 'texture.uploadFormat',
+    what: 'What a cooked payload becomes on THIS device: a GPU format, or decoded back to full RGBA.',
+    kind: 'request-vs-capability',
+    owner: { path: 'sdk/src/asset/compressed.ts', probe: /export function compressedUploadDecision/ },
+    runtime: { has: true, cite: { path: 'sdk/src/asset/loaders/TextureLoader.ts', probe: /this\.formats_\.record\(/ } },
+    editor: { has: true, cite: { path: 'desktop/src/panels/Details.tsx', probe: /EditorControlSurface\.textureFormatReport\(\)/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_texture_format'/ } },
   },
   {
     id: 'project.spineVersion',
