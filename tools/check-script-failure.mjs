@@ -77,6 +77,17 @@ function pack(dir, name) {
     return out;
 }
 
+/**
+ * What the launcher said the errors WERE, not how many.
+ *
+ * It prints each one indented under its verdict; this kept only the count, so a
+ * failure read "errors 3" and left nothing to act on — a gate that saw the
+ * answer and reported the arithmetic.
+ */
+function errorLines(text) {
+    return text.split('\n').filter((l) => /^ {4}\S/.test(l.trimEnd())).map((l) => l.trim());
+}
+
 /** Boot it headless and report what the page said while doing so. */
 function boot(dir) {
     const r = runElectron([
@@ -106,7 +117,8 @@ mkdirSync(WORK, { recursive: true });
     check('a project with code declares it in the package', cfg.scripts === 'scripts.mjs',
           `scripts ${JSON.stringify(cfg.scripts)}`);
     const run = boot(out);
-    check('and boots clean', run.ok && run.errors === 0, `errors ${run.errors}`);
+    check('and boots clean', run.ok && run.errors === 0,
+          `errors ${run.errors}${run.errors > 0 ? ` — ${errorLines(run.text).join(' | ')}` : ''}`);
 }
 
 // 2. Not declared. The host must not go looking, and must not mind.
@@ -124,7 +136,7 @@ mkdirSync(WORK, { recursive: true });
           `scripts ${JSON.stringify(cfg.scripts)}`);
     const run = boot(out);
     check('and boots clean without importing anything', run.ok && run.errors === 0,
-          `errors ${run.errors}`);
+          `errors ${run.errors}${run.errors > 0 ? ` — ${errorLines(run.text).join(' | ')}` : ''}`);
 }
 
 // 3. Declared and throwing. The whole point.
