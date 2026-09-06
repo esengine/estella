@@ -1593,7 +1593,7 @@
         {
           "type": "Reachable",
           "data": {
-            "radius": 110,
+            "radius": 190,
             "prompt": "take the core"
           }
         }
@@ -1831,7 +1831,8 @@
         {
           "type": "Checkpoint",
           "data": {
-            "armZ": 200
+            "armZ": 200,
+            "id": "start"
           }
         }
       ]
@@ -1856,7 +1857,8 @@
         {
           "type": "Checkpoint",
           "data": {
-            "armZ": -740
+            "armZ": -740,
+            "id": "shelf"
           }
         }
       ]
@@ -1881,7 +1883,8 @@
         {
           "type": "Checkpoint",
           "data": {
-            "armZ": -1120
+            "armZ": -1120,
+            "id": "gap"
           }
         }
       ]
@@ -1906,7 +1909,8 @@
         {
           "type": "Checkpoint",
           "data": {
-            "armZ": -1820
+            "armZ": -1820,
+            "id": "bridge"
           }
         }
       ]
@@ -1931,7 +1935,8 @@
         {
           "type": "Checkpoint",
           "data": {
-            "armZ": -2850
+            "armZ": -2850,
+            "id": "plaza"
           }
         }
       ]

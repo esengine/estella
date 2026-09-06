@@ -1,20 +1,57 @@
 {
-  "name": "third-person \u2014 the facts a run states about itself",
+  "name": "third-person \u2014 cold boot to victory, on the game's own facts",
+  "diagnose": [
+    "Player",
+    "CoreA",
+    "CoreB",
+    "CoreC",
+    "Gate"
+  ],
   "legs": [
     {
       "area": "main",
       "until": {
         "phase": "playing",
         "health": 100,
-        "dead": false
+        "coresCollected": 0,
+        "gateOpen": false
       },
       "timeout": 300
     },
     {
       "area": "main",
       "keys": [
-        "KeyD"
+        "KeyW"
       ],
+      "until": {
+        "checkpoint": "shelf"
+      },
+      "timeout": 900
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "until": {
+        "checkpoint": "bridge"
+      },
+      "timeout": 1200
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "until": {
+        "health": {
+          "atMost": 99
+        }
+      },
+      "timeout": 900
+    },
+    {
+      "area": "main",
       "until": {
         "dead": true,
         "health": 0
@@ -46,6 +83,104 @@
         "paused": false
       },
       "timeout": 600
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "tap": "KeyE",
+      "until": {
+        "coresCollected": 1,
+        "gateOpen": false
+      },
+      "timeout": 2000
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyD"
+      ],
+      "hold": 85
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "tap": "KeyE",
+      "until": {
+        "coresCollected": 2,
+        "gateOpen": false
+      },
+      "timeout": 90
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyA"
+      ],
+      "hold": 85
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "tap": "KeyE",
+      "hold": 24
+    },
+    {
+      "area": "main",
+      "expect": {
+        "gateOpen": false,
+        "phase": "playing",
+        "coresCollected": 2
+      }
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyS"
+      ],
+      "hold": 40
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyA"
+      ],
+      "hold": 75
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyS"
+      ],
+      "tap": "KeyE",
+      "until": {
+        "coresCollected": 3
+      },
+      "timeout": 110
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyD"
+      ],
+      "hold": 75
+    },
+    {
+      "area": "main",
+      "keys": [
+        "KeyW"
+      ],
+      "tap": "KeyE",
+      "until": {
+        "phase": "won",
+        "gateOpen": true
+      },
+      "timeout": 140
     }
   ]
 }

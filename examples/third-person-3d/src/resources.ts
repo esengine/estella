@@ -20,6 +20,8 @@ export interface RunData {
     elapsed: number;
     /** Where the next death returns the runner to. */
     respawn: { x: number; y: number; z: number };
+    /** Which checkpoint that is, by name. Empty until one is armed. */
+    checkpoint: string;
     /** What the runner may press E on this frame, and what that would do. */
     prompt: string;
     /** Set by input, consumed by the lifecycle: one edge per press. */
@@ -33,6 +35,7 @@ export const Run = defineResource<RunData>({
     cores: 0,
     elapsed: 0,
     respawn: { ...SPAWN },
+    checkpoint: '',
     prompt: '',
     restartPressed: false,
     pausePressed: false,
