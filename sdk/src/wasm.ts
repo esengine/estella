@@ -104,6 +104,13 @@ export interface CppResourceManager {
      * Optional: absent on an older wasm build.
      */
     meshesLostNonRecoverable?(): number;
+    /**
+     * Every live mesh as `handle:generation:realized`. Identity and realization
+     * read apart: from outside, a mesh that came back and one that was replaced
+     * by a new handle both simply draw, and only these tell them apart.
+     * Optional: absent on an older wasm build.
+     */
+    meshRealizations?(): string;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;

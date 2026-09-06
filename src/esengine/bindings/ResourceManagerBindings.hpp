@@ -48,6 +48,10 @@ bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 sourc
  *         path: the engine never knew one, and the asset layer holds it. */
 std::string rm_meshesAwaitingRemat(resource::ResourceManager& rm);
 
+/** @brief Every live mesh as `handle:generation:realized`, so a criterion can
+ *         tell a mesh that CAME BACK from one that was replaced. */
+std::string rm_meshRealizations(resource::ResourceManager& rm);
+
 /** @brief Meshes the last loss ended for good — host-only geometry no source
  *         can replay. Reported so recovery cannot call them recovered. */
 u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm);

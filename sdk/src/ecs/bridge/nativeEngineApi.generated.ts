@@ -196,6 +196,7 @@ export interface NativeEngineApi {
     rm_getTextureRefCount?(rm: unknown, handleId: number): number;
     rm_invalidateTexturePath?(rm: unknown, path: string): boolean;
     rm_loadBitmapFont?(rm: unknown, fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
+    rm_meshRealizations?(rm: unknown): string;
     rm_meshesAwaitingRemat?(rm: unknown): string;
     rm_meshesLostNonRecoverable?(rm: unknown): number;
     rm_registerExternalTexture?(rm: unknown, glTextureId: number, width: number, height: number): number;
@@ -453,6 +454,7 @@ export function createNativeEngineApi(
     bind('rm_getTextureRefCount', 'es_rm_getTextureRefCount', true);
     bind('rm_invalidateTexturePath', 'es_rm_invalidateTexturePath', true);
     bind('rm_loadBitmapFont', 'es_rm_loadBitmapFont', true);
+    bind('rm_meshRealizations', 'es_rm_meshRealizations', true);
     bind('rm_meshesAwaitingRemat', 'es_rm_meshesAwaitingRemat', true);
     bind('rm_meshesLostNonRecoverable', 'es_rm_meshesLostNonRecoverable', true);
     bind('rm_registerExternalTexture', 'es_rm_registerExternalTexture', true);

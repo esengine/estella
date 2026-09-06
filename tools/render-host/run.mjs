@@ -153,7 +153,33 @@ function finish(result, server) {
     // for each WebGL context it creates, and no engine call names it.
     return owned && (last.tables.buffers - first.tables.buffers) <= spans;
   })(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
-  const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk;
+  // Geometry, which the pixels cannot speak for: a recovery that minted fresh
+  // handles draws the same frame as one that re-realized the old ones. Same
+  // identity set, each realized again, each on a LATER device generation.
+  const meshIdentityOk = !dl || !dl.meshesBefore?.length || (() => {
+    const before = dl.meshesBefore;
+    const after = dl.meshesAfterFull ?? [];
+    const by = (rows) => new Map(rows.map((m) => [m.handle, m]));
+    const [b, a] = [by(before), by(after)];
+    if (b.size !== a.size) return false;
+    for (const [handle, was] of b) {
+      const now = a.get(handle);
+      // Same handle, realized again, on a generation the dead one never saw.
+      if (!now || !now.realized || now.generation <= was.generation) return false;
+    }
+    // Nothing may still be owed: a debt outliving recovery is geometry that
+    // never came back, and the device had no business reporting Live.
+    if ((dl.meshesOwedAfterFull?.length ?? 0) !== 0) return false;
+    // The middle state has to have happened. Without it, a scene that never lost
+    // its geometry passes this whole check by never having been broken.
+    if (dl.mode !== 'auto') {
+      if (!dl.meshesAfterRecover?.length) return false;
+      if (!dl.meshesAfterRecover.every((m) => !m.realized)) return false;
+      if ((dl.meshesOwedAfterRecover?.length ?? 0) !== before.length) return false;
+    }
+    return true;
+  })();
+  const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk && meshIdentityOk;
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.
   const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
@@ -452,7 +478,8 @@ app.whenReady().then(async () => {
         // Rounds, because losing a context is not a one-off: backgrounding a
         // tab does it again and again, and what a single round cannot show is
         // whether the engine hands the last one's objects back.
-        const out = { mode: 'auto', supported: true, rounds: [], tablesBefore: d.glTables() };
+        const out = { mode: 'auto', supported: true, rounds: [], tablesBefore: d.glTables(),
+                      meshesBefore: d.meshes() };
         for (let r = 0; r < ${ROUNDS}; r++) {
           if (!d.lose()) return { ...out, supported: false };
 
@@ -476,6 +503,8 @@ app.whenReady().then(async () => {
         }
         out.statusAfterFull = d.status();
         out.awaitingAfterFull = d.awaiting();
+        out.meshesAfterFull = d.meshes();
+        out.meshesOwedAfterFull = d.meshesOwed();
         out.recovered = out.statusAfterFull === 0;
         out.fullRecovered = out.recovered;
         out.tablesAfterFull = d.glTables();
@@ -492,7 +521,7 @@ app.whenReady().then(async () => {
       deviceLoss = await exec(`(async () => {
         const d = window.__estellaHeadless.device;
         const api = window.__estellaHeadless.api;
-        const out = { supported: d.lose() };
+        const out = { meshesBefore: d.meshes(), supported: d.lose() };
         if (!out.supported) return out;
 
         // The browser reports the loss asynchronously and the engine polls on its
@@ -507,6 +536,8 @@ app.whenReady().then(async () => {
         out.guard = d.guard();
         out.tablesAtLoss = d.glTables();
         out.awaitingAtLoss = d.awaiting();
+        out.meshesAtLoss = d.meshes();
+        out.meshesOwedAtLoss = d.meshesOwed();
         out.glLostBeforeRestore = d.contextLost();
         out.restoreCalled = d.restore();
         await new Promise((r) => setTimeout(r, 500));
@@ -520,12 +551,19 @@ app.whenReady().then(async () => {
         }
         out.statusAfterRecover = d.status();
         out.awaitingAfterRecover = d.awaiting();
+        // Between the rebuild and the replay: the one moment the realization is
+        // gone and the identity is not. Sampled at the loss instead, this proves
+        // nothing — the engine has not been told about it yet.
+        out.meshesAfterRecover = d.meshes();
+        out.meshesOwedAfterRecover = d.meshesOwed();
 
         // The full cycle: rebuild, re-upload the textures, and declare it whole.
         out.fullRecovered = await d.recoverFull();
         out.statusAfterFull = d.status();
         out.tablesAfterFull = d.glTables();
         out.awaitingAfterFull = d.awaiting();
+        out.meshesAfterFull = d.meshes();
+        out.meshesOwedAfterFull = d.meshesOwed();
         await api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;

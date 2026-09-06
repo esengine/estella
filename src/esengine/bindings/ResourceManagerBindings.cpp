@@ -158,6 +158,19 @@ std::string rm_meshesAwaitingRemat(resource::ResourceManager& rm) {
     return out;
 }
 
+std::string rm_meshRealizations(resource::ResourceManager& rm) {
+    std::string out;
+    for (const auto& row : rm.meshRealizations()) {
+        if (!out.empty()) out += ',';
+        out += std::to_string(row.handle);
+        out += ':';
+        out += std::to_string(row.generation);
+        out += ':';
+        out += row.realized ? '1' : '0';
+    }
+    return out;
+}
+
 u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm) {
     return rm.meshesLostNonRecoverable();
 }

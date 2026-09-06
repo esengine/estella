@@ -900,6 +900,8 @@ loadTextureRaw: (ref: string) => Promise<TextureResult>
 loadTilemap: (ref: string) => Promise<TilemapResult>
 loadTileset: (ref: string) => Promise<TilesetResult>
 loadTimeline: (ref: string) => Promise<TimelineResult>
+meshRealizations: () => { handle: number; generation: number; realized: boolean; }[]
+meshesAwaitingRematerialization: () => number[]
 onInvalidate: (listener: InvalidateListener) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
@@ -917,6 +919,7 @@ releasePrefab: (ref: string) => void
 releaseTexture: (ref: string) => void
 releaseTilemap: (ref: string) => void
 releaseTimeline: (ref: string) => void
+rematerializeMeshesAfterDeviceLoss: () => Promise<number>
 remoteRoot: string | undefined
 resolveLoadPath: (ref: string) => string
 resolveRef: (ref: string) => string | null

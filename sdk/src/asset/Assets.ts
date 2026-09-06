@@ -499,6 +499,24 @@ export class Assets {
     }
 
     /**
+     * Every live mesh's identity beside the device generation its realization
+     * belongs to. A recovery that minted new handles and one that put geometry
+     * back behind the old ones both end with a scene that draws.
+     */
+    meshRealizations(): { handle: number; generation: number; realized: boolean }[] {
+        const raw = requireResourceManager().meshRealizations?.() ?? '';
+        if (!raw) return [];
+        return raw.split(',').map((row) => {
+            const [handle, generation, realized] = row.split(':');
+            return {
+                handle: Number(handle),
+                generation: Number(generation),
+                realized: realized === '1',
+            };
+        });
+    }
+
+    /**
      * Replays each owed mesh from its source, into the handle it already has.
      *
      * A missing provenance is a CONTRACT VIOLATION, not a mesh that turns out to

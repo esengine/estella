@@ -659,6 +659,14 @@ u32 ResourceManager::invalidateGpuMeshes() {
     return static_cast<u32>(awaitingRematerialization_.size());
 }
 
+std::vector<ResourceManager::MeshRealization> ResourceManager::meshRealizations() {
+    std::vector<MeshRealization> out;
+    meshes_.forEachAlive([&](MeshHandle handle, Mesh& mesh) {
+        out.push_back({handle.id(), mesh.realizationGeneration, mesh.hasRealization()});
+    });
+    return out;
+}
+
 std::vector<MeshHandle> ResourceManager::meshesAwaitingRematerialization() const {
     return awaitingRematerialization_;
 }

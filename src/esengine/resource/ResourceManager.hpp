@@ -513,6 +513,21 @@ public:
      *         them. Never part of the awaiting list, never silently skipped. */
     u32 meshesLostNonRecoverable() const { return meshes_lost_non_recoverable_; }
 
+    /** @brief One live mesh's identity told apart from its realization. */
+    struct MeshRealization {
+        u32 handle = 0;
+        u64 generation = 0;  ///< The device generation the realization belongs to.
+        bool realized = false;
+    };
+
+    /**
+     * @brief Every live mesh, as identity and realization read separately.
+     * @details The seam a recovery criterion needs. From outside, a mesh that
+     *          came back and a mesh that was replaced by a new one look the same
+     *          — both draw — and only these two numbers tell them apart.
+     */
+    std::vector<MeshRealization> meshRealizations();
+
     // =========================================================================
     // Environment Resources
     // =========================================================================

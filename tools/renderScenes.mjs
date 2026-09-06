@@ -540,6 +540,14 @@ export const SCENES = [
   // 0 looked exactly like one with no normal map, and nothing could tell.
   { id: "device-loss-material", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },
   { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
+  // The textures above prove content comes back; a mesh proves IDENTITY does —
+  // the handles the world points at are the ones re-realized, not new ones the
+  // scene happens to draw with. Through the asset layer, the only replayable path.
+  { id: "device-loss-mesh", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_MESH_ASSET: "/scenes/two-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  // Where "same handle" stops being a detail: a LODGroup names its levels BY
+  // handle, so a recovery that reloaded would leave every reference pointing at
+  // geometry nothing rebuilt, while the frame drew whichever level came back.
+  { id: "device-loss-lod", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/lod-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":4,\"render.lod.level0\":1,\"render.lod.level1\":1,\"render.lod.level2\":1,\"render.meshes\":3}" } },
   // The player's case: nothing asks for the recovery, only frames pass, and it
   // happens FOUR times — backgrounding a tab is not a one-off, a recovery that
   // works once and never again passes any single-round check, and it takes

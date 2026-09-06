@@ -684,6 +684,11 @@ window.__estellaHeadless = {
         // needs the list, and a number cannot give it.
         awaiting: () => (app?.getResource(Assets)?.texturesAwaitingReupload() ?? [])
             .map((t: { handle: number; path: string }) => `${t.handle}|${t.path}`),
+        // Identity and realization apart, which a frame cannot show: a recovery
+        // that minted fresh handles draws exactly like one that put the geometry
+        // back behind the handles the world already points at.
+        meshes: () => app?.getResource(Assets)?.meshRealizations() ?? [],
+        meshesOwed: () => app?.getResource(Assets)?.meshesAwaitingRematerialization() ?? [],
         // Emscripten's GL tables hold wrappers minted against the dead context;
         // counting them says whether a rebuild refilled them or merely added to
         // the stale ones.
