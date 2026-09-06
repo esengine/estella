@@ -7340,7 +7340,7 @@ assets: Assets | undefined
 collectAssets: LoadedSceneAssets | undefined
 externalEntities: ReadonlyMap<number, number> | undefined
 onMissingAssets: MissingAssetCallback | undefined
-onPhase: ((phase: string, ms: number) => void) | undefined
+onPhase: ScenePhaseSink | undefined
 onProgress: SceneLoadProgressCallback | undefined
 ```
 
@@ -11929,7 +11929,7 @@ LifecyclePlugin
 
 ## loadSceneData — function @experimental
 ```
-(world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>): Map<number, Entity>
+(world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>, onPhase?: ScenePhaseSink): Map<number, Entity>
 ```
 
 ## loadSceneWithAssets — function @experimental

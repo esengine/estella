@@ -118,9 +118,19 @@ export interface SceneLoadOptions {
      * Where a load's time went, phase by phase. Most of it runs between frames —
      * off every system timer there is — so a profiler watching the frame loop
      * sees the cost and cannot say what it was.
+     *
+     * A name may be dotted, and a dot means containment: `spawn.components` is
+     * part of `spawn`, so a reader sums the roots and never the whole list.
      */
-    onPhase?: (phase: string, ms: number) => void;
+    onPhase?: ScenePhaseSink;
 }
+
+/**
+ * Where a load's time went. Dotted names nest; see {@link SceneLoadOptions.onPhase}.
+ *
+ * @experimental
+ */
+export type ScenePhaseSink = (phase: string, ms: number) => void;
 
 export class MissingAssetsError extends Error {
     readonly missing: import('../asset/Assets').MissingAsset[];
@@ -456,8 +466,19 @@ function checkLoadable(sceneData: SceneData): void {
 
 function spawnAndLoadEntities(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+    onPhase?: ScenePhaseSink,
 ): Map<number, Entity> {
+    // One clock reading per component rather than two: the end of one write is
+    // the start of the next, so attribution costs a call and not a pair.
+    let mark = onPhase ? performance.now() : 0;
+    const since = (): number => {
+        const now = performance.now();
+        const elapsed = now - mark;
+        mark = now;
+        return elapsed;
+    };
     checkLoadable(sceneData);
+    if (onPhase) onPhase('spawn.validate', since());
     const entityMap = new Map<number, Entity>();
 
     for (const entityData of sceneData.entities) {
@@ -473,8 +494,13 @@ function spawnAndLoadEntities(
         entityMap.set(entityData.id, entity);
         world.insert(entity, Name, { value: entityData.name });
     }
+    if (onPhase) onPhase('spawn.entities', since());
 
     try {
+        // By component TYPE, because "component writes" is a rename of the total
+        // and not an answer: which writes reach a subsystem, and which are field
+        // validation, is the difference between a mechanism and a number.
+        const byType = onPhase ? new Map<string, number>() : null;
         for (const entityData of sceneData.entities) {
             if (entityData.visible === false) continue;
             if (isPrefabEntry(entityData)) continue;
@@ -482,7 +508,16 @@ function spawnAndLoadEntities(
             for (const compData of entityData.components) {
                 remapEntityFields(compData, entityMap, external);
                 loadComponent(world, entity, compData, entityData.name);
+                if (byType) byType.set(compData.type, (byType.get(compData.type) ?? 0) + since());
             }
+        }
+        if (onPhase && byType) {
+            let total = 0;
+            for (const [type, ms] of byType) {
+                total += ms;
+                onPhase(`spawn.components.${type}`, ms);
+            }
+            onPhase('spawn.components', total);
         }
 
         for (const entityData of sceneData.entities) {
@@ -494,6 +529,7 @@ function spawnAndLoadEntities(
                 }
             }
         }
+        if (onPhase) onPhase('spawn.hierarchy', since());
     } catch (e) {
         for (const entity of entityMap.values()) {
             try { world.despawn(entity); } catch { /* ignore cleanup errors */ }
@@ -506,9 +542,15 @@ function spawnAndLoadEntities(
 
 export function loadSceneData(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+    onPhase?: ScenePhaseSink,
 ): Map<number, Entity> {
+    const began = onPhase ? performance.now() : 0;
     const { data } = migrateSceneData(sceneData);
-    return spawnAndLoadEntities(world, data, external);
+    // Named because it is a surprise: migration deep-clones the whole document
+    // so the caller's data is never mutated, and on a streamed cell that clone
+    // is paid at the door — after preparation already had the bytes in hand.
+    if (onPhase) onPhase('spawn.migrate', performance.now() - began);
+    return spawnAndLoadEntities(world, data, external, onPhase);
 }
 
 /**
@@ -580,7 +622,7 @@ export async function loadSceneWithAssets(
             }
         }
     }
-    return timed('spawn', () => spawnAndLoadEntities(world, data, options?.externalEntities));
+    return timed('spawn', () => spawnAndLoadEntities(world, data, options?.externalEntities, onPhase));
 }
 
 function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {

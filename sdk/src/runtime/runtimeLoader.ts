@@ -372,6 +372,7 @@ export async function prepareRuntimeScene(
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.
+    const discoverBegan = onPhase ? performance.now() : 0;
     const discovered = discoverSceneAssets(sceneData);
 
     // Eager scene assets (textures / fonts / materials / anim-clips / tilemaps /
@@ -394,6 +395,10 @@ export async function prepareRuntimeScene(
         app.getResource(VideoPlayer).setRefResolver((ref) => backend.resolveUrl(resolveRef(ref)));
     }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
+    // Two full walks of the document before a byte is fetched. Named because
+    // they scale with the cell and not with what it references, which is not
+    // what "asset discovery" sounds like it costs.
+    if (onPhase) onPhase('discover', performance.now() - discoverBegan);
     const assetResult = await timed('assets',
         () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true }));
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
@@ -415,6 +420,7 @@ export async function prepareRuntimeScene(
         const mod = await host.acquire('basis');
         return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
     };
+    const subsystemsBegan = onPhase ? performance.now() : 0;
     // Prepared by the realm, owned by the scene: the receipts join the scope
     // this scene gives back, and a second scene of one spine asset joins its era
     // instead of uploading its pages again.
@@ -531,6 +537,11 @@ export async function prepareRuntimeScene(
         }
     }
 
+    // Loading the runtimes a cell's content needs, and the tables it binds. All
+    // of it self-gating and installed once, so the first cell of a world pays
+    // for the world and the ones after it pay for their own content only.
+    if (onPhase) onPhase('subsystems', performance.now() - subsystemsBegan);
+
     // The one place a packaged scene's entities come into being. `externalEntities`
     // is what lets a streamed cell name the persistent world: without it a cross
     // document reference resolves to nothing, quietly.
@@ -570,51 +581,66 @@ export async function publishRuntimeScene(
         const began = performance.now();
         try { return await run(); } finally { onPhase(phase, performance.now() - began); }
     };
+    /**
+     * The synchronous sibling of `timed`, for the steps that ARE synchronous.
+     *
+     * `timed` is `async`, so measuring these with it opens a microtask gap per
+     * step through which another cell's publication could interleave — an
+     * instrument that changed the thing it measures.
+     */
+    const mark = <T>(phase: string, run: () => T): T => {
+        if (!onPhase) return run();
+        const began = performance.now();
+        try { return run(); } finally { onPhase(phase, performance.now() - began); }
+    };
     void discovered;
 
     const entityMap = await timed('spawn',
-        () => loadSceneData(app.world, sceneData, options.externalEntities));
+        () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
     // Which document row each entity came from, when someone is keeping track
     // (an editor inspecting its own running game). No-op otherwise.
-    recordSceneOrigins(app, entityMap);
+    mark('origins', () => recordSceneOrigins(app, entityMap));
 
     // Apply the project theme over the freshly instantiated scene: prefabs bake
     // the default dark palette, so a light base or any token override re-resolves
     // every ThemeStyle tag.
     if (uiTheme === 'light' || uiThemeOverrides) {
-        switchTheme(app.world, resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides));
+        mark('theme', () => switchTheme(app.world, resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides)));
     }
 
     const cppRegistry = app.world.getCppRegistry();
     // Fold the loaded transforms into world matrices once, before the first frame.
     // Native hosts run their own TransformSystem each frame instead.
     if (cppRegistry && module) {
-        module.transform_update(cppRegistry);
+        mark('transform', () => module.transform_update(cppRegistry));
     }
 
     if (spineManager && cppRegistry) {
-        await applySpineEntities({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo });
+        await timed('spine', () => applySpineEntities({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo }));
     }
 
     if (dragonBonesManager) {
-        applyDragonBonesEntities({
+        mark('dragonbones', () => applyDragonBonesEntities({
             manager: dragonBonesManager, sceneData, entityMap, assetInfo: dragonBonesAssetInfo,
-        });
+        }));
     }
 
     if (sceneName && app.hasResource(SceneManager)) {
         // Adopt into the SceneManager's instance set so unload/switchTo actually
         // despawns these entities — SceneOwner alone is only the persistence tag.
         const ctx = app.getResource(SceneManager).getScene(sceneName);
-        for (const entity of entityMap.values()) {
-            if (ctx) ctx.adopt(entity);
-            else app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
-        }
-        // The RECEIPTS, not the paths: after a hot update a path-addressed
-        // release gives back the oldest era, which belongs to whoever loaded
-        // before the update.
-        ctx?.trackAssetScope(assetResult.scope);
+        mark('adopt', () => {
+            for (const entity of entityMap.values()) {
+                if (ctx) ctx.adopt(entity);
+                else app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
+            }
+            // The RECEIPTS, not the paths: after a hot update a path-addressed
+            // release gives back the oldest era, which belongs to whoever loaded
+            // before the update.
+            ctx?.trackAssetScope(assetResult.scope);
+        });
     }
+
 }
 
 /**
