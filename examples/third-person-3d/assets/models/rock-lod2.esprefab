@@ -1,0 +1,28 @@
+{
+  "version": "2",
+  "name": "rock-lod2",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "node_0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod2.esmesh",
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

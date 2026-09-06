@@ -472,6 +472,26 @@ const START = { y: 60, z: 120 };
           + ` player ${health(dead, 'Player')}→${health(after, 'Player')}`);
 }
 
+// The level, not the gym. A field of props is a thing a designer moves, so the
+// claim is about the MECHANISM reaching the package and not about the layout:
+// what a receding field must do is spend more than one level on it.
+{
+    const r = runElectron([
+        LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
+        '--settle', '40', '--timeout', '60000', '--scene', 'main', '--render',
+        '--out', path.join(WORK, 'field.png'),
+    ], { encoding: 'utf8', cwd: ROOT });
+    const counters = reading(r.stdout, 'render') ?? {};
+    const level = (n) => counters[`render.lod.level${n}`] ?? 0;
+    const selected = counters['render.lod.groups'] ?? 0;
+    const spread = [level(0), level(1), level(2), counters['render.lod.culled'] ?? 0]
+        .filter((n) => n > 0).length;
+    check('the packaged level draws its prop field at more than one detail level',
+          selected > 0 && spread >= 2,
+          `${selected} selected — ${level(0)} near, ${level(1)} mid, ${level(2)} far,`
+          + ` ${counters['render.lod.culled'] ?? 0} too small to draw`);
+}
+
 const failed = results.filter((r) => !r.ok);
 console.log(`\nverify-third-person: ${results.length - failed.length}/${results.length}`
     + ' behaviour(s) hold up in the packaged game.');

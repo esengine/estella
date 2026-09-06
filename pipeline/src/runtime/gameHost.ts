@@ -406,6 +406,20 @@ async function boot(): Promise<void> {
         if (!ends[0] || !ends[1]) return null;
         return app.getResource(Nav).findWorldPath(ends[0], ends[1]);
       },
+      /**
+       * What the last frame's renderer counted — the work a picture cannot show.
+       * A field of props drawn at three levels and one drawn at one look alike
+       * from outside; the counts are the difference. Engaging the profiler is
+       * what fills them, so a package that is only played pays nothing.
+       */
+      render(): Record<string, number> {
+        module.engine_setCpuProfiling?.(true);
+        try {
+          return JSON.parse(module.engine_getCounters?.() ?? '{}') as Record<string, number>;
+        } catch {
+          return {};
+        }
+      },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
        *  driver settles frames after this before re-capturing. */

@@ -35,6 +35,8 @@
  *                        named target has left
  *     --ai <enemy>       after settling, print what an autonomous character is
  *                        doing, and what the world let it do
+ *     --render           after settling, print the renderer counters of the last
+ *                        frame — draws, culls and LOD levels, which no pixel shows
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -155,11 +157,12 @@ const GAMEPLAY = flag('gameplay', '');
 const PARTICLES = flag('particles', '');
 const COMBAT = flag('combat', '');
 const AI = flag('ai', '');
+const RENDER = has('render');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -253,6 +256,18 @@ const SCENE = flag('scene', '');
       `window.__estellaCooked?.ai(${JSON.stringify(AI.trim())}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  ai: ${JSON.stringify(seen)}`);
+  }
+
+  if (RENDER) {
+    // Engaging the counters takes a frame to fill them, so ask twice and keep
+    // the second: the first reading is of the frame that turned them on.
+    await win.webContents.executeJavaScript('window.__estellaCooked?.render() ?? null')
+      .catch(() => null);
+    await new Promise((r) => setTimeout(r, 250));
+    const seen = await win.webContents.executeJavaScript(
+      'window.__estellaCooked?.render() ?? null',
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  render: ${JSON.stringify(seen)}`);
   }
 
   const image = await win.webContents.capturePage();

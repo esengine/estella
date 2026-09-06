@@ -1111,6 +1111,2106 @@
           }
         }
       ]
+    },
+    {
+      "id": 100,
+      "name": "Rock00",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -450,
+              "y": 22.5,
+              "z": 40
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.21644,
+              "z": 0.0,
+              "w": 0.976296
+            },
+            "scale": {
+              "x": 1.25,
+              "y": 1.25,
+              "z": 1.25
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "name": "Rock01",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 455,
+              "y": 22.5,
+              "z": 40
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.984808,
+              "z": 0.0,
+              "w": -0.173648
+            },
+            "scale": {
+              "x": 1.25,
+              "y": 1.25,
+              "z": 1.25
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "name": "Rock02",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1660,
+              "y": 9.9,
+              "z": -1450
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0,
+              "w": 1.0
+            },
+            "scale": {
+              "x": 0.55,
+              "y": 0.55,
+              "z": 0.55
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "name": "Rock03",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1200,
+              "y": 17.8,
+              "z": -1439
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.748956,
+              "z": 0.0,
+              "w": 0.66262
+            },
+            "scale": {
+              "x": 0.99,
+              "y": 0.99,
+              "z": 0.99
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "name": "Rock04",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -740,
+              "y": 25.7,
+              "z": -1428
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.992546,
+              "z": 0.0,
+              "w": -0.121869
+            },
+            "scale": {
+              "x": 1.43,
+              "y": 1.43,
+              "z": 1.43
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "name": "Rock05",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -280,
+              "y": 15.8,
+              "z": -1417
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.566406,
+              "z": 0.0,
+              "w": -0.824126
+            },
+            "scale": {
+              "x": 0.88,
+              "y": 0.88,
+              "z": 0.88
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "name": "Rock06",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 180,
+              "y": 23.8,
+              "z": -1406
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.241922,
+              "z": 0.0,
+              "w": 0.970296
+            },
+            "scale": {
+              "x": 1.32,
+              "y": 1.32,
+              "z": 1.32
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "name": "Rock07",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1523,
+              "y": 23.8,
+              "z": -1070
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.446198,
+              "z": 0.0,
+              "w": 0.894934
+            },
+            "scale": {
+              "x": 1.32,
+              "y": 1.32,
+              "z": 1.32
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "name": "Rock08",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1063,
+              "y": 13.9,
+              "z": -1059
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.965926,
+              "z": 0.0,
+              "w": 0.258819
+            },
+            "scale": {
+              "x": 0.77,
+              "y": 0.77,
+              "z": 0.77
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 109,
+      "name": "Rock09",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -603,
+              "y": 21.8,
+              "z": -1048
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.833886,
+              "z": 0.0,
+              "w": -0.551937
+            },
+            "scale": {
+              "x": 1.21,
+              "y": 1.21,
+              "z": 1.21
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "name": "Rock10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -143,
+              "y": 11.9,
+              "z": -1037
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.139173,
+              "z": 0.0,
+              "w": -0.990268
+            },
+            "scale": {
+              "x": 0.66,
+              "y": 0.66,
+              "z": 0.66
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "name": "Rock11",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1606,
+              "y": 19.8,
+              "z": -690
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.798636,
+              "z": 0.0,
+              "w": 0.601815
+            },
+            "scale": {
+              "x": 1.1,
+              "y": 1.1,
+              "z": 1.1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 112,
+      "name": "Rock12",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1146,
+              "y": 9.9,
+              "z": -679
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.979925,
+              "z": 0.0,
+              "w": -0.199368
+            },
+            "scale": {
+              "x": 0.55,
+              "y": 0.55,
+              "z": 0.55
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "name": "Rock13",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -686,
+              "y": 17.8,
+              "z": -668
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.5,
+              "z": 0.0,
+              "w": -0.866025
+            },
+            "scale": {
+              "x": 0.99,
+              "y": 0.99,
+              "z": 0.99
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "name": "Rock14",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -226,
+              "y": 25.7,
+              "z": -657
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.317305,
+              "z": 0.0,
+              "w": 0.948324
+            },
+            "scale": {
+              "x": 1.43,
+              "y": 1.43,
+              "z": 1.43
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "name": "Rock15",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 234,
+              "y": 15.8,
+              "z": -646
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.920505,
+              "z": 0.0,
+              "w": 0.390731
+            },
+            "scale": {
+              "x": 0.88,
+              "y": 0.88,
+              "z": 0.88
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "name": "Rock16",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1469,
+              "y": 15.8,
+              "z": -310
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.983255,
+              "z": 0.0,
+              "w": 0.182236
+            },
+            "scale": {
+              "x": 0.88,
+              "y": 0.88,
+              "z": 0.88
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "name": "Rock17",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1009,
+              "y": 23.8,
+              "z": -299
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.788011,
+              "z": 0.0,
+              "w": -0.615661
+            },
+            "scale": {
+              "x": 1.32,
+              "y": 1.32,
+              "z": 1.32
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "name": "Rock18",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -549,
+              "y": 13.9,
+              "z": -288
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.061049,
+              "z": 0.0,
+              "w": -0.998135
+            },
+            "scale": {
+              "x": 0.77,
+              "y": 0.77,
+              "z": 0.77
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "name": "Rock19",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -89,
+              "y": 21.8,
+              "z": -277
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.707107,
+              "z": 0.0,
+              "w": 0.707107
+            },
+            "scale": {
+              "x": 1.21,
+              "y": 1.21,
+              "z": 1.21
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "name": "Rock20",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 371,
+              "y": 11.9,
+              "z": -266
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.998135,
+              "z": 0.0,
+              "w": -0.061049
+            },
+            "scale": {
+              "x": 0.66,
+              "y": 0.66,
+              "z": 0.66
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 121,
+      "name": "Rock21",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 831,
+              "y": 19.8,
+              "z": -255
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.615661,
+              "z": 0.0,
+              "w": -0.788011
+            },
+            "scale": {
+              "x": 1.1,
+              "y": 1.1,
+              "z": 1.1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 122,
+      "name": "Rock22",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1291,
+              "y": 9.9,
+              "z": -244
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.182236,
+              "z": 0.0,
+              "w": 0.983255
+            },
+            "scale": {
+              "x": 0.55,
+              "y": 0.55,
+              "z": 0.55
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "name": "Rock23",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1552,
+              "y": 11.9,
+              "z": 70
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.961262,
+              "z": 0.0,
+              "w": -0.275637
+            },
+            "scale": {
+              "x": 0.66,
+              "y": 0.66,
+              "z": 0.66
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "name": "Rock24",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1092,
+              "y": 19.8,
+              "z": 81
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.430511,
+              "z": 0.0,
+              "w": -0.902585
+            },
+            "scale": {
+              "x": 1.1,
+              "y": 1.1,
+              "z": 1.1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "name": "Rock25",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -632,
+              "y": 9.9,
+              "z": 92
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.390731,
+              "z": 0.0,
+              "w": 0.920505
+            },
+            "scale": {
+              "x": 0.55,
+              "y": 0.55,
+              "z": 0.55
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 126,
+      "name": "Rock26",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 748,
+              "y": 15.8,
+              "z": 125
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.199368,
+              "z": 0.0,
+              "w": -0.979925
+            },
+            "scale": {
+              "x": 0.88,
+              "y": 0.88,
+              "z": 0.88
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 127,
+      "name": "Rock27",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1208,
+              "y": 23.8,
+              "z": 136
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.601815,
+              "z": 0.0,
+              "w": 0.798636
+            },
+            "scale": {
+              "x": 1.32,
+              "y": 1.32,
+              "z": 1.32
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 128,
+      "name": "Rock28",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1635,
+              "y": 25.7,
+              "z": 450
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.737277,
+              "z": 0.0,
+              "w": -0.67559
+            },
+            "scale": {
+              "x": 1.43,
+              "y": 1.43,
+              "z": 1.43
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 129,
+      "name": "Rock29",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1175,
+              "y": 15.8,
+              "z": 461
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.017452,
+              "z": 0.0,
+              "w": 0.999848
+            },
+            "scale": {
+              "x": 0.88,
+              "y": 0.88,
+              "z": 0.88
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 130,
+      "name": "Rock30",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -715,
+              "y": 23.8,
+              "z": 472
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.760406,
+              "z": 0.0,
+              "w": 0.649448
+            },
+            "scale": {
+              "x": 1.32,
+              "y": 1.32,
+              "z": 1.32
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 131,
+      "name": "Rock31",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -255,
+              "y": 13.9,
+              "z": 483
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.990268,
+              "z": 0.0,
+              "w": -0.139173
+            },
+            "scale": {
+              "x": 0.77,
+              "y": 0.77,
+              "z": 0.77
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 132,
+      "name": "Rock32",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 205,
+              "y": 21.8,
+              "z": 494
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.551937,
+              "z": 0.0,
+              "w": -0.833886
+            },
+            "scale": {
+              "x": 1.21,
+              "y": 1.21,
+              "z": 1.21
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 133,
+      "name": "Rock33",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 665,
+              "y": 11.9,
+              "z": 505
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.258819,
+              "z": 0.0,
+              "w": 0.965926
+            },
+            "scale": {
+              "x": 0.66,
+              "y": 0.66,
+              "z": 0.66
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 134,
+      "name": "Rock34",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1125,
+              "y": 19.8,
+              "z": 516
+            },
+            "rotation": {
+              "x": 0.0,
+              "y": 0.894934,
+              "z": 0.0,
+              "w": 0.446198
+            },
+            "scale": {
+              "x": 1.1,
+              "y": 1.1,
+              "z": 1.1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
     }
   ]
 }

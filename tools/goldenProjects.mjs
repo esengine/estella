@@ -53,7 +53,7 @@ export const CAPABILITIES = [
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
-  'physics-3d', 'mesh-shadow', 'environment',
+  'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -97,6 +97,7 @@ export const EVIDENCE = {
   'model-skinning': /\bMeshSkin\b/,
   'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
   'mesh-shadow': /\bmeshShadows\b/,
+  'level-of-detail': /\bLODGroup\b/,
   environment: /\.esenv\b/,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
@@ -231,7 +232,7 @@ export const GOLDEN = [
   },
   {
     id: 'third-person-3d',
-    certifies: ['third-person'],
+    certifies: ['third-person', 'level-of-detail'],
     targets: ['web'],
     tier: 'pr',
     // The character walks on the key it declares. What it DOES on the way is
