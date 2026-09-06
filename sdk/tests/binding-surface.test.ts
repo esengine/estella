@@ -33,6 +33,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+    DISPOSITIONS, TEST_PROBE_BINDINGS, PROBE_GUARD, PROBE_HEADER,
+    type TestProbeBinding,
+} from '../../tools/bindingDispositions.mjs';
 
 const CPP = resolve(__dirname, '../../src/esengine');
 const SDK = resolve(__dirname, '../src');
@@ -54,6 +58,21 @@ function stripComments(src: string): string {
 // =============================================================================
 // C++ side: emscripten registration parsing
 // =============================================================================
+
+/**
+ * Registration names inside `#ifdef <macro>` … `#endif` blocks. What keeps a
+ * probe out of a release build is the guard, so a census row claiming one is
+ * checked against the preprocessor rather than against its own say-so.
+ */
+function parseGuardedRegistrations(cppSource: string, macro: string): Set<string> {
+    const src = stripComments(cppSource);
+    const out = new Set<string>();
+    const re = new RegExp(`#if(?:def)?\\s+${macro}\\b([\\s\\S]*?)#endif`, 'g');
+    for (let m = re.exec(src); m; m = re.exec(src)) {
+        for (const name of parseFunctionRegistrations(m[1])) out.add(name);
+    }
+    return out;
+}
 
 /** All `emscripten::function("name", ...)` registration names in a file. */
 function parseFunctionRegistrations(cppSource: string): Set<string> {
@@ -282,6 +301,10 @@ const allDeclared = new Set([...moduleDeclared, ...tilemapDeclared]);
 // Emscripten-runtime exports declared for ergonomics; not embind registrations.
 const RUNTIME_EXPORTS = new Set(['_malloc', '_free']);
 
+/** The census: which registrations are deliberately not production. */
+const probeDeclared = new Set<string>(TEST_PROBE_BINDINGS.map((b: TestProbeBinding) => b.id));
+const probeGuarded = parseGuardedRegistrations(webSdkEntry, PROBE_GUARD);
+
 describe('WASM binding surface: module functions (hand-written mirror handshake)', () => {
     it('every TS-declared ESEngineModule function is a real registration (no phantom decls)', () => {
         const phantom = missingFrom(
@@ -302,8 +325,50 @@ describe('WASM binding surface: module functions (hand-written mirror handshake)
     });
 
     it('every hand-registered binding is declared in the TS surface (no unmirrored bindings)', () => {
-        const unmirrored = missingFrom(handRegistered, allDeclared);
-        expect(unmirrored, `registered in WebSDKEntry/TilemapBindings but declared in no TS interface: ${unmirrored.join(', ')}`)
+        // Minus the ones a census declares are not production. `production` is the
+        // default, so an unlisted binding is still held to the strict rule.
+        const production = [...handRegistered].filter((n) => !probeDeclared.has(n));
+        const unmirrored = missingFrom(production, allDeclared);
+        expect(unmirrored, `registered in WebSDKEntry/TilemapBindings but declared in no TS interface`
+            + ` (and not declared a test-probe in tools/bindingDispositions.mjs): ${unmirrored.join(', ')}`)
+            .toEqual([]);
+    });
+
+    it('a test-probe binding stays OUT of the production TS surface', () => {
+        const leaked = [...probeDeclared].filter((n) => allDeclared.has(n));
+        expect(leaked, `declared test-probe in tools/bindingDispositions.mjs but present in the`
+            + ` shipping TS surface, which is a release ABI: ${leaked.join(', ')}`)
+            .toEqual([]);
+    });
+
+    it('a test-probe binding is registered behind the probe guard', () => {
+        const unguarded = [...probeDeclared].filter((n) => !probeGuarded.has(n));
+        expect(unguarded, `declared test-probe but registered outside #ifdef ${PROBE_GUARD},`
+            + ` so a release build would export it: ${unguarded.join(', ')}`)
+            .toEqual([]);
+    });
+
+    it('a test-probe binding is declared in the probe-only header', () => {
+        const probeHeader = read(resolve(CPP, PROBE_HEADER));
+        const misplaced = [...probeDeclared].filter((n) => !new RegExp(`\\b${n}\\s*\\(`).test(probeHeader));
+        expect(misplaced, `declared test-probe but not declared in ${PROBE_HEADER} — the header`
+            + ` tool reads the shipping ones and does not read #ifdef: ${misplaced.join(', ')}`)
+            .toEqual([]);
+    });
+
+    it('every declared test-probe still exists (no stale disposition)', () => {
+        const gone = [...probeDeclared].filter((n) => !handRegistered.has(n));
+        expect(gone, `declared test-probe in tools/bindingDispositions.mjs but registered nowhere;`
+            + ` a disposition outliving its binding reads as an answered question: ${gone.join(', ')}`)
+            .toEqual([]);
+    });
+
+    it('every disposition class the census uses is one this contract defines', () => {
+        const classes = Object.keys(DISPOSITIONS);
+        expect(classes, 'the census must define production and test-probe')
+            .toEqual(expect.arrayContaining(['production', 'test-probe']));
+        const unexplained = TEST_PROBE_BINDINGS.filter((b: TestProbeBinding) => !b.why);
+        expect(unexplained.map((b: TestProbeBinding) => b.id), 'a test-probe row owes a `why`')
             .toEqual([]);
     });
 });
