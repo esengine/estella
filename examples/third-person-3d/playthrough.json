@@ -1,0 +1,10 @@
+{
+  "name": "third-person — the facts a run states about itself",
+  "legs": [
+    { "area": "main", "until": { "phase": "playing", "health": 100 }, "timeout": 300 },
+    { "area": "main", "keys": ["KeyD"], "until": { "dead": true }, "timeout": 900 },
+    { "area": "main", "tap": "KeyE", "until": { "dead": false, "phase": "playing" }, "timeout": 600 },
+    { "area": "main", "tap": "Escape", "until": { "paused": true }, "timeout": 600 },
+    { "area": "main", "tap": "Escape", "until": { "paused": false }, "timeout": 600 }
+  ]
+}
