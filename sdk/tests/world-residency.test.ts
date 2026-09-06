@@ -273,6 +273,128 @@ describe('WorldStreamer', () => {
         });
     });
 
+    // Entering prepared with a true claim is not publishing with one that is still
+    // true. Requirements change and programs go cold, and each is caught on its
+    // own: a gate seeing only "something differs" stays green with one side cut.
+    describe('publication re-checks the claim it was prepared with', () => {
+        const stamp = (digestLo: number, programEpoch: number): RenderReadiness =>
+            ({ applicable: true, stamp: { digestLo, digestHi: 0, programEpoch } });
+        /** Speculated first, then demanded: a dwell is what makes a claim age. */
+        const far = () => source(250, 50, 10, 20, 200);
+        const near = () => source(50, 50, 10, 20, 200);
+
+        async function preparedThenDemanded(answer: () => RenderReadiness) {
+            const rec = recordingHost(answer);
+            const s = new WorldStreamer(rec.host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([far()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            return { s, ...rec };
+        }
+
+        it('a claim that is still true publishes without readying again', async () => {
+            let answer = stamp(7, 3);
+            const { s, calls } = await preparedThenDemanded(() => answer);
+            const readiedAtPrepare = calls.filter((c) => c === 'ready:c_0_0').length;
+
+            s.update([near()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('resident');
+            // One revalidation, and it found nothing to do: the derivation is the
+            // cost of asking, and it compiled nothing because nothing changed.
+            expect(calls.filter((c) => c === 'ready:c_0_0'))
+                .toHaveLength(readiedAtPrepare + 1);
+            expect(s.renderReadinessOf('c_0_0'))
+                .toEqual({ digestLo: 7, digestHi: 0, programEpoch: 3 });
+            // Nothing was restamped, which is what "the claim held" means.
+            expect(s.restampsOf('c_0_0')).toBe(0);
+        });
+
+        it('a requirement that changed during the dwell is re-readied before publishing',
+           async () => {
+            let answer = stamp(7, 3);
+            const { s } = await preparedThenDemanded(() => answer);
+            // Same epoch: only WHAT is needed moved. An environment map arriving
+            // flips a variant without any program going cold.
+            answer = stamp(99, 3);
+
+            s.update([near()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('resident');
+            expect(s.renderReadinessOf('c_0_0'))
+                .toEqual({ digestLo: 99, digestHi: 0, programEpoch: 3 });
+            // The DIGEST half caught it: a comparison blind to requirements
+            // would have published on the claim it was prepared with.
+            expect(s.restampsOf('c_0_0')).toBe(1);
+        });
+
+        it('a program cache emptied during the dwell is re-readied before publishing',
+           async () => {
+            let answer = stamp(7, 3);
+            const { s } = await preparedThenDemanded(() => answer);
+            // Same digest: the content needs exactly what it needed, and the
+            // programs that covered it are gone. This is the device-loss shape.
+            answer = stamp(7, 8);
+
+            s.update([near()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('resident');
+            expect(s.renderReadinessOf('c_0_0'))
+                .toEqual({ digestLo: 7, digestHi: 0, programEpoch: 8 });
+            // The EPOCH half caught it, independently of the digest one.
+            expect(s.restampsOf('c_0_0')).toBe(1);
+        });
+
+        it('a re-readying that makes no claim blocks publication, and stays owed',
+           async () => {
+            let answer = stamp(7, 3);
+            const { s, loaded } = await preparedThenDemanded(() => answer);
+            // The device went away again mid-readying: claimValid = 0.
+            answer = { applicable: true, stamp: null };
+
+            s.update([near()]);
+            await flush();
+            expect(loaded.has('c_0_0')).toBe(false);
+            // Not sent backwards: it satisfied everything preparation asks, and
+            // still does. What it cannot do is publish.
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+
+            answer = stamp(7, 9);
+            s.update([near()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('resident');
+            expect(s.renderReadinessOf('c_0_0'))
+                .toEqual({ digestLo: 7, digestHi: 0, programEpoch: 9 });
+        });
+
+        it('a re-readying that throws blocks publication too', async () => {
+            let answer: () => RenderReadiness = () => stamp(7, 3);
+            const { s, loaded } = await preparedThenDemanded(() => answer());
+            answer = () => { throw new Error('device went away'); };
+
+            s.update([near()]);
+            await flush();
+            expect(loaded.has('c_0_0')).toBe(false);
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+        });
+
+        it('a host with no renderer publishes without any of this', async () => {
+            const { host, calls } = recordingHost(() => ({ applicable: false }));
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([far()]);
+            await flush();
+            const readiedAtPrepare = calls.filter((c) => c === 'ready:c_0_0').length;
+
+            s.update([near()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('resident');
+            // Nothing to keep fresh, so publication asks nobody anything.
+            expect(calls.filter((c) => c === 'ready:c_0_0')).toHaveLength(readiedAtPrepare);
+        });
+    });
+
     it('registers every cell as a scene the game itself never names', async () => {
         const { host, calls } = recordingHost();
         new WorldStreamer(host).loadManifest(manifest(cell(0, 0), cell(1, 0)));

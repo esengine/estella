@@ -10513,6 +10513,7 @@ manifest: WorldManifest | null
 recordPhase: (name: string, phase: string, ms: number) => void
 renderReadinessOf: (name: string) => RenderReadinessStamp | null
 residencyOf: (name: string) => CellResidency
+restampsOf: (name: string) => number
 status: () => WorldStreamerStatus
 update: (sources: readonly ResidencySource[]) => void
 static new (host: WorldStreamHost): WorldStreamer

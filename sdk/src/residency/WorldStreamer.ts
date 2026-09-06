@@ -19,7 +19,9 @@
 
 import { desiredResidency, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
 import type { SceneConfig } from '../scene/sceneManager';
-import type { RenderReadiness, RenderReadinessStamp } from '../render/renderReadiness';
+import {
+    sameReadiness, type RenderReadiness, type RenderReadinessStamp,
+} from '../render/renderReadiness';
 import { defineResource } from '../ecs/resource';
 import { log } from '../util/logger';
 
@@ -105,6 +107,9 @@ interface CellState {
     renderReadiness: RenderReadinessStamp | null;
     /** Whether a readying attempt is in flight, so a retry does not stack. */
     readinessInFlight: boolean;
+    /** How often publication found the claim stale and replaced it. Zero over a
+     *  dwell in which nothing moved is the whole point of preparing early. */
+    restamps: number;
     /** What the last reconciliation asked for; the async completions re-read it. */
     desired: boolean;
     /** Whether any source is close enough to speculate about it. */
@@ -183,6 +188,7 @@ export class WorldStreamer {
             this.cells_.set(cell.name, {
                 cell, residency: 'unloaded', desired: false, speculated: false,
                 assetsReady: false, renderReadiness: null, readinessInFlight: false,
+                restamps: 0,
                 phases: {}, issuedAt: 0, delivery: 0,
                 demandedAt: 0, preparedAt: 0, publishedAt: 0,
                 prepareMs: 0, publishMs: 0, demandToResidentMs: 0, dwellMs: 0, outcome: '',
@@ -209,6 +215,18 @@ export class WorldStreamer {
      */
     renderReadinessOf(name: string): RenderReadinessStamp | null {
         return this.cells_.get(name)?.renderReadiness ?? null;
+    }
+
+    /**
+     * How often publication found this cell's claim stale and made a new one.
+     *
+     * Zero across a dwell where nothing moved: readying again for content that
+     * did not change is the cost prefetching exists to avoid paying twice.
+     *
+     * @experimental
+     */
+    restampsOf(name: string): number {
+        return this.cells_.get(name)?.restamps ?? 0;
     }
 
     /**
@@ -370,7 +388,7 @@ export class WorldStreamer {
         if (state.residency === 'unloaded' && (state.desired || state.speculated)) {
             this.beginPrepare_(name, state);
         } else if (state.residency === 'prepared' && state.desired) {
-            this.beginLoad_(name, state);
+            this.publishWhenReady_(name, state);
         } else if (state.residency === 'prepared' && !state.speculated) {
             // Speculation is not authority. A cell nobody is near any more goes
             // back, receipts included, rather than being published because it
@@ -430,7 +448,7 @@ export class WorldStreamer {
         if (!ready) { this.markPrepared_(name, state); return; }
 
         state.readinessInFlight = true;
-        Promise.resolve(ready.call(this.host_, name)).then(
+        this.askReadiness_(name, ready).then(
             (outcome) => {
                 state.readinessInFlight = false;
                 // Not applicable is an answer, not a claim: a host with no
@@ -451,6 +469,23 @@ export class WorldStreamer {
         );
     }
 
+    /**
+     * Ask the host to ready a cell's programs, as a promise either way.
+     *
+     * A host that throws SYNCHRONOUSLY would otherwise unwind through the
+     * progression and leave the streamer mid-step. A failed readying is an
+     * outcome this handles, not one it propagates.
+     */
+    private askReadiness_(
+        name: string, ready: NonNullable<WorldStreamHost['readyRenderPrograms']>,
+    ): Promise<RenderReadiness> {
+        try {
+            return Promise.resolve(ready.call(this.host_, name));
+        } catch (err) {
+            return Promise.reject(err);
+        }
+    }
+
     /** Every obligation is satisfied: only now is the cell prepared. */
     private markPrepared_(name: string, state: CellState): void {
         state.residency = 'prepared';
@@ -460,6 +495,48 @@ export class WorldStreamer {
         // cell is still wanted — or wanted now when it was not — is asked again
         // here rather than assumed from when it started.
         this.step_(name);
+    }
+
+    /**
+     * The obligation publication has, which is not the one preparation had.
+     *
+     * A claim about THEN, so requirements are derived AGAIN rather than inferred
+     * from what looks like it moved. A stale one blocks this publication without
+     * sending the cell backwards; an unpayable debt leaves it prepared.
+     */
+    private publishWhenReady_(name: string, state: CellState): void {
+        const ready = this.host_.readyRenderPrograms;
+        // No claim to keep fresh: the obligation did not apply when this cell was
+        // prepared, and nothing since then has given it a renderer.
+        if (!ready || !state.renderReadiness) { this.beginLoad_(name, state); return; }
+        if (state.readinessInFlight) return;
+
+        state.readinessInFlight = true;
+        this.askReadiness_(name, ready).then(
+            (outcome) => {
+                state.readinessInFlight = false;
+                if (!outcome.applicable) { this.beginLoad_(name, state); return; }
+                if (!outcome.stamp) {
+                    // Publication created a debt of its own — the readying was
+                    // refused, most likely by a device that moved underneath it.
+                    log.warn('residency',
+                             `cell "${name}" cannot publish: its programs are not ready`);
+                    return;
+                }
+                // Compared, not merely overwritten: re-readying is idempotent so
+                // both paths publish, but comparing BOTH halves is what keeps
+                // either half from silently coming undone.
+                if (!sameReadiness(state.renderReadiness!, outcome.stamp)) {
+                    state.renderReadiness = outcome.stamp;
+                    state.restamps++;
+                }
+                this.beginLoad_(name, state);
+            },
+            (err) => {
+                state.readinessInFlight = false;
+                log.error('residency', `cell "${name}" could not re-ready its programs`, err);
+            },
+        );
     }
 
     private beginLoad_(name: string, state: CellState): void {
