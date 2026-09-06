@@ -916,6 +916,9 @@ export {
     type ThirdPersonControllerData,
     type ThirdPersonCameraData,
     type MoveBasis,
+    Playthrough,
+    type PlaythroughData,
+    type PlaythroughValue,
 } from './gameplay';
 
 // =============================================================================

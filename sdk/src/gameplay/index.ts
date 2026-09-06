@@ -66,3 +66,9 @@ export {
     observeMotion,
     updateCameras,
 } from './GameplayPlugin';
+
+export {
+    Playthrough,
+    type PlaythroughData,
+    type PlaythroughValue,
+} from './Playthrough';

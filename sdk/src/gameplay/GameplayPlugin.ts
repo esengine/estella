@@ -32,6 +32,7 @@ import { huntTargets } from './Hunter';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
+import { Playthrough } from './Playthrough';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
@@ -272,6 +273,9 @@ export class GameplayPlugin implements Plugin {
 
     build(app: App): void {
         const world = app.world;
+        // Always present, empty until a game states something. Absent, a driver
+        // cannot tell "this game publishes nothing" from "the seam is broken".
+        app.insertResource(Playthrough, { facts: {} });
         const attacks = this.attacks_;
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             lastPointer.delete(entity);

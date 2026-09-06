@@ -168,7 +168,7 @@ async function main() {
   await win.loadURL(base);
   // Where the wall time goes, by what was asked of the page: a route that
   // takes 40 minutes on a runner is a driver question before it is an engine one.
-  const spentOn = { probe: [0, 0], step: [0, 0], path: [0, 0], other: [0, 0] };
+  const spentOn = { probe: [0, 0], step: [0, 0], path: [0, 0], facts: [0, 0], other: [0, 0] };
   const exec = (js, kind = 'other') => {
     const t = performance.now();
     return win.webContents.executeJavaScript(js).finally(() => {
@@ -184,8 +184,10 @@ async function main() {
     ready = await exec(`(() => {
       const c = window.__estellaCooked;
       if (!c || !c.probe) return false;
-      const s = c.probe(['Lyra_Player']);
-      return !!(s.scene && s.at.Lyra_Player);
+      // A scene, not a named character: which entity a game's player IS belongs
+      // to that game, and a driver that waits for one name waits forever in
+      // every other one.
+      return !!c.probe([]).scene;
     })()`).catch(() => false);
     if (!ready) await new Promise((r) => setTimeout(r, 100));
   }
@@ -213,11 +215,24 @@ async function main() {
   // driver holds the clock. Waiting for requestAnimationFrame first cost a
   // second per read in a hidden window — 407 s of a 412 s walk whose steps took 3.
   const probe = (names) => exec(`window.__estellaCooked.probe(${JSON.stringify(names)})`, 'probe');
+  // What the GAME says about itself. A leg may be judged on this instead of on
+  // an entity going missing — the only evidence a level's own progression ever
+  // had, and one that cannot see a checkpoint, a core or a victory.
+  const facts = () => exec('window.__estellaCooked.facts?.() ?? {}', 'facts');
+
+  /** Whether every `until` clause the leg names is satisfied by the game's facts. */
+  const untilMet = (want, got) =>
+    Object.entries(want).every(([k, v]) => (typeof v === 'object' && v !== null
+      ? (v.atLeast !== undefined && Number(got[k]) >= Number(v.atLeast))
+        || (v.atMost !== undefined && Number(got[k]) <= Number(v.atMost))
+      : got[k] === v));
   const pathTo = (goal) => exec(`window.__estellaCooked.pathBetween("Lyra_Player", ${JSON.stringify(goal)})`, 'path');
   // Every goal the route names, before a step is taken: a leg whose goal never
   // existed would otherwise report as "already done" and the run would fail
   // later, somewhere else, for a reason that is not the reason.
-  const goals = [...new Set(route.legs.map((l) => l.goal))];
+  // Only the legs that name one: a leg the game judges has no goal to find, and
+  // counting its absence as a missing entity fails the route before it starts.
+  const goals = [...new Set(route.legs.map((l) => l.goal).filter(Boolean))];
   const opening = await probe(goals);
   const missing = goals.filter((g) => !(g in opening.at));
   console.log(`  route names ${goals.length} goal(s); ${goals.length - missing.length} are in ${opening.scene}`
@@ -233,7 +248,7 @@ async function main() {
   let failure = null;
 
   for (const leg of route.legs) {
-    const label = `${leg.area}:${leg.goal}`;
+    const label = leg.until ? `${leg.area}:${JSON.stringify(leg.until)}` : `${leg.area}:${leg.goal}`;
     const timeout = Number(leg.timeout ?? 1800);
     // Only when the route asks for it: "gone" is the game's own answer, a distance
     // is this driver guessing at one. A default of 90 outran a PICKUP_RADIUS of
@@ -255,6 +270,21 @@ async function main() {
     // one run and 704 on the next. Capped: a door that never opens still fails.
     let waited = 0;
     const WAIT_CAP = 1800;
+
+    // A leg the GAME judges. Nothing here reads an entity: what "arrived" means
+    // is the fact the level publishes, so a re-authored level moves under it
+    // without moving the claim.
+    if (leg.until) {
+      while (spent < timeout && frames < BUDGET) {
+        const got = await facts();
+        if (untilMet(leg.until, got)) { arrived = true; break; }
+        await exec(stepScript(leg.keys ?? [], STEP, leg.tap ?? null), 'step');
+        spent += STEP; frames += STEP;
+      }
+      if (arrived) { console.log(`  ${label} — the game says so`); done.push(label); }
+      else { failure = `${label} never became true (last: ${JSON.stringify(await facts())})`; break; }
+      continue;
+    }
 
     // Something picked up on the way to somewhere else is still picked up. A
     // leg whose goal is already gone before it starts is a leg already walked —
