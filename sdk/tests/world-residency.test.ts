@@ -10,6 +10,7 @@ import {
     desiredResidency, distanceToCell, type WorldCell, type ResidencySource,
 } from '../src/residency/cells';
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
+import type { RenderReadiness } from '../src/render/renderReadiness';
 import type { WorldManifest } from '../src/residency/cells';
 import { World } from '../src/ecs/world';
 import { Health, applyDamage } from '../src/gameplay/Health';
@@ -126,7 +127,12 @@ describe('desiredResidency', () => {
     });
 });
 
-function recordingHost() {
+/**
+ * A host with a renderer that always readies. `readiness` steers what the
+ * readying answers, so a criterion can put a cell in front of every outcome the
+ * obligation has — a claim, a debt, and no renderer at all.
+ */
+function recordingHost(readiness?: () => RenderReadiness) {
     const loaded = new Set<string>();
     const readied = new Set<string>();
     const calls: string[] = [];
@@ -140,6 +146,12 @@ function recordingHost() {
             if (!deferred) { settle(); return Promise.resolve(); }
             return new Promise((resolve) => pending.push(() => { settle(); resolve(); }));
         },
+        ...(readiness ? {
+            readyRenderPrograms(name: string): Promise<RenderReadiness> {
+                calls.push(`ready:${name}`);
+                return Promise.resolve(readiness());
+            },
+        } : {}),
         discardPrepared(name) {
             calls.push(`discard:${name}`);
             // Two receipts per readied cell, so "gave them back" is a number and
@@ -171,6 +183,96 @@ const manifest = (...cells: WorldCell[]): WorldManifest =>
     ({ version: 1, scene: 'main', cellSize: 100, persistentRefs: [], cells });
 
 describe('WorldStreamer', () => {
+    // `prepared` means every obligation publication has is satisfied — not that
+    // the assets arrived. A cell whose programs are not ready is one whose first
+    // visible frame pays for them, which is the frame a player is looking at.
+    describe('the render-program obligation gates prepared', () => {
+        const claim: RenderReadiness =
+            { applicable: true, stamp: { digestLo: 7, digestHi: 0, programEpoch: 3 } };
+        // Speculated, never demanded: the cell stays where preparation leaves it
+        // instead of being published the instant it is ready, which is what makes
+        // `prepared` observable at all.
+        const nearby = () => source(250, 50, 10, 20, 200);
+
+        it('a cell with a valid claim is prepared', async () => {
+            const { host } = recordingHost(() => claim);
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            expect(s.renderReadinessOf('c_0_0'))
+                .toEqual({ digestLo: 7, digestHi: 0, programEpoch: 3 });
+        });
+
+        it('a cell whose readying made NO claim is not prepared, whatever its assets did',
+           async () => {
+            const { host, readied } = recordingHost(() => ({ applicable: true, stamp: null }));
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            // The assets are in — this is precisely the state the old contract
+            // called prepared, and publishing from it is the defect.
+            expect(readied.has('c_0_0')).toBe(true);
+            expect(s.residencyOf('c_0_0')).not.toBe('prepared');
+            expect(s.residencyOf('c_0_0')).toBe('preparing');
+        });
+
+        it('an unpaid claim is a debt the next progression retries', async () => {
+            let answer: RenderReadiness = { applicable: true, stamp: null };
+            const { host, calls } = recordingHost(() => answer);
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('preparing');
+
+            // The device settled, or whatever refused the claim stopped. The
+            // preparation must continue rather than start over.
+            answer = claim;
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            expect(calls.filter((c) => c === 'prepare:c_0_0')).toHaveLength(1);
+            expect(calls.filter((c) => c === 'ready:c_0_0')).toHaveLength(2);
+        });
+
+        it('a readying that throws leaves the debt, not a prepared cell', async () => {
+            const { host } = recordingHost(() => { throw new Error('device went away'); });
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('preparing');
+        });
+
+        it('a host with no renderer satisfies the obligation by not having it', async () => {
+            const { host, calls } = recordingHost(() => ({ applicable: false }));
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            expect(calls).toContain('ready:c_0_0');
+            // Not applicable holds NO claim. An empty stamp would be a claim
+            // about nothing, and publication would later re-check it against the
+            // live renderer as if a renderer had made it.
+            expect(s.renderReadinessOf('c_0_0')).toBeNull();
+        });
+
+        it('a host that predates the obligation is not held to it', async () => {
+            const { host, calls } = recordingHost();
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            expect(calls.some((c) => c.startsWith('ready:'))).toBe(false);
+            expect(s.renderReadinessOf('c_0_0')).toBeNull();
+        });
+    });
+
     it('registers every cell as a scene the game itself never names', async () => {
         const { host, calls } = recordingHost();
         new WorldStreamer(host).loadManifest(manifest(cell(0, 0), cell(1, 0)));

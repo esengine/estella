@@ -7340,6 +7340,7 @@ name: string
 onPhase: ((phase: string, ms: number) => void) | undefined
 path: string | undefined
 prepare: (() => Promise<void>) | undefined
+readyRenderPrograms: (() => Promise<RenderReadiness>) | undefined
 setup: ((ctx: SceneContext) => void | Promise<void>) | undefined
 systems: { schedule: Schedule; system: SystemDef; }[] | undefined
 ```
@@ -7432,6 +7433,7 @@ load: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneCon
 loadAdditive: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneContext>
 pause: (name: string) => void
 prepare: (name: string) => Promise<void>
+readyRenderPrograms: (name: string) => Promise<RenderReadiness>
 register: (config: SceneConfig) => void
 reload: (options?: TransitionOptions) => Promise<void>
 reset: () => void
@@ -10259,6 +10261,7 @@ prefetchMisses: number
 prefetchRequests: number
 prepareCount: number
 preparedCells: string[]
+preparedWithRenderClaim: string[]
 residentCells: string[]
 sourceCount: number
 streamed: boolean
@@ -10272,6 +10275,7 @@ discardPrepared: (name: string) => number
 isLoaded: (name: string) => boolean
 loadAdditive: (name: string) => Promise<unknown>
 prepare: (name: string) => Promise<void>
+readyRenderPrograms: ((name: string) => Promise<RenderReadiness>) | undefined
 register: (config: SceneConfig) => void
 unload: (name: string, options?: { keepPersistent?: boolean; }) => Promise<void>
 ```
@@ -10283,6 +10287,7 @@ delivery: () => Record<string, CellDelivery>
 loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig) => void
 manifest: WorldManifest | null
 recordPhase: (name: string, phase: string, ms: number) => void
+renderReadinessOf: (name: string) => RenderReadinessStamp | null
 residencyOf: (name: string) => CellResidency
 status: () => WorldStreamerStatus
 update: (sources: readonly ResidencySource[]) => void

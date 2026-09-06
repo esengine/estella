@@ -134,6 +134,14 @@ function main() {
         && !initial.streaming.residentCells.includes(B),
         'places the player may soon want are readied without being brought in',
         `prepared ${JSON.stringify(initial.streaming.preparedCells)}`);
+    // Assets are half of what publication needs. A cell readied without its
+    // shader programs pays for them in the first frame that shows it, which is
+    // the frame this whole feature exists to make cheap.
+    claim(initial.streaming.preparedWithRenderClaim.includes(B)
+        && initial.streaming.preparedWithRenderClaim.includes(C),
+        'and their render programs are ready too, not just their assets',
+        `claims ${JSON.stringify(initial.streaming.preparedWithRenderClaim)}`
+        + ` of prepared ${JSON.stringify(initial.streaming.preparedCells)}`);
     claim(initial.at.Enemy === undefined && initial.at.Wall === undefined
         && initial.streaming.hunters === 0 && initial.streaming.navAgents === 0
         && entities(initial, B) === undefined,

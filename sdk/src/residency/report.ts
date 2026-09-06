@@ -32,6 +32,9 @@ export interface WorldResidencyReport {
     residentCells: string[];
     /** Ready, owning assets, and holding nothing the world can see. */
     preparedCells: string[];
+    /** Of those, the ones holding a render-program claim. A prepared cell with
+     *  none was readied by a host that has no renderer to ready. */
+    preparedWithRenderClaim: string[];
     loadingCells: string[];
     unloadingCells: string[];
     loadCount: number;
@@ -75,6 +78,7 @@ export interface WorldResidencyReport {
 const EMPTY: WorldResidencyReport = {
     streamed: false, cellCount: 0, sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
+    preparedWithRenderClaim: [],
     loadingCells: [], unloadingCells: [],
     loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0,
     prefetchRequests: 0, cancelledRefs: 0,
@@ -131,6 +135,8 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         prefetchCells: status.prefetchCells,
         residentCells: status.residentCells,
         preparedCells: status.preparedCells,
+        preparedWithRenderClaim:
+            status.preparedCells.filter((c) => streamer.renderReadinessOf(c) !== null),
         loadingCells: status.loadingCells,
         unloadingCells: status.unloadingCells,
         loadCount: status.loadCount,

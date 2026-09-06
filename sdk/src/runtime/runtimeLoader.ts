@@ -29,6 +29,8 @@ import { transcoderFromModule, type BasisWasmModule } from '../asset/basisTransc
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from '../scene/sceneManager';
+import { readyMeshPrograms } from '../render/meshProgramReadiness';
+import type { RenderReadiness } from '../render/renderReadiness';
 import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
 import type { WorldManifest } from '../residency/cells';
@@ -683,6 +685,13 @@ export function createRuntimeSceneConfig(
         name,
         async prepare() {
             if (prepared === null) prepared = await readied();
+        },
+        // The second obligation. It runs on what `prepare` decoded, so the mesh
+        // references are already handles; readying from an unprepared scene would
+        // describe requirements for geometry nothing has acquired.
+        async readyRenderPrograms() {
+            if (prepared === null) return { applicable: false } as RenderReadiness;
+            return readyMeshPrograms(options.module, prepared.sceneData);
         },
         discardPrepared() {
             // Speculation is not authority: what nobody asked for is given back,

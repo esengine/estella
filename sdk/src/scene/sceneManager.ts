@@ -14,6 +14,7 @@ import { assetBindingsOf, readLiveAssetBinding } from '../asset/liveAssetBinding
 import { leaseBoundAs, slotLeaseNamed } from '../asset/liveAssetRebind';
 import type { SystemDef } from '../ecs/system';
 import { Material } from '../render/material';
+import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';
 import { loadSceneWithAssets } from './scene';
@@ -66,6 +67,12 @@ export interface SceneConfig {
     prepare?: () => Promise<void>;
     /** Throw away what `prepare` readied, answering how many receipts came back. */
     discardPrepared?: () => number;
+    /**
+     * Ready the render programs this scene's content requires, from what
+     * `prepare` decoded. Absent means the obligation does not apply here, which
+     * is how a headless host satisfies it — never by inventing a claim.
+     */
+    readyRenderPrograms?: () => Promise<RenderReadiness>;
 }
 
 /**
@@ -412,6 +419,17 @@ export class SceneManagerState {
     async prepare(name: string): Promise<void> {
         if (this.scenes_.has(name)) return;
         await this.configs_.get(name)?.prepare?.();
+    }
+
+    /**
+     * Make the render programs `name`'s prepared content requires ready.
+     * @returns Not applicable where the scene declares no readying or is already
+     *          up; otherwise the claim, or null when one could not be made.
+     */
+    async readyRenderPrograms(name: string): Promise<RenderReadiness> {
+        if (this.scenes_.has(name)) return { applicable: false };
+        const ready = this.configs_.get(name)?.readyRenderPrograms;
+        return ready ? ready() : { applicable: false };
     }
 
     /**

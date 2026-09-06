@@ -19,6 +19,7 @@
 
 import { desiredResidency, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
 import type { SceneConfig } from '../scene/sceneManager';
+import type { RenderReadiness, RenderReadinessStamp } from '../render/renderReadiness';
 import { defineResource } from '../ecs/resource';
 import { log } from '../util/logger';
 
@@ -43,6 +44,12 @@ export type CellResidency =
 export interface WorldStreamHost {
     register(config: SceneConfig): void;
     prepare(name: string): Promise<void>;
+    /**
+     * Make the render programs a prepared cell requires ready. Absent on a host
+     * that predates the obligation, which reads as not applicable — the same
+     * answer a headless one gives, and never a claim that succeeded.
+     */
+    readyRenderPrograms?(name: string): Promise<RenderReadiness>;
     discardPrepared(name: string): number;
     loadAdditive(name: string): Promise<unknown>;
     unload(name: string, options?: { keepPersistent?: boolean }): Promise<void>;
@@ -87,6 +94,17 @@ export interface WorldStreamerStatus {
 interface CellState {
     cell: WorldCell;
     residency: CellResidency;
+    /**
+     * The obligations preparation owes before this cell may be called prepared.
+     * Held here and only READ by the state machine: what a cell's programs are
+     * is the renderer's question, and a streamer deriving it would be a second
+     * author of the answer.
+     */
+    assetsReady: boolean;
+    /** The claim, once one has been made. Null while it is still owed. */
+    renderReadiness: RenderReadinessStamp | null;
+    /** Whether a readying attempt is in flight, so a retry does not stack. */
+    readinessInFlight: boolean;
     /** What the last reconciliation asked for; the async completions re-read it. */
     desired: boolean;
     /** Whether any source is close enough to speculate about it. */
@@ -164,6 +182,7 @@ export class WorldStreamer {
             this.host_.register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
             this.cells_.set(cell.name, {
                 cell, residency: 'unloaded', desired: false, speculated: false,
+                assetsReady: false, renderReadiness: null, readinessInFlight: false,
                 phases: {}, issuedAt: 0, delivery: 0,
                 demandedAt: 0, preparedAt: 0, publishedAt: 0,
                 prepareMs: 0, publishMs: 0, demandToResidentMs: 0, dwellMs: 0, outcome: '',
@@ -177,6 +196,19 @@ export class WorldStreamer {
 
     residencyOf(name: string): CellResidency {
         return this.cells_.get(name)?.residency ?? 'unloaded';
+    }
+
+    /**
+     * The render-program claim a cell holds, or null when it holds none.
+     *
+     * A cell on a host with no renderer holds NONE — the obligation did not
+     * apply, which is a different fact from a claim that succeeded and must stay
+     * distinguishable from one. Publication reads this to re-check freshness.
+     *
+     * @experimental
+     */
+    renderReadinessOf(name: string): RenderReadinessStamp | null {
+        return this.cells_.get(name)?.renderReadiness ?? null;
     }
 
     /**
@@ -325,8 +357,16 @@ export class WorldStreamer {
     private step_(name: string): void {
         const state = this.cells_.get(name);
         if (!state) return;
-        if (state.residency === 'preparing' || state.residency === 'publishing'
-            || state.residency === 'unloading') return;
+        if (state.residency === 'preparing') {
+            // Assets are in and only the program obligation is left. Retried
+            // here, because a claim refused once (a device that rebuilt mid-
+            // readying) costs one more attempt rather than the whole preparation.
+            if (state.assetsReady && !state.readinessInFlight) {
+                this.settleReadiness_(name, state);
+            }
+            return;
+        }
+        if (state.residency === 'publishing' || state.residency === 'unloading') return;
         if (state.residency === 'unloaded' && (state.desired || state.speculated)) {
             this.beginPrepare_(name, state);
         } else if (state.residency === 'prepared' && state.desired) {
@@ -337,6 +377,8 @@ export class WorldStreamer {
             // happens to be ready.
             this.cancelledRefs_ += this.host_.discardPrepared(name);
             state.residency = 'unloaded';
+            state.assetsReady = false;
+            state.renderReadiness = null;
             this.cancelCount_++;
         } else if (state.residency === 'resident' && !state.desired) {
             this.beginUnload_(name, state);
@@ -359,21 +401,65 @@ export class WorldStreamer {
             state.outcome = '';
             state.dwellMs = 0;
         }
+        state.assetsReady = false;
+        state.renderReadiness = null;
         Promise.resolve(this.host_.prepare(name)).then(
             () => {
-                state.residency = 'prepared';
-                state.preparedAt = performance.now();
-                state.prepareMs = state.preparedAt - state.issuedAt;
-                // What finished was begun against a world that has moved. Whether
-                // this cell is still wanted — or wanted now when it was not — is
-                // asked again here rather than assumed from when it started.
-                this.step_(name);
+                // One obligation of two. `prepared` is not the end of the assets
+                // arriving, it is the end of everything publication requires.
+                state.assetsReady = true;
+                this.settleReadiness_(name, state);
             },
             (err) => {
                 state.residency = 'unloaded';
+                state.assetsReady = false;
                 log.error('residency', `cell "${name}" did not prepare`, err);
             },
         );
+    }
+
+    /**
+     * Pay the render-program obligation, or leave it owed.
+     *
+     * A debt rather than an event: a claim that could not be made leaves the cell
+     * in `preparing` with its assets intact, and the next progression tries
+     * again. Dropping it would strip a preparation that had almost finished.
+     */
+    private settleReadiness_(name: string, state: CellState): void {
+        const ready = this.host_.readyRenderPrograms;
+        if (!ready) { this.markPrepared_(name, state); return; }
+
+        state.readinessInFlight = true;
+        Promise.resolve(ready.call(this.host_, name)).then(
+            (outcome) => {
+                state.readinessInFlight = false;
+                // Not applicable is an answer, not a claim: a host with no
+                // renderer has nothing to ready and owes nothing.
+                if (!outcome.applicable) { this.markPrepared_(name, state); return; }
+                if (!outcome.stamp) {
+                    log.warn('residency',
+                             `cell "${name}" readied no render programs; still owed`);
+                    return;
+                }
+                state.renderReadiness = outcome.stamp;
+                this.markPrepared_(name, state);
+            },
+            (err) => {
+                state.readinessInFlight = false;
+                log.error('residency', `cell "${name}" could not ready its programs`, err);
+            },
+        );
+    }
+
+    /** Every obligation is satisfied: only now is the cell prepared. */
+    private markPrepared_(name: string, state: CellState): void {
+        state.residency = 'prepared';
+        state.preparedAt = performance.now();
+        state.prepareMs = state.preparedAt - state.issuedAt;
+        // What finished was begun against a world that has moved. Whether this
+        // cell is still wanted — or wanted now when it was not — is asked again
+        // here rather than assumed from when it started.
+        this.step_(name);
     }
 
     private beginLoad_(name: string, state: CellState): void {
