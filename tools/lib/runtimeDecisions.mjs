@@ -65,11 +65,14 @@ export const DECISIONS = [
     runtime: { has: true, cite: { path: 'sdk/src/residency/report.ts', probe: /prefetchHits/ } },
     editor: {
       has: false,
-      owed: 'worldResidencyReport answers resident/prepared/loading per cell, prefetch hits and misses, '
-        + 'and demand-to-resident latency — and has no consumer outside the SDK barrel. The runtime '
-        + 'already knows; nothing asks',
+      owed: 'not a missing reader — the editor never runs the thing. Streaming turns on only when '
+        + 'runtimeLoader is handed a COOKED world manifest (`config.worlds`), which only exportGame '
+        + 'and the headless gameHost supply; neither the edit realm nor playHost passes one, so '
+        + 'worldResidencyReport answers EMPTY in both. A panel reading it would show zeros for ever, '
+        + 'and goldenProjects already records the split as deliberate ("the editor plays it whole"). '
+        + 'The debt is a decision about Play, not a panel',
     },
-    agent: { has: false, owed: 'same report, same absence of a reader' },
+    agent: { has: false, owed: 'same realm, same absence of a cooked world to report on' },
   },
   {
     id: 'shadow.atlasAllocation',
