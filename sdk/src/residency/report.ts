@@ -17,6 +17,7 @@
 import type { App } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming } from './WorldStreamer';
+import { stableEntityId } from './identity';
 import { renderableComponents } from '../ecs/component';
 
 /** @experimental */
@@ -39,6 +40,10 @@ export interface WorldResidencyReport {
     assetRefsByCell: Record<string, number>;
     /** What the cook put in each cell — the number a live count is checked against. */
     authoredCellEntityCounts: Record<string, number>;
+    /** The authored rows each resident cell instantiated; unchanged by a reload. */
+    cellStableIds: Record<string, number[]>;
+    /** The runtime handles those rows currently have; a reload mints new ones. */
+    cellHandles: Record<string, number[]>;
     /** Live entities the persistent world owns; residency never touches these. */
     persistentEntities: number;
 }
@@ -48,7 +53,7 @@ const EMPTY: WorldResidencyReport = {
     desiredCells: [], residentCells: [], loadingCells: [], unloadingCells: [],
     loadCount: 0, unloadCount: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
-    authoredCellEntityCounts: {}, persistentEntities: 0,
+    authoredCellEntityCounts: {}, cellStableIds: {}, cellHandles: {}, persistentEntities: 0,
 };
 
 /**
@@ -68,6 +73,8 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
     const cellRenderCounts: Record<string, number> = {};
     const assetRefsByCell: Record<string, number> = {};
     const authoredCellEntityCounts: Record<string, number> = {};
+    const cellStableIds: Record<string, number[]> = {};
+    const cellHandles: Record<string, number[]> = {};
     const drawing = renderableComponents();
     for (const cell of manifest.cells) {
         authoredCellEntityCounts[cell.name] = cell.entityCount;
@@ -76,11 +83,18 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         // between "not here" and "here and empty" that a zero would hide.
         if (context === null) continue;
         let drawn = 0;
+        const stable: number[] = [];
+        const handles: number[] = [];
         for (const entity of context.entities) {
             if (drawing.some((component) => app.world.has(entity, component))) drawn++;
+            const authored = stableEntityId(app, entity);
+            if (authored !== undefined) stable.push(authored);
+            handles.push(entity);
         }
         cellEntityCounts[cell.name] = context.entities.size;
         cellRenderCounts[cell.name] = drawn;
+        cellStableIds[cell.name] = stable.sort((a, b) => a - b);
+        cellHandles[cell.name] = handles.sort((a, b) => a - b);
         assetRefsByCell[cell.name] = scenes.assetScopeFor(cell.name)?.size ?? 0;
     }
 
@@ -95,6 +109,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         loadCount: status.loadCount,
         unloadCount: status.unloadCount,
         cellEntityCounts, cellRenderCounts, assetRefsByCell, authoredCellEntityCounts,
+        cellStableIds, cellHandles,
         persistentEntities: scenes.getScene(manifest.scene)?.entities.size ?? 0,
     };
 }

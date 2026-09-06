@@ -241,6 +241,8 @@ export {
     worldResidencyPlugin,
     worldResidencySystem,
     worldResidencyReport,
+    persistentEntityRows,
+    stableEntityId,
     type StreamedWorldData,
     type WorldStreamingSourceData,
     type WorldCell,

@@ -19,3 +19,4 @@ export {
 } from './WorldStreamer';
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
 export { worldResidencyReport, type WorldResidencyReport } from './report';
+export { persistentEntityRows, stableEntityId } from './identity';

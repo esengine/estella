@@ -103,6 +103,23 @@ describe('partitionWorld', () => {
         expect(partition.errors.join('\n')).toContain('not top-level');
     });
 
+    it('leaves references inside the persistent world alone', () => {
+        // Two persistent roots are one document: a camera naming the player it
+        // follows comes and goes with it, so nothing can dangle between them.
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            entity(1, 'Camera', [0, 0, 0], {
+                components: [
+                    { type: 'WorldPersistent', data: {} },
+                    { type: 'ThirdPersonCamera', data: { target: 2 } },
+                ],
+            }),
+            entity(2, 'Player', [10, 0, 10], { components: [{ type: 'WorldPersistent', data: {} }] }),
+        ))!;
+        expect(partition.errors).toEqual([]);
+        expect(partition.persistentRefs).toEqual([]);
+    });
+
     it('refuses a hard reference from one cell into another', () => {
         const partition = cut(scene(
             entity(0, 'World', null, { components: [declaration] }),

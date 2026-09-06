@@ -18,6 +18,7 @@
  */
 
 import { desiredResidency, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
+import type { SceneConfig } from '../scene/sceneManager';
 import { defineResource } from '../ecs/resource';
 import { log } from '../util/logger';
 
@@ -31,7 +32,7 @@ export type CellResidency = 'unloaded' | 'loading' | 'resident' | 'unloading';
  * @experimental
  */
 export interface WorldStreamHost {
-    register(config: { name: string; path: string }): void;
+    register(config: SceneConfig): void;
     loadAdditive(name: string): Promise<unknown>;
     unload(name: string, options?: { keepPersistent?: boolean }): Promise<void>;
     isLoaded(name: string): boolean;
@@ -72,17 +73,17 @@ export class WorldStreamer {
     }
 
     /**
-     * Adopt a cooked world: its cells become loadable scenes and residency starts
-     * answering for them.
+     * Adopt a cooked world: its cells become loadable scenes and residency
+     * answers for them.
      *
-     * Registered here rather than beside the game's own scenes: a cell is content
+     * Registered here, not beside the game's own scenes: a cell is content
      * residency brings in, and `switchTo('cell_3_2')` is a second author.
      */
-    loadManifest(manifest: WorldManifest): void {
+    loadManifest(manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig): void {
         this.manifest_ = manifest;
         this.cells_.clear();
         for (const cell of manifest.cells) {
-            this.host_.register({ name: cell.name, path: cell.path });
+            this.host_.register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
             this.cells_.set(cell.name, { cell, residency: 'unloaded', desired: false });
         }
     }

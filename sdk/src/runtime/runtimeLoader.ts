@@ -7,7 +7,7 @@
 
 import { SceneOwner } from '../ecs/component';
 import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
-import { recordSceneOrigins } from '../scene/sceneOrigins';
+import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -27,6 +27,9 @@ import { transcoderFromModule, type BasisWasmModule } from '../asset/basisTransc
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from '../scene/sceneManager';
+import { WorldStreaming } from '../residency/WorldStreamer';
+import { persistentEntityRows } from '../residency/identity';
+import type { WorldManifest } from '../residency/cells';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
@@ -547,6 +550,12 @@ export interface RuntimeInitConfig {
      *  time; `path` registers a lazy scene fetched through the runtime Assets
      *  on first {@link SceneManagerState.switchTo}/load. One of the two. */
     scenes: Array<{ name: string; data?: SceneData; path?: string }>;
+    /**
+     * Cooked worlds the build carries. The one belonging to `firstScene` is
+     * adopted by the streamer after that scene is up — its cells are content
+     * residency brings in, so they are deliberately not in `scenes`.
+     */
+    worlds?: WorldManifest[];
     firstScene: string;
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
@@ -648,9 +657,29 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         mgr.register(createRuntimeSceneConfig(scene.name, scene.data, sceneOpts, scene.path));
     }
 
+    // Identity before the world exists: a streamed entity's authored id is what
+    // survives its cell leaving, and the table only records what loads after this.
+    const world = (config.worlds ?? []).find((candidate) => candidate.scene === firstScene) ?? null;
+    for (const other of config.worlds ?? []) {
+        if (other !== world) {
+            log.warn('residency', `world "${other.scene}" is cooked but only the entry scene's is adopted`);
+        }
+    }
+    if (world) enableSceneOrigins(app);
+
     if (firstScene) {
         mgr.setInitial(firstScene);
         await mgr.load(firstScene);
+    }
+
+    if (world && app.hasResource(WorldStreaming)) {
+        // A cell loads the way every other scene in this build does, and resolves
+        // the persistent rows the cook said it names — freshly each time, because
+        // the entities behind those rows are only the ones alive right now.
+        app.getResource(WorldStreaming).loadManifest(world, (cell) => ({
+            ...createRuntimeSceneConfig(cell.name, undefined, sceneOpts, cell.path),
+            externalEntities: () => persistentEntityRows(app, world),
+        }));
     }
 
     if (aspectRatio !== undefined) {

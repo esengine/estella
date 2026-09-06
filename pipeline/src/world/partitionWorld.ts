@@ -384,15 +384,19 @@ function checkReferences(
     persistentRefs: Set<number>,
     errors: string[],
 ): void {
-    const sameCell = (a: Placement, b: Placement): boolean =>
-        a.cell !== null && b.cell !== null && a.cell.x === b.cell.x && a.cell.z === b.cell.z;
+    // One document, whether that is the persistent scene or one cell: everything
+    // in it comes and goes together, so a reference inside it can never dangle.
+    const sameDocument = (a: Placement, b: Placement): boolean =>
+        a.cell === null
+            ? b.cell === null
+            : b.cell !== null && a.cell.x === b.cell.x && a.cell.z === b.cell.z;
 
     const check = (holder: SceneEntry, componentType: string, field: string, value: unknown): void => {
         const one = (candidate: unknown): void => {
             if (typeof candidate !== 'number' || !byId.has(candidate)) return;
             const from = placement.get(holder.id);
             const to = placement.get(candidate);
-            if (!from || !to || from.root === to.root || sameCell(from, to)) return;
+            if (!from || !to || from.root === to.root || sameDocument(from, to)) return;
             if (from.cell !== null && to.cell === null) { persistentRefs.add(candidate); return; }
             const where = to.cell === null ? 'the persistent world' : `cell ${to.cell.x},${to.cell.z}`;
             errors.push(

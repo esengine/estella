@@ -108,6 +108,12 @@ export interface SceneLoadOptions {
      * assets get handle 0, scene loads anyway).
      */
     abortOnMissingAssets?: boolean;
+    /**
+     * Authored ids this document may reference that live in another one — the
+     * persistent rows a streamed cell is allowed to name. Absent = a reference
+     * outside the document resolves to nothing, which is what it always did.
+     */
+    externalEntities?: ReadonlyMap<number, Entity>;
 }
 
 export class MissingAssetsError extends Error {
@@ -166,13 +172,24 @@ export function getComponentSkeletalFieldDescriptor(
 // Entity Reference Remapping
 // =============================================================================
 
-export function remapEntityFields(compData: SceneComponentData, entityMap: Map<number, Entity>): void {
+/**
+ * Resolve a document's entity references to live entities.
+ *
+ * `external` answers for authored ids that live in ANOTHER document — the rows a
+ * streamed cell is allowed to name in the persistent world. An id neither map
+ * knows is cleared, never left as a number that names a different entity.
+ */
+export function remapEntityFields(
+    compData: SceneComponentData,
+    entityMap: Map<number, Entity>,
+    external?: ReadonlyMap<number, Entity>,
+): void {
     const comp = getComponent(compData.type);
     if (!comp || comp.entityFields.length === 0) return;
     const data = compData.data as Record<string, unknown>;
     const remap = (editorId: unknown): unknown => {
         if (typeof editorId !== 'number' || editorId === INVALID_ENTITY) return editorId;
-        const runtimeId = entityMap.get(editorId);
+        const runtimeId = entityMap.get(editorId) ?? external?.get(editorId);
         if (runtimeId === undefined) {
             log.warn(
                 'scene',
@@ -431,7 +448,9 @@ function checkLoadable(sceneData: SceneData): void {
     }
 }
 
-function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, Entity> {
+function spawnAndLoadEntities(
+    world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+): Map<number, Entity> {
     checkLoadable(sceneData);
     const entityMap = new Map<number, Entity>();
 
@@ -455,7 +474,7 @@ function spawnAndLoadEntities(world: World, sceneData: SceneData): Map<number, E
             if (isPrefabEntry(entityData)) continue;
             const entity = entityMap.get(entityData.id)!;
             for (const compData of entityData.components) {
-                remapEntityFields(compData, entityMap);
+                remapEntityFields(compData, entityMap, external);
                 loadComponent(world, entity, compData, entityData.name);
             }
         }
@@ -547,7 +566,7 @@ export async function loadSceneWithAssets(
             }
         }
     }
-    return spawnAndLoadEntities(world, data);
+    return spawnAndLoadEntities(world, data, options?.externalEntities);
 }
 
 function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {

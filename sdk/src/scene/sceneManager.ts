@@ -51,6 +51,12 @@ export interface SceneConfig {
     systems?: Array<{ schedule: Schedule; system: SystemDef }>;
     setup?: (ctx: SceneContext) => void | Promise<void>;
     cleanup?: (ctx: SceneContext) => void;
+    /**
+     * Authored ids this scene may reference in ANOTHER document, resolved at load
+     * time. A streamed cell names the persistent world through this; nothing else
+     * has a document boundary to cross.
+     */
+    externalEntities?: () => ReadonlyMap<number, Entity>;
 }
 
 /**
@@ -669,6 +675,7 @@ export class SceneManagerState {
 
             const loadOptions: SceneLoadOptions = { collectAssets };
             if (onProgress) loadOptions.onProgress = onProgress;
+            if (config.externalEntities) loadOptions.externalEntities = config.externalEntities();
             if (this.app_.hasResource(Assets)) {
                 loadOptions.assets = this.app_.getResource(Assets);
             }

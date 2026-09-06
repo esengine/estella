@@ -19,8 +19,11 @@ import {
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
   Hunter, NavAgent, Perception, AnimatorRootMotion,
+  worldResidencyReport,
 } from 'esengine';
-import type { SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource } from 'esengine';
+import type {
+  SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
+} from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -76,6 +79,14 @@ async function boot(): Promise<void> {
     : cfg.entryScene;
   if (!chosen) throw new Error(`[estella] no scene named "${wanted}" in this package`);
   const sceneData = (await (await fetch(`./${chosen}`)).json()) as SceneData;
+
+  // The cooked worlds this build carries. Fetched beside the entry scene because
+  // residency answers for the entry scene from its first frame, and a manifest
+  // that arrived later would be a world that popped in.
+  const worlds: WorldManifest[] = [];
+  for (const world of cfg.worlds ?? []) {
+    worlds.push((await (await fetch(`./${world.manifest}`)).json()) as WorldManifest);
+  }
 
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
@@ -420,6 +431,40 @@ async function boot(): Promise<void> {
           return {};
         }
       },
+      /**
+       * What residency did, and what the subsystems still hold.
+       *
+       * The counts are the whole point: a far cell that is not DRAWN and one
+       * that does not EXIST look identical from a camera. Read-only — nothing
+       * here loads a cell, so residency still has to have been caused by walking.
+       */
+      streaming(): Record<string, unknown> {
+        const report = worldResidencyReport(app);
+        // By NAME: the 3D world is a side module, and importing its resource
+        // here would pull the whole thing into a game that may not use physics.
+        const physics = app.getResourceByName('Physics3DRuntime') as {
+          bodies: Map<number, unknown>;
+          characters: Map<number, unknown>;
+          joints: Map<number, unknown>;
+        } | undefined;
+        let stalePhysics = 0;
+        for (const rows of [physics?.bodies, physics?.characters, physics?.joints]) {
+          for (const entity of rows?.keys() ?? []) {
+            if (!app.world.valid(entity)) stalePhysics++;
+          }
+        }
+        return {
+          ...report,
+          physicsBodies: physics?.bodies.size ?? 0,
+          physicsCharacters: physics?.characters.size ?? 0,
+          // Rows physics still keeps for entities the world no longer has. A
+          // teardown that forgot one shows up here and nowhere else.
+          stalePhysics,
+          navAgents: app.world.getEntitiesWithComponents([NavAgent]).length,
+          hunters: app.world.getEntitiesWithComponents([Hunter]).length,
+          entities: app.world.entityCount(),
+        };
+      },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
        *  driver settles frames after this before re-capturing. */
@@ -461,6 +506,7 @@ async function boot(): Promise<void> {
       { name: entryName, data: sceneData },
       ...sceneList.filter((s) => s.path !== cfg.entryScene).map((s) => ({ name: s.name, path: s.path })),
     ],
+    ...(worlds.length > 0 ? { worlds } : {}),
     firstScene: entryName,
     aspectRatio: canvas.width / canvas.height,
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.

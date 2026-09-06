@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "World Streaming 3D",
+  "description": "A world cut into cells at cook time: places exist because a source is near them, and stop existing when none is.",
+  "tag": "3D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}
