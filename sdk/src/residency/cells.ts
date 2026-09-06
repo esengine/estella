@@ -58,12 +58,21 @@ export interface ResidencySource {
     z: number;
     loadRadius: number;
     unloadRadius: number;
+    /** How early this source is worth preparing for. Never below `loadRadius`. */
+    prefetchRadius: number;
 }
 
-/** What residency should be, and the two moves that get there. @experimental */
+/** What residency should be, and the moves that get there. @experimental */
 export interface ResidencyDecision {
     /** Every cell that should exist after this tick, in manifest order. */
     target: string[];
+    /**
+     * Cells worth PREPARING: near enough that a source may soon want them. A
+     * superset of the demanded ones in the ordinary case, but not by rule — a
+     * cell held by hysteresis can sit past every prefetch radius.
+     */
+    prefetch: string[];
+    /** Demanded and not resident, nearest first: what to publish. */
     toLoad: string[];
     toUnload: string[];
 }
@@ -94,26 +103,36 @@ export function desiredResidency(
     resident: ReadonlySet<string>,
 ): ResidencyDecision {
     const target: string[] = [];
-    const toLoad: string[] = [];
+    const prefetch: string[] = [];
     const toUnload: string[] = [];
+    /** Demanded-and-absent cells with how far the nearest source is. */
+    const pending: Array<{ name: string; distance: number }> = [];
     for (const cell of cells) {
         let wanted = false;
         let kept = false;
+        let speculated = false;
+        let nearest = Infinity;
         for (const source of sources) {
             const distance = distanceToCell(cell, source.x, source.z);
-            if (distance <= source.loadRadius) { wanted = true; break; }
+            if (distance < nearest) nearest = distance;
+            if (distance <= source.loadRadius) wanted = true;
             // An authored band that is not a band is not one the streamer invents:
             // the wider of the two is the only reading under which a resident cell
             // cannot be dropped by the same distance that just asked for it.
-            if (distance <= Math.max(source.loadRadius, source.unloadRadius)) kept = true;
+            else if (distance <= Math.max(source.loadRadius, source.unloadRadius)) kept = true;
+            if (distance <= Math.max(source.loadRadius, source.prefetchRadius)) speculated = true;
         }
+        if (speculated) prefetch.push(cell.name);
         const isResident = resident.has(cell.name);
         if (wanted || (kept && isResident)) {
             target.push(cell.name);
-            if (!isResident) toLoad.push(cell.name);
+            if (!isResident) pending.push({ name: cell.name, distance: nearest });
         } else if (isResident) {
             toUnload.push(cell.name);
         }
     }
-    return { target, toLoad, toUnload };
+    // Nearest first, and stable: two cells a source is equally far from keep the
+    // order the cook wrote them in rather than one the sort invented.
+    pending.sort((a, b) => a.distance - b.distance);
+    return { target, prefetch, toLoad: pending.map((p) => p.name), toUnload };
 }

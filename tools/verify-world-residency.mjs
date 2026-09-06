@@ -110,6 +110,11 @@ function main() {
         { do: 'read', as: 'beaconBack' },
         { do: 'tap', key: 'KeyJ', frames: 30 },
         { do: 'read', as: 'beaconBlown' },
+        // Nobody walked in this launch, so the places the player never reached
+        // are still merely READY — which is the only state a discard can be
+        // asked about.
+        { do: 'tap', key: 'KeyK', frames: 30 },
+        { do: 'read', as: 'nobodyAsking' },
     ]);
 
     const initial = start.initial;
@@ -122,6 +127,18 @@ function main() {
     claim(entities(initial, C) === undefined && initial.at.Arch === undefined
         && (initial.streaming.cellRenderCounts[C] ?? 0) === 0,
         'a cell nobody needs has no entities, no renderers and nothing to probe');
+
+    // ---- Prepared is not resident, and nothing can tell it is there ------
+    claim(initial.streaming.preparedCells.includes(B)
+        && initial.streaming.preparedCells.includes(C)
+        && !initial.streaming.residentCells.includes(B),
+        'places the player may soon want are readied without being brought in',
+        `prepared ${JSON.stringify(initial.streaming.preparedCells)}`);
+    claim(initial.at.Enemy === undefined && initial.at.Wall === undefined
+        && initial.streaming.hunters === 0 && initial.streaming.navAgents === 0
+        && entities(initial, B) === undefined,
+        'and nothing they hold is in the world — no entity, no body, no hunter',
+        `${initial.streaming.physicsBodies} bodies, ${initial.streaming.hunters} hunter(s)`);
 
     // ---- 6. Two sources are unioned --------------------------------------
     const scoutOn = start.scoutOn;
@@ -167,6 +184,20 @@ function main() {
         `beacon at ${start.beaconBlown.combat.targets.Beacon.health}, `
         + `canary at ${start.beaconBlown.combat.targets.Canary.health}`);
 
+    // ---- Readiness is not a claim on the world ---------------------------
+    const asking = start.nobodyAsking;
+    claim(!asking.streaming.preparedCells.includes(B) && !asking.streaming.preparedCells.includes(C)
+        && asking.streaming.cancelCount >= 2,
+        'what was merely readied is thrown away when nobody is near it, not published',
+        `${asking.streaming.cancelCount} discarded of ${asking.streaming.prepareCount} prepared,`
+        + ` still ready ${JSON.stringify(asking.streaming.preparedCells)}`);
+    claim(asking.streaming.cancelledRefs > 0,
+        'and the assets it had acquired come back with it',
+        `${asking.streaming.cancelledRefs} acquisition(s) returned`);
+    claim(asking.at.Enemy === undefined && asking.at.Wall === undefined
+        && asking.at.Arch === undefined,
+        'and none of it was published on the way out');
+
     // ---- 2/3/4/7/8. The journey ------------------------------------------
     const trip = drive(dir, 'journey', [
         { do: 'step', frames: 30 },
@@ -190,6 +221,12 @@ function main() {
     claim(atB.ai.found && (atB.ai.visible || atB.ai.hasTarget),
         'which then notices the player it was not told about',
         `visible=${atB.ai.visible} hasTarget=${atB.ai.hasTarget}`);
+    // The point of readying it early: what the player waited through is the
+    // publication, not the fetching and decoding.
+    claim(atB.streaming.prefetchHits > 0,
+        'and it was published from something already readied, not fetched on arrival',
+        `${atB.streaming.prefetchHits} hit(s), ${atB.streaming.prefetchMisses} miss(es),`
+        + ` demand→resident ${atB.streaming.lastDemandToResidentMs.toFixed(1)}ms`);
 
     const atC = trip.atC;
     claim(!resident(atC, B) && entities(atC, B) === undefined && atC.at.Enemy === undefined

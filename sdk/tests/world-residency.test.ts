@@ -26,8 +26,9 @@ function cell(x: number, z: number, size = 100): WorldCell {
     };
 }
 
-const source = (x: number, z: number, load: number, unload: number): ResidencySource =>
-    ({ x, z, loadRadius: load, unloadRadius: unload });
+const source = (
+    x: number, z: number, load: number, unload: number, prefetch = load,
+): ResidencySource => ({ x, z, loadRadius: load, unloadRadius: unload, prefetchRadius: prefetch });
 
 describe('desiredResidency', () => {
     it('asks for the cell a source stands in', () => {
@@ -81,6 +82,42 @@ describe('desiredResidency', () => {
         expect(desiredResidency(cells, [left], resident).toUnload).toEqual(['c_0_0']);
     });
 
+    it('prepares further out than it publishes, and does not publish what it prepared', () => {
+        const cells = [cell(0, 0), cell(3, 0)];
+        // c_3_0 starts 300 past this source; inside prefetch, outside load.
+        const d = desiredResidency(cells, [source(0, 50, 100, 150, 400)], new Set());
+        expect(d.prefetch).toEqual(['c_0_0', 'c_3_0']);
+        expect(d.target).toEqual(['c_0_0']);
+        expect(d.toLoad).toEqual(['c_0_0']);
+    });
+
+    it('unions what the sources prepare, the same way it unions what they demand', () => {
+        const cells = [cell(0, 0), cell(5, 0)];
+        const here = source(50, 50, 10, 20, 60);
+        const there = source(550, 50, 10, 20, 60);
+        expect(desiredResidency(cells, [here, there], new Set()).prefetch)
+            .toEqual(['c_0_0', 'c_5_0']);
+        expect(desiredResidency(cells, [there, here], new Set()).prefetch)
+            .toEqual(['c_0_0', 'c_5_0']);
+    });
+
+    it('never prepares less far than it demands, whatever the author wrote', () => {
+        // The wider of the two is what preparation uses. OUTSIDE the cell on
+        // purpose: a source standing in one is zero away, and zero is within
+        // every radius including the one under test.
+        const d = desiredResidency([cell(0, 0)], [source(150, 50, 100, 150, 0)], new Set());
+        expect(d.target).toEqual(['c_0_0']);
+        expect(d.prefetch).toEqual(['c_0_0']);
+    });
+
+    it('publishes the nearest demanded cell first', () => {
+        const cells = [cell(3, 0), cell(1, 0), cell(2, 0)];
+        // Standing left of all three: c_1_0 is nearest, c_3_0 furthest, and the
+        // manifest deliberately lists them out of order.
+        const d = desiredResidency(cells, [source(0, 300, 5000, 6000)], new Set());
+        expect(d.toLoad).toEqual(['c_1_0', 'c_2_0', 'c_3_0']);
+    });
+
     it('partitions on XZ only — a source overhead still holds the ground', () => {
         // Y is not in the sample at all: a cell is a vertical column, so a source
         // on a tower's roof keeps the floors below it resident.
@@ -91,11 +128,24 @@ describe('desiredResidency', () => {
 
 function recordingHost() {
     const loaded = new Set<string>();
+    const readied = new Set<string>();
     const calls: string[] = [];
     const pending: Array<() => void> = [];
     let deferred = false;
     const host: WorldStreamHost = {
         register(config) { calls.push(`register:${config.name}`); },
+        prepare(name) {
+            calls.push(`prepare:${name}`);
+            const settle = (): void => { readied.add(name); };
+            if (!deferred) { settle(); return Promise.resolve(); }
+            return new Promise((resolve) => pending.push(() => { settle(); resolve(); }));
+        },
+        discardPrepared(name) {
+            calls.push(`discard:${name}`);
+            // Two receipts per readied cell, so "gave them back" is a number and
+            // not the absence of a complaint.
+            return readied.delete(name) ? 2 : 0;
+        },
         loadAdditive(name) {
             calls.push(`load:${name}`);
             const settle = (): void => { loaded.add(name); };
@@ -111,7 +161,7 @@ function recordingHost() {
         isLoaded: (name) => loaded.has(name),
     };
     return {
-        host, loaded, calls,
+        host, loaded, readied, calls,
         defer(on: boolean) { deferred = on; },
         settle() { const queued = pending.splice(0); for (const run of queued) run(); },
     };
@@ -160,7 +210,7 @@ describe('WorldStreamer', () => {
         expect(status.residentCells).toEqual(['c_0_0']);
     });
 
-    it('asks once while a load is in flight, and finishes what the source undid', async () => {
+    it('asks once while a preparation is in flight, and drops what the source undid', async () => {
         const { host, calls, settle, defer } = recordingHost();
         defer(true);
         const streamer = new WorldStreamer(host);
@@ -168,24 +218,25 @@ describe('WorldStreamer', () => {
 
         streamer.update([source(50, 50, 10, 20)]);
         streamer.update([source(50, 50, 10, 20)]);
-        expect(calls.filter((c) => c === 'load:c_0_0')).toHaveLength(1);
+        expect(calls.filter((c) => c === 'prepare:c_0_0')).toHaveLength(1);
 
-        // The source leaves while the load is still in flight. The unload cannot
-        // be issued yet — but it must not be forgotten, or the cell stays resident
-        // with nothing asking for it.
+        // The source leaves while the preparation is still in flight. What
+        // finishes was begun against a world that has moved, so it is asked again
+        // — and the answer now is that nobody wants it.
         streamer.update([source(9999, 9999, 10, 20)]);
-        expect(calls.filter((c) => c.startsWith('unload:'))).toHaveLength(0);
         settle();
         await flush();
-        settle();
-        await flush();
+        expect(calls).toContain('discard:c_0_0');
+        expect(calls.filter((c) => c.startsWith('load:'))).toHaveLength(0);
         expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
     });
 
-    it('counts a cell that failed to load as absent, so it can be asked for again', async () => {
+    it('counts a cell that failed to prepare as absent, so it can be asked for again', async () => {
         const failing: WorldStreamHost = {
             register() {},
-            loadAdditive: () => Promise.reject(new Error('no')),
+            prepare: () => Promise.reject(new Error('no')),
+            discardPrepared() {},
+            loadAdditive: () => Promise.resolve({}),
             unload: () => Promise.resolve(),
             isLoaded: () => false,
         };
@@ -194,6 +245,61 @@ describe('WorldStreamer', () => {
         streamer.update([source(50, 50, 10, 20)]);
         await flush();
         expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+    });
+
+    it('readies a speculated cell and does not publish it', async () => {
+        const { host, loaded, readied } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(3, 0)));
+        // Inside prefetch, outside load: prepared, and nothing in the world.
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+        expect(streamer.residencyOf('c_3_0')).toBe('prepared');
+        expect(readied.has('c_3_0')).toBe(true);
+        expect(loaded.has('c_3_0')).toBe(false);
+        expect(streamer.status().residentCells).toEqual([]);
+    });
+
+    it('publishes what it prepared once demand arrives, and calls that a hit', async () => {
+        const { host, loaded } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(3, 0)));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+        streamer.update([source(280, 50, 100, 150, 400)]);
+        await flush();
+        expect(loaded.has('c_3_0')).toBe(true);
+        const status = streamer.status();
+        expect(status.prefetchHits).toBe(1);
+        expect(status.prefetchMisses).toBe(0);
+    });
+
+    it('calls it a miss when demand arrived before anything was ready', async () => {
+        const { host } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(streamer.status().prefetchMisses).toBe(1);
+        expect(streamer.status().prefetchHits).toBe(0);
+    });
+
+    it('throws away what a source turned away from, rather than publishing it', async () => {
+        const { host, calls, loaded } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(3, 0)));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+        expect(streamer.residencyOf('c_3_0')).toBe('prepared');
+        streamer.update([source(-9999, 50, 100, 150, 400)]);
+        await flush();
+        expect(calls).toContain('discard:c_3_0');
+        expect(loaded.has('c_3_0')).toBe(false);
+        expect(streamer.residencyOf('c_3_0')).toBe('unloaded');
+        expect(streamer.status().cancelCount).toBe(1);
+        // What it acquired came back with it. A discard that forgot the receipts
+        // would leak a cell's worth of assets per turn a player takes.
+        expect(streamer.status().cancelledRefs).toBe(2);
     });
 });
 

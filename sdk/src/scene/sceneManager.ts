@@ -59,6 +59,13 @@ export interface SceneConfig {
     externalEntities?: () => ReadonlyMap<number, Entity>;
     /** Where this scene's load spent its time. See {@link SceneLoadOptions.onPhase}. */
     onPhase?: (phase: string, ms: number) => void;
+    /**
+     * Do everything this scene's load can do without the world seeing anything —
+     * fetch, decode, acquire. Creates no entities; `load` publishes what it left.
+     */
+    prepare?: () => Promise<void>;
+    /** Throw away what `prepare` readied, answering how many receipts came back. */
+    discardPrepared?: () => number;
 }
 
 /**
@@ -396,6 +403,24 @@ export class SceneManagerState {
     /** Bring `name` up alongside whatever is already running. */
     async loadAdditive(name: string, onProgress?: SceneLoadProgressCallback): Promise<SceneContext> {
         return this.loadScene_(name, 'additive', onProgress);
+    }
+
+    /**
+     * Ready `name` without bringing it up. A no-op for a scene that declares no
+     * preparation, and for one already loaded — there is nothing left to hide.
+     */
+    async prepare(name: string): Promise<void> {
+        if (this.scenes_.has(name)) return;
+        await this.configs_.get(name)?.prepare?.();
+    }
+
+    /**
+     * Give back what {@link prepare} readied, answering how many acquisitions
+     * came back with it. Zero for a scene that readied nothing.
+     */
+    discardPrepared(name: string): number {
+        if (this.scenes_.has(name)) return 0;
+        return this.configs_.get(name)?.discardPrepared?.() ?? 0;
     }
 
     /**

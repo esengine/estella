@@ -56,6 +56,13 @@ export const WorldPersistent: ComponentDef<{}> = defineTag('WorldPersistent');
 
 /** The fields of the `WorldStreamingSource` component. @experimental */
 export interface WorldStreamingSourceData {
+    /**
+     * Cells this close are PREPARED — fetched, decoded, their assets acquired —
+     * without being brought into the world. Speculation, never authority: a
+     * prepared cell a source turns away from is thrown away, not published.
+     * Clamped up to `loadRadius`.
+     */
+    prefetchRadius: number;
     /** Cells whose nearest edge is within this distance are asked for. */
     loadRadius: number;
     /**
@@ -79,9 +86,10 @@ export interface WorldStreamingSourceData {
 export const WorldStreamingSource: ComponentDef<WorldStreamingSourceData> =
     defineComponent<WorldStreamingSourceData>(
         'WorldStreamingSource',
-        { loadRadius: 2000, unloadRadius: 3000, enabled: true },
+        { prefetchRadius: 3000, loadRadius: 2000, unloadRadius: 3000, enabled: true },
         {
             fields: {
+                prefetchRadius: { min: 0, unit: 'wu', tooltip: 'Cells this close are prepared, not shown.' },
                 loadRadius: { min: 0, unit: 'wu', tooltip: 'Cells this close are brought in.' },
                 unloadRadius: { min: 0, unit: 'wu', tooltip: 'Resident cells are kept until past this.' },
             },

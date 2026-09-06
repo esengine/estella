@@ -511,21 +511,25 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // Cutting a world is part of the common cook below, which the three pipelines
   // that follow do not reach. Shipping an unstreamed world to them is a real
   // difference in what the package IS, so it is said rather than discovered.
+  // The three pipelines below return before the common cook that cuts a world,
+  // so shipping one to them builds fine and delivers the whole thing — a
+  // declaration the runtime never receives. Refused rather than warned about.
   const streamed = await streamedScenes(opts.root, scenes);
-  const withStreamingNote = (result: ExportGameResult): ExportGameResult =>
-    (streamed.length === 0 ? result : {
-      ...result,
-      warnings: [...result.warnings,
-        `${streamed.join(', ')} declares a streamed world and this target ships it whole`
-        + ' — world cells are cooked for web, desktop, android and ios only'],
-    });
+  const refuseStreamedWorld = (target: string): never => {
+    throw new Error(
+      `${streamed.join(', ')} declares a streamed world, and ${target} cannot ship one: `
+      + 'world cells are cooked for web, desktop, android and ios. Export one of those, '
+      + 'or remove StreamedWorld to ship this target with the world loaded whole.',
+    );
+  };
 
   // A platform the editor does not ship: the project supplied an export profile
   // (.esengine/platforms/<id>.mjs, loaded by the main process since it carries
   // functions). It rides the same vendor-neutral mini-game pipeline WeChat does
   // — that pipeline taking a profile is exactly what makes this possible.
   if (opts.miniGameProfile) {
-    return withStreamingNote(await exportMiniGame(opts.miniGameProfile, {
+    if (streamed.length > 0) refuseStreamedWorld('a mini-game package');
+    return await exportMiniGame(opts.miniGameProfile, {
       root: opts.root,
       entryScene: opts.entryScene,
       scenes,
@@ -545,12 +549,13 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       compressAudio: opts.compressAudio,
       atlasTextures: opts.atlasTextures,
       onProgress: opts.onProgress,
-    }));
+    });
   }
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
   if (platform === 'wechat') {
-    return withStreamingNote(await exportWeChat({
+    if (streamed.length > 0) refuseStreamedWorld('the WeChat package');
+    return await exportWeChat({
       root: opts.root,
       entryScene: opts.entryScene,
       scenes,
@@ -570,12 +575,13 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       compressAudio: opts.compressAudio,
       atlasTextures: opts.atlasTextures,
       onProgress: opts.onProgress,
-    }));
+    });
   }
 
   // Playable ads are a single inlined HTML (SINGLE_FILE glue + base64 assets).
   if (platform === 'playable') {
-    return withStreamingNote(await exportPlayable({
+    if (streamed.length > 0) refuseStreamedWorld('a playable ad (one inlined file)');
+    return await exportPlayable({
       root: opts.root,
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
@@ -590,7 +596,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       adProfile: opts.playableAdProfile,
       onProgress: opts.onProgress,
-    }));
+    });
   }
 
   // path.resolve, not isAbsolute-or-join: on Windows `/Users/me/out` IS absolute

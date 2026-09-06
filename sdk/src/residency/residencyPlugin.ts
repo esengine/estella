@@ -42,6 +42,7 @@ export const worldResidencySystem = defineSystem(
                 z: at.z ?? 0,
                 loadRadius: source.loadRadius,
                 unloadRadius: source.unloadRadius,
+                prefetchRadius: source.prefetchRadius,
             });
         }
         streamer.update(sources);

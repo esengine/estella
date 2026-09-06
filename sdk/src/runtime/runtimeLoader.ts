@@ -48,6 +48,7 @@ import { log } from '../util/logger';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from '../spine/loadSpineScene';
+import type { SceneAssetResult } from '../asset/Assets';
 import { DragonBonesPlugin } from '../dragonbones/DragonBonesPlugin';
 import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
 import { loadDragonBonesAssets, applyDragonBonesEntities, type DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
@@ -301,7 +302,40 @@ export function sceneUsesPhysics(sceneData: SceneData): boolean {
     return false;
 }
 
-export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
+/**
+ * A cell's load, done as far as it can go without the world seeing anything.
+ *
+ * Preparation may speculate about future residency and may own data and assets;
+ * only publication may create runtime entities. That is the whole contract, and
+ * it is what makes "prepared" impossible to observe: there is nothing to see.
+ *
+ * @experimental
+ */
+export interface PreparedRuntimeScene {
+    readonly name: string | undefined;
+    /** What publication still needs; nothing here is in the world. */
+    readonly options: LoadRuntimeSceneOptions;
+    readonly sceneData: SceneData;
+    readonly assetResult: SceneAssetResult;
+    readonly spineManager: SpineManager | null;
+    readonly spineAssetInfo: Map<string, SpineAssetInfo>;
+    readonly dragonBonesManager: DragonBonesManager | null;
+    readonly dragonBonesAssetInfo: Map<string, DragonBonesAssetInfo>;
+    readonly discovered: ReturnType<typeof discoverSceneAssets>;
+}
+
+/**
+ * Everything a scene load can do before the world can tell: fetch, expand,
+ * acquire, install the subsystems it needs. Creates no entities.
+ *
+ * The receipts are OWNED by what this returns — publishing moves them to the
+ * scene, discarding gives them back. Never both, never acquired twice.
+ *
+ * @experimental
+ */
+export async function prepareRuntimeScene(
+    options: LoadRuntimeSceneOptions,
+): Promise<PreparedRuntimeScene> {
     const { app, module, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
     const onPhase = options.onPhase;
     const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
@@ -500,6 +534,44 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // The one place a packaged scene's entities come into being. `externalEntities`
     // is what lets a streamed cell name the persistent world: without it a cross
     // document reference resolves to nothing, quietly.
+
+    return {
+        name: sceneName, options, sceneData, assetResult,
+        spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered,
+    };
+}
+
+
+/**
+ * Bring a prepared scene into the world.
+ *
+ * The publication boundary: before this returns no system has seen a single one
+ * of the cell's entities, because none of them existed. Nothing downstream has
+ * to learn to ignore a half-arrived cell.
+ *
+ * @experimental
+ */
+export async function publishRuntimeScene(
+    prepared: PreparedRuntimeScene,
+    // Resolved HERE and not at preparation: between the two the target may have
+    // gone, the world may have switched, a generation may have moved. A prepared
+    // scene holding a runtime handle would be holding a guess.
+    now?: { externalEntities?: ReadonlyMap<number, Entity> },
+): Promise<void> {
+    const { sceneData, assetResult, spineManager, spineAssetInfo,
+            dragonBonesManager, dragonBonesAssetInfo, discovered } = prepared;
+    const options = now?.externalEntities
+        ? { ...prepared.options, externalEntities: now.externalEntities }
+        : prepared.options;
+    const { app, module, uiTheme, uiThemeOverrides, sceneName } = options;
+    const onPhase = options.onPhase;
+    const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
+        if (!onPhase) return run();
+        const began = performance.now();
+        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
+    };
+    void discovered;
+
     const entityMap = await timed('spawn',
         () => loadSceneData(app.world, sceneData, options.externalEntities));
     // Which document row each entity came from, when someone is keeping track
@@ -545,6 +617,15 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     }
 }
 
+/**
+ * Prepare a scene and publish it. What every caller outside residency wants, and
+ * the shape the two halves are defined against.
+ */
+export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
+    await publishRuntimeScene(await prepareRuntimeScene(options));
+}
+
+
 export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData | undefined,
@@ -554,27 +635,41 @@ export function createRuntimeSceneConfig(
     // Built first and closed over, so whoever sets `externalEntities` / `onPhase`
     // on the CONFIG is honoured here too: declared in one place and read in
     // another, a cell's reference to the persistent world resolved to nothing.
+    // Held by the config, which IS the per-scene object: a prepared cell has one
+    // place to live and one owner to release it.
+    let prepared: PreparedRuntimeScene | null = null;
+    const readied = async (): Promise<PreparedRuntimeScene> => {
+        let data = sceneData;
+        if (!data) {
+            // Lazy scene: fetched by path through the per-App runtime Assets, so
+            // the data arrives via the realm's own backend — http on web, wx fs
+            // on WeChat — and only when something asks for the scene.
+            if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
+            const began = performance.now();
+            data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
+            config.onPhase?.('fetch', performance.now() - began);
+        }
+        return prepareRuntimeScene({
+            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase,
+        });
+    };
     const config: SceneConfig = {
         name,
+        async prepare() {
+            if (prepared === null) prepared = await readied();
+        },
+        discardPrepared() {
+            // Speculation is not authority: what nobody asked for is given back,
+            // receipts included, rather than published because it was ready.
+            const owed = prepared?.assetResult.scope.size ?? 0;
+            prepared?.assetResult.scope.releaseAll();
+            prepared = null;
+            return owed;
+        },
         async setup() {
-            let data = sceneData;
-            if (!data) {
-                // Lazy scene: fetch by path through the per-App runtime Assets
-                // (installed by initRuntime before any scene loads), so the data
-                // arrives via the realm's backend/resolver — http on web, wx fs
-                // on WeChat — only when the game actually switches to it.
-                if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
-                const began = performance.now();
-                data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
-                config.onPhase?.('fetch', performance.now() - began);
-            }
-            await loadRuntimeScene({
-                ...options,
-                sceneData: data,
-                sceneName: name,
-                externalEntities: config.externalEntities?.(),
-                onPhase: config.onPhase,
-            });
+            const ready = prepared ?? await readied();
+            prepared = null;
+            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() });
         },
     };
     return config;

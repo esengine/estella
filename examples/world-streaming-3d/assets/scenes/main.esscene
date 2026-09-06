@@ -140,7 +140,8 @@
           "data": {
             "loadRadius": 250,
             "unloadRadius": 450,
-            "enabled": true
+            "enabled": true,
+            "prefetchRadius": 900
           }
         },
         {
@@ -312,7 +313,8 @@
           "data": {
             "loadRadius": 250,
             "unloadRadius": 450,
-            "enabled": false
+            "enabled": false,
+            "prefetchRadius": 900
           }
         },
         {
@@ -343,7 +345,8 @@
           "data": {
             "loadRadius": 250,
             "unloadRadius": 450,
-            "enabled": false
+            "enabled": false,
+            "prefetchRadius": 900
           }
         },
         {

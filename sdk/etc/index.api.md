@@ -1963,7 +1963,7 @@ y: number
 
 ## CellResidency — type @experimental
 ```
-'unloaded' | 'loading' | 'resident' | 'unloading'
+'unloaded' | 'preparing' | 'prepared' | 'publishing' | 'resident' | 'unloading'
 ```
 
 ## Census — interface @experimental
@@ -6927,6 +6927,7 @@ static prototype: ResMutInstance<any>
 
 ## ResidencyDecision — interface @experimental
 ```
+prefetch: string[]
 target: string[]
 toLoad: string[]
 toUnload: string[]
@@ -6935,6 +6936,7 @@ toUnload: string[]
 ## ResidencySource — interface @experimental
 ```
 loadRadius: number
+prefetchRadius: number
 unloadRadius: number
 x: number
 z: number
@@ -7265,10 +7267,12 @@ type: string
 ```
 cleanup: ((ctx: SceneContext) => void) | undefined
 data: SceneData | undefined
+discardPrepared: (() => number) | undefined
 externalEntities: (() => ReadonlyMap<number, Entity>) | undefined
 name: string
 onPhase: ((phase: string, ms: number) => void) | undefined
 path: string | undefined
+prepare: (() => Promise<void>) | undefined
 setup: ((ctx: SceneContext) => void | Promise<void>) | undefined
 systems: { schedule: Schedule; system: SystemDef; }[] | undefined
 ```
@@ -7344,6 +7348,7 @@ ResourceDef<SceneManagerState>
 ```
 @internal assetScopeFor: (name: string) => AssetScope | null
 bringToTop: (name: string) => void
+discardPrepared: (name: string) => number
 getActive: () => string | null
 getActiveScenes: () => string[]
 getInitial: () => string | null
@@ -7359,6 +7364,7 @@ isTransitioning: () => boolean
 load: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneContext>
 loadAdditive: (name: string, onProgress?: SceneLoadProgressCallback) => Promise<SceneContext>
 pause: (name: string) => void
+prepare: (name: string) => Promise<void>
 register: (config: SceneConfig) => void
 reload: (options?: TransitionOptions) => Promise<void>
 reset: () => void
@@ -10097,16 +10103,24 @@ top: number
 ```
 assetRefsByCell: Record<string, number>
 authoredCellEntityCounts: Record<string, number>
+cancelCount: number
+cancelledRefs: number
 cellCount: number
 cellEntityCounts: Record<string, number>
 cellRenderCounts: Record<string, number>
 cellRows: Record<string, { id: number; entity: number; }[]>
 delivery: Record<string, { phases: Record<string, number>; deliveryMs: number; }>
 desiredCells: string[]
+lastDemandToResidentMs: number
 loadCount: number
 loadingCells: string[]
 persistentEntities: number
 persistentHandles: number[]
+prefetchCells: string[]
+prefetchHits: number
+prefetchMisses: number
+prepareCount: number
+preparedCells: string[]
 residentCells: string[]
 sourceCount: number
 streamed: boolean
@@ -10116,8 +10130,10 @@ unloadingCells: string[]
 
 ## WorldStreamHost — interface @experimental
 ```
+discardPrepared: (name: string) => number
 isLoaded: (name: string) => boolean
 loadAdditive: (name: string) => Promise<unknown>
+prepare: (name: string) => Promise<void>
 register: (config: SceneConfig) => void
 unload: (name: string, options?: { keepPersistent?: boolean; }) => Promise<void>
 ```
@@ -10138,10 +10154,18 @@ static prototype: WorldStreamer
 
 ## WorldStreamerStatus — interface @experimental
 ```
+cancelCount: number
+cancelledRefs: number
 cellCount: number
 desiredCells: string[]
+lastDemandToResidentMs: number
 loadCount: number
 loadingCells: string[]
+prefetchCells: string[]
+prefetchHits: number
+prefetchMisses: number
+prepareCount: number
+preparedCells: string[]
 residentCells: string[]
 sourceCount: number
 unloadCount: number
@@ -10162,6 +10186,7 @@ ComponentDef<WorldStreamingSourceData>
 ```
 enabled: boolean
 loadRadius: number
+prefetchRadius: number
 unloadRadius: number
 ```
 

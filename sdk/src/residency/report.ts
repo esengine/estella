@@ -27,11 +27,22 @@ export interface WorldResidencyReport {
     cellCount: number;
     sourceCount: number;
     desiredCells: string[];
+    /** Cells any source is close enough to speculate about. */
+    prefetchCells: string[];
     residentCells: string[];
+    /** Ready, owning assets, and holding nothing the world can see. */
+    preparedCells: string[];
     loadingCells: string[];
     unloadingCells: string[];
     loadCount: number;
     unloadCount: number;
+    prepareCount: number;
+    cancelCount: number;
+    /** Acquisitions given back by discarding readiness — not by unloading. */
+    cancelledRefs: number;
+    prefetchHits: number;
+    prefetchMisses: number;
+    lastDemandToResidentMs: number;
     /** Live entities each resident cell owns. Absent from the map = not resident. */
     cellEntityCounts: Record<string, number>;
     /** Of those, how many draw anything. */
@@ -60,8 +71,10 @@ export interface WorldResidencyReport {
 
 const EMPTY: WorldResidencyReport = {
     streamed: false, cellCount: 0, sourceCount: 0,
-    desiredCells: [], residentCells: [], loadingCells: [], unloadingCells: [],
-    loadCount: 0, unloadCount: 0,
+    desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
+    loadingCells: [], unloadingCells: [],
+    loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0, cancelledRefs: 0,
+    prefetchHits: 0, prefetchMisses: 0, lastDemandToResidentMs: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
     authoredCellEntityCounts: {}, cellRows: {},
     persistentEntities: 0, persistentHandles: [], delivery: {},
@@ -111,11 +124,19 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         cellCount: status.cellCount,
         sourceCount: status.sourceCount,
         desiredCells: status.desiredCells,
+        prefetchCells: status.prefetchCells,
         residentCells: status.residentCells,
+        preparedCells: status.preparedCells,
         loadingCells: status.loadingCells,
         unloadingCells: status.unloadingCells,
         loadCount: status.loadCount,
         unloadCount: status.unloadCount,
+        prepareCount: status.prepareCount,
+        cancelCount: status.cancelCount,
+        cancelledRefs: status.cancelledRefs,
+        prefetchHits: status.prefetchHits,
+        prefetchMisses: status.prefetchMisses,
+        lastDemandToResidentMs: status.lastDemandToResidentMs,
         cellEntityCounts, cellRenderCounts, assetRefsByCell, authoredCellEntityCounts,
         cellRows,
         persistentEntities: persistent.length,
