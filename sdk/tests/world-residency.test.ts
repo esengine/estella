@@ -235,7 +235,7 @@ describe('WorldStreamer', () => {
         const failing: WorldStreamHost = {
             register() {},
             prepare: () => Promise.reject(new Error('no')),
-            discardPrepared() {},
+            discardPrepared: () => 0,
             loadAdditive: () => Promise.resolve({}),
             unload: () => Promise.resolve(),
             isLoaded: () => false,
