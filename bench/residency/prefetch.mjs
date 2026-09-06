@@ -240,6 +240,35 @@ function arrivals(streaming) {
     return rows.sort((a, b) => Number(a.cell.match(/\d+/g).at(-2)) - Number(b.cell.match(/\d+/g).at(-2)));
 }
 
+/**
+ * What a cell that is READY but not published can be seen to own.
+ *
+ * Asked of the world's own totals, not of the streamer's report of itself: an
+ * entity belonging to no resident cell is one a preparation leaked, whatever
+ * the streamer says about it.
+ */
+function unpublished(streaming) {
+    const prepared = streaming.preparedCells ?? [];
+    const entityRows = streaming.cellEntityCounts ?? {};
+    const renderRows = streaming.cellRenderCounts ?? {};
+    const inCells = Object.values(entityRows).reduce((a, b) => a + b, 0);
+    return {
+        prepared,
+        resident: streaming.residentCells.length,
+        entities: streaming.entities,
+        persistent: streaming.persistentEntities,
+        inCells,
+        bodies: streaming.physicsBodies,
+        named: prepared.filter((c) => c in entityRows || c in renderRows),
+        // Persistent world + every resident cell should be the whole population.
+        unowned: streaming.entities - streaming.persistentEntities - inCells,
+        // The fixture puts bodies in cells and none in the persistent world, so
+        // the solver's population is a count of published cells and nothing else.
+        strayBodies: streaming.physicsBodies - streaming.residentCells.length * BODIES,
+        stalePhysics: streaming.stalePhysics ?? 0,
+    };
+}
+
 function summarise(streaming) {
     const rows = arrivals(streaming);
     const latency = rows.map((r) => r.latency);
@@ -262,6 +291,7 @@ function summarise(streaming) {
         fetch: percentile(rows.map((r) => r.fetch), 0.5),
         assets: percentile(rows.map((r) => r.assets), 0.5),
         spawn: percentile(rows.map((r) => r.spawn), 0.5),
+        unpublished: unpublished(streaming),
     };
 }
 
@@ -347,6 +377,20 @@ function main() {
             + ` → the player waited ${ms(r.latency)} ms`);
     }
 
+    console.log('\n  what a readied-but-unpublished cell owns, when the walk ends:');
+    console.log('  scenario       prepared  resident  entities  persistent   in cells  unowned'
+        + '   bodies  stray');
+    for (const [name, s] of measured) {
+        const u = s.unpublished;
+        console.log(`  ${name.padEnd(13)}  ${String(u.prepared.length).padStart(8)}`
+            + `  ${String(u.resident).padStart(8)}  ${String(u.entities).padStart(8)}`
+            + `  ${String(u.persistent).padStart(10)}  ${String(u.inCells).padStart(9)}`
+            + `  ${String(u.unowned).padStart(7)}  ${String(u.bodies).padStart(7)}`
+            + `  ${String(u.strayBodies).padStart(5)}`);
+    }
+    console.log('  (entities must be persistent + in cells exactly; a preparation that spawned'
+        + '\n   anything would be in the total and in no cell.)');
+
     const approach = measured.get('approach');
     const teleport = measured.get('teleport');
     const sabotage = measured.get('no-prefetch');
@@ -363,12 +407,31 @@ function main() {
         [approach.latency50 <= approach.publish * 1.6 + 1,
             'a hit costs about what publishing costs, and no preparation',
             `${ms(approach.latency50)} ms against ${ms(approach.publish)} ms of publication`],
-        [teleport.latency50 >= teleport.prepare + teleport.publish * 0.8,
-            'a miss carries the preparation into the wait',
-            `${ms(teleport.latency50)} ms against ${ms(teleport.prepare)} + ${ms(teleport.publish)} ms`],
+        // Not `latency50 >= prepare50 + publish50`: medians of three
+        // distributions have no reason to add up, and that form passed by luck
+        // and then failed by 0.02 ms.
+        [teleport.latency50 >= teleport.publish * 1.6,
+            'a miss waits for much more than publishing',
+            `${ms(teleport.latency50)} ms against ${ms(teleport.publish)} ms of publication`],
+        [teleport.rows.every((r) => r.latency >= r.publish),
+            'and every miss contains its own publication',
+            `${teleport.rows.filter((r) => r.latency < r.publish).length} of `
+            + `${teleport.rows.length} arrival(s) shorter than the publication inside them`],
         [sabotage.hits === 0,
             'and with speculation reaching no further than demand, the same walk hits nothing',
             `${sabotage.hits} hit(s), ${sabotage.misses} miss(es)`],
+        // Vacuously true where nothing is prepared, so the arm that has to
+        // answer it is named: a run that readied nothing has not been asked.
+        [approach.unpublished.prepared.length > 0,
+            'the walk ends with readiness still unclaimed, so there is something to be invisible',
+            `${approach.unpublished.prepared.length} cell(s) prepared and unpublished`],
+        [approach.unpublished.named.length === 0
+            && approach.unpublished.unowned === 0
+            && approach.unpublished.strayBodies === 0
+            && approach.unpublished.stalePhysics === 0,
+            'and nothing it readied is in the world, the renderer or the solver',
+            `${approach.unpublished.named.length} cell row(s), ${approach.unpublished.unowned} `
+            + `unowned entit(ies), ${approach.unpublished.strayBodies} stray bod(ies)`],
     ];
     console.log('');
     let failed = 0;
