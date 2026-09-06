@@ -13,6 +13,12 @@
  * without anything going red — which is what this holds together:
  *
  *   probe → prover (once per suite) → declaration env var → the gate runner
+ *         → the CI caller that runs without the capability
+ *
+ * The last link was missing, and it broke exactly the way the others would: a
+ * commit taught the suites to demand a declaration and did not teach the
+ * workflow to make one, so a lane that deliberately installs no emsdk died
+ * before collecting a test while this gate stayed green.
  *
  * Run: node tools/check-suite-preconditions.mjs
  */
@@ -31,8 +37,28 @@ const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
 const CAPABILITIES = [
     { what: 'a host C compiler', probe: 'findHostCC', prover: 'proveHostCC', owner: 'compiler/src/hostCC.ts' },
     { what: 'an activated emsdk', probe: 'emccPath', prover: 'proveEmcc',
-      owner: 'build-tools/utils/emscripten.js' },
+      owner: 'build-tools/utils/emscripten.js',
+      // What INSTALLS it in CI. A job matching this provides the capability; a
+      // job that runs the gate list without it owes the declaration.
+      ciProvider: /setup-emsdk/ },
 ];
+
+const WORKFLOW = '.github/workflows/build.yml';
+
+/** The workflow's jobs, by name, as raw text. Enough YAML for this question:
+ *  jobs are the two-space keys under `jobs:` and steps the four-space dashes. */
+function jobsOf(yaml) {
+    const body = yaml.slice(yaml.indexOf('\njobs:'));
+    const heads = [...body.matchAll(/^  ([A-Za-z0-9_-]+):$/gm)];
+    return heads.map((h, i) => [h[1],
+        body.slice(h.index, i + 1 < heads.length ? heads[i + 1].index : body.length)]);
+}
+
+function stepsOf(job) {
+    const heads = [...job.matchAll(/^ {4}- /gm)];
+    return heads.map((h, i) =>
+        job.slice(h.index, i + 1 < heads.length ? heads[i + 1].index : job.length));
+}
 
 /** Test files, by the package that owns them. */
 function testFiles(dir, out = []) {
@@ -92,6 +118,43 @@ for (const cap of CAPABILITIES) {
     } else if (!read('tools/run-gates.mjs').includes(`'${declared[1]}'`)) {
         problems.push(`run-gates does not count ${declared[1]} as a gap, so declaring it would`
             + ' hide the hole from --complete rather than report it.');
+    }
+
+    // 3. And the callers: knowing the env var exists says nothing about whether
+    //    the machine that lacks the capability actually sets it.
+    if (!cap.ciProvider || !declared) continue;
+    if (!existsSync(path.join(ROOT, WORKFLOW))) {
+        // Loudly, not by throwing: a gate whose subject moved has to say which
+        // link it stopped checking, and a stack trace says only that it died.
+        problems.push(`${WORKFLOW} is not there, so nothing checks whether a CI lane without`
+            + ` ${cap.what} declares ${declared[1]}.`);
+        continue;
+    }
+    const workflow = read(WORKFLOW);
+    let callers = 0;
+    for (const [job, text] of jobsOf(workflow)) {
+        const provides = cap.ciProvider.test(text);
+        for (const step of stepsOf(text)) {
+            if (!/run-gates\.mjs/.test(step)) continue;
+            callers++;
+            const declares = new RegExp(`^\\s*${declared[1]}\\s*:`, 'm').test(step);
+            if (!provides && !declares) {
+                problems.push(`${WORKFLOW}: job "${job}" runs the gate list without`
+                    + ` ${cap.what} and does not declare ${declared[1]} — its suites refuse`
+                    + ' to start,'
+                    + ' and nothing here said so.');
+            }
+            // The other way round is a lie in the other direction: a lane that
+            // HAS the capability reporting a hole hides real coverage.
+            if (provides && declares) {
+                problems.push(`${WORKFLOW}: job "${job}" installs ${cap.what} and still declares`
+                    + ` ${declared[1]} — it would report coverage it actually has as a gap.`);
+            }
+        }
+    }
+    if (callers === 0) {
+        problems.push(`${WORKFLOW}: no job runs the gate list, or this gate can no longer find`
+            + ' one — either way the caller half of the chain is unchecked.');
     }
 }
 

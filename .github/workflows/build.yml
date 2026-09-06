@@ -167,6 +167,11 @@ jobs:
     - name: Static gates (incl. the SDK, editor, plugin and compiler suites)
       env:
         SDK_TEST_MODE: no-wasm
+        # This lane installs no emsdk on purpose, so the suites that build a real
+        # module cannot run here. Declared rather than discovered: the gate runner
+        # counts it as a hole this machine could not answer, and `test-engine`
+        # covers those where the wasm is.
+        ESTELLA_NO_EMCC: '1'
       run: node tools/run-gates.mjs --scope ci
 
     # The Android packaging tests check what we write against implementations that
