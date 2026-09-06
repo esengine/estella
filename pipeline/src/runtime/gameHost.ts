@@ -141,14 +141,18 @@ async function boot(): Promise<void> {
 
   if (headless) {
     let statsOn = false;
-    /** Seven words out: five counts and the key SET, which is what an equality
-     *  claim between two derivations needs. */
+    const PREWARM_WORDS = 11;
+    /** Eleven words out: five counts, the stock key SET, and the readiness stamp
+     *  — the digest over BOTH program paths, and the epoch it was taken under.
+     *  A digest alone cannot say whether it is still true. */
     const readPrewarm = (heap: Uint32Array, ptr: number): Record<string, number> => {
-      const o = heap.subarray(ptr >> 2, (ptr >> 2) + 7);
+      const o = heap.subarray(ptr >> 2, (ptr >> 2) + PREWARM_WORDS);
       return {
         asks: o[0], compiles: o[1], uniqueKeys: o[2],
         materialAsks: o[3], materialCompiles: o[4],
         keysLo: o[5], keysHi: o[6],
+        digestLo: o[7], digestHi: o[8],
+        programEpoch: o[9] + o[10] * 0x100000000,
       };
     };
 
@@ -171,7 +175,7 @@ async function boot(): Promise<void> {
                                    outPtr: number): void;
       };
       const entityPtr = m._malloc(entities.length * 4);
-      const outPtr = m._malloc(7 * 4);
+      const outPtr = m._malloc(PREWARM_WORDS * 4);
       try {
         m.HEAPU32.set(entities, entityPtr >> 2);
         // Around the call ALONE: reading the counts back is this probe's cost,
@@ -219,7 +223,7 @@ async function boot(): Promise<void> {
         engine_prewarmMeshVariantsFromDocument(rowsPtr: number, count: number, outPtr: number): void;
       };
       const rowsPtr = m._malloc(rows.length * 4);
-      const outPtr = m._malloc(7 * 4);
+      const outPtr = m._malloc(PREWARM_WORDS * 4);
       try {
         m.HEAPU32.set(rows, rowsPtr >> 2);
         const began = performance.now();

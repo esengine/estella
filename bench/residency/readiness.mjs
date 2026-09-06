@@ -176,9 +176,12 @@ function main() {
 
     console.log('\nreadiness coverage — the two facts the heavy cell never exercises\n');
 
-    for (const [name, options] of [['shadow', { shadows: true }],
+    const runs = new Map();
+    for (const [name, options] of [['plain', {}],
+                                   ['shadow', { shadows: true }],
                                    ['material', { material: true }]]) {
         const r = drive(name, options);
+        runs.set(name, r);
         const doc = r.get('document');
         const live = r.get('entities');
         const docKeys = keySet(doc);
@@ -199,7 +202,18 @@ function main() {
         check(live.compiles === 0,
             `${name}: and readying from the document left nothing for them to compile`,
             `${live.compiles} late compile(s)`);
-        if (name === 'shadow') {
+        // The stamp, both halves: derived twice by different routes over the same
+        // content, it has to name the same requirement set under the same epoch.
+        check(doc.digestLo === live.digestLo && doc.digestHi === live.digestHi,
+            `${name}: the requirement digest is the same from the document and the entities`,
+            `${doc.digestHi.toString(16)}${doc.digestLo.toString(16)}`
+            + ` against ${live.digestHi.toString(16)}${live.digestLo.toString(16)}`);
+        check(doc.programEpoch === live.programEpoch,
+            `${name}: and both were taken under the same program epoch`,
+            `${doc.programEpoch} against ${live.programEpoch}`);
+        if (name === 'plain') {
+            // nothing fixture-specific: this one exists to be compared against.
+        } else if (name === 'shadow') {
             check(docKeys.some((k) => (k & 16) !== 0),
                 'shadow: the depth-pass variant is a requirement, not a possibility',
                 `keys {${docKeys.join(', ')}} — bit 16 is depthOnly`);
@@ -212,6 +226,23 @@ function main() {
                 `${live.materialCompiles} late material compile(s)`);
         }
     }
+    // The claim `keys` alone cannot make: same geometry, same stock variants, one
+    // shaded by a material. A digest blind to that path would call the two
+    // worlds identical and let a stamp from one vouch for the other.
+    const plain = runs.get('plain').get('document');
+    const shaded = runs.get('material').get('document');
+    console.log('');
+    check(plain.keysLo === shaded.keysLo && plain.keysHi === shaded.keysHi,
+        'the plain and material worlds need the SAME stock variants',
+        `{${keySet(plain).join(', ')}} against {${keySet(shaded).join(', ')}}`);
+    check(plain.materialAsks === 0 && shaded.materialAsks > 0,
+        'and differ only in the material-owned path',
+        `${plain.materialAsks} against ${shaded.materialAsks} ask(s)`);
+    check(plain.digestLo !== shaded.digestLo || plain.digestHi !== shaded.digestHi,
+        'so the digest must tell them apart — the stock key set cannot',
+        `${plain.digestHi.toString(16)}${plain.digestLo.toString(16)}`
+        + ` against ${shaded.digestHi.toString(16)}${shaded.digestLo.toString(16)}`);
+
     console.log('');
     process.exit(failed === 0 ? 0 : 1);
 }

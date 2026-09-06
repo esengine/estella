@@ -361,6 +361,8 @@ RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
         // readiness look complete while a material-shaded world still hitched.
         if (facts[i].materialId != 0 && ctx.materials) {
             ++out.materialAsks;
+            out.addMaterialKey(RenderPrewarmResult::materialKey(
+                facts[i].materialId, facts[i].hasNormals, facts[i].skinned, envMapped));
             ctx.materials->meshProgram(facts[i].materialId, ctx.resources, facts[i].hasNormals,
                                        facts[i].skinned, envMapped);
         }

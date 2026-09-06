@@ -822,8 +822,9 @@ std::string engine_getCpuScopes() {
 }
 
 #ifdef ES_ENABLE_TEST_PROBES
-/** Seven words: five counts and the 64-bit key set, which is what an equality
- *  claim between two derivations needs. */
+/** Eleven words: five counts, the 64-bit stock key set, the requirement digest
+ *  that also covers the material programs, and the epoch the digest was taken
+ *  under — a digest without its epoch cannot say whether it is still true. */
 static void writePrewarm(u32* out, const RenderPrewarmResult& r) {
     out[0] = r.asks;
     out[1] = r.compiles;
@@ -832,11 +833,18 @@ static void writePrewarm(u32* out, const RenderPrewarmResult& r) {
     out[4] = r.materialCompiles;
     out[5] = static_cast<u32>(r.keys & 0xFFFFFFFFull);
     out[6] = static_cast<u32>(r.keys >> 32);
+    const u64 digest = r.requirementDigest();
+    out[7] = static_cast<u32>(digest & 0xFFFFFFFFull);
+    out[8] = static_cast<u32>(digest >> 32);
+    const auto* rc = ctx().tryGet<RenderContext>();
+    const u64 epoch = rc ? rc->programEpoch() : 0;
+    out[9] = static_cast<u32>(epoch & 0xFFFFFFFFull);
+    out[10] = static_cast<u32>(epoch >> 32);
 }
 
 void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {
     auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 7; ++i) out[i] = 0;
+    for (u32 i = 0; i < 11; ++i) out[i] = 0;
     if (!g_initialized || !g_renderFrame) return;
     const auto* entities = reinterpret_cast<const Entity*>(static_cast<uintptr_t>(entitiesPtr));
     writePrewarm(out, g_renderFrame->prewarmPrograms(registry, entities, count));
@@ -844,7 +852,7 @@ void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 co
 
 void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr) {
     auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 7; ++i) out[i] = 0;
+    for (u32 i = 0; i < 11; ++i) out[i] = 0;
     if (!g_initialized || !g_renderFrame) return;
     const auto* rows = reinterpret_cast<const MeshDocumentRecord*>(static_cast<uintptr_t>(rowsPtr));
     writePrewarm(out, g_renderFrame->prewarmDocument(rows, count));

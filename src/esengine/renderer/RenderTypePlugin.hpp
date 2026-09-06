@@ -22,7 +22,9 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <cmath>
+#include <algorithm>
 #include <unordered_set>
+#include <vector>
 
 namespace esengine {
 
@@ -142,6 +144,45 @@ struct RenderPrewarmResult {
     u32 materialCompiles = 0;
     /** Which keys, not how many: an equality claim needs the set. 64 variants. */
     u64 keys = 0;
+    /** The material programs the content needs, by identity rather than count.
+     *  A material world whose shading changed must not digest the same as the
+     *  one before it, and `materialAsks` alone cannot say that. */
+    std::vector<u64> materialKeys;
+
+    /** @brief What a material program is asked for, as one comparable value. */
+    static u64 materialKey(u32 materialId, bool normals, bool skinned, bool envMapped) {
+        return (static_cast<u64>(materialId) << 3) | (normals ? 4u : 0u)
+             | (skinned ? 2u : 0u) | (envMapped ? 1u : 0u);
+    }
+
+    void addMaterialKey(u64 key) {
+        if (std::find(materialKeys.begin(), materialKeys.end(), key) == materialKeys.end()) {
+            materialKeys.push_back(key);
+        }
+    }
+
+    /**
+     * @brief A stable name for the SET of program requirements described here.
+     *
+     * @details Order-independent and duplicate-insensitive, because the question
+     *          is which programs are needed and not how often each was asked
+     *          for. Two derivations of the same content therefore agree, and a
+     *          requirement arriving or leaving is what changes the answer.
+     */
+    u64 requirementDigest() const {
+        std::vector<u64> sorted(materialKeys);
+        std::sort(sorted.begin(), sorted.end());
+        u64 h = 1469598103934665603ull;  // FNV-1a offset basis
+        auto mix = [&h](u64 v) {
+            for (u32 b = 0; b < 8; ++b) {
+                h ^= (v >> (b * 8)) & 0xFFull;
+                h *= 1099511628211ull;
+            }
+        };
+        mix(keys);
+        for (u64 k : sorted) mix(k);
+        return h;
+    }
 
     RenderPrewarmResult& operator+=(const RenderPrewarmResult& other) {
         asks += other.asks;
@@ -150,6 +191,9 @@ struct RenderPrewarmResult {
         materialAsks += other.materialAsks;
         materialCompiles += other.materialCompiles;
         keys |= other.keys;
+        // A union, so combining two plugins' answers cannot depend on the order
+        // they ran in — the digest above rests on that.
+        for (u64 k : other.materialKeys) addMaterialKey(k);
         return *this;
     }
 };
