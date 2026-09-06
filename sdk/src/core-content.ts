@@ -903,6 +903,7 @@ export {
     Health,
     Damage,
     applyDamage,
+    restoreToFull,
     MeleeAttack,
     MeleeAttacks,
     resolveMeleeHits,

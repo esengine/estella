@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    Health, Damage, applyDamage, MeleeAttack, MeleeAttacks, resolveMeleeHits,
+    Health, Damage, applyDamage, restoreToFull, MeleeAttack, MeleeAttacks, resolveMeleeHits,
     COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END,
     type HealthData, type DamagePayload, type MeleeAttackData, type MeleeOverlapQuery,
 } from '../src/gameplay';
@@ -128,6 +128,35 @@ describe('a blow lands in exactly one place', () => {
 
         applyDamage(world, [{ target: NEAR, source: ATTACKER, amount: 999, x: 0, y: 0, z: 0 }]);
         expect((world.get(NEAR, Health) as HealthData).current).toBe(0);
+    });
+
+    it('goes back up through the same seam it came down', () => {
+        const world = scene();
+        applyDamage(world, [{ target: NEAR, source: ATTACKER, amount: 35, x: 0, y: 0, z: 0 }]);
+        expect((world.get(NEAR, Health) as HealthData).current).toBe(65);
+        restoreToFull(world, NEAR);
+        expect((world.get(NEAR, Health) as HealthData).current).toBe(100);
+    });
+
+    it('restores something already down, which is what a respawn is', () => {
+        const world = scene();
+        applyDamage(world, [{ target: NEAR, source: ATTACKER, amount: 999, x: 0, y: 0, z: 0 }]);
+        expect((world.get(NEAR, Health) as HealthData).current).toBe(0);
+        restoreToFull(world, NEAR);
+        expect((world.get(NEAR, Health) as HealthData).current).toBe(100);
+    });
+
+    it('full is the entity\u2019s own max, not a number this seam decided', () => {
+        const world = scene();
+        world.update(NEAR, Health, (h: HealthData) => { h.max = 40; h.current = 3; });
+        restoreToFull(world, NEAR);
+        expect((world.get(NEAR, Health) as HealthData).current).toBe(40);
+    });
+
+    it('restoring what has no health is not an error', () => {
+        const world = scene();
+        expect(() => restoreToFull(world, FLOOR)).not.toThrow();
+        expect(world.has(FLOOR, Health)).toBe(false);
     });
 
     it('passes over anything that has no health to lose', () => {

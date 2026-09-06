@@ -11,6 +11,10 @@
  *          health bar (armour, invulnerability, a shield) has one seam to sit in
  *          rather than an inlined subtraction to be found and edited.
  *
+ *          Going back UP is the same author's other verb. A respawn that reset
+ *          the field itself would be a second one, and then "how much is left"
+ *          has two answers whenever they disagree.
+ *
  *          The bus is double buffered, so a blow sent this frame lands on the
  *          next. That is one frame between the animation's hit moment and the
  *          number changing, and it buys a combat system that never reaches into
@@ -76,6 +80,20 @@ export const Damage: EventDef<DamagePayload> = defineEvent<DamagePayload>('Damag
  * Land every blow in `blows`. The ONLY writer of `Health` — a blow aimed at
  * something that has none, or at something already down, is simply not applied.
  */
+/**
+ * Put an entity back to full. The other half of this seam: a respawn restores
+ * what a blow took, and neither reaches into the field itself.
+ *
+ * `max` is the whole policy — there is no second notion of "full" to invent, and
+ * a caller that wants some other number wants a rule this seam does not have.
+ *
+ * @experimental
+ */
+export function restoreToFull(world: World, entity: Entity): void {
+    if (!world.valid(entity) || !world.has(entity, Health)) return;
+    world.update(entity, Health, (h: HealthData) => { h.current = h.max; });
+}
+
 export function applyDamage(world: World, blows: Iterable<DamagePayload>): void {
     for (const blow of blows) {
         if (!world.valid(blow.target) || !world.has(blow.target, Health)) continue;

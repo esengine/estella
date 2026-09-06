@@ -44,6 +44,7 @@ export {
     Health,
     Damage,
     applyDamage,
+    restoreToFull,
     type HealthData,
     type DamagePayload,
 } from './Health';
