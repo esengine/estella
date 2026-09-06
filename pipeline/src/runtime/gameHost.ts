@@ -455,6 +455,9 @@ async function boot(): Promise<void> {
         }
         return {
           ...report,
+          // Whether the 3D world is even up, so a zero body count cannot be read
+          // as "the cell brought none" when it means "physics never loaded".
+          physicsUp: physics !== undefined,
           physicsBodies: physics?.bodies.size ?? 0,
           physicsCharacters: physics?.characters.size ?? 0,
           // Rows physics still keeps for entities the world no longer has. A

@@ -8,6 +8,7 @@
 import { SceneOwner } from '../ecs/component';
 import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
+import { defineResource } from '../ecs/resource';
 import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -249,6 +250,31 @@ export function sceneUsesI18n(sceneData: SceneData): boolean {
     return false;
 }
 
+/**
+ * Subsystem installs already in flight for this app.
+ *
+ * Every self-gating install below is a check, then an await for the module, then
+ * an addPlugin — and two scenes arriving in one tick both pass the check. World
+ * streaming makes that ordinary rather than rare.
+ */
+const SubsystemInstalls = defineResource<Map<string, Promise<void>>>(null!, 'SubsystemInstalls');
+
+/**
+ * Run `install` with no other caller for `key` inside it.
+ *
+ * The loop, rather than awaiting once: what finished was ANOTHER scene's
+ * install, and this one still has to decide against the world that left behind.
+ */
+async function installOnce(app: App, key: string, install: () => Promise<void>): Promise<void> {
+    if (!app.hasResource(SubsystemInstalls)) app.insertResource(SubsystemInstalls, new Map());
+    const inFlight = app.getResource(SubsystemInstalls);
+    let running = inFlight.get(key);
+    while (running) { await running; running = inFlight.get(key); }
+    const started = install().finally(() => { inFlight.delete(key); });
+    inFlight.set(key, started);
+    await started;
+}
+
 /** True if any entity carries a physics component, or a TilemapLayer that may spawn
  *  colliders at runtime — either baked collidable tile ids (legacy scenes) or a
  *  `.estileset` reference, whose collision shapes derive live at load and are
@@ -380,6 +406,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     if (!wantsPhysics) {
         log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
     } else {
+        await installOnce(app, 'physics', async () => {
         if (!physicsModule && app.sideModules) {
             physicsModule = (await app.sideModules.acquire('physics')) as PhysicsWasmModule | null;
         }
@@ -404,24 +431,28 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             app.addPlugin(new Physics2DPlugin('', config, () => Promise.resolve(mod)));
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
         }
+        });
     }
 
     // The 3D world gates itself the same way, on its own components and its own
     // module: the two never share a solver, so a scene wanting one is not asking
     // for the other.
-    if (sceneUses3DPhysics(sceneData) && !app.getPlugin(Physics3DPlugin)) {
-        const module3d = options.physics3dModule
-            ?? (app.sideModules
-                ? (await app.sideModules.acquire('physics3d')) as Physics3DWasmModule | null
-                : null);
-        if (!module3d) {
-            log.warn('physics3d', 'scene has 3D physics components but no module loaded —'
-                + ' this realm has no side-module host or physics3d.wasm failed to load');
-        } else {
+    if (sceneUses3DPhysics(sceneData)) {
+        await installOnce(app, 'physics3d', async () => {
+            if (app.getPlugin(Physics3DPlugin)) return;
+            const module3d = options.physics3dModule
+                ?? (app.sideModules
+                    ? (await app.sideModules.acquire('physics3d')) as Physics3DWasmModule | null
+                    : null);
+            if (!module3d) {
+                log.warn('physics3d', 'scene has 3D physics components but no module loaded —'
+                    + ' this realm has no side-module host or physics3d.wasm failed to load');
+                return;
+            }
             const mod = module3d;
             app.addPlugin(new Physics3DPlugin('', {}, () => Promise.resolve(mod)));
             log.info('physics3d', 'installed');
-        }
+        });
     }
 
     // Self-gating i18n, mirroring physics: a scene that binds Text.i18nKey needs

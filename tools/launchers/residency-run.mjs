@@ -238,6 +238,37 @@ async function main() {
       continue;
     }
     if (step.do === 'tap') { await exec(tapScript(step.key, step.frames ?? 10)); continue; }
+    if (step.do === 'frames') {
+      // One frame at a time, timed INSIDE the page: a spike is a property of a
+      // frame, and measuring from outside adds a round trip to every sample.
+      // The key is tapped on the first one, so the profile starts at the gesture.
+      const profile = await exec(`(async () => {
+        const target = document.querySelector('canvas') ?? window;
+        const send = (type, code) => {
+          const e = new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true });
+          target.dispatchEvent(e);
+          if (target !== window) window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+        };
+        ${step.key ? `send('keydown', ${JSON.stringify(step.key)});` : ''}
+        const out = [];
+        for (let i = 0; i < ${step.count ?? 120}; i++) {
+          const began = performance.now();
+          await window.__estellaCooked.step(1, 1 / 60);
+          const ms = Math.round((performance.now() - began) * 1000) / 1000;
+          ${step.key ? `if (i === 0) send('keyup', ${JSON.stringify(step.key)});` : ''}
+          const s = window.__estellaCooked.streaming();
+          out.push({ ms, resident: s.residentCells.length, loading: s.loadingCells.length,
+                     entities: s.entities, bodies: s.physicsBodies, physicsUp: s.physicsUp });
+          // A macrotask turn between frames. Awaiting a step only drains
+          // MICROtasks, and a cell arrives over the network — so a loop without
+          // this starves the fetch and profiles a load that never lands.
+          await new Promise((settle) => setTimeout(settle, 0));
+        }
+        return out;
+      })()`);
+      console.log(`profile ${step.as}: ${JSON.stringify(profile)}`);
+      continue;
+    }
     if (step.do === 'time') {
       // Wall time for a batch of engine frames, with the clock already handed
       // over: what a held world costs per frame, rather than what the runner had
