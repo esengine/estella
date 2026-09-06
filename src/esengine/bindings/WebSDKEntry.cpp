@@ -20,6 +20,7 @@
 #include "ActiveContext.hpp"
 #include "ResourceManagerBindings.hpp"
 #include "RendererBindings.hpp"
+#include "TestProbeBindings.hpp"
 #include "UIBindings.hpp"
 #include "BoundarySpan.hpp"
 #include "ImmediateDrawBindings.hpp"

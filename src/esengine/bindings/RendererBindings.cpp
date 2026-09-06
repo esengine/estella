@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include "RendererBindings.hpp"
+#include "TestProbeBindings.hpp"
 
 #include <limits>
 #include "../resource/ShaderParser.hpp"
