@@ -33,11 +33,12 @@ function stripComments(text) {
 }
 
 /**
- * Where the device may be told the frame is over. `endFrame` is the pair of
- * `beginFrame`; `beginFrame` also closes a frame a host forgot to, which is the
- * forgiving half and belongs to the same owner.
+ * Where the device may be told the frame is over. ONE place: closing it
+ * anywhere else costs a host that does honour the pairing its booked capture,
+ * which is served against an image the earlier close already released.
+ * `test_frame_lifecycle` holds the count this rule cannot see.
  */
-const OWNERS = ['RenderFrame::endFrame', 'RenderFrame::beginFrame'];
+const OWNERS = ['RenderFrame::endFrame'];
 
 /** Which C++ function a line falls inside — `Class::name(` at column zero. */
 function enclosingFunction(lines, index) {

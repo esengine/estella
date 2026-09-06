@@ -32,6 +32,7 @@ env:
     test_clip_depth test_shadow_atlas test_particle_shapes
     test_text_edit test_render_graph test_device_loss test_physics_interpolation
     test_bitmap_font test_texture_cache test_aot_host test_aot_conformance
+    test_frame_lifecycle
 
 jobs:
   build-emscripten:

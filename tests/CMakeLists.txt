@@ -378,6 +378,19 @@ target_include_directories(test_batch_builder PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/third_party/glm
 )
+
+# How many times a frame is closed, which the static gate cannot ask. The GL
+# backends stub endFrame, so a second close is invisible on WebGL2 and shows up
+# only as an empty WebGPU readback; this counts it on a mock device instead.
+add_executable(test_frame_lifecycle
+    renderer/test_frame_lifecycle.cpp
+)
+target_link_libraries(test_frame_lifecycle PRIVATE esengine)
+target_include_directories(test_frame_lifecycle PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_frame_lifecycle COMMAND test_frame_lifecycle)
 add_test(NAME test_batch_builder COMMAND test_batch_builder)
 
 # GfxDevice compressed-texture entry (RC6-A). Header-only: drives MockGfxDevice to

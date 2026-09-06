@@ -69,6 +69,12 @@ struct MockGfxDevice final : GfxDevice {
     int setPipelineCalls = 0;
     int drawElementsCalls = 0;
     int drawElementsInstancedCalls = 0;
+    // How many times the frame was declared over. A backend that borrows the
+    // swapchain image gives it back here, so a frame that says so twice releases
+    // an image it no longer holds — invisible on the GL backends, which stub this.
+    int endFrameCalls = 0;
+    void endFrame() override { ++endFrameCalls; }
+
     int requestReadbackCalls = 0;
     int takeReadbackCalls = 0;
     int discardReadbackCalls = 0;
