@@ -134,12 +134,15 @@ async function main() {
   await win.loadURL(`http://127.0.0.1:${server.address().port}/?headless`);
   const exec = (js) => win.webContents.executeJavaScript(js);
 
+  // Readiness is "a scene is up", not "a named entity is there": the handle
+  // appears before the first scene has spawned anything, and a name belongs to
+  // whichever world is being driven.
   let ready = false;
   for (let i = 0; i < 300 && !ready; i++) {
     ready = await exec(`(() => {
       const c = window.__estellaCooked;
       if (!c || !c.streaming) return false;
-      return !!c.probe(['Player']).at.Player;
+      return !!c.probe([]).scene;
     })()`).catch(() => false);
     if (!ready) await new Promise((r) => setTimeout(r, 100));
   }
@@ -163,7 +166,9 @@ async function main() {
       if (!s.streamed) return true;
       if (s.loadingCells.length === 0 && s.unloadingCells.length === 0) return true;
       await exec(holdScript([], 2));
-      await new Promise((r) => setTimeout(r, 20));
+      // Tight at first: how long an arrival takes is a number worth measuring,
+      // and a poll that sleeps 20 ms can only ever report multiples of 20 ms.
+      if (i > 40) await new Promise((r) => setTimeout(r, 20));
     }
     console.log('  ! residency never settled');
     return false;

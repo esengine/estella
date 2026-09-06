@@ -62,6 +62,12 @@ function project(dir, columns) {
         data: { mesh: 'builtin:cube', lit: true, opaque: true, cullBackfaces: true,
                 color: { r, g, b, a: 1 } },
     });
+    // Props collide, so what a cell costs to instantiate includes the bodies it
+    // hands to the physics world — the half a renderer count cannot show.
+    const solid = () => ([
+        { type: 'RigidBody3D', data: { bodyType: 0 } },
+        { type: 'BoxCollider3D', data: { halfExtents: { x: 25, y: 25, z: 25 }, friction: 0.6 } },
+    ]);
     const push = (id, name, components, parent = null) =>
         entities.push({ id, name, parent, children: [], visible: true, components });
 
@@ -89,7 +95,8 @@ function project(dir, columns) {
             for (let n = 0; n < PROPS; n++) {
                 const x = cx * CELL + 40 + (n % 5) * 120;
                 const z = cz * CELL + 40 + Math.floor(n / 5) * 120;
-                push(id++, `P_${cx}_${cz}_${n}`, [transform(x, 30, z, 0.5), box(0.6, 0.55, 0.45)]);
+                push(id++, `P_${cx}_${cz}_${n}`,
+                    [transform(x, 30, z, 0.5), box(0.6, 0.55, 0.45), ...solid()]);
             }
         }
     }
@@ -209,9 +216,14 @@ function main() {
     // Nothing resident in either, so what differs is 96 cells' worth of deciding.
     const wideIdle = held.idle.msPerFrame;
     const narrowIdle = scan.idle.msPerFrame;
-    console.log(`\n  deciding: ${ms(wideIdle)}/frame over 100 cells vs ${ms(narrowIdle)} over 4`
-        + ` → ${((wideIdle - narrowIdle) / 96 * 1000).toFixed(1)} µs per 100 cells scanned`);
-    console.log(`  (nothing is resident in either, so the difference is the scan and not the content)\n`);
+    const perCell = (wideIdle - narrowIdle) / 96 * 1000;
+    console.log(`\n  deciding: ${ms(wideIdle)}/frame over 100 cells vs ${ms(narrowIdle)} over 4`);
+    // A difference at or below zero is the measurement's floor, not a saving —
+    // saying "-0.2 µs" would be reporting noise as a result.
+    console.log(perCell > 0.5
+        ? `  → ${perCell.toFixed(1)} µs per 100 cells scanned\n`
+        : `  → the scan over 96 more cells is below what this can measure`
+          + ` (the two differ by ${((wideIdle - narrowIdle) * 1000).toFixed(1)} µs a frame)\n`);
 }
 
 main();
