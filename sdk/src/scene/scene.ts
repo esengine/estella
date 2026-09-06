@@ -114,6 +114,12 @@ export interface SceneLoadOptions {
      * outside the document resolves to nothing, which is what it always did.
      */
     externalEntities?: ReadonlyMap<number, Entity>;
+    /**
+     * Where a load's time went, phase by phase. Most of it runs between frames —
+     * off every system timer there is — so a profiler watching the frame loop
+     * sees the cost and cannot say what it was.
+     */
+    onPhase?: (phase: string, ms: number) => void;
 }
 
 export class MissingAssetsError extends Error {
@@ -498,9 +504,11 @@ function spawnAndLoadEntities(
     return entityMap;
 }
 
-export function loadSceneData(world: World, sceneData: SceneData): Map<number, Entity> {
+export function loadSceneData(
+    world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+): Map<number, Entity> {
     const { data } = migrateSceneData(sceneData);
-    return spawnAndLoadEntities(world, data);
+    return spawnAndLoadEntities(world, data, external);
 }
 
 /**
@@ -525,6 +533,12 @@ export async function loadSceneWithAssets(
     sceneData: SceneData,
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
+    const onPhase = options?.onPhase;
+    const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
+        if (!onPhase) return run();
+        const began = performance.now();
+        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
+    };
     // Expand prefab-instance entries first (via the same flattenPrefab core the
     // editor uses) so migration + asset resolution + spawn all operate on plain
     // entities — this is how a saved prefab scene achieves play == ship. The
@@ -532,7 +546,7 @@ export async function loadSceneWithAssets(
     let scene = sceneData;
     if (options?.assets && sceneHasPrefabEntries(scene)) {
         const assets = options.assets;
-        scene = await expandScenePrefabs(scene, async (ref) => {
+        scene = await timed('prefab', () => expandScenePrefabs(scene, async (ref) => {
             try {
                 const r = await assets.loadPrefab(ref);
                 return (r?.data as PrefabData) ?? null;
@@ -540,14 +554,14 @@ export async function loadSceneWithAssets(
                 log.warn('scene', `Failed to load prefab "${ref}": ${e}`);
                 return null;
             }
-        });
+        }));
     }
     // Migrate up-front to a private copy; asset resolution + spawn all operate
     // on it, so the caller's SceneData is never mutated.
     const { data } = migrateSceneData(scene);
     if (options?.assets) {
         const assets = options.assets;
-        const result = await assets.preloadSceneAssets(data, options.onProgress);
+        const result = await timed('assets', () => assets.preloadSceneAssets(data, options.onProgress));
         if (options.onMissingAssets) {
             options.onMissingAssets(result.missing);
         }
@@ -566,7 +580,7 @@ export async function loadSceneWithAssets(
             }
         }
     }
-    return spawnAndLoadEntities(world, data, options?.externalEntities);
+    return timed('spawn', () => spawnAndLoadEntities(world, data, options?.externalEntities));
 }
 
 function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {

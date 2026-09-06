@@ -47,7 +47,7 @@ const LOG = flag('log', '');
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
 
 /** Everything a read asks the game about, in one round trip. */
-const NAMES = ['Player', 'Enemy', 'RockA', 'Wall', 'Arch', 'ArchTop', 'Beacon', 'Canary', 'Scout', 'Bobber'];
+const NAMES = ['Player', 'Enemy', 'RockA', 'Wall', 'Arch', 'ArchTop', 'Beacon', 'Canary', 'Scout', 'Bobber', 'RefProbe', 'Sparks'];
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -257,8 +257,12 @@ async function main() {
           const ms = Math.round((performance.now() - began) * 1000) / 1000;
           ${step.key ? `if (i === 0) send('keyup', ${JSON.stringify(step.key)});` : ''}
           const s = window.__estellaCooked.streaming();
-          out.push({ ms, resident: s.residentCells.length, loading: s.loadingCells.length,
-                     entities: s.entities, bodies: s.physicsBodies, physicsUp: s.physicsUp });
+          const row = { ms, resident: s.residentCells.length, loading: s.loadingCells.length,
+                        entities: s.entities, bodies: s.physicsBodies, physicsUp: s.physicsUp };
+          // Only where it can matter: a system breakdown of every frame is more
+          // data than a profile of one arrival needs.
+          if (ms > ${step.costsAbove ?? 1.5}) row.costs = window.__estellaCooked.costs(6);
+          out.push(row);
           // A macrotask turn between frames. Awaiting a step only drains
           // MICROtasks, and a cell arrives over the network — so a loop without
           // this starves the fetch and profiles a load that never lands.
@@ -266,7 +270,9 @@ async function main() {
         }
         return out;
       })()`);
+      const delivery = await exec('window.__estellaCooked.streaming().delivery');
       console.log(`profile ${step.as}: ${JSON.stringify(profile)}`);
+      console.log(`delivery ${step.as}: ${JSON.stringify(delivery)}`);
       continue;
     }
     if (step.do === 'time') {

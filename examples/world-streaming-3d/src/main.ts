@@ -3,7 +3,7 @@
 // gone. Residency itself is declared, and nothing below loads or unloads.
 import {
     addSystemToSchedule, Schedule, defineSystem, GetWorld, Res, EventWriter, Time,
-    Input, Damage, Transform, WorldStreamingSource,
+    Input, Damage, Transform, WorldStreamingSource, ParticleEmitter,
 } from 'esengine';
 import type { World, InputState, TimeData, EventWriterInstance, DamagePayload } from 'esengine';
 
@@ -74,6 +74,28 @@ const staleBlowSystem = defineSystem(
     { name: 'StaleBlowSystem' },
 );
 
+/**
+ * Does the reference a cell holds into the persistent world actually name it?
+ *
+ * Only the game can ask: the value is a runtime handle by the time anything
+ * reads it, and one that resolved to nothing looks like one never authored.
+ */
+const crossRefSystem = defineSystem(
+    [GetWorld()],
+    (world: World) => {
+        const probe = world.findEntityByName('RefProbe');
+        const holder = world.findEntityByName('ArchTop');
+        if (probe === null) return;
+        const answer = holder === null || !world.has(holder, ParticleEmitter)
+            ? 0
+            : (world.get(holder, ParticleEmitter).subEmitter === world.findEntityByName('Sparks')
+                ? 1000 : -1000);
+        world.update(probe, Transform, (t) => { t.position.x = answer; });
+    },
+    { name: 'CrossRefSystem' },
+);
+
 addSystemToSchedule(Schedule.Update, sourceKeysSystem);
+addSystemToSchedule(Schedule.Update, crossRefSystem);
 addSystemToSchedule(Schedule.Update, bobberSystem);
 addSystemToSchedule(Schedule.Update, staleBlowSystem);

@@ -699,6 +699,15 @@
             "current": 100,
             "max": 100
           }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "maxParticles": 8,
+            "emissionRate": 0,
+            "playing": false,
+            "subEmitter": 9
+          }
         }
       ]
     },
@@ -745,6 +754,60 @@
             "current": 100,
             "max": 100
           }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Sparks",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": -400
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "maxParticles": 8,
+            "emissionRate": 0,
+            "playing": false
+          }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "RefProbe",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 60,
+              "z": -600
+            }
+          }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     }

@@ -57,6 +57,12 @@ interface CellState {
     residency: CellResidency;
     /** What the last reconciliation asked for; the async completions re-read it. */
     desired: boolean;
+    /** Where this cell's last load spent its time, phase by phase. */
+    phases: Record<string, number>;
+    /** When the load was issued, so `delivery` is measured and not guessed. */
+    issuedAt: number;
+    /** Issue to resident, in wall time. Most of it is not the engine working. */
+    delivery: number;
 }
 
 export class WorldStreamer {
@@ -84,7 +90,10 @@ export class WorldStreamer {
         this.cells_.clear();
         for (const cell of manifest.cells) {
             this.host_.register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
-            this.cells_.set(cell.name, { cell, residency: 'unloaded', desired: false });
+            this.cells_.set(cell.name, {
+                cell, residency: 'unloaded', desired: false,
+                phases: {}, issuedAt: 0, delivery: 0,
+            });
         }
     }
 
@@ -94,6 +103,27 @@ export class WorldStreamer {
 
     residencyOf(name: string): CellResidency {
         return this.cells_.get(name)?.residency ?? 'unloaded';
+    }
+
+    /**
+     * Where a cell's load spent its time.
+     *
+     * Most of a load runs BETWEEN frames — off every system timer there is — so a
+     * profiler watching the frame loop sees the cost and cannot name it.
+     */
+    recordPhase(name: string, phase: string, ms: number): void {
+        const state = this.cells_.get(name);
+        if (state) state.phases[phase] = (state.phases[phase] ?? 0) + ms;
+    }
+
+    /** Per cell: the phases of its last load, and issue-to-resident wall time. */
+    delivery(): Record<string, { phases: Record<string, number>; deliveryMs: number }> {
+        const out: Record<string, { phases: Record<string, number>; deliveryMs: number }> = {};
+        for (const [name, state] of this.cells_) {
+            if (state.delivery === 0 && Object.keys(state.phases).length === 0) continue;
+            out[name] = { phases: { ...state.phases }, deliveryMs: state.delivery };
+        }
+        return out;
     }
 
     /**
@@ -165,9 +195,15 @@ export class WorldStreamer {
 
     private beginLoad_(name: string, state: CellState): void {
         state.residency = 'loading';
+        state.phases = {};
+        state.issuedAt = performance.now();
         this.loadCount_++;
         Promise.resolve(this.host_.loadAdditive(name)).then(
-            () => { state.residency = 'resident'; this.step_(name); },
+            () => {
+                state.residency = 'resident';
+                state.delivery = performance.now() - state.issuedAt;
+                this.step_(name);
+            },
             (err) => {
                 // A cell that failed to come up owns nothing (the scene load is a
                 // transaction), so it goes back to being absent and may be asked

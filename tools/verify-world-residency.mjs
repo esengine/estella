@@ -208,6 +208,13 @@ function main() {
         && Math.abs(atC.at.ArchTop.x - 1900) < 1,
         'a child standing in another cell comes in with its root, not with its own place',
         `ArchTop at x=${atC.at.ArchTop?.x?.toFixed(0)}`);
+
+    // ---- The one reference that crosses a document boundary ---------------
+    claim(atC.at.RefProbe?.x === 1000,
+        'a reference the cell holds into the persistent world names the live entity',
+        `probe at x=${atC.at.RefProbe?.x}`);
+    claim(trip.atA.at.RefProbe?.x === 0,
+        'and there is nothing to resolve while the cell that holds it is absent');
     claim(trip.atA.at.ArchTop === undefined && atB.at.ArchTop === undefined,
         'and is gone whenever its root is');
 

@@ -468,6 +468,22 @@ async function boot(): Promise<void> {
           entities: app.world.entityCount(),
         };
       },
+      /**
+       * What the LAST frame cost, by system.
+       *
+       * The other half of a cell's arrival: the load runs between frames and
+       * shows on no system timer, while registering what it spawned happens
+       * inside systems on the frames after. Engaging the stats fills this.
+       */
+      costs(top = 8): Array<{ name: string; ms: number }> {
+        app.enableStats();
+        const costs = app.getFrameCosts();
+        if (!costs) return [];
+        return [...costs.systems]
+          .map((s) => ({ name: s.name, ms: s.ms }))
+          .sort((a, b) => b.ms - a.ms)
+          .slice(0, top);
+      },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
        *  driver settles frames after this before re-capturing. */

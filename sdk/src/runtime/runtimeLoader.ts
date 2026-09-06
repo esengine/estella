@@ -9,6 +9,7 @@ import { SceneOwner } from '../ecs/component';
 import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
+import type { Entity } from '../types';
 import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
@@ -185,6 +186,11 @@ function applyTextureMetadata(
 // =============================================================================
 
 export interface LoadRuntimeSceneOptions {
+    /** Authored ids this scene may reference in ANOTHER document — the persistent
+     *  rows a streamed cell names. See {@link SceneLoadOptions.externalEntities}. */
+    externalEntities?: ReadonlyMap<number, Entity>;
+    /** Where this load spent its time. See {@link SceneLoadOptions.onPhase}. */
+    onPhase?: (phase: string, ms: number) => void;
     app: App;
     /** The wasm module, or null on a native host — the engine core is arm64 there,
      *  so there is no Module to reach through. */
@@ -297,6 +303,12 @@ export function sceneUsesPhysics(sceneData: SceneData): boolean {
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
     const { app, module, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
+    const onPhase = options.onPhase;
+    const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
+        if (!onPhase) return run();
+        const began = performance.now();
+        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
+    };
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -314,14 +326,14 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const runtimeAssets = ensureRuntimeAssets(app, module, source);
     let sceneData = options.sceneData;
     if (sceneHasPrefabEntries(sceneData)) {
-        sceneData = await expandScenePrefabs(sceneData, async (ref) => {
+        sceneData = await timed('prefab', () => expandScenePrefabs(sceneData, async (ref) => {
             try {
                 return ((await runtimeAssets.loadPrefab(ref))?.data as PrefabData) ?? null;
             } catch (e) {
                 log.warn('scene', `Failed to load prefab "${ref}": ${e instanceof Error ? e.message : String(e)}`);
                 return null;
             }
-        });
+        }));
     }
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
@@ -484,7 +496,11 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         }
     }
 
-    const entityMap = loadSceneData(app.world, sceneData);
+    // The one place a packaged scene's entities come into being. `externalEntities`
+    // is what lets a streamed cell name the persistent world: without it a cross
+    // document reference resolves to nothing, quietly.
+    const entityMap = await timed('spawn',
+        () => loadSceneData(app.world, sceneData, options.externalEntities));
     // Which document row each entity came from, when someone is keeping track
     // (an editor inspecting its own running game). No-op otherwise.
     recordSceneOrigins(app, entityMap);
@@ -534,7 +550,10 @@ export function createRuntimeSceneConfig(
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
     scenePath?: string,
 ): SceneConfig {
-    return {
+    // Built first and closed over, so whoever sets `externalEntities` / `onPhase`
+    // on the CONFIG is honoured here too: declared in one place and read in
+    // another, a cell's reference to the persistent world resolved to nothing.
+    const config: SceneConfig = {
         name,
         async setup() {
             let data = sceneData;
@@ -544,11 +563,20 @@ export function createRuntimeSceneConfig(
                 // arrives via the realm's backend/resolver — http on web, wx fs
                 // on WeChat — only when the game actually switches to it.
                 if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
+                const began = performance.now();
                 data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
+                config.onPhase?.('fetch', performance.now() - began);
             }
-            await loadRuntimeScene({ ...options, sceneData: data, sceneName: name });
+            await loadRuntimeScene({
+                ...options,
+                sceneData: data,
+                sceneName: name,
+                externalEntities: config.externalEntities?.(),
+                onPhase: config.onPhase,
+            });
         },
     };
+    return config;
 }
 
 export interface RuntimeInitConfig {
@@ -707,10 +735,16 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         // A cell loads the way every other scene in this build does, and resolves
         // the persistent rows the cook said it names — freshly each time, because
         // the entities behind those rows are only the ones alive right now.
-        app.getResource(WorldStreaming).loadManifest(world, (cell) => ({
-            ...createRuntimeSceneConfig(cell.name, undefined, sceneOpts, cell.path),
-            externalEntities: () => persistentEntityRows(app, world),
-        }));
+        const streamer = app.getResource(WorldStreaming);
+        streamer.loadManifest(world, (cell) => {
+            // Set ON the config, not spread into a copy of it: the setup that
+            // loads the cell closes over the object this returns, so a copy
+            // carries the fields somewhere nothing reads them.
+            const config = createRuntimeSceneConfig(cell.name, undefined, sceneOpts, cell.path);
+            config.externalEntities = () => persistentEntityRows(app, world);
+            config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
+            return config;
+        });
     }
 
     if (aspectRatio !== undefined) {

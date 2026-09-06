@@ -57,6 +57,8 @@ export interface SceneConfig {
      * has a document boundary to cross.
      */
     externalEntities?: () => ReadonlyMap<number, Entity>;
+    /** Where this scene's load spent its time. See {@link SceneLoadOptions.onPhase}. */
+    onPhase?: (phase: string, ms: number) => void;
 }
 
 /**
@@ -441,6 +443,7 @@ export class SceneManagerState {
         const loadPromise = (async (): Promise<SceneContext> => {
             let sceneData = config.data;
             if (!sceneData && config.path) {
+                const began = performance.now();
                 const assetServer = this.app_.hasResource(Assets)
                     ? this.app_.getResource(Assets)
                     : null;
@@ -450,6 +453,7 @@ export class SceneManagerState {
                     const response = await fetch(config.path);
                     sceneData = await response.json() as SceneData;
                 }
+                config.onPhase?.('fetch', performance.now() - began);
             }
 
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
@@ -676,6 +680,7 @@ export class SceneManagerState {
             const loadOptions: SceneLoadOptions = { collectAssets };
             if (onProgress) loadOptions.onProgress = onProgress;
             if (config.externalEntities) loadOptions.externalEntities = config.externalEntities();
+            if (config.onPhase) loadOptions.onPhase = config.onPhase;
             if (this.app_.hasResource(Assets)) {
                 loadOptions.assets = this.app_.getResource(Assets);
             }

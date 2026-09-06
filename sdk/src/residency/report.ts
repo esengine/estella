@@ -50,6 +50,12 @@ export interface WorldResidencyReport {
     persistentEntities: number;
     /** Their handles. Unchanged for the life of the world — that is the claim. */
     persistentHandles: number[];
+    /**
+     * Per cell: where its last load spent its time, and issue-to-resident wall
+     * time. The phases run between frames, which is why no frame profiler holds
+     * them and why a total is not a hitch.
+     */
+    delivery: Record<string, { phases: Record<string, number>; deliveryMs: number }>;
 }
 
 const EMPTY: WorldResidencyReport = {
@@ -58,7 +64,7 @@ const EMPTY: WorldResidencyReport = {
     loadCount: 0, unloadCount: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
     authoredCellEntityCounts: {}, cellRows: {},
-    persistentEntities: 0, persistentHandles: [],
+    persistentEntities: 0, persistentHandles: [], delivery: {},
 };
 
 /**
@@ -114,5 +120,6 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         cellRows,
         persistentEntities: persistent.length,
         persistentHandles: persistent,
+        delivery: streamer.delivery(),
     };
 }
