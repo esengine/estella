@@ -307,12 +307,20 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             lod::boundingSphere(position, rotation, scale, localMin, localMax, centre, radius);
             const f32 screenSize = lod::screenRelativeSize(ctx.view_projection, centre, radius);
             auto& state = *collect_ctx.lod.state;
-            const u8 level = lod::selectLevel(levels.set, screenSize,
-                                              state.lastLevel(collect_ctx.lod.view, entity));
-            state.remember(collect_ctx.lod.view, entity, level);
+            const u32 view = collect_ctx.lod.view;
+            const u8 level = lod::selectLevel(levels.set, screenSize, state.lastLevel(view, entity));
+            // The same size with no memory behind it. Recorded rather than derived
+            // later: the two differing IS hysteresis holding a level, and an editor
+            // that recomputed it would be a second selector free to disagree.
+            const u8 unbiased = lod::selectLevel(levels.set, screenSize, 0);
+            state.remember(view, entity, level, unbiased, levels.set.count, screenSize);
+            // The POLICY's answer, not the one a creator is holding up to look at:
+            // a preview is an editor's question about this view, and counting it
+            // would put it in a shipped frame's profile.
             if (collect_ctx.lod.counts) collect_ctx.lod.counts->record(level);
-            if (level == lod::kCulled) { ++collect_ctx.culled; continue; }
-            resident = levels.mesh[level];
+            const u8 shown = state.drawn(view, entity, level, levels.set.count);
+            if (shown == lod::kCulled) { ++collect_ctx.culled; continue; }
+            resident = levels.mesh[shown];
         }
 
         u32 textureId = ctx.white_texture_id;

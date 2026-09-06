@@ -283,6 +283,34 @@ public:
     void setViewId(u32 view) { view_id_ = view; }
 
     /**
+     * @brief The LOD decision @p view last made about @p entity: the level, what
+     *        the bare thresholds asked for, the stand-ins reachable, the size.
+     *
+     * @details A read of what was RECORDED where the choice was made: an editor
+     *          explaining a level has to agree with the frame that drew it, and
+     *          the only way to be sure is to not compute it twice.
+     */
+    bool lodInspect(u32 view, Entity entity, u8& outLevel, u8& outUnbiased,
+                    u8& outLevels, f32& outSize) const {
+        return lod_view_state_.inspect(view, entity, outLevel, outUnbiased, outLevels, outSize);
+    }
+
+    /**
+     * @brief Show @p level for @p entity in @p view instead of the level that
+     *        view chose; @ref lod::kNoPreview goes back to choosing.
+     *
+     * @details View state, never component state: a group is authored policy and
+     *          is the same everywhere. The choice is still made and remembered
+     *          while a preview stands, so leaving one obeys the selector again.
+     */
+    void setLodPreview(u32 view, Entity entity, u8 level) {
+        lod_view_state_.preview(view, entity, level);
+    }
+
+    /** @brief How many (view, entity) pairs are held up for inspection. */
+    usize lodPreviewCount() const { return lod_view_state_.previewCount(); }
+
+    /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).
      * @details Sets the global ES_LINEAR shader input, linearizes CPU-side
      *          authored colors (lights, clears), and forces the post-process

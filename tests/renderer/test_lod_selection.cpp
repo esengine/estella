@@ -157,8 +157,8 @@ static void testViewOwnership() {
     state.beginFrame();
     CHECK(state.lastLevel(mainCamera, object) == 0, "an unseen pair starts unbiased");
 
-    state.remember(mainCamera, object, 0);
-    state.remember(minimap, object, 2);
+    state.remember(mainCamera, object, 0, 0, 2, 0.52f);
+    state.remember(minimap, object, 2, 2, 2, 0.52f);
     CHECK(state.lastLevel(mainCamera, object) == 0 && state.lastLevel(minimap, object) == 2,
           "one object is remembered at two levels by two views");
 
@@ -174,12 +174,66 @@ static void testViewOwnership() {
     CHECK(before == 2 && state.size() == 0, "a pair no view asks about again is dropped");
 }
 
+static void testDecisionRecorded() {
+    lod::LodViewState state;
+    const Entity object = Entity::make(9, 1);
+    const u32 view = 3;
+    u8 level = 9, unbiased = 9, levels = 9;
+    f32 size = -1.0f;
+
+    CHECK(!state.inspect(view, object, level, unbiased, levels, size),
+          "a pair this view never measured reports nothing, not level 0");
+
+    state.beginFrame();
+    state.remember(view, object, 0, 1, 2, 0.149f);
+    CHECK(state.inspect(view, object, level, unbiased, levels, size),
+          "a measured pair reports");
+    CHECK(level == 0 && unbiased == 1 && levels == 2 && size == 0.149f,
+          "the whole decision comes back, not just its outcome");
+    // The one explanation the component cannot give: the numbers on screen say
+    // LOD1 and the frame drew LOD0, and only the recorded pair says why.
+    CHECK(level != unbiased, "chosen and unbiased differing is hysteresis holding");
+}
+
+static void testPreviewOwnership() {
+    lod::LodViewState state;
+    const Entity object = Entity::make(4, 1);
+    const u32 edit = 1, play = 2;
+
+    state.beginFrame();
+    state.remember(edit, object, 0, 0, 2, 0.6f);
+    state.remember(play, object, 0, 0, 2, 0.6f);
+    CHECK(state.drawn(edit, object, 0, 2) == 0, "with no preview the chosen level is drawn");
+
+    state.preview(edit, object, 2);
+    CHECK(state.drawn(edit, object, 0, 2) == 2, "a preview is what that view draws");
+    CHECK(state.drawn(play, object, 0, 2) == 0, "and only that view — the pair is the key");
+
+    u8 level = 9, unbiased = 9, levels = 9;
+    f32 size = -1.0f;
+    state.inspect(edit, object, level, unbiased, levels, size);
+    CHECK(level == 0, "the recorded choice is untouched — a preview is not a decision");
+
+    // Leaving a preview must obey the selector again, not resume from what was
+    // held up: the choice went on being made and remembered underneath it.
+    state.preview(edit, object, lod::kNoPreview);
+    CHECK(state.drawn(edit, object, 0, 2) == 0, "back to auto is back to the chosen level");
+    CHECK(state.previewCount() == 0, "and the slot is gone, not merely equal to the choice");
+
+    // A group with two stand-ins has no LOD3 to hold up.
+    state.preview(edit, object, 3);
+    CHECK(state.drawn(edit, object, 0, 2) == 0,
+          "a preview past the last stand-in is ignored, not clamped to the last one");
+}
+
 int main() {
     testProjection();
     testBoundingSphere();
     testSelection();
     testHysteresis();
     testViewOwnership();
+    testDecisionRecorded();
+    testPreviewOwnership();
     std::printf(g_failures ? "\n%d failure(s)\n" : "\nall LOD selection claims hold\n",
                 g_failures);
     return g_failures ? 1 : 0;

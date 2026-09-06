@@ -19,10 +19,20 @@
 import type { CppRegistry } from '../../wasm';
 import type { RendererBackend, RenderStats } from '../../render/renderer';
 import { RENDERER_BINDINGS, RENDERER_OPTIONAL_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
+import { createNativeHeap, type NativeHeap } from './nativeHeap';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are the frame contract — a missing one is a broken host, not a
  *  degraded frame). */
+/**
+ * Four floats a LOD decision is read back through, allocated once.
+ *
+ * Held for the process rather than per call: it is sixteen bytes against a heap
+ * whose views must not be rebuilt (see nativeHeap.ts), and an inspect runs while
+ * a panel is open, which is every frame.
+ */
+let lodScratch: { heap: NativeHeap; ptr: number } | null = null;
+
 function hostCall(scope: Record<string, unknown>, name: string, args: unknown[]): unknown {
     const fn = scope[name];
     if (typeof fn !== 'function') {
@@ -51,6 +61,13 @@ function optional(
 export function createNativeRendererBackend(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): RendererBackend {
+    const lodHeap = (): { heap: NativeHeap; ptr: number } | null => {
+        if (lodScratch) return lodScratch;
+        const heap = createNativeHeap(scope);
+        if (!heap) return null;
+        lodScratch = { heap, ptr: heap._malloc(4 * 4) };
+        return lodScratch;
+    };
     return {
         // The renderer is already up: the host created the device and sized the
         // surface before the SDK booted. Resizing still matters (rotation).
@@ -114,6 +131,28 @@ export function createNativeRendererBackend(
         setViewId: (view): void => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.setViewId];
             if (typeof fn === 'function') (fn as (v: number) => void)(view >>> 0);
+        },
+        lodInspect: (view, entity) => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.lodInspect];
+            const heap = lodHeap();
+            if (typeof fn !== 'function' || !heap) return null;
+            if (!(fn as (v: number, e: number, p: number) => number)(view >>> 0, entity >>> 0, heap.ptr)) {
+                return null;
+            }
+            const f = heap.heap.HEAPF32;
+            const i = heap.ptr >> 2;
+            return {
+                level: f[i]! < 0 ? null : f[i]!,
+                unbiased: f[i + 1]! < 0 ? null : f[i + 1]!,
+                levels: f[i + 2]!,
+                screenSize: f[i + 3]!,
+            };
+        },
+        setLodPreview: (view, entity, level): void => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.setLodPreview];
+            if (typeof fn === 'function') {
+                (fn as (v: number, e: number, l: number) => void)(view >>> 0, entity >>> 0, level ?? -1);
+            }
         },
         getStats: (): RenderStats => {
             const read = (name: string): number => {

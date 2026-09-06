@@ -531,6 +531,8 @@ export interface ESEngineModule {
     renderer_setDepthLayers?(mask: number): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setViewId?(view: number): void;
+    renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
+    renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setColorSpace?(linear: number): void;
     /** Reseed the engine's randomness so a run reproduces (core/RandomSource.hpp). */
     engine_setRandomSeed?(seed: number): void;

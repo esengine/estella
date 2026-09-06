@@ -71,7 +71,29 @@ export interface RendererBackend {
     setDepthLayers(mask: number): void;
     setCullingMask(mask: number): void;
     setViewId(view: number): void;
+    lodInspect(view: number, entity: number): LodDecision | null;
+    setLodPreview(view: number, entity: number, level: number | null): void;
     getStats(): RenderStats;
+}
+
+/**
+ * What a view decided about one object's level, read back from where the decision
+ * was made. @experimental
+ *
+ * Never recomputed by a reader: the whole point of carrying `unbiased` is that an
+ * explanation of a level has to be the frame's own, and a second selector written
+ * beside this one would be free to disagree with the picture on screen.
+ */
+export interface LodDecision {
+    /** The level drawn, or `null` when the object was small enough to be culled. */
+    level: number | null;
+    /** What the bare thresholds ask for with no memory behind them; differing from
+     *  `level` is hysteresis holding the coarser (or finer) side. */
+    unbiased: number | null;
+    /** Stand-ins the group actually reaches — levels beyond it do not exist. */
+    levels: number;
+    /** Fraction of the viewport HEIGHT the object covered when it was measured. */
+    screenSize: number;
 }
 
 const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 };
@@ -79,6 +101,8 @@ const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0,
 const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
+/** Four floats a LOD decision is read back through. */
+let lodInspectPtr: number = 0;
 let backend: RendererBackend | null = null;
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
@@ -162,6 +186,19 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
+        lodInspect: (view, entity) => {
+            if (!m.renderer_lodInspect || !lodInspectPtr) return null;
+            if (!m.renderer_lodInspect(view >>> 0, entity >>> 0, lodInspectPtr)) return null;
+            const f = m.HEAPF32.subarray(lodInspectPtr >> 2, (lodInspectPtr >> 2) + 4);
+            return {
+                level: f[0]! < 0 ? null : f[0]!,
+                unbiased: f[1]! < 0 ? null : f[1]!,
+                levels: f[2]!,
+                screenSize: f[3]!,
+            };
+        },
+        setLodPreview: (view, entity, level) =>
+            m.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1),
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
             triangles: m.renderer_getTriangles(),
@@ -345,6 +382,7 @@ export function initRendererAPI(wasmModule: ESEngineModule): void {
     module = bridge.module;
     installContextLossGuard(module);
     viewProjectionPtr = module._malloc(16 * 4);
+    lodInspectPtr = module._malloc(4 * 4);
     backend = wasmBackend(module);
 }
 
@@ -358,6 +396,10 @@ export function shutdownRendererAPI(): void {
     if (module && viewProjectionPtr) {
         module._free(viewProjectionPtr);
         viewProjectionPtr = 0;
+    }
+    if (module && lodInspectPtr) {
+        module._free(lodInspectPtr);
+        lodInspectPtr = 0;
     }
     bridge.disconnect();
     module = null;
@@ -493,6 +535,27 @@ export const Renderer = {
      */
     setViewId(view: number): void {
         backend?.setViewId(view);
+    },
+
+    /**
+     * What @p view decided about `entity`'s LOD last time it drew it, or null when
+     * that view has not measured it — off screen, or carrying no LODGroup, which
+     * is not the same as measuring it at level 0. @experimental
+     */
+    lodInspect(view: number, entity: number): LodDecision | null {
+        return backend?.lodInspect(view, entity) ?? null;
+    },
+
+    /**
+     * Show `level` for `entity` in `view` instead of the level that view chose;
+     * `null` goes back to choosing. @experimental
+     *
+     * View state, never component state: a group is authored policy and reads the
+     * same everywhere. The choice goes on being made underneath, so leaving a
+     * preview obeys the selector again rather than resuming from what was held up.
+     */
+    setLodPreview(view: number, entity: number, level: number | null): void {
+        backend?.setLodPreview(view, entity, level);
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

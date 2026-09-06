@@ -147,6 +147,7 @@ export interface NativeEngineApi {
     renderer_getTriangles?(): number;
     renderer_hasCapturedData?(): boolean;
     renderer_init?(width: number, height: number): void;
+    renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
     renderer_pollSkeletalPreview?(preview: number): number;
@@ -162,6 +163,7 @@ export interface NativeEngineApi {
     renderer_setCullingMask?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
+    renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setViewId?(view: number): void;
@@ -393,6 +395,7 @@ export function createNativeEngineApi(
     bind('renderer_getTriangles', 'es_renderer_getTriangles', false);
     bind('renderer_hasCapturedData', 'es_renderer_hasCapturedData', false);
     bind('renderer_init', 'es_renderer_init', false);
+    bind('renderer_lodInspect', 'es_renderer_lodInspect', false);
     bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
     bind('renderer_pollSkeletalPreview', 'es_renderer_pollSkeletalPreview', false);
@@ -408,6 +411,7 @@ export function createNativeEngineApi(
     bind('renderer_setCullingMask', 'es_renderer_setCullingMask', false);
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
+    bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);

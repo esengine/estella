@@ -725,6 +725,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setDepthLayers", &esengine::renderer_setDepthLayers);
     emscripten::function("renderer_setCullingMask", &esengine::renderer_setCullingMask);
     emscripten::function("renderer_setViewId", &esengine::renderer_setViewId);
+    emscripten::function("renderer_lodInspect", &esengine::renderer_lodInspect);
+    emscripten::function("renderer_setLodPreview", &esengine::renderer_setLodPreview);
     emscripten::function("renderer_setColorSpace", &esengine::renderer_setColorSpace);
 
 

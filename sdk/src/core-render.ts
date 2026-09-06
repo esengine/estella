@@ -169,6 +169,7 @@ export {
     shutdownRendererAPI,
     type RenderTargetHandle,
     type RenderStats,
+    type LodDecision,
 } from './render/renderer';
 
 // =============================================================================

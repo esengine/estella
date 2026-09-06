@@ -149,6 +149,22 @@ void renderer_setCullingMask(u32 mask);
 /** Names the view the next collect looks from, which its LOD levels are remembered
  *  under. Set per camera, before renderer_submitAll; 0 = the shared default view. */
 void renderer_setViewId(u32 view);
+
+/**
+ * @brief What @p view decided about @p entity's LOD, into four floats at
+ *        @p outPtr: level, the level the bare thresholds ask for, how many
+ *        stand-ins are reachable, and the screen size measured.
+ *
+ * @details A level of -1 is culled. Returns 0 when this view has not measured the
+ *          entity, which is not level 0 and must not be shown as one.
+ */
+i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
+
+/**
+ * @brief Draw @p level for @p entity in @p view instead of the chosen one; a
+ *        negative @p level goes back to the view's own choice.
+ */
+void renderer_setLodPreview(u32 view, u32 entity, i32 level);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();

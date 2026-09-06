@@ -184,6 +184,11 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     endScreenOverlay: 'es_renderer_endScreenOverlay',
     /** The view a collect looks from; hosts predating it share one LOD memory. */
     setViewId: 'es_renderer_setViewId',
+    /** What a view decided about one object's level, and holding another level up
+     *  to look at instead. An editor's questions — a host that binds neither runs
+     *  no editor, and the game it does run is unaffected either way. */
+    lodInspect: 'es_renderer_lodInspect',
+    setLodPreview: 'es_renderer_setLodPreview',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

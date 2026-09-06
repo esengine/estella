@@ -9,6 +9,7 @@
 #include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
+#include "../renderer/lod/LodSelection.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../core/FrameProfiler.hpp"
 #include "../renderer/frame/RenderStage.hpp"
@@ -779,6 +780,31 @@ void renderer_setCullingMask(u32 mask) {
 // not the entity's: two cameras looking at one object may settle on two levels.
 void renderer_setViewId(u32 view) {
     if (auto* frame = g_renderFrame) frame->setViewId(view);
+}
+
+i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
+    auto* out = boundarySpanMut<f32>(outPtr, 4, "renderer_lodInspect.out");
+    if (!out) return 0;
+    out[0] = out[1] = out[2] = out[3] = 0.0f;
+    if (!g_renderFrame) return 0;
+    u8 level = 0, unbiased = 0, levels = 0;
+    f32 size = 0.0f;
+    if (!g_renderFrame->lodInspect(view, Entity::fromRaw(entity), level, unbiased, levels, size)) {
+        return 0;
+    }
+    // Culled is a level nothing draws, not a big number: handed over as -1 so a
+    // reader that forgets to check it gets an impossible level rather than 255.
+    out[0] = level == lod::kCulled ? -1.0f : static_cast<f32>(level);
+    out[1] = unbiased == lod::kCulled ? -1.0f : static_cast<f32>(unbiased);
+    out[2] = static_cast<f32>(levels);
+    out[3] = size;
+    return 1;
+}
+
+void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
+    if (!g_renderFrame) return;
+    const u8 held = level < 0 ? lod::kNoPreview : static_cast<u8>(level);
+    g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held);
 }
 
 void renderer_setColorSpace(u32 linear) {
