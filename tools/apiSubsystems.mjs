@@ -117,6 +117,16 @@ export const SUBSYSTEMS = [
         entry: ['SceneManager', 'SceneManagerState', 'SceneConfig', 'SceneContext', 'transitionTo'],
     },
     {
+        id: 'residency',
+        title: 'World residency — streaming a world by cells',
+        titleZh: '世界 residency —— 按格子流送世界',
+        source: ['residency'],
+        tier: 'experimental',
+        why: 'one shape of world proven end to end: a square XZ grid cut at cook time, loaded synchronously. What a game asks for is settled; what a big one needs after it — priority, budget, a level of detail for what is absent — is not',
+        whyZh: '端到端证明的只有一种世界形状：cook 时切出的方形 XZ 网格，同步加载。一个游戏怎么提要求已经定了；大世界在它之后还需要的东西——优先级、预算、缺席内容的细节层次——还没有',
+        entry: ['StreamedWorld', 'WorldPersistent', 'WorldStreamingSource', 'WorldStreamer', 'worldResidencyReport'],
+    },
+    {
         id: 'prefab',
         title: 'Prefabs',
         titleZh: '预制体',

@@ -133,7 +133,6 @@ export const BLIND = {
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,
-    EventWriterInstance: RECEIVED,
     QueryInstance: RECEIVED,
     RemovedQueryInstance: RECEIVED,
     ResMutInstance: RECEIVED,

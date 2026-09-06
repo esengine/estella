@@ -68,6 +68,26 @@ function prefabResolver(root: string, index: AssetIndex): (ref: string) => Promi
 }
 
 /**
+ * Which of `scenes` declare themselves streamed worlds.
+ *
+ * By the text, not by parsing: the answer decides whether a whole engine's
+ * component registry gets loaded, and most scenes are not worlds.
+ */
+export async function streamedScenes(
+    root: string, scenes: ReadonlyArray<{ name: string; path: string }>,
+): Promise<string[]> {
+    const declared: string[] = [];
+    for (const scene of scenes) {
+        try {
+            if ((await readFile(path.join(root, scene.path), 'utf8')).includes('"StreamedWorld"')) {
+                declared.push(scene.name);
+            }
+        } catch { /* not a file this target has */ }
+    }
+    return declared;
+}
+
+/**
  * Cut every staged scene that declares itself streamed.
  *
  * Throws on a partition error. A hard reference across a residency boundary is
