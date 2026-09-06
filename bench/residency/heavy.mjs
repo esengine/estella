@@ -19,7 +19,7 @@
  *   node bench/residency/heavy.mjs --props 80 --bodies 400
  */
 import { spawnSync } from 'node:child_process';
-import { rmSync, mkdirSync, writeFileSync, cpSync, existsSync } from 'node:fs';
+import { rmSync, mkdirSync, writeFileSync, readFileSync, cpSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -254,7 +254,11 @@ function drive(out, name, steps) {
         const [, kind, as] = match;
         if (!runs.has(as)) runs.set(as, { frames: null, delivery: null });
         try {
-            const body = line.slice(line.indexOf(kind === 'profile' ? '[' : '{', match[0].length - 1));
+            const rest = line.slice(match[0].length);
+            // A profile arrives as a path, because stdout cannot carry it whole.
+            const body = kind === 'profile' && !rest.startsWith('[')
+                ? readFileSync(rest.trim(), 'utf8')
+                : line.slice(line.indexOf(kind === 'profile' ? '[' : '{', match[0].length - 1));
             runs.get(as)[kind === 'profile' ? 'frames' : 'delivery'] = JSON.parse(body);
         } catch { /* partial line */ }
     }

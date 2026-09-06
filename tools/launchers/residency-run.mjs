@@ -24,7 +24,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
@@ -303,7 +303,12 @@ async function main() {
         return out;
       })()`);
       const delivery = await exec('window.__estellaCooked.streaming().delivery');
-      console.log(`profile ${step.as}: ${JSON.stringify(profile)}`);
+      // To a FILE; stdout carries the path. `app.exit` below does not drain a
+      // pending pipe write, so a profile large enough to matter arrived
+      // truncated — and a truncated line parses as no measurement at all.
+      const out = `${SCRIPT}.${step.as}.profile.json`;
+      await writeFile(out, JSON.stringify(profile));
+      console.log(`profile ${step.as}: ${out}`);
       console.log(`delivery ${step.as}: ${JSON.stringify(delivery)}`);
       continue;
     }
