@@ -222,6 +222,33 @@ export {
 
 export { sceneManagerPlugin } from './scene/scenePlugin';
 
+// =============================================================================
+// World Residency
+// =============================================================================
+
+export {
+    StreamedWorld,
+    WorldPersistent,
+    WorldStreamingSource,
+    WorldStreamer,
+    WorldStreaming,
+    desiredResidency,
+    distanceToCell,
+    worldResidencyPlugin,
+    worldResidencySystem,
+    worldResidencyReport,
+    type StreamedWorldData,
+    type WorldStreamingSourceData,
+    type WorldCell,
+    type WorldManifest,
+    type ResidencySource,
+    type ResidencyDecision,
+    type CellResidency,
+    type WorldStreamHost,
+    type WorldStreamerStatus,
+    type WorldResidencyReport,
+} from './residency/index';
+
 export {
     SceneOrigins,
     enableSceneOrigins,

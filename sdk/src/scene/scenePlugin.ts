@@ -8,6 +8,7 @@
 import type { App, Plugin } from '../app/app';
 import { SceneManager, SceneManagerState } from './sceneManager';
 import { SceneStreaming, SceneStreamingController } from './sceneStreaming';
+import { worldResidencyPlugin } from '../residency/residencyPlugin';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
 import { Res, ResMut, Time } from '../ecs/resource';
 import { Transform, type TransformData } from '../ecs/component';
@@ -51,6 +52,10 @@ export const sceneManagerPlugin: Plugin = {
         const state = new SceneManagerState(app);
         app.insertResource(SceneManager, state);
         app.insertResource(SceneStreaming, new SceneStreamingController(state));
+        // Residency rides with scenes rather than being wired at each of the three
+        // app assemblies: a cell IS an additive scene, so an assembly that can load
+        // one can stream one, and a fourth place to remember is a place to forget.
+        app.addPlugin(worldResidencyPlugin);
 
         const initSystem: SystemDef = {
             _id: Symbol('SceneInitSystem'),
