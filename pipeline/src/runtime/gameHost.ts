@@ -141,10 +141,10 @@ async function boot(): Promise<void> {
 
   if (headless) {
     let statsOn = false;
-    const PREWARM_WORDS = 11;
-    /** Eleven words out: five counts, the stock key SET, and the readiness stamp
-     *  — the digest over BOTH program paths, and the epoch it was taken under.
-     *  A digest alone cannot say whether it is still true. */
+    const PREWARM_WORDS = 13;
+    /** Thirteen words out: five counts, the stock key SET, the readiness stamp
+     *  (digest over BOTH program paths plus the epoch it was taken under), and
+     *  the device generation that guards it — never part of the claim itself. */
     const readPrewarm = (heap: Uint32Array, ptr: number): Record<string, number> => {
       const o = heap.subarray(ptr >> 2, (ptr >> 2) + PREWARM_WORDS);
       return {
@@ -153,6 +153,7 @@ async function boot(): Promise<void> {
         keysLo: o[5], keysHi: o[6],
         digestLo: o[7], digestHi: o[8],
         programEpoch: o[9] + o[10] * 0x100000000,
+        deviceGeneration: o[11] + o[12] * 0x100000000,
       };
     };
 

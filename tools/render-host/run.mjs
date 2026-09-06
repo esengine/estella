@@ -183,8 +183,13 @@ function finish(result, server) {
   // stale. Without this, a stamp from the dead generation keeps vouching for
   // programs nothing holds, and the first frame that needs one pays for it.
   const epochOk = !dl || dl.epochBefore < 0 || dl.epochAfterFull > dl.epochBefore;
+  // The two are independent on purpose. A rebuilt device that left readiness
+  // untouched, or readiness invalidated on a device that never moved, are both
+  // states nothing downstream could reason about.
+  const genOk = !dl || dl.genBefore === undefined || dl.genBefore < 0
+    || dl.mode === 'auto' || dl.genAfterFull > dl.genBefore;
   const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk && meshIdentityOk
-    && epochOk;
+    && epochOk && genOk;
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.
   const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
@@ -528,7 +533,7 @@ app.whenReady().then(async () => {
         const d = window.__estellaHeadless.device;
         const api = window.__estellaHeadless.api;
         const out = { meshesBefore: d.meshes(), epochBefore: d.programEpoch(),
-                      supported: d.lose() };
+                      genBefore: d.deviceGen(), supported: d.lose() };
         if (!out.supported) return out;
 
         // The browser reports the loss asynchronously and the engine polls on its
@@ -572,6 +577,7 @@ app.whenReady().then(async () => {
         out.meshesAfterFull = d.meshes();
         out.meshesOwedAfterFull = d.meshesOwed();
         out.epochAfterFull = d.programEpoch();
+        out.genAfterFull = d.deviceGen();
         await api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;

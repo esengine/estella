@@ -840,11 +840,17 @@ static void writePrewarm(u32* out, const RenderPrewarmResult& r) {
     const u64 epoch = rc ? rc->programEpoch() : 0;
     out[9] = static_cast<u32>(epoch & 0xFFFFFFFFull);
     out[10] = static_cast<u32>(epoch >> 32);
+    // Not a third truth in the stamp: the guard that says the two above were
+    // read on one device. A generation that moved mid-derivation invalidates the
+    // whole readying rather than being recorded alongside it.
+    const u64 generation = g_device ? g_device->deviceGeneration() : 0;
+    out[11] = static_cast<u32>(generation & 0xFFFFFFFFull);
+    out[12] = static_cast<u32>(generation >> 32);
 }
 
 void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {
     auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 11; ++i) out[i] = 0;
+    for (u32 i = 0; i < 13; ++i) out[i] = 0;
     if (!g_initialized || !g_renderFrame) return;
     const auto* entities = reinterpret_cast<const Entity*>(static_cast<uintptr_t>(entitiesPtr));
     writePrewarm(out, g_renderFrame->prewarmPrograms(registry, entities, count));
@@ -852,7 +858,7 @@ void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 co
 
 void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr) {
     auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 11; ++i) out[i] = 0;
+    for (u32 i = 0; i < 13; ++i) out[i] = 0;
     if (!g_initialized || !g_renderFrame) return;
     const auto* rows = reinterpret_cast<const MeshDocumentRecord*>(static_cast<uintptr_t>(rowsPtr));
     writePrewarm(out, g_renderFrame->prewarmDocument(rows, count));
@@ -881,6 +887,10 @@ f64 renderer_programEpoch() {
         return static_cast<f64>(rc->programEpoch());
     }
     return 0.0;
+}
+
+f64 renderer_deviceGeneration() {
+    return g_device ? static_cast<f64>(g_device->deviceGeneration()) : 0.0;
 }
 
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {

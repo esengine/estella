@@ -121,6 +121,7 @@ export interface NativeEngineApi {
     renderer_createSkeletalPreview?(w: number, h: number): number;
     renderer_createTarget?(width: number, height: number, flags: number): number;
     renderer_destroySkeletalPreview?(preview: number): void;
+    renderer_deviceGeneration?(): number;
     renderer_diagnose?(): void;
     renderer_end?(): void;
     renderer_endFrame?(): void;
@@ -380,6 +381,7 @@ export function createNativeEngineApi(
     bind('renderer_createSkeletalPreview', 'es_renderer_createSkeletalPreview', false);
     bind('renderer_createTarget', 'es_renderer_createTarget', false);
     bind('renderer_destroySkeletalPreview', 'es_renderer_destroySkeletalPreview', false);
+    bind('renderer_deviceGeneration', 'es_renderer_deviceGeneration', false);
     bind('renderer_diagnose', 'es_renderer_diagnose', false);
     bind('renderer_end', 'es_renderer_end', false);
     bind('renderer_endFrame', 'es_renderer_endFrame', false);

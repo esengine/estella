@@ -734,6 +734,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);
     emscripten::function("renderer_getTextureBytes", &esengine::renderer_getTextureBytes);
     emscripten::function("renderer_programEpoch", &esengine::renderer_programEpoch);
+    emscripten::function("renderer_deviceGeneration", &esengine::renderer_deviceGeneration);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
     emscripten::function("renderer_setYSortLayers", &esengine::renderer_setYSortLayers);

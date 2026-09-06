@@ -692,6 +692,8 @@ window.__estellaHeadless = {
         // programs that were ready before still are.
         programEpoch: () => (module as unknown as
             { renderer_programEpoch?(): number } | null)?.renderer_programEpoch?.() ?? -1,
+        deviceGen: () => (module as unknown as
+            { renderer_deviceGeneration?(): number } | null)?.renderer_deviceGeneration?.() ?? -1,
         meshesOwed: () => app?.getResource(Assets)?.meshesAwaitingRematerialization() ?? [],
         // Emscripten's GL tables hold wrappers minted against the dead context;
         // counting them says whether a rebuild refilled them or merely added to

@@ -279,6 +279,13 @@ export interface ESEngineModule {
      * Optional: absent on an older wasm build.
      */
     renderer_programEpoch?(): number;
+    /**
+     * Which generation of the GPU device is current, advanced by every successful
+     * rebuild. Never part of a readiness claim — the guard that says the claim
+     * was derived and readied on ONE device.
+     * Optional: absent on an older wasm build.
+     */
+    renderer_deviceGeneration?(): number;
     /** Release a mesh and the buffers it owns. */
     mesh_release?(meshHandle: number): void;
     /**

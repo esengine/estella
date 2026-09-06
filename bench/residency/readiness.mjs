@@ -211,6 +211,11 @@ function main() {
         check(doc.programEpoch === live.programEpoch,
             `${name}: and both were taken under the same program epoch`,
             `${doc.programEpoch} against ${live.programEpoch}`);
+        // The guard, not a third truth: had the device been rebuilt between the
+        // two derivations, neither reading would describe the live one.
+        check(doc.deviceGeneration === live.deviceGeneration,
+            `${name}: on one device generation, so neither reading is stale`,
+            `${doc.deviceGeneration} against ${live.deviceGeneration}`);
         if (name === 'plain') {
             // nothing fixture-specific: this one exists to be compared against.
         } else if (name === 'shadow') {

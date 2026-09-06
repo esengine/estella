@@ -155,6 +155,10 @@ f64 renderer_getTextureBytes();
 /** @brief The renderer's current program-readiness epoch. A readiness record
  *         stamped with an older one names programs that may be gone. */
 f64 renderer_programEpoch();
+
+/** @brief Which generation of the GPU device is current. Not part of a readiness
+ *         claim — the guard that says the claim was taken on one device. */
+f64 renderer_deviceGeneration();
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);

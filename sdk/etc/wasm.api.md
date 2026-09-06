@@ -364,6 +364,7 @@ renderer_captureNextFrame: () => void
 renderer_createSkeletalPreview: (w: number, h: number) => number
 renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_destroySkeletalPreview: (preview: number) => void
+renderer_deviceGeneration: (() => number) | undefined
 renderer_diagnose: () => void
 renderer_end: () => void
 renderer_endFrame: (() => void) | undefined
