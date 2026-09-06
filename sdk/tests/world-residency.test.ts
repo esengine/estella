@@ -115,7 +115,7 @@ function recordingHost() {
 }
 
 const manifest = (...cells: WorldCell[]): WorldManifest =>
-    ({ version: 1, scene: 'main', cellSize: 100, cells });
+    ({ version: 1, scene: 'main', cellSize: 100, persistentRefs: [], cells });
 
 describe('WorldStreamer', () => {
     it('registers every cell as a scene the game itself never names', async () => {

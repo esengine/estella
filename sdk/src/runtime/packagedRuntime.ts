@@ -41,6 +41,12 @@ export interface PackagedGameConfig {
     /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
     scenes?: Array<{ name: string; path: string }>;
     /**
+     * Scenes the cook cut into cells, each with the manifest describing them.
+     * Deliberately not in `scenes`: a cell is content residency brings in, not a
+     * place a game switches to.
+     */
+    worlds?: Array<{ scene: string; manifest: string }>;
+    /**
      * The project's own bundled code, as a payload-relative file name. Absent
      * means this build has none — which is how a host tells "no project script"
      * from "the project script failed to load". Guessing between those with a

@@ -43,6 +43,12 @@ export interface WorldManifest {
     scene: string;
     /** Edge of one grid square, world units. */
     cellSize: number;
+    /**
+     * Authored ids in the persistent world that a cell holds a hard reference to.
+     * Only these are kept resolvable — a table of every row would be a cost the
+     * whole world pays for the handful of references that exist.
+     */
+    persistentRefs: number[];
     cells: WorldCell[];
 }
 

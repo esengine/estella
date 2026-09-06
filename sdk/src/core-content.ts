@@ -172,6 +172,10 @@ export {
     type SliceBorder,
 } from './scene/scene';
 
+// The scene FILE's own vocabulary: a cook that reads a document has to tell its
+// two kinds of entry apart the same way the loader does.
+export { isPrefabEntry, type SceneEntry } from './scene/sceneEntry';
+
 /**
  * Structural problems in an authored document, in one vocabulary for scenes and
  * prefabs alike — what every gate that reads one judges by.

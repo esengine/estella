@@ -25,6 +25,7 @@ import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups, type CookManifest } from '../assets/cookAssets';
+import { cookWorlds } from '../world/cookWorld';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
@@ -668,6 +669,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // work on web + desktop too (not just mini-games). Additive: the eager boot
   // still reads the flat manifest; this powers on-demand + hot-update delivery.
   await writeFile(path.join(payloadDir, 'asset-manifest.json'), await buildAddressableManifest(payloadDir));
+  // A scene that declared itself streamed is cut here, once its assets are staged
+  // and its references are in the form the runtime resolves. The entry scene it
+  // leaves behind is the PERSISTENT world; the places arrive by residency.
+  progress({ phase: 'Cutting worlds' });
+  const world = await cookWorlds(opts.root, payloadDir, scenes);
+  warnings.push(...world.warnings);
   // The flat manifest is a build-time intermediate: the addressable one above is
   // derived from it, and every runtime now reads only that. Dropping it keeps one
   // asset model in the package — the mini-game export has always done this.
@@ -811,6 +818,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(sideModuleDeclarations(projectModules, platform).length > 0
       ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),
     ...(aot ? { aot } : {}),
+    ...(world.worlds.length > 0 ? { worlds: world.worlds } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 
