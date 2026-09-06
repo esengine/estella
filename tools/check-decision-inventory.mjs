@@ -71,17 +71,38 @@ for (const d of DECISIONS) {
   for (const s of SURFACES) {
     const surface = d[s];
     if (!surface) { problems.push(`${d.id} says nothing about its ${s} surface`); continue; }
-    if (!surface.has && !surface.owed) problems.push(`${d.id} → ${s} is absent with no reason`);
-    if (!surface.has) owed.push({ id: d.id, kind: d.kind, surface: s, why: surface.owed });
+    if (!surface.has && !surface.owed && !surface.unavailable) {
+      problems.push(`${d.id} → ${s} is absent with no reason`);
+    }
+    if (surface.has && (surface.owed || surface.unavailable)) {
+      problems.push(`${d.id} → ${s} both claims a surface and explains its absence`);
+    }
+    // Two defects, counted apart: one is a reader nobody wrote, the other is a
+    // fact this realm never produces. Only the first is a panel.
+    if (!surface.has) {
+      owed.push({
+        id: d.id, surface: s, why: surface.owed ?? surface.unavailable,
+        kind: surface.unavailable ? 'unavailable' : 'owed',
+      });
+    }
   }
 }
 
 /**
- * The shapes worth naming apart, in the order they are worth fixing. `human >
- * agent` is last because it breaks no principle — automation is not owed more
+ * The shapes worth naming apart, in the order they are worth fixing.
+ *
+ * `realm prerequisite` comes first because it makes the others meaningless: a
+ * surface can only owe a READER where the decision is actually taken.
+ * residency.cellDemand read as "runtime > editor" for a whole pass while no
+ * editor realm instantiated streaming at all — a panel built on that label would
+ * have shown zeros for ever, and passed any gate that asked only whether a panel
+ * existed.
+ *
+ * `human > agent` is last: it breaks no principle — automation is not owed more
  * than a person — and is still a surface that is not finished.
  */
 const imbalance = (d) => {
+  if (SURFACES.some((s) => d[s]?.unavailable)) return 'realm prerequisite';
   if (!d.runtime?.has) return 'decision > explanation';
   if (d.agent?.has && !d.editor?.has) return 'agent > human';
   if (!d.editor?.has) return 'runtime > editor';
@@ -96,8 +117,12 @@ if (process.argv.includes('--list')) {
     const mark = (s) => (d[s]?.has ? '  ok   ' : ' owed  ');
     console.log(`${d.id.padEnd(width)} ${mark('runtime')}${mark('editor')}${mark('agent')} ${imbalance(d) ?? 'complete'}`);
   }
-  console.log(`\nowed (${owed.length}):`);
-  for (const o of owed) console.log(`  ${o.id} → ${o.surface}: ${o.why}`);
+  for (const kind of ['owed', 'unavailable']) {
+    const rows = owed.filter((o) => o.kind === kind);
+    if (!rows.length) continue;
+    console.log(`\n${kind} (${rows.length}):`);
+    for (const o of rows) console.log(`  ${o.id} → ${o.surface}: ${o.why}`);
+  }
 }
 
 if (skipped.length) {

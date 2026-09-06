@@ -16,7 +16,9 @@
  *   editor    a person can see the choice and the reason, where they authored it
  *   agent     the automation surface answers the same question
  *
- *   runtime > editor   the engine knows and nobody asks (worldResidencyReport)
+ *   runtime > editor   the engine knows and nobody asks
+ *   realm prerequisite this realm never takes the decision, so there is no
+ *                      reader to owe — a different defect from a missing one
  *   agent > human      automation can reach what a person cannot (spineVersion)
  *   decision > explanation  a real choice with nothing recording why (shadow atlas)
  *
@@ -65,14 +67,14 @@ export const DECISIONS = [
     runtime: { has: true, cite: { path: 'sdk/src/residency/report.ts', probe: /prefetchHits/ } },
     editor: {
       has: false,
-      owed: 'not a missing reader — the editor never runs the thing. Streaming turns on only when '
+      unavailable: 'the editor never runs the thing. Streaming turns on only when '
         + 'runtimeLoader is handed a COOKED world manifest (`config.worlds`), which only exportGame '
         + 'and the headless gameHost supply; neither the edit realm nor playHost passes one, so '
         + 'worldResidencyReport answers EMPTY in both. A panel reading it would show zeros for ever, '
         + 'and goldenProjects already records the split as deliberate ("the editor plays it whole"). '
         + 'The debt is a decision about Play, not a panel',
     },
-    agent: { has: false, owed: 'same realm, same absence of a cooked world to report on' },
+    agent: { has: false, unavailable: 'same realm, same absence of a cooked world to report on' },
   },
   {
     id: 'shadow.atlasAllocation',
