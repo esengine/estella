@@ -158,6 +158,7 @@ export interface NativeEngineApi {
     renderer_pollPreviewReadback?(): number;
     renderer_pollSkeletalPreview?(preview: number): number;
     renderer_pollSnapshotReadback?(): number;
+    renderer_programEpoch?(): number;
     renderer_releaseTarget?(handle: number): void;
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number): void;
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
@@ -416,6 +417,7 @@ export function createNativeEngineApi(
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
     bind('renderer_pollSkeletalPreview', 'es_renderer_pollSkeletalPreview', false);
     bind('renderer_pollSnapshotReadback', 'es_renderer_pollSnapshotReadback', false);
+    bind('renderer_programEpoch', 'es_renderer_programEpoch', false);
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
     bind('renderer_renderMaterialPreview', 'es_renderer_renderMaterialPreview', false);
     bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);

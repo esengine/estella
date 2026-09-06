@@ -688,6 +688,10 @@ window.__estellaHeadless = {
         // that minted fresh handles draws exactly like one that put the geometry
         // back behind the handles the world already points at.
         meshes: () => app?.getResource(Assets)?.meshRealizations() ?? [],
+        // Readiness, which the device generation does not answer: whether the
+        // programs that were ready before still are.
+        programEpoch: () => (module as unknown as
+            { renderer_programEpoch?(): number } | null)?.renderer_programEpoch?.() ?? -1,
         meshesOwed: () => app?.getResource(Assets)?.meshesAwaitingRematerialization() ?? [],
         // Emscripten's GL tables hold wrappers minted against the dead context;
         // counting them says whether a rebuild refilled them or merely added to

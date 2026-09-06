@@ -151,6 +151,10 @@ std::string engine_getCpuScopes();
 std::string engine_getCounters();
 std::string engine_getGpuScopes();
 f64 renderer_getTextureBytes();
+
+/** @brief The renderer's current program-readiness epoch. A readiness record
+ *         stamped with an older one names programs that may be gone. */
+f64 renderer_programEpoch();
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);

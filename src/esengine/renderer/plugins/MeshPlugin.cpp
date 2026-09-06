@@ -4,6 +4,7 @@
 #include "../draw/BatchBuilder.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../frame/RenderFrame.hpp"
+#include "../frame/RenderContext.hpp"
 #include "../rhi/Texture.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../ecs/components/Transform.hpp"
@@ -258,6 +259,12 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     for (auto& shader : mesh_shaders_) {
         if (shader.isValid()) ctx.resources.releaseShader(shader);
         shader = {};
+    }
+    // Only when something WAS ready: a first boot has no readiness to invalidate,
+    // and an epoch that moves on it would age every stamp taken before the first
+    // frame. What this call means is "what was ready is not any more".
+    if (std::any_of(mesh_compiled_.begin(), mesh_compiled_.end(), [](bool c) { return c; })) {
+        ctx.render_context.advanceProgramEpoch();
     }
     mesh_compiled_.fill(false);
     mesh_programs_.fill(0);

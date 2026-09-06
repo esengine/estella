@@ -866,6 +866,15 @@ f64 renderer_getTextureBytes() {
     return 0.0;
 }
 
+// f64 rather than u32: the epoch is a counter nothing resets, and a session that
+// outlives 4 billion invalidations should not wrap into a stamp that matches.
+f64 renderer_programEpoch() {
+    if (auto* rc = ctx().tryGet<RenderContext>()) {
+        return static_cast<f64>(rc->programEpoch());
+    }
+    return 0.0;
+}
+
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
     ctx().state().clear_color = glm::vec4(r, g, b, a);
 }

@@ -407,6 +407,7 @@ renderer_pollFrameCapture: ((handle: number) => number) | undefined
 renderer_pollPreviewReadback: () => number
 renderer_pollSkeletalPreview: (preview: number) => number
 renderer_pollSnapshotReadback: () => number
+renderer_programEpoch: (() => number) | undefined
 renderer_releaseTarget: (handle: number) => void
 renderer_renderMaterialPreview: (materialId: number, w: number, h: number) => void
 renderer_renderMeshPreview: (meshId: number, w: number, h: number) => void

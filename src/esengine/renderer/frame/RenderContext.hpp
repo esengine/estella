@@ -92,6 +92,29 @@ public:
     bool isInitialized() const { return initialized_; }
 
     // =========================================================================
+    // Program readiness
+    // =========================================================================
+
+    /**
+     * @brief Which generation of renderer PROGRAM readiness is current.
+     * @details A record stamped with an older epoch names programs that may no
+     *          longer exist, so it is re-derived rather than trusted. Distinct
+     *          from the device generation, which says which device the GPU work
+     *          happened on rather than whether readiness survived.
+     */
+    u64 programEpoch() const { return program_epoch_; }
+
+    /**
+     * @brief Declares that programs which WERE ready have gone cold.
+     *
+     * @details Renderer-wide, not stock-only: ANY operation that can make a
+     *          previously-ready program requirement cold owes this call — a
+     *          cache emptied after a device rebuild, a pipeline flush, a shader
+     *          hot reload. Skipping it leaves a stamp vouching for nothing.
+     */
+    void advanceProgramEpoch() { ++program_epoch_; }
+
+    // =========================================================================
     // State Access
     // =========================================================================
 
@@ -178,6 +201,7 @@ private:
     void uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine);
 
     glm::mat4 viewProjection_{1.0f};
+    u64 program_epoch_ = 0;
 
     TextureHandle whiteTexture_ = TextureHandle::Invalid;
     TextureHandle blackTexture_ = TextureHandle::Invalid;

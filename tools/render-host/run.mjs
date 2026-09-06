@@ -179,7 +179,12 @@ function finish(result, server) {
     }
     return true;
   })();
-  const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk && meshIdentityOk;
+  // A rebuild empties the stock program cache, so readiness taken before it is
+  // stale. Without this, a stamp from the dead generation keeps vouching for
+  // programs nothing holds, and the first frame that needs one pays for it.
+  const epochOk = !dl || dl.epochBefore < 0 || dl.epochAfterFull > dl.epochBefore;
+  const deviceLossOk = lossSeen && cameBack && drivenSteps && growthOk && meshIdentityOk
+    && epochOk;
   // Freezing nothing would pass every pixel assertion by not having changed the
   // scene — the shape of a check that cannot fail.
   const meshOk = (!result.meshResident || result.meshResident.frozen > 0)
@@ -479,7 +484,7 @@ app.whenReady().then(async () => {
         // tab does it again and again, and what a single round cannot show is
         // whether the engine hands the last one's objects back.
         const out = { mode: 'auto', supported: true, rounds: [], tablesBefore: d.glTables(),
-                      meshesBefore: d.meshes() };
+                      meshesBefore: d.meshes(), epochBefore: d.programEpoch() };
         for (let r = 0; r < ${ROUNDS}; r++) {
           if (!d.lose()) return { ...out, supported: false };
 
@@ -505,6 +510,7 @@ app.whenReady().then(async () => {
         out.awaitingAfterFull = d.awaiting();
         out.meshesAfterFull = d.meshes();
         out.meshesOwedAfterFull = d.meshesOwed();
+        out.epochAfterFull = d.programEpoch();
         out.recovered = out.statusAfterFull === 0;
         out.fullRecovered = out.recovered;
         out.tablesAfterFull = d.glTables();
@@ -521,7 +527,8 @@ app.whenReady().then(async () => {
       deviceLoss = await exec(`(async () => {
         const d = window.__estellaHeadless.device;
         const api = window.__estellaHeadless.api;
-        const out = { meshesBefore: d.meshes(), supported: d.lose() };
+        const out = { meshesBefore: d.meshes(), epochBefore: d.programEpoch(),
+                      supported: d.lose() };
         if (!out.supported) return out;
 
         // The browser reports the loss asynchronously and the engine polls on its
@@ -564,6 +571,7 @@ app.whenReady().then(async () => {
         out.awaitingAfterFull = d.awaiting();
         out.meshesAfterFull = d.meshes();
         out.meshesOwedAfterFull = d.meshesOwed();
+        out.epochAfterFull = d.programEpoch();
         await api.step(${STEPS}, 1 / 60);
         out.drawCallsAfterRecover = api.getStats ? api.getStats().drawCalls : -1;
         return out;
