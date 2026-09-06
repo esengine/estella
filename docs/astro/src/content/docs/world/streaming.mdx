@@ -47,6 +47,7 @@ A cell exists because a **source** is near it:
 
 ```typescript
 world.insert(player, WorldStreamingSource, {
+    prefetchRadius: 3000, // cells this close are READIED, not brought in
     loadRadius: 2000,     // cells this close are brought in
     unloadRadius: 3000,   // resident cells are kept until past this
 });
@@ -62,6 +63,28 @@ deletes the world the first is standing in.
 Distance is measured to the cell's **box**, not its centre: to a centre, a source
 standing on a diagonal corner reads the same as one a whole cell away, which is
 where holes open along the diagonals of a grid.
+
+### Readied before it is wanted
+
+A cell inside `prefetchRadius` is **prepared**: its document is fetched, its
+prefabs expanded, its assets acquired — and not one of its entities exists. So
+nothing can observe it. No query returns it, no renderer draws it, no body
+collides with it, no enemy in it decides anything, because there is nothing
+there yet. Publication is the only thing that creates entities, and it happens
+when a source actually reaches `loadRadius`.
+
+That is worth about twenty milliseconds of a player's time. On Estella's own
+fixture, walking into a readied place costs 0.6 ms; walking into an unreadied
+one costs the fetching and decoding too.
+
+Preparation is **speculation, never authority**. A cell readied for a player who
+turns around is thrown away and its assets given back — never published because
+it happened to be ready. And a preparation that finishes asks again whether the
+cell is still wanted, rather than assuming the answer from when it started.
+
+`prefetchRadius` is never used as less than `loadRadius`; beyond that it is not
+ordered against `unloadRadius` at all. They answer different questions — how
+early to get ready, and how late to let go.
 
 ### The band between the two radii
 

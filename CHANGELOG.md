@@ -56,8 +56,29 @@ published separately; it ships inside the editor.
   because a cell that is not drawn and a cell that is not there look the same
   from a camera. See the guide: **World → World Streaming**.
 
-  Not in this version: HLOD, streaming priority or prefetch, an asset memory
-  budget, navmesh or texture streaming, and world origin rebasing.
+  **A place is readied before it is asked for.** `prefetchRadius` marks cells
+  worth PREPARING — fetched, decoded, their assets acquired — while creating not
+  one entity, so nothing in the world can observe them: no query, no renderer, no
+  body, no enemy deciding anything. Publication is the only thing that makes
+  entities, and it happens when a source actually reaches `loadRadius`. Measured
+  on Estella's own fixture, walking into a readied place costs 0.6 ms where the
+  same walk cost 19 ms of fetching and decoding.
+
+  Preparation is speculation and never authority: a cell readied for a player who
+  turns around is thrown away and its assets given back, rather than published
+  because it happened to be ready — and a preparation that finishes asks again
+  whether the cell is still wanted instead of assuming the answer from when it
+  started.
+
+  A target that cannot cut worlds now REFUSES a streamed one. Mini-game, WeChat
+  and playable-ad builds return before the cook that cuts cells, so shipping them
+  a streamed world would succeed and quietly deliver the whole thing; that is the
+  same shape as a declaration the runtime never receives, and it is an error now.
+
+  Not in this version: HLOD, an admission budget (measured: the largest atomic
+  main-thread phase of a heavy cell is 7 ms, and the frame it lands on 3.5 ms —
+  there is nothing to slice), an asset memory budget, navmesh or texture
+  streaming, and world origin rebasing.
 
 - **Level of detail: an object can hand over to a cheaper mesh once it is small
   on screen.** A rock a hundred units away and a rock two thousand units away

@@ -5491,6 +5491,13 @@
       "source": "ts",
       "fields": [
         {
+          "key": "prefetchRadius",
+          "type": "number",
+          "default": "3000",
+          "doc": "Cells this close are prepared, not shown.",
+          "range": "≥ 0"
+        },
+        {
           "key": "loadRadius",
           "type": "number",
           "default": "2000",
@@ -5511,6 +5518,7 @@
         }
       ],
       "animatable": [
+        "prefetchRadius",
         "loadRadius",
         "unloadRadius"
       ]
