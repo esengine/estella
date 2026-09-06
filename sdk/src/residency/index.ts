@@ -15,7 +15,7 @@ export {
 } from './cells';
 export {
     WorldStreamer, WorldStreaming,
-    type CellResidency, type WorldStreamHost, type WorldStreamerStatus,
+    type CellResidency, type WorldStreamHost, type WorldStreamerStatus, type CellDelivery,
 } from './WorldStreamer';
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
 export { worldResidencyReport, type WorldResidencyReport } from './report';

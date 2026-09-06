@@ -16,7 +16,7 @@
 
 import type { App } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
-import { WorldStreaming } from './WorldStreamer';
+import { WorldStreaming, type CellDelivery } from './WorldStreamer';
 import { stableEntityId } from './identity';
 import { renderableComponents } from '../ecs/component';
 
@@ -38,8 +38,11 @@ export interface WorldResidencyReport {
     unloadCount: number;
     prepareCount: number;
     cancelCount: number;
+    /** Of those preparations, the ones begun before anything asked for the cell. */
+    prefetchRequests: number;
     /** Acquisitions given back by discarding readiness — not by unloading. */
     cancelledRefs: number;
+    /** What demand FOUND, counted the instant it arrived. See `WorldStreamerStatus`. */
     prefetchHits: number;
     prefetchMisses: number;
     lastDemandToResidentMs: number;
@@ -62,18 +65,19 @@ export interface WorldResidencyReport {
     /** Their handles. Unchanged for the life of the world — that is the claim. */
     persistentHandles: number[];
     /**
-     * Per cell: where its last load spent its time, and issue-to-resident wall
-     * time. The phases run between frames, which is why no frame profiler holds
-     * them and why a total is not a hitch.
+     * Per cell: where its last delivery spent its time, and whether the ask for
+     * it found readiness waiting. The phases run between frames, which is why no
+     * frame profiler holds them and why a total is not a hitch.
      */
-    delivery: Record<string, { phases: Record<string, number>; deliveryMs: number }>;
+    delivery: Record<string, CellDelivery>;
 }
 
 const EMPTY: WorldResidencyReport = {
     streamed: false, cellCount: 0, sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
     loadingCells: [], unloadingCells: [],
-    loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0, cancelledRefs: 0,
+    loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0,
+    prefetchRequests: 0, cancelledRefs: 0,
     prefetchHits: 0, prefetchMisses: 0, lastDemandToResidentMs: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
     authoredCellEntityCounts: {}, cellRows: {},
@@ -133,6 +137,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         unloadCount: status.unloadCount,
         prepareCount: status.prepareCount,
         cancelCount: status.cancelCount,
+        prefetchRequests: status.prefetchRequests,
         cancelledRefs: status.cancelledRefs,
         prefetchHits: status.prefetchHits,
         prefetchMisses: status.prefetchMisses,

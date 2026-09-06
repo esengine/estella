@@ -10317,7 +10317,7 @@ cellCount: number
 cellEntityCounts: Record<string, number>
 cellRenderCounts: Record<string, number>
 cellRows: Record<string, { id: number; entity: number; }[]>
-delivery: Record<string, { phases: Record<string, number>; deliveryMs: number; }>
+delivery: Record<string, CellDelivery>
 desiredCells: string[]
 lastDemandToResidentMs: number
 loadCount: number
@@ -10327,6 +10327,7 @@ persistentHandles: number[]
 prefetchCells: string[]
 prefetchHits: number
 prefetchMisses: number
+prefetchRequests: number
 prepareCount: number
 preparedCells: string[]
 residentCells: string[]
@@ -10349,7 +10350,7 @@ unload: (name: string, options?: { keepPersistent?: boolean; }) => Promise<void>
 ## WorldStreamer — class @experimental
 ```
 clear: () => void
-delivery: () => Record<string, { phases: Record<string, number>; deliveryMs: number; }>
+delivery: () => Record<string, CellDelivery>
 loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig) => void
 manifest: WorldManifest | null
 recordPhase: (name: string, phase: string, ms: number) => void
@@ -10372,6 +10373,7 @@ loadingCells: string[]
 prefetchCells: string[]
 prefetchHits: number
 prefetchMisses: number
+prefetchRequests: number
 prepareCount: number
 preparedCells: string[]
 residentCells: string[]

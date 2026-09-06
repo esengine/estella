@@ -284,6 +284,96 @@ describe('WorldStreamer', () => {
         expect(streamer.status().prefetchHits).toBe(0);
     });
 
+    it('calls a preparation still in flight a miss, however it ends', async () => {
+        // Rules out reading a hit as "prepared by the time we published it",
+        // which is true of every cell that loads. This speculation had not
+        // landed when the place was wanted, so it bought nothing.
+        const { host, settle, defer } = recordingHost();
+        defer(true);
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(3, 0)));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        expect(streamer.residencyOf('c_3_0')).toBe('preparing');
+
+        streamer.update([source(280, 50, 100, 150, 400)]);
+        expect(streamer.status().prefetchMisses).toBe(1);
+        expect(streamer.status().prefetchHits).toBe(0);
+
+        // It goes on to publish from that preparation — the move is right and
+        // only the CREDIT is refused.
+        settle();
+        await flush();
+        settle();
+        await flush();
+        expect(streamer.residencyOf('c_3_0')).toBe('resident');
+        expect(streamer.status().prefetchHits).toBe(0);
+        expect(streamer.delivery()['c_3_0'].outcome).toBe('miss');
+    });
+
+    it('counts a preparation as speculative only when nothing had asked yet', async () => {
+        const { host } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(0, 0), cell(3, 0)));
+        // c_0_0 is demanded outright; c_3_0 is only speculated about.
+        streamer.update([source(50, 50, 100, 150, 400)]);
+        await flush();
+        expect(streamer.status().prepareCount).toBe(2);
+        expect(streamer.status().prefetchRequests).toBe(1);
+    });
+
+    it('reports a dwell only where readiness actually waited', async () => {
+        const { host } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(0, 0), cell(3, 0)));
+        // The band is as wide as the speculation, so walking on does not give
+        // c_0_0 up and re-speculate about it — which would clear the very
+        // verdict this is reading.
+        streamer.update([source(50, 50, 100, 400, 400)]);
+        await flush();
+        streamer.update([source(280, 50, 100, 400, 400)]);
+        await flush();
+        const delivery = streamer.delivery();
+        // c_0_0 was wanted the instant it was heard of; c_3_0 sat ready first.
+        expect(delivery['c_0_0'].outcome).toBe('miss');
+        expect(delivery['c_0_0'].dwellMs).toBe(0);
+        expect(delivery['c_3_0'].outcome).toBe('hit');
+        expect(delivery['c_3_0'].dwellMs).toBeGreaterThanOrEqual(0);
+        expect(delivery['c_3_0'].publishMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('readies again, at once, a cell it gave up while still speculating about it', async () => {
+        // The shape of speculation without a heading: the streamer knows how far
+        // a source is, never which way it is going. Hence the authoring rule —
+        // keep prefetchRadius inside unloadRadius, or leaving refetches.
+        const { host } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20, 400)]);
+        await flush();
+        expect(streamer.residencyOf('c_0_0')).toBe('resident');
+
+        // 25 out: past unloadRadius 20, and far inside prefetchRadius 400.
+        streamer.update([source(125, 50, 10, 20, 400)]);
+        await flush();
+        expect(streamer.status().unloadCount).toBe(1);
+        expect(streamer.residencyOf('c_0_0')).toBe('prepared');
+        expect(streamer.status().prepareCount).toBe(2);
+        // And the delivery that ended does not lend its verdict to the one that
+        // has not been asked for: a report reading this row would otherwise
+        // count a hit for a cell nobody has demanded since.
+        expect(streamer.delivery()['c_0_0'].outcome).toBe('');
+
+        // With the band wider than the speculation, the same departure is final.
+        const second = recordingHost();
+        const kept = new WorldStreamer(second.host);
+        kept.loadManifest(manifest(cell(0, 0)));
+        kept.update([source(50, 50, 10, 400, 400)]);
+        await flush();
+        kept.update([source(125, 50, 10, 400, 400)]);
+        await flush();
+        expect(kept.residencyOf('c_0_0')).toBe('resident');
+    });
+
     it('throws away what a source turned away from, rather than publishing it', async () => {
         const { host, calls, loaded } = recordingHost();
         const streamer = new WorldStreamer(host);

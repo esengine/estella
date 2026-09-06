@@ -68,11 +68,15 @@ export interface WorldStreamerStatus {
     /** Preparations begun, and preparations thrown away unpublished. */
     prepareCount: number;
     cancelCount: number;
+    /** Of those preparations, the ones begun for a cell nobody had asked for yet. */
+    prefetchRequests: number;
     /** Acquisitions given back by discarding readiness — not by unloading. */
     cancelledRefs: number;
     /**
-     * Publications that had a prepared cell waiting, and publications that had to
-     * do the preparing themselves. The second is a player arriving early.
+     * Decided the instant a cell is first DEMANDED, by what demand finds there:
+     * readiness that already exists is a hit, and anything else — nothing, or a
+     * preparation still in flight — is a miss. A preparation that was on its way
+     * is not a hit: the player waited for it either way.
      */
     prefetchHits: number;
     prefetchMisses: number;
@@ -95,8 +99,35 @@ interface CellState {
     delivery: number;
     /** When it became demanded, so the latency a player feels can be measured. */
     demandedAt: number;
-    /** Whether the preparation now running was begun because it was ALREADY wanted. */
-    preparedUnderDemand: boolean;
+    /** When readiness arrived, so how long it then sat unused is measurable. */
+    preparedAt: number;
+    /** When publication began, so the wait BEFORE it is not charged to it. */
+    publishedAt: number;
+    /** Issue to prepared: what a hit takes off the latency a player feels. */
+    prepareMs: number;
+    /** Publish to resident: what a hit still costs, whatever prefetch does. */
+    publishMs: number;
+    /** Demanded to resident — the whole of what a player waits through. */
+    demandToResidentMs: number;
+    /** Prepared to demanded. Only a hit has one; a miss had nothing waiting. */
+    dwellMs: number;
+    /** What the last demand for this cell found. */
+    outcome: 'hit' | 'miss' | '';
+}
+
+/** Where one cell's last delivery spent its time. @experimental */
+export interface CellDelivery {
+    /** Phases of the preparation, which runs between frames and on no system timer. */
+    phases: Record<string, number>;
+    /** Issue to resident. For a hit this contains the dwell, so it is not a latency. */
+    deliveryMs: number;
+    prepareMs: number;
+    publishMs: number;
+    /** The latency a player feels: from wanting the place to standing in it. */
+    demandToResidentMs: number;
+    /** How long readiness waited to be wanted. Zero on a miss — nothing waited. */
+    dwellMs: number;
+    outcome: 'hit' | 'miss' | '';
 }
 
 export class WorldStreamer {
@@ -110,6 +141,7 @@ export class WorldStreamer {
     private prepareCount_ = 0;
     private cancelCount_ = 0;
     private cancelledRefs_ = 0;
+    private prefetchRequests_ = 0;
     private prefetchHits_ = 0;
     private prefetchMisses_ = 0;
     private lastDemandToResident_ = 0;
@@ -133,7 +165,8 @@ export class WorldStreamer {
             this.cells_.set(cell.name, {
                 cell, residency: 'unloaded', desired: false, speculated: false,
                 phases: {}, issuedAt: 0, delivery: 0,
-                demandedAt: 0, preparedUnderDemand: false,
+                demandedAt: 0, preparedAt: 0, publishedAt: 0,
+                prepareMs: 0, publishMs: 0, demandToResidentMs: 0, dwellMs: 0, outcome: '',
             });
         }
     }
@@ -157,12 +190,26 @@ export class WorldStreamer {
         if (state) state.phases[phase] = (state.phases[phase] ?? 0) + ms;
     }
 
-    /** Per cell: the phases of its last load, and issue-to-resident wall time. */
-    delivery(): Record<string, { phases: Record<string, number>; deliveryMs: number }> {
-        const out: Record<string, { phases: Record<string, number>; deliveryMs: number }> = {};
+    /**
+     * Per cell: where its last delivery spent its time.
+     *
+     * Per CELL and not a running average, because the question prefetch answers
+     * is asked one arrival at a time: a mean over hits and misses together
+     * describes no arrival that happened.
+     */
+    delivery(): Record<string, CellDelivery> {
+        const out: Record<string, CellDelivery> = {};
         for (const [name, state] of this.cells_) {
             if (state.delivery === 0 && Object.keys(state.phases).length === 0) continue;
-            out[name] = { phases: { ...state.phases }, deliveryMs: state.delivery };
+            out[name] = {
+                phases: { ...state.phases },
+                deliveryMs: state.delivery,
+                prepareMs: state.prepareMs,
+                publishMs: state.publishMs,
+                demandToResidentMs: state.demandToResidentMs,
+                dwellMs: state.dwellMs,
+                outcome: state.outcome,
+            };
         }
         return out;
     }
@@ -192,9 +239,7 @@ export class WorldStreamer {
         const now = performance.now();
         for (const [name, state] of this.cells_) {
             const wanted = target.has(name);
-            // The moment demand begins, so what a prefetch hit is worth can be
-            // measured rather than asserted.
-            if (wanted && !state.desired) state.demandedAt = now;
+            if (wanted && !state.desired) this.demand_(state, now);
             state.desired = wanted;
             state.speculated = speculated.has(name);
         }
@@ -241,10 +286,34 @@ export class WorldStreamer {
             loadingCells, unloadingCells,
             loadCount: this.loadCount_, unloadCount: this.unloadCount_,
             prepareCount: this.prepareCount_, cancelCount: this.cancelCount_,
+            prefetchRequests: this.prefetchRequests_,
             cancelledRefs: this.cancelledRefs_,
             prefetchHits: this.prefetchHits_, prefetchMisses: this.prefetchMisses_,
             lastDemandToResidentMs: this.lastDemandToResident_,
         };
+    }
+
+    /**
+     * A cell has just been asked for, and what the ask FINDS is the hit.
+     *
+     * Not judged at publication: "prepared by the time we published it" is true
+     * of every cell that ever loads. Only readiness that already existed when
+     * the ask arrived took anything off the wait.
+     */
+    private demand_(state: CellState, now: number): void {
+        state.demandedAt = now;
+        // Already here, or already on its way in: this ask owes no publication,
+        // so there is nothing for speculation to have been early for.
+        if (state.residency === 'resident' || state.residency === 'publishing') return;
+        if (state.residency === 'prepared') {
+            this.prefetchHits_++;
+            state.outcome = 'hit';
+            state.dwellMs = now - state.preparedAt;
+        } else {
+            this.prefetchMisses_++;
+            state.outcome = 'miss';
+            state.dwellMs = 0;
+        }
     }
 
     /**
@@ -278,11 +347,23 @@ export class WorldStreamer {
         state.residency = 'preparing';
         state.phases = {};
         state.issuedAt = performance.now();
-        state.preparedUnderDemand = state.desired;
+        state.prepareMs = 0;
+        state.publishMs = 0;
+        state.demandToResidentMs = 0;
         this.prepareCount_++;
+        if (!state.desired) {
+            // Speculating afresh about a cell whose last delivery is over. Its
+            // verdict belonged to THAT delivery, and carrying it forward would
+            // report a hit for an ask nobody has made yet.
+            this.prefetchRequests_++;
+            state.outcome = '';
+            state.dwellMs = 0;
+        }
         Promise.resolve(this.host_.prepare(name)).then(
             () => {
                 state.residency = 'prepared';
+                state.preparedAt = performance.now();
+                state.prepareMs = state.preparedAt - state.issuedAt;
                 // What finished was begun against a world that has moved. Whether
                 // this cell is still wanted — or wanted now when it was not — is
                 // asked again here rather than assumed from when it started.
@@ -297,15 +378,17 @@ export class WorldStreamer {
 
     private beginLoad_(name: string, state: CellState): void {
         state.residency = 'publishing';
-        if (state.preparedUnderDemand) this.prefetchMisses_++;
-        else this.prefetchHits_++;
+        state.publishedAt = performance.now();
         this.loadCount_++;
         Promise.resolve(this.host_.loadAdditive(name)).then(
             () => {
+                const now = performance.now();
                 state.residency = 'resident';
-                state.delivery = performance.now() - state.issuedAt;
+                state.delivery = now - state.issuedAt;
+                state.publishMs = now - state.publishedAt;
                 if (state.demandedAt > 0) {
-                    this.lastDemandToResident_ = performance.now() - state.demandedAt;
+                    state.demandToResidentMs = now - state.demandedAt;
+                    this.lastDemandToResident_ = state.demandToResidentMs;
                 }
                 this.step_(name);
             },
