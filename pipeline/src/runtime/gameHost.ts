@@ -140,6 +140,7 @@ async function boot(): Promise<void> {
   setPlayMode(true);
 
   if (headless) {
+    let statsOn = false;
     (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = {
       capture(): { width: number; height: number; rgba: Uint8Array } {
         const w = canvas.width, h = canvas.height;
@@ -484,14 +485,19 @@ async function boot(): Promise<void> {
        * shows on no system timer, while registering what it spawned happens
        * inside systems on the frames after. Engaging the stats fills this.
        */
-      costs(top = 8): Array<{ name: string; ms: number }> {
-        app.enableStats();
+      costs(top = 8): { on: boolean; systems: Array<{ name: string; ms: number }> } {
+        // Engaged once. Re-enabling every call swaps the maps the frame just
+        // filled, which reads as an engine that costs nothing.
+        if (!statsOn) { app.enableStats(); statsOn = true; }
         const costs = app.getFrameCosts();
-        if (!costs) return [];
-        return [...costs.systems]
-          .map((s) => ({ name: s.name, ms: s.ms }))
-          .sort((a, b) => b.ms - a.ms)
-          .slice(0, top);
+        if (!costs) return { on: false, systems: [] };
+        return {
+          on: true,
+          systems: [...costs.systems]
+            .map((s) => ({ name: s.name, ms: s.ms }))
+            .sort((a, b) => b.ms - a.ms)
+            .slice(0, top),
+        };
       },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a

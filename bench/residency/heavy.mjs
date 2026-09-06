@@ -207,23 +207,39 @@ function main() {
     const heavy = frames.filter((f) => f.ms > 1.0);
     const arrival = frames.find((f, i) => i > 0 && frames[i - 1].resident === 0 && f.resident > 0);
     console.log(`\nheavy cell — 1 skin, ${PROPS} imported props, ${BODIES} bodies\n`);
-    console.log('  preparation (between frames, no system timer holds it):');
+    // Which HALF a phase belongs to is what decides whether prefetch can hide
+    // it: `prepare()` can run before a player wants the place, and `spawn` is
+    // paid at the door however early the readying happened.
+    const PREPARATION = new Set(['fetch', 'prefab', 'assets']);
     for (const [cell, v] of Object.entries(delivery ?? {})) {
-        for (const [phase, ms] of Object.entries(v.phases).sort((a, b) => b[1] - a[1])) {
-            console.log(`    ${phase.padEnd(8)} ${ms.toFixed(2).padStart(8)} ms`);
+        const phases = Object.entries(v.phases).sort((a, b) => b[1] - a[1]);
+        const total = (keep) => phases.filter(([p]) => PREPARATION.has(p) === keep)
+            .reduce((sum, [, ms]) => sum + ms, 0);
+        console.log('  preparation — between frames, on no system timer, and hideable:');
+        for (const [phase, ms] of phases) {
+            if (PREPARATION.has(phase)) console.log(`    ${phase.padEnd(8)} ${ms.toFixed(2).padStart(8)} ms`);
         }
-        console.log(`    ${'delivery'.padEnd(8)} ${v.deliveryMs.toFixed(2).padStart(8)} ms  (issue → resident, ${cell})`);
+        console.log(`    ${'= total'.padEnd(8)} ${total(true).toFixed(2).padStart(8)} ms`);
+        console.log('\n  publication — what demand pays whatever prefetch did:');
+        for (const [phase, ms] of phases) {
+            if (!PREPARATION.has(phase)) console.log(`    ${phase.padEnd(8)} ${ms.toFixed(2).padStart(8)} ms`);
+        }
+        console.log(`    ${'= total'.padEnd(8)} ${total(false).toFixed(2).padStart(8)} ms`);
+        console.log(`\n    ${'delivery'.padEnd(8)} ${v.deliveryMs.toFixed(2).padStart(8)} ms  (issue → resident, ${cell})`);
     }
     console.log('\n  the frames it cost, by system:');
     for (const f of heavy.slice(0, 12)) {
         const at = frames.indexOf(f);
-        const top = (f.costs ?? []).slice(0, 4).map((c) => `${c.name} ${c.ms.toFixed(2)}`).join(', ');
+        const rows = f.costs?.systems ?? [];
+        const top = f.costs && !f.costs.on ? 'stats never engaged'
+            : rows.slice(0, 4).map((c) => `${c.name} ${c.ms.toFixed(2)}`).join(', ');
         console.log(`    f${String(at).padEnd(4)} ${f.ms.toFixed(2).padStart(6)} ms  ent=${f.entities} bodies=${f.bodies}${top ? `  | ${top}` : ''}`);
     }
     const worst = Math.max(...frames.map((f) => f.ms));
-    const spawn = Object.values(delivery ?? {})[0]?.phases?.spawn ?? 0;
-    console.log(`\n  largest single frame ${worst.toFixed(1)} ms; largest atomic preparation phase `
-        + `${Math.max(spawn, ...Object.values(Object.values(delivery ?? {})[0]?.phases ?? { a: 0 })).toFixed(1)} ms`);
+    const phases = Object.values(delivery ?? {})[0]?.phases ?? {};
+    const largest = Object.entries(phases).sort((a, b) => b[1] - a[1])[0] ?? ['none', 0];
+    console.log(`\n  largest single frame ${worst.toFixed(1)} ms; largest atomic phase `
+        + `${largest[0]} ${largest[1].toFixed(1)} ms`);
     console.log(`  arrival landed on frame ${arrival ? frames.indexOf(arrival) : '(none)'}\n`);
 }
 
