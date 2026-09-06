@@ -53,13 +53,9 @@ export const TEST_PROBE_BINDINGS = [
             + ' entities so a test can check them against what the prepared document'
             + ' derived. Production never has entities at that moment — the whole point'
             + ' of preparing a cell is that it is readied before it has any — so this'
-            + ' side exists only to be the independent judge of the other.',
-    },
-    {
-        id: 'engine_prewarmMeshVariantsFromDocument',
-        why: 'the document-side derivation, still probe-only while the residency'
-            + ' lifecycle calls it from nowhere. It is the half with a production'
-            + ' consumer coming, so when preparation starts requiring a readiness'
-            + ' stamp this row is what has to be removed rather than amended.',
+            + ' side exists only to be the independent judge of the other.'
+            + ' Its document-side twin left this census when it became'
+            + ' engine_prepareMeshPrograms, which is the shape of a probe that'
+            + ' earned a production consumer.',
     },
 ];

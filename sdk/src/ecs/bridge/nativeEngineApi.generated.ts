@@ -45,6 +45,7 @@ export interface NativeEngineApi {
     engine_getCounters?(): string;
     engine_getCpuScopes?(): string;
     engine_getGpuScopes?(): string;
+    engine_prepareMeshPrograms?(rowsPtr: number, count: number, outPtr: number): void;
     engine_setCpuProfiling?(on: boolean): void;
     engine_setRandomSeed?(seed: number): void;
     environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number): number;
@@ -305,6 +306,7 @@ export function createNativeEngineApi(
     bind('engine_getCounters', 'es_engine_getCounters', false);
     bind('engine_getCpuScopes', 'es_engine_getCpuScopes', false);
     bind('engine_getGpuScopes', 'es_engine_getGpuScopes', false);
+    bind('engine_prepareMeshPrograms', 'es_engine_prepareMeshPrograms', false);
     bind('engine_setCpuProfiling', 'es_engine_setCpuProfiling', false);
     bind('engine_setRandomSeed', 'es_engine_setRandomSeed', false);
     bind('environment_create', 'es_environment_create', false);

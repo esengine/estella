@@ -244,10 +244,10 @@ async function main() {
       // not built reads as "nothing needed compiling", which is the answer the
       // experiment is trying to earn.
       const has = await exec('typeof window.__estellaCooked.prewarmMeshVariants === "function"'
-        + ' && typeof window.__estellaCooked.prewarmMeshVariantsFromDocument === "function"');
+        + ' && typeof window.__estellaCooked.prepareMeshPrograms === "function"');
       if (!has) { stop(); server.close(); return fail('this build has no prewarm probe', 2); }
       const call = step.from === 'document'
-        ? `window.__estellaCooked.prewarmMeshVariantsFromDocument(${JSON.stringify(step.cell)})`
+        ? `window.__estellaCooked.prepareMeshPrograms(${JSON.stringify(step.cell)})`
         : `window.__estellaCooked.prewarmMeshVariants(${JSON.stringify(step.cell)})`;
       console.log(`prewarm ${step.as}: ${JSON.stringify(await exec(call))}`);
       continue;

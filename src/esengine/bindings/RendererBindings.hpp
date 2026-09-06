@@ -159,6 +159,14 @@ f64 renderer_programEpoch();
 /** @brief Which generation of the GPU device is current. Not part of a readiness
  *         claim — the guard that says the claim was taken on one device. */
 f64 renderer_deviceGeneration();
+
+/**
+ * @brief Readies the mesh programs a prepared cell requires, and reports what a
+ *        readiness claim must record (layout in the .cpp).
+ * @details A generation or epoch that moves underneath voids the claim: one
+ *          assembled from two reads of different worlds is worse than none.
+ */
+void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);

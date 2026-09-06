@@ -821,6 +821,39 @@ std::string engine_getCpuScopes() {
     return FrameProfiler::get().lastJson();
 }
 
+void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr) {
+    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
+    for (u32 i = 0; i < 11; ++i) out[i] = 0;
+    if (!g_initialized || !g_renderFrame || !g_device) return;
+    const auto* rc = ctx().tryGet<RenderContext>();
+    if (!rc) return;
+
+    // Bracketed: a generation or epoch that moved underneath means neither
+    // reading describes the live renderer, so no claim is produced rather than
+    // one assembled out of two different worlds.
+    const u64 generationBefore = g_device->deviceGeneration();
+    const u64 epochBefore = rc->programEpoch();
+
+    const auto* rows = reinterpret_cast<const MeshDocumentRecord*>(static_cast<uintptr_t>(rowsPtr));
+    const RenderPrewarmResult r = g_renderFrame->prewarmDocument(rows, count);
+
+    const u64 generationAfter = g_device->deviceGeneration();
+    const u64 epochAfter = rc->programEpoch();
+
+    out[0] = (generationBefore == generationAfter && epochBefore == epochAfter) ? 1u : 0u;
+    out[1] = r.asks;
+    out[2] = r.compiles;
+    out[3] = r.materialAsks;
+    out[4] = r.materialCompiles;
+    const u64 digest = r.requirementDigest();
+    out[5] = static_cast<u32>(digest & 0xFFFFFFFFull);
+    out[6] = static_cast<u32>(digest >> 32);
+    out[7] = static_cast<u32>(epochAfter & 0xFFFFFFFFull);
+    out[8] = static_cast<u32>(epochAfter >> 32);
+    out[9] = static_cast<u32>(generationAfter & 0xFFFFFFFFull);
+    out[10] = static_cast<u32>(generationAfter >> 32);
+}
+
 #ifdef ES_ENABLE_TEST_PROBES
 /** Eleven words: five counts, the 64-bit stock key set, the requirement digest
  *  that also covers the material programs, and the epoch the digest was taken
@@ -856,13 +889,6 @@ void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 co
     writePrewarm(out, g_renderFrame->prewarmPrograms(registry, entities, count));
 }
 
-void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr) {
-    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 13; ++i) out[i] = 0;
-    if (!g_initialized || !g_renderFrame) return;
-    const auto* rows = reinterpret_cast<const MeshDocumentRecord*>(static_cast<uintptr_t>(rowsPtr));
-    writePrewarm(out, g_renderFrame->prewarmDocument(rows, count));
-}
 #endif
 
 std::string engine_getCounters() {

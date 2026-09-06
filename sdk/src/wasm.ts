@@ -293,6 +293,13 @@ export interface ESEngineModule {
      * Optional: absent on an older wasm build.
      */
     renderer_deviceGeneration?(): number;
+    /**
+     * Ready the mesh programs a prepared cell requires, from its decoded document
+     * — no entity of it need exist, which is what preparing means. Eleven words
+     * out: claim-valid, four counts, the requirement digest, its epoch, and the
+     * device generation that witnessed it. Optional: absent on an older wasm.
+     */
+    engine_prepareMeshPrograms?(rowsPtr: number, count: number, outPtr: number): void;
     /** Release a mesh and the buffers it owns. */
     mesh_release?(meshHandle: number): void;
     /**

@@ -151,6 +151,8 @@ function drive(name, options) {
     return readings;
 }
 
+const digestOf = (r) => `${r.digestHi.toString(16)}${r.digestLo.toString(16).padStart(8, '0')}`;
+
 const keySet = (r) => {
     const keys = [];
     for (let i = 0; i < 32; i++) {
@@ -184,15 +186,20 @@ function main() {
         runs.set(name, r);
         const doc = r.get('document');
         const live = r.get('entities');
-        const docKeys = keySet(doc);
         const liveKeys = keySet(live);
-        console.log(`  ${name}: document {${docKeys.join(', ')}} in ${doc.ms.toFixed(2)} ms`
+        console.log(`  ${name}: document ${digestOf(doc)} in ${doc.ms.toFixed(2)} ms`
             + ` (${doc.compiles} compile(s), ${doc.materialAsks} material ask(s));`
-            + ` entities {${liveKeys.join(', ')}} in ${live.ms.toFixed(2)} ms`
+            + ` entities {${liveKeys.join(', ')}} ${digestOf(live)} in ${live.ms.toFixed(2)} ms`
             + ` (${live.compiles} compile(s), ${live.materialAsks} material ask(s))`);
-        check(doc.keysLo === live.keysLo && doc.keysHi === live.keysHi,
+        // The digest, not the key set: production returns no keys — naming the
+        // variants is the oracle's job — and the digest is the stronger claim
+        // anyway, covering material programs the key set is silent about.
+        check(doc.digestLo === live.digestLo && doc.digestHi === live.digestHi,
             `${name}: what the prepared cell knows equals what its entities ask for`,
-            `{${docKeys.join(', ')}} against {${liveKeys.join(', ')}}`);
+            `${digestOf(doc)} against ${digestOf(live)}`);
+        check(doc.claimValid === 1,
+            `${name}: and the readying produced a claim — nothing moved underneath it`,
+            `claimValid=${doc.claimValid}`);
         // The entity pass runs second, so what it still builds is what the
         // document did not know about — and this is non-vacuous only if the
         // document pass built something at all.
@@ -202,12 +209,6 @@ function main() {
         check(live.compiles === 0,
             `${name}: and readying from the document left nothing for them to compile`,
             `${live.compiles} late compile(s)`);
-        // The stamp, both halves: derived twice by different routes over the same
-        // content, it has to name the same requirement set under the same epoch.
-        check(doc.digestLo === live.digestLo && doc.digestHi === live.digestHi,
-            `${name}: the requirement digest is the same from the document and the entities`,
-            `${doc.digestHi.toString(16)}${doc.digestLo.toString(16)}`
-            + ` against ${live.digestHi.toString(16)}${live.digestLo.toString(16)}`);
         check(doc.programEpoch === live.programEpoch,
             `${name}: and both were taken under the same program epoch`,
             `${doc.programEpoch} against ${live.programEpoch}`);
@@ -219,9 +220,9 @@ function main() {
         if (name === 'plain') {
             // nothing fixture-specific: this one exists to be compared against.
         } else if (name === 'shadow') {
-            check(docKeys.some((k) => (k & 16) !== 0),
+            check(liveKeys.some((k) => (k & 16) !== 0),
                 'shadow: the depth-pass variant is a requirement, not a possibility',
-                `keys {${docKeys.join(', ')}} — bit 16 is depthOnly`);
+                `keys {${liveKeys.join(', ')}} — bit 16 is depthOnly`);
         } else {
             check(doc.materialAsks > 0 && doc.materialAsks === live.materialAsks,
                 'material: the material-owned path is enumerated, and the same both ways',
@@ -234,8 +235,10 @@ function main() {
     // The claim `keys` alone cannot make: same geometry, same stock variants, one
     // shaded by a material. A digest blind to that path would call the two
     // worlds identical and let a stamp from one vouch for the other.
-    const plain = runs.get('plain').get('document');
-    const shaded = runs.get('material').get('document');
+    // Read off the ORACLE side, which is the one that reports keys; the equality
+    // above has already tied each document's digest to its entities'.
+    const plain = runs.get('plain').get('entities');
+    const shaded = runs.get('material').get('entities');
     console.log('');
     check(plain.keysLo === shaded.keysLo && plain.keysHi === shaded.keysHi,
         'the plain and material worlds need the SAME stock variants',

@@ -142,6 +142,21 @@ async function boot(): Promise<void> {
   if (headless) {
     let statsOn = false;
     const PREWARM_WORDS = 13;
+    const PREPARE_WORDS = 11;
+
+    /** Eleven words back from the production readying: whether a claim may be
+     *  recorded at all, four counts, and the stamp with the generation that
+     *  witnessed it. No key set — that is the oracle's job, not production's. */
+    const readPrepare = (heap: Uint32Array, ptr: number): Record<string, number> => {
+      const o = heap.subarray(ptr >> 2, (ptr >> 2) + PREPARE_WORDS);
+      return {
+        claimValid: o[0],
+        asks: o[1], compiles: o[2], materialAsks: o[3], materialCompiles: o[4],
+        digestLo: o[5], digestHi: o[6],
+        programEpoch: o[7] + o[8] * 0x100000000,
+        deviceGeneration: o[9] + o[10] * 0x100000000,
+      };
+    };
     /** Thirteen words out: five counts, the stock key SET, the readiness stamp
      *  (digest over BOTH program paths plus the epoch it was taken under), and
      *  the device generation that guards it — never part of the claim itself. */
@@ -193,11 +208,11 @@ async function boot(): Promise<void> {
     };
 
     /**
-     * The same readiness from the cell's DOCUMENT and the assets its preparation
-     * decoded — no entity is consulted. Whether those facts SUFFICE is a claim
-     * about the two derivations being equal, not about this call succeeding.
+     * The production path: readiness from the cell's DOCUMENT and the assets its
+     * preparation decoded, no entity consulted. Whether those facts SUFFICE is a
+     * claim about the two derivations agreeing, not about this call succeeding.
      */
-    const prewarmMeshVariantsFromDocument = async (cell: string): Promise<Record<string, number>> => {
+    const prepareMeshPrograms = async (cell: string): Promise<Record<string, number>> => {
       const found = worlds.flatMap((w) => w.cells).find((c) => c.name === cell);
       if (!found) throw new Error(`[estella] no cooked cell "${cell}"`);
       const doc = (await (await fetch(`./${found.path}`)).json()) as SceneData;
@@ -221,16 +236,16 @@ async function boot(): Promise<void> {
         _malloc(n: number): number;
         _free(p: number): void;
         HEAPU32: Uint32Array;
-        engine_prewarmMeshVariantsFromDocument(rowsPtr: number, count: number, outPtr: number): void;
+        engine_prepareMeshPrograms(rowsPtr: number, count: number, outPtr: number): void;
       };
       const rowsPtr = m._malloc(rows.length * 4);
-      const outPtr = m._malloc(PREWARM_WORDS * 4);
+      const outPtr = m._malloc(PREPARE_WORDS * 4);
       try {
         m.HEAPU32.set(rows, rowsPtr >> 2);
         const began = performance.now();
-        m.engine_prewarmMeshVariantsFromDocument(rowsPtr, rows.length / 5, outPtr);
+        m.engine_prepareMeshPrograms(rowsPtr, rows.length / 5, outPtr);
         const ms = performance.now() - began;
-        return { ms, entities: rows.length / 5, ...readPrewarm(m.HEAPU32, outPtr) };
+        return { ms, entities: rows.length / 5, ...readPrepare(m.HEAPU32, outPtr) };
       } finally {
         m._free(rowsPtr);
         m._free(outPtr);
@@ -631,14 +646,13 @@ async function boot(): Promise<void> {
         return { changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length };
       },
     };
-    // Registered only where the engine answers it. A release build exports no
-    // test adapter, and a probe that existed there and threw would turn "this
-    // build cannot do that" into a runtime error about something else.
-    if (typeof (module as unknown as Record<string, unknown>).engine_prewarmMeshVariants
-        === 'function') {
-      cooked.prewarmMeshVariants = prewarmMeshVariants;
-      cooked.prewarmMeshVariantsFromDocument = prewarmMeshVariantsFromDocument;
-    }
+    // Each behind its OWN export. They are different ABIs now: readying a
+    // prepared cell ships, and deriving the same from live entities is the
+    // oracle that judges it and exists only in a probe build.
+    const has = (name: string): boolean =>
+      typeof (module as unknown as Record<string, unknown>)[name] === 'function';
+    if (has('engine_prepareMeshPrograms')) cooked.prepareMeshPrograms = prepareMeshPrograms;
+    if (has('engine_prewarmMeshVariants')) cooked.prewarmMeshVariants = prewarmMeshVariants;
     (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = cooked;
   }
   // physics.wasm sits next to esengine.wasm; the runtime loads it when a scene

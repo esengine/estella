@@ -23,16 +23,12 @@ namespace ecs { class Registry; }
 /**
  * @brief Ready the shader programs a set of entities will need, drawing none.
  *
- * @details A disposable adapter over `RenderFrame::prewarmPrograms` — the only
- *          gated part of shader readiness, the mechanism being ordinary renderer
- *          code a production lifecycle would call directly. Writes seven counts
- *          to @p outPtr; JSON here would put an allocation inside the measurement.
+ * @details The EQUIVALENCE oracle. Production readies a cell from its document
+ *          (engine_prepareMeshPrograms) precisely because it has no entities
+ *          yet; this derives the same requirements from live ones, so a test can
+ *          judge the two against each other. Thirteen words to @p outPtr.
  */
 void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr);
-
-/** @brief The same, from a prepared cell's own description — five words per
- *         renderable at @p rowsPtr, and no entity of it need exist. */
-void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr);
 
 }  // namespace esengine
 

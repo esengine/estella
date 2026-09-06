@@ -266,6 +266,7 @@ draw_textureRotated: (x: number, y: number, width: number, height: number, rotat
 engine_getCounters: (() => string) | undefined
 engine_getCpuScopes: (() => string) | undefined
 engine_getGpuScopes: (() => string) | undefined
+engine_prepareMeshPrograms: ((rowsPtr: number, count: number, outPtr: number) => void) | undefined
 engine_setCpuProfiling: ((on: boolean) => void) | undefined
 engine_setRandomSeed: ((seed: number) => void) | undefined
 environment_create: ((shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number) => number) | undefined
