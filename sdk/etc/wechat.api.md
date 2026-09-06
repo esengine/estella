@@ -4489,7 +4489,9 @@ settled: () => Promise<void>
 ## LoadRuntimeSceneOptions — interface @experimental
 ```
 app: App
+externalEntities: ReadonlyMap<number, number> | undefined
 module: ESEngineModule | null
+onPhase: ((phase: string, ms: number) => void) | undefined
 physics3dModule: Physics3DWasmModule | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
@@ -7267,6 +7269,7 @@ cleanup: ((ctx: SceneContext) => void) | undefined
 data: SceneData | undefined
 externalEntities: (() => ReadonlyMap<number, Entity>) | undefined
 name: string
+onPhase: ((phase: string, ms: number) => void) | undefined
 path: string | undefined
 setup: ((ctx: SceneContext) => void | Promise<void>) | undefined
 systems: { schedule: Schedule; system: SystemDef; }[] | undefined
@@ -7325,6 +7328,7 @@ assets: Assets | undefined
 collectAssets: LoadedSceneAssets | undefined
 externalEntities: ReadonlyMap<number, number> | undefined
 onMissingAssets: MissingAssetCallback | undefined
+onPhase: ((phase: string, ms: number) => void) | undefined
 onProgress: SceneLoadProgressCallback | undefined
 ```
 
@@ -10120,6 +10124,7 @@ cellCount: number
 cellEntityCounts: Record<string, number>
 cellRenderCounts: Record<string, number>
 cellRows: Record<string, { id: number; entity: number; }[]>
+delivery: Record<string, { phases: Record<string, number>; deliveryMs: number; }>
 desiredCells: string[]
 loadCount: number
 loadingCells: string[]
@@ -10143,8 +10148,10 @@ unload: (name: string, options?: { keepPersistent?: boolean; }) => Promise<void>
 ## WorldStreamer — class @experimental
 ```
 clear: () => void
+delivery: () => Record<string, { phases: Record<string, number>; deliveryMs: number; }>
 loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig) => void
 manifest: WorldManifest | null
+recordPhase: (name: string, phase: string, ms: number) => void
 residencyOf: (name: string) => CellResidency
 status: () => WorldStreamerStatus
 update: (sources: readonly ResidencySource[]) => void
@@ -11908,7 +11915,7 @@ LifecyclePlugin
 
 ## loadSceneData — function @experimental
 ```
-(world: World, sceneData: SceneData): Map<number, Entity>
+(world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>): Map<number, Entity>
 ```
 
 ## loadSceneWithAssets — function @experimental
