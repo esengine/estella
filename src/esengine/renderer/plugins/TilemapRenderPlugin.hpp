@@ -22,6 +22,7 @@ public:
     void setTilemapSystem(tilemap::TilemapSystem* system) { tilemap_system_ = system; }
 
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.tilemap"; }
 
 private:
     // Per-tileset-slot geometry for one chunk. A multi-tileset layer splits a

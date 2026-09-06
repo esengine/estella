@@ -12,6 +12,7 @@ class UIElementPlugin : public BatchPlugin {
 public:
     bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.ui"; }
 
     // UI draws above world content: its sort layer is offset past the world
     // layer range. The SDK's own text renderer puts quads at the same base, so

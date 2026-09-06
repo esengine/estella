@@ -1555,13 +1555,16 @@ bool RenderFrame::visibleToCamera(i32 layer, const glm::vec3& center,
 
 void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
-    buildClipState();
-    collectLights(registry);
+    // Split because "collect is expensive" names no mechanism: planning shadows,
+    // gathering lights and walking one render type's population are different
+    // work that a single total cannot be told apart by.
+    { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
+    { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws
     // between them, and a pass opened here would swallow them.
-    buildShadowPlan(registry);
-    declareShadowPass(registry);
+    { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
+    { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
 
     auto ctx = makeContext();
 
@@ -1572,8 +1575,11 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // through a view matrix puts a HUD wherever the view happens to be looking.
     collectCtx.screen_ui = screen_domain_;
     collectCtx.lod = {view_id_, &lod_view_state_, &lod_counts_};
-    collectSky(collectCtx);
-    for (auto& plugin : plugins_) plugin->collect(collectCtx);
+    { ES_PROFILE_SCOPE("render.collect.sky"); collectSky(collectCtx); }
+    for (auto& plugin : plugins_) {
+        ES_PROFILE_SCOPE(plugin->collectScope());
+        plugin->collect(collectCtx);
+    }
 
     // The other half of what the frame cost: what it did NOT draw. Accumulated
     // like the per-type counts beside it, so a frame composited from several

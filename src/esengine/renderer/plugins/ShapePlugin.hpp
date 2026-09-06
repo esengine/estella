@@ -14,6 +14,7 @@ public:
     void shutdown() override;
 
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.shape"; }
 
 private:
     struct ShapeVertex {

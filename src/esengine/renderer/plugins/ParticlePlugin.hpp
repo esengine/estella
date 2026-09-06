@@ -25,6 +25,7 @@ public:
     // follows the tree into the screen domain too.
     bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.particle"; }
 
 private:
     particle::ParticleSystem* particle_system_ = nullptr;

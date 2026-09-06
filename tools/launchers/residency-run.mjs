@@ -270,18 +270,29 @@ async function main() {
           // the pipe to the bench (which reads as "nothing was measured").
           const costs = window.__estellaCooked.costs();
           row.on = costs.on;
+          // Two numbers, not the whole table: which frame first draws a cell's
+          // renderables is a COUNT crossing every frame needs, and a full table
+          // per frame overruns the pipe to the bench.
+          const counters = window.__estellaCooked.render();
+          row.drawn = (counters['render.meshes'] ?? 0) + (counters['render.sprites'] ?? 0)
+            + (counters['render.text'] ?? 0) + (counters['render.shapes'] ?? 0)
+            + (counters['render.particles'] ?? 0);
+          row.collect = costs.native['render.collect'] ?? 0;
           row.domains = {};
           for (const c of costs.systems) row.domains[c.domain] = (row.domains[c.domain] ?? 0) + c.ms;
           for (const d of Object.keys(row.domains)) row.domains[d] = Math.round(row.domains[d] * 1000) / 1000;
-          // The per-SYSTEM detail only where it can matter: which system inside a
-          // domain is a question worth asking of an expensive frame alone. The
-          // scopes ride with it — they nest INSIDE systems, so a reader adds one
-          // list or the other and never both.
+          // Layered by size. Scopes are a handful of rows every frame may need;
+          // the system list and counter table are dozens each, and 240 frames of
+          // those overrun the pipe (arriving as "nothing was measured").
           if (ms > ${step.costsAbove ?? 1.5}) {
-            row.costs = costs.systems.filter((c) => c.ms > 0.01);
             row.scopes = costs.scopes.filter((c) => c.ms > 0.01);
             row.native = Object.fromEntries(
               Object.entries(costs.native).filter(([, v]) => v > 0.01));
+          }
+          if (ms > ${step.detailAbove ?? 2.0}) {
+            row.costs = costs.systems.filter((c) => c.ms > 0.01);
+            row.counters = Object.fromEntries(
+              Object.entries(counters).filter(([, v]) => v > 0));
           }
           out.push(row);
           // A macrotask turn between frames. Awaiting a step only drains

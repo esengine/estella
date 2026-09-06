@@ -16,6 +16,7 @@ namespace ecs { struct BitmapText; }
 class TextPlugin : public BatchPlugin {
 public:
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.text"; }
 
 private:
     // Glyph quads cached in fontSize-applied, scale-free units relative to the

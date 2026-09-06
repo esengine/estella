@@ -30,6 +30,7 @@ public:
     void setTrailSystem(trail::TrailSystem* system) { trail_system_ = system; }
 
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.trail"; }
 
 private:
     trail::TrailSystem* trail_system_ = nullptr;

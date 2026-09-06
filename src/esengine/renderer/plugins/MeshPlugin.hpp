@@ -25,6 +25,7 @@ public:
     /// renderable's shadow is ShadowCaster2D's to cast, not the map's.
     bool castsShadows() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.mesh"; }
 
 private:
     std::vector<BatchVertex> scratch_;  ///< Reused per mesh; amortizes the transform buffer.

@@ -292,6 +292,15 @@ public:
     virtual bool drawsScreenUI() const { return false; }
 
     virtual void collect(RenderCollectContext& ctx) = 0;
+
+    /**
+     * @brief What this plugin's collect is called in a frame profile.
+     *
+     * @details A literal: the profiler keys scopes by content and keeps the
+     *          pointer. A type that does not answer is reported as `other`
+     *          rather than folded into a neighbour, whose cost it would become.
+     */
+    virtual const char* collectScope() const { return "render.collect.other"; }
 };
 
 }  // namespace esengine

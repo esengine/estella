@@ -131,24 +131,39 @@ function project(dir) {
         designResolution: { width: 640, height: 360 }, spineVersion: 'none',
     }, null, 2) + '\n');
     writeFileSync(path.join(dir, 'src', 'main.ts'), `
-import { addSystemToSchedule, Schedule, defineSystem, GetWorld, Res, Input, WorldStreamingSource } from 'esengine';
+import { addSystemToSchedule, Schedule, defineSystem, GetWorld, Res, Input, Transform, WorldStreamingSource } from 'esengine';
 import type { World, InputState } from 'esengine';
+
+// Latched, because a gesture is one frame and residency is asked every frame: a
+// system that reads the key alone would give the cell back the frame after.
+let ready = false;
+let want = false;
 
 const radiusSystem = defineSystem(
     [Res(Input), GetWorld()],
     (input: InputState, world: World) => {
-        // Digit2 readies without wanting; Digit1 wants. Pressed in that order the
-        // arrival is a HIT, and pressing Digit1 alone is the miss.
-        const ready = input.isKeyPressed('Digit2');
-        const want = input.isKeyPressed('Digit1');
-        if (!ready && !want) return;
+        if (input.isKeyPressed('Digit2')) ready = true;
+        if (input.isKeyPressed('Digit1')) want = true;
         const source = world.findEntityByName('Source');
-        if (source === null) return;
-        world.update(source, WorldStreamingSource, (s) => {
-            s.loadRadius = want ? 3000 : 0;
-            s.prefetchRadius = ready ? 3000 : 0;
-            s.unloadRadius = 3200;
-            s.enabled = true;
+        if (source !== null && (ready || want)) {
+            world.update(source, WorldStreamingSource, (s) => {
+                s.loadRadius = want ? 3000 : 0;
+                s.prefetchRadius = ready ? 3000 : 0;
+                s.unloadRadius = 3200;
+                s.enabled = true;
+            });
+        }
+        // Turning the camera away and back is what separates "publication made
+        // the renderer work" from "seeing it for the first time did".
+        const away = input.isKeyPressed('Digit3');
+        const back = input.isKeyPressed('Digit4');
+        if (!away && !back) return;
+        const camera = world.findEntityByName('Camera');
+        if (camera === null) return;
+        world.update(camera, Transform, (t) => {
+            t.rotation.x = 0; t.rotation.z = 0;
+            t.rotation.y = away ? 1 : 0;
+            t.rotation.w = away ? 0 : 1;
         });
     },
     { name: 'RadiusSystem' },
@@ -187,26 +202,31 @@ function main() {
     // Two ways into the SAME cell, each from a cold cache, because the question
     // "what does prefetch cost" has no answer from one of them: readying early
     // does not make the work cheaper, it moves WHEN it is paid.
+    // One frame at a time, every one broken down: an arrival costs its excess
+    // over a steady state, and a steady state nobody broke down is a number to
+    // subtract from rather than one to attribute.
+    const profile = (as, key) => ({ do: 'frames', as, key, count: 240, costsAbove: 0 });
     const arms = [
-        ['miss', [
-            { do: 'step', frames: 30 },
-            // One frame at a time, every one broken down: an arrival costs its
-            // excess over a steady state, and a steady state nobody broke down is
-            // a number to subtract from rather than one to attribute.
-            { do: 'frames', as: 'arrival', key: 'Digit1', count: 240, costsAbove: 0 },
-        ]],
-        ['hit', [
-            { do: 'step', frames: 30 },
-            // Readied and SETTLED first: `arrive` waits out `preparing`, so the
-            // demand below meets a cell that is already `prepared`.
-            { do: 'arrive', as: 'primed', key: 'Digit2' },
-            { do: 'frames', as: 'arrival', key: 'Digit1', count: 240, costsAbove: 0 },
-        ]],
+        ['miss', [{ do: 'step', frames: 30 }, profile('arrival', 'Digit1')]],
+        // Readied and SETTLED first: `arrive` waits out `preparing`, so the
+        // demand below meets a cell that is already `prepared`.
+        ['hit', [{ do: 'step', frames: 30 }, { do: 'arrive', as: 'primed', key: 'Digit2' },
+                 profile('arrival', 'Digit1')]],
+        // Nothing ever arrives. The control for every spike below: a renderer
+        // that produces one of these on its own is not producing it for us.
+        ['zero', [{ do: 'step', frames: 30 }, profile('arrival', null)]],
+        // Published with the camera turned away, then turned back. Which of the
+        // two profiles carries the spike is the whole experiment: publication
+        // bookkeeping shows in the first, first visibility in the second.
+        ['blind', [{ do: 'step', frames: 30 }, { do: 'tap', key: 'Digit3', frames: 10 },
+                   profile('published', 'Digit1'), profile('revealed', 'Digit4')]],
     ];
 
     for (const [arm, steps] of arms) {
-        const { frames, delivery } = drive(out, arm, steps);
-        report(arm, frames, delivery);
+        const runs = drive(out, arm, steps);
+        for (const [as, { frames, delivery }] of runs) {
+            report(`${arm}${runs.size > 1 ? `/${as}` : ''}`, frames, delivery);
+        }
     }
     console.log('');
     process.exit(failedTotal === 0 ? 0 : 1);
@@ -219,20 +239,31 @@ function drive(out, name, steps) {
     const script = path.join(WORK, `${name}.json`);
     writeFileSync(script, JSON.stringify(steps, null, 2));
     const run = runElectron([LAUNCHER, '--dir', out, '--script', script, '--w', '640', '--h', '360'],
-        { encoding: 'utf8', cwd: ROOT });
+        // Node's 1 MB default truncates a per-frame profile mid-JSON, and a
+        // truncated line parses as nothing — which this bench then reports as an
+        // engine that produced no measurement.
+        { encoding: 'utf8', cwd: ROOT, maxBuffer: 256 * 1024 * 1024 });
 
-    const readings = {};
+    // Keyed by the step's `as`, because an arm may profile twice — publishing
+    // and revealing are two events, and one overwriting the other is how the
+    // experiment that separates them stops separating them.
+    const runs = new Map();
     for (const line of (run.stdout || '').split('\n')) {
-        const at = Math.max(line.indexOf('profile '), line.indexOf('delivery '));
-        if (at < 0) continue;
-        const kind = line.slice(at, line.indexOf(' ', at));
-        try { readings[kind] = JSON.parse(line.slice(line.indexOf(line.includes('profile') && kind === 'profile' ? '[' : '{', at))); } catch { /* partial */ }
+        const match = /^(profile|delivery) ([^:]+): /.exec(line);
+        if (!match) continue;
+        const [, kind, as] = match;
+        if (!runs.has(as)) runs.set(as, { frames: null, delivery: null });
+        try {
+            const body = line.slice(line.indexOf(kind === 'profile' ? '[' : '{', match[0].length - 1));
+            runs.get(as)[kind === 'profile' ? 'frames' : 'delivery'] = JSON.parse(body);
+        } catch { /* partial line */ }
     }
-    if (!readings.profile) {
+    for (const [as, r] of runs) if (!r.frames) runs.delete(as);
+    if (runs.size === 0) {
         console.error(`✗ ${name}: nothing was measured — ${(run.stdout || run.stderr || '').slice(-500)}`);
         process.exit(2);
     }
-    return { frames: readings.profile, delivery: readings.delivery };
+    return runs;
 }
 
 function report(arm, frames, delivery) {
@@ -248,10 +279,24 @@ function report(arm, frames, delivery) {
         console.log(`  ${ok ? '✓' : '✗'} ${claim}${detail ? ` — ${detail}` : ''}`);
     };
 
-    // Index 0 included: both arms begin with nothing resident, and the hit path
-    // publishes inside the frame that asked — a finder skipping frame 0 cannot
-    // see the one arrival prefetch exists to produce.
-    const arrivalAt = frames.findIndex((f) => f.resident > 0);
+    // Three events, not one: need (the gesture), publish (the entities exist),
+    // visible (the renderer first ACCEPTS them). Anchoring on publish measures
+    // the wrong event, and a spike outside such a window is a definition.
+    const publishAt = frames.findIndex((f) => f.resident > 0);
+    const drawn = (f) => f.drawn ?? 0;
+    const floor = drawn(frames[0]);
+    const peak = Math.max(...frames.map(drawn));
+    const visibleAt = peak > floor + 10
+        ? frames.findIndex((f) => drawn(f) >= floor + (peak - floor) * 0.5)
+        : -1;
+    // An arm where nothing ever arrives is the control, and it has no window.
+    // Reported as such rather than as an arrival of zero frames: those are two
+    // different statements and only one of them is true here.
+    const arrivalAt = visibleAt >= 0 ? visibleAt : publishAt;
+    const arrived = arrivalAt >= 0;
+    console.log(`  need f0  →  publish ${publishAt < 0 ? '(never)' : `f${publishAt}`}`
+        + `  →  first renderable accepted ${visibleAt < 0 ? '(never)' : `f${visibleAt}`}`
+        + `   (${floor} → ${peak} drawn)`);
     // MEANS, and means for both halves. A median wall time against mean domain
     // times is two baselines, and the excess arithmetic below then does not
     // close — it reported 112% of an excess it had mis-subtracted.
@@ -336,15 +381,23 @@ function report(arm, frames, delivery) {
     }
 
     console.log(`\n  realization — ECS-visible → actually drawn. Steady state ${baseline.toFixed(2)} ms/frame, `
-        + `the cell became visible on frame ${arrivalAt < 0 ? '(none)' : arrivalAt}\n`);
-    console.log('    frame     wall   systems  accounted  | by domain');
-    for (const f of window) {
+        + `${arrived ? `anchored on f${arrivalAt}` : 'NOTHING ARRIVED — this is the control'}\n`);
+    console.log('    frame     wall   systems  collect    drawn  | by domain');
+    // Beyond the window: whether the first frame's collect is a ONE-OFF or the
+    // new steady cost is what one frame cannot tell apart.
+    const shown = arrived
+        ? frames.slice(arrivalAt, Math.max(arrivalAt + window.length, arrivalAt + 12))
+        : [];
+    for (const f of shown) {
         const domains = byDomain(f);
-        const accounted = [...domains.values()].reduce((a, b) => a + b, 0);
-        const top = [...domains].sort((a, b) => b[1] - a[1]).filter(([, ms]) => ms >= 0.01).slice(0, 4)
+        const top = [...domains].sort((a, b) => b[1] - a[1]).filter(([, ms]) => ms >= 0.01).slice(0, 3)
             .map(([d, ms]) => `${d} ${ms.toFixed(2)}`).join(', ');
+        const collect = f.collect ?? 0;
+        const inWindow = frames.indexOf(f) < arrivalAt + window.length;
         console.log(`    f${String(frames.indexOf(f)).padEnd(6)}${f.ms.toFixed(2).padStart(7)}`
-            + `${accounted.toFixed(2).padStart(9)}${pct(accounted, f.ms).padStart(10)}  | ${top}`);
+            + `${[...domains.values()].reduce((a, b) => a + b, 0).toFixed(2).padStart(9)}`
+            + `${collect.toFixed(2).padStart(9)}${String(drawn(f)).padStart(9)}`
+            + `  |${inWindow ? '' : ' ·'} ${top}`);
     }
     const wall = window.reduce((a, f) => a + f.ms, 0);
     const accounted = window.reduce((a, f) => a + sumDomains(f), 0);
@@ -407,6 +460,29 @@ function report(arm, frames, delivery) {
     if (!fits) failed++;
 
     void failed;
+    const spikes = frames.map((f, i) => ({ i, f }))
+        .filter(({ f }) => f.ms > baseline + 4)
+        .sort((a, b) => b.f.ms - a.f.ms).slice(0, 6);
+    if (spikes.length > 0) {
+        console.log('\n    every frame more than 4 ms above steady state:');
+        for (const { i, f } of spikes) {
+            const own = arrived && i >= arrivalAt && i < arrivalAt + window.length;
+            console.log(`      f${String(i).padEnd(5)}${f.ms.toFixed(2).padStart(7)} ms`
+                + `  collect ${(f.collect ?? 0).toFixed(2).padStart(6)}`
+                + `  drawn ${String(drawn(f)).padStart(5)}`
+                + `  ${own ? '(the arrival)' : '(NOT the arrival)'}`);
+            // A spike with no collect in it is a different mechanism wearing the
+            // same shape, and naming it needs its own scopes rather than the
+            // window's — which is what made it look like a delayed arrival.
+            const inside = [
+                ...(f.scopes ?? []).map((c) => [`js  ${c.name}`, c.ms]),
+                ...Object.entries(f.native ?? {}).map(([n, ms]) => [`cpp ${n}`, ms]),
+            ].sort((a, b) => b[1] - a[1]).filter(([, ms]) => ms >= 0.1).slice(0, 5);
+            for (const [n, ms] of inside) {
+                console.log(`          ${n.padEnd(30)}${ms.toFixed(2).padStart(7)} ms`);
+            }
+        }
+    }
     const worstAt = frames.reduce((best, f, i) => (f.ms > frames[best].ms ? i : best), 0);
     const worst = frames[worstAt];
     console.log(`\n  largest single frame of the whole run: f${worstAt} at ${worst.ms.toFixed(1)} ms`

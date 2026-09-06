@@ -14,6 +14,7 @@ public:
     // tree is — and has to be drawn by the pass that owns those coordinates.
     bool drawsScreenUI() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
+    const char* collectScope() const override { return "render.collect.sprite"; }
 
 private:
     // Sprite-only: tiling repeats the texture across the quad. UI has no tiled variant,
