@@ -17,6 +17,31 @@ zero: no new diagnostics, and fixed ones must be banked so they cannot return.
 The networking suites (`net-*`, `replication*`, `websocket`) carry **no** debt
 and `--update` refuses to add any.
 
+## Known debt
+
+### `airborne.test.ts` is order-dependent in full-suite runs
+
+Two of its cases (`tilts about X, which every ground clip leaves alone` and
+`is far enough from every other shipped pose to be told apart`) **pass on their
+own and fail in a full-suite run**:
+
+```bash
+npx vitest run sdk/tests/airborne.test.ts   # 10 passed
+cd sdk && npx vitest run                    # 2 failed
+```
+
+Four facts, so nobody investigates this as a new red:
+
+- Isolated: green. Full suite: red. The two runs disagree about the same code.
+- Reproduced on a **worktree at HEAD before the Streaming Delivery work**, and
+  again with that work's own test file excluded. It predates those changes.
+- **No evidence ties it to residency / prefetch / publication.** Its imports are
+  gameplay, animation, timeline and ECS; nothing it reads was touched.
+- The fix is to find what leaks state between files and restore isolation.
+  **Widening the assertions, retrying, or pinning the execution order are not
+  fixes** — they hide the leak, and the leak is what makes some other suite's
+  green untrustworthy too.
+
 ## Running Tests
 
 ```bash
