@@ -485,20 +485,44 @@ async function boot(): Promise<void> {
        * shows on no system timer, while registering what it spawned happens
        * inside systems on the frames after. Engaging the stats fills this.
        */
-      costs(): { on: boolean; systems: Array<{ name: string; ms: number; domain: string }> } {
-        // Engaged once. Re-enabling every call swaps the maps the frame just
-        // filled, which reads as an engine that costs nothing.
-        if (!statsOn) { app.enableStats(); statsOn = true; }
+      costs(): {
+        on: boolean;
+        systems: Array<{ name: string; ms: number; domain: string }>;
+        scopes: Array<{ name: string; ms: number; system: string; remainder: string }>;
+        native: Record<string, number>;
+      } {
+        // Engaged once, BOTH halves. Re-enabling swaps the maps the frame just
+        // filled; and the C++ scopes are behind their own switch, so engaging
+        // only the JS side shows a renderer that costs nothing inside itself.
+        if (!statsOn) {
+          app.enableStats();
+          (app.wasmModule as { engine_setCpuProfiling?: (on: boolean) => void } | null)
+            ?.engine_setCpuProfiling?.(true);
+          statsOn = true;
+        }
         const costs = app.getFrameCosts();
-        if (!costs) return { on: false, systems: [] };
+        if (!costs) return { on: false, systems: [], scopes: [], native: {} };
+        let native: Record<string, number> = {};
+        try {
+          const raw = (app.wasmModule as { engine_getCpuScopes?: () => string } | null)
+            ?.engine_getCpuScopes?.();
+          if (raw) native = JSON.parse(raw) as Record<string, number>;
+        } catch { /* a frame with no scopes reports none */ }
         // EVERY system, not the dearest few: what a caller wants to know about
         // an arrival frame is how much of it the breakdown explains, and a
         // truncated list can only ever be a lower bound on its own total.
+        //
+        // Systems are mutually exclusive and scopes nest INSIDE them, so the two
+        // lists are never added together — that is how a breakdown reaches 130%.
         return {
           on: true,
           systems: [...costs.systems]
             .map((s) => ({ name: s.name, ms: s.ms, domain: s.domain }))
             .sort((a, b) => b.ms - a.ms),
+          scopes: [...costs.scopes]
+            .map((s) => ({ name: s.name, ms: s.ms, system: s.system, remainder: s.remainder }))
+            .sort((a, b) => b.ms - a.ms),
+          native,
         };
       },
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.

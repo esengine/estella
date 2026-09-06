@@ -274,8 +274,15 @@ async function main() {
           for (const c of costs.systems) row.domains[c.domain] = (row.domains[c.domain] ?? 0) + c.ms;
           for (const d of Object.keys(row.domains)) row.domains[d] = Math.round(row.domains[d] * 1000) / 1000;
           // The per-SYSTEM detail only where it can matter: which system inside a
-          // domain is a question worth asking of an expensive frame alone.
-          if (ms > ${step.costsAbove ?? 1.5}) row.costs = costs.systems.filter((c) => c.ms > 0.01);
+          // domain is a question worth asking of an expensive frame alone. The
+          // scopes ride with it — they nest INSIDE systems, so a reader adds one
+          // list or the other and never both.
+          if (ms > ${step.costsAbove ?? 1.5}) {
+            row.costs = costs.systems.filter((c) => c.ms > 0.01);
+            row.scopes = costs.scopes.filter((c) => c.ms > 0.01);
+            row.native = Object.fromEntries(
+              Object.entries(costs.native).filter(([, v]) => v > 0.01));
+          }
           out.push(row);
           // A macrotask turn between frames. Awaiting a step only drains
           // MICROtasks, and a cell arrives over the network — so a loop without

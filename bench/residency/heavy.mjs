@@ -372,6 +372,8 @@ function report(arm, frames, delivery) {
         console.log(`      ${domain.padEnd(16)}${ms.toFixed(2).padStart(7)} ms`);
     }
 
+    realization(window, frames[arrivalAt]);
+
     console.log('');
     check(window.length > 0 && systemExcess >= wallExcess * 0.95,
         'and what the arrival ADDS to those frames is explained by the systems that ran',
@@ -505,6 +507,45 @@ const median = (values) => {
     const sorted = [...values].sort((a, b) => a - b);
     return sorted[Math.floor(sorted.length / 2)];
 };
+
+/**
+ * Inside the render domain, on the frame the arrival landed on.
+ *
+ * Systems say WHICH subsystem paid; only the scopes say what it was doing. The
+ * `cpp.*` rows nest inside the JS scope that called them, so the two are printed
+ * as lists and never summed into one total.
+ */
+function realization(window, arrival) {
+    const rows = [];
+    for (const f of window) {
+        for (const s of f.scopes ?? []) rows.push({ where: 'js', ...s, frame: f });
+        for (const [name, ms] of Object.entries(f.native ?? {})) {
+            rows.push({ where: 'cpp', name, ms, system: '', frame: f });
+        }
+    }
+    if (rows.length === 0) {
+        console.log('\n    (no scopes: the frames were too cheap to carry a breakdown)');
+        return;
+    }
+    console.log('\n    inside the arrival frames, by scope:');
+    const total = new Map();
+    for (const r of rows) {
+        const key = `${r.where}  ${r.name}`;
+        total.set(key, (total.get(key) ?? 0) + r.ms);
+    }
+    for (const [name, ms] of [...total].sort((a, b) => b[1] - a[1])) {
+        if (ms < 0.05) continue;
+        console.log(`      ${name.padEnd(30)}${ms.toFixed(2).padStart(7)} ms`);
+    }
+    const renderSystem = (arrival?.costs ?? []).find((c) => c.name === 'RenderSystem');
+    if (renderSystem) {
+        const js = rows.filter((r) => r.where === 'js' && r.system === 'RenderSystem'
+            && r.frame === arrival).reduce((a, r) => a + r.ms, 0);
+        console.log(`\n      RenderSystem on the arrival frame ${renderSystem.ms.toFixed(2)} ms,`
+            + ` of which ${js.toFixed(2)} ms is named by JS scopes`
+            + ` (${((js / renderSystem.ms) * 100).toFixed(0)}%)`);
+    }
+}
 
 /** What one frame cost, by the domain that owns each system. */
 function byDomain(frame) {
