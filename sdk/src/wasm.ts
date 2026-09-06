@@ -251,6 +251,20 @@ export interface ESEngineModule {
                              minX: number, minY: number, minZ: number,
                              maxX: number, maxY: number, maxZ: number,
                              bindPtr: number, bindFloats: number): number;
+    /**
+     * Put replayed geometry behind an EXISTING mesh handle after a device loss.
+     * Returns the handle it was given, or 0 if the engine refused — never a new
+     * handle, which is why this is not a second mesh_createFromChannels: every
+     * component in the world still names the mesh by the handle it already has.
+     */
+    mesh_rematerializeFromChannels?(targetHandle: number,
+                                    channelsPtr: number, channelCount: number,
+                                    vertexStride: number,
+                                    vertexPtr: number, vertexBytes: number,
+                                    indexPtr: number, indexCount: number,
+                                    minX: number, minY: number, minZ: number,
+                                    maxX: number, maxY: number, maxZ: number,
+                                    bindPtr: number, bindFloats: number): number;
     /** Release a mesh and the buffers it owns. */
     mesh_release?(meshHandle: number): void;
     /**

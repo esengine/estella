@@ -525,6 +525,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
+    emscripten::function("mesh_rematerializeFromChannels", &esengine::mesh_rematerializeFromChannels);
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
     emscripten::function("environment_release", &esengine::environment_release);

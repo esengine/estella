@@ -78,6 +78,17 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             f32 maxX, f32 maxY, f32 maxZ,
                             uintptr_t bindPtr, u32 bindFloats);
 /** @brief Releases a mesh and the buffers it owns. */
+/** @brief Puts replayed geometry behind an EXISTING mesh handle after a device
+ *         loss. Returns @p targetHandle on success, 0 on failure — never a new
+ *         handle, which is the whole reason this is not mesh_createFromChannels. */
+u32 mesh_rematerializeFromChannels(u32 targetHandle,
+                                   uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
+                                   uintptr_t vertexPtr, u32 vertexBytes,
+                                   uintptr_t indexPtr, u32 indexCount,
+                                   f32 minX, f32 minY, f32 minZ,
+                                   f32 maxX, f32 maxY, f32 maxZ,
+                                   uintptr_t bindPtr, u32 bindFloats);
+
 void mesh_release(u32 meshHandle);
 
 /** @brief Registers a baked environment (27 irradiance floats + a reflection atlas). */

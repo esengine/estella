@@ -129,10 +129,15 @@ struct MockGfxDevice final : GfxDevice {
     void setScissorTest(bool) override {}
     void setScissor(i32, i32, i32, i32) override {}
 
+    /** Set false to make allocation fail, the way a GPU out of memory does — the
+     *  path a caller's "leaves it as it found it" promise is only true along. */
+    bool createBufferSucceeds = true;
+
     BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override {
         ++createBufferCalls;
         lastBufferDesc = desc;
         lastCreateBufferHadData = initialData != nullptr;
+        if (!createBufferSucceeds) return BufferHandle::Invalid;
         return BufferHandle{nextBufferId++};
     }
     void deleteBuffer(BufferHandle) override { ++deleteBufferCalls; }

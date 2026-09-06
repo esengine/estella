@@ -27,7 +27,7 @@ import { DependencyRecorder, isInvalidatable, rebuildPlan, type AssetIdentity,
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { spinePairKey } from '../spine/prepareSpine';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
-import { MeshAssetLoader } from './loaders/MeshAssetLoader';
+import { MeshAssetLoader, type MeshResult } from './loaders/MeshAssetLoader';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import { isBuiltinMeshRef } from './builtinMeshes';
 import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
@@ -488,6 +488,49 @@ export class Assets {
     }
 
     /**
+     * The meshes the engine says lost their geometry, by handle. No path travels
+     * with them: the engine never knew one, and this layer does — which is the
+     * division the whole recovery rests on. The engine says WHICH identity is
+     * owed; only the asset layer can say what it was made from.
+     */
+    meshesAwaitingRematerialization(): number[] {
+        const raw = requireResourceManager().meshesAwaitingRemat?.() ?? '';
+        return raw ? raw.split(',').map(Number).filter((h) => h > 0) : [];
+    }
+
+    /**
+     * Replays each owed mesh from its source, into the handle it already has.
+     *
+     * A missing provenance is a CONTRACT VIOLATION, not a mesh that turns out to
+     * be unrecoverable: the engine only enqueues what a producer declared
+     * replayable, so an absent path means this layer lost the record.
+     *
+     * @return How many came back. The rest stay owed, so recovery cannot finish.
+     */
+    async rematerializeMeshesAfterDeviceLoss(): Promise<number> {
+        const loader = this.getLoader<MeshResult>('mesh');
+        if (!(loader instanceof MeshAssetLoader)) return 0;
+
+        let restored = 0;
+        for (const handle of this.meshesAwaitingRematerialization()) {
+            const path = this.pathForHandle('mesh', handle);
+            if (!path) {
+                log.error('assets', `Device recovery: mesh ${handle} is declared replayable and`
+                    + ' has no recorded source — its provenance was lost, so it cannot come back');
+                continue;
+            }
+            try {
+                if (await loader.rematerialize(handle, path, this.getLoadContext_())) restored++;
+                else log.error('assets', `Device recovery: the engine refused geometry for ${path}`);
+            } catch (e) {
+                log.error('assets', `Device recovery: replaying ${path} failed`, e);
+            }
+        }
+        log.info('assets', `Device recovery: ${restored} mesh(es) rematerialized`);
+        return restored;
+    }
+
+    /**
      * The whole recovery, in the order it has to happen: rebuild what the engine
      * can, put the content back, then declare the device whole. Returns false
      * while the context is not available yet — a browser restores when it is
@@ -496,11 +539,19 @@ export class Assets {
     async recoverFromDeviceLoss(): Promise<boolean> {
         if (!recoverDevice()) return false;
         await this.reuploadTexturesAfterDeviceLoss();
+        await this.rematerializeMeshesAfterDeviceLoss();
         const pending = finishDeviceRecovery();
         if (pending > 0) {
             log.warn('assets',
-                     `Device recovery: ${pending} texture(s) are still the placeholder`);
+                     `Device recovery: ${pending} texture(s)/mesh(es) have not come back`);
             return false;
+        }
+        // Host-only geometry cannot come back, and a recovery that says nothing
+        // about it reads as one where everything did.
+        const lost = requireResourceManager().meshesLostNonRecoverable?.() ?? 0;
+        if (lost > 0) {
+            log.warn('assets', `Device recovery: ${lost} host-only mesh(es) ended with the`
+                + ' device — no source can replay them');
         }
         return true;
     }

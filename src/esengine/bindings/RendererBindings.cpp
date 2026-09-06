@@ -240,31 +240,58 @@ void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
 // Geometry from an .esmesh. The channel table arrives in the file's own layout
 // (8 bytes each), so the asset layer owns the FORMAT and the engine owns the
 // vertex layout it becomes. A channel's semantic is its attribute location.
-u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
-                            uintptr_t vertexPtr, u32 vertexBytes,
-                            uintptr_t indexPtr, u32 indexCount,
-                            f32 minX, f32 minY, f32 minZ,
-                            f32 maxX, f32 maxY, f32 maxZ,
-                            uintptr_t bindPtr, u32 bindFloats) {
-    auto* rm = ctx().tryGet<resource::ResourceManager>();
-    if (!rm || channelCount == 0 || vertexStride == 0 || vertexBytes == 0 || indexCount == 0) return 0;
+namespace {
+
+/** One .esmesh's geometry, marshalled out of wasm memory and validated. */
+struct MeshUpload {
+    GfxVertexAttribute channels[MAX_VERTEX_ATTRIBUTES];
+    u32 channelCount = 0;
+    u32 vertexStride = 0;
+    const u8* verts = nullptr;
+    u32 vertexBytes = 0;
+    const u32* indices = nullptr;
+    u32 indexCount = 0;
+    const f32* bind = nullptr;
+    u32 bindFloats = 0;
+    glm::vec3 localMin{0.0f};
+    glm::vec3 localMax{0.0f};
+
+    ConstSpan<u8> vertexSpan() const { return ConstSpan<u8>(verts, vertexBytes); }
+    ConstSpan<u32> indexSpan() const { return ConstSpan<u32>(indices, indexCount); }
+    ConstSpan<GfxVertexAttribute> channelSpan() const {
+        return ConstSpan<GfxVertexAttribute>(channels, channelCount);
+    }
+    ConstSpan<f32> bindSpan() const {
+        return bind ? ConstSpan<f32>(bind, bindFloats) : ConstSpan<f32>();
+    }
+};
+
+// Shared by the mint and the rebuild so a mesh cannot be validated one way when
+// it arrives and another way when it comes back.
+bool marshalMeshChannels(MeshUpload& out, const char* who,
+                         uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
+                         uintptr_t vertexPtr, u32 vertexBytes,
+                         uintptr_t indexPtr, u32 indexCount,
+                         f32 minX, f32 minY, f32 minZ,
+                         f32 maxX, f32 maxY, f32 maxZ,
+                         uintptr_t bindPtr, u32 bindFloats) {
+    if (channelCount == 0 || channelCount > MAX_VERTEX_ATTRIBUTES) return false;
+    if (vertexStride == 0 || vertexBytes == 0 || indexCount == 0) return false;
     if (indexCount % 3 != 0) {
-        ES_LOG_WARN("mesh_createFromChannels: indexCount {} is not a triangle list", indexCount);
-        return 0;
+        ES_LOG_WARN("{}: indexCount {} is not a triangle list", who, indexCount);
+        return false;
     }
 
-    const u8* table = boundarySpan<u8>(channelsPtr, static_cast<u64>(channelCount) * 8,
-                                       "mesh_createFromChannels.channels");
-    const u8* verts = boundarySpan<u8>(vertexPtr, vertexBytes, "mesh_createFromChannels.vertices");
-    const u32* indices = boundarySpan<u32>(indexPtr, indexCount, "mesh_createFromChannels.indices");
-    if (!table || !verts || !indices) return 0;
+    const u8* table = boundarySpan<u8>(channelsPtr, static_cast<u64>(channelCount) * 8, who);
+    const u8* verts = boundarySpan<u8>(vertexPtr, vertexBytes, who);
+    const u32* indices = boundarySpan<u32>(indexPtr, indexCount, who);
+    if (!table || !verts || !indices) return false;
 
     const u32 vertexCount = vertexBytes / vertexStride;
     for (u32 i = 0; i < indexCount; ++i) {
         if (indices[i] >= vertexCount) {
-            ES_LOG_WARN("mesh_createFromChannels: index {} out of range ({} vertices)",
-                        indices[i], vertexCount);
-            return 0;
+            ES_LOG_WARN("{}: index {} out of range ({} vertices)", who, indices[i], vertexCount);
+            return false;
         }
     }
 
@@ -277,12 +304,9 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
         default:                      return GfxDataType::Float;
         }
     };
-
-    GfxVertexAttribute channels[MAX_VERTEX_ATTRIBUTES];
-    if (channelCount > MAX_VERTEX_ATTRIBUTES) return 0;
     for (u32 i = 0; i < channelCount; ++i) {
         const u8* c = table + i * 8;
-        channels[i] = GfxVertexAttribute{
+        out.channels[i] = GfxVertexAttribute{
             .location = c[0],
             .components = c[1],
             .type = channelType(c[2]),
@@ -295,15 +319,67 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
 
     // The bind pose rides beside the vertices because the Joints channel indexes
     // it; a mesh with joints and no matrices is drawn static rather than wrong.
-    const f32* bind = bindFloats > 0
-        ? boundarySpan<f32>(bindPtr, bindFloats, "mesh_createFromChannels.inverseBind") : nullptr;
-    auto handle = rm->createMesh(ConstSpan<u8>(verts, vertexBytes),
-                                 ConstSpan<u32>(indices, indexCount),
-                                 ConstSpan<GfxVertexAttribute>(channels, channelCount), vertexStride,
-                                 glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ),
-                                 MeshRecovery::SourceReplayable,
-                                 bind ? ConstSpan<f32>(bind, bindFloats) : ConstSpan<f32>());
+    out.bind = bindFloats > 0 ? boundarySpan<f32>(bindPtr, bindFloats, who) : nullptr;
+    out.bindFloats = bindFloats;
+    out.channelCount = channelCount;
+    out.vertexStride = vertexStride;
+    out.verts = verts;
+    out.vertexBytes = vertexBytes;
+    out.indices = indices;
+    out.indexCount = indexCount;
+    out.localMin = glm::vec3(minX, minY, minZ);
+    out.localMax = glm::vec3(maxX, maxY, maxZ);
+    return true;
+}
+
+}  // namespace
+
+// Geometry from an .esmesh. The channel table arrives in the file's own layout
+// (8 bytes each), so the asset layer owns the FORMAT and the engine owns the
+// vertex layout it becomes. A channel's semantic is its attribute location.
+u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
+                            uintptr_t vertexPtr, u32 vertexBytes,
+                            uintptr_t indexPtr, u32 indexCount,
+                            f32 minX, f32 minY, f32 minZ,
+                            f32 maxX, f32 maxY, f32 maxZ,
+                            uintptr_t bindPtr, u32 bindFloats) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    MeshUpload up;
+    if (!rm || !marshalMeshChannels(up, "mesh_createFromChannels",
+                                    channelsPtr, channelCount, vertexStride,
+                                    vertexPtr, vertexBytes, indexPtr, indexCount,
+                                    minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats)) {
+        return 0;
+    }
+    auto handle = rm->createMesh(up.vertexSpan(), up.indexSpan(), up.channelSpan(), up.vertexStride,
+                                 up.localMin, up.localMax,
+                                 MeshRecovery::SourceReplayable, up.bindSpan());
     return handle.id();
+}
+
+// The same geometry arriving for a SECOND time, behind a handle that already
+// exists: a device generation ended and the asset layer is replaying the source.
+// Minting here instead would leave every component pointing at the dead mesh.
+u32 mesh_rematerializeFromChannels(u32 targetHandle,
+                                   uintptr_t channelsPtr, u32 channelCount, u32 vertexStride,
+                                   uintptr_t vertexPtr, u32 vertexBytes,
+                                   uintptr_t indexPtr, u32 indexCount,
+                                   f32 minX, f32 minY, f32 minZ,
+                                   f32 maxX, f32 maxY, f32 maxZ,
+                                   uintptr_t bindPtr, u32 bindFloats) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    MeshUpload up;
+    if (!rm || targetHandle == 0
+        || !marshalMeshChannels(up, "mesh_rematerializeFromChannels",
+                                channelsPtr, channelCount, vertexStride,
+                                vertexPtr, vertexBytes, indexPtr, indexCount,
+                                minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats)) {
+        return 0;
+    }
+    return rm->rematerializeMesh(resource::MeshHandle(targetHandle),
+                                 up.vertexSpan(), up.indexSpan(), up.channelSpan(),
+                                 up.vertexStride, up.localMin, up.localMax, up.bindSpan())
+        ? targetHandle : 0;
 }
 
 /** @brief Releases a mesh and the buffers it owns. */

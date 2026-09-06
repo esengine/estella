@@ -485,19 +485,19 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 // Mesh Resources
 // =============================================================================
 
-MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
-                                       ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
-                                       const glm::vec3& localMin, const glm::vec3& localMax,
-                                       MeshRecovery recovery, ConstSpan<f32> inverseBind) {
-    if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return MeshHandle();
+bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                                 ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                                 const glm::vec3& localMin, const glm::vec3& localMax,
+                                 ConstSpan<f32> inverseBind) {
+    if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return false;
 
     // The mesh describes its own vertices; the per-object transform is the
     // engine's and is appended here, so no caller has to know how a transform
     // reaches the shader — the reason a mesh is drawn without touching its bytes.
     VertexLayoutDesc layout;
     if (channels.size() + MESH_INSTANCE_ATTRIBUTES > MAX_VERTEX_ATTRIBUTES) {
-        ES_LOG_ERROR("createMesh: {} channels exceeds the layout budget", channels.size());
-        return MeshHandle();
+        ES_LOG_ERROR("realizeMesh: {} channels exceeds the layout budget", channels.size());
+        return false;
     }
     for (usize i = 0; i < channels.size(); ++i) {
         layout.attributes[i] = channels[i];
@@ -535,32 +535,96 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
     }
     layout.attributeCount = next;
 
-    auto mesh = makeUnique<Mesh>();
-    mesh->vertices = createVertexBuffer(vertexBytes);
-    mesh->indices = createIndexBuffer(indices);
-    if (!mesh->vertices.isValid() || !mesh->indices.isValid()) {
-        releaseVertexBuffer(mesh->vertices);
-        releaseIndexBuffer(mesh->indices);
-        return MeshHandle();
+    // The old records go only once the new ones stand: a rematerialization that
+    // fails half-way must leave the mesh as it found it, not stripped of the
+    // realization it still had.
+    const VertexBufferHandle previousVertices = mesh.vertices;
+    const IndexBufferHandle previousIndices = mesh.indices;
+
+    const VertexBufferHandle vertices = createVertexBuffer(vertexBytes);
+    const IndexBufferHandle indices_handle = createIndexBuffer(indices);
+    const VertexBuffer* vb = getVertexBuffer(vertices);
+    const IndexBuffer* ib = getIndexBuffer(indices_handle);
+    const VertexLayoutHandle layoutHandle = device_->createVertexLayout(layout);
+    // A pool record is not a GPU object. An allocation the device refused still
+    // lands in the pool, so its handle reads as valid while naming nothing — the
+    // shape in which a failure becomes a mesh that silently draws no triangles.
+    if (!vb || !ib || vb->handle() == BufferHandle::Invalid
+        || ib->handle() == BufferHandle::Invalid || layoutHandle == VertexLayoutHandle::Invalid) {
+        releaseVertexBuffer(vertices);
+        releaseIndexBuffer(indices_handle);
+        return false;
     }
 
-    const VertexBuffer* vb = getVertexBuffer(mesh->vertices);
-    const IndexBuffer* ib = getIndexBuffer(mesh->indices);
-    mesh->vertexBuffer = vb ? vb->handle() : BufferHandle::Invalid;
-    mesh->indexBuffer = ib ? ib->handle() : BufferHandle::Invalid;
-    mesh->layout = device_->createVertexLayout(layout);
-    mesh->indexCount = static_cast<u32>(indices.size());
-    mesh->recovery = recovery;
-    mesh->realizationGeneration = device_->deviceGeneration();
-    mesh->hasNormals = hasNormals;
-    mesh->localMin = localMin;
-    mesh->localMax = localMax;
+    releaseVertexBuffer(previousVertices);
+    releaseIndexBuffer(previousIndices);
+
+    mesh.vertices = vertices;
+    mesh.indices = indices_handle;
+    mesh.vertexBuffer = vb->handle();
+    mesh.indexBuffer = ib->handle();
+    mesh.layout = layoutHandle;
+    mesh.indexCount = static_cast<u32>(indices.size());
+    mesh.realizationGeneration = device_->deviceGeneration();
+    mesh.hasNormals = hasNormals;
+    mesh.localMin = localMin;
+    mesh.localMax = localMax;
+    mesh.inverseBind.clear();
     if (skinned) {
         const usize joints = inverseBind.size() / 16;
-        mesh->inverseBind.resize(joints);
-        std::memcpy(mesh->inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
+        mesh.inverseBind.resize(joints);
+        std::memcpy(mesh.inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
     }
+    return true;
+}
+
+MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                                       ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                                       const glm::vec3& localMin, const glm::vec3& localMax,
+                                       MeshRecovery recovery, ConstSpan<f32> inverseBind) {
+    auto mesh = makeUnique<Mesh>();
+    if (!realizeMesh(*mesh, vertexBytes, indices, channels, vertexStride,
+                     localMin, localMax, inverseBind)) {
+        return MeshHandle();
+    }
+    mesh->recovery = recovery;
     return meshes_.add(std::move(mesh));
+}
+
+bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexBytes,
+                                        ConstSpan<u32> indices,
+                                        ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                                        const glm::vec3& localMin, const glm::vec3& localMax,
+                                        ConstSpan<f32> inverseBind) {
+    Mesh* mesh = meshes_.get(target);
+    if (!mesh) {
+        ES_LOG_ERROR("rematerializeMesh: handle {} names no live mesh", target.id());
+        return false;
+    }
+    // A producer's answer is given once, at mint. Recovery replaces geometry; it
+    // never gets to decide that geometry is recoverable.
+    if (mesh->recovery != MeshRecovery::SourceReplayable) {
+        ES_LOG_ERROR("rematerializeMesh: mesh {} is host-only and has no source to replay",
+                     target.id());
+        return false;
+    }
+    if (!realizeMesh(*mesh, vertexBytes, indices, channels, vertexStride,
+                     localMin, localMax, inverseBind)) {
+        ES_LOG_ERROR("rematerializeMesh: mesh {} could not be rebuilt; it stays owed",
+                     target.id());
+        return false;
+    }
+
+    // Acknowledged only now. The debt is cleared by a rebuild that WORKED, never
+    // by the attempt — a handle dropped on failure is a hole nothing reports.
+    for (usize i = 0; i < awaitingRematerialization_.size(); ++i) {
+        if (awaitingRematerialization_[i] == target) {
+            awaitingRematerialization_[i] = awaitingRematerialization_.back();
+            awaitingRematerialization_.pop_back();
+            break;
+        }
+    }
+    return true;
 }
 
 Mesh* ResourceManager::getMesh(MeshHandle handle) {

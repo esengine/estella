@@ -73,6 +73,7 @@ export interface NativeEngineApi {
     meshRenderer_setMeshAll?(registry: unknown, meshHandle: number): number;
     mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number): number;
     mesh_release?(meshHandle: number): void;
+    mesh_rematerializeFromChannels?(targetHandle: number, channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number): number;
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
     particle_reset?(registry: unknown, entity: number): void;
@@ -195,6 +196,8 @@ export interface NativeEngineApi {
     rm_getTextureRefCount?(rm: unknown, handleId: number): number;
     rm_invalidateTexturePath?(rm: unknown, path: string): boolean;
     rm_loadBitmapFont?(rm: unknown, fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
+    rm_meshesAwaitingRemat?(rm: unknown): string;
+    rm_meshesLostNonRecoverable?(rm: unknown): number;
     rm_registerExternalTexture?(rm: unknown, glTextureId: number, width: number, height: number): number;
     rm_registerExternalTextureSized?(rm: unknown, glTextureId: number, width: number, height: number, bytes: number): number;
     rm_registerTextureWithPath?(rm: unknown, handleId: number, path: string): void;
@@ -327,6 +330,7 @@ export function createNativeEngineApi(
     bind('meshRenderer_setMeshAll', 'es_meshRenderer_setMeshAll', true);
     bind('mesh_createFromChannels', 'es_mesh_createFromChannels', false);
     bind('mesh_release', 'es_mesh_release', false);
+    bind('mesh_rematerializeFromChannels', 'es_mesh_rematerializeFromChannels', false);
     bind('particle_getAliveCount', 'es_particle_getAliveCount', false);
     bind('particle_play', 'es_particle_play', true);
     bind('particle_reset', 'es_particle_reset', true);
@@ -449,6 +453,8 @@ export function createNativeEngineApi(
     bind('rm_getTextureRefCount', 'es_rm_getTextureRefCount', true);
     bind('rm_invalidateTexturePath', 'es_rm_invalidateTexturePath', true);
     bind('rm_loadBitmapFont', 'es_rm_loadBitmapFont', true);
+    bind('rm_meshesAwaitingRemat', 'es_rm_meshesAwaitingRemat', true);
+    bind('rm_meshesLostNonRecoverable', 'es_rm_meshesLostNonRecoverable', true);
     bind('rm_registerExternalTexture', 'es_rm_registerExternalTexture', true);
     bind('rm_registerExternalTextureSized', 'es_rm_registerExternalTextureSized', true);
     bind('rm_registerTextureWithPath', 'es_rm_registerTextureWithPath', true);

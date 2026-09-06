@@ -468,6 +468,20 @@ public:
                           const glm::vec3& localMin, const glm::vec3& localMax,
                           MeshRecovery recovery, ConstSpan<f32> inverseBind = {});
 
+    /**
+     * @brief Puts new geometry behind an EXISTING mesh handle.
+     *
+     * @details Same identity, a fresh realization. Re-uploading through createMesh
+     *          would mint a SECOND handle and leave every component on the dead
+     *          one. Refuses a host-only mesh; clears the debt only on success.
+     * @return False if the handle names no live mesh, is not replayable, or the
+     *         geometry could not be rebuilt.
+     */
+    bool rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                           const glm::vec3& localMin, const glm::vec3& localMax,
+                           ConstSpan<f32> inverseBind = {});
+
     /** @brief The mesh a handle names, or null. */
     Mesh* getMesh(MeshHandle handle);
     const Mesh* getMesh(MeshHandle handle) const;
@@ -665,6 +679,14 @@ private:
     /// Handles whose GPU texture died with the device, still showing the
     /// placeholder. Empty means the content is whole again.
     std::vector<TextureHandle> awaitingReupload_;
+    /** Builds the buffers and layout one mesh is drawn from, replacing whatever
+     *  it had. Shared by the mint and the rebuild so the two cannot describe the
+     *  same geometry differently. Leaves the mesh untouched when it fails. */
+    bool realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
+                     ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
+                     const glm::vec3& localMin, const glm::vec3& localMax,
+                     ConstSpan<f32> inverseBind);
+
     std::vector<MeshHandle> awaitingRematerialization_;
     u32 meshes_lost_non_recoverable_ = 0;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
