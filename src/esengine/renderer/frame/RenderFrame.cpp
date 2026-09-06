@@ -287,6 +287,12 @@ void RenderFrame::beginFrame() {
     frame_collected_ = false;
     frame_depth_seen_ = false;
     applySceneDepthNeed();
+
+    // Counted over the whole frame rather than per camera, because a selection is
+    // one view's answer: the same object seen by two cameras is two selections, and
+    // that they can differ is the whole claim.
+    lod_counts_ = {};
+    lod_view_state_.beginFrame();
 }
 
 void RenderFrame::applySceneDepthNeed() {
@@ -313,6 +319,9 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 
     view_projection_ = view_projection;
     frustum_.extractFromMatrix(view_projection);
+    // A camera that names no view looks from the shared default one rather than
+    // remembering the levels the previous camera settled on.
+    view_id_ = 0;
     current_target_ = target;
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
@@ -482,6 +491,12 @@ void RenderFrame::flush() {
     ES_PROFILE_COUNTER("render.meshes", stats_.meshes);
     ES_PROFILE_COUNTER("render.triangles", stats_.triangles);
     ES_PROFILE_COUNTER("render.text", stats_.text);
+    ES_PROFILE_COUNTER("render.lod.groups", lod_counts_.selections);
+    ES_PROFILE_COUNTER("render.lod.level0", lod_counts_.level[0]);
+    ES_PROFILE_COUNTER("render.lod.level1", lod_counts_.level[1]);
+    ES_PROFILE_COUNTER("render.lod.level2", lod_counts_.level[2]);
+    ES_PROFILE_COUNTER("render.lod.level3", lod_counts_.level[3]);
+    ES_PROFILE_COUNTER("render.lod.culled", lod_counts_.culled);
     ES_PROFILE_COUNTER("render.shapes", stats_.shapes);
 #ifdef ES_ENABLE_PARTICLES
     ES_PROFILE_COUNTER("render.particles", stats_.particles);
@@ -646,6 +661,7 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     // preview is pixel-identical to the viewport.
     view_projection_ = viewProjection;
     frustum_.extractFromMatrix(viewProjection);
+    view_id_ = kPreviewViewId;
     current_stage_ = RenderStage::Transparent;
     pool_.beginFrame();
     draw_list_.clear();
@@ -1555,6 +1571,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // entities are laid out in pixels centred on the origin, and drawing them
     // through a view matrix puts a HUD wherever the view happens to be looking.
     collectCtx.screen_ui = screen_domain_;
+    collectCtx.lod = {view_id_, &lod_view_state_, &lod_counts_};
     collectSky(collectCtx);
     for (auto& plugin : plugins_) plugin->collect(collectCtx);
 

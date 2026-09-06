@@ -1834,6 +1834,72 @@
       ]
     },
     {
+      "name": "LODGroup",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "lod1",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "Geometry drawn below the LOD 1 screen size."
+        },
+        {
+          "key": "lod2",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "Geometry drawn below the LOD 2 screen size."
+        },
+        {
+          "key": "lod3",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "Geometry drawn below the LOD 3 screen size."
+        },
+        {
+          "key": "lod1Size",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Screen height fraction below which LOD 1 takes over.",
+          "range": "0–1"
+        },
+        {
+          "key": "lod2Size",
+          "type": "number",
+          "default": "0.25",
+          "doc": "Screen height fraction below which LOD 2 takes over.",
+          "range": "0–1"
+        },
+        {
+          "key": "lod3Size",
+          "type": "number",
+          "default": "0.1",
+          "doc": "Screen height fraction below which LOD 3 takes over.",
+          "range": "0–1"
+        },
+        {
+          "key": "cullSize",
+          "type": "number",
+          "default": "0.02",
+          "doc": "Screen height fraction below which nothing is drawn (0 = never).",
+          "range": "0–1"
+        },
+        {
+          "key": "hysteresis",
+          "type": "number",
+          "default": "0.1",
+          "doc": "Extra fraction to grow past a threshold before the finer level returns.",
+          "range": "0–1",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Off: the MeshRenderer's own mesh is always drawn."
+        }
+      ]
+    },
+    {
       "name": "Light",
       "source": "cpp",
       "fields": [

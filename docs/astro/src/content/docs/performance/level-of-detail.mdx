@@ -1,0 +1,128 @@
+---
+title: Level of Detail
+description: Swap a mesh for a cheaper stand-in as it shrinks on screen, with LODGroup — thresholds, hysteresis, and how it interacts with culling, instancing and multiple cameras.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A rock a hundred units away and a rock two thousand units away are drawn with the
+same number of triangles, and at two thousand units almost all of them land inside
+a single pixel. **`LODGroup`** lets an object hand over to a cheaper mesh once it
+is small enough that nobody can tell — the single biggest saving available to a
+scene with many props in it.
+
+In Estella's own third-person sample, a field of 35 rocks drops from
+1.9 million triangles to 42 thousand and from 3.5 ms of GPU time to 0.27 ms at ten
+thousand props ([the numbers](#what-it-buys)).
+
+## The LODGroup component
+
+`LODGroup` sits on the **same entity as a `MeshRenderer`**. The renderer says what
+the object *is* — that mesh is level 0, the full-detail one. The group says what
+may stand in for it as it shrinks:
+
+```typescript
+world.insert(rock, MeshRenderer, { mesh: 'assets/models/rock-lod0.esmesh', lit: true });
+world.insert(rock, LODGroup, {
+    lod1: 'assets/models/rock-lod1.esmesh',
+    lod2: 'assets/models/rock-lod2.esmesh',
+    lod1Size: 0.25,   // below a quarter of the screen height, lod1 takes over
+    lod2Size: 0.11,   // below an eighth, lod2
+    cullSize: 0.02,   // below a fiftieth, nothing is drawn at all
+    hysteresis: 0.1,
+});
+```
+
+Remove the component and the full-detail mesh comes back — nothing else about the
+renderer changes.
+
+## The sizes are fractions of the screen, not distances
+
+`lod1Size` and its siblings are the fraction of the **viewport's height** the
+object's bounds cover. `1.0` is an object exactly one screen tall; `0.02` is a
+fiftieth of one.
+
+That is deliberately not a distance, because a distance answers the same at every
+scale and through every lens:
+
+- a tower and a pebble a hundred metres away are not the same size on screen;
+- a 30° field of view shows an object twice as big as a 60° one, from the same spot;
+- an orthographic camera's answer does not change with distance at all.
+
+A screen fraction covers all three, and it is free of the resolution too — the
+same number is right on a phone and on a desktop.
+
+<Aside type="tip">
+To pick thresholds, put the camera where a level's action happens and look at the
+object. The size you want is roughly "the fraction of the window's height it
+covers"; anything under about 5% is a candidate for the coarsest mesh you have.
+</Aside>
+
+## Hysteresis — why the levels do not flicker
+
+A boundary crossed at exactly one number flips back and forth for a camera that is
+merely breathing, and a mesh swapping every frame is far more visible than the
+swap itself. `hysteresis` makes each boundary asymmetric: an object hands *down* to
+the coarser mesh at the threshold, and only comes back up once it has grown past
+it by that fraction.
+
+At the default `0.1`, a `lod1Size` of `0.20` means:
+
+- shrinking past **0.20** → level 1 takes over;
+- growing back past **0.22** → level 0 returns.
+
+Set it to `0` and you get a bare threshold, which flickers. It applies to
+`cullSize` too, so an object at the edge of visibility does not blink.
+
+## What the selection is, and is not
+
+**It belongs to the camera, not the entity.** Two cameras in one frame — a main
+view and a minimap, or a split screen — see the same object at two different sizes
+and may draw it at two different levels. There is no `currentLOD` on the entity to
+read or to set.
+
+**It is measured on the whole group's bounds.** The bounds used to choose are the
+union of every level's, so they do not change with the level being drawn. Bounds
+read off the current mesh would feed back into the choice that picked it and
+oscillate.
+
+**Culling runs first.** An object the frustum already rejected is never measured,
+so the cost is paid only for what could have been seen.
+
+**Instancing is unaffected.** Choosing a level changes which geometry a draw names
+and nothing else, so props sharing a level still fold into one instanced call.
+A field at three levels reaches the GPU as roughly three draws, not as one per prop.
+
+## Authoring rules
+
+- **Fill the slots in order** — `lod1`, then `lod2`, then `lod3`. A slot left empty
+  ends the ladder, and anything after it is never reached (the engine warns).
+- **The sizes must descend.** `lod2Size` below `lod1Size`, and so on.
+- **`cullSize: 0`** disables culling entirely, so the group is never invisible.
+- **A skinned group must share one skeleton.** Every level of a skinned mesh needs
+  the same joint count; a level that disagrees is drawn in its bind pose, and the
+  engine says so.
+
+## What it buys
+
+Measured on a receding field of props, 512×512, WebGL2:
+
+| props | triangles | GPU |
+|---|---|---|
+| 1 000, always full detail | 195 776 | 0.505 ms |
+| 1 000, with `LODGroup` | 4 248 | 0.116 ms |
+| 10 000, always full detail | 1 912 960 | 3.595 ms |
+| 10 000, with `LODGroup` | 42 392 | 0.27 ms |
+
+Selection costs 0.2–0.3 ms of CPU per ten thousand props, which is the trade:
+CPU spent choosing, GPU saved drawing. The exchange rate improves with the count,
+which is the point — it is the mechanism that decides whether a field of ten
+thousand props is shippable at all.
+
+## What this is not
+
+`LODGroup` is about **one object at different sizes**. It is not a streaming
+system: every level's mesh is resident, nothing is loaded or unloaded, and an
+object that is `cullSize`-small is simply not drawn rather than removed from the
+world. Combining distant objects into one merged proxy (HLOD) and loading a world
+in pieces are separate concerns.

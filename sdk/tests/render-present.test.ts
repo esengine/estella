@@ -13,7 +13,8 @@ vi.mock('../src/render/renderer', () => ({
     Renderer: {
         init: vi.fn(), resize: vi.fn(), begin: vi.fn(), flush: vi.fn(), end: vi.fn(),
         submitAll: vi.fn(), setStage: vi.fn(), setClearColor: vi.fn(),
-        setViewport: vi.fn(), setCullingMask: vi.fn(), updateTransforms: vi.fn(),
+        setViewport: vi.fn(), setCullingMask: vi.fn(), setViewId: vi.fn(),
+        updateTransforms: vi.fn(),
         beginFrame: vi.fn(),
     },
 }));

@@ -63,6 +63,7 @@ describe('render order: transforms resolve before cameras are read', () => {
             beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, endScreenOverlay: () => {},
             setStage: () => {}, setViewport: () => {},
             setYSortLayers: () => {}, setDepthLayers: () => {}, setCullingMask: () => {},
+            setViewId: () => {},
             getStats: () => ({ drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 }),
         };
     }

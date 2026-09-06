@@ -8,6 +8,7 @@
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/MeshRenderer.hpp"
+#include "../../ecs/components/LODGroup.hpp"
 #include "../../resource/Mesh.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
@@ -76,6 +77,83 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
         out[i] = world * mesh.inverseBind[i];
     }
     return count;
+}
+
+/**
+ * @brief The levels a group can actually be drawn at, in the order they take over.
+ *
+ * @details Entry 0 is the renderer's own mesh: a group says what may STAND IN for
+ *          it. `localMin/Max` are the UNION over every entry, so what is measured
+ *          does not change with what is drawn — bounds read off the current level
+ *          feed back into the choice that picked it and oscillate.
+ */
+struct LodLevels {
+    const Mesh* mesh[lod::kMaxStandIns + 1]{};
+    lod::LevelSet set;
+    glm::vec3 localMin{0.0f};
+    glm::vec3 localMax{0.0f};
+    /// A slot filled after an empty one, which nothing will ever select.
+    bool gap = false;
+    /// Thresholds that do not descend, or a stand-in the base's skeleton cannot pose.
+    bool disordered = false;
+    bool skinMismatch = false;
+};
+
+/**
+ * @brief Reads a group into the levels it can be drawn at. False when it declares
+ *        no usable stand-in, which leaves the renderer's own mesh the whole answer.
+ */
+bool gatherLodLevels(resource::ResourceManager& resources, const ecs::LODGroup& group,
+                     const Mesh& base, LodLevels& out) {
+    out = LodLevels{};
+    out.mesh[0] = &base;
+    out.localMin = base.localMin;
+    out.localMax = base.localMax;
+    out.set.cull = group.cullSize;
+    out.set.hysteresis = group.hysteresis;
+
+    const resource::MeshHandle handles[lod::kMaxStandIns] = {group.lod1, group.lod2, group.lod3};
+    const f32 sizes[lod::kMaxStandIns] = {group.lod1Size, group.lod2Size, group.lod3Size};
+    for (u8 i = 0; i < lod::kMaxStandIns; ++i) {
+        const Mesh* standIn = handles[i].isValid() ? resources.getMesh(handles[i]) : nullptr;
+        if (!standIn || !standIn->isDrawable()) {
+            // Ordered slots: a level nothing hands over TO is a level nothing
+            // reaches, so the run ends here and a later one is an authoring gap.
+            for (u8 j = static_cast<u8>(i + 1); j < lod::kMaxStandIns; ++j) {
+                if (handles[j].isValid()) out.gap = true;
+            }
+            break;
+        }
+        if (base.isSkinned() && standIn->inverseBind.size() != base.inverseBind.size()) {
+            out.skinMismatch = true;
+            break;
+        }
+        if (i > 0 && sizes[i] >= sizes[i - 1]) out.disordered = true;
+        out.mesh[i + 1] = standIn;
+        out.set.takeOver[i] = sizes[i];
+        out.set.count = static_cast<u8>(i + 1);
+        out.localMin = glm::min(out.localMin, standIn->localMin);
+        out.localMax = glm::max(out.localMax, standIn->localMax);
+    }
+    return out.set.count > 0;
+}
+
+/** @brief Says once what a group declares that nothing will ever use. */
+void reportLodAuthoring(const LodLevels& levels, bool& warned) {
+    if (warned || !(levels.gap || levels.disordered || levels.skinMismatch)) return;
+    warned = true;
+    if (levels.gap) {
+        ES_LOG_WARN("LODGroup: a stand-in slot is empty, so every slot after it is unreachable —"
+                    " fill lod1, then lod2, then lod3");
+    }
+    if (levels.disordered) {
+        ES_LOG_WARN("LODGroup: the screen sizes do not descend, so a level is handed over to"
+                    " before the one before it");
+    }
+    if (levels.skinMismatch) {
+        ES_LOG_WARN("LODGroup: a stand-in has a different joint count from level 0; every level of"
+                    " a skinned group must share the skeleton");
+    }
 }
 
 u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly,
@@ -198,12 +276,44 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // below, which bakes world space into vertices for the BATCH shader — a
         // shader that writes colour, not the depth this pass is here to collect.
         if (shadowDepth && !resident) continue;
-        const glm::vec3 localMin = resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
-        const glm::vec3 localMax = resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
+
+        // A collect with no LOD memory must not select: a shadow map's own screen
+        // size means nothing to a player, and borrowing a camera's answer would
+        // make the answer the entity's rather than each view's.
+        LodLevels levels;
+        const ecs::LODGroup* group = nullptr;
+        if (collect_ctx.lod.state && resident) {
+            const auto* declared = registry.tryGet<ecs::LODGroup>(entity);
+            if (declared && declared->enabled
+                && gatherLodLevels(ctx.resources, *declared, *resident, levels)) {
+                group = declared;
+                reportLodAuthoring(levels, warned_lod_);
+            }
+        }
+        const glm::vec3 localMin = group ? levels.localMin
+                                 : resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
+        const glm::vec3 localMax = group ? levels.localMax
+                                 : resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin, localMax, aabbCenter, halfExtents);
         if (!frustum.intersectsAABB(aabbCenter, halfExtents)) { ++collect_ctx.culled; continue; }
+
+        // Nothing visible is worth measuring precisely, so the cull runs first; what
+        // survives it is measured on the sphere the whole group shares.
+        if (group) {
+            glm::vec3 centre(0.0f);
+            f32 radius = 0.0f;
+            lod::boundingSphere(position, rotation, scale, localMin, localMax, centre, radius);
+            const f32 screenSize = lod::screenRelativeSize(ctx.view_projection, centre, radius);
+            auto& state = *collect_ctx.lod.state;
+            const u8 level = lod::selectLevel(levels.set, screenSize,
+                                              state.lastLevel(collect_ctx.lod.view, entity));
+            state.remember(collect_ctx.lod.view, entity, level);
+            if (collect_ctx.lod.counts) collect_ctx.lod.counts->record(level);
+            if (level == lod::kCulled) { ++collect_ctx.culled; continue; }
+            resident = levels.mesh[level];
+        }
 
         u32 textureId = ctx.white_texture_id;
         if (mesh.texture.isValid()) {

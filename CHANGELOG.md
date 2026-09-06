@@ -16,6 +16,37 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Level of detail: an object can hand over to a cheaper mesh once it is small
+  on screen.** A rock a hundred units away and a rock two thousand units away
+  were drawn with the same number of triangles, and at two thousand almost all of
+  them landed inside one pixel. `LODGroup` sits beside a `MeshRenderer` — the
+  renderer's own mesh stays level 0, and the group names the stand-ins.
+
+  The thresholds are fractions of the viewport HEIGHT, not distances, and that is
+  the whole design. A distance answers the same for a tower and a pebble, the
+  same at 30 degrees of field of view and at 60, and does not vary at all under
+  an orthographic camera; a screen fraction covers all three and is free of the
+  resolution besides. Each boundary carries a hysteresis band, so a camera merely
+  breathing across one does not swap the mesh every frame.
+
+  **The choice belongs to the camera, not the entity.** Two cameras in one frame
+  see one object at two sizes and may draw it at two levels; there is no
+  `currentLOD` on the entity to read or to set. Bounds come from the union of
+  every level, so what is measured does not change with what is drawn — bounds
+  read off the current mesh feed back into the choice that picked it. Culling
+  runs first, and instancing is untouched: choosing a level changes which
+  geometry a draw names and nothing else, so props sharing a level still fold
+  into one instanced call.
+
+  Measured on a receding field (`bench/lod/`): at ten thousand props, 1.91M
+  triangles and 3.5 ms of GPU become 42k and 0.27 ms, for a quarter of a
+  millisecond of selection CPU. Ten pixel/counter gates cover it, each shown red under the mistake it
+  exists to catch — a world distance tuned to pass the level gate still fails the
+  field-of-view one; bounds read off the current level still fail the level gate;
+  a level memory shared between views fails only the two-camera gate. The
+  third-person sample carries a field of 35 rocks, and `verify-third-person`
+  reads the levels the PACKAGED game chose.
+
 - **An inventory of what the engine's runtime contract facts actually are.** The
   `EsEventOut` hole above was not thin test coverage — the ABI compatibility
   system did not know a fact lived there. Those are different severities and

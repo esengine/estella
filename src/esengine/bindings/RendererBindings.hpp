@@ -146,6 +146,9 @@ void renderer_setYSortLayers(u32 mask);
 void renderer_setDepthLayers(u32 mask);
 /** Sorting layers the next collect draws (bit i = layer i). Set per camera. */
 void renderer_setCullingMask(u32 mask);
+/** Names the view the next collect looks from, which its LOD levels are remembered
+ *  under. Set per camera, before renderer_submitAll; 0 = the shared default view. */
+void renderer_setViewId(u32 view);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();

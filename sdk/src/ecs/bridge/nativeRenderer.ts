@@ -111,6 +111,10 @@ export function createNativeRendererBackend(
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.setCullingMask];
             if (typeof fn === 'function') (fn as (m: number) => void)(mask >>> 0);
         },
+        setViewId: (view): void => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.setViewId];
+            if (typeof fn === 'function') (fn as (v: number) => void)(view >>> 0);
+        },
         getStats: (): RenderStats => {
             const read = (name: string): number => {
                 const fn = scope[name];

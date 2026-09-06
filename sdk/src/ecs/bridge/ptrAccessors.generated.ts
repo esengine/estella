@@ -741,6 +741,62 @@ export function createInteractableData(): InteractablePtrData {
     };
 }
 
+export interface LODGroupPtrData {
+    lod1: number;
+    lod2: number;
+    lod3: number;
+    lod1Size: number;
+    lod2Size: number;
+    lod3Size: number;
+    cullSize: number;
+    hysteresis: number;
+    enabled: boolean;
+}
+
+export function fillLODGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: LODGroupPtrData,
+): void {
+    out.lod1 = u32[ptr >> 2];
+    out.lod2 = u32[(ptr + 4) >> 2];
+    out.lod3 = u32[(ptr + 8) >> 2];
+    out.lod1Size = f32[(ptr + 12) >> 2];
+    out.lod2Size = f32[(ptr + 16) >> 2];
+    out.lod3Size = f32[(ptr + 20) >> 2];
+    out.cullSize = f32[(ptr + 24) >> 2];
+    out.hysteresis = f32[(ptr + 28) >> 2];
+    out.enabled = u8[ptr + 32] !== 0;
+}
+
+export function writeLODGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: LODGroupPtrData,
+): void {
+    u32[ptr >> 2] = data.lod1;
+    u32[(ptr + 4) >> 2] = data.lod2;
+    u32[(ptr + 8) >> 2] = data.lod3;
+    f32[(ptr + 12) >> 2] = data.lod1Size;
+    f32[(ptr + 16) >> 2] = data.lod2Size;
+    f32[(ptr + 20) >> 2] = data.lod3Size;
+    f32[(ptr + 24) >> 2] = data.cullSize;
+    f32[(ptr + 28) >> 2] = data.hysteresis;
+    u8[ptr + 32] = data.enabled ? 1 : 0;
+}
+
+export function createLODGroupData(): LODGroupPtrData {
+    return {
+        lod1: 0,
+        lod2: 0,
+        lod3: 0,
+        lod1Size: 0,
+        lod2Size: 0,
+        lod3Size: 0,
+        cullSize: 0,
+        hysteresis: 0,
+        enabled: false,
+    };
+}
+
 export interface LightPtrData {
     type: number;
     color: Color;
@@ -2162,6 +2218,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
+    LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },

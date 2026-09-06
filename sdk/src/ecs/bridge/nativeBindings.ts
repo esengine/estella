@@ -182,6 +182,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     beginScreenOverlay: 'es_renderer_beginScreenOverlay',
     submitScreenOverlay: 'es_renderer_submitScreenOverlay',
     endScreenOverlay: 'es_renderer_endScreenOverlay',
+    /** The view a collect looks from; hosts predating it share one LOD memory. */
+    setViewId: 'es_renderer_setViewId',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

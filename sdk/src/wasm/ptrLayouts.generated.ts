@@ -210,6 +210,20 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'raycastTarget', type: 'bool', offset: 2 },
         ],
     },
+    LODGroup: {
+        ptrFn: 'getLODGroupPtr',
+        fields: [
+            { name: 'lod1', type: 'u32', offset: 0 },
+            { name: 'lod2', type: 'u32', offset: 4 },
+            { name: 'lod3', type: 'u32', offset: 8 },
+            { name: 'lod1Size', type: 'f32', offset: 12 },
+            { name: 'lod2Size', type: 'f32', offset: 16 },
+            { name: 'lod3Size', type: 'f32', offset: 20 },
+            { name: 'cullSize', type: 'f32', offset: 24 },
+            { name: 'hysteresis', type: 'f32', offset: 28 },
+            { name: 'enabled', type: 'bool', offset: 32 },
+        ],
+    },
     Light: {
         ptrFn: 'getLightPtr',
         fields: [

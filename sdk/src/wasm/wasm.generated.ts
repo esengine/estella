@@ -517,6 +517,18 @@ export interface Interactable {
     raycastTarget: boolean;
 }
 
+export interface LODGroup {
+    lod1: number;
+    lod2: number;
+    lod3: number;
+    lod1Size: number;
+    lod2Size: number;
+    lod3Size: number;
+    cullSize: number;
+    hysteresis: number;
+    enabled: boolean;
+}
+
 export interface Light {
     type: number;
     color: Vec4;
@@ -902,6 +914,10 @@ export interface Registry {
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
     removeInteractable(entity: Entity): void;
+    hasLODGroup(entity: Entity): boolean;
+    getLODGroup(entity: Entity): LODGroup;
+    addLODGroup(entity: Entity, component: LODGroup): void;
+    removeLODGroup(entity: Entity): void;
     hasLight(entity: Entity): boolean;
     getLight(entity: Entity): Light;
     addLight(entity: Entity, component: Light): void;
@@ -1027,6 +1043,7 @@ export interface ESEngineModule {
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;
+    LODGroup: new () => LODGroup;
     Light: new () => Light;
     MeshCollider3D: new () => MeshCollider3D;
     MeshRenderer: new () => MeshRenderer;

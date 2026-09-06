@@ -5,6 +5,8 @@
 #include "../core/Types.hpp"
 #include "./frame/RenderStage.hpp"
 #include "./frame/Frustum.hpp"
+#include "./lod/LodSelection.hpp"
+#include "./lod/LodViewState.hpp"
 #include "./frame/FrameConstants.hpp"
 #include "./draw/RenderItem.hpp"
 #include "./draw/DrawCommand.hpp"
@@ -168,6 +170,21 @@ struct RenderCollectContext {
      *          what its frustum skipped is `render.shadow.collects`.
      */
     u32 culled = 0;
+
+    /**
+     * @brief Which view is looking, where its level choices are kept, and where
+     *        the selections it makes are counted.
+     *
+     * @details A null `state` is what a collect that must not select says: the
+     *          shadow pass draws level 0 rather than borrowing a camera's answer,
+     *          which would make the answer the entity's rather than the view's.
+     */
+    struct LodView {
+        u32 view = 0;
+        lod::LodViewState* state = nullptr;
+        lod::SelectionCounts* counts = nullptr;
+    };
+    LodView lod;
 };
 
 /** @brief Decomposes @p transform and returns its world position shifted toward the

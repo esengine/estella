@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'fac7d5103ea562aa';
+export const ABI_LAYOUT_HASH = '7756afcaec734824';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -413,6 +413,34 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    LODGroup: {
+        defaults: {
+            lod1: 0,
+            lod2: 0,
+            lod3: 0,
+            lod1Size: 0.5,
+            lod2Size: 0.25,
+            lod3Size: 0.1,
+            cullSize: 0.02,
+            hysteresis: 0.1,
+            enabled: true,
+        },
+        assetFields: [{ field: 'lod1', type: 'mesh' as AssetFieldType }, { field: 'lod2', type: 'mesh' as AssetFieldType }, { field: 'lod3', type: 'mesh' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            lod1: { tooltip: "Geometry drawn below the LOD 1 screen size." },
+            lod2: { tooltip: "Geometry drawn below the LOD 2 screen size." },
+            lod3: { tooltip: "Geometry drawn below the LOD 3 screen size." },
+            lod1Size: { min: 0, max: 1, tooltip: "Screen height fraction below which LOD 1 takes over." },
+            lod2Size: { min: 0, max: 1, tooltip: "Screen height fraction below which LOD 2 takes over." },
+            lod3Size: { min: 0, max: 1, tooltip: "Screen height fraction below which LOD 3 takes over." },
+            cullSize: { min: 0, max: 1, tooltip: "Screen height fraction below which nothing is drawn (0 = never)." },
+            hysteresis: { min: 0, max: 1, tooltip: "Extra fraction to grow past a threshold before the finer level returns.", advanced: true },
+            enabled: { tooltip: "Off: the MeshRenderer's own mesh is always drawn." },
+        },
     },
     Light: {
         defaults: {
@@ -1237,6 +1265,24 @@ export interface InteractableData {
     enabled: boolean;
     blockRaycast: boolean;
     raycastTarget: boolean;
+}
+
+/**
+ * The fields of the engine's `LODGroup` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface LODGroupData {
+    lod1: number;
+    lod2: number;
+    lod3: number;
+    lod1Size: number;
+    lod2Size: number;
+    lod3Size: number;
+    cullSize: number;
+    hysteresis: number;
+    enabled: boolean;
 }
 
 export interface LightData {

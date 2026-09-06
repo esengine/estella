@@ -321,6 +321,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'Profiling & Diagnostics', translations: { 'zh-CN': '性能剖析与诊断' }, slug: 'performance/profiling' },
+            { label: 'Level of Detail', translations: { 'zh-CN': '细节层次(LOD)' }, slug: 'performance/level-of-detail' },
           ],
         },
         {

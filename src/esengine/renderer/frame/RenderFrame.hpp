@@ -274,6 +274,15 @@ public:
     void setCullingMask(u32 mask) { draw_list_.setCullingMask(mask); }
 
     /**
+     * @brief Names the view the camera about to be collected looks from, which is
+     *        what its LOD levels are remembered under.
+     *
+     * @details Reset by begin(), so a camera that names none looks from the shared
+     *          default view rather than inheriting the last camera's memory.
+     */
+    void setViewId(u32 view) { view_id_ = view; }
+
+    /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).
      * @details Sets the global ES_LINEAR shader input, linearizes CPU-side
      *          authored colors (lights, clears), and forces the post-process
@@ -432,6 +441,14 @@ private:
         std::vector<PendingSkeletalBatch> pending;
         PreviewSurface surface;
     };
+    /// The view an offscreen preview looks from: its own, so a thumbnail neither
+    /// reads nor writes the level a camera settled on for the same object.
+    static constexpr u32 kPreviewViewId = 0xFFFFFFFEu;
+
+    u32 view_id_ = 0;
+    lod::LodViewState lod_view_state_;
+    lod::SelectionCounts lod_counts_;
+
     std::unordered_map<SkeletalPreviewId, Unique<SkeletalPreview>> skeletal_previews_;
     /** Never reused, so a destroyed id can only ever be a destroyed id. */
     SkeletalPreviewId next_skeletal_preview_ = 1;

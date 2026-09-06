@@ -775,6 +775,12 @@ void renderer_setCullingMask(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setCullingMask(mask);
 }
 
+// A camera's own identity, which is what makes a LOD level the VIEW's answer and
+// not the entity's: two cameras looking at one object may settle on two levels.
+void renderer_setViewId(u32 view) {
+    if (auto* frame = g_renderFrame) frame->setViewId(view);
+}
+
 void renderer_setColorSpace(u32 linear) {
     // Valid pre-init: the global reaches every later shader compile, and
     // RenderFrame::init adopts it. A live frame applies immediately (editor

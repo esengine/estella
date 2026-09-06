@@ -22,6 +22,7 @@
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
+#include "../ecs/components/LODGroup.hpp"
 #include "../ecs/components/Light.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
@@ -520,6 +521,50 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     js.alignContent = static_cast<i32>(c.alignContent);
     js.gap = c.gap;
     js.padding = c.padding;
+    return js;
+}
+
+struct LODGroupJS {
+    u32 lod1;
+    u32 lod2;
+    u32 lod3;
+    f32 lod1Size;
+    f32 lod2Size;
+    f32 lod3Size;
+    f32 cullSize;
+    f32 hysteresis;
+    bool enabled;
+};
+
+void lodgroupApplyJS(esengine::ecs::LODGroup& c, const LODGroupJS& js) {
+    c.lod1 = resource::MeshHandle(js.lod1);
+    c.lod2 = resource::MeshHandle(js.lod2);
+    c.lod3 = resource::MeshHandle(js.lod3);
+    c.lod1Size = js.lod1Size;
+    c.lod2Size = js.lod2Size;
+    c.lod3Size = js.lod3Size;
+    c.cullSize = js.cullSize;
+    c.hysteresis = js.hysteresis;
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::LODGroup lodgroupFromJS(const LODGroupJS& js) {
+    esengine::ecs::LODGroup c;
+    lodgroupApplyJS(c, js);
+    return c;
+}
+
+LODGroupJS lodgroupToJS(const esengine::ecs::LODGroup& c) {
+    LODGroupJS js;
+    js.lod1 = c.lod1.id();
+    js.lod2 = c.lod2.id();
+    js.lod3 = c.lod3.id();
+    js.lod1Size = c.lod1Size;
+    js.lod2Size = c.lod2Size;
+    js.lod3Size = c.lod3Size;
+    js.cullSize = c.cullSize;
+    js.hysteresis = c.hysteresis;
+    js.enabled = c.enabled;
     return js;
 }
 
@@ -1495,6 +1540,17 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
         .field("raycastTarget", &esengine::ecs::Interactable::raycastTarget);
 
+    value_object<LODGroupJS>("LODGroup")
+        .field("lod1", &LODGroupJS::lod1)
+        .field("lod2", &LODGroupJS::lod2)
+        .field("lod3", &LODGroupJS::lod3)
+        .field("lod1Size", &LODGroupJS::lod1Size)
+        .field("lod2Size", &LODGroupJS::lod2Size)
+        .field("lod3Size", &LODGroupJS::lod3Size)
+        .field("cullSize", &LODGroupJS::cullSize)
+        .field("hysteresis", &LODGroupJS::hysteresis)
+        .field("enabled", &LODGroupJS::enabled);
+
     value_object<LightJS>("Light")
         .field("type", &LightJS::type)
         .field("color", &LightJS::color)
@@ -2143,6 +2199,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Interactable>(entity);
         }))
 
+        // LODGroup
+        .function("hasLODGroup", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::LODGroup>(static_cast<Entity>(e));
+        }))
+        .function("getLODGroup", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LODGroup>(entity)) return LODGroupJS{};
+            return lodgroupToJS(r.get<esengine::ecs::LODGroup>(entity));
+        }))
+        .function("addLODGroup", optional_override([](Registry& r, u32 e, const LODGroupJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::LODGroup>(entity)) {
+                lodgroupApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::LODGroup>(entity, lodgroupFromJS(js));
+        }))
+        .function("removeLODGroup", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LODGroup>(entity)) return;
+            r.remove<esengine::ecs::LODGroup>(entity);
+        }))
+
         // Light
         .function("hasLight", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Light>(static_cast<Entity>(e));
@@ -2721,6 +2801,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
+    arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
     arr.set(i++, val(std::string("MeshCollider3D")));
     arr.set(i++, val(std::string("MeshRenderer")));
@@ -2872,6 +2953,15 @@ static_assert(offsetof(esengine::ecs::FlexContainer, padding) == 16, "ABI offset
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod1) == 0, "ABI offset drift: esengine::ecs::LODGroup.lod1 (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod2) == 4, "ABI offset drift: esengine::ecs::LODGroup.lod2 (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod3) == 8, "ABI offset drift: esengine::ecs::LODGroup.lod3 (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod1Size) == 12, "ABI offset drift: esengine::ecs::LODGroup.lod1Size (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod2Size) == 16, "ABI offset drift: esengine::ecs::LODGroup.lod2Size (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::LODGroup, lod3Size) == 20, "ABI offset drift: esengine::ecs::LODGroup.lod3Size (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::LODGroup, cullSize) == 24, "ABI offset drift: esengine::ecs::LODGroup.cullSize (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::LODGroup, hysteresis) == 28, "ABI offset drift: esengine::ecs::LODGroup.hysteresis (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::LODGroup, enabled) == 32, "ABI offset drift: esengine::ecs::LODGroup.enabled (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::Light, type) == 0, "ABI offset drift: esengine::ecs::Light.type (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Light, color) == 4, "ABI offset drift: esengine::ecs::Light.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Light, intensity) == 20, "ABI offset drift: esengine::ecs::Light.intensity (EHT expected 20)");
@@ -3118,7 +3208,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "fac7d5103ea562aa";
+static const char* kEsAbiLayoutHash = "7756afcaec734824";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

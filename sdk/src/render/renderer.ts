@@ -70,6 +70,7 @@ export interface RendererBackend {
     setYSortLayers(mask: number): void;
     setDepthLayers(mask: number): void;
     setCullingMask(mask: number): void;
+    setViewId(view: number): void;
     getStats(): RenderStats;
 }
 
@@ -160,6 +161,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
+        setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
             triangles: m.renderer_getTriangles(),
@@ -482,6 +484,15 @@ export const Renderer = {
      */
     setCullingMask(mask: number): void {
         backend?.setCullingMask(mask);
+    },
+
+    /**
+     * Names the view the NEXT collect looks from — the camera entity, so a level
+     * chosen by how big something looks is remembered per camera. Set per camera
+     * before submitting it; 0 is the shared default view.
+     */
+    setViewId(view: number): void {
+        backend?.setViewId(view);
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

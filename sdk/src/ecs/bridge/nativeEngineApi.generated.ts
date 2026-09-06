@@ -164,6 +164,7 @@ export interface NativeEngineApi {
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
+    renderer_setViewId?(view: number): void;
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
     renderer_setYSortLayers?(mask: number): void;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
@@ -409,6 +410,7 @@ export function createNativeEngineApi(
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
+    bind('renderer_setViewId', 'es_renderer_setViewId', false);
     bind('renderer_setViewport', 'es_renderer_setViewport', false);
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);

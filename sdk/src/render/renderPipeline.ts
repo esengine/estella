@@ -197,6 +197,7 @@ export class RenderPipeline {
         Renderer.begin(viewProjection, 0, /*clear color+depth*/ 3, params.clearColor);
         // The mask is sticky in the draw list; this path has no camera to own one.
         Renderer.setCullingMask(0xFFFFFFFF);
+        Renderer.setViewId(0);
         this.submitScene(registry, viewProjection, { x: 0, y: 0, w: width, h: height }, elapsed);
         Renderer.end();
     }
@@ -243,6 +244,9 @@ export class RenderPipeline {
         Renderer.begin(viewProjection, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
         // Set after begin (which clears the draw list) and before the collect it gates.
         Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
+        // The camera IS the view: a level picked from how big something looks is
+        // this camera's answer, and the next camera must be free to disagree.
+        Renderer.setViewId(cameraEntity ?? 0);
         this.submitScene(registry, viewProjection, scene, elapsed);
         Renderer.end();
 
