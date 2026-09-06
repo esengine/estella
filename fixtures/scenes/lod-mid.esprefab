@@ -1,0 +1,28 @@
+{
+  "version": "2",
+  "name": "lod-mid",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "node_0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/lod-mid.esmesh",
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

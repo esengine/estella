@@ -188,6 +188,42 @@ export const SCENES = [
   // depth layer and boots LINEAR — the cheap way to engage the post-process capture.
   // Opaque sorts front-to-back, so with no attachment the far cube paints over.
   { id: "mesh-depth-through-capture", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/mesh-depth-through-capture.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.57,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.4,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.74,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.1,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // Four identical groups on the view axis, where the projected size is exactly
+  // 300/distance: 0.60, 0.30, 0.15, 0.0375 against thresholds 0.5, 0.25, cull 0.05.
+  // 224 + 8 + 4 triangles is the second witness — one of each mesh, nothing else.
+  { id: "lod-levels", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":4,\"render.lod.level0\":1,\"render.lod.level1\":1,\"render.lod.level2\":1,\"render.lod.level3\":0,\"render.lod.culled\":1,\"render.culled\":1,\"render.meshes\":3,\"render.triangles\":236}" } },
+  // The same scene with nothing moved and the field of view halved. Every level
+  // steps one finer, which is the claim a world distance cannot make: a distance
+  // threshold answers the same at 60 degrees and at 30.
+  { id: "lod-fov", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":0,\"component\":\"Camera\",\"key\":\"fov\",\"value\":30,\"steps\":4}", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":4,\"render.lod.level0\":2,\"render.lod.level1\":1,\"render.lod.level2\":1,\"render.lod.culled\":0,\"render.triangles\":460}" } },
+  // Two of the same group at the SAME distance, one scaled to two fifths. They take
+  // different levels, which is what "how big does it look" means and what a distance
+  // cannot express: a hundred metres is one answer for a tower and another for a pebble.
+  { id: "lod-size", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-size.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":2,\"render.lod.level0\":0,\"render.lod.level1\":1,\"render.lod.level2\":1,\"render.triangles\":12}" } },
+  // ONE object, two cameras, one frame — and two levels, only possible if the choice
+  // belongs to the view. Their sizes sit either side of one boundary and inside each
+  // other's band, so a memory SHARED between the views drags both onto one level.
+  { id: "lod-multi-camera", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-multicam.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "8", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":2,\"render.lod.level0\":1,\"render.lod.level1\":1,\"render.lod.level2\":0,\"render.lod.culled\":0}" } },
+  // Sixty-four copies of one group, all at one distance and so all at one level. What
+  // the batcher achieved is the whole assertion: choosing a level changes which
+  // geometry a draw names and nothing else, so the copies still fold into ONE call.
+  { id: "lod-instancing", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-instanced.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SCALE: "{\"copies\":64,\"cols\":8,\"spacing\":[110,110]}", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":64,\"render.lod.level1\":64,\"render.meshes\":64,\"render.triangles\":512,\"batch.draws\":1}" } },
+  // Parked at 577 units, where the size is 0.5199 — past the 0.5 boundary, inside the
+  // tenth of hysteresis above it. Arrived at from FARTHER away, so the coarse level
+  // holds. The pair below is the same place reached from the other side.
+  { id: "lod-hysteresis-coarse", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-hyst.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "[{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-900,\"steps\":4},{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-577,\"steps\":4}]", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.level0\":0,\"render.lod.level1\":1,\"render.triangles\":8}" } },
+  // The same object at the same 577 units, reached from NEARER. Level 0 holds, and the
+  // two gates differ in nothing a frame can see but where the object came from.
+  { id: "lod-hysteresis-fine", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-hyst.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "[{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-400,\"steps\":4},{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-577,\"steps\":4}]", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.level0\":1,\"render.lod.level1\":0,\"render.triangles\":224}" } },
+  // The swap as a PICTURE, which no counter is: the three meshes are red, green and
+  // blue, so the pixel at the centre says which geometry the frame actually holds.
+  { id: "lod-swap-near", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-swap.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.level0\":1,\"render.triangles\":224}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  { id: "lod-swap-mid", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-swap.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-360,\"steps\":4}", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.level1\":1,\"render.triangles\":8}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
+  { id: "lod-swap-far", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-swap.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-400,\"steps\":4}", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.level2\":1,\"render.triangles\":4}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":40}]" } },
+  // A group whose stand-in cannot be posed by the same skeleton is REFUSED whole
+  // rather than honoured into a bind pose: the skin draws as it always did
+  // (mesh-skin's own points), and thresholds that would cull it decide nothing.
+  { id: "lod-skin-refused", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-skin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":0,\"render.lod.culled\":0,\"render.meshes\":1}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
   { id: "mesh-builtin", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-builtin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3667,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.1333,\"y\":0.5,\"rgb\":[98,98,98],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[236,236,236],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A baked panorama lighting a surface BY DIRECTION: two coplanar triangles, one
   // white colour, normals up and down under a sky blue above and red below. A flat

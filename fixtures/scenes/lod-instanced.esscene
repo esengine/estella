@@ -1,0 +1,85 @@
+{
+  "version": 4,
+  "name": "LodInstanced",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60.0,
+            "nearPlane": 1,
+            "farPlane": 20000.0,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Prop",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -857
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/lod-high.esmesh",
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "/scenes/lod-mid.esmesh",
+            "lod2": "/scenes/lod-low.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.5,
+            "lod2Size": 0.25,
+            "lod3Size": 0.0,
+            "cullSize": 0.05,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -199,6 +199,16 @@ target_include_directories(test_particle_shapes PRIVATE
 )
 add_test(NAME test_particle_shapes COMMAND test_particle_shapes)
 
+# LOD selection: the projection arithmetic, the hysteresis band and the per-view
+# memory. Header-only, so it runs without a device — the pixel gates say which
+# level was drawn, this says which of the claims behind it broke.
+add_executable(test_lod_selection renderer/test_lod_selection.cpp)
+target_include_directories(test_lod_selection PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_lod_selection COMMAND test_lod_selection)
+
 add_executable(test_shadow_atlas renderer/test_shadow_atlas.cpp)
 target_include_directories(test_shadow_atlas PRIVATE
     ${CMAKE_SOURCE_DIR}/src

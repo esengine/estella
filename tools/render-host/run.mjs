@@ -361,17 +361,23 @@ app.whenReady().then(async () => {
     // ESTELLA_VERIFY_SET_FIELD={"entity","component","key","value"} writes one
     // inspector field the way the editor's own door does, then waits: an asset
     // assigned after load is COLD, and reaching the World is an async load away.
+    // An ARRAY of those is a route rather than a position, which is what a gate
+    // about where a frame CAME FROM needs — the LOD hysteresis gates park one
+    // object at one place along two different roads and read two answers.
     if (process.env.ESTELLA_VERIFY_SET_FIELD) {
-      const spec = JSON.parse(process.env.ESTELLA_VERIFY_SET_FIELD);
+      const parsed = JSON.parse(process.env.ESTELLA_VERIFY_SET_FIELD);
+      const writes = Array.isArray(parsed) ? parsed : [parsed];
       setField = await exec(`(async () => {
         const api = window.__estellaHeadless.api;
-        api.setField(${JSON.stringify(spec.entity)}, ${JSON.stringify(spec.component)},
-                     ${JSON.stringify(spec.key)}, "asset", ${JSON.stringify(spec.value)});
-        for (let i = 0; i < 40; i++) {
-          await api.step(1, 1 / 60);
-          await new Promise((r) => setTimeout(r, 16));
+        const writes = ${JSON.stringify(writes)};
+        for (const w of writes) {
+          api.setField(w.entity, w.component, w.key, "asset", w.value);
+          for (let i = 0; i < (w.steps ?? 40); i++) {
+            await api.step(1, 1 / 60);
+            await new Promise((r) => setTimeout(r, 16));
+          }
         }
-        return { wrote: ${JSON.stringify(spec.key)} };
+        return { wrote: writes.map((w) => w.key).join(',') };
       })()`);
     }
 

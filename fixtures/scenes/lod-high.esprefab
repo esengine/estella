@@ -1,0 +1,28 @@
+{
+  "version": "2",
+  "name": "lod-high",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "node_0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/lod-high.esmesh",
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

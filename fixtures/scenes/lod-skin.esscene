@@ -1,0 +1,127 @@
+{
+  "version": 4,
+  "name": "LodSkin",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 60,
+              "y": 20,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 100,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Bone0",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Bone1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 60,
+              "y": 60,
+              "z": 0
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Body",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/skinned-arm.esmesh",
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "/scenes/lod-mid.esmesh",
+            "lod2": 0,
+            "lod3": 0,
+            "lod1Size": 0.9,
+            "lod2Size": 0.0,
+            "lod3Size": 0.0,
+            "cullSize": 0.5,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
