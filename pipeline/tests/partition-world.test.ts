@@ -212,6 +212,9 @@ describe('targets that cannot ship a cut world', () => {
                 outDir: path.join(project, 'out'),
                 platform: 'playable',
                 gameHostEntry: path.join(project, 'host.ts'),
+                // Never reached: the refusal happens before anything is staged.
+                sdkDistDir: path.join(project, 'sdk'),
+                wasmDir: path.join(project, 'wasm'),
             })).rejects.toThrow(/cannot ship one/);
         } finally {
             await rm(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
