@@ -222,6 +222,13 @@ function main() {
         // bookkeeping shows in the first, first visibility in the second.
         ['blind', [{ do: 'step', frames: 30 }, { do: 'tap', key: 'Digit3', frames: 10 },
                    profile('published', 'Digit1'), profile('revealed', 'Digit4')]],
+        // Does a PREPARED cell know what a published one needs? Both derivations
+        // run on the same cell and their key SETS are compared — a count that
+        // matched by luck would not be an equivalence.
+        ['equivalence', [{ do: 'step', frames: 30 }, { do: 'tap', key: 'Digit3', frames: 10 },
+                         profile('published', 'Digit1'),
+                         { do: 'prewarm', as: 'document', cell: CELL_NAME, from: 'document' },
+                         { do: 'prewarm', as: 'entities', cell: CELL_NAME }]],
         // The same walk, with the programs readied while the camera is still
         // away. If first visibility then costs what a warm frame costs, the
         // hitch was the compile and readying it early is where it belongs.
@@ -229,6 +236,13 @@ function main() {
                        profile('published', 'Digit1'),
                        { do: 'prewarm', as: 'ready', cell: CELL_NAME },
                        profile('revealed', 'Digit4')]],
+        // The real shape: readied while the cell is only PREPARED, from its own
+        // document, before a single entity of it exists. Then demanded, which on
+        // this path publishes and becomes visible in the same frame.
+        ['readied', [{ do: 'step', frames: 30 },
+                     { do: 'arrive', as: 'primed', key: 'Digit2' },
+                     { do: 'prewarm', as: 'ready', cell: CELL_NAME, from: 'document' },
+                     profile('arrival', 'Digit1')]],
     ];
 
     for (const [arm, steps] of arms) {
@@ -236,12 +250,26 @@ function main() {
         for (const [as, { frames, delivery }] of runs) {
             report(`${arm}${runs.size > 1 ? `/${as}` : ''}`, frames, delivery);
         }
-        const ready = prewarmed.get(arm);
-        if (ready) {
-            console.log(`\n  readying ${arm}'s programs early took ${ready.ms.toFixed(2)} ms`
+        for (const [as, ready] of prewarmed.get(arm) ?? []) {
+            console.log(`\n  readying ${arm}/${as} took ${ready.ms.toFixed(2)} ms`
                 + ` — ${ready.compiles} compile(s) of ${ready.uniqueKeys} unique key(s)`
-                + ` over ${ready.asks} ask(s) for ${ready.entities} entit(ies);`
-                + ` ${ready.materialCompiles} material compile(s) of ${ready.materialAsks} ask(s)`);
+                + ` over ${ready.asks} ask(s) for ${ready.entities} renderable(s);`
+                + ` ${ready.materialCompiles} material compile(s) of ${ready.materialAsks} ask(s)`
+                + `  keys ${keySet(ready)}`);
+        }
+        const both = prewarmed.get(arm);
+        if (both?.has('document') && both.has('entities')) {
+            const doc = both.get('document');
+            const live = both.get('entities');
+            const same = doc.keysLo === live.keysLo && doc.keysHi === live.keysHi;
+            failedTotal += same ? 0 : 1;
+            console.log(`\n  ${same ? '✓' : '✗'} what a PREPARED cell knows it will need equals`
+                + ` what its published entities ask for`
+                + ` — ${keySet(doc)} from the document, ${keySet(live)} from the world`);
+            const materials = doc.materialAsks === live.materialAsks;
+            failedTotal += materials ? 0 : 1;
+            console.log(`  ${materials ? '✓' : '✗'} and the material-owned path is enumerated the`
+                + ` same both ways — ${doc.materialAsks} against ${live.materialAsks} ask(s)`);
         }
     }
     console.log('');
@@ -269,7 +297,10 @@ function drive(out, name, steps) {
     for (const line of (run.stdout || '').split('\n')) {
         const ready = /^prewarm ([^:]+): (.*)$/.exec(line);
         if (ready) {
-            try { prewarmed.set(name, JSON.parse(ready[2])); } catch { /* partial */ }
+            try {
+                if (!prewarmed.has(name)) prewarmed.set(name, new Map());
+                prewarmed.get(name).set(ready[1], JSON.parse(ready[2]));
+            } catch { /* partial */ }
             continue;
         }
         const match = /^(profile|delivery) ([^:]+): /.exec(line);
@@ -292,6 +323,16 @@ function drive(out, name, steps) {
     }
     return runs;
 }
+
+/**
+ * What may be left unnamed before an instrument is not closed.
+ *
+ * PER FRAME for the frame accounting, because the residual IS the per-frame cost
+ * outside every system accumulated over the window — a fixed budget would pass a
+ * short window and fail a long one for the same engine.
+ */
+const RESIDUAL_MS = 0.6;
+const RESIDUAL_MS_PER_FRAME = 0.15;
 
 function report(arm, frames, delivery) {
 
@@ -372,13 +413,16 @@ function report(arm, frames, delivery) {
         console.log('  What demand pays whatever prefetch did, and it is NOT all of what demand pays:');
         printTree(half(false), '    ');
         const published = sum(half(false));
-        const witness = arm === 'hit'
+        // Decided by the STREAMER's verdict, not the arm's name: a hit publishes
+        // inside the frame that asked, so wall time there spans the whole frame.
+        // Keying it on the arm made a third hitting arm read the wrong clock.
+        const witness = v.outcome === 'hit'
             ? { ms: sceneExcess, what: "the frame profiler's `scene` domain" }
             : { ms: v.publishMs, what: 'publish → resident wall time' };
         console.log(`    ${'= accounted'.padEnd(22)}${published.toFixed(2).padStart(7)} ms`);
         console.log(`    ${'against'.padEnd(22)}${witness.ms.toFixed(2).padStart(7)} ms`
             + `  from ${witness.what} (${pct(published, witness.ms)})`);
-        if (arm === 'hit') {
+        if (v.outcome === 'hit') {
             console.log(`    ${'(publish → resident'.padEnd(22)}${v.publishMs.toFixed(2).padStart(7)} ms`
                 + `  wall, which on a hit spans the whole frame — not the transaction.)`);
         }
@@ -402,9 +446,10 @@ function report(arm, frames, delivery) {
                 + `parent, ${deepest.name} — reported, not a criterion: sub-phases partition their `
                 + `parent by construction.)`);
         }
-        check(prepared >= v.prepareMs * 0.95,
+        check(v.prepareMs - prepared <= RESIDUAL_MS,
             'and so is the preparation prefetch hides',
-            `${pct(prepared, v.prepareMs)} of ${v.prepareMs.toFixed(2)} ms accounted`);
+            `${(v.prepareMs - prepared).toFixed(2)} ms unnamed of ${v.prepareMs.toFixed(2)} ms `
+            + `(${pct(prepared, v.prepareMs)})`);
     }
 
     console.log(`\n  realization — ECS-visible → actually drawn. Steady state ${baseline.toFixed(2)} ms/frame, `
@@ -455,12 +500,17 @@ function report(arm, frames, delivery) {
     realization(window, frames[arrivalAt]);
 
     console.log('');
-    check(window.length > 0 && systemExcess >= wallExcess * 0.95,
-        'and what the arrival ADDS to those frames is explained by the systems that ran',
-        `${pct(systemExcess, wallExcess)} of ${wallExcess.toFixed(2)} ms of excess over `
-        + `${window.length} frames (raw: ${pct(accounted, wall)} of ${wall.toFixed(2)} ms, `
-        + `which carries ${((baseline - baselineSystems) * window.length).toFixed(2)} ms of `
-        + `per-frame overhead outside every system)`);
+    // The RESIDUAL, not the ratio: at an excess of 2.7 ms the same 0.2 ms of
+    // per-frame overhead reads as 93%, so a ratio would measure how cheap the
+    // arrival was. A truncated breakdown still fails this, leaving 3.6 ms.
+    const residual = wallExcess - systemExcess;
+    if (arrived) {
+        check(residual <= RESIDUAL_MS_PER_FRAME * window.length,
+            'and what the arrival ADDS to those frames is explained by the systems that ran',
+            `${residual.toFixed(2)} ms unnamed of ${wallExcess.toFixed(2)} ms of excess over `
+            + `${window.length} frames, against ${(RESIDUAL_MS_PER_FRAME * window.length).toFixed(2)}`
+            + ` ms of known per-frame overhead (${pct(systemExcess, wallExcess)})`);
+    }
 
     const first = Object.values(delivery ?? {})[0];
     const publicationCost = first
@@ -482,11 +532,13 @@ function report(arm, frames, delivery) {
     const HEADROOM = 1000 / 60 / 2;
     const spike = firstVisibleFrameCost - baseline;
     const fits = spike <= HEADROOM;
-    console.log(`  ${fits ? '✓' : '✗'} BUDGET — a heavy arrival leaves the game its half of the frame`
-        + ` — ${spike.toFixed(2)} ms of arrival work against ${HEADROOM.toFixed(2)} ms of headroom`);
-    if (!fits) failed++;
+    console.log('');
+    // Through `check`: this verdict was incrementing a tally the exit code does
+    // not read, so a run that printed the violation still exited 0.
+    check(fits, 'BUDGET — a heavy arrival leaves the game its half of the frame',
+          `${spike.toFixed(2)} ms of arrival work against ${HEADROOM.toFixed(2)} ms of headroom`);
 
-    void failed;
+    void failed;  // every verdict goes through `check`
     const spikes = frames.map((f, i) => ({ i, f }))
         .filter(({ f }) => f.ms > baseline + 4)
         .sort((a, b) => b.f.ms - a.f.ms).slice(0, 6);
@@ -657,6 +709,16 @@ function realization(window, arrival) {
             + ` of which ${js.toFixed(2)} ms is named by JS scopes`
             + ` (${((js / renderSystem.ms) * 100).toFixed(0)}%)`);
     }
+}
+
+/** The variant keys a prewarm derived, as a set a reader can compare by eye. */
+function keySet(r) {
+    const keys = [];
+    for (let i = 0; i < 32; i++) {
+        if (r.keysLo & (1 << i)) keys.push(i);
+        if (r.keysHi & (1 << i)) keys.push(i + 32);
+    }
+    return `{${keys.join(', ')}}`;
 }
 
 /** What one frame cost, by the domain that owns each system. */

@@ -141,6 +141,17 @@ async function boot(): Promise<void> {
 
   if (headless) {
     let statsOn = false;
+    /** Seven words out: five counts and the key SET, which is what an equality
+     *  claim between two derivations needs. */
+    const readPrewarm = (heap: Uint32Array, ptr: number): Record<string, number> => {
+      const o = heap.subarray(ptr >> 2, (ptr >> 2) + 7);
+      return {
+        asks: o[0], compiles: o[1], uniqueKeys: o[2],
+        materialAsks: o[3], materialCompiles: o[4],
+        keysLo: o[5], keysHi: o[6],
+      };
+    };
+
     /**
      * Ready the shader programs a resident cell's meshes will be asked for,
      * drawing none of them. Attached only where the engine answers it.
@@ -160,7 +171,7 @@ async function boot(): Promise<void> {
                                    outPtr: number): void;
       };
       const entityPtr = m._malloc(entities.length * 4);
-      const outPtr = m._malloc(5 * 4);
+      const outPtr = m._malloc(7 * 4);
       try {
         m.HEAPU32.set(entities, entityPtr >> 2);
         // Around the call ALONE: reading the counts back is this probe's cost,
@@ -169,14 +180,54 @@ async function boot(): Promise<void> {
         m.engine_prewarmMeshVariants(app.world.getCppRegistry(), entityPtr, entities.length,
                                      outPtr);
         const ms = performance.now() - began;
-        const out = m.HEAPU32.subarray(outPtr >> 2, (outPtr >> 2) + 5);
-        return {
-          ms, entities: entities.length,
-          asks: out[0], compiles: out[1], uniqueKeys: out[2],
-          materialAsks: out[3], materialCompiles: out[4],
-        };
+        return { ms, entities: entities.length, ...readPrewarm(m.HEAPU32, outPtr) };
       } finally {
         m._free(entityPtr);
+        m._free(outPtr);
+      }
+    };
+
+    /**
+     * The same readiness from the cell's DOCUMENT and the assets its preparation
+     * decoded — no entity is consulted. Whether those facts SUFFICE is a claim
+     * about the two derivations being equal, not about this call succeeding.
+     */
+    const prewarmMeshVariantsFromDocument = async (cell: string): Promise<Record<string, number>> => {
+      const found = worlds.flatMap((w) => w.cells).find((c) => c.name === cell);
+      if (!found) throw new Error(`[estella] no cooked cell "${cell}"`);
+      const doc = (await (await fetch(`./${found.path}`)).json()) as SceneData;
+      const assets = app.getResource(Assets);
+      // The same channel preparation loads through, so the handles are the ones
+      // it already acquired rather than a second decode.
+      const resolved = await assets.preloadSceneAssets(doc);
+      assets.resolveSceneAssetPaths(doc, resolved);
+      const rows: number[] = [];
+      for (const entity of doc.entities) {
+        const parts = (entity as { components?: Array<{ type: string; data: Record<string, unknown> }> }).components;
+        const renderer = parts?.find((c) => c.type === 'MeshRenderer');
+        if (!renderer) continue;
+        const skin = parts?.find((c) => c.type === 'MeshSkin');
+        const joints = (skin?.data.joints as unknown[] | undefined)?.length ?? 0;
+        rows.push(Number(renderer.data.mesh) || 0, renderer.data.lit ? 1 : 0,
+                  Number(renderer.data.normalMap) || 0, joints,
+                  Number(renderer.data.material) || 0);
+      }
+      const m = module as unknown as {
+        _malloc(n: number): number;
+        _free(p: number): void;
+        HEAPU32: Uint32Array;
+        engine_prewarmMeshVariantsFromDocument(rowsPtr: number, count: number, outPtr: number): void;
+      };
+      const rowsPtr = m._malloc(rows.length * 4);
+      const outPtr = m._malloc(7 * 4);
+      try {
+        m.HEAPU32.set(rows, rowsPtr >> 2);
+        const began = performance.now();
+        m.engine_prewarmMeshVariantsFromDocument(rowsPtr, rows.length / 5, outPtr);
+        const ms = performance.now() - began;
+        return { ms, entities: rows.length / 5, ...readPrewarm(m.HEAPU32, outPtr) };
+      } finally {
+        m._free(rowsPtr);
         m._free(outPtr);
       }
     };
@@ -581,6 +632,7 @@ async function boot(): Promise<void> {
     if (typeof (module as unknown as Record<string, unknown>).engine_prewarmMeshVariants
         === 'function') {
       cooked.prewarmMeshVariants = prewarmMeshVariants;
+      cooked.prewarmMeshVariantsFromDocument = prewarmMeshVariantsFromDocument;
     }
     (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = cooked;
   }

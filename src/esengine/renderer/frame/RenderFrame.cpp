@@ -1590,6 +1590,14 @@ RenderPrewarmResult RenderFrame::prewarmPrograms(ecs::Registry& registry,
     return out;
 }
 
+RenderPrewarmResult RenderFrame::prewarmDocument(const MeshDocumentRecord* rows, u32 count) {
+    auto ctx = makeContext();
+    const bool shadowPasses = !shadow_casters_.empty();
+    RenderPrewarmResult out;
+    for (auto& plugin : plugins_) out += plugin->prewarmDocument(ctx, rows, count, shadowPasses);
+    return out;
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
     // Split because "collect is expensive" names no mechanism: planning shadows,

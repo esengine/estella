@@ -46,27 +46,53 @@ u32 mulColor(u32 a, u32 b) {
  */
 /**
  * @brief How many joints this entity would be posed by; 0 when it draws unskinned.
- *
- * @details Separated from posing because the variant key needs the ANSWER and not
- *          the matrices: a caller that re-derived "is this skinned" would be a
- *          second predicate free to disagree with the one that draws.
+ *        Separated from posing: the key needs the ANSWER, not the matrices, and a
+ *        re-derived one would disagree with the predicate that draws.
  */
-u32 skinJointCount(ecs::Registry& registry, Entity entity, const Mesh& mesh, bool& warnedBones) {
-    if (!mesh.isSkinned()) return 0;
-    const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
-    if (!skin || skin->joints.size() != mesh.inverseBind.size()) return 0;
+/**
+ * @brief Whether a mesh posed by @p joints joints draws skinned.
+ *
+ * @details Takes the joint count from wherever the caller found it: a live
+ *          `MeshSkin`, or a prepared document with no entities yet.
+ */
+u32 skinnedBy(const Mesh& mesh, usize joints, bool& warnedBones) {
+    if (!mesh.isSkinned() || joints != mesh.inverseBind.size()) return 0;
     // Posing the first MESH_MAX_BONES leaves the rest indexing a matrix this
     // draw never uploads — the wrong-matrix read the count check above already
     // rejects, so it takes the same answer. For files no importer here wrote.
-    if (skin->joints.size() > MESH_MAX_BONES) {
+    if (joints > MESH_MAX_BONES) {
         if (!warnedBones) {
             warnedBones = true;
             ES_LOG_WARN("MeshSkin: {} joints exceeds the {} one draw can be posed by; drawing the"
-                        " bind pose", skin->joints.size(), MESH_MAX_BONES);
+                        " bind pose", joints, MESH_MAX_BONES);
         }
         return 0;
     }
-    return static_cast<u32>(skin->joints.size());
+    return static_cast<u32>(joints);
+}
+
+u32 skinJointCount(ecs::Registry& registry, Entity entity, const Mesh& mesh, bool& warnedBones) {
+    const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
+    return skin ? skinnedBy(mesh, skin->joints.size(), warnedBones) : 0;
+}
+
+/** @brief The facts a PREPARED cell answers with: its document's fields, and the
+ *         assets its preparation already decoded. No entity is consulted. */
+MeshProgramFacts meshFactsFromDocument(RenderFrameContext& ctx, const MeshDocumentRecord& row,
+                                       bool& warnedBones) {
+    MeshProgramFacts facts;
+    const Mesh* resident = row.meshHandle != 0
+        ? ctx.resources.getMesh(resource::MeshHandle(row.meshHandle)) : nullptr;
+    facts.hasNormals = resident && resident->hasNormals;
+    facts.lit = row.lit != 0;
+    facts.materialId = row.materialId;
+    if (row.normalMapHandle != 0 && facts.lit && facts.hasNormals) {
+        if (Texture* tex = ctx.resources.getTexture(resource::TextureHandle(row.normalMapHandle))) {
+            facts.normalTextureId = tex->getId();
+        }
+    }
+    facts.skinned = resident && skinnedBy(*resident, row.jointCount, warnedBones) > 0;
+    return facts;
 }
 
 u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
@@ -189,21 +215,37 @@ struct MeshDrawKeys {
     u32 normalTextureId = 0;
 };
 
-MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entity entity,
-                         const ecs::MeshRenderer& mesh, const Mesh* resident, bool shadowDepth,
-                         bool& warnedBones) {
-    MeshDrawKeys out;
+u32 meshVariantFrom(const MeshProgramFacts& facts, bool envMapped, bool shadowDepth) {
+    return meshVariant(facts.hasNormals, facts.lit && !shadowDepth,
+                       facts.normalTextureId != 0 && !shadowDepth, facts.skinned, shadowDepth,
+                       envMapped);
+}
+
+/** @brief The facts a LIVE entity answers with: its components and its mesh. */
+MeshProgramFacts meshFactsFromEntity(RenderFrameContext& ctx, ecs::Registry& registry,
+                                     Entity entity, const ecs::MeshRenderer& mesh,
+                                     const Mesh* resident, bool& warnedBones) {
+    MeshProgramFacts facts;
+    facts.hasNormals = resident && resident->hasNormals;
+    facts.lit = mesh.lit;
+    facts.materialId = mesh.material;
     // Only meaningful with normals to perturb AND a draw that takes light.
     if (mesh.normalMap.isValid() && mesh.lit && resident && resident->hasNormals) {
         if (Texture* tex = ctx.resources.getTexture(mesh.normalMap)) {
-            out.normalTextureId = tex->getId();
+            facts.normalTextureId = tex->getId();
         }
     }
-    const bool skinned = resident && skinJointCount(registry, entity, *resident, warnedBones) > 0;
-    out.variant = meshVariant(resident && resident->hasNormals, mesh.lit && !shadowDepth,
-                              out.normalTextureId != 0 && !shadowDepth, skinned, shadowDepth,
-                              ctx.environment_texture_id != 0);
-    return out;
+    facts.skinned = resident && skinJointCount(registry, entity, *resident, warnedBones) > 0;
+    return facts;
+}
+
+MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entity entity,
+                         const ecs::MeshRenderer& mesh, const Mesh* resident, bool shadowDepth,
+                         bool& warnedBones) {
+    const MeshProgramFacts facts =
+        meshFactsFromEntity(ctx, registry, entity, mesh, resident, warnedBones);
+    return { meshVariantFrom(facts, ctx.environment_texture_id != 0, shadowDepth),
+             facts.normalTextureId };
 }
 }  // namespace
 
@@ -287,38 +329,31 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     return mesh_programs_[variant];
 }
 
-RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
-                                        const Entity* entities, u32 count, bool shadowPasses) {
+RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
+                                             const MeshProgramFacts* facts, u32 count,
+                                             bool shadowPasses, bool residentGeometry) {
     RenderPrewarmResult out;
-    u64 seen = 0;
     const u32 materialsBefore = ctx.materials ? ctx.materials->builtVariantCount() : 0;
+    const bool envMapped = ctx.environment_texture_id != 0;
     for (u32 i = 0; i < count; ++i) {
-        const Entity entity = entities[i];
-        const auto* mesh = registry.tryGet<ecs::MeshRenderer>(entity);
-        if (!mesh || !mesh->enabled) continue;
-        if (mesh->indices.empty() && !mesh->mesh.isValid()) continue;
-        const Mesh* resident = mesh->mesh.isValid() ? ctx.resources.getMesh(mesh->mesh) : nullptr;
         // Both purposes when the scene draws depth too: the same renderable is
         // asked for twice with different keys, and readying only the camera's
         // leaves the first shadow map to pay for the other.
         for (u32 pass = 0; pass < 2; ++pass) {
             const bool shadowDepth = pass == 1;
-            if (shadowDepth && (!shadowPasses || !resident)) continue;
-            const u32 variant =
-                meshDrawFor(ctx, registry, entity, *mesh, resident, shadowDepth,
-                            warned_bones_).variant;
+            if (shadowDepth && (!shadowPasses || !residentGeometry)) continue;
+            const u32 variant = meshVariantFrom(facts[i], envMapped, shadowDepth);
             ++out.asks;
-            if ((seen & (1ull << variant)) == 0) { seen |= 1ull << variant; ++out.uniqueKeys; }
+            if ((out.keys & (1ull << variant)) == 0) { out.keys |= 1ull << variant; ++out.uniqueKeys; }
             if (!mesh_compiled_[variant]) ++out.compiles;
             meshProgram(ctx, variant);
         }
         // The second lazily-compiled path. A fixture without materials would let
         // readiness look complete while a material-shaded world still hitched.
-        if (mesh->material != 0 && ctx.materials && resident) {
+        if (facts[i].materialId != 0 && ctx.materials) {
             ++out.materialAsks;
-            ctx.materials->meshProgram(mesh->material, ctx.resources, resident->hasNormals,
-                                       skinJointCount(registry, entity, *resident, warned_bones_) > 0,
-                                       ctx.environment_texture_id != 0);
+            ctx.materials->meshProgram(facts[i].materialId, ctx.resources, facts[i].hasNormals,
+                                       facts[i].skinned, envMapped);
         }
     }
     if (ctx.materials) {
@@ -326,6 +361,41 @@ RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& 
     }
     compiled_this_frame_ = 0;
     return out;
+}
+
+RenderPrewarmResult MeshPlugin::prewarmDocument(RenderFrameContext& ctx,
+                                                const MeshDocumentRecord* rows, u32 count,
+                                                bool shadowPasses) {
+    std::vector<MeshProgramFacts> facts;
+    facts.reserve(count);
+    bool anyResident = false;
+    for (u32 i = 0; i < count; ++i) {
+        if (rows[i].meshHandle == 0) continue;
+        anyResident = anyResident
+                   || ctx.resources.getMesh(resource::MeshHandle(rows[i].meshHandle)) != nullptr;
+        facts.push_back(meshFactsFromDocument(ctx, rows[i], warned_bones_));
+    }
+    return prewarmFacts(ctx, facts.data(), static_cast<u32>(facts.size()), shadowPasses,
+                        anyResident);
+}
+
+RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
+                                        const Entity* entities, u32 count, bool shadowPasses) {
+    std::vector<MeshProgramFacts> facts;
+    facts.reserve(count);
+    bool anyResident = false;
+    for (u32 i = 0; i < count; ++i) {
+        const Entity entity = entities[i];
+        const auto* mesh = registry.tryGet<ecs::MeshRenderer>(entity);
+        if (!mesh || !mesh->enabled) continue;
+        if (mesh->indices.empty() && !mesh->mesh.isValid()) continue;
+        const Mesh* resident = mesh->mesh.isValid() ? ctx.resources.getMesh(mesh->mesh) : nullptr;
+        anyResident = anyResident || resident != nullptr;
+        facts.push_back(
+            meshFactsFromEntity(ctx, registry, entity, *mesh, resident, warned_bones_));
+    }
+    return prewarmFacts(ctx, facts.data(), static_cast<u32>(facts.size()), shadowPasses,
+                        anyResident);
 }
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {

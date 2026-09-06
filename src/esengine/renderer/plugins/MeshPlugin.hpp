@@ -27,6 +27,12 @@ public:
     void collect(RenderCollectContext& ctx) override;
     RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
                                 const Entity* entities, u32 count, bool shadowPasses) override;
+    /** @brief Ready programs from facts already gathered — the door a PREPARED
+     *         cell comes through, before any entity of it exists. */
+    RenderPrewarmResult prewarmFacts(RenderFrameContext& ctx, const MeshProgramFacts* facts,
+                                     u32 count, bool shadowPasses, bool residentGeometry);
+    RenderPrewarmResult prewarmDocument(RenderFrameContext& ctx, const MeshDocumentRecord* rows,
+                                        u32 count, bool shadowPasses) override;
     const char* collectScope() const override { return "render.collect.mesh"; }
 
 private:

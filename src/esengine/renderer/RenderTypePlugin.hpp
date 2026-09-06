@@ -105,6 +105,32 @@ inline CameraView computeCameraView(const glm::mat4& viewProjection) {
     return view;
 }
 
+/**
+ * @brief What a renderable's program key is made of, with no say in where the
+ *        facts came from — a live entity's components, or a PREPARED cell's
+ *        document. One combination, so the two can be shown to agree.
+ */
+/**
+ * @brief One renderable as a PREPARED cell knows it: document fields plus the
+ *        handles its preparation decoded. Five words, so the boundary that
+ *        carries it needs no encoding.
+ */
+struct MeshDocumentRecord {
+    u32 meshHandle = 0;
+    u32 lit = 0;
+    u32 normalMapHandle = 0;
+    u32 jointCount = 0;
+    u32 materialId = 0;
+};
+
+struct MeshProgramFacts {
+    bool hasNormals = false;
+    bool lit = false;
+    u32 normalTextureId = 0;
+    bool skinned = false;
+    u32 materialId = 0;
+};
+
 /** @brief What readying a set of renderables' programs found. Counts, not JSON:
  *         this crosses no boundary and pays for no encoding. */
 struct RenderPrewarmResult {
@@ -114,6 +140,8 @@ struct RenderPrewarmResult {
     u32 uniqueKeys = 0;
     u32 materialAsks = 0;
     u32 materialCompiles = 0;
+    /** Which keys, not how many: an equality claim needs the set. 64 variants. */
+    u64 keys = 0;
 
     RenderPrewarmResult& operator+=(const RenderPrewarmResult& other) {
         asks += other.asks;
@@ -121,6 +149,7 @@ struct RenderPrewarmResult {
         uniqueKeys += other.uniqueKeys;
         materialAsks += other.materialAsks;
         materialCompiles += other.materialCompiles;
+        keys |= other.keys;
         return *this;
     }
 };
@@ -324,6 +353,20 @@ public:
     virtual RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
                                         const Entity* entities, u32 count, bool shadowPasses) {
         (void)ctx; (void)registry; (void)entities; (void)count; (void)shadowPasses;
+        return {};
+    }
+
+    /**
+     * @brief The same readiness, asked of a PREPARED cell's own description.
+     *
+     * @details The second fact source. What it derives must equal what `prewarm`
+     *          derives from the live entities, which is a claim a criterion holds
+     *          rather than a comment.
+     */
+    virtual RenderPrewarmResult prewarmDocument(RenderFrameContext& ctx,
+                                                const MeshDocumentRecord* rows, u32 count,
+                                                bool shadowPasses) {
+        (void)ctx; (void)rows; (void)count; (void)shadowPasses;
         return {};
     }
 

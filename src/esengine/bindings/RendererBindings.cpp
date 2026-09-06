@@ -739,17 +739,32 @@ std::string engine_getCpuScopes() {
 }
 
 #ifdef ES_ENABLE_TEST_PROBES
-void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {
-    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
-    for (u32 i = 0; i < 5; ++i) out[i] = 0;
-    if (!g_initialized || !g_renderFrame) return;
-    const auto* entities = reinterpret_cast<const Entity*>(static_cast<uintptr_t>(entitiesPtr));
-    const RenderPrewarmResult r = g_renderFrame->prewarmPrograms(registry, entities, count);
+/** Seven words: five counts and the 64-bit key set, which is what an equality
+ *  claim between two derivations needs. */
+static void writePrewarm(u32* out, const RenderPrewarmResult& r) {
     out[0] = r.asks;
     out[1] = r.compiles;
     out[2] = r.uniqueKeys;
     out[3] = r.materialAsks;
     out[4] = r.materialCompiles;
+    out[5] = static_cast<u32>(r.keys & 0xFFFFFFFFull);
+    out[6] = static_cast<u32>(r.keys >> 32);
+}
+
+void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {
+    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
+    for (u32 i = 0; i < 7; ++i) out[i] = 0;
+    if (!g_initialized || !g_renderFrame) return;
+    const auto* entities = reinterpret_cast<const Entity*>(static_cast<uintptr_t>(entitiesPtr));
+    writePrewarm(out, g_renderFrame->prewarmPrograms(registry, entities, count));
+}
+
+void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr) {
+    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
+    for (u32 i = 0; i < 7; ++i) out[i] = 0;
+    if (!g_initialized || !g_renderFrame) return;
+    const auto* rows = reinterpret_cast<const MeshDocumentRecord*>(static_cast<uintptr_t>(rowsPtr));
+    writePrewarm(out, g_renderFrame->prewarmDocument(rows, count));
 }
 #endif
 

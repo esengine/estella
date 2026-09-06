@@ -720,6 +720,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("engine_getCpuScopes", &esengine::engine_getCpuScopes);
 #ifdef ES_ENABLE_TEST_PROBES
     emscripten::function("engine_prewarmMeshVariants", &esengine::engine_prewarmMeshVariants);
+    emscripten::function("engine_prewarmMeshVariantsFromDocument",
+                         &esengine::engine_prewarmMeshVariantsFromDocument);
 #endif
     emscripten::function("engine_getCounters", &esengine::engine_getCounters);
     emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);

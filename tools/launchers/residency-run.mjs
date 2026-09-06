@@ -243,10 +243,13 @@ async function main() {
       // Absent capability is a FAILED run, never a quiet pass: a probe that was
       // not built reads as "nothing needed compiling", which is the answer the
       // experiment is trying to earn.
-      const has = await exec('typeof window.__estellaCooked.prewarmMeshVariants === "function"');
+      const has = await exec('typeof window.__estellaCooked.prewarmMeshVariants === "function"'
+        + ' && typeof window.__estellaCooked.prewarmMeshVariantsFromDocument === "function"');
       if (!has) { stop(); server.close(); return fail('this build has no prewarm probe', 2); }
-      const r = await exec(`window.__estellaCooked.prewarmMeshVariants(${JSON.stringify(step.cell)})`);
-      console.log(`prewarm ${step.as}: ${JSON.stringify(r)}`);
+      const call = step.from === 'document'
+        ? `window.__estellaCooked.prewarmMeshVariantsFromDocument(${JSON.stringify(step.cell)})`
+        : `window.__estellaCooked.prewarmMeshVariants(${JSON.stringify(step.cell)})`;
+      console.log(`prewarm ${step.as}: ${JSON.stringify(await exec(call))}`);
       continue;
     }
     if (step.do === 'frames') {

@@ -414,6 +414,10 @@ public:
      *          WASM adapter that lets a driver call it from outside.
      */
     RenderPrewarmResult prewarmPrograms(ecs::Registry& registry, const Entity* entities, u32 count);
+
+    /** @brief The same readiness, from a prepared cell's own description — no
+     *         entity of it need exist. */
+    RenderPrewarmResult prewarmDocument(const MeshDocumentRecord* rows, u32 count);
     void collectAll(ecs::Registry& registry);
 
     /**

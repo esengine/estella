@@ -147,6 +147,10 @@ std::string engine_getCpuScopes();
  *          to @p outPtr; JSON here would put an allocation inside the measurement.
  */
 void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr);
+
+/** @brief The same, from a prepared cell's own description — five words per
+ *         renderable at @p rowsPtr, and no entity of it need exist. */
+void engine_prewarmMeshVariantsFromDocument(u32 rowsPtr, u32 count, u32 outPtr);
 #endif
 std::string engine_getCounters();
 std::string engine_getGpuScopes();
