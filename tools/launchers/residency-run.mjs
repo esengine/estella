@@ -249,6 +249,11 @@ async function main() {
           target.dispatchEvent(e);
           if (target !== window) window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
         };
+        // Stats need a frame to fill, so they are engaged before the first
+        // sample rather than by the first expensive one — which is the frame
+        // whose breakdown matters most.
+        window.__estellaCooked.costs(1);
+        await window.__estellaCooked.step(1, 1 / 60);
         ${step.key ? `send('keydown', ${JSON.stringify(step.key)});` : ''}
         const out = [];
         for (let i = 0; i < ${step.count ?? 120}; i++) {

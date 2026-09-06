@@ -360,7 +360,8 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
         app.getResource(VideoPlayer).setRefResolver((ref) => backend.resolveUrl(resolveRef(ref)));
     }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
-    const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
+    const assetResult = await timed('assets',
+        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true }));
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
