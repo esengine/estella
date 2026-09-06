@@ -37,6 +37,7 @@
  *                        doing, and what the world let it do
  *     --render           after settling, print the renderer counters of the last
  *                        frame — draws, culls and LOD levels, which no pixel shows
+ *     --facts            after settling, print what the GAME says about its run
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -153,6 +154,7 @@ async function main() {
     return;
   }
   const PROBE = flag('probe', '');
+const FACTS = has('facts');
 const GAMEPLAY = flag('gameplay', '');
 const PARTICLES = flag('particles', '');
 const COMBAT = flag('combat', '');
@@ -162,7 +164,7 @@ const RENDER = has('render');
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -216,6 +218,12 @@ const SCENE = flag('scene', '');
     console.log(`  input: ${ran} source(s) over ${Number(spec.frames ?? 40)} frames`);
   }
 
+  if (FACTS) {
+    const seen = await win.webContents.executeJavaScript(
+      'window.__estellaCooked?.facts() ?? null',
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  facts: ${JSON.stringify(seen)}`);
+  }
   if (PROBE) {
     const names = PROBE.split(',').map((n) => n.trim()).filter(Boolean);
     const seen = await win.webContents.executeJavaScript(

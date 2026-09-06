@@ -18,7 +18,7 @@ import {
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
-  Hunter, NavAgent, Perception, AnimatorRootMotion,
+  Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough,
   worldResidencyReport,
 } from 'esengine';
 import type {
@@ -399,6 +399,15 @@ async function boot(): Promise<void> {
        */
       setPaused(paused: boolean): void {
         app.setPaused(paused);
+      },
+      /**
+       * What the GAME says about its own run. The rest of this seam reports the
+       * engine's side of a frame, and a checkpoint or a victory lives only in
+       * the game's own state. A copy: this observes a run, it never drives one.
+       */
+      facts(): Record<string, string | number | boolean> {
+        if (!app.hasResource(Playthrough)) return {};
+        return { ...app.getResource(Playthrough).facts };
       },
       /**
        * A way from one named entity to another, over the same navigation grid
