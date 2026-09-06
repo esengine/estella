@@ -36,7 +36,7 @@ const UNDRIVEN = {
 };
 
 const drivers = [];
-const { files, missing } = listTrackedSources(['tools', 'desktop/scripts']);
+const { files, missing } = listTrackedSources(['tools', 'desktop/scripts', 'bench']);
 if (missing.length) {
     console.log(`check-fixture-scenes: no editor checkout — ${missing.join(', ')} not scanned for drivers.`);
 }
