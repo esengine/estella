@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { Audio, AudioAPI, type AudioBufferStats } from './Audio';
 export { AudioBus, type AudioBusConfig } from './AudioBus';
-export { AudioMixer, type AudioMixerConfig, type BusDuckRule } from './AudioMixer';
+export { AudioMixer, BUILTIN_AUDIO_BUSES, builtinBusVolume, type AudioMixerConfig, type BusDuckRule } from './AudioMixer';
 export {
     buildEffectNodes, makeImpulseResponse, parseBusEffects,
     type BusEffectDef, type FilterEffectDef, type ReverbEffectDef, type CompressorEffectDef,

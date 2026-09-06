@@ -50,8 +50,6 @@ const REACHED_VIA = {
  * have without becoming a place to put the next one.
  */
 const OWED = {
-  setAudio: 'bus volumes, effects and duck rules ship in every build and there is no Mixer panel '
-    + 'and no project.audio.* row — Audio Authoring v1',
   setSpineVersion: 'which Spine runtime the project bundles, a size and compatibility decision with '
     + 'only a read-only diagnostics line in the UI',
 };

@@ -142,11 +142,7 @@ export const DECISIONS = [
     kind: 'agent-parity',
     owner: { path: 'desktop/src/project/ProjectStore.ts', probe: /async setAudio/ },
     runtime: { has: true, cite: { path: 'pipeline/src/project/runtimeConfig.ts', probe: /audioConfig/ } },
-    editor: {
-      has: false,
-      owed: 'setAudio has one caller and it is the automation facade; there is no Mixer panel and no '
-        + 'project.audio.* settings row, so a person edits project.esproject by hand',
-    },
+    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /'project\.audio\.buses'/ } },
     agent: { has: true, cite: { path: 'desktop/src/main.tsx', probe: /audio: \(v\) => ProjectStore\.setAudio/ } },
   },
 ];

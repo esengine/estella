@@ -626,6 +626,18 @@ export class AudioAPI {
         }
     }
 
+    /**
+     * Whether this backend has a mixer graph at all. @experimental
+     *
+     * The fact behind every `false` the bus calls below return, reported once so a
+     * reader does not have to infer a capability from a failed write. Without one,
+     * {@link applyAudioProjectConfig} applies `maxVoices` and stops before the bus
+     * list — so an authored mixer is not partly applied, it is not applied.
+     */
+    hasMixerGraph(): boolean {
+        return this.mixer_ !== null;
+    }
+
     /** Ensure a named bus exists (creating it under `parent` ?? master).
      *  False on backends without a mixer graph. */
     ensureBus(name: string, parent?: string): boolean {

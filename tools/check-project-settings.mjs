@@ -31,7 +31,10 @@
  * asked whether a human could reach it at all. So it answers a different
  * question, and it has its own vocabulary:
  *
- *   ui        a row in the settings registry — the id is named and checked
+ *   ui        a row in the settings registry — the id is named and checked. That a
+ *             row EXISTS, not that it writes: a control bound to nothing but React
+ *             state passes here and fails check-mutator-parity, which is the half
+ *             that asks whether a person's edit reaches the project
  *   manual    deliberately manifest-only (advanced, or edited as a file), + why
  *   internal  not creator-authored: derived, or a machine's business, + why
  *   owed      creator-facing, reachable from no editor surface. Debt, recorded
@@ -122,11 +125,7 @@ const AUTHORING = {
   steamAppId: { ui: 'project.packaging.desktop.steam.appId' },
   physicsEnabled: { ui: 'project.physics.enabled' },
   physicsConfig: { ui: ['project.physics.gravityX', 'project.physics.gravityY', 'project.physics.fixedTimestep'] },
-  audioConfig: {
-    owed: 'buses, effects and duck rules are forwarded to Play and shipped, and the only '
-      + 'door into them is the automation surface (setSettings.audio) — ProjectStore.setAudio '
-      + 'has no human caller, so a person authors the mixer by editing project.esproject',
-  },
+  audioConfig: { ui: ['project.audio.maxVoices', 'project.audio.buses', 'project.audio.effects'] },
   uiTheme: { ui: 'project.ui.theme' },
   uiThemeColors: { ui: 'project.ui.color.' },
   ySortLayers: { ui: 'project.rendering.ySortLayers' },

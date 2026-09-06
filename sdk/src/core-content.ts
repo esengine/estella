@@ -505,6 +505,8 @@ export {
     AudioListener,
     AudioBus,
     AudioMixer,
+    BUILTIN_AUDIO_BUSES,
+    builtinBusVolume,
     AudioPool,
     parseBusEffects,
     parseAudioProjectConfig,

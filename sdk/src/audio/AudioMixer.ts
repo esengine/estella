@@ -32,7 +32,27 @@ interface DuckState {
     data: Uint8Array;
 }
 
-const DEFAULT_MUSIC_VOLUME = 0.8;
+/**
+ * The buses every mixer starts with, their parent, and what each rests at.
+ *
+ * Declared because a second reader needs it: an editor showing a project's
+ * overrides has to know what an override is a change FROM, and a copy of these
+ * numbers there would be a second author for a runtime fact.
+ */
+export const BUILTIN_AUDIO_BUSES = [
+    { name: 'master', parent: null, volume: 1.0 },
+    { name: 'music', parent: 'master', volume: 0.8 },
+    { name: 'sfx', parent: 'master', volume: 1.0 },
+    { name: 'ui', parent: 'master', volume: 1.0 },
+    { name: 'voice', parent: 'master', volume: 1.0 },
+] as const satisfies ReadonlyArray<{ name: string; parent: string | null; volume: number }>;
+
+/** A built-in bus's resting volume, or null when `name` is not one of them. */
+export function builtinBusVolume(name: string): number | null {
+    return BUILTIN_AUDIO_BUSES.find((b) => b.name === name)?.volume ?? null;
+}
+
+const volumeOf = (name: string) => builtinBusVolume(name) ?? 1.0;
 
 export class AudioMixer {
     readonly master: AudioBus;
@@ -47,19 +67,19 @@ export class AudioMixer {
     constructor(context: AudioContext, config: AudioMixerConfig = {}) {
         this.context_ = context;
 
-        this.master = new AudioBus(context, { name: 'master', volume: config.masterVolume ?? 1.0 });
+        this.master = new AudioBus(context, { name: 'master', volume: config.masterVolume ?? volumeOf('master') });
         this.master.connect(context.destination);
 
-        this.music = new AudioBus(context, { name: 'music', volume: config.musicVolume ?? DEFAULT_MUSIC_VOLUME });
+        this.music = new AudioBus(context, { name: 'music', volume: config.musicVolume ?? volumeOf('music') });
         this.master.addChild(this.music);
 
-        this.sfx = new AudioBus(context, { name: 'sfx', volume: config.sfxVolume ?? 1.0 });
+        this.sfx = new AudioBus(context, { name: 'sfx', volume: config.sfxVolume ?? volumeOf('sfx') });
         this.master.addChild(this.sfx);
 
-        this.ui = new AudioBus(context, { name: 'ui', volume: config.uiVolume ?? 1.0 });
+        this.ui = new AudioBus(context, { name: 'ui', volume: config.uiVolume ?? volumeOf('ui') });
         this.master.addChild(this.ui);
 
-        this.voice = new AudioBus(context, { name: 'voice', volume: config.voiceVolume ?? 1.0 });
+        this.voice = new AudioBus(context, { name: 'voice', volume: config.voiceVolume ?? volumeOf('voice') });
         this.master.addChild(this.voice);
 
         this.buses_.set('master', this.master);
