@@ -19,7 +19,7 @@
  *          fields hold entity references, and where a prefab's root sits.
  */
 
-import { isPrefabEntry } from 'esengine';
+import { isPrefabEntry, cellAt, cellSquare } from 'esengine';
 import type {
     SceneData, SceneEntityData, SceneComponentData, SceneEntry, PrefabInstanceEntry,
 } from 'esengine';
@@ -246,9 +246,7 @@ export function partitionWorld(
             && !hasComponent(entry, 'StreamedWorld')
             && (isPrefabEntry(entry) || componentData(entry, 'Transform') !== null);
         const rootPosition = localPosition(entry, options, errors);
-        const cell = streamed
-            ? { x: Math.floor(rootPosition.x / cellSize), z: Math.floor(rootPosition.z / cellSize) }
-            : null;
+        const cell = streamed ? cellAt(rootPosition.x, rootPosition.z, cellSize) : null;
 
         const subtree: number[] = [];
         const stack: Array<{ id: number; position: Vec3; rotation: [number, number, number, number]; scale: Vec3 }> = [
@@ -337,10 +335,7 @@ export function partitionWorld(
         const ids: number[] = [];
         for (const root of cellKeys.get(key)!) ids.push(...members.get(root)!);
         ids.sort((a, b) => order.get(a)! - order.get(b)!);
-        let minX = x * cellSize;
-        let minZ = z * cellSize;
-        let maxX = minX + cellSize;
-        let maxZ = minZ + cellSize;
+        let { minX, minZ, maxX, maxZ } = cellSquare(x, z, cellSize);
         // The grid square unioned with where the content actually is: a prop
         // hanging over the edge is part of the place the box stands for, and a
         // box that stops short of it pops the prop in at the boundary.

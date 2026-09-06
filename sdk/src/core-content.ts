@@ -238,6 +238,8 @@ export {
     WorldStreaming,
     desiredResidency,
     distanceToCell,
+    cellAt,
+    cellSquare,
     worldResidencyPlugin,
     worldResidencySystem,
     worldResidencyReport,

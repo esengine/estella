@@ -10,7 +10,7 @@ export {
     type StreamedWorldData, type WorldStreamingSourceData,
 } from './components';
 export {
-    desiredResidency, distanceToCell,
+    desiredResidency, distanceToCell, cellAt, cellSquare,
     type WorldCell, type WorldManifest, type ResidencySource, type ResidencyDecision,
 } from './cells';
 export {

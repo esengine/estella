@@ -88,6 +88,10 @@ const DISPOSITION = {
   'PostProcessVolume.size': 'extent',
   'ShadowCaster2D.size': 'extent',
   'TilemapLayer.cellSize': 'extent',
+  'StreamedWorld.cellSize': 'extent',
+  'WorldStreamingSource.prefetchRadius': 'extent',
+  'WorldStreamingSource.loadRadius': 'extent',
+  'WorldStreamingSource.unloadRadius': 'extent',
 
   // The component's own drawing is the picture; an outline round it would trace
   // what is already on screen.
@@ -141,12 +145,8 @@ const DISPOSITION = {
   'AudioSource.maxDistance': ['owed', 'the sphere past which a 3D source is inaudible'],
   'Hunter.attackRange': ['owed', 'the reach it closes to before swinging — MeleeAttack.radius is drawn, this twin is not'],
   'Perceiver.range': ['owed', 'how far it can see; the cone it sees through is not drawn either'],
-  'StreamedWorld.cellSize': ['owed', 'the grid the whole world is partitioned on, visible nowhere'],
   'ThirdPersonCamera.distance': ['owed', 'the boom length — where the camera actually ends up'],
   'ThirdPersonCamera.obstructionRadius': ['owed', 'the probe swept along the boom'],
-  'WorldStreamingSource.prefetchRadius': ['owed', 'cells this close are prepared, and nothing on screen says where that is'],
-  'WorldStreamingSource.loadRadius': ['owed', 'cells this close are brought in, and nothing on screen says where that is'],
-  'WorldStreamingSource.unloadRadius': ['owed', 'resident cells are kept until past this, shown nowhere'],
 };
 
 const components = JSON.parse(readFileSync(SNAPSHOT, 'utf8')).components;

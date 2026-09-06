@@ -78,6 +78,31 @@ export interface ResidencyDecision {
 }
 
 /**
+ * The cell a world position falls in — the one rule, with two callers that must
+ * not drift: the cook assigns every top-level root by it, and the editor draws
+ * its grid from it. The y axis is not consulted, because a world is partitioned
+ * on the ground plane.
+ */
+export function cellAt(x: number, z: number, cellSize: number): { x: number; z: number } {
+    return { x: Math.floor(x / cellSize), z: Math.floor(z / cellSize) };
+}
+
+/**
+ * The grid square one cell coordinate stands for.
+ *
+ * NOT the same as {@link WorldCell}'s box: a cooked cell's box is this square
+ * unioned with where its content actually reached, so it is usually larger. This
+ * is the partition; that is the partition plus its overhang.
+ */
+export function cellSquare(cellX: number, cellZ: number, cellSize: number): {
+    minX: number; minZ: number; maxX: number; maxZ: number;
+} {
+    const minX = cellX * cellSize;
+    const minZ = cellZ * cellSize;
+    return { minX, minZ, maxX: minX + cellSize, maxZ: minZ + cellSize };
+}
+
+/**
  * Ground-plane distance from a point to a cell's box; zero inside it.
  *
  * To the BOX rather than to the cell's centre, because a centre answers the same
