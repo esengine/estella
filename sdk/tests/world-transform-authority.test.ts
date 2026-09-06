@@ -139,7 +139,7 @@ describe.skipIf(!HAS_WASM)('world transform authority', () => {
     });
 });
 
-describe('a compiled system that moves transforms', () => {
+describe.skipIf(!HAS_WASM)('a compiled system that moves transforms', () => {
     let module: ESEngineModule;
     beforeAll(async () => { module = await loadWasmModule(); });
 
