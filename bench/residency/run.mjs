@@ -48,7 +48,7 @@ const LEVELS = [
 ];
 
 function project(dir, columns) {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(path.join(dir, 'assets', 'scenes'), { recursive: true });
     mkdirSync(path.join(dir, 'src'), { recursive: true });
 
@@ -182,7 +182,7 @@ function drive(dir, name, steps) {
 const ms = (v) => `${v.toFixed(2)} ms`;
 
 function main() {
-    rmSync(WORK, { recursive: true, force: true });
+    rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(WORK, { recursive: true });
 
     const wide = packageProject(project(path.join(WORK, 'src-100'), 10), path.join(WORK, 'web-100'));
