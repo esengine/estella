@@ -92,14 +92,8 @@ for (const d of DECISIONS) {
  * The shapes worth naming apart, in the order they are worth fixing.
  *
  * `realm prerequisite` comes first because it makes the others meaningless: a
- * surface can only owe a READER where the decision is actually taken.
- * residency.cellDemand read as "runtime > editor" for a whole pass while no
- * editor realm instantiated streaming at all — a panel built on that label would
- * have shown zeros for ever, and passed any gate that asked only whether a panel
- * existed.
- *
- * `human > agent` is last: it breaks no principle — automation is not owed more
- * than a person — and is still a surface that is not finished.
+ * surface owes a READER only where the decision is taken, and a panel built on
+ * the wrong label shows zeros for ever.
  */
 const imbalance = (d) => {
   if (SURFACES.some((s) => d[s]?.unavailable)) return 'realm prerequisite';
