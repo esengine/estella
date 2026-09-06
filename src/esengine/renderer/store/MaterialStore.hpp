@@ -300,6 +300,13 @@ private:
     /// asks a read-only store, and the answer is the same every time.
     mutable std::unordered_map<u64, u32> mesh_programs_;
 
+public:
+    /** @brief How many material program variants have been built. A prewarm counts
+     *         what it caused by the difference, rather than by asking again. */
+    u32 builtVariantCount() const { return static_cast<u32>(mesh_programs_.size()); }
+
+private:
+
     /// One material compiled for one vertex source: @p shape distinguishes the
     /// cache entries, @p extraFeatures the engine vertex stage, @p what the log.
     u32 variantProgram(u32 materialId, resource::ResourceManager& resources,

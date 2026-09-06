@@ -105,6 +105,26 @@ inline CameraView computeCameraView(const glm::mat4& viewProjection) {
     return view;
 }
 
+/** @brief What readying a set of renderables' programs found. Counts, not JSON:
+ *         this crosses no boundary and pays for no encoding. */
+struct RenderPrewarmResult {
+    u32 asks = 0;
+    u32 compiles = 0;
+    /** Distinct variant keys the content needed — the dimension of the answer. */
+    u32 uniqueKeys = 0;
+    u32 materialAsks = 0;
+    u32 materialCompiles = 0;
+
+    RenderPrewarmResult& operator+=(const RenderPrewarmResult& other) {
+        asks += other.asks;
+        compiles += other.compiles;
+        uniqueKeys += other.uniqueKeys;
+        materialAsks += other.materialAsks;
+        materialCompiles += other.materialCompiles;
+        return *this;
+    }
+};
+
 struct RenderCollectContext {
     ecs::Registry& registry;
     const Frustum& frustum;
@@ -292,6 +312,20 @@ public:
     virtual bool drawsScreenUI() const { return false; }
 
     virtual void collect(RenderCollectContext& ctx) = 0;
+
+    /**
+     * @brief Make ready the programs @p entities will be asked for, drawing none.
+     *
+     * @details What it readies is derived by the SAME rule the collect derives it
+     *          by, so a caller cannot ready a variant the draw will not ask for.
+     *          `shadowPasses` says whether this scene also renders depth, which
+     *          needs its own variant. The default readies nothing.
+     */
+    virtual RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
+                                        const Entity* entities, u32 count, bool shadowPasses) {
+        (void)ctx; (void)registry; (void)entities; (void)count; (void)shadowPasses;
+        return {};
+    }
 
     /**
      * @brief What this plugin's collect is called in a frame profile.

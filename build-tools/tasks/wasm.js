@@ -9,6 +9,20 @@ import { runCommand, getCpuCount } from '../utils/emscripten.js';
 import { hashFiles, hashDirectory, HashCache } from '../utils/hash.js';
 import { generateShaderEmbeds } from './shader-embeds.js';
 
+/**
+ * The one flag a probe build adds, and it adds ONLY this one.
+ *
+ * Build type, optimisation, backend and every feature define stay where the
+ * target put them — a probe build is the shipping renderer answering one more
+ * call. It joins the cache key, so one is never served for a release ask.
+ */
+function testProbeFlags() {
+    // ALWAYS spelled, never omitted: a CMake option is sticky in the cache, so
+    // leaving it out of a release configure keeps whatever the last probe build
+    // set — and the release wasm then still exports the test adapter.
+    return [`-DES_ENABLE_TEST_PROBES=${process.env.ESTELLA_TEST_PROBES === '1' ? 'ON' : 'OFF'}`];
+}
+
 async function computeWasmHash(target, targetConfig, debug) {
     const rootDir = config.paths.root;
     const srcDir = path.join(rootDir, 'src/esengine');
@@ -17,7 +31,8 @@ async function computeWasmHash(target, targetConfig, debug) {
     const sourceHash = await hashDirectory(srcDir, /\.(hpp|cpp|h|esshader)$/);
 
     const buildType = debug ? 'Debug' : 'Release';
-    const flagsKey = [...targetConfig.cmakeFlags, `CMAKE_BUILD_TYPE=${buildType}`].join('|');
+    const flagsKey = [...targetConfig.cmakeFlags, ...testProbeFlags(),
+                      `CMAKE_BUILD_TYPE=${buildType}`].join('|');
 
     // The toolchain files too: link flags live in cmake/Emscripten.cmake, and a
     // hash that only covered CMakeLists.txt served a cached build after they
@@ -133,6 +148,7 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
     const cmakeArgs = [
         'cmake',
         ...targetConfig.cmakeFlags,
+        ...testProbeFlags(),
         `-DCMAKE_BUILD_TYPE=${buildType}`,
     ];
 

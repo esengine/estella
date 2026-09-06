@@ -738,6 +738,21 @@ std::string engine_getCpuScopes() {
     return FrameProfiler::get().lastJson();
 }
 
+#ifdef ES_ENABLE_TEST_PROBES
+void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {
+    auto* out = reinterpret_cast<u32*>(static_cast<uintptr_t>(outPtr));
+    for (u32 i = 0; i < 5; ++i) out[i] = 0;
+    if (!g_initialized || !g_renderFrame) return;
+    const auto* entities = reinterpret_cast<const Entity*>(static_cast<uintptr_t>(entitiesPtr));
+    const RenderPrewarmResult r = g_renderFrame->prewarmPrograms(registry, entities, count);
+    out[0] = r.asks;
+    out[1] = r.compiles;
+    out[2] = r.uniqueKeys;
+    out[3] = r.materialAsks;
+    out[4] = r.materialCompiles;
+}
+#endif
+
 std::string engine_getCounters() {
     return FrameProfiler::get().lastCountersJson();
 }

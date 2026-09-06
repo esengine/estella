@@ -36,6 +36,8 @@ const flag = (name, fallback) => {
 };
 
 const CELL = 600;
+/** The one cell this fixture cooks, as residency registers it. */
+const CELL_NAME = 'main.cell_1_0';
 const PROPS = Number(flag('props', '40'));
 const BODIES = Number(flag('bodies', '200'));
 
@@ -220,6 +222,13 @@ function main() {
         // bookkeeping shows in the first, first visibility in the second.
         ['blind', [{ do: 'step', frames: 30 }, { do: 'tap', key: 'Digit3', frames: 10 },
                    profile('published', 'Digit1'), profile('revealed', 'Digit4')]],
+        // The same walk, with the programs readied while the camera is still
+        // away. If first visibility then costs what a warm frame costs, the
+        // hitch was the compile and readying it early is where it belongs.
+        ['prewarmed', [{ do: 'step', frames: 30 }, { do: 'tap', key: 'Digit3', frames: 10 },
+                       profile('published', 'Digit1'),
+                       { do: 'prewarm', as: 'ready', cell: CELL_NAME },
+                       profile('revealed', 'Digit4')]],
     ];
 
     for (const [arm, steps] of arms) {
@@ -227,12 +236,21 @@ function main() {
         for (const [as, { frames, delivery }] of runs) {
             report(`${arm}${runs.size > 1 ? `/${as}` : ''}`, frames, delivery);
         }
+        const ready = prewarmed.get(arm);
+        if (ready) {
+            console.log(`\n  readying ${arm}'s programs early took ${ready.ms.toFixed(2)} ms`
+                + ` — ${ready.compiles} compile(s) of ${ready.uniqueKeys} unique key(s)`
+                + ` over ${ready.asks} ask(s) for ${ready.entities} entit(ies);`
+                + ` ${ready.materialCompiles} material compile(s) of ${ready.materialAsks} ask(s)`);
+        }
     }
     console.log('');
     process.exit(failedTotal === 0 ? 0 : 1);
 }
 
 let failedTotal = 0;
+/** What readying an arm's programs early cost, by arm. */
+const prewarmed = new Map();
 
 /** Run one arm in its own Electron, so each pays for its own cold cache. */
 function drive(out, name, steps) {
@@ -249,6 +267,11 @@ function drive(out, name, steps) {
     // experiment that separates them stops separating them.
     const runs = new Map();
     for (const line of (run.stdout || '').split('\n')) {
+        const ready = /^prewarm ([^:]+): (.*)$/.exec(line);
+        if (ready) {
+            try { prewarmed.set(name, JSON.parse(ready[2])); } catch { /* partial */ }
+            continue;
+        }
         const match = /^(profile|delivery) ([^:]+): /.exec(line);
         if (!match) continue;
         const [, kind, as] = match;

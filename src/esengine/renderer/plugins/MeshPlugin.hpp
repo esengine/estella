@@ -25,6 +25,8 @@ public:
     /// renderable's shadow is ShadowCaster2D's to cast, not the map's.
     bool castsShadows() const override { return true; }
     void collect(RenderCollectContext& ctx) override;
+    RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
+                                const Entity* entities, u32 count, bool shadowPasses) override;
     const char* collectScope() const override { return "render.collect.mesh"; }
 
 private:

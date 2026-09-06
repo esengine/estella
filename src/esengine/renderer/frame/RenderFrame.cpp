@@ -1576,6 +1576,20 @@ bool RenderFrame::visibleToCamera(i32 layer, const glm::vec3& center,
     return frustum_.intersectsAABB(center, halfExtents);
 }
 
+RenderPrewarmResult RenderFrame::prewarmPrograms(ecs::Registry& registry,
+                                                 const Entity* entities, u32 count) {
+    auto ctx = makeContext();
+    // What the SCENE renders, read from the plan the last frame built rather than
+    // assumed: a world with no shadow caster needs no depth variant, and readying
+    // one would be six milliseconds spent on a program nothing asks for.
+    const bool shadowPasses = !shadow_casters_.empty();
+    RenderPrewarmResult out;
+    for (auto& plugin : plugins_) {
+        out += plugin->prewarm(ctx, registry, entities, count, shadowPasses);
+    }
+    return out;
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect");
     // Split because "collect is expensive" names no mechanism: planning shadows,

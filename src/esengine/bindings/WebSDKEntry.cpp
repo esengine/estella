@@ -718,6 +718,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("engine_setCpuProfiling", &esengine::engine_setCpuProfiling);
     emscripten::function("engine_setRandomSeed", &esengine::engine_setRandomSeed);
     emscripten::function("engine_getCpuScopes", &esengine::engine_getCpuScopes);
+#ifdef ES_ENABLE_TEST_PROBES
+    emscripten::function("engine_prewarmMeshVariants", &esengine::engine_prewarmMeshVariants);
+#endif
     emscripten::function("engine_getCounters", &esengine::engine_getCounters);
     emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);
     emscripten::function("renderer_getTextureBytes", &esengine::renderer_getTextureBytes);

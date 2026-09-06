@@ -287,6 +287,47 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     return mesh_programs_[variant];
 }
 
+RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
+                                        const Entity* entities, u32 count, bool shadowPasses) {
+    RenderPrewarmResult out;
+    u64 seen = 0;
+    const u32 materialsBefore = ctx.materials ? ctx.materials->builtVariantCount() : 0;
+    for (u32 i = 0; i < count; ++i) {
+        const Entity entity = entities[i];
+        const auto* mesh = registry.tryGet<ecs::MeshRenderer>(entity);
+        if (!mesh || !mesh->enabled) continue;
+        if (mesh->indices.empty() && !mesh->mesh.isValid()) continue;
+        const Mesh* resident = mesh->mesh.isValid() ? ctx.resources.getMesh(mesh->mesh) : nullptr;
+        // Both purposes when the scene draws depth too: the same renderable is
+        // asked for twice with different keys, and readying only the camera's
+        // leaves the first shadow map to pay for the other.
+        for (u32 pass = 0; pass < 2; ++pass) {
+            const bool shadowDepth = pass == 1;
+            if (shadowDepth && (!shadowPasses || !resident)) continue;
+            const u32 variant =
+                meshDrawFor(ctx, registry, entity, *mesh, resident, shadowDepth,
+                            warned_bones_).variant;
+            ++out.asks;
+            if ((seen & (1ull << variant)) == 0) { seen |= 1ull << variant; ++out.uniqueKeys; }
+            if (!mesh_compiled_[variant]) ++out.compiles;
+            meshProgram(ctx, variant);
+        }
+        // The second lazily-compiled path. A fixture without materials would let
+        // readiness look complete while a material-shaded world still hitched.
+        if (mesh->material != 0 && ctx.materials && resident) {
+            ++out.materialAsks;
+            ctx.materials->meshProgram(mesh->material, ctx.resources, resident->hasNormals,
+                                       skinJointCount(registry, entity, *resident, warned_bones_) > 0,
+                                       ctx.environment_texture_id != 0);
+        }
+    }
+    if (ctx.materials) {
+        out.materialCompiles = ctx.materials->builtVariantCount() - materialsBefore;
+    }
+    compiled_this_frame_ = 0;
+    return out;
+}
+
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& frustum = collect_ctx.frustum;

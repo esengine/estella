@@ -404,6 +404,16 @@ public:
     void destroySkeletalPreview(SkeletalPreviewId id);
 
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
+
+    /**
+     * @brief Make ready the programs @p entities will need, drawing nothing.
+     *
+     * @details Ordinary renderer code, reachable by anything inside the engine —
+     *          a residency lifecycle that wants a cell render-ready before it is
+     *          seen would call THIS. The only thing gated to test builds is the
+     *          WASM adapter that lets a driver call it from outside.
+     */
+    RenderPrewarmResult prewarmPrograms(ecs::Registry& registry, const Entity* entities, u32 count);
     void collectAll(ecs::Registry& registry);
 
     /**

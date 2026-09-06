@@ -141,7 +141,47 @@ async function boot(): Promise<void> {
 
   if (headless) {
     let statsOn = false;
-    (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = {
+    /**
+     * Ready the shader programs a resident cell's meshes will be asked for,
+     * drawing none of them. Attached only where the engine answers it.
+     *
+     * Turning the camera would ready them too, and would bring every other
+     * first-sight effect with it — which is the isolation this exists to keep.
+     */
+    const prewarmMeshVariants = (cell: string): Record<string, number> => {
+      const rows = (worldResidencyReport(app).cellRows ?? {})[cell];
+      if (!rows || rows.length === 0) throw new Error(`[estella] no resident cell "${cell}"`);
+      const entities = new Uint32Array(rows.map((r) => r.entity));
+      const m = module as unknown as {
+        _malloc(n: number): number;
+        _free(p: number): void;
+        HEAPU32: Uint32Array;
+        engine_prewarmMeshVariants(registry: unknown, entitiesPtr: number, count: number,
+                                   outPtr: number): void;
+      };
+      const entityPtr = m._malloc(entities.length * 4);
+      const outPtr = m._malloc(5 * 4);
+      try {
+        m.HEAPU32.set(entities, entityPtr >> 2);
+        // Around the call ALONE: reading the counts back is this probe's cost,
+        // not the readiness cost the experiment is about.
+        const began = performance.now();
+        m.engine_prewarmMeshVariants(app.world.getCppRegistry(), entityPtr, entities.length,
+                                     outPtr);
+        const ms = performance.now() - began;
+        const out = m.HEAPU32.subarray(outPtr >> 2, (outPtr >> 2) + 5);
+        return {
+          ms, entities: entities.length,
+          asks: out[0], compiles: out[1], uniqueKeys: out[2],
+          materialAsks: out[3], materialCompiles: out[4],
+        };
+      } finally {
+        m._free(entityPtr);
+        m._free(outPtr);
+      }
+    };
+
+    const cooked: Record<string, unknown> = {
       capture(): { width: number; height: number; rgba: Uint8Array } {
         const w = canvas.width, h = canvas.height;
         const rgba = new Uint8Array(w * h * 4);
@@ -535,6 +575,14 @@ async function boot(): Promise<void> {
         return { changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length };
       },
     };
+    // Registered only where the engine answers it. A release build exports no
+    // test adapter, and a probe that existed there and threw would turn "this
+    // build cannot do that" into a runtime error about something else.
+    if (typeof (module as unknown as Record<string, unknown>).engine_prewarmMeshVariants
+        === 'function') {
+      cooked.prewarmMeshVariants = prewarmMeshVariants;
+    }
+    (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = cooked;
   }
   // physics.wasm sits next to esengine.wasm; the runtime loads it when a scene
   // uses physics, or when the project declared physics on for bodies it spawns

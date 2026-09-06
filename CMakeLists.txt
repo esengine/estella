@@ -47,6 +47,11 @@ if(MSVC)
 endif()
 
 option(ES_SANITIZE "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+# Adds test-only ADAPTERS to the exported surface and changes nothing else. It
+# must stay orthogonal to build type, optimisation, backend and every feature
+# define: a probe build has to be a shipping renderer that answers one more call,
+# or the counterfactual it exists for measures a different engine.
+option(ES_ENABLE_TEST_PROBES "Export test-only adapters (never in a release ABI)" OFF)
 if(ES_SANITIZE)
     if(MSVC)
         message(FATAL_ERROR "ES_SANITIZE requires clang or gcc (MSVC has no UBSan).")
@@ -251,6 +256,10 @@ endif()
 
 if(ES_ENABLE_POSTPROCESS)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_POSTPROCESS)
+endif()
+
+if(ES_ENABLE_TEST_PROBES)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_TEST_PROBES)
 endif()
 
 if(ES_ENABLE_WEBGPU)

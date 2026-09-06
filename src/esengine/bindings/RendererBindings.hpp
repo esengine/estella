@@ -136,6 +136,18 @@ void engine_setCpuProfiling(bool on);
  *  Unset, every run differs — which is what a player wants of particles. */
 void engine_setRandomSeed(u32 seed);
 std::string engine_getCpuScopes();
+
+#ifdef ES_ENABLE_TEST_PROBES
+/**
+ * @brief Ready the shader programs a set of entities will need, drawing none.
+ *
+ * @details A disposable adapter over `RenderFrame::prewarmPrograms` — the only
+ *          gated part of shader readiness, the mechanism being ordinary renderer
+ *          code a production lifecycle would call directly. Writes five counts
+ *          to @p outPtr; JSON here would put an allocation inside the measurement.
+ */
+void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr);
+#endif
 std::string engine_getCounters();
 std::string engine_getGpuScopes();
 f64 renderer_getTextureBytes();
