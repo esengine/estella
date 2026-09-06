@@ -1,6 +1,6 @@
 import {
-    defineSystem, Res, Query, Mut,
-    Text, UIVisual, Health,
+    defineSystem, Res, ResMut, Query, Mut,
+    Text, UIVisual, Health, Playthrough, type PlaythroughData,
 } from 'esengine';
 import { Runner, HealthMeter, ObjectiveText, PromptText, OverlayText } from '../components';
 import { Run, MAX_HEALTH, CORES_NEEDED, type RunData } from '../resources';
@@ -59,4 +59,31 @@ export const openingSystem = defineSystem(
         }
     },
     { name: 'OpeningSystem' },
+);
+
+/**
+ * The same run, stated for automation rather than for the player. A HUD is read
+ * by eye and proves nothing to a gate; these are the facts a playthrough is
+ * judged on, published by the game that owns them.
+ */
+export const factsSystem = defineSystem(
+    [Res(Run), Query(Health, Runner), ResMut(Playthrough)],
+    (run: RunData, runners, factsMut) => {
+        let health = 0;
+        for (const [, hp] of runners) health = hp.current;
+        const out = factsMut.get() as PlaythroughData;
+        out.facts = {
+            phase: run.phase,
+            health,
+            dead: run.phase === 'dead',
+            paused: run.phase === 'paused',
+            victory: run.phase === 'won',
+            cores: run.cores,
+            coresNeeded: CORES_NEEDED,
+            gateOpen: run.cores >= CORES_NEEDED,
+            checkpointZ: run.respawn.z,
+            elapsed: Math.round(run.elapsed),
+        };
+    },
+    { name: 'PlaythroughFactsSystem' },
 );

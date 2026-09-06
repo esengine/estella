@@ -52,7 +52,7 @@ import './components';
 import { runInputSystem, sprintSystem, progressSystem } from './systems/run';
 import { coreBobSystem, hazardSystem, interactSystem } from './systems/world';
 import { lifecycleSystem } from './systems/lifecycle';
-import { hudSystem, openingSystem } from './systems/hud';
+import { hudSystem, openingSystem, factsSystem } from './systems/hud';
 
 // Order is the frame's argument: input becomes edges, the world reacts to them,
 // the lifecycle decides what state that leaves the run in, and only then is the
@@ -66,3 +66,4 @@ addSystemToSchedule(Schedule.Update, interactSystem);
 addSystemToSchedule(Schedule.Update, lifecycleSystem);
 addSystemToSchedule(Schedule.Update, hudSystem);
 addSystemToSchedule(Schedule.Update, openingSystem);
+addSystemToSchedule(Schedule.Update, factsSystem);
