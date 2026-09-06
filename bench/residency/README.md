@@ -180,7 +180,7 @@ while still inside the prefetch radius is speculated about again the instant it
 goes — walking away from a place fetches it a second time. Held to in
 `sdk/tests/world-residency.test.ts`, both directions.
 
-## Streaming Delivery v1 — frozen
+## What delivery has, and what it still owes
 
 What the three benches together establish:
 
@@ -189,10 +189,14 @@ What the three benches together establish:
 - **Delivery** readies content before demand, and it works: 100% hit rate on
   ordinary movement, 0% when speculation is disabled, and a hit costs publication
   alone.
-- **Publication** is the only cost demand cannot escape: ~6 ms of spawn for a
-  249-entity cell, landing on a 2.8–8.4 ms frame. Nothing here needs a budget
-  scheduler.
 - **Cancellation** gives back what speculation acquired, receipts included.
+
+**Publication is the one cost demand cannot escape, and it is still a single
+number.** ~6 ms of `spawn` for a 249-entity cell, landing on a 2.8–8.4 ms frame —
+but what that 6 ms IS (entity allocation, component writes, hierarchy, and which
+subsystem each write reaches) this measures nowhere. Until it does, "nothing here
+needs a budget scheduler" is a reading of a total, not of a mechanism, and
+delivery is not finished.
 
 Not in v1, deliberately: velocity prediction, adaptive prefetch radius, memory
 budget, priority scheduling. Each of them now has a number that would justify it,
