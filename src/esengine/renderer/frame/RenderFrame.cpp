@@ -271,10 +271,6 @@ void RenderFrame::releaseFrameTargets() {
 }
 
 void RenderFrame::beginFrame() {
-    // A frame a host never closed. Forgiving rather than strict: the cost of
-    // closing it here is one frame's deferral, and the cost of NOT is a backend
-    // holding a swapchain image forever.
-    device_.endFrame();
     // Here and not at end(), which runs once per CAMERA: every camera plans and
     // renders its own maps, and the pool hands the same physical atlas to each in
     // turn. Then one tick of the clock, by the frame that owns the pool.
