@@ -59,9 +59,9 @@ function drive(dir, name, steps) {
     ], { encoding: 'utf8', cwd: ROOT });
     const readings = {};
     for (const line of (r.stdout || '').split('\n')) {
-        const at = line.indexOf('reading ');
+        const at = Math.max(line.indexOf('reading '), line.indexOf('watching '));
         if (at < 0) continue;
-        const label = line.slice(at + 8, line.indexOf(':', at));
+        const label = line.slice(line.indexOf(' ', at) + 1, line.indexOf(':', at));
         try {
             readings[label] = JSON.parse(line.slice(line.indexOf('{', at)));
         } catch { /* a truncated line is a missing reading, reported below */ }
@@ -96,8 +96,8 @@ function main() {
         { do: 'read', as: 'scoutOn' },
         { do: 'tap', key: 'KeyL', frames: 30 },
         { do: 'read', as: 'scoutOff' },
-        { do: 'tap', key: 'KeyM', frames: 420 },
-        { do: 'read', as: 'bobbed' },
+        { do: 'tap', key: 'KeyM', frames: 20 },
+        { do: 'watch', as: 'bobbed', name: 'Bobber', axis: 'z', frames: 400, every: 20 },
     ]);
 
     const initial = start.initial;
@@ -127,9 +127,15 @@ function main() {
     const bobbed = start.bobbed;
     const loads = bobbed.streaming.loadCount - scoutOff.streaming.loadCount;
     const unloads = bobbed.streaming.unloadCount - scoutOff.streaming.unloadCount;
+    // The threshold the bobber is meant to breathe across. Asserted, because a
+    // source that never moved would satisfy every count below for no reason.
+    const CROSSES_AT = 2750;
+    claim(bobbed.swept.min < CROSSES_AT && bobbed.swept.max > CROSSES_AT,
+        'the source really did cross the load threshold, both ways',
+        `swept z ${bobbed.swept.min.toFixed(0)}..${bobbed.swept.max.toFixed(0)} across ${CROSSES_AT}`);
     claim(resident(bobbed, D) && loads === 1 && unloads === 0,
-        'a source breathing across a boundary loads the place once and keeps it',
-        `${loads} load(s), ${unloads} unload(s) over 420 frames`);
+        'and a boundary it breathes across loads the place once and keeps it',
+        `${loads} load(s), ${unloads} unload(s) over 400 frames`);
 
     // ---- 2/3/4/7/8. The journey ------------------------------------------
     const trip = drive(dir, 'journey', [

@@ -47,7 +47,7 @@ const LOG = flag('log', '');
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
 
 /** Everything a read asks the game about, in one round trip. */
-const NAMES = ['Player', 'Enemy', 'RockA', 'Wall', 'Arch', 'ArchTop', 'Beacon', 'Canary', 'Scout'];
+const NAMES = ['Player', 'Enemy', 'RockA', 'Wall', 'Arch', 'ArchTop', 'Beacon', 'Canary', 'Scout', 'Bobber'];
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -216,6 +216,22 @@ async function main() {
       continue;
     }
     if (step.do === 'step') { await exec(holdScript([], step.frames ?? 30)); continue; }
+    if (step.do === 'watch') {
+      // Sample while it runs, so a claim about a source CROSSING a threshold can
+      // say it crossed. One reading at the end cannot: a source that never moved
+      // and one that came to rest where it started look the same.
+      const every = step.every ?? 20;
+      const swept = { min: Infinity, max: -Infinity };
+      let counts = null;
+      for (let done = 0; done < (step.frames ?? 200); done += every) {
+        await exec(holdScript([], every));
+        const at = (await exec(`window.__estellaCooked.probe(${JSON.stringify([step.name])})`)).at[step.name];
+        if (at) { swept.min = Math.min(swept.min, at[step.axis ?? 'z']); swept.max = Math.max(swept.max, at[step.axis ?? 'z']); }
+        counts = await exec('window.__estellaCooked.streaming()');
+      }
+      console.log(`watching ${step.as}: ${JSON.stringify({ swept, streaming: counts })}`);
+      continue;
+    }
     if (step.do === 'tap') { await exec(tapScript(step.key, step.frames ?? 10)); continue; }
     if (step.do === 'hold') { await exec(holdScript(step.keys ?? [], step.frames ?? 30)); continue; }
     if (step.do === 'walkTo') {
