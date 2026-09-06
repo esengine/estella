@@ -73,6 +73,20 @@ arrivalWindowCost       the same, summed over the frames the arrival disturbs,
 
 **Finishing the publication transaction is not having paid for the arrival.**
 
+### Four arms, because two could not tell publication from visibility
+
+| arm | what it does | what it isolates |
+| --- | --- | --- |
+| **miss** | demanded before anything readied it | preparation on the critical path |
+| **hit** | readied first, then demanded | the path prefetch exists to create |
+| **zero** | never brings a cell in | whether the renderer spikes on its own |
+| **blind** | publishes with the camera turned away, then turns it back | publication vs first visibility |
+
+`zero` never spikes, so no shape below is something the renderer does anyway.
+`blind` publishes with nothing drawn and costs nothing, then costs 6.2 ms the
+moment the camera turns — which is what makes the author **first visibility** and
+not publication.
+
 ### Measured 2026-09-05 (M-series Mac, WebGL2, 640×360, cold, one run per arm)
 
 ```
@@ -185,23 +199,61 @@ The frame's wall time was never the broken instrument. It has always been read b
 the driver's own `performance.now()` around `step()`; what the `costs()` bug hid
 was only the *breakdown*.
 
-### An arrival-shaped spike that is NOT the arrival
+### What the first-visibility spike actually is
 
-Every run shows one frame far from the arrival that is larger than the arrival
-itself, and always render:
+`node bench/residency/heavy.mjs` decomposes it, and the answer is not what any
+of this section previously said. On the frames that hitch:
 
 ```
-  miss arm   f223   12.4 ms   render 11.50   (arrival was f7)
-  hit  arm   f103   17.1 ms   render 16.40   (arrival was f0)
+  render.collect.mesh                  7.10 ms
+    mesh.program                       6.10 ms   ← 86%
+    mesh.decompose / lod / bounds / emit   ~1.0 ms together
+
+  render.mesh.walked                      242
+  render.mesh.lodGathers                   40
+  render.mesh.programAsks                 242
+  render.mesh.programCompiles               1
 ```
 
-This is deliberately **not named**. "First-visible lazy work" is one hypothesis;
-a first-draw shader compile, a deferred GPU upload, and periodic work unrelated
-to the arrival (LOD switching, shadow cascades, GC) all produce the same shape.
-Two cheap experiments separate them: run long enough to see whether it recurs
-(once = one-off, periodic = something else), and run an arm that creates **no
-cell at all** to see whether the spike is there anyway. Until one of those is
-done this is an observation with a location, not a mechanism with a name.
+**242 asks, one compile, six milliseconds.** `MeshPlugin::meshProgram` caches per
+shader variant and compiles on first use, so what an arrival pays is a GLSL
+compile and link for a variant nothing had needed yet. Walking 242 renderables,
+gathering 40 LOD groups and decomposing every transform costs about one
+millisecond between them.
+
+The counters kill three other explanations without an argument:
+
+| candidate | evidence | verdict |
+| --- | --- | --- |
+| mesh resource realization | `ResourceManager::getMesh` is `meshes_.get(handle)` — a pool lookup with no lazy creation | never measured; ruled out from source |
+| LOD resolution | `lodGathers` 40 against `mesh.lod` 0.2 ms | ruled out |
+| transform decomposition | `coldDecompose` is **1**, not 241 — the transform system had already done them | ruled out |
+
+**The same cell with the variant already compiled costs 0.2 ms of collect**
+(`programCompiles = 0`). Same 242 meshes, same everything else. That is the
+counterfactual, and it is why the arrival frame ranged 2.8–13.3 ms across runs:
+the hitch is present exactly when the arriving content needs a variant nobody
+has compiled yet.
+
+### The other spike, which is a different mechanism
+
+Every run also shows one or two frames far from any arrival, larger than the
+arrival, and they are **not** collect:
+
+```
+  f190   7.10 ms   render.finalize 6.20    (collect 0.10)
+  f102  15.80 ms   render.finalize 15.30   (collect 0.00)
+```
+
+`render.finalize` is `draw_list_.finalize()` + `pool_.upload()`. These need a
+cell to have been drawn — the control arm that never brings one in has no spikes
+at all — but they are otherwise unrelated to the arrival. Which of the two calls
+is the author is not known and is not investigated here: mixing a one-time
+six-millisecond compile with a sporadic fifteen-millisecond upload is how two
+mechanisms become one unsolvable problem.
+
+**Reopening condition**: once shader-variant readiness closes, open *Render
+Finalize Spike Decomposition* separately.
 
 ## Prefetch effectiveness — did it get ready in time?
 
@@ -320,6 +372,22 @@ while still inside the prefetch radius is speculated about again the instant it
 goes — walking away from a place fetches it a second time. Held to in
 `sdk/tests/world-residency.test.ts`, both directions.
 
+
+## Superseded findings
+
+Kept rather than rewritten, because a reader who remembers the old claim needs to
+find out here that it is dead — and because each was a reasonable reading of a
+real measurement, which is the interesting part.
+
+| ~~was~~ | now | what changed the answer |
+| --- | --- | --- |
+| ~~The arrival hitch follows publication and scales with mesh population.~~ | Publication and first visibility are distinct boundaries. The first-visibility spike is one cold shader-variant compile (~6 ms in this fixture). | The `blind` arm: publishing with the camera away costs nothing. |
+| ~~`MeshPlugin::collect` scales badly on a heavy-cell arrival.~~ | Steady-state collection of the extra 241 meshes is ~0.1 ms/frame. The ~6 ms is one-time program compilation that merely happens to be called from there. | `programCompiles = 1` against `programAsks = 242`, and 6.4 → 0.1 → 0.0 ms over three frames at constant `drawn`. |
+| ~~The miss path defers realization to a later frame outside the arrival window.~~ | `need f0 → publish f8 → first-visible f8`. Nothing is deferred. | Anchoring the window on the frame the renderer first ACCEPTS the renderables instead of on the residency flip. |
+| ~~The later 9–15 ms spikes are the delayed arrival.~~ | They are `render.finalize`, a separate mechanism, and they carry no collect at all. | Scoping the spike frames rather than the window. |
+| ~~GPU upload is not a cost this path has.~~ | GPU upload is not the author of the ARRIVAL frame. `render.finalize` — where `pool_.upload()` lives — is 9–15 ms elsewhere. | The same scoping; the first claim was true of one frame and stated of the path. |
+| ~~The `costs()` probe was broken, so the old 3.5 ms arrival frames were a bad instrument's reading.~~ | The frame's wall time was always the driver's own clock around `step()`. The probe bug hid only the breakdown. | Reading what `f.ms` is actually measured by. |
+
 ## Streaming Delivery v1 — NOT frozen
 
 What the three benches establish:
@@ -351,6 +419,19 @@ on one frame, ~80% of a 60 Hz budget, before the game has done anything. This is
 measured budget violation on the path the feature exists to produce — which is
 the agreed condition for reopening, not a hunch that something could be faster.
 
+What that 13.3 ms is now known to be, and it is two debts rather than one:
+
+```
+  6.4 ms   publication transaction     ECS materialisation, Delivery's own
+  6.1 ms   one cold shader variant     the renderer's, and only ever paid once
+```
+
+The second is not a streaming cost at all. A world that had drawn a mesh with the
+same variant before pays 0.2 ms for the same arrival — which means Delivery's
+share of the budget violation is the 6.4 ms, and the other half belongs to
+shader-variant readiness. Both have to close before this freezes; they close
+separately.
+
 Deliberately still not built: velocity prediction, adaptive prefetch radius,
 memory budget, priority scheduling. Each now has a number that would justify it.
 None is the next thing to build.
@@ -363,12 +444,18 @@ is the next cut. Against a ~14 ms arrival window whose largest term is render
 realization, optimising a 2 ms one is choosing the second question. Both are
 recorded here and left alone.
 
-The next cut is **Render Realization Cost Decomposition**: explain the render
-increment on the arrival frame, to the same standard as publication, and say
-which of three mechanisms it is — CPU-side registration and bookkeeping, GPU
-buffer creation and upload, or work the renderer defers to first draw. Today the
-whole renderer carries four C++ scopes (`render.collect`, `.graph`, `.submit`,
-`.finalize`), which cannot tell those three apart.
+That cut is done, and it named the mechanism: one cold shader-variant compile.
+So the next one is **Shader Variant Readiness** — whether the variants
+already-prefetched content will need can be made ready before first visibility,
+rather than compiled at it. Not by precompiling everything: the question is
+whether the exact variant key is derivable at `prepared`, at `publish`, or only
+once a camera looks, because those three have different answers and only the
+first is free.
+
+**Do not optimise `MeshPlugin::collect`.** It is where the lazy compile is called
+from and nothing more; the evidence clears it. Moving 6 ms from the first visible
+frame into the publication transaction would not be a fix either — a hitch
+relocated is still a hitch.
 
 ### Instrumentation, and how it is kept honest
 
