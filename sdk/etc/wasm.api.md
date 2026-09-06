@@ -418,6 +418,7 @@ renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: num
 renderer_setViewId: ((view: number) => void) | undefined
 renderer_setViewport: (x: number, y: number, w: number, h: number) => void
 renderer_setYSortLayers: ((mask: number) => void) | undefined
+renderer_shadowStatus: ((entity: number, outPtr: number) => number) | undefined
 renderer_submitAll: (registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number) => void
 renderer_submitScreenOverlay: ((registry: CppRegistry) => void) | undefined
 renderer_submitSkeletalBatchByEntity: ((registry: CppRegistry, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number) => void) | undefined

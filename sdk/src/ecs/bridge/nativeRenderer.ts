@@ -149,6 +149,19 @@ export function createNativeRendererBackend(
                 screenSize: f[i + 3]!,
             };
         },
+        shadowStatus: (entity) => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.shadowStatus];
+            const heap = lodHeap();
+            if (typeof fn !== 'function' || !heap) return null;
+            if (!(fn as (e: number, p: number) => number)(entity >>> 0, heap.ptr)) return null;
+            const f = heap.heap.HEAPF32;
+            const i = heap.ptr >> 2;
+            const refusal = (['none', 'tile-budget', 'tile-too-large', 'atlas-full'] as const)[f[i + 2]!];
+            return {
+                requested: f[i]!, granted: f[i + 1]!, refusal: refusal ?? 'none',
+                deniedCasters: f[i + 3]!, reducedCasters: f[i + 4]!,
+            };
+        },
         lightStatus: (entity) => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.lightStatus];
             const heap = lodHeap();

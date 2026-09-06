@@ -176,6 +176,16 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level);
  *          a frame that refused none.
  */
 i32 renderer_lightStatus(u32 entity, uintptr_t outPtr);
+
+/**
+ * @brief What the shadow atlas gave @p entity last frame, into five floats at
+ *        @p outPtr: requested, granted, refusal, deniedCasters, reducedCasters.
+ *
+ * @details `granted` below `requested` and above zero is a REDUCTION — a sun that
+ *          kept two cascades of four still casts. Zero is a denial. Returns 0
+ *          when this entity asked the atlas for nothing.
+ */
+i32 renderer_shadowStatus(u32 entity, uintptr_t outPtr);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();

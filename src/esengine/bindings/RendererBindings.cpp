@@ -12,6 +12,7 @@
 #include "../renderer/frame/RenderFrame.hpp"
 #include "../renderer/lod/LodSelection.hpp"
 #include "../renderer/store/LightPlan.hpp"
+#include "../renderer/store/ShadowPlan.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../core/FrameProfiler.hpp"
 #include "../renderer/frame/RenderStage.hpp"
@@ -852,6 +853,22 @@ i32 renderer_lightStatus(u32 entity, uintptr_t outPtr) {
     out[2] = static_cast<f32>(cap.limit);
     out[3] = static_cast<f32>(cap.requested);
     out[4] = static_cast<f32>(cap.refused.size());
+    return 1;
+}
+
+i32 renderer_shadowStatus(u32 entity, uintptr_t outPtr) {
+    auto* out = boundarySpanMut<f32>(outPtr, 5, "renderer_shadowStatus.out");
+    if (!out) return 0;
+    for (u32 i = 0; i < 5; ++i) out[i] = 0.0f;
+    if (!g_renderFrame) return 0;
+    const ShadowPlanReport& plan = g_renderFrame->shadowPlan();
+    const ShadowGrant* grant = plan.grantFor(Entity::fromRaw(entity));
+    if (!grant) return 0;
+    out[0] = static_cast<f32>(grant->requested);
+    out[1] = static_cast<f32>(grant->granted);
+    out[2] = static_cast<f32>(static_cast<u8>(grant->refusal));
+    out[3] = static_cast<f32>(plan.deniedCasters());
+    out[4] = static_cast<f32>(plan.reducedCasters());
     return 1;
 }
 

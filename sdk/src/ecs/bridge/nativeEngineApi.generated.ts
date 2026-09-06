@@ -172,6 +172,7 @@ export interface NativeEngineApi {
     renderer_setViewId?(view: number): void;
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
     renderer_setYSortLayers?(mask: number): void;
+    renderer_shadowStatus?(entity: number, outPtr: number): number;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitScreenOverlay?(registry: unknown): void;
     renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
@@ -423,6 +424,7 @@ export function createNativeEngineApi(
     bind('renderer_setViewId', 'es_renderer_setViewId', false);
     bind('renderer_setViewport', 'es_renderer_setViewport', false);
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
+    bind('renderer_shadowStatus', 'es_renderer_shadowStatus', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);
     bind('renderer_submitScreenOverlay', 'es_renderer_submitScreenOverlay', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);

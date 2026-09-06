@@ -64,7 +64,7 @@ describe('render order: transforms resolve before cameras are read', () => {
             setStage: () => {}, setViewport: () => {},
             setYSortLayers: () => {}, setDepthLayers: () => {}, setCullingMask: () => {},
             setViewId: () => {},
-            lodInspect: () => null, setLodPreview: () => {}, lightStatus: () => null,
+            lodInspect: () => null, setLodPreview: () => {}, lightStatus: () => null, shadowStatus: () => null,
             getStats: () => ({ drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 }),
         };
     }

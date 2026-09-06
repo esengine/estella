@@ -64,6 +64,14 @@ struct ShadowPlanReport {
         return n;
     }
 
+    /** @brief What @p entity asked for and kept, or null when it asked nothing. */
+    const ShadowGrant* grantFor(Entity entity) const {
+        for (const ShadowGrant& g : grants) {
+            if (g.light.raw == entity.raw) return &g;
+        }
+        return nullptr;
+    }
+
     u32 reducedCasters() const {
         u32 n = 0;
         for (const ShadowGrant& g : grants) n += g.reduced() ? 1u : 0u;

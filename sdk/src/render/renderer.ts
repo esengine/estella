@@ -74,7 +74,32 @@ export interface RendererBackend {
     lodInspect(view: number, entity: number): LodDecision | null;
     setLodPreview(view: number, entity: number, level: number | null): void;
     lightStatus(entity: number): LightStatus | null;
+    shadowStatus(entity: number): ShadowStatus | null;
     getStats(): RenderStats;
+}
+
+/**
+ * What the shadow atlas gave one caster last frame. @experimental
+ *
+ * `granted` below `requested` and above zero is a REDUCTION: a sun that kept two
+ * cascades of four still casts, and calling that a rejection would throw away the
+ * distinction the frame records it for. Zero granted is a denial.
+ */
+export interface ShadowStatus {
+    /** Tiles asked for: a cascade set, a cube's six faces, or one. */
+    requested: number;
+    /** Tiles kept. 0 means this light casts no shadow at all this frame. */
+    granted: number;
+    /**
+     * Why it did not get what it asked for. Three answers, not one: only
+     * `atlas-full` is fixed by a bigger atlas, and `tile-budget` is the shader's
+     * array bound, which no size changes.
+     */
+    refusal: 'none' | 'tile-budget' | 'tile-too-large' | 'atlas-full';
+    /** Casters the frame denied outright, for a reader that wants the total. */
+    deniedCasters: number;
+    /** Casters that kept fewer tiles than they asked for. */
+    reducedCasters: number;
 }
 
 /**
@@ -124,8 +149,11 @@ let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
 /** Four floats a LOD decision is read back through. */
 let lodInspectPtr: number = 0;
-/** Five floats a light's standing with the cap is read back through. */
+/** Five floats a light's standing with the cap or the atlas is read back
+ *  through. One buffer: neither answer outlives the call that asks. */
 let lightStatusPtr: number = 0;
+/** AtlasRefusal, in the order ShadowAtlas.hpp declares it. */
+const ATLAS_REFUSAL: ShadowStatus['refusal'][] = ['none', 'tile-budget', 'tile-too-large', 'atlas-full'];
 let backend: RendererBackend | null = null;
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
@@ -222,6 +250,15 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         },
         setLodPreview: (view, entity, level) =>
             m.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1),
+        shadowStatus: (entity) => {
+            if (!m.renderer_shadowStatus || !lightStatusPtr) return null;
+            if (!m.renderer_shadowStatus(entity >>> 0, lightStatusPtr)) return null;
+            const f = m.HEAPF32.subarray(lightStatusPtr >> 2, (lightStatusPtr >> 2) + 5);
+            return {
+                requested: f[0]!, granted: f[1]!, refusal: ATLAS_REFUSAL[f[2]!] ?? 'none',
+                deniedCasters: f[3]!, reducedCasters: f[4]!,
+            };
+        },
         lightStatus: (entity) => {
             if (!m.renderer_lightStatus || !lightStatusPtr) return null;
             if (!m.renderer_lightStatus(entity >>> 0, lightStatusPtr)) return null;
@@ -606,6 +643,14 @@ export const Renderer = {
      */
     lightStatus(entity: number): LightStatus | null {
         return backend?.lightStatus(entity) ?? null;
+    },
+
+    /**
+     * What the shadow atlas gave `entity` last frame, or null when it asked the
+     * atlas for nothing. @experimental
+     */
+    shadowStatus(entity: number): ShadowStatus | null {
+        return backend?.shadowStatus(entity) ?? null;
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

@@ -82,12 +82,8 @@ export const DECISIONS = [
     kind: 'contended-resource',
     owner: { path: 'src/esengine/renderer/store/ShadowPlan.hpp', probe: /inline ShadowGrant claimTiles/ },
     runtime: { has: true, cite: { path: 'src/esengine/renderer/store/ShadowPlan.hpp', probe: /grant\.refusal = why/ } },
-    editor: {
-      has: false,
-      owed: 'the frame now records who was refused and why (ShadowPlanReport, render.shadow.denied), '
-        + 'and nothing reads it — a light stops casting and the viewport still gives no reason',
-    },
-    agent: { has: false, owed: 'nothing to read' },
+    editor: { has: true, cite: { path: 'desktop/src/panels/inspector/componentDecorators.tsx', probe: /EditorControlSurface\.shadowStatus\(/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_shadow_status'/ } },
   },
   {
     id: 'light.cap',

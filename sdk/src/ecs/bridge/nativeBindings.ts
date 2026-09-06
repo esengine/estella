@@ -191,6 +191,7 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     setLodPreview: 'es_renderer_setLodPreview',
     /** Which lights the cap turned away — an editor's question, like the two above. */
     lightStatus: 'es_renderer_lightStatus',
+    shadowStatus: 'es_renderer_shadowStatus',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

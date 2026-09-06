@@ -13,7 +13,7 @@
  * and a denial still reaches a reader. Each is a line somebody could delete
  * without a pixel moving.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +59,27 @@ for (const counter of ['render.shadow.denied', 'render.shadow.requested']) {
   if (!frame.includes(counter)) {
     problems.push(`${FRAME} no longer reports ${counter} — tiles handed out without tiles asked`
       + ' for is a number that cannot be read as a shortfall');
+  }
+}
+
+// 4. One reader, for the reason check-light-cap holds the same rule: the panel a
+//    person reads and the tool an agent calls answer through one method, so the
+//    behavioural check exercises both. Two calls is one of them never checked.
+const SURFACE = 'desktop/src/engine/EditorControlSurface.ts';
+const DECORATORS = 'desktop/src/panels/inspector/componentDecorators.tsx';
+if (existsSync(path.join(ROOT, 'desktop', 'src'))) {
+  if (!/Renderer\.shadowStatus\(/.test(read(SURFACE))) {
+    problems.push(`${SURFACE} no longer reads the frame back (Renderer.shadowStatus)`);
+  }
+  const decorators = read(DECORATORS);
+  if (!/EditorControlSurface\.shadowStatus\(/.test(decorators)) {
+    problems.push(`${DECORATORS} no longer asks the surface for a caster's standing`);
+  }
+  // Reduction and denial are the distinction the record exists for; a reader
+  // that only knows `denied` reports a sun with two cascades as casting nothing.
+  if (!/granted > 0 && \w+\.granted < /.test(decorators)) {
+    problems.push(`${DECORATORS} no longer tells a REDUCTION from a denial — a caster that kept`
+      + ' fewer tiles still casts, and the frame records the two apart');
   }
 }
 

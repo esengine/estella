@@ -171,6 +171,7 @@ export {
     type RenderStats,
     type LodDecision,
     type LightStatus,
+    type ShadowStatus,
 } from './render/renderer';
 
 // =============================================================================
