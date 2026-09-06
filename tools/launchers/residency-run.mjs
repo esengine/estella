@@ -19,7 +19,8 @@
  *     --log <regex>      also print console lines matching this
  *
  * A script is a list of steps: {do:"read",as},  {do:"walkTo",x,z},
- * {do:"tap",key}, {do:"step",frames}. Each read prints one JSON line.
+ * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count}. Each read
+ * prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -278,6 +279,31 @@ async function main() {
       const delivery = await exec('window.__estellaCooked.streaming().delivery');
       console.log(`profile ${step.as}: ${JSON.stringify(profile)}`);
       console.log(`delivery ${step.as}: ${JSON.stringify(delivery)}`);
+      continue;
+    }
+    if (step.do === 'stream') {
+      // One frame at a time with a macrotask turn between them: `step(n)` drains
+      // only MICROtasks, and a cell arrives over the network, so a held key
+      // profiles a walk whose loads never land.
+      await exec(`(async () => {
+        const target = document.querySelector('canvas') ?? window;
+        const send = (type, code) => {
+          const e = new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true });
+          target.dispatchEvent(e);
+          if (target !== window) window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+        };
+        ${step.key ? `send('keydown', ${JSON.stringify(step.key)});` : ''}
+        for (let i = 0; i < ${step.count ?? 300}; i++) {
+          await window.__estellaCooked.step(1, 1 / 60);
+          ${step.key ? `if (i === 0) send('keyup', ${JSON.stringify(step.key)});` : ''}
+          await new Promise((settle) => setTimeout(settle, 0));
+        }
+        return true;
+      })()`);
+      // Settled after, not during: a cell still in flight when the frames run out
+      // has no delivery to report, and reading it then would publish a zero.
+      await settle();
+      console.log(`stream ${step.as}: ${JSON.stringify(await exec('window.__estellaCooked.streaming()'))}`);
       continue;
     }
     if (step.do === 'time') {
