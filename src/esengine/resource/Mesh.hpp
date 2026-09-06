@@ -21,6 +21,11 @@ namespace esengine {
  * @details One record because the three are inseparable: a buffer without its
  *          layout cannot be drawn, and bounds kept elsewhere go stale. Material,
  *          layer and transform belong to the entity, so one mesh serves many.
+ *
+ *          The handle is a LOGICAL identity: the buffers and the layout realize
+ *          it on ONE device generation and a lost device takes all three, while
+ *          the handle survives. Where the geometry comes back FROM is the
+ *          minting producer's to declare — tools/meshProducers.mjs.
  */
 class Mesh {
 public:

@@ -455,6 +455,10 @@ public:
      *          rewritten by the CPU each frame — a per-frame re-upload of anything
      *          that does not change. The layout travels with the buffers: one whose
      *          attribute description lives elsewhere is a rename from garbage.
+     *          Every caller is a mesh PRODUCER and owes a row in
+     *          tools/meshProducers.mjs saying how the handles it mints come back
+     *          after a device generation ends; check-mesh-provenance keeps that
+     *          census closed in both directions.
      * @param vertexBytes Raw vertex data, laid out as @p layout describes.
      * @param indices Triangle-list indices into it.
      * @return Handle to the mesh, or invalid on failure.
