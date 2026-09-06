@@ -40,49 +40,168 @@ count of cells does not appear in it.
 harness can separate from noise. Residency reconsiders every cell against every
 source each frame and, at a hundred cells, that is free.
 
-## The heavy cell — is there an arrival nobody can split?
+## The heavy cell — what does one arrival cost, and when?
 
 `node bench/residency/heavy.mjs` builds ONE deliberately heavy cell out of the
 third-person sample's own imported assets — a skinned character with an animator,
 forty imported props at three levels of detail, two hundred physics bodies, 249
-entities — and reads two instruments rather than a stopwatch: the per-cell PHASES
-of the load, which run between frames and land on no system timer, and the
-per-frame, per-system cost of the frames it arrives on.
+entities — and walks into it **twice, from a cold cache each time**:
 
-The phases split by which HALF of delivery owns them, and that split is the whole
-point:
-
-| half | phases | when it can run |
+| arm | how the cell is reached | what it isolates |
 | --- | --- | --- |
-| **preparation** | `fetch`, `prefab`, `assets` | any time before demand — this is what prefetch hides |
-| **publication** | `spawn` | at the door, however early the readying happened |
+| **miss** | demanded before anything readied it | preparation on the critical path |
+| **hit** | readied first, then demanded | the path prefetch exists to create |
 
-### Measured 2026-09-05 (M-series Mac, WebGL2, 640×360, cold, two runs)
+Two arms and not one, because readying early does not make the work cheaper. It
+moves **when** the work is paid, and that turns out to be the whole story.
+
+### Three costs, and they are not one number
+
+The old reading of this bench had a single boundary and called it "publication".
+There are two, and the second is larger:
 
 ```
-preparation (hideable)     fetch    2.9 – 3.3 ms
-                           assets   4.6 – 7.4 ms
-                           = total  7.9 – 10.3 ms
+publicationCost         prepared data  →  ECS-visible
+                        spawn, component writes, hierarchy, adoption
 
-publication (always paid)  spawn    5.9 – 6.4 ms
+firstVisibleFrameCost   ECS-visible    →  actually drawn
+                        renderer registration and upload, on ONE frame
 
-delivery, issue → resident         15.2 – 17.3 ms
-
-the frame it arrives on              2.8 – 8.4 ms
-  on the expensive run, by system:   RenderSystem 6.2, System_2 0.9,
-                                     AnimatorSystem 0.8, NavAgentSystem 0.2
+arrivalWindowCost       the same, summed over the frames the arrival disturbs,
+                        above the steady state those frames would otherwise cost
 ```
 
-**There is no unsplittable main-thread phase worth budgeting.** The largest is
-about 6 ms of ECS materialization for 249 entities including 200 bodies, and the
-frame the cell lands on costs 2.8–8.4 ms — the spread is whether the render side's
-registration and upload land on that frame or the next. A scheduler that sliced
-this would be buying complexity against a cost already inside a frame.
+**Finishing the publication transaction is not having paid for the arrival.**
 
-**What IS worth hiding is the ~8–10 ms of preparation**, and unlike the arrival
-frame it is not bounded by anything: it is fetch and decode, so it grows with the
-CDN, the content, and how busy the main thread already is. That is the case for
-prefetch, and it is a latency argument, not a hitch one.
+### Measured 2026-09-05 (M-series Mac, WebGL2, 640×360, cold, one run per arm)
+
+```
+                              miss          hit
+  preparation (hideable)     8.80 ms       9.40 ms     issue → prepared
+    accounted                96.6%         95.7%
+
+  publicationCost            7.10 ms       6.40 ms     between frames | INSIDE the frame
+    accounted                98.6%        104.9%
+
+  firstVisibleFrameCost      2.50 ms      13.30 ms     dearest single frame
+  arrivalWindowCost          1.53 ms      14.19 ms     over 4 / 5 frames
+    accounted                (noise)       96.0%
+```
+
+**On a hit, the arrival lands on one frame — all of it.** The cell becomes
+resident on frame 0 of the profile, and that frame costs 13.30 ms:
+
+```
+  f0   13.30 ms   render 6.70, scene 5.90, scripts 0.10
+  f1    2.70 ms   animation 0.80, nav 0.30, …
+  f2    0.70 ms   (steady state, 0.80 ms)
+```
+
+`scene` is where `WorldResidencySystem` reports, so that row IS the publication
+transaction; `render` beside it is the realization of what publication just
+spawned. **Prefetch stacks two ~6 ms halves into the same frame.**
+
+**On a miss the same work is split.** Publication runs between frames (7.10 ms
+on no system timer at all) and realization lands on a later frame on its own. The
+player waits longer — but no single frame carries both.
+
+So the honest summary of what prefetch bought:
+
+| | miss | hit |
+| --- | --- | --- |
+| what the player waits | longer | **shorter** |
+| worst single frame | smaller | **13.3 ms — 80% of a 60 Hz budget** |
+
+Prefetch did not remove the work. It removed the *waiting* and concentrated the
+*work*.
+
+### How the publication transaction is measured, and against what
+
+Every phase is emitted through the scene loader's existing `onPhase` sink, whose
+names nest on dots (`spawn.components.MeshRenderer` is inside `spawn.components`
+is inside `spawn`), so a reader sums the roots and never the whole list:
+
+```
+  publicationCost, hit arm
+    spawn                    5.90 ms
+      components             4.40 ms
+        MeshRenderer         1.50 ms
+        Transform            1.30 ms
+        RigidBody3D          0.80 ms
+        BoxCollider3D        0.30 ms
+        MeshSkin             0.20 ms
+        LODGroup             0.20 ms
+        Animator             0.10 ms
+      migrate                0.50 ms   ← a JSON deep-clone of the whole document
+      entities               0.40 ms
+      validate               0.30 ms
+      hierarchy              0.20 ms
+    adopt                    0.20 ms   ← one `SceneOwner` insert per entity
+    transform                0.10 ms
+    origins / spine          0.00 ms
+```
+
+Four of these had no timer at all before this cut: `origins`, `transform`,
+`adopt` and `spine` all run after `spawn` inside `publishRuntimeScene`, and every
+one of them is per-entity work.
+
+**The transaction has no single independent parent, and which clock can see it
+depends on the path.** On a miss it runs between frames, so the streamer's own
+publish-to-resident wall time brackets it and nothing else (7.10 named against
+7.20 measured — 98.6%). On a hit that wall time is useless: the transaction runs
+inside the frame that asked, and the promise it returns settles only once the
+frame's *remaining systems* — the renderer included — have run, so it reads
+12.8 ms and describes the whole frame. What brackets it there is the frame
+profiler's `scene` domain, a different instrument on a different clock: 6.40
+named against 6.10 measured (104.9%). The check is two-sided, because a one-sided
+one passes by over-counting.
+
+### The budget line, and why this is not frozen
+
+An arrival may have **half** a 60 Hz frame, because the game needs the other
+half. This fixture's steady state is 0.8–1.0 ms a frame — a nearly empty world —
+so passing here would say nothing about a real game, while failing says something
+about every one:
+
+```
+  miss   1.48 ms of arrival work against 8.33 ms of headroom   ✓
+  hit   12.50 ms of arrival work against 8.33 ms of headroom   ✗
+```
+
+**The hit path violates the budget, and the hit path is the one prefetch exists
+to produce.** That is measured, not projected, and it is why Streaming Delivery
+v1 is not frozen.
+
+### Read these as ranges
+
+Across six runs of the heavy arm the arrival frame came in at 2.5 / 3.4 / 9.3 /
+9.8 / 11.2 / 13.3 ms, and a second harness on a separate worktree independently
+measured 9.8–13.4 ms over four runs. The spread is which frame the render side's
+registration and upload land on. Two things follow: the **window**, not the
+single frame, is the stable quantity; and **no single number here should be
+quoted as a constant** — least of all a peak.
+
+The frame's wall time was never the broken instrument. It has always been read by
+the driver's own `performance.now()` around `step()`; what the `costs()` bug hid
+was only the *breakdown*.
+
+### An arrival-shaped spike that is NOT the arrival
+
+Every run shows one frame far from the arrival that is larger than the arrival
+itself, and always render:
+
+```
+  miss arm   f223   12.4 ms   render 11.50   (arrival was f7)
+  hit  arm   f103   17.1 ms   render 16.40   (arrival was f0)
+```
+
+This is deliberately **not named**. "First-visible lazy work" is one hypothesis;
+a first-draw shader compile, a deferred GPU upload, and periodic work unrelated
+to the arrival (LOD switching, shadow cascades, GC) all produce the same shape.
+Two cheap experiments separate them: run long enough to see whether it recurs
+(once = one-off, periodic = something else), and run an arm that creates **no
+cell at all** to see whether the spike is there anyway. Until one of those is
+done this is an observation with a location, not a mechanism with a name.
 
 ## Prefetch effectiveness — did it get ready in time?
 
@@ -172,6 +291,27 @@ walking. And the corridor's 16 cells share three rock meshes, so only the first
 cell of a run pays a real `assets` phase; the rest are fetch-and-spawn. The
 cold-cell block above is where a whole preparation is on show.
 
+### Nothing a readied cell holds is in the world
+
+A prepared cell's whole claim is that nothing can observe it, and an instrument
+added later is exactly the thing that could quietly break it. So the walk is
+asked about the world's own totals rather than about the streamer's report of
+itself:
+
+```
+  scenario       prepared  resident  entities  persistent   in cells  unowned   bodies  stray
+  approach              2         4       804           4        800        0      640      0
+  teleport              2         1       204           4        200        0      160      0
+  no-prefetch           0         4       804           4        800        0      640      0
+```
+
+`entities` must equal `persistent + in cells` exactly. An entity a preparation
+spawned would be in the world's total and in no cell's row, because a prepared
+cell has no `SceneManager` context to be counted under — so it would show up as
+`unowned` and nowhere else. Bodies are checked the same way against the solver's
+population. Both are zero, and the run that readies **nothing** is failed rather
+than passed: a criterion nothing exercised has not been answered.
+
 ### An authoring rule the measurement forced
 
 `prefetchRadius` must not exceed `unloadRadius`. The streamer knows how far a
@@ -180,32 +320,83 @@ while still inside the prefetch radius is speculated about again the instant it
 goes — walking away from a place fetches it a second time. Held to in
 `sdk/tests/world-residency.test.ts`, both directions.
 
-## What delivery has, and what it still owes
+## Streaming Delivery v1 — NOT frozen
 
-What the three benches together establish:
+What the three benches establish:
 
 - **Residency** decides what should exist, and deciding is free (6.3 µs per 100
   cells, below the noise floor).
-- **Delivery** readies content before demand, and it works: 100% hit rate on
-  ordinary movement, 0% when speculation is disabled, and a hit costs publication
-  alone.
+- **Delivery** readies content before demand, and the readying works: 100% hit
+  rate on ordinary movement, 0% when speculation is disabled, and a hit's wait is
+  publication alone.
+- **Readiness is invisible.** Nothing a prepared cell holds is in the world, the
+  renderer or the solver.
 - **Cancellation** gives back what speculation acquired, receipts included.
 
-**Publication is the one cost demand cannot escape, and it is still a single
-number.** ~6 ms of `spawn` for a 249-entity cell, landing on a 2.8–8.4 ms frame —
-but what that 6 ms IS (entity allocation, component writes, hierarchy, and which
-subsystem each write reaches) this measures nowhere. Until it does, "nothing here
-needs a budget scheduler" is a reading of a total, not of a mechanism, and
-delivery is not finished.
+Against the freeze conditions:
 
-Not in v1, deliberately: velocity prediction, adaptive prefetch radius, memory
-budget, priority scheduling. Each of them now has a number that would justify it,
-and none of them has one yet.
+```
+  ✓ fetch/preparation hidden before need
+  ✓ prefetch hit/dwell measurable
+  ✓ publication transaction accounted            98.6% (miss) / 104.9% (hit),
+                                                 two-sided, two instruments
+  ✓ first-visible frame accounted                96.0% of the arrival's excess
+  ✗ a representative heavy arrival fits a frame  12.50 ms of arrival work
+                                                 against 8.33 ms of headroom
+```
 
-### Instrumentation
+**The last one fails, and it fails on the hit path.** Prefetch moves the cost out
+of the wait and into a single frame; a heavy cell arriving on a hit costs 13.3 ms
+on one frame, ~80% of a 60 Hz budget, before the game has done anything. This is a
+measured budget violation on the path the feature exists to produce — which is
+the agreed condition for reopening, not a hunch that something could be faster.
 
-The earlier note here said the per-system breakdown of an arrival frame "comes
-back empty". That was the driver's probe and not the profiler: `costs()` called
-`enableStats()` on every read, which swapped the maps the frame had just filled,
-so the engine reported costing nothing. Engaging once fixed it, and the
-breakdowns above are real. No profiler lifecycle was changed.
+Deliberately still not built: velocity prediction, adaptive prefetch radius,
+memory budget, priority scheduling. Each now has a number that would justify it.
+None is the next thing to build.
+
+### What the decomposition says NOT to do next
+
+`spawn.components.Transform` is the largest single component write (1.3–2.2 ms)
+and `spawn.migrate` deep-clones the whole document at the door (0.5 ms). Neither
+is the next cut. Against a ~14 ms arrival window whose largest term is render
+realization, optimising a 2 ms one is choosing the second question. Both are
+recorded here and left alone.
+
+The next cut is **Render Realization Cost Decomposition**: explain the render
+increment on the arrival frame, to the same standard as publication, and say
+which of three mechanisms it is — CPU-side registration and bookkeeping, GPU
+buffer creation and upload, or work the renderer defers to first draw. Today the
+whole renderer carries four C++ scopes (`render.collect`, `.graph`, `.submit`,
+`.finalize`), which cannot tell those three apart.
+
+### Instrumentation, and how it is kept honest
+
+The driver's probe used to call `enableStats()` on every read, swapping the maps
+the frame had just filled, so the engine reported costing nothing. It also
+returned only the dearest few systems — and a truncated list can only ever be a
+lower bound on its own total, which makes an accounting question unanswerable by
+construction. Both are fixed; no profiler lifecycle was changed.
+
+Two rules the numbers above obey:
+
+- **Systems are mutually exclusive; scopes nest inside them.** A domain roll-up
+  adds systems only. Adding scopes to the same total double-counts and can pass
+  130%.
+- **A ratio's denominator must not carry fixed overhead.** Every frame costs
+  ~0.1–0.2 ms outside every system (the step call, the promise turn, the driver's
+  own read). Charging that to an arrival makes the ratio a measure of how *cheap*
+  the window was, so what is judged is the arrival's excess against the excess
+  that has names.
+
+Every criterion here has been watched fail before being believed:
+
+| sabotage | criterion | green → red |
+| --- | --- | --- |
+| 2 ms of unnamed work inside `publishRuntimeScene` | publication is explained by named work | 98.6% → 76.9% |
+| component attribution switched off | no single undivided phase is most of it | → `spawn.hierarchy` at 56% |
+| `costs()` truncated back to a top-N | the arrival frame is explained by its systems | 96.3% → 52.6% |
+
+The accounting ratios are criteria on **the instrument**, not on whether Delivery
+v1 deserves to freeze. A future 92% means a phase went unnamed; it does not mean
+the arrival got worse.
