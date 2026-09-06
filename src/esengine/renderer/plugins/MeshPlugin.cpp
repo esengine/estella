@@ -44,8 +44,14 @@ u32 mulColor(u32 a, u32 b) {
  * many joints there are, since an index resolved against the wrong matrix moves
  * the vertex somewhere arbitrary.
  */
-u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
-             std::vector<glm::mat4>& out, bool& warnedBones) {
+/**
+ * @brief How many joints this entity would be posed by; 0 when it draws unskinned.
+ *
+ * @details Separated from posing because the variant key needs the ANSWER and not
+ *          the matrices: a caller that re-derived "is this skinned" would be a
+ *          second predicate free to disagree with the one that draws.
+ */
+u32 skinJointCount(ecs::Registry& registry, Entity entity, const Mesh& mesh, bool& warnedBones) {
     if (!mesh.isSkinned()) return 0;
     const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
     if (!skin || skin->joints.size() != mesh.inverseBind.size()) return 0;
@@ -60,7 +66,14 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
         }
         return 0;
     }
-    const u32 count = static_cast<u32>(skin->joints.size());
+    return static_cast<u32>(skin->joints.size());
+}
+
+u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
+             std::vector<glm::mat4>& out, bool& warnedBones) {
+    const u32 count = skinJointCount(registry, entity, mesh, warnedBones);
+    if (count == 0) return 0;
+    const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
 
     out.resize(count);
     for (u32 i = 0; i < count; ++i) {
@@ -162,6 +175,36 @@ u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool de
     return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
          | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u) | (envMapped ? 32u : 0u);
 }
+
+/**
+ * @brief The variant one renderable will be asked for, under this frame's
+ *        configuration and this pass's purpose.
+ *
+ * @details The single derivation, and it hands back the normal-map id it resolved
+ *          so the caller does not resolve it twice. A second copy of these facts
+ *          drifts the day the key gains another.
+ */
+struct MeshDrawKeys {
+    u32 variant = 0;
+    u32 normalTextureId = 0;
+};
+
+MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entity entity,
+                         const ecs::MeshRenderer& mesh, const Mesh* resident, bool shadowDepth,
+                         bool& warnedBones) {
+    MeshDrawKeys out;
+    // Only meaningful with normals to perturb AND a draw that takes light.
+    if (mesh.normalMap.isValid() && mesh.lit && resident && resident->hasNormals) {
+        if (Texture* tex = ctx.resources.getTexture(mesh.normalMap)) {
+            out.normalTextureId = tex->getId();
+        }
+    }
+    const bool skinned = resident && skinJointCount(registry, entity, *resident, warnedBones) > 0;
+    out.variant = meshVariant(resident && resident->hasNormals, mesh.lit && !shadowDepth,
+                              out.normalTextureId != 0 && !shadowDepth, skinned, shadowDepth,
+                              ctx.environment_texture_id != 0);
+    return out;
+}
 }  // namespace
 
 void MeshPlugin::init(RenderFrameContext& ctx) {
@@ -178,7 +221,7 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     mesh_programs_.fill(0);
     // The base variant now, so a broken shader is a boot-time failure rather than
     // one that waits for the first mesh; the rest compile when a draw asks.
-    meshProgram(ctx, false, false, false, false);
+    meshProgram(ctx, 0);
 }
 
 /**
@@ -188,9 +231,10 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
  * geometry's own channels pick half of it; the draw's `lit` picks the other half,
  * and unlit geometry carrying normals still has to declare them.
  */
-u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, bool normals, bool lit, bool normalMapped,
-                            bool skinned, bool depthOnly, bool envMapped) {
-    const u32 variant = meshVariant(normals, lit, normalMapped, skinned, depthOnly, envMapped);
+u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
+    const bool normals = (variant & 1u) != 0, lit = (variant & 2u) != 0;
+    const bool normalMapped = (variant & 4u) != 0, skinned = (variant & 8u) != 0;
+    const bool depthOnly = (variant & 16u) != 0, envMapped = (variant & 32u) != 0;
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
     // Counted because the cost of this function is entirely the times it does
@@ -359,13 +403,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 textureId = tex->getId();
             }
         }
-        // Only meaningful with normals to perturb AND a draw that takes light.
-        u32 normalTextureId = 0;
-        if (mesh.normalMap.isValid() && mesh.lit && resident && resident->hasNormals) {
-            if (Texture* tex = ctx.resources.getTexture(mesh.normalMap)) {
-                normalTextureId = tex->getId();
-            }
-        }
+        const MeshDrawKeys keys =
+            meshDrawFor(ctx, registry, entity, mesh, resident, shadowDepth, warned_bones_);
+        const u32 normalTextureId = keys.normalTextureId;
 
         BatchDrawKey key{
             .stage = ctx.current_stage,
@@ -438,10 +478,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // light off the constant normal a 2D surface has.
             tick(4);
             ++programAsks;
-            const u32 residentShader =
-                meshProgram(ctx, resident->hasNormals, mesh.lit && !shadowDepth,
-                            normalTextureId != 0 && !shadowDepth, skinned, shadowDepth,
-                            key.envTextureId != 0);
+            const u32 residentShader = meshProgram(ctx, keys.variant);
             tick(3);
             if (resident->isDrawable() && residentShader != 0) {
                 const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
