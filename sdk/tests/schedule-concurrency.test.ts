@@ -20,56 +20,81 @@ const Health = defineComponent('ConcHealth', { hp: 100 });
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** Wall time one tick takes, which is the only thing overlap can be seen in. */
-async function tickMs(app: App): Promise<number> {
-    const t0 = performance.now();
-    await app.tick(1 / 60);
-    return performance.now() - t0;
+interface Span { start: number; end: number }
+
+/**
+ * A system that waits and says when it was waiting.
+ *
+ * Two waits INTERSECT — not "a tick came in under 100ms", which is the
+ * machine's answer as much as the scheduler's, and which two overlapped 60ms
+ * waits outran under load. Intervals stretch; whether they meet does not.
+ */
+const waits = (spans: Map<string, Span>, name: string, ms: number) => async (): Promise<void> => {
+    const start = performance.now();
+    await sleep(ms);
+    spans.set(name, { start, end: performance.now() });
+};
+
+/** Half-open, so systems that merely touch end-to-start do not count as met. */
+function overlapped(spans: Map<string, Span>, a: string, b: string): boolean {
+    const x = spans.get(a);
+    const y = spans.get(b);
+    if (!x || !y) throw new Error(`schedule-concurrency: ${!x ? a : b} never ran`);
+    return x.start < y.end && y.start < x.end;
 }
 
+// The four cases hold the helper up as well as the scheduler: an `overlapped`
+// stuck at true fails the two serial cases, one stuck at false fails the other
+// two. Neither can be green at once by accident.
 describe('two systems that wait', () => {
     it('wait at the same time when neither touches what the other does', async () => {
         const app = App.new();
+        const spans = new Map<string, Span>();
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Mut(Position))], async () => { await sleep(60); }, { name: 'SlowA' }));
+            defineSystem([Query(Mut(Position))], waits(spans, 'SlowA', 60), { name: 'SlowA' }));
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Mut(Health))], async () => { await sleep(60); }, { name: 'SlowB' }));
+            defineSystem([Query(Mut(Health))], waits(spans, 'SlowB', 60), { name: 'SlowB' }));
 
-        // Serial would be ~120ms; the margin is generous because a loaded CI box
-        // is slow, and 120 vs 60 survives any amount of that.
-        expect(await tickMs(app)).toBeLessThan(100);
+        await app.tick(1 / 60);
+        expect(overlapped(spans, 'SlowA', 'SlowB')).toBe(true);
     });
 
     it('wait one after another when one writes what the other reads', async () => {
         const app = App.new();
+        const spans = new Map<string, Span>();
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Mut(Position))], async () => { await sleep(60); }, { name: 'Writer' }));
+            defineSystem([Query(Mut(Position))], waits(spans, 'Writer', 60), { name: 'Writer' }));
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Position)], async () => { await sleep(60); }, { name: 'Reader' }));
+            defineSystem([Query(Position)], waits(spans, 'Reader', 60), { name: 'Reader' }));
 
-        expect(await tickMs(app)).toBeGreaterThan(110);
+        await app.tick(1 / 60);
+        expect(overlapped(spans, 'Writer', 'Reader')).toBe(false);
     });
 
     // The escape hatch keeps its price: a system that never said what it reaches
     // for cannot be run beside anything, because anything is what it might touch.
     it('wait one after another when one declares nothing', async () => {
         const app = App.new();
+        const spans = new Map<string, Span>();
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([GetWorld()], async () => { await sleep(60); }, { name: 'Opaque' }));
+            defineSystem([GetWorld()], waits(spans, 'Opaque', 60), { name: 'Opaque' }));
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Mut(Health))], async () => { await sleep(60); }, { name: 'Declared' }));
+            defineSystem([Query(Mut(Health))], waits(spans, 'Declared', 60), { name: 'Declared' }));
 
-        expect(await tickMs(app)).toBeGreaterThan(110);
+        await app.tick(1 / 60);
+        expect(overlapped(spans, 'Opaque', 'Declared')).toBe(false);
     });
 
     it('overlap once that same system declares its reach', async () => {
         const app = App.new();
-        app.addSystemToSchedule(Schedule.Update, defineSystem([GetWorld()], async () => { await sleep(60); },
+        const spans = new Map<string, Span>();
+        app.addSystemToSchedule(Schedule.Update, defineSystem([GetWorld()], waits(spans, 'Declared1', 60),
             { name: 'Declared1', touches: { writes: ['ConcPosition'] } }));
         app.addSystemToSchedule(Schedule.Update,
-            defineSystem([Query(Mut(Health))], async () => { await sleep(60); }, { name: 'Declared2' }));
+            defineSystem([Query(Mut(Health))], waits(spans, 'Declared2', 60), { name: 'Declared2' }));
 
-        expect(await tickMs(app)).toBeLessThan(100);
+        await app.tick(1 / 60);
+        expect(overlapped(spans, 'Declared1', 'Declared2')).toBe(true);
     });
 });
 
