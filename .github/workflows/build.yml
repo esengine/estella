@@ -221,6 +221,9 @@ jobs:
     - name: Run SDK tests (engine-coupled)
       env:
         ESTELLA_REQUIRE_WASM: '1'
+        # This job downloads the wasm rather than building it, so it has no
+        # emsdk either — the AOT suites that compile a module cannot run here.
+        ESTELLA_NO_EMCC: '1'
       run: pnpm --filter ./sdk exec vitest run
 
     - name: Run Desktop tests (engine-coupled)

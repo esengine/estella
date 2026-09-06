@@ -72,6 +72,19 @@ function testFiles(dir, out = []) {
 }
 
 const SUITES = ['compiler/tests', 'pipeline/tests', 'sdk/tests'].filter((d) => existsSync(path.join(ROOT, d)));
+
+/**
+ * Whether a workflow step runs one of those suites, and so fires their provers.
+ *
+ * Two doors: the gate list, and vitest aimed at the package directly. Only the
+ * first was recognised, and the second is how a lane that downloads the wasm
+ * instead of building it ran the SDK suite with no emsdk and no declaration.
+ */
+function runsASuite(step) {
+    if (/run-gates\.mjs/.test(step)) return true;
+    if (!/\bvitest\b/.test(step)) return false;
+    return SUITES.some((d) => new RegExp(`\\b${d.split('/')[0]}\\b`).test(step));
+}
 const problems = [];
 let checked = 0;
 
@@ -121,7 +134,9 @@ for (const cap of CAPABILITIES) {
     }
 
     // 3. And the callers: knowing the env var exists says nothing about whether
-    //    the machine that lacks the capability actually sets it.
+    //    the machine that lacks the capability actually sets it. A caller is any
+    //    step that RUNS one of these suites — through the gate list or straight
+    //    at vitest — because the prover fires either way.
     if (!cap.ciProvider || !declared) continue;
     if (!existsSync(path.join(ROOT, WORKFLOW))) {
         // Loudly, not by throwing: a gate whose subject moved has to say which
@@ -135,20 +150,19 @@ for (const cap of CAPABILITIES) {
     for (const [job, text] of jobsOf(workflow)) {
         const provides = cap.ciProvider.test(text);
         for (const step of stepsOf(text)) {
-            if (!/run-gates\.mjs/.test(step)) continue;
+            if (!runsASuite(step)) continue;
             callers++;
             const declares = new RegExp(`^\\s*${declared[1]}\\s*:`, 'm').test(step);
             if (!provides && !declares) {
-                problems.push(`${WORKFLOW}: job "${job}" runs the gate list without`
-                    + ` ${cap.what} and does not declare ${declared[1]} — its suites refuse`
-                    + ' to start,'
-                    + ' and nothing here said so.');
+                problems.push(`${WORKFLOW}: job "${job}" runs a suite that proves`
+                    + ` ${cap.what}, has none, and does not declare ${declared[1]} —`
+                    + ' the suite refuses to start, and nothing here said so.');
             }
             // The other way round is a lie in the other direction: a lane that
             // HAS the capability reporting a hole hides real coverage.
             if (provides && declares) {
-                problems.push(`${WORKFLOW}: job "${job}" installs ${cap.what} and still declares`
-                    + ` ${declared[1]} — it would report coverage it actually has as a gap.`);
+                problems.push(`${WORKFLOW}: job "${job}" installs ${cap.what} and still`
+                    + ` declares ${declared[1]} — it would report coverage it has as a gap.`);
             }
         }
     }
