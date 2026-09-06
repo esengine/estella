@@ -18,7 +18,7 @@
  *   node tools/check-script-failure.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
@@ -26,6 +26,24 @@ import { runElectron } from './lib/electronRun.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, '.golden', 'script-failure');
 const SOURCE = path.join(ROOT, 'examples', 'hello-world');
+
+// It BOOTS what it packages, so it needs a real engine — the same two places the
+// exporter looks. Skipped where building one is a choice, an error where CI has
+// the artifact: otherwise "no runtime here" reads as "the package is broken".
+const RUNTIME = [path.join(ROOT, 'build', 'wasm', 'web'),
+                 path.join(ROOT, 'desktop', 'public', 'wasm')]
+  .find((d) => existsSync(path.join(d, 'esengine.wasm')));
+if (!RUNTIME) {
+  const build = 'node build-tools/cli.js build -t web';
+  if (process.env.ESTELLA_REQUIRE_WASM) {
+    console.error('check-script-failure: ESTELLA_REQUIRE_WASM is set and there is no engine'
+      + ` runtime in build/wasm/web or desktop/public/wasm.\n  ${build}`);
+    process.exit(1);
+  }
+  console.log('check-script-failure: no engine runtime to boot — skipped'
+    + ` (build it with \`${build}\`; the engine-coupled CI job sets ESTELLA_REQUIRE_WASM).`);
+  process.exit(0);
+}
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'launch-export.mjs');
 const MARKER = 'DOGFOOD_BOOT_FAILURE';
 

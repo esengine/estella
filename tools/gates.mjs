@@ -270,7 +270,13 @@ export const GATES = [
   // Windows deletes asynchronously: the rmdir races the unlink it just did, and
   // the temp tree a test made comes back ENOTEMPTY at random. Node's retry loop
   // is right there and defaults to OFF.
-  { id: 'script-failure', run: 'node tools/check-script-failure.mjs' },
+  {
+    id: 'script-failure',
+    run: 'node tools/check-script-failure.mjs',
+    where: 'local',
+    why: 'it BOOTS the package it builds, so it needs a real engine runtime and the fast CI'
+      + ' lane builds none; the engine-coupled job runs it on the artifact',
+  },
   { id: 'screen-domain', run: 'node tools/check-screen-domain.mjs' },
   { id: 'rm-retries', run: 'node tools/check-rm-retries.mjs' },
   { id: 'examples', run: 'node build-tools/cli.js check-examples' },

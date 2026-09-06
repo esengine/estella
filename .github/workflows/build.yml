@@ -252,6 +252,13 @@ jobs:
         ESTELLA_REQUIRE_WASM: '1'
       run: node tools/check-arena-server.mjs
 
+    # Booting a packaged game needs the same real engine, and for the same
+    # reason it belongs here rather than in the fast lane.
+    - name: Check a packaged game's script failure
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-script-failure.mjs
+
     - name: Check performance snapshot
       env:
         ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
