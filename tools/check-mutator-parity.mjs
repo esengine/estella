@@ -49,10 +49,7 @@ const REACHED_VIA = {
  * adding one is a visible diff — which is the only ratchet a discovered list can
  * have without becoming a place to put the next one.
  */
-const OWED = {
-  setSpineVersion: 'which Spine runtime the project bundles, a size and compatibility decision with '
-    + 'only a read-only diagnostics line in the UI',
-};
+const OWED = {};
 
 if (!existsSync(EDITOR)) {
   console.log('check-mutator-parity: no editor checkout — no mutator was judged.');

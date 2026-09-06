@@ -129,11 +129,7 @@ export const DECISIONS = [
     kind: 'agent-parity',
     owner: { path: 'desktop/src/project/ProjectStore.ts', probe: /async setSpineVersion/ },
     runtime: { has: true, cite: { path: 'pipeline/src/project/format.ts', probe: /spineVersion\?: string/ } },
-    editor: {
-      has: false,
-      owed: 'ProjectStore.setSpineVersion has exactly one caller and it is the automation facade. The '
-        + 'only mention in the UI is a read-only diagnostics line naming the version already running',
-    },
+    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /'project\.spine\.version'/ } },
     agent: { has: true, cite: { path: 'desktop/src/main.tsx', probe: /spineVersion: \(v\) => ProjectStore\.setSpineVersion/ } },
   },
   {
