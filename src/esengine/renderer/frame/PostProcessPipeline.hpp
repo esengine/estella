@@ -17,6 +17,7 @@
 #include "../../math/Math.hpp"
 #include "../rhi/Framebuffer.hpp"
 #include "../graph/RenderGraph.hpp"
+#include "../store/HdrFormat.hpp"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -274,6 +275,15 @@ public:
     void setLinearOutput(bool linear) { linear_output_ = linear; }
 
     /**
+     * @brief What this frame's intermediates were asked to be and allowed to be.
+     *
+     * @details The committed decision, not a re-derivation: an editor explaining
+     *          why a linear project is running at 8-bit has to agree with the
+     *          targets the frame actually made.
+     */
+    const HdrFormatDecision& hdrFormat() const { return frame_format_; }
+
+    /**
      * @brief Whether the scene target needs a depth attachment.
      *
      * @details A depth buffer is per-frame memory and clear bandwidth (≈8MB at 1080p),
@@ -368,6 +378,7 @@ private:
     PostProcessPass* findPass(const std::string& name);
     /** Intermediate/capture attachment format for the active pipeline mode. */
     GfxPixelFormat interFormat() const;
+    void commitFormat();
     /** The shape of every target in a chain, the scene target included. */
     rg::TargetDesc chainTarget(bool withDepth) const;
     rg::TargetDesc blitSourceTarget(bool withDepth) const;
@@ -409,6 +420,10 @@ private:
     bool inFrame_ = false;
     bool bypass_ = false;
     bool linear_output_ = false;
+    /// The format this frame committed to; see commitFormat().
+    HdrFormatDecision frame_format_{};
+    /// What screenFBO_ was created with, so a policy change can be noticed.
+    GfxPixelFormat screenFBOFormat_ = GfxPixelFormat::RGBA8;
     bool scene_needs_depth_ = false;
     /// What the PROJECT asked for (policy). 4 matches what a browser gives its
     /// own drawing buffer, which is the quality a chain-less frame always had.

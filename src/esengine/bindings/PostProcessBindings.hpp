@@ -20,6 +20,21 @@ void postprocess_setMsaaSamples(u32 samples);
 /// only saying both tells a typo from a machine. 0 = nothing here can answer.
 u32 postprocess_effectiveMsaaSamples();
 u32 postprocess_maxMsaaSamples();
+
+/**
+ * @brief The format decision the last frame COMMITTED to, into four floats at
+ *        @p outPtr: requested, effective, refusal, linear.
+ *
+ * @details The frame's own answer, not the capability re-asked. `linear` false is
+ *          a project that never asked for HDR, which is not a fallback. Returns 0
+ *          before a frame has committed a format.
+ */
+i32 postprocess_hdrFormat(uintptr_t outPtr);
+
+/** @brief The last committed decision as words: "requested|effective|reason".
+ *  Empty before a frame has committed one. The names come from the engine so no
+ *  reader has to hold a second spelling of the format enum's order. */
+std::string postprocess_hdrFormatNames();
 /** Draw a pass at a fraction of the chain size; the next pass upsamples it. */
 void postprocess_setPassScale(const std::string& passName, f32 scale);
 void postprocess_setUniformFloat(const std::string& passName,

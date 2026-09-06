@@ -6,6 +6,7 @@ export {
     PostProcessStack,
     outputTransformCode,
     type OutputTransform,
+    type HdrFormat,
     postProcessEffects,
     initPostProcessAPI,
     shutdownPostProcessAPI,

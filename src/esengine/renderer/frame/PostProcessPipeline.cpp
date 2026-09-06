@@ -101,15 +101,18 @@ resource::ShaderHandle PostProcessPipeline::outputShader() {
     return tonemapShader_;
 }
 
+/**
+ * The format this frame committed to — read, never re-derived: begin() and
+ * declareChain() both build targets, and a colour-space flip between them would
+ * give one frame two formats.
+ */
 GfxPixelFormat PostProcessPipeline::interFormat() const {
-    if (!linear_output_) return GfxPixelFormat::RGBA8;
-    // Linear mode is HDR when float targets are renderable: half-float
-    // intermediates let light accumulation exceed 1.0, so bloom's bright-pass
-    // and tonemap see real over-range energy instead of values crushed at the
-    // 8-bit store. Without the capability (WebGL2 sans EXT_color_buffer_float),
-    // sRGB-encoded 8-bit keeps the linear pipeline correct at LDR precision.
-    return device_.supportsFloatTargets() ? GfxPixelFormat::RGBA16F
-                                          : GfxPixelFormat::SRGB8_ALPHA8;
+    return frame_format_.effective;
+}
+
+/** Take the format decision for the frame about to be built. */
+void PostProcessPipeline::commitFormat() {
+    frame_format_ = decideHdrFormat(linear_output_, device_.supportsFloatTargets());
 }
 
 void PostProcessPipeline::ensureGraph() {
@@ -118,6 +121,7 @@ void PostProcessPipeline::ensureGraph() {
     // frame's from construction and this is a no-op.
     ownedGraph_ = makeUnique<rg::RenderGraph>(device_);
     graph_ = ownedGraph_.get();
+    commitFormat();
     if (linear_output_) {
         ES_LOG_INFO("PostProcess intermediates: {}",
                     interFormat() == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"
@@ -370,6 +374,11 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     ensureGraph();
     if (!graph_) return;
 
+    // The frame's format is taken HERE, before its first resource exists, and
+    // every target built between here and end() reads it. A policy flip lands on
+    // the next frame rather than halfway through this one.
+    commitFormat();
+
     // The graph opens HERE and not at end(), because the scene target is its
     // first resource and the scene is drawn before any pass can be declared.
     graph_->begin(width_, height_);
@@ -617,7 +626,12 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
 }
 
 void PostProcessPipeline::ensureScreenFBO() {
-    if (screenFBOCreated_) return;
+    // This one PERSISTS across frames, so a colour-space change leaves it holding
+    // the format it was made under while the chain has moved on. Remade when it
+    // no longer matches.
+    if (screenFBOCreated_ && screenFBOFormat_ == interFormat()) return;
+    screenFBO_.reset();
+    screenFBOCreated_ = false;
 
     FramebufferSpec spec;
     // The multi-camera composition surface carries scene values too — same
@@ -635,6 +649,7 @@ void PostProcessPipeline::ensureScreenFBO() {
         return;
     }
 
+    screenFBOFormat_ = spec.colorFormat;
     screenFBOCreated_ = true;
 }
 

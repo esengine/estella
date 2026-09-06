@@ -4,6 +4,7 @@
 
 #include "PostProcessBindings.hpp"
 #include "ActiveContext.hpp"
+#include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/PostProcessPipeline.hpp"
 #include "../renderer/frame/RenderContext.hpp"
@@ -75,6 +76,26 @@ u32 postprocess_effectiveMsaaSamples() {
 
 u32 postprocess_maxMsaaSamples() {
     return g_device ? g_device->maxSamples() : 0u;
+}
+
+i32 postprocess_hdrFormat(uintptr_t outPtr) {
+    auto* out = boundarySpanMut<f32>(outPtr, 4, "postprocess_hdrFormat.out");
+    if (!out) return 0;
+    for (u32 i = 0; i < 4; ++i) out[i] = 0.0f;
+    if (!g_postProcessPipeline) return 0;
+    const HdrFormatDecision& d = g_postProcessPipeline->hdrFormat();
+    out[0] = static_cast<f32>(static_cast<u8>(d.requested));
+    out[1] = static_cast<f32>(static_cast<u8>(d.effective));
+    out[2] = static_cast<f32>(static_cast<u8>(d.refusal));
+    out[3] = d.linear ? 1.0f : 0.0f;
+    return 1;
+}
+
+std::string postprocess_hdrFormatNames() {
+    if (!g_postProcessPipeline) return {};
+    const HdrFormatDecision& d = g_postProcessPipeline->hdrFormat();
+    return std::string(pixelFormatName(d.requested)) + '|' + pixelFormatName(d.effective)
+         + '|' + hdrRefusalName(d.refusal);
 }
 
 void postprocess_setPassScale(const std::string& passName, f32 scale) {

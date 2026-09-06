@@ -216,6 +216,13 @@ target_include_directories(test_shadow_atlas PRIVATE
 )
 add_test(NAME test_shadow_atlas COMMAND test_shadow_atlas)
 
+add_executable(test_hdr_format renderer/test_hdr_format.cpp)
+target_include_directories(test_hdr_format PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_hdr_format COMMAND test_hdr_format)
+
 # Texture path cache: compiles ResourceManager.cpp against MockGfxDevice and asserts
 # which requests avoided an upload. A shipped build decodes in the host and registers
 # an id, so acquireTextureByPath is the only place that decision is made.
@@ -237,6 +244,7 @@ target_include_directories(test_texture_cache PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/stb
 )
 add_test(NAME test_texture_cache COMMAND test_texture_cache)
+
 
 # Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
 # directly — no GL/engine link — and checks #pragma feature parsing + #define injection.

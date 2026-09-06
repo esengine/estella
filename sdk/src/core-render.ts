@@ -152,6 +152,7 @@ export {
     PostProcessAPI,
     PostProcessStack,
     type OutputTransform,
+    type HdrFormat,
     type EffectDef,
     type EffectUniformDef,
     getEffectDef,

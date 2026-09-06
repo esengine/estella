@@ -98,14 +98,10 @@ export const DECISIONS = [
     id: 'postfx.hdrFormat',
     what: 'Whether a linear-colour project got half-float intermediates or was quietly kept at LDR precision.',
     kind: 'request-vs-capability',
-    owner: { path: 'src/esengine/renderer/frame/PostProcessPipeline.cpp', probe: /supportsFloatTargets\(\) \? GfxPixelFormat::RGBA16F/ },
-    runtime: { has: false, owed: 'the fallback is taken inside interFormat() and recorded nowhere' },
-    editor: {
-      has: false,
-      owed: 'Project Settings offers colorSpace: linear and never says the device could not carry it; '
-        + 'bloom and tonemap then see values crushed at the 8-bit store',
-    },
-    agent: { has: false, owed: 'nothing to read' },
+    owner: { path: 'src/esengine/renderer/store/HdrFormat.hpp', probe: /inline HdrFormatDecision decideHdrFormat/ },
+    runtime: { has: true, cite: { path: 'src/esengine/renderer/frame/PostProcessPipeline.cpp', probe: /void PostProcessPipeline::commitFormat/ } },
+    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /EditorControlSurface\.hdrFormat\(\)/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_hdr_format'/ } },
   },
   {
     id: 'texture.compressedFormat',

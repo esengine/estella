@@ -576,6 +576,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_setMsaaSamples", &esengine::postprocess_setMsaaSamples);
     emscripten::function("postprocess_effectiveMsaaSamples", &esengine::postprocess_effectiveMsaaSamples);
     emscripten::function("postprocess_maxMsaaSamples", &esengine::postprocess_maxMsaaSamples);
+    emscripten::function("postprocess_hdrFormat", &esengine::postprocess_hdrFormat);
+    emscripten::function("postprocess_hdrFormatNames", &esengine::postprocess_hdrFormatNames);
     emscripten::function("postprocess_setUniformFloat", &esengine::postprocess_setUniformFloat);
     emscripten::function("postprocess_setUniformVec4", &esengine::postprocess_setUniformVec4);
     emscripten::function("postprocess_setPassTexture", &esengine::postprocess_setPassTexture);

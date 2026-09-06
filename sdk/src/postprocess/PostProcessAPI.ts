@@ -35,6 +35,25 @@ class PostProcessBridge extends WasmBridge<NonNullable<EngineApi>> {
 
 const bridge = new PostProcessBridge();
 let module: PostProcessCore | null = null;
+/** Four floats the committed format decision is read back through. */
+let hdrPtr = 0;
+
+/**
+ * The format one frame committed its intermediates to. @experimental
+ *
+ * `fellBack` is `requested !== effective`, stated so a reader does not have to
+ * compare two strings to learn whether anything gave way — and `linear` is what
+ * separates a granted ask from no ask at all, which the pair alone cannot say.
+ */
+export interface HdrFormat {
+    requested: string;
+    effective: string;
+    /** Why they differ; `none` when they do not. */
+    reason: string;
+    /** Whether the project asked for a linear pipeline this frame. */
+    linear: boolean;
+    fellBack: boolean;
+}
 
 /**
  * @internal Wired by the engine plugins — not part of the public API.
@@ -45,6 +64,8 @@ let module: PostProcessCore | null = null;
 export function initPostProcessAPI(engine: NonNullable<EngineApi>): void {
     bridge.connect(engine);
     module = bridge.module as PostProcessCore;
+    const heap = engine as unknown as { _malloc?(n: number): number };
+    if (!hdrPtr && typeof heap._malloc === 'function') hdrPtr = heap._malloc(4 * 4);
 }
 
 /** @internal Wired by the engine plugins — not part of the public API. */
@@ -56,6 +77,10 @@ export function shutdownPostProcessAPI(): void {
         } catch (e) {
             handleWasmError(e, 'PostProcess.shutdown');
         }
+    }
+    if (hdrPtr && module) {
+        (module as unknown as { _free?(p: number): void })._free?.(hdrPtr);
+        hdrPtr = 0;
     }
     bridge.disconnect();
     module = null;
@@ -294,6 +319,36 @@ export class PostProcessAPI {
         } catch (e) {
             handleWasmError(e, 'PostProcess.msaaCapability');
             return { effective: 0, max: 0 };
+        }
+    }
+
+    /**
+     * The format decision the last frame COMMITTED to. @experimental
+     *
+     * The frame's own answer, not the device asked again. `linear` false is a
+     * project that never asked for HDR, which is not a fallback. The names come
+     * from the engine — a second spelling of the enum's order is drift.
+     */
+    hdrFormat(): HdrFormat | null {
+        try {
+            const m = getModule() as unknown as {
+                postprocess_hdrFormat?(p: number): number;
+                postprocess_hdrFormatNames?(): string;
+            };
+            if (!m.postprocess_hdrFormat || !m.postprocess_hdrFormatNames || !hdrPtr) return null;
+            if (!m.postprocess_hdrFormat(hdrPtr)) return null;
+            const heap = (bridge.module as unknown as { HEAPF32?: Float32Array }).HEAPF32;
+            if (!heap) return null;
+            const f = heap.subarray(hdrPtr >> 2, (hdrPtr >> 2) + 4);
+            const [requested, effective, reason] = m.postprocess_hdrFormatNames().split('|');
+            return {
+                requested: requested ?? '', effective: effective ?? '',
+                reason: reason ?? 'none', linear: f[3] === 1,
+                fellBack: (requested ?? '') !== (effective ?? ''),
+            };
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.hdrFormat');
+            return null;
         }
     }
 
