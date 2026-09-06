@@ -1,0 +1,120 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 1,
+  "wrapMode": "loop",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Bone1",
+      "childPath": "Bone1",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0.0,
+              "value": -0.5736,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": -0.6428,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0,
+              "value": -0.5736,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0.0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0.0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0.0,
+              "value": 0.8192,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0.766,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0,
+              "value": 0.8192,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,8 @@ import type { Vec3 } from '../types';
  */
 export const TPC_SPEED = 'speed';
 export const TPC_GROUNDED = 'grounded';
+/** Set the frame a jump was ACCEPTED, not the frame one was asked for. */
+export const TPC_JUMP = 'jump';
 export const TPC_DODGE = 'dodge';
 export const TPC_ATTACK = 'attack';
 

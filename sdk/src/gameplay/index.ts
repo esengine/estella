@@ -10,6 +10,7 @@ export {
     rootMotionVelocity,
     TPC_SPEED,
     TPC_GROUNDED,
+    TPC_JUMP,
     TPC_DODGE,
     TPC_ATTACK,
     yawQuaternion,

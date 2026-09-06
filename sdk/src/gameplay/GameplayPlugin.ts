@@ -36,7 +36,7 @@ import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
     yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY,
-    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, type MoveBasis,
+    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, TPC_JUMP, type MoveBasis,
 } from './ThirdPersonController';
 import {
     ThirdPersonCamera, type ThirdPersonCameraData,
@@ -125,6 +125,13 @@ export function requestMotion(
             c.velocity.z = next.z;
             c.velocity.y = jumping ? data.jumpSpeed : 0;
         });
+
+        // The jump that was APPLIED, not the key that asked for one. An edge
+        // rather than a level: this runs on the fixed clock and the animator on
+        // the frame's, so a whole arc can pass between two of its samples.
+        if (jumping && animator && world.has(entity, Animator)) {
+            animator.setTrigger(entity, TPC_JUMP);
+        }
     }
 }
 

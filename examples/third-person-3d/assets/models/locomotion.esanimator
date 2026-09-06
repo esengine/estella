@@ -17,6 +17,10 @@
     {
       "name": "attack",
       "type": "trigger"
+    },
+    {
+      "name": "jump",
+      "type": "trigger"
     }
   ],
   "initialState": "Idle",
@@ -113,6 +117,49 @@
           "duration": 0.15
         }
       ]
+    },
+    {
+      "name": "Airborne",
+      "motion": {
+        "kind": "timeline",
+        "clip": "airborne.estimeline",
+        "loop": true
+      },
+      "rootMotion": false,
+      "transitions": [
+        {
+          "to": "Locomotion",
+          "conditions": [
+            {
+              "param": "grounded",
+              "op": "true"
+            },
+            {
+              "param": "speed",
+              "op": "gt",
+              "value": 8
+            }
+          ],
+          "duration": 0.12
+        },
+        {
+          "to": "Idle",
+          "conditions": [
+            {
+              "param": "grounded",
+              "op": "true"
+            },
+            {
+              "param": "speed",
+              "op": "lt",
+              "value": 8
+            }
+          ],
+          "duration": 0.12
+        }
+      ],
+      "x": 520,
+      "y": 80
     }
   ],
   "anyStateTransitions": [
@@ -135,6 +182,26 @@
         }
       ],
       "duration": 0.08
+    },
+    {
+      "to": "Airborne",
+      "conditions": [
+        {
+          "param": "jump",
+          "op": "trigger"
+        }
+      ],
+      "duration": 0.06
+    },
+    {
+      "to": "Airborne",
+      "conditions": [
+        {
+          "param": "grounded",
+          "op": "false"
+        }
+      ],
+      "duration": 0.12
     }
   ]
 }
