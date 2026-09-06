@@ -78,6 +78,7 @@ export const GATES = [
   // has no snapshot to enforce, so what is enforced there is the ANSWER: that it
   // is experimental, said the same way in every place someone reads it.
   { id: 'plugin-api-contract', run: 'node tools/check-plugin-api-contract.mjs' },
+  { id: 'residency-authority', run: 'node tools/check-residency-authority.mjs' },
   // Everything below reads what this emits: the declaration snapshot, the
   // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },

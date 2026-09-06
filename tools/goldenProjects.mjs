@@ -53,7 +53,7 @@ export const CAPABILITIES = [
   'ui-layout', 'text', 'localization',
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
-  'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail',
+  'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -98,6 +98,9 @@ export const EVIDENCE = {
   'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
   'mesh-shadow': /\bmeshShadows\b/,
   'level-of-detail': /\bLODGroup\b/,
+  // The declarations, not the streamer: a project EXERCISES residency by saying
+  // its world is cut and by carrying something that asks for places.
+  'world-streaming': /\b(StreamedWorld|WorldStreamingSource)\b/,
   environment: /\.esenv\b/,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
@@ -239,6 +242,15 @@ export const GOLDEN = [
     // verify-third-person's, over this same package: a frame that differs says
     // something moved, not that the world allowed it.
     interact: { keys: ['KeyW'], frames: 60 },
+  },
+  {
+    id: 'world-streaming-3d',
+    certifies: ['world-streaming'],
+    targets: ['web'],
+    tier: 'pr',
+    // Walking is what makes a place exist here, so the frame after 60 frames of
+    // it differs by more than a character moving — a cell came in.
+    interact: { keys: ['KeyD'], frames: 60 },
   },
   {
     id: 'ui-controls',

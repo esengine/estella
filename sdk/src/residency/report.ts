@@ -46,6 +46,8 @@ export interface WorldResidencyReport {
     cellHandles: Record<string, number[]>;
     /** Live entities the persistent world owns; residency never touches these. */
     persistentEntities: number;
+    /** Their handles. Unchanged for the life of the world — that is the claim. */
+    persistentHandles: number[];
 }
 
 const EMPTY: WorldResidencyReport = {
@@ -53,7 +55,8 @@ const EMPTY: WorldResidencyReport = {
     desiredCells: [], residentCells: [], loadingCells: [], unloadingCells: [],
     loadCount: 0, unloadCount: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
-    authoredCellEntityCounts: {}, cellStableIds: {}, cellHandles: {}, persistentEntities: 0,
+    authoredCellEntityCounts: {}, cellStableIds: {}, cellHandles: {},
+    persistentEntities: 0, persistentHandles: [],
 };
 
 /**
@@ -98,6 +101,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         assetRefsByCell[cell.name] = scenes.assetScopeFor(cell.name)?.size ?? 0;
     }
 
+    const persistent = [...(scenes.getScene(manifest.scene)?.entities ?? [])].sort((a, b) => a - b);
     return {
         streamed: true,
         cellCount: status.cellCount,
@@ -110,6 +114,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         unloadCount: status.unloadCount,
         cellEntityCounts, cellRenderCounts, assetRefsByCell, authoredCellEntityCounts,
         cellStableIds, cellHandles,
-        persistentEntities: scenes.getScene(manifest.scene)?.entities.size ?? 0,
+        persistentEntities: persistent.length,
+        persistentHandles: persistent,
     };
 }

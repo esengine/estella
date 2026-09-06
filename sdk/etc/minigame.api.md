@@ -10350,6 +10350,7 @@ desiredCells: string[]
 loadCount: number
 loadingCells: string[]
 persistentEntities: number
+persistentHandles: number[]
 residentCells: string[]
 sourceCount: number
 streamed: boolean

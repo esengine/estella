@@ -149,6 +149,26 @@ async function main() {
   }
 
   const where = async () => (await exec(`window.__estellaCooked.probe(${JSON.stringify(['Player'])})`)).at.Player;
+
+  /**
+   * Let residency finish what the last gesture asked for.
+   *
+   * A cell arrives over the network, so the frames a driver asks for are not the
+   * thing it is waiting on: reading straight after a step reports a place that is
+   * still `loading`, which is neither "here" nor "not asked for".
+   */
+  const settle = async (tries = 150) => {
+    for (let i = 0; i < tries; i++) {
+      const s = await exec('window.__estellaCooked.streaming()');
+      if (!s.streamed) return true;
+      if (s.loadingCells.length === 0 && s.unloadingCells.length === 0) return true;
+      await exec(holdScript([], 2));
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    console.log('  ! residency never settled');
+    return false;
+  };
+
   const read = async () => ({
     streaming: await exec('window.__estellaCooked.streaming()'),
     at: (await exec(`window.__estellaCooked.probe(${JSON.stringify(NAMES)})`)).at,
@@ -191,6 +211,7 @@ async function main() {
 
   for (const step of steps) {
     if (step.do === 'read') {
+      await settle();
       console.log(`reading ${step.as}: ${JSON.stringify(await read())}`);
       continue;
     }

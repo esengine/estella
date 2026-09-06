@@ -54,8 +54,13 @@ let remembered = 0;
 const staleBlowSystem = defineSystem(
     [Res(Input), GetWorld(), EventWriter(Damage)],
     (input: InputState, world: World, damage: EventWriterInstance<DamagePayload>) => {
-        const enemy = world.findEntityByName('Enemy');
-        if (enemy !== null) remembered = enemy;
+        // Remembered ONCE. Refreshing it every frame is how a test for a stale
+        // handle quietly becomes a test for a live one: after the cell comes back
+        // the name resolves again, to a different entity.
+        if (remembered === 0) {
+            const enemy = world.findEntityByName('Enemy');
+            if (enemy !== null) remembered = enemy;
+        }
         if (!input.isKeyPressed('KeyJ') || remembered === 0) return;
         const player = world.findEntityByName('Player') ?? 0;
         const canary = world.findEntityByName('Canary');

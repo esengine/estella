@@ -623,6 +623,13 @@ jobs:
     - name: Drive the third-person character in its package
       run: node tools/verify-third-person.mjs
 
+    # Which places EXIST in that package, and what leaves with them. A camera
+    # cannot answer this: a cell that is not drawn and a cell that is not there
+    # look the same, and a body an unload forgot is invisible until someone
+    # walks into it.
+    - name: Drive a streamed world in its package
+      run: node tools/verify-world-residency.mjs
+
     # The same game packaged twice from one tree, compiled and interpreted, and
     # the two frames held against each other — the only check that sees what a
     # compiled system does to a PIXEL.
