@@ -248,7 +248,9 @@ async function main() {
   let failure = null;
 
   for (const leg of route.legs) {
-    const label = leg.until ? `${leg.area}:${JSON.stringify(leg.until)}` : `${leg.area}:${leg.goal}`;
+    const label = leg.until ? `${leg.area}:${JSON.stringify(leg.until)}`
+      : leg.expect ? `${leg.area}:expect ${JSON.stringify(leg.expect)}`
+        : leg.hold ? `${leg.area}:hold` : `${leg.area}:${leg.goal}`;
     const timeout = Number(leg.timeout ?? 1800);
     // Only when the route asks for it: "gone" is the game's own answer, a distance
     // is this driver guessing at one. A default of 90 outran a PICKUP_RADIUS of
@@ -271,9 +273,36 @@ async function main() {
     let waited = 0;
     const WAIT_CAP = 1800;
 
-    // A leg the GAME judges. Nothing here reads an entity: what "arrived" means
-    // is the fact the level publishes, so a re-authored level moves under it
-    // without moving the claim.
+    // What must hold RIGHT NOW. `until` can only prove something happened; a
+    // rule about what must NOT happen is asked once, after the act.
+    if (leg.expect) {
+      const got = await facts();
+      if (untilMet(leg.expect, got)) {
+        console.log(`  ${leg.area}: still ${JSON.stringify(leg.expect)} — as it must be`);
+        done.push(label);
+      } else {
+        failure = `${label} was already false (${JSON.stringify(got)})`;
+        break;
+      }
+      continue;
+    }
+
+    // Keys held for a stretch, claiming nothing. Getting somewhere is an ACT; a
+    // hold into a wall fails the next leg rather than passing this one.
+    if (leg.hold) {
+      const held = Number(leg.hold);
+      for (let n = 0; n < held && frames < BUDGET; n += STEP) {
+        await exec(stepScript(leg.keys ?? [], STEP, leg.tap ?? null), 'step');
+        frames += STEP;
+      }
+      const after = route.diagnose?.length
+        ? await probe(route.diagnose).catch(() => null) : null;
+      const me = after?.at?.[route.diagnose?.[0]];
+      console.log(`  ${leg.area}: held ${JSON.stringify(leg.keys ?? [])} for ${held}`
+        + `${me ? ` → ${JSON.stringify(me)}` : ''}`);
+      continue;
+    }
+
     if (leg.until) {
       while (spent < timeout && frames < BUDGET) {
         const got = await facts();
@@ -282,7 +311,16 @@ async function main() {
         spent += STEP; frames += STEP;
       }
       if (arrived) { console.log(`  ${label} — the game says so`); done.push(label); }
-      else { failure = `${label} never became true (last: ${JSON.stringify(await facts())})`; break; }
+      else {
+        // Diagnosis, not evidence — the leg was judged on facts and already
+        // lost. The route names what to look at; a driver that guessed would be
+        // back to naming characters.
+        const where = route.diagnose?.length
+          ? await probe(route.diagnose).catch(() => null) : null;
+        failure = `${label} never became true (last: ${JSON.stringify(await facts())}`
+          + `${where ? `, at ${JSON.stringify(where.at)}` : ''})`;
+        break;
+      }
       continue;
     }
 
