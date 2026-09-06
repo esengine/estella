@@ -15,6 +15,11 @@ u32 postprocess_addPass(const std::string& name, u32 shaderHandle);
 /** The project's multisampling request for the scene target; 1 = off. Clamped
  *  by what the device supports — the device answers capability, not policy. */
 void postprocess_setMsaaSamples(u32 samples);
+/// What the scene target is actually multisampled at, and the most this device
+/// can do. Separate because a request and a capability are different facts, and
+/// only saying both tells a typo from a machine. 0 = nothing here can answer.
+u32 postprocess_effectiveMsaaSamples();
+u32 postprocess_maxMsaaSamples();
 /** Draw a pass at a fraction of the chain size; the next pass upsamples it. */
 void postprocess_setPassScale(const std::string& passName, f32 scale);
 void postprocess_setUniformFloat(const std::string& passName,

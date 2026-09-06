@@ -133,10 +133,7 @@ const AUTHORING = {
   depthLayers: { ui: 'project.rendering.depthLayers' },
   colorSpace: { ui: 'project.rendering.colorSpace' },
   outputTransform: { ui: 'project.rendering.outputTransform' },
-  msaaSamples: {
-    owed: 'parsed, applied to the edit viewport, forwarded to Play and written into every '
-      + 'build — and set nowhere but by hand in project.esproject',
-  },
+  msaaSamples: { ui: 'project.rendering.msaa' },
   renderBackend: { ui: 'project.rendering.backend' },
   screenFit: { ui: 'project.display.cameraFit' },
 };
@@ -198,7 +195,12 @@ function authoringProblem(field) {
   }
   if (kind !== 'ui') return `${field} declares an unknown authoring kind "${kind}"`;
   const ids = Array.isArray(answer.ui) ? answer.ui : [answer.ui];
-  const missing = ids.filter((id) => !settingsSrc.includes(id));
+  // A trailing dot is a PREFIX, for the ids built in a loop (`project.ui.color.
+  // ${role}`); anything else must appear quoted, because a bare substring test
+  // let `project.rendering.msaaX` satisfy a claim about `project.rendering.msaa`.
+  const missing = ids.filter((id) => (id.endsWith('.')
+    ? !settingsSrc.includes(id)
+    : !settingsSrc.includes(`'${id}'`)));
   return missing.length
     ? `${field} claims a settings row (${missing.join(', ')}) that ${SETTINGS} does not register`
     : null;

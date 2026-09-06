@@ -270,6 +270,33 @@ export class PostProcessAPI {
         }
     }
 
+    /**
+     * What the scene target is ACTUALLY multisampled at, and the most this
+     * device can do. @experimental
+     *
+     * Two numbers because a request and a capability are different facts: asking
+     * for 8 where the backend allows 1 is not a typo, and only saying both tells
+     * those apart. `0` means nothing here can answer.
+     */
+    msaaCapability(): { effective: number; max: number } {
+        try {
+            // Off the module rather than through PostProcessCore, a Required<> of
+            // what a chain cannot run WITHOUT: these two only report on it, and a
+            // host binding neither still has a working chain.
+            const m = getModule() as unknown as {
+                postprocess_effectiveMsaaSamples?(): number;
+                postprocess_maxMsaaSamples?(): number;
+            };
+            return {
+                effective: m.postprocess_effectiveMsaaSamples?.() ?? 0,
+                max: m.postprocess_maxMsaaSamples?.() ?? 0,
+            };
+        } catch (e) {
+            handleWasmError(e, 'PostProcess.msaaCapability');
+            return { effective: 0, max: 0 };
+        }
+    }
+
     begin(): void {
         try {
             getModule().postprocess_begin();

@@ -69,6 +69,14 @@ void postprocess_setMsaaSamples(u32 samples) {
     if (g_postProcessPipeline) g_postProcessPipeline->setRequestedSamples(samples);
 }
 
+u32 postprocess_effectiveMsaaSamples() {
+    return g_postProcessPipeline ? g_postProcessPipeline->sceneSamples() : 0u;
+}
+
+u32 postprocess_maxMsaaSamples() {
+    return g_device ? g_device->maxSamples() : 0u;
+}
+
 void postprocess_setPassScale(const std::string& passName, f32 scale) {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->setPassScale(passName, scale);

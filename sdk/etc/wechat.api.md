@@ -6272,6 +6272,7 @@ end: () => void
 getStack: (camera: Entity) => PostProcessStack | null
 init: (width: number, height: number) => boolean
 isInitialized: () => boolean
+msaaCapability: () => { effective: number; max: number; }
 resize: (width: number, height: number) => void
 screenStack: PostProcessStack | null
 setBypass: (bypass: boolean) => void

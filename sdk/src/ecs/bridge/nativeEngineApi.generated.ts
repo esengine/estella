@@ -87,11 +87,13 @@ export interface NativeEngineApi {
     postprocess_beginScreenCapture?(): void;
     postprocess_clearPasses?(): void;
     postprocess_clearScreenPasses?(): void;
+    postprocess_effectiveMsaaSamples?(): number;
     postprocess_end?(): void;
     postprocess_endScreenCapture?(): void;
     postprocess_executeScreenPasses?(): void;
     postprocess_init?(width: number, height: number): boolean;
     postprocess_isInitialized?(): boolean;
+    postprocess_maxMsaaSamples?(): number;
     postprocess_resize?(width: number, height: number): void;
     postprocess_setBypass?(bypass: boolean): void;
     postprocess_setMsaaSamples?(samples: number): void;
@@ -335,11 +337,13 @@ export function createNativeEngineApi(
     bind('postprocess_beginScreenCapture', 'es_postprocess_beginScreenCapture', false);
     bind('postprocess_clearPasses', 'es_postprocess_clearPasses', false);
     bind('postprocess_clearScreenPasses', 'es_postprocess_clearScreenPasses', false);
+    bind('postprocess_effectiveMsaaSamples', 'es_postprocess_effectiveMsaaSamples', false);
     bind('postprocess_end', 'es_postprocess_end', false);
     bind('postprocess_endScreenCapture', 'es_postprocess_endScreenCapture', false);
     bind('postprocess_executeScreenPasses', 'es_postprocess_executeScreenPasses', false);
     bind('postprocess_init', 'es_postprocess_init', false);
     bind('postprocess_isInitialized', 'es_postprocess_isInitialized', false);
+    bind('postprocess_maxMsaaSamples', 'es_postprocess_maxMsaaSamples', false);
     bind('postprocess_resize', 'es_postprocess_resize', false);
     bind('postprocess_setBypass', 'es_postprocess_setBypass', false);
     bind('postprocess_setMsaaSamples', 'es_postprocess_setMsaaSamples', false);

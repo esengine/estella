@@ -135,6 +135,12 @@ public:
     u32 addPass(const std::string& name, resource::ShaderHandle shader);
     /// The project's multisampling request; 1 = off. Clamped by the device.
     void setRequestedSamples(u32 samples);
+    /// What the scene target is actually created with: the request after the
+    /// device's ceiling. The two silently differing is how a project ships at 1x
+    /// believing it asked for 8.
+    u32 sceneSamples() const { return scene_samples_; }
+    /// What was asked for, before the ceiling.
+    u32 requestedSamples() const { return requested_samples_; }
     /// Draw @p passName at @p scale of the chain size (clamped to (0, 1]).
     void setPassScale(const std::string& passName, f32 scale);
 
