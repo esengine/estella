@@ -395,6 +395,7 @@ renderer_getTextureBytes: (() => number) | undefined
 renderer_getTriangles: () => number
 renderer_hasCapturedData: () => boolean
 renderer_init: (width: number, height: number) => void
+renderer_lightStatus: ((entity: number, outPtr: number) => number) | undefined
 renderer_lodInspect: ((view: number, entity: number, outPtr: number) => number) | undefined
 renderer_pollFrameCapture: ((handle: number) => number) | undefined
 renderer_pollPreviewReadback: () => number

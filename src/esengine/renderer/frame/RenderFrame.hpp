@@ -9,6 +9,7 @@
 #include "../store/LightConstants.hpp"
 #include "../store/ShadowAtlas.hpp"
 #include "../store/ShadowPlan.hpp"
+#include "../store/LightPlan.hpp"
 #include "../graph/TargetPool.hpp"
 #include "../graph/RenderGraph.hpp"
 #include "../RenderTypePlugin.hpp"
@@ -318,6 +319,15 @@ public:
      *          could not give at all: tiles handed out were counted, refusals were not.
      */
     const ShadowPlanReport& shadowPlan() const { return shadow_plan_; }
+
+    /**
+     * @brief Which lights the cap turned away last frame, and why.
+     *
+     * @details The count was logged and the identities were not, so "why is this
+     *          light dark" could only be answered by deleting lights until one
+     *          came back.
+     */
+    const LightCapReport& lightCap() const { return light_cap_; }
 
     /**
      * @brief Switch the frame to linear-light rendering (project colorSpace).
@@ -703,6 +713,7 @@ private:
     /// nothing once the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};
     ShadowPlanReport shadow_plan_;
+    LightCapReport light_cap_;
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.
     u32 shadow_texture_id_ = 0;
     /// The frame environment's reflection atlas, on the same terms. 0 = none this frame.

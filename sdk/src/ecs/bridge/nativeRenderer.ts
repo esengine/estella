@@ -25,7 +25,8 @@ import { createNativeHeap, type NativeHeap } from './nativeHeap';
  *  (these are the frame contract — a missing one is a broken host, not a
  *  degraded frame). */
 /**
- * Four floats a LOD decision is read back through, allocated once.
+ * The floats a LOD decision or a light's standing is read back through, allocated
+ * once — the wider of the two, since neither outlives a call.
  *
  * Held for the process rather than per call: it is sixteen bytes against a heap
  * whose views must not be rebuilt (see nativeHeap.ts), and an inspect runs while
@@ -65,7 +66,7 @@ export function createNativeRendererBackend(
         if (lodScratch) return lodScratch;
         const heap = createNativeHeap(scope);
         if (!heap) return null;
-        lodScratch = { heap, ptr: heap._malloc(4 * 4) };
+        lodScratch = { heap, ptr: heap._malloc(5 * 4) };
         return lodScratch;
     };
     return {
@@ -146,6 +147,19 @@ export function createNativeRendererBackend(
                 unbiased: f[i + 1]! < 0 ? null : f[i + 1]!,
                 levels: f[i + 2]!,
                 screenSize: f[i + 3]!,
+            };
+        },
+        lightStatus: (entity) => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.lightStatus];
+            const heap = lodHeap();
+            if (typeof fn !== 'function' || !heap) return null;
+            if (!(fn as (e: number, p: number) => number)(entity >>> 0, heap.ptr)) return null;
+            const f = heap.heap.HEAPF32;
+            const i = heap.ptr >> 2;
+            return {
+                accepted: f[i] === 1,
+                refusal: f[i + 1] === 1 ? 'capacity' : 'none',
+                limit: f[i + 2]!, requested: f[i + 3]!, refusedCount: f[i + 4]!,
             };
         },
         setLodPreview: (view, entity, level): void => {

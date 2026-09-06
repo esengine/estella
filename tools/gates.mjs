@@ -187,6 +187,7 @@ export const GATES = [
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
   { id: 'lod-authoring', run: 'node tools/check-lod-authoring.mjs', needs: 'editor' },
   { id: 'shadow-plan', run: 'node tools/check-shadow-plan.mjs' },
+  { id: 'light-cap', run: 'node tools/check-light-cap.mjs' },
   { id: 'decision-inventory', run: 'node tools/check-decision-inventory.mjs', needs: 'editor' },
   { id: 'mutator-parity', run: 'node tools/check-mutator-parity.mjs', needs: 'editor' },
   { id: 'version-authority', run: 'node tools/check-version-authority.mjs', needs: 'editor' },

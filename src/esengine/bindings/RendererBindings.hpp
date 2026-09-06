@@ -166,6 +166,16 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
  *        negative @p level goes back to the view's own choice.
  */
 void renderer_setLodPreview(u32 view, u32 entity, i32 level);
+
+/**
+ * @brief What the light cap did to @p entity last frame, into five floats at
+ *        @p outPtr: accepted, refusal, limit, requested, refusedCount.
+ *
+ * @details One call answers both "why is this light dark" and "how many went
+ *          dark". Returns 0 before any frame has collected lights, which is not
+ *          a frame that refused none.
+ */
+i32 renderer_lightStatus(u32 entity, uintptr_t outPtr);
 /** Project colorSpace: 1 = linear-light rendering (set before shaders compile). */
 void renderer_setColorSpace(u32 linear);
 void renderer_diagnose();

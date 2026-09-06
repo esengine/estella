@@ -1012,15 +1012,29 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         collected.push_back({gpu, castsMeshShadow, caster});
     }
 
+    light_cap_.clear();
+    light_cap_.limit = MAX_LIGHTS;
+    light_cap_.requested = static_cast<u32>(collected.size());
     if (collected.size() > MAX_LIGHTS) {
         std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS, collected.end(),
                           [](const CollectedLight& a, const CollectedLight& b) {
                               return a.gpu.color.a > b.gpu.color.a;
                           });
-        ES_LOG_WARN("collectLights: {} lights exceed the {}-light cap; keeping the brightest",
-                    collected.size(), MAX_LIGHTS);
+        // Recorded AFTER the sort and BEFORE the resize: this is the one moment
+        // the frame knows which lights it is about to stop carrying, and it used
+        // to spend that moment printing how many.
+        for (usize i = MAX_LIGHTS; i < collected.size(); ++i) {
+            const CollectedLight& dropped = collected[i];
+            light_cap_.refused.push_back({dropped.caster.light,
+                                          static_cast<u8>(dropped.gpu.posDir.z),
+                                          dropped.gpu.color.a, LightRefusal::Capacity});
+            ES_LOG_WARN("collectLights: light {} is not in this frame ({}); {} of {} kept, brightest first",
+                        dropped.caster.light.raw, lightRefusalName(LightRefusal::Capacity),
+                        MAX_LIGHTS, collected.size());
+        }
         collected.resize(MAX_LIGHTS);
     }
+    light_cap_.accepted = static_cast<u32>(collected.size());
     for (u32 slot = 0; slot < collected.size(); ++slot) {
         if (collected[slot].castsMeshShadow) {
             ShadowCaster caster = collected[slot].caster;

@@ -170,6 +170,7 @@ export {
     type RenderTargetHandle,
     type RenderStats,
     type LodDecision,
+    type LightStatus,
 } from './render/renderer';
 
 // =============================================================================

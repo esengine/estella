@@ -73,7 +73,28 @@ export interface RendererBackend {
     setViewId(view: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
     setLodPreview(view: number, entity: number, level: number | null): void;
+    lightStatus(entity: number): LightStatus | null;
     getStats(): RenderStats;
+}
+
+/**
+ * What the light cap did to one light last frame, and what it did overall.
+ * @experimental
+ *
+ * `accepted` false comes with the reason beside it: the cap logged a COUNT and
+ * dropped the rest, so which light went dark was a question only deleting lights
+ * could answer.
+ */
+export interface LightStatus {
+    accepted: boolean;
+    /** Why not, when `accepted` is false; `none` otherwise. */
+    refusal: 'none' | 'capacity';
+    /** The shader's array bound — what `accepted` lights can never exceed. */
+    limit: number;
+    /** Lights that asked this frame. */
+    requested: number;
+    /** How many the frame turned away, for a reader that wants the total. */
+    refusedCount: number;
 }
 
 /**
@@ -103,6 +124,8 @@ let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
 /** Four floats a LOD decision is read back through. */
 let lodInspectPtr: number = 0;
+/** Five floats a light's standing with the cap is read back through. */
+let lightStatusPtr: number = 0;
 let backend: RendererBackend | null = null;
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
@@ -199,6 +222,16 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         },
         setLodPreview: (view, entity, level) =>
             m.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1),
+        lightStatus: (entity) => {
+            if (!m.renderer_lightStatus || !lightStatusPtr) return null;
+            if (!m.renderer_lightStatus(entity >>> 0, lightStatusPtr)) return null;
+            const f = m.HEAPF32.subarray(lightStatusPtr >> 2, (lightStatusPtr >> 2) + 5);
+            return {
+                accepted: f[0] === 1,
+                refusal: f[1] === 1 ? 'capacity' : 'none',
+                limit: f[2]!, requested: f[3]!, refusedCount: f[4]!,
+            };
+        },
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
             triangles: m.renderer_getTriangles(),
@@ -383,6 +416,7 @@ export function initRendererAPI(wasmModule: ESEngineModule): void {
     installContextLossGuard(module);
     viewProjectionPtr = module._malloc(16 * 4);
     lodInspectPtr = module._malloc(4 * 4);
+    lightStatusPtr = module._malloc(5 * 4);
     backend = wasmBackend(module);
 }
 
@@ -400,6 +434,10 @@ export function shutdownRendererAPI(): void {
     if (module && lodInspectPtr) {
         module._free(lodInspectPtr);
         lodInspectPtr = 0;
+    }
+    if (module && lightStatusPtr) {
+        module._free(lightStatusPtr);
+        lightStatusPtr = 0;
     }
     bridge.disconnect();
     module = null;
@@ -556,6 +594,18 @@ export const Renderer = {
      */
     setLodPreview(view: number, entity: number, level: number | null): void {
         backend?.setLodPreview(view, entity, level);
+    },
+
+    /**
+     * What the light cap did to `entity` last frame, or null before any frame has
+     * collected lights. @experimental
+     *
+     * Read back rather than derived: a reader working out which lights were
+     * dropped by taking the tail of a list would be a second cap, agreeing with
+     * the frame only until either sorted differently.
+     */
+    lightStatus(entity: number): LightStatus | null {
+        return backend?.lightStatus(entity) ?? null;
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

@@ -11,6 +11,7 @@
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
 #include "../renderer/lod/LodSelection.hpp"
+#include "../renderer/store/LightPlan.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../core/FrameProfiler.hpp"
 #include "../renderer/frame/RenderStage.hpp"
@@ -836,6 +837,22 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
     if (!g_renderFrame) return;
     const u8 held = level < 0 ? lod::kNoPreview : static_cast<u8>(level);
     g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held);
+}
+
+i32 renderer_lightStatus(u32 entity, uintptr_t outPtr) {
+    auto* out = boundarySpanMut<f32>(outPtr, 5, "renderer_lightStatus.out");
+    if (!out) return 0;
+    for (u32 i = 0; i < 5; ++i) out[i] = 0.0f;
+    if (!g_renderFrame) return 0;
+    const LightCapReport& cap = g_renderFrame->lightCap();
+    if (cap.limit == 0) return 0;  // no frame has decided anything yet
+    const LightRefusal why = cap.refusalFor(Entity::fromRaw(entity));
+    out[0] = why == LightRefusal::None ? 1.0f : 0.0f;
+    out[1] = static_cast<f32>(static_cast<u8>(why));
+    out[2] = static_cast<f32>(cap.limit);
+    out[3] = static_cast<f32>(cap.requested);
+    out[4] = static_cast<f32>(cap.refused.size());
+    return 1;
 }
 
 void renderer_setColorSpace(u32 linear) {

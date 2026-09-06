@@ -189,6 +189,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
      *  no editor, and the game it does run is unaffected either way. */
     lodInspect: 'es_renderer_lodInspect',
     setLodPreview: 'es_renderer_setLodPreview',
+    /** Which lights the cap turned away — an editor's question, like the two above. */
+    lightStatus: 'es_renderer_lightStatus',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

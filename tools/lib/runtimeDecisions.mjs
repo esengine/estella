@@ -93,14 +93,10 @@ export const DECISIONS = [
     id: 'light.cap',
     what: 'Which lights survive MAX_LIGHTS, and that the rest were dropped by brightness.',
     kind: 'contended-resource',
-    owner: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /lights exceed the \{\}-light cap/ },
-    runtime: { has: true, cite: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /ES_LOG_WARN\("collectLights/ } },
-    editor: {
-      has: false,
-      owed: 'a warning in the log, attributed to no entity — the lights that went dark are not the '
-        + 'ones the Outliner marks, so the reader has to guess which',
-    },
-    agent: { has: false, owed: 'not in get_diagnostics' },
+    owner: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /std::partial_sort\(collected\.begin/ },
+    runtime: { has: true, cite: { path: 'src/esengine/renderer/store/LightPlan.hpp', probe: /struct LightCapReport/ } },
+    editor: { has: true, cite: { path: 'desktop/src/panels/inspector/componentDecorators.tsx', probe: /EditorControlSurface\.lightStatus\(/ } },
+    agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_light_status'/ } },
   },
   {
     id: 'postfx.hdrFormat',

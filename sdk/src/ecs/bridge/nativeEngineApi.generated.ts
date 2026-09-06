@@ -149,6 +149,7 @@ export interface NativeEngineApi {
     renderer_getTriangles?(): number;
     renderer_hasCapturedData?(): boolean;
     renderer_init?(width: number, height: number): void;
+    renderer_lightStatus?(entity: number, outPtr: number): number;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
@@ -399,6 +400,7 @@ export function createNativeEngineApi(
     bind('renderer_getTriangles', 'es_renderer_getTriangles', false);
     bind('renderer_hasCapturedData', 'es_renderer_hasCapturedData', false);
     bind('renderer_init', 'es_renderer_init', false);
+    bind('renderer_lightStatus', 'es_renderer_lightStatus', false);
     bind('renderer_lodInspect', 'es_renderer_lodInspect', false);
     bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
