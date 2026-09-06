@@ -85,23 +85,30 @@ describe('Renderer API', () => {
     // initRendererAPI / shutdownRendererAPI
     // =========================================================================
 
+    // The mock returns the size as the pointer, so each buffer is its own value.
+    const allocated = (): number[] => mock._malloc.mock.results.map((r) => r.value as number);
+    const freed = (): number[] => mock._free.mock.calls.map((c) => c[0] as number);
+
     describe('initRendererAPI', () => {
-        it('should allocate viewProjection buffer (16 * 4 = 64 bytes)', () => {
-            expect(mock._malloc).toHaveBeenCalledTimes(1);
+        it('should allocate a viewProjection buffer (16 * 4 = 64 bytes)', () => {
             expect(mock._malloc).toHaveBeenCalledWith(64);
         });
     });
 
     describe('shutdownRendererAPI', () => {
-        it('should free viewProjection buffer', () => {
+        // Every reader that marshals through the heap takes a buffer here. A
+        // COUNT has to be rewritten each time one is added, which is how it comes
+        // to be updated rather than read; the invariant does not move.
+        it('gives back every scratch buffer it took, and takes nothing else', () => {
             shutdownRendererAPI();
-            expect(mock._free).toHaveBeenCalledTimes(1);
+            expect([...freed()].sort()).toEqual([...allocated()].sort());
         });
 
         it('should handle double shutdown gracefully', () => {
             shutdownRendererAPI();
+            const once = freed().length;
             shutdownRendererAPI();
-            expect(mock._free).toHaveBeenCalledTimes(1);
+            expect(freed()).toHaveLength(once);
         });
     });
 

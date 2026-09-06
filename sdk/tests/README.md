@@ -17,47 +17,35 @@ zero: no new diagnostics, and fixed ones must be banked so they cannot return.
 The networking suites (`net-*`, `replication*`, `websocket`) carry **no** debt
 and `--update` refuses to add any.
 
-## Known debt
+## The component registry, per test
 
-### `airborne.test.ts`: the shared setup clears engine components
+`setup.ts` clears the per-app user component registry before every test, so one
+test's `defineComponent` cannot decide another's. It used to clear it to EMPTY,
+and that was wrong in a way nothing reported.
 
-Two of its cases (`tilts about X, which every ground clip leaves alone` and
-`is far enough from every other shipped pose to be told apart`) fail under this
-package's vitest config and pass under the repo root's — **the same single file,
-the same code, no other test running**:
+Engine components — animation, timeline, AI, audio, joints, UI text, tilemap —
+`defineComponent` at SDK module load into that same registry (see the comment
+above `markEngineComponentBaseline` in `src/ecs/component.ts`). A module body
+runs once, so a clear took them out with nothing to put them back. The result
+was never an error: an animator wrote nothing into its joint and the sampled
+pose stayed identity, which is a pose no clip can be told apart from. Two cases
+in `airborne.test.ts` failed on exactly that; a golden of "every builtin with
+field metadata" was silently missing `Marker`.
 
-```bash
-npx vitest run sdk/tests/airborne.test.ts   # from the repo root: 10 passed
-cd sdk && npx vitest run tests/airborne.test.ts   # 2 failed
-```
+The setup now snapshots the registry at the FIRST `beforeEach` and reseeds after
+each clear. The timing is forced, and the obvious one-liner does not work: a
+setup file's body runs before the file under test is imported, with 25 of the
+engine's 65 components registered — `markEngineComponentBaseline()` there loses
+the other 40, which is a partial restore that looks like a fix. The first
+`beforeEach` is the earliest point at which the file's own imports have run.
 
-So this is **not** order dependence, and not cross-file state leakage. It was
-first recorded as "order-dependent in full-suite runs"; that reading came from
-comparing a root-config run against a package-config run and reading the
-difference as isolation. Bisecting the config difference names the trigger
-exactly: with `setupFiles: ['tests/setup.ts']` removed and everything else
-identical, the file passes 10/10.
+`harness-component-registry.test.ts` holds both halves, and names `Animator`
+(registered by a module only the test file imports) beside `Marker` (registered
+by one the setup file imports) so a setup-load snapshot fails it.
 
-`tests/setup.ts` runs `clearUserComponents()` before every test. Engine
-components — animation, timeline, AI, audio, physics joints, UI text, tilemap —
-`defineComponent` at SDK module load into the **same per-app user registry** a
-project's own components use (see the comment above `markEngineComponentBaseline`
-in `src/ecs/component.ts`). Clearing it drops those too, with nothing to put them
-back, so the animator writes nothing into the joint and the sampled pose stays
-identity — which is a pose no clip can be told apart from.
-
-**The obvious one-line fix does not work.** `seedEngineComponents()` exists for
-exactly this, but it is a no-op until `markEngineComponentBaseline()` has run,
-and setup files execute *before* the test file's imports — so at setup time the
-engine components this file needs are not registered yet and there is nothing to
-snapshot. Any fix has to establish the baseline after collection (the first
-`beforeEach` is the earliest such point) and reseed after each clear, which
-changes the component-registry lifetime for all 509 test files. That deserves its
-own change with a full-suite before/after, not a patch here.
-
-**Widening the assertions, retrying, or pinning execution order are not fixes** —
-they hide a registry lifetime bug that makes some other suite's green
-untrustworthy too.
+**Widening the assertions, retrying, or pinning execution order would not have
+been fixes** — they hide a registry lifetime bug that makes some other suite's
+green untrustworthy too.
 
 ## Running Tests
 

@@ -354,6 +354,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Point, Directional, Ambient, or Spot.",
     },
   },
+  "Marker": {
+    "properties": {
+      "map": true,
+    },
+  },
   "MeshRenderer": {
     "color": {
       "tooltip": "Tint multiplied into the vertex colors (white = unchanged).",

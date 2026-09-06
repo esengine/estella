@@ -8,6 +8,10 @@ import { getComponentRegistry, getComponentFieldMeta } from '../src/ecs/componen
 // hand-written component.ts overlay into generated COMPONENT_META.fields. That
 // migration changes the *source* of these values, never the values themselves —
 // this snapshot fails if any field's resolved metadata drifts during the move.
+//
+// It reads the LIVE registry, so it is a snapshot of the engine only while the
+// harness leaves the engine's own components in it — `Marker` was absent here
+// for as long as the shared setup cleared them.
 describe('builtin FieldMeta (RC9-1 equivalence gate)', () => {
     it('matches the golden snapshot of every builtin with declared field metadata', () => {
         const names = [...getComponentRegistry().keys()].sort();
