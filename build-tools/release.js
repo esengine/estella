@@ -59,30 +59,37 @@ if (!new RegExp(`^\\|\\s*${version.split('.').slice(0, 2).join('\\.')}\\.x\\s*\\
     die(`SECURITY.md does not list ${version.split('.').slice(0, 2).join('.')}.x as supported.`);
 }
 
+// Asked SEPARATELY: nested, a captain who bumped the root by hand skipped the
+// editor's, and v0.58.0 was tagged with desktop/package.json reading 0.57.0 —
+// the file electron-builder names the release's artifacts from.
 console.log(chalk.cyan('▸'), `Updating ${PKG} to ${version}`);
 const pkg = JSON.parse(readFileSync(PKG, 'utf8'));
-const oldVersion = pkg.version;
-if (oldVersion === version) {
-    console.log(chalk.yellow('⚠'), `Version already ${version}, skipping file update`);
+let staged = [];
+if (pkg.version === version) {
+    console.log(chalk.yellow('⚠'), `${PKG} is already ${version}`);
 } else {
     pkg.version = version;
     writeFileSync(PKG, JSON.stringify(pkg, null, 2) + '\n');
-    let staged = PKG;
-    if (existsSync(EDITOR_PKG)) {
-        const editor = JSON.parse(readFileSync(EDITOR_PKG, 'utf8'));
-        if (editor.version !== version) {
-            editor.version = version;
-            writeFileSync(EDITOR_PKG, JSON.stringify(editor, null, 2) + '\n');
-            // A submodule's file belongs to its own repository: `git add
-            // desktop/package.json` from here is fatal. This repo commits the
-            // gitlink, so the editor's commit must exist and be pushed.
-            run(`git -C ${EDITOR_DIR} add package.json`);
-            run(`git -C ${EDITOR_DIR} commit -m "chore: release v${version}"`);
-            editorBumped = true;
-        }
-        staged += ` ${EDITOR_DIR}`;
+    staged.push(PKG);
+}
+if (existsSync(EDITOR_PKG)) {
+    const editor = JSON.parse(readFileSync(EDITOR_PKG, 'utf8'));
+    if (editor.version === version) {
+        console.log(chalk.yellow('⚠'), `${EDITOR_PKG} is already ${version}`);
+    } else {
+        editor.version = version;
+        writeFileSync(EDITOR_PKG, JSON.stringify(editor, null, 2) + '\n');
+        // A submodule's file belongs to its own repository: `git add
+        // desktop/package.json` from here is fatal. This repo commits the
+        // gitlink, so the editor's commit must exist and be pushed.
+        run(`git -C ${EDITOR_DIR} add package.json`);
+        run(`git -C ${EDITOR_DIR} commit -m "chore: release v${version}"`);
+        editorBumped = true;
+        staged.push(EDITOR_DIR);
     }
-    run(`git add ${staged}`);
+}
+if (staged.length) {
+    run(`git add ${staged.join(' ')}`);
     run(`git commit -m "chore: release v${version}"`);
     if (editorBumped) run(`git -C ${EDITOR_DIR} push origin HEAD:master`);
 }
