@@ -317,6 +317,24 @@ published separately; it ships inside the editor.
   relying on a non-replicated component reaching clients must declare an
   archetype for it, or declare the fields replicated and mean it.
 
+- **BREAKING: a component name is claimed once.** `defineComponent` returned the
+  existing definition when a name was already taken, which is right for a tag and
+  silent data loss for a component with fields: the loser's fields are dropped
+  wherever a scene carries them, and nothing says so.
+
+  The engine keeps taking new names — this release alone added `MeleeAttack`,
+  `Health`, `Hunter`, `Perception` and more to the SDK — so a project that
+  declared one of them first stopped receiving its own fields. In the flagship
+  example that read as a boss dying from 916 units away: `reach` and `cooldown`
+  were not in the winning schema, so `overlapCircle` got `undefined` for a radius
+  and no swing was ever on cooldown.
+
+  Declaring the same name twice with the SAME fields is still a reuse — one
+  module reached through two import paths, or a hot reload re-running a
+  declaration. Different fields now throws, naming both field lists. If you hit
+  it, rename your component: the two shipped examples that collided became
+  `Vitality`/`Swing` and `Hull`.
+
 - **Interest is prepare-once, query-many.** An `InterestPolicy` is handed the
   population per connection, so whatever it reads it reads C times — and the
   shipped radius policy reads a position through the builtin Transform. Measured,
