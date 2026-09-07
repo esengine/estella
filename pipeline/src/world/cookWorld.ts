@@ -16,8 +16,10 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { SceneData, PrefabRoot } from 'esengine';
-import { cutWorld, worldManifestPath, registryEntityFields, WORLD_DIR } from 'esengine/node';
+import type { SceneData } from 'esengine';
+import {
+    cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, WORLD_DIR,
+} from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
 
 /** One streamed scene, as `game.config.json` names it. */
@@ -32,33 +34,19 @@ export interface CookWorldsResult {
 }
 
 /**
- * Read the prefab an instance names, for the position an instance that does not
- * override it inherits. From the PROJECT rather than the payload: a prefab is
- * content-addressed by then, and where its root sits is the same either way.
+ * Read the prefab document an instance names. From the PROJECT rather than the
+ * payload: a prefab is content-addressed by then, and where its root sits is the
+ * same either way. What the document MEANS is `prefabRootOf`, shared with the
+ * realm that reads the same prefab over http.
  */
-function prefabResolver(root: string, index: AssetIndex): (ref: string) => Promise<PrefabRoot | null> {
+function prefabReader(root: string, index: AssetIndex): (ref: string) => Promise<unknown | null> {
     const byUuid = new Map<string, string>();
     for (const entry of index.entries) byUuid.set(entry.uuid, entry.path);
-    return async (ref: string): Promise<PrefabRoot | null> => {
+    return async (ref: string): Promise<unknown | null> => {
         const uuid = ref.startsWith('@uuid:') ? ref.slice('@uuid:'.length) : null;
         const relative = uuid !== null ? byUuid.get(uuid) : ref;
         if (!relative) return null;
-        try {
-            const prefab = JSON.parse(await readFile(path.join(root, relative), 'utf8')) as {
-                rootEntityId?: string;
-                entities?: Array<{
-                    prefabEntityId?: string;
-                    components?: Array<{ type: string; data: Record<string, unknown> }>;
-                }>;
-            };
-            const rootId = prefab.rootEntityId ?? '0';
-            const rootEntity = (prefab.entities ?? []).find((e) => e.prefabEntityId === rootId);
-            const transform = rootEntity?.components?.find((c) => c.type === 'Transform');
-            const at = (transform?.data.position ?? {}) as Partial<{ x: number; y: number; z: number }>;
-            return { rootId, position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 } };
-        } catch {
-            return null;
-        }
+        return JSON.parse(await readFile(path.join(root, relative), 'utf8')) as unknown;
     };
 }
 
@@ -95,7 +83,7 @@ export async function cookWorlds(
     const worlds: CookedWorld[] = [];
     const warnings: string[] = [];
     let index: AssetIndex | null = null;
-    let resolve: ((ref: string) => Promise<PrefabRoot | null>) | null = null;
+    let read: ((ref: string) => Promise<unknown | null>) | null = null;
 
     for (const scene of scenes) {
         const staged = path.join(payloadDir, scene.path);
@@ -109,24 +97,15 @@ export async function cookWorlds(
         // reference check costs a whole engine to load.
         if (!text.includes('"StreamedWorld"')) continue;
 
-        if (resolve === null) {
+        if (read === null) {
             index = await readCachedAssetIndex(root)
                 ?? (await scanAssetDatabase(root, { write: false, adopt: false })).index;
-            resolve = prefabResolver(root, index);
+            read = prefabReader(root, index);
         }
-        // Prefab roots are read up front: partitioning is synchronous so a cook
-        // that had to await inside it could not stay a pure function.
         const document = JSON.parse(text) as SceneData;
-        const roots = new Map<string, PrefabRoot | null>();
-        for (const entry of (document.entities ?? []) as Array<{ prefab?: string }>) {
-            if (typeof entry.prefab === 'string' && !roots.has(entry.prefab)) {
-                roots.set(entry.prefab, await resolve(entry.prefab));
-            }
-        }
-
         const cut = cutWorld(document, scene.name, {
             entityFieldsOf: registryEntityFields(),
-            resolvePrefab: (ref) => roots.get(ref) ?? null,
+            resolvePrefab: await resolvePrefabRoots(document, read),
         });
         if (cut === null) continue;
         if (cut.errors.length > 0) {

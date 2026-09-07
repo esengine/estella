@@ -256,6 +256,8 @@ export {
     stableEntityId,
     partitionWorld,
     cutWorld,
+    prefabRootOf,
+    resolvePrefabRoots,
     cellDocumentPath,
     worldManifestPath,
     registryEntityFields,

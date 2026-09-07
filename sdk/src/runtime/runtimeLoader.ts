@@ -746,6 +746,13 @@ export interface RuntimeInitConfig {
      * residency brings in, so they are deliberately not in `scenes`.
      */
     worlds?: WorldManifest[];
+    /**
+     * Cell name → its document, for a host that already holds them: an editor
+     * Play session cuts the unsaved scene in memory and has nowhere to fetch a
+     * cell FROM. A package leaves this out and every cell arrives by its path;
+     * the manifest is the same either way, cell paths included.
+     */
+    cellDocuments?: ReadonlyMap<string, SceneData>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
@@ -867,11 +874,15 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         // the persistent rows the cook said it names — freshly each time, because
         // the entities behind those rows are only the ones alive right now.
         const streamer = app.getResource(WorldStreaming);
+        // Read out here: inside the callback `config` is the scene's, not this one's.
+        const documents = config.cellDocuments;
         streamer.loadManifest(world, (cell) => {
             // Set ON the config, not spread into a copy of it: the setup that
             // loads the cell closes over the object this returns, so a copy
             // carries the fields somewhere nothing reads them.
-            const config = createRuntimeSceneConfig(cell.name, undefined, sceneOpts, cell.path);
+            const config = createRuntimeSceneConfig(
+                cell.name, documents?.get(cell.name), sceneOpts, cell.path,
+            );
             config.externalEntities = () => persistentEntityRows(app, world);
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
             return config;

@@ -255,10 +255,9 @@ export const GOLDEN = [
     // Walking is what makes a place exist here, so the frame after 60 frames of
     // it differs by more than a character moving — a cell came in.
     interact: { keys: ['KeyD'], frames: 60 },
-    // Cutting the world is a COOK step, so the editor plays the authored scene
-    // whole and the two frames hold different amounts of world on purpose. What
-    // the package does is held to by tools/verify-world-residency.mjs.
-    parityGap: 'the package streams its world and the editor plays it whole; the frames differ by design',
+    // Comparable now that the editor cuts this world the way the package does —
+    // but not the claim: the frame moved only 0.0073 → 0.0008 when Play stopped
+    // loading it whole. verify-world-residency.mjs asks both for their residency.
   },
   {
     id: 'ui-controls',

@@ -25,6 +25,7 @@ export {
     type PartitionOptions, type PartitionedCell, type PrefabRoot, type WorldPartition,
 } from './partitionWorld';
 export {
-    cutWorld, cellDocumentPath, worldManifestPath, WORLD_DIR, type CutWorld,
+    cutWorld, cellDocumentPath, worldManifestPath, WORLD_DIR,
+    prefabRootOf, resolvePrefabRoots, type CutWorld,
 } from './cutWorld';
 export { registryEntityFields } from './componentRefs';

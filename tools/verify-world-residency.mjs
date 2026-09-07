@@ -26,6 +26,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, '.golden', 'world-residency');
 const PROJECT = path.join(ROOT, 'examples', 'world-streaming-3d');
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'residency-run.mjs');
+const DESKTOP = path.join(ROOT, 'desktop');
 
 const A = 'main.cell_0_0';
 const B = 'main.cell_1_0';
@@ -83,6 +84,54 @@ function claim(ok, text, detail) {
 }
 
 const resident = (r, cell) => r.streaming.residentCells.includes(cell);
+const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
+
+/**
+ * Boot the editor into Play on the same project and read the same report.
+ *
+ * Through the play-frame eval hook, because the realm is an out-of-process
+ * frame. POLLS rather than reading once: a reading taken before residency
+ * settles says "loading", which is neither present nor absent.
+ */
+function playRealmResidency() {
+    const settle = `(async () => {
+        for (let i = 0; i < 900; i++) {
+            const r = window.__estellaPlay?.streaming?.();
+            if (r && r.streamed && r.loadingCells.length === 0
+                && r.unloadingCells.length === 0 && r.residentCells.length > 0) break;
+            await new Promise((done) => setTimeout(done, 16));
+        }
+        return JSON.stringify(window.__estellaPlay?.streaming?.() ?? null);
+    })()`;
+    const r = runElectron(['.'], {
+        via: 'npx',
+        encoding: 'utf8',
+        cwd: DESKTOP,
+        env: {
+            ESTELLA_SHOT: path.join(WORK, 'editor-play.png'),
+            ESTELLA_SHOT_PROJECT: PROJECT,
+            ESTELLA_SHOT_SCENE: 'assets/scenes/main.esscene',
+            ESTELLA_SHOT_PLAY: '1',
+            ESTELLA_SHOT_PLAY_EVAL: settle,
+            ESTELLA_WIN_W: '1500',
+            ESTELLA_WIN_H: '1040',
+        },
+    });
+    const line = (r.stdout || '').split('\n').find((l) => l.includes('[playEval]'));
+    if (!line) {
+        console.error(`    the editor printed no play-realm reading — ${(r.stdout || r.stderr || '').trim().slice(-300)}`);
+        return null;
+    }
+    try {
+        // The hook prints a string result as-is, and the eval already stringified
+        // the report — so this is the report's own encoding and nothing else.
+        return JSON.parse(line.slice(line.indexOf('[playEval]') + '[playEval]'.length).trim());
+    } catch {
+        console.error(`    the reading did not parse: ${line.slice(0, 300)}`);
+        return null;
+    }
+}
 const entities = (r, cell) => r.streaming.cellEntityCounts[cell];
 const authored = (r, cell) => r.streaming.authoredCellEntityCounts[cell];
 /** An entity handle's slot, so a criterion can say whether one was REUSED. */
@@ -417,6 +466,31 @@ function main() {
     claim((quiet.atReveal[CELL_COMPILES] ?? 0) === 0,
         'with nothing compiled at first sight either',
         `${CELL_COMPILES} peaked at ${quiet.atReveal[CELL_COMPILES] ?? 0}`);
+
+    // ---- The editor plays the same world, and cuts it the same way --------
+    //
+    // Frames cannot make this claim: the editor's moved 0.0073 → 0.0008 when
+    // Play stopped loading the world whole — inside every parity tolerance.
+    const played = playRealmResidency();
+    if (played === null) {
+        claim(false, 'the editor play realm reported its residency');
+    } else {
+        claim(played.streamed && played.cellCount === initial.streaming.cellCount,
+            'the editor plays a cut world too, with the cells the package ships',
+            `${played.cellCount} cells, streamed=${played.streamed}`);
+        claim(same(played.residentCells, initial.streaming.residentCells),
+            'and the same places are resident at boot, because the geometry is the same',
+            `editor ${JSON.stringify([...played.residentCells].sort())} `
+            + `vs package ${JSON.stringify([...initial.streaming.residentCells].sort())}`);
+        claim(JSON.stringify(sortKeys(played.authoredCellEntityCounts))
+            === JSON.stringify(sortKeys(initial.streaming.authoredCellEntityCounts)),
+            'holding what the cook put in them — one partition, two hosts',
+            JSON.stringify(sortKeys(played.authoredCellEntityCounts)));
+        claim(JSON.stringify(sortKeys(played.cellEntityCounts))
+            === JSON.stringify(sortKeys(initial.streaming.cellEntityCounts)),
+            'and the live entity counts agree, so both published the same documents',
+            `editor ${JSON.stringify(sortKeys(played.cellEntityCounts))}`);
+    }
 
     const failed = results.filter((r) => !r.ok).length;
     console.log(`\nworld-residency: ${results.length - failed}/${results.length}`);

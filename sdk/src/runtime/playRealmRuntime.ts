@@ -20,6 +20,8 @@ import type { ESEngineModule } from '../wasm';
 import { Audio } from '../audio/Audio';
 import { VideoPlayer } from '../video/VideoAPI';
 import { initRuntime } from './runtimeLoader';
+import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
+import { registryEntityFields } from '../residency/componentRefs';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
@@ -177,6 +179,39 @@ function createPlayRealmSource(
 }
 
 /**
+ * Cut the snapshot the way a cook would, or answer null when it is not a world.
+ *
+ * Here rather than on disk because the scene an author is playing may never
+ * have been saved. Same `cutWorld`, so the cells and the manifest are what the
+ * package would carry — only the documents stay in memory.
+ */
+export async function cutPlayWorld(
+    scene: SceneData, sceneName: string, resolveRef: (ref: string) => string,
+): Promise<CutWorld | null> {
+    const resolvePrefab = await resolvePrefabRoots(scene, async (ref) => {
+        const response = await fetch(resolveRef(ref));
+        return response.ok ? await response.json() as unknown : null;
+    });
+    const cut = cutWorld(scene, sceneName, {
+        // The realm's registry, which by now holds the project's own components
+        // as well as the engine's — so a cross-cell reference a cook could not
+        // see is found HERE, before it is packaged.
+        entityFieldsOf: registryEntityFields(),
+        resolvePrefab,
+    });
+    if (cut !== null && cut.errors.length > 0) {
+        // Refused, not played whole: a world the editor agreed to run streamed is
+        // one the author will ship, and this same cut fails the build.
+        throw new Error(
+            `scene "${sceneName}" cannot be cut into cells, so it cannot be played `
+            + `as the streamed world it declares:\n`
+            + cut.errors.map((e) => `  ${e}`).join('\n'),
+        );
+    }
+    return cut;
+}
+
+/**
  * Boot the shipping runtime against a single in-memory scene snapshot. The host
  * page has already created `app` (createWebApp) + bound a GL context; here we
  * register the snapshot as the sole scene, wire a fetch-backed source, and run.
@@ -186,6 +221,10 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
     const entryName = config.entrySceneName ?? '__play';
+    const cut = await cutPlayWorld(
+        sceneData, entryName,
+        (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
+    );
     await initRuntime({
         app,
         module,
@@ -195,9 +234,12 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         persistUpdateKey: config.persistUpdateKey,
         catalog: config.catalogData ? Catalog.fromJson(config.catalogData) : undefined,
         scenes: [
-            { name: entryName, data: sceneData },
+            // The persistent world when there is one: what a package boots is the
+            // part residency never removes, and the places arrive as it asks.
+            { name: entryName, data: cut?.persistent ?? sceneData },
             ...(config.extraScenes ?? []).filter((s) => s.name !== entryName),
         ],
+        ...(cut ? { worlds: [cut.manifest], cellDocuments: cut.documents } : {}),
         firstScene: entryName,
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,

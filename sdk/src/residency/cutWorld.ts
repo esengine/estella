@@ -13,7 +13,7 @@
  *          impossible, because there is nowhere left to disagree.
  */
 
-import { partitionWorld, type PartitionOptions } from './partitionWorld';
+import { partitionWorld, type PartitionOptions, type PrefabRoot } from './partitionWorld';
 import type { WorldCell, WorldManifest } from './cells';
 import type { SceneData } from '../scene/scene';
 
@@ -91,4 +91,43 @@ export function cutWorld(
         errors: partition.errors,
         warnings: partition.warnings,
     };
+}
+
+/** The shape of a `.esprefab` this reads — only the root's placement. */
+interface PrefabDocument {
+    rootEntityId?: string;
+    entities?: Array<{
+        prefabEntityId?: string;
+        components?: Array<{ type: string; data: Record<string, unknown> }>;
+    }>;
+}
+
+/** Where a prefab asset's root sits, from its document. Null if it has no root. */
+export function prefabRootOf(document: unknown): PrefabRoot | null {
+    const prefab = document as PrefabDocument | null;
+    if (prefab === null || typeof prefab !== 'object') return null;
+    const rootId = prefab.rootEntityId ?? '0';
+    const root = (prefab.entities ?? []).find((e) => e.prefabEntityId === rootId);
+    if (!root) return null;
+    const at = (root.components?.find((c) => c.type === 'Transform')?.data.position ?? {}) as
+        Partial<{ x: number; y: number; z: number }>;
+    return { rootId, position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 } };
+}
+
+/**
+ * Read every prefab `scene` instances, and answer where each one's root sits.
+ *
+ * A synchronous lookup, resolved up front, because the partition is pure and one
+ * that could await inside it would not be. Both hosts come through here; they
+ * differ only in how the bytes are fetched.
+ */
+export async function resolvePrefabRoots(
+    scene: SceneData, read: (ref: string) => Promise<unknown | null>,
+): Promise<(ref: string) => PrefabRoot | null> {
+    const roots = new Map<string, PrefabRoot | null>();
+    for (const entry of (scene.entities ?? []) as unknown as Array<{ prefab?: string }>) {
+        if (typeof entry.prefab !== 'string' || roots.has(entry.prefab)) continue;
+        roots.set(entry.prefab, prefabRootOf(await read(entry.prefab).catch(() => null)));
+    }
+    return (ref) => roots.get(ref) ?? null;
 }
