@@ -51,11 +51,14 @@ jobs:
       with:
         version: 5.0.0
 
+    # 500M could not hold ONE generation of this job's objects: 1157 compile
+    # calls, 76 cleanups inside the single job, 11% hits. Sized to the measurement.
+    # Every workflow sharing this key must agree, or the smallest one trims it back.
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         key: ${{ runner.os }}-emscripten
-        max-size: 500M
+        max-size: 2G
 
     - name: Build Web target
       run: node build-tools/cli.js build -t web --no-sync
@@ -126,10 +129,14 @@ jobs:
       with:
         version: 5.0.0
 
+    # No size here meant the action's 500M default, and Debug+ASan objects run
+    # about 2.6 MB each — 193 of them filled it to 100% with 53 cleanups. One
+    # generation is ~500 MB, so this holds two; the budget is shared, not free.
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         key: emscripten-asan
+        max-size: 1G
 
     - name: Configure (ASan + UBSan)
       run: |

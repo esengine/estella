@@ -45,11 +45,13 @@ jobs:
       with:
         version: 5.0.0
 
+    # Shares the key build.yml fills, so it has to agree on the ceiling —
+    # whichever workflow names the smallest one trims the cache back to it.
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         key: ${{ runner.os }}-emscripten
-        max-size: 500M
+        max-size: 2G
 
     - name: Build every target
       run: node build-tools/cli.js build -t all --no-sync

@@ -1,0 +1,74 @@
+name: Prune ccache snapshots
+
+# ccache-action appends a timestamp to its key on every save and never removes
+# the snapshot it replaced. Only the newest per key is ever restored, so the rest
+# are dead weight — and they are not free: 20 copies held 8.9 GB of this repo's
+# 10 GB cache budget, which evicts by LRU. The caches that ARE read every run
+# (native-deps, pnpm) were being pushed out by ccache snapshots nothing reads.
+#
+# This keeps the newest snapshot per ccache key and deletes the rest, which is
+# what makes the 2G ceiling in build.yml affordable rather than ruinous.
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+  # A safety net: workflow_run cannot fire for a run that never started, and a
+  # week of those would refill the budget on its own.
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+# Deleting a cache is the only thing this needs, and the only thing it can do.
+# build.yml stays at contents:read precisely because this lives apart from it.
+permissions:
+  actions: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Keep the newest snapshot of each ccache key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # per_page=100 is this endpoint's maximum, and --paginate would apply
+          # --jq once per page, which would break the grouping below. One page is
+          # the whole list at this repo's scale; the daily run covers any overflow.
+          gh api "repos/$REPO/actions/caches?per_page=100" > caches.json
+
+          # A key is <prefix>-<ISO timestamp>. Group on the prefix, keep the
+          # newest by creation, and list every older one.
+          jq -r '
+            [ .actions_caches[] | select(.key | startswith("ccache-")) ]
+            | group_by(.key | sub("-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$"; ""))
+            | .[] | sort_by(.created_at) | reverse | .[0]
+            | "keeping \(.key) (\(.size_in_bytes / 1048576 | floor) MB)"
+          ' caches.json
+
+          jq -r '
+            [ .actions_caches[] | select(.key | startswith("ccache-")) ]
+            | group_by(.key | sub("-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$"; ""))
+            | map(sort_by(.created_at) | reverse | .[1:])
+            | flatten | .[] | "\(.id)\t\(.size_in_bytes)\t\(.key)"
+          ' caches.json > stale.tsv
+
+          freed=0
+          count=0
+          while IFS=$'\t' read -r id size key; do
+            [ -n "$id" ] || continue
+            # A snapshot can go between the listing and here — another prune, or
+            # GitHub's own LRU. That is the outcome this wanted, not an error.
+            if gh api --method DELETE "repos/$REPO/actions/caches/$id" --silent 2>/dev/null; then
+              echo "deleted $key ($((size / 1048576)) MB)"
+              freed=$((freed + size))
+              count=$((count + 1))
+            else
+              echo "already gone: $key"
+            fi
+          done < stale.tsv
+
+          echo "pruned $count snapshot(s), $((freed / 1048576)) MB reclaimed"
