@@ -1,0 +1,11 @@
+Estella-Editor-Setup-0.61.0.exe
+Estella-Editor-Setup-0.61.0.exe.blockmap
+Estella-Editor-0.61.0-arm64.dmg
+Estella-Editor-0.61.0-arm64.dmg.blockmap
+Estella-Editor-0.61.0-arm64-mac.zip
+Estella-Editor-0.61.0-arm64-mac.zip.blockmap
+latest.yml
+latest-mac.yml
+native-templates.json
+estella-native-android-0.61.0.zip
+estella-native-ios-0.61.0.zip

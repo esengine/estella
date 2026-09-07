@@ -235,6 +235,10 @@ export const GATES = [
   // A published desktop artifact has one name, declared, whitespace-free, and
   // still distinct once the asset store has normalised it.
   { id: 'release-artifact-names', run: 'node tools/check-release-artifact-names.mjs', needs: 'editor' },
+  // …and that the updater feed a release publishes names files it carries. The
+  // gate runs the checker over fixtures; the release job runs it over the real
+  // asset list, which is the only place both halves exist at once.
+  { id: 'release-manifest-refs', run: 'node tools/check-release-manifest-refs.mjs --assets tools/fixtures/release-assets.txt --manifests tools/fixtures/release-manifests' },
   { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs', needs: 'editor' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
   {
