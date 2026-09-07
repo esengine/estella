@@ -617,10 +617,9 @@ describe('projectWorldPoint carries the same third dimension', () => {
 });
 
 describe('projectWorldPoint says whether a point has a screen position at all', () => {
-    // Behind the eye the divide flips the sign of x, y AND w, so the point comes
-    // back mirrored through the centre of the view — inside the viewport, on the
-    // wrong side, and indistinguishable from a real position once w is dropped.
-    // Every editor overlay that "follows" an entity used to follow that mirror.
+    // Behind the eye the divide flips x, y AND w, so the point comes back mirrored
+    // through the centre of the view — inside the viewport, on the wrong side, and
+    // indistinguishable from a real position once w is dropped.
     it('rejects a point behind a perspective eye, which the mirror hides', () => {
         const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
         const centre = 320;

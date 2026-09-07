@@ -62,11 +62,9 @@ export class CameraViewAPI {
      * drawing an overlay ON an entity (an outline, a gizmo, a screen rect) has to
      * pass the entity's z or it draws where the entity is not.
      *
-     * Null means the point has NO screen position: there is no camera, or it
-     * stands at or behind the eye, where the perspective divide mirrors it to the
-     * opposite side of the view. Being outside the viewport is not that — a
-     * collider or a frustum reaching past the edge still has coordinates there,
-     * and an overlay clipped to the canvas needs them.
+     * Null means the point has NO screen position: no camera, or it stands at or
+     * behind the eye, where the divide mirrors it to the far side of the view.
+     * Outside the viewport is NOT that, and keeps its coordinates.
      */
     worldToScreen(worldX: number, worldY: number, worldZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
