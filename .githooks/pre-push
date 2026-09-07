@@ -3,19 +3,24 @@
 # changed export without a refreshed sdk/etc/*.api.md snapshot) is caught before
 # it reddens master — not after, as a follow-up fix commit.
 #
-# Not the test suites. `verify:push` is `verify --no-suites`: the same one ordered
-# list in tools/gates.mjs, minus the five gates that RUN a suite, which CI runs on
-# this very push and which cost minutes here to answer a question that is about to
-# be answered anyway. The suites also fail on a stale local build/wasm/web — an
-# artifact CI builds fresh — so on this path they reported the machine, not the
-# push, and being early in the list they stranded every gate behind them.
+# And the test suites a change OWES. `verify:push` is `verify --suites owed`: the
+# same one ordered list in tools/gates.mjs, running the suites whose `owns` this
+# push has touched and leaving the rest to CI. Paying for none of them was cheap
+# and wrong — a tool gained a call, the double that stands in for it in the editor
+# suite did not, and the push went out red because no suite on this path compares
+# the two. Typically one suite runs, and the whole set is 80s.
 #
-# `pnpm run verify` still means everything; only the hook stopped paying for it.
+# A machine that cannot run an owed suite is not excused here: the suite says what
+# it needs (an engine build, an emsdk) and this stops. Building it, or declaring
+# the gap the way CI does, is the answer — a suite quietly downgraded to a partial
+# run is the thing check-suite-preconditions exists to refuse.
+#
+# `pnpm run verify` still means everything; the hook pays for what it changed.
 if ! pnpm run verify:push; then
   echo ''
   echo '✗ push blocked by pre-push verify.'
   echo '  API surface drifted?  node tools/api-surface.mjs --update   (then commit the refreshed sdk/etc/*.api.md)'
-  echo '  Suites are not in this hook — run `pnpm run verify` for the full list.'
+  echo '  Only the suites this change OWES ran — `pnpm run verify` runs all five.'
   echo '  To bypass in a real emergency:  git push --no-verify'
   exit 1
 fi

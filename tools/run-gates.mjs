@@ -9,12 +9,13 @@
  *
  *   node tools/run-gates.mjs --scope local
  *   node tools/run-gates.mjs --scope ci
+ *   node tools/run-gates.mjs --scope local --suites owed    (the pre-push hook)
  */
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SCOPES, GATES, gatesFor } from './gates.mjs';
+import { SCOPES, GATES, gatesFor, owedSuites } from './gates.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -33,10 +34,45 @@ if (!SCOPES.includes(SCOPE)) {
 // cannot run without it. Named below rather than silently dropped — a gate that
 // disappears quietly is the same as one that always passes.
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
-// --no-suites drops the gates that RUN a suite (the `covers` ones), for a caller
-// that is not paying minutes right now — the pre-push hook. Everything else,
-// including the builds the later gates read, still runs.
-const SUITES = !argv.includes('--no-suites');
+/**
+ * Which suite gates this caller pays for: `all` (default, and CI), `owed` (those
+ * whose `owns` this change touched — the pre-push hook), or `none`.
+ *
+ * @details A machine that cannot run an owed suite is not silently excused: it
+ *          says what it needs and the push stops, per check-suite-preconditions.
+ */
+const SUITE_MODES = ['all', 'owed', 'none'];
+if (argv.includes('--no-suites')) {
+  console.error('run-gates: --no-suites is now --suites none (or --suites owed, which the'
+    + ' pre-push hook uses).');
+  process.exit(2);
+}
+const SUITE_MODE = flag('suites', 'all');
+if (!SUITE_MODES.includes(SUITE_MODE)) {
+  console.error(`run-gates: unknown --suites "${SUITE_MODE}" (have: ${SUITE_MODES.join(', ')})`);
+  process.exit(2);
+}
+
+/**
+ * What this push would ADD to the remote: COMMITTED work since the branch left
+ * it. Not the working tree — what is uncommitted is not going out, and on a
+ * checkout two lines of work share it would owe suites for someone else's
+ * half-finished edit and block this push on their red.
+ */
+function changedPaths() {
+  const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 });
+  let base = '';
+  for (const ref of ['origin/master', 'master']) {
+    try { base = git(['merge-base', 'HEAD', ref]).trim(); break; } catch { /* no such ref here */ }
+  }
+  // No remote to compare against is not "nothing changed": the last commit is
+  // the smallest honest answer, and it is what a fresh clone's first push has.
+  const out = git(base ? ['diff', '--name-only', base, 'HEAD'] : ['diff', '--name-only', 'HEAD~1', 'HEAD']);
+  return [...new Set(out.split('\n').map((l) => l.trim()).filter(Boolean))];
+}
+
+const changed = SUITE_MODE === 'owed' ? changedPaths() : [];
+const SUITES = SUITE_MODE === 'owed' ? owedSuites(changed) : SUITE_MODE;
 /**
  * Whether every DECLARED gate has to have run, not just every gate that could.
  *
@@ -69,7 +105,8 @@ const declared = GAPS.filter((g) => process.env[g.env] === g.value);
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES });
 const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
 /** Suites this run is not paying for — named, never silently absent. */
-const unpaid = SUITES ? [] : gatesFor(SCOPE, HAS_EDITOR).filter((g) => g.covers?.length);
+const unpaid = gatesFor(SCOPE, HAS_EDITOR)
+  .filter((g) => g.covers?.length && !gates.includes(g));
 const noEditor = HAS_EDITOR ? [] : GATES.filter((g) => g.needs === 'editor' && (!g.where || g.where === SCOPE));
 console.log(`gates ${SCOPE}: ${gates.length} of ${GATES.length}`);
 if (noEditor.length) {
@@ -100,9 +137,18 @@ function reportSuites() {
   if (unrun.length) {
     console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);
   }
-  // The whole point of --no-suites is that it is CHEAP, not that it is quiet.
+  // The whole point of not paying for a suite is that it is CHEAP, not that it
+  // is quiet. Under `owed` the count of paths is part of the claim: "no suite was
+  // owed" means nothing unless it is attached to a diff that was actually read.
+  if (SUITE_MODE === 'owed') {
+    console.log(`  ${changed.length} changed path(s) read for suite ownership`
+      + `${SUITES.size ? '' : ' — none of them under a suite\'s `owns`'}`);
+  }
   if (unpaid.length) {
-    console.log(`  test suites NOT run: ${unpaid.map((g) => g.id).join(', ')} — --no-suites; CI runs them`);
+    const why = SUITE_MODE === 'owed'
+      ? 'nothing changed under what they answer for; CI runs them all'
+      : `--suites ${SUITE_MODE}; CI runs them`;
+    console.log(`  test suites NOT run: ${unpaid.map((g) => g.id).join(', ')} — ${why}`);
   }
 }
 

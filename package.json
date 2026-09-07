@@ -19,7 +19,7 @@
     "asset-meta": "node tools/asset-meta.js",
     "migrate-asset-refs": "node tools/migrate-asset-refs.js",
     "verify": "node tools/run-gates.mjs --scope local",
-    "verify:push": "node tools/run-gates.mjs --scope local --no-suites",
+    "verify:push": "node tools/run-gates.mjs --scope local --suites owed",
     "perf": "node tools/perf-guard.mjs --check",
     "scale": "node tools/perf-budget.mjs",
     "stress-project": "node tools/stress-project.mjs",

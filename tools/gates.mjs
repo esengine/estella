@@ -32,10 +32,10 @@ export const SCOPES = ['local', 'ci'];
  * compares the claim against the directories that HOLD tests, so a suite nothing
  * invokes is a finding rather than a silence.
  *
- * `covers` is also the COST dimension: the gates that run a suite are the ones
- * that cost minutes, so `--no-suites` drops exactly those. Orthogonal to `where`
- * — that says a gate CANNOT run here, this says a caller is not paying now — so
- * the list above stays the only list, and a dropped suite is still named.
+ * `covers` is also the COST dimension: `--suites none` drops exactly the gates
+ * that run a suite — orthogonal to `where`, which says a gate CANNOT run here.
+ * `owns` is the other half: the SOURCE a suite answers for, and `--suites owed`
+ * runs the ones a change touched, so it meets its unit-test owner before the remote.
  */
 export const GATES = [
   { id: 'tsc-sdk', run: 'pnpm --filter ./sdk exec tsc --noEmit' },
@@ -90,7 +90,7 @@ export const GATES = [
   // this gate reported success having type-checked nothing at all.
   { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit', needs: 'editor' },
   { id: 'editor-tests', run: 'pnpm --filter @estella/editor test',
-    needs: 'editor', covers: ['desktop/tests'] },
+    needs: 'editor', covers: ['desktop/tests'], owns: ['desktop'] },
   // What type-checking cannot see: the renderer runs in a browser, so a module
   // that reaches it with a node dependency throws before React mounts and takes
   // the whole editor with it.
@@ -100,20 +100,23 @@ export const GATES = [
   // could survive fails here rather than in someone else's project.
   { id: 'tsc-plugins', run: 'pnpm -r --filter "./plugins/*" exec tsc --noEmit' },
   { id: 'plugin-tests', run: 'pnpm -r --filter "./plugins/*" test',
-    covers: ['plugins/audio-mixer/tests', 'plugins/ldtk/tests', 'plugins/minigame-services/tests'] },
+    covers: ['plugins/audio-mixer/tests', 'plugins/ldtk/tests', 'plugins/minigame-services/tests'],
+    owns: ['plugins'] },
   // The engine's own TS suites (pipeline + tooling). They lived in desktop/tests
   // until the editor split, where a checkout without the editor ran none of them.
-  { id: 'engine-tests', run: 'pnpm run test', covers: ['pipeline/tests', 'tools/tests'] },
+  { id: 'engine-tests', run: 'pnpm run test', covers: ['pipeline/tests', 'tools/tests'],
+    owns: ['pipeline', 'tools'] },
   // The SDK's own suites. They were run by NOTHING until 2026-08-30: the gate
   // list said 76/76 while four of them did not compile against the source they
   // test, and only a hand-run vitest found it.
-  { id: 'sdk-tests', run: 'pnpm --filter ./sdk test', covers: ['sdk/tests'] },
+  { id: 'sdk-tests', run: 'pnpm --filter ./sdk test', covers: ['sdk/tests'], owns: ['sdk'] },
   // The AOT compiler carries its own oracle: a real example system lowered to
   // EIR must move a world exactly the way node moves it.
   // It also compiles the emitted C and requires the same bytes back: natively
   // with any C compiler, and as wasm where emsdk is unpacked. Without either it
   // still passes and PRINTS that the differential did not run — read the log.
-  { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test', covers: ['compiler/tests'] },
+  { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test', covers: ['compiler/tests'],
+    owns: ['compiler'] },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   // Same shape of rule, other direction: what builds a project may not need the
@@ -148,6 +151,9 @@ export const GATES = [
   { id: 'project-settings', run: 'node tools/check-project-settings.mjs', needs: 'editor' },
   // "The full gate suite is green" only means something if every suite is in it.
   { id: 'verification-authority', run: 'node tools/check-verification-authority.mjs' },
+  // ...and "this push ran the suites it owed" only means something if what each
+  // suite answers for is a claim that resolves.
+  { id: 'suite-ownership', run: 'node tools/check-suite-ownership.mjs' },
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-spawn', run: 'node tools/check-tool-spawn.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs', needs: 'editor' },
@@ -300,10 +306,33 @@ export const GATES = [
   { id: 'documents', run: 'node build-tools/cli.js validate-documents' },
 ];
 
-/** The gates a scope runs, in declaration order. `hasEditor` gates the editor ones. */
-export function gatesFor(scope, hasEditor = true, { suites = true } = {}) {
+/** Whether `p` names, or sits under, one of `roots`. */
+function under(p, roots) {
+  return roots.some((r) => p === r || p.startsWith(`${r}/`));
+}
+
+/**
+ * The suites `changed` owes — the direct unit-test owner of every path in it.
+ *
+ * A path no suite claims owes none: docs, examples and the C++ tree have owners
+ * of other kinds. Over-running is the safe direction here and under-running is
+ * the defect, so `owns` is declared at package granularity rather than per file.
+ */
+export function owedSuites(changed) {
+  const owed = new Set();
+  for (const g of GATES) {
+    if (g.owns && changed.some((p) => under(p, g.owns))) owed.add(g.id);
+  }
+  return owed;
+}
+
+/**
+ * The gates a scope runs, in declaration order. `hasEditor` gates the editor
+ * ones; `suites` is 'all', 'none', or the set of suite ids a diff owes.
+ */
+export function gatesFor(scope, hasEditor = true, { suites = 'all' } = {}) {
   if (!SCOPES.includes(scope)) throw new Error(`unknown scope "${scope}" (have: ${SCOPES.join(', ')})`);
   return GATES.filter((g) => (!g.where || g.where === scope)
     && (hasEditor || g.needs !== 'editor')
-    && (suites || !g.covers?.length));
+    && (!g.covers?.length || suites === 'all' || (suites !== 'none' && suites.has(g.id))));
 }
