@@ -25,6 +25,7 @@ import { MODULES, DISPOSITIONS, NATIVE_MODULE_REGISTRY, subpathOf, specifierOf, 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = path.join(ROOT, 'sdk', 'package.json');
+const REGISTRY = path.join(ROOT, 'sdk', 'src', 'platform', 'nativeModuleRegistry.ts');
 const NATIVE_ENTRY = path.join(ROOT, 'sdk', 'src', 'index.native.ts');
 
 const problems = [];
@@ -68,24 +69,30 @@ for (const [specifier, m] of Object.entries(MODULES)) {
     }
 }
 
-// 5. Every native-subpath has a namespace in the registry the native entry
-//    installs. Skipped with a word — not silently — while that entry is being
-//    written, since a check that cannot see its subject must say so.
+// 5. Every native-subpath has a namespace in the registry, and the native entry
+//    actually installs it. A table nothing calls publishes nothing.
 const subs = nativeSubpaths();
-if (existsSync(NATIVE_ENTRY)) {
-    const entry = readFileSync(NATIVE_ENTRY, 'utf8');
-    if (!entry.includes(NATIVE_MODULE_REGISTRY)) {
-        console.log(`check-native-script-modules: sdk/src/index.native.ts does not install `
-            + `${NATIVE_MODULE_REGISTRY} yet — ${subs.length} native-subpath namespace(s) unchecked.`);
-    } else {
-        for (const specifier of subs) {
-            if (!entry.includes(`'${specifier}'`) && !entry.includes(`"${specifier}"`)) {
-                problems.push(
-                    `"${specifier}" is a native-subpath and ${NATIVE_MODULE_REGISTRY} does not `
-                    + `publish a namespace for it — a game importing it would resolve to nothing.`);
-            }
+if (existsSync(REGISTRY)) {
+    const reg = readFileSync(REGISTRY, 'utf8');
+    for (const specifier of subs) {
+        if (!reg.includes(`'${specifier}'`) && !reg.includes(`"${specifier}"`)) {
+            problems.push(
+                `"${specifier}" is a native-subpath and sdk/src/platform/nativeModuleRegistry.ts `
+                + `publishes no namespace for it — a game importing it would resolve to nothing.`);
         }
     }
+    if (!reg.includes(`'${NATIVE_MODULE_REGISTRY}'`)) {
+        problems.push(
+            `sdk/src/platform/nativeModuleRegistry.ts must spell ${NATIVE_MODULE_REGISTRY}, which `
+            + `is the global the exporter resolves a subpath against.`);
+    }
+} else {
+    problems.push('sdk/src/platform/nativeModuleRegistry.ts is missing — nothing publishes the '
+        + 'subpath namespaces a packaged native game resolves against.');
+}
+if (existsSync(NATIVE_ENTRY) && !readFileSync(NATIVE_ENTRY, 'utf8').includes('installNativeModuleRegistry()')) {
+    problems.push('sdk/src/index.native.ts does not call installNativeModuleRegistry() — the '
+        + 'namespaces exist and no host ever publishes them.');
 }
 
 if (problems.length) {

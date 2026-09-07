@@ -23,6 +23,7 @@
  */
 import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
+import { installNativeModuleRegistry } from './platform/nativeModuleRegistry';
 
 // No setPlatform here — the shell calls installNativePlatform(bridge) at boot.
 // Register every engine component / AI name up front so a scene can never silently
@@ -30,6 +31,11 @@ import { ensureBuiltinAiRegistrations } from './ai/builtins';
 ensureBuiltinComponentsRegistered();
 ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
+
+// The public subpath namespaces, from THIS graph, so `Res(Physics3D)` in a game
+// names the token the runtime installed. A resolution target, not public API:
+// nothing re-exports it and the core namespace stays unflattened.
+installNativeModuleRegistry();
 
 export * from './core';
 export * from './runtime/webAppFactory';
