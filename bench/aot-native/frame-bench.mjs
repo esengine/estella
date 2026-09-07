@@ -377,6 +377,10 @@ for (const r of rows) {
 }
 
 let bad = 0;
+// Failures that are about the MACHINE, counted apart: a frame that waited says
+// nothing about the engine. All-or-none — one real failure beside a waited frame
+// is still a real failure.
+let waited = 0;
 console.log('');
 
 // A frame the compositor throttled spends its span waiting and reads exactly like
@@ -394,6 +398,7 @@ for (const r of rows.concat(Object.values(render))) {
         + ' compositor and not the engine. Measured causes: a covered window, and a virtual display'
         + ' (a remote session), which hands out drawables at its own rate however fast the frame is.');
     bad++;
+    waited++;
 }
 
 // ------------------------------------------------------------------ the ceiling
@@ -527,4 +532,10 @@ if (render.drawing && render.holding && !unmeasured(render.drawing) && !unmeasur
         + `${onCpu ? ', rasterized on the CPU' : ''})`);
 }
 
-if (bad > 0) process.exit(1);
+if (bad > waited) process.exit(1);
+if (waited > 0) {
+    console.error(`aot native bench: ${waited} run(s) measured the compositor — this machine`
+        + ' cannot answer what the engine costs. A display that hands out drawables at its own'
+        + ' rate is not a slow engine, and 2 is the convention for a question this host cannot take.');
+    process.exit(2);
+}
