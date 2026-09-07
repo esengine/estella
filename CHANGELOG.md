@@ -142,6 +142,204 @@ published separately; it ships inside the editor.
   implementations held together by a bit-exact differential, which proves more
   than generating one from the other would.
 
+
+- **Two ways out of an animation: what happened, and how far it asks to move.** A
+  clip could declare custom events and nothing read them, and a clip that
+  animated its own Transform posed a character straight through the physics
+  world. Both are answered by the driver now, because only the driver knows how
+  long a clip runs and whether it repeats: events fire on the interval a step
+  CROSSED rather than the instant it landed on and belong to the state being
+  entered, so an attack cancelled into a dodge stops landing; root motion is a
+  REQUEST, published on `AnimatorRootMotion` in world space with the seconds it
+  covers, for a controller that does not run on the animator's clock.
+
+  Around them, the rest of the loop those two make possible. A melee swing is
+  three separate facts — the clip says the swing reached its moment, physics says
+  what was in that space, gameplay says what that does — so it can be re-aimed,
+  re-timed and re-balanced independently, and one swing is an INSTANCE with its
+  own hit set, because "the event only fires once" breaks as double damage the
+  first time a hit window spans two frames. A hunting character is the twin of
+  `ThirdPersonController`: perception becomes the same request input does, down
+  the same navigation, the same character controller, the same animator trigger.
+
+- **Emission asks the shape where and which way, instead of asking for an angle.**
+  The simulation was already three-dimensional while emission ended at a planar
+  polar angle, and an emitter's rotation reached the spawn as `2*atan2(q.z, q.w)`
+  — the quaternion's z and nothing else, so pitching an emitter to spray dust up
+  off the ground kept firing along the plane it was authored in, silently.
+
+  There is no ParticleEmitter3D. There is one question — `SpawnSample { position,
+  direction }` in emitter local space — so a new shape cannot teach the
+  integrator a new kind of aim. Point and Box keep the planar spread they had,
+  which IS the 2D case; Circle moves into the emitter's own plane; Cone,
+  Hemisphere and Sphere are one cap of half-angle θ about local +Y, where a 2D
+  cone has always pointed. An unrotated emitter is unchanged to the pixel.
+
+- **Screen-space ambient occlusion, over the depth the post chain already binds.**
+  No G-buffer, no history, no motion vectors: a sample goes back to the world and
+  the estimator asks what fraction of its neighbourhood is closed off, which is
+  bounded and scale-free — an open plane reads 0 and a wall base about a half,
+  with no per-scene constant to tune. 0.65ms at 1080p.
+
+  Per-pass resolution came with it: `rg::TargetDesc::scale` was implemented in
+  the render graph and had never had a caller. The AO and blur passes take it.
+
+- **The hitch when something first becomes visible has an author, and it is one
+  shader compile.** Splitting `collect.mesh` five ways showed 242 program asks,
+  ONE compile, and six milliseconds — a variant built the first time anything
+  drew with it. A streamed cell now declares the variants its materials will need
+  while it is being prepared, and PREPARED means those obligations are paid, not
+  just that the assets arrived. The splice measured 12.7ms down to 0.8ms.
+
+- **A mesh comes back after a device loss, into the handle it left.** A lost
+  device used to leave every Mesh record pointing at buffers that died with it,
+  and the draw path bound them: invalid-operation errors, frame after frame, for
+  geometry that was never returning. The realization ends and the identity stays,
+  so components go on naming the mesh by the same handle while the geometry is
+  put back underneath them from the source it was loaded from.
+
+- **A texture's compression is two decisions, and each records its own.** A cooked
+  KTX2 the device cannot sample is decoded to RGBA and uploaded — correctly, four
+  times larger, and with nothing saying so. A PNG whose Compress row reads ON but
+  is 70x70 ships raw for an entirely different reason. Both read as "not
+  compressed", which is the one thing an author cannot act on.
+
+  The cook's decision and the upload's are recorded apart, and the Inspector
+  shows both: what a build of this project would ship for this texture, with the
+  reason named (the build, the asset, its folder, its dimensions, its file type),
+  and what a cooked payload becomes on this machine.
+
+- **The shadow atlas and the light cap name who they turned away.** A caster the
+  atlas could not fit cast nothing, and "why does this object have no shadow" had
+  no answer anywhere in the engine — the frame counted the tiles it handed out.
+  Both refusals are recorded per caster and per light now, with the reason.
+
+- **The post chain commits to one intermediate format per frame, and the
+  effective sample count is readable.** `interFormat()` re-read the colour-space
+  flag and the device's float capability every time it was asked, so a linear
+  project on a backend without renderable float targets ran the whole chain at
+  8-bit precision with nothing recording it — and a flip between `begin()` and
+  `declareChain()` could give one frame two formats. MSAA reports `{ effective,
+  max }`, kept apart because one number cannot separate "that is what was asked
+  for" from "that is all this machine gives".
+
+- **The built-in audio buses are declared once, and the backend says what it can
+  do.** The five buses every mixer starts with — their parents and their resting
+  levels — were spelled out in the constructor, so an editor showing a project's
+  OVERRIDES had to copy them to know what an override was a change from.
+  `AudioAPI.hasMixerGraph` is the fact behind every `false` the bus calls return,
+  reported once rather than inferred from a failed write.
+
+- **A saved map says which encoding it was painted under.** The tile cell
+  encoding was written nowhere in a `.esscene`, so widening the id mask by one
+  bit — which 8191 tiles makes a plausible change — would leave every byte where
+  it was while every cell that carried a flip flag became a different tile. The
+  blob now carries its chunk side and its four cell constants ahead of anything
+  whose size depends on them, and a map saved under another encoding is
+  translated on load rather than refused.
+
+- **An event payload has a shape, so it is a project shape.** `defineComponent`
+  and `defineResource` carry theirs as a value; `defineEvent<T>(name)` erased T,
+  so every mechanism that needed an event's layout invented a channel of its own
+  and the AOT handshake was simply the first. Renaming a payload field left a
+  compiled module reading a field by its old name and delivering undefined.
+
+- **A game can state what its own run has reached.** The observation seam could
+  see the engine's side of a frame — where a character stands, what an animator
+  plays, whether a swing landed — but a checkpoint armed, a core taken, a gate
+  opened or a victory lived nowhere it could reach, so a driver inferred
+  completion from an entity going missing. A game publishes its own facts, in its
+  own names; the resource is always there, so empty means "this game says
+  nothing" rather than "the seam is broken".
+
+- **The multiplayer example ships the server it always claimed to.** The README
+  and the manual both said the same code runs against a real WebSocket server,
+  and the only place that was ever demonstrated was a test file.
+  `examples/multiplayer-arena/server/` imports the project's own `src/main.ts`
+  through the door the web runtime uses, so the authority runs the game's real
+  systems rather than a second copy of them.
+
+- **The packaged native host answers the AOT conformance fixture too.** Three
+  executors agreed and none of them was a game: what a player runs is a packaged
+  app embedding QuickJS and the engine, stepping frames through its own loop, and
+  nothing had asked that road what the fixture computes. It now runs twice on the
+  machine's runtime template — interpreted, and with its systems compiled and
+  dlopened — against the trace the interpreter recorded.
+
+- **An inventory of the decisions the engine takes on a creator's behalf.** A
+  LODGroup, an MSAA request and a streaming radius are not three features; they
+  are three places the engine chooses something a creator authored and then could
+  not watch. Each declared decision names the three surfaces that could answer
+  for it — the runtime recording why, the editor showing it where the value was
+  typed, the automation surface answering the same question — and every claim
+  carries a probe, so an entry that stops being true is a finding rather than
+  documentation nobody reread.
+
+### Changed
+
+- **BREAKING: the screen is drawn by the screen, and no camera is consulted.**
+  Screen UI was world content that a 2D camera happened to frame exactly. The
+  layout box was the camera's world rect, so "follows the camera" and "is on the
+  screen" were one picture — and a 3D camera tells them apart completely: a
+  perspective view has no world rect, so every HUD element resolved to 0x0 and a
+  HUD whose layout was entirely correct drew nothing at all.
+
+  The screen now has a coordinate authority of its own, published from the design
+  fit and the surface unconditionally — a frame between cameras still has a
+  screen — and one projection is read by the pass that draws it and inverted by
+  the pointer, so "the HUD is where it looks" holds by construction. Screen UI is
+  one RenderGraph pass after the post chain, and which entities the screen owns
+  is decided per Canvas and inherited down the TRANSFORM hierarchy, so a bare
+  Sprite parented into a HUD comes with it. `Camera.cullingMask` survives: the
+  overlay takes the union of the rendering cameras' masks, because whether a
+  Canvas' layer is shown at all is still a camera's business.
+
+  A 2D project is unchanged. A project that reached into the camera to place its
+  own HUD is not: screen roots are placed in layout pixels about the origin.
+
+- **BREAKING: a spawn stops being a scene snapshot — replication protocol v4.** A
+  spawn was built by the SCENE projection, which answers "how is this entity
+  restored in full", while replication answers "which facts is this client
+  authorized and declared to know". One function answered both, so a third
+  question got answered by accident — what a ghost needs in order to exist — by
+  shipping whatever the authority happened to be holding, an AI blackboard and an
+  unrevealed objective included.
+
+  Construction is declared now: `registerReplicationArchetype(key, build)` says
+  what a ghost of that key is, and the server names one per entity through
+  `Replicated.archetype`. Ownership rides the spawn as identity rather than
+  arriving inside a component dump. The baseline is built FROM the replication
+  table rather than filtered against it, which is where the cost went: 14.7µs to
+  3.8µs per spawned entity, then 4.2x again on the payload itself.
+
+- **Interest is prepare-once, query-many.** An `InterestPolicy` is handed the
+  population per connection, so whatever it reads it reads C times — and the
+  shipped radius policy reads a position through the builtin Transform. Measured,
+  that is 46 cores per simulated second at 100k entities and 32 connections;
+  reading each position once per sample and answering every connection from that
+  one snapshot is 1.8. `InterestProvider` is that shape, `radiusInterestProvider()`
+  is the built-in rules in it, and the two share one slot — policies still work.
+
+- **World transforms have an authority, and it is not the renderer.** Composition
+  was scheduled by `renderer_beginFrame`, so an authoritative server, which
+  installs no renderer, never composed at all — every `worldPosition` on it sat
+  at the origin — and a second fixed step inside one frame silently reused the
+  first one's answer while replication sampled on every step. It is a staleness
+  epoch now: producers advance it, consumers call `ensureComposed`, and one
+  generation costs one composition however many consumers ask. 100k unchanged
+  transforms go from 0.85ms to 0.01ms, and a headless server composes at all.
+
+  Physics is a producer of transform INPUTS and no longer an author of the
+  output. The editor's field setter says it is a producer too.
+
+- **`world.update(e, C, draft => …)` is the write path for "read it, adjust a
+  field, keep the rest".** The census found 43 writes that changed a component
+  with nothing observing them — the shape `set` cannot express without a whole
+  value, done through a read accessor instead. The draft is BORROWED and must not
+  be retained; the call reports whether the callback wrote; a throwing callback
+  does not roll back, because what it wrote is already in the component and a
+  half-write nobody hears about is the failure this path exists to remove.
+
 ### Fixed
 
 - **The tween enums are generated now, and an enum may live outside the reflected
@@ -294,6 +492,76 @@ published separately; it ships inside the editor.
   check — and the same file compares the ground against the claim: every
   all-address struct in the contract header must be one the digest covers, so the
   next one added without a check is a red rather than a silence.
+
+
+- **Antialiasing was never the engine's, and turning on a post chain walked away
+  from it.** An identity post-process effect cost the frame every antialiased
+  edge it had — and diagnosing it turned up something worse than a missed
+  resolve: there was no resolve to miss. WebGL2's smooth edges came from the
+  browser's default framebuffer, which a post chain stops drawing into; WebGPU
+  never had any. Multisampling is now the engine's own, requested by the project
+  and reported as what it actually got, because a device's ceiling is a
+  capability and not a policy.
+
+- **A lit mesh had its specular lobe switched off rather than turned down.** The
+  builtin mesh shader asked for specular 0, which removes the direct highlight
+  AND the environment reflection — so the same model was PBR when it came out of
+  a glTF (which writes specular 1) and Lambert when its material said nothing.
+  The default is a rough dielectric now: the 4% every dielectric reflects, plus
+  the IBL term that reflection gates. A cheaper surface is a material to name,
+  not a constant that quietly redefines one.
+
+- **The 3D solver answers in world space, and its answer was being written as
+  local.** `createBody` hands the solver a composed world pose, and both
+  writebacks put what came back straight into `Transform.position` and
+  `Transform.rotation` — the LOCAL inputs the composer builds a world pose from.
+  A parented body had its parent's transform applied a second time, and a
+  character controller with it. The fixture that shows it needs no solver: hand a
+  body over, ask for nothing, publish the same pose back. It moved seventeen units.
+
+- **A spatial query can see the characters standing in the space.** A
+  `CharacterVirtual` is swept against the world and is not in it, so the narrow
+  phase had no body to find — and every player and every enemy is one. So
+  `overlapSphere` answered "nothing is there" about the only things a swing is
+  ever aimed at, and a melee attack could only hit scenery. Overlap only: what a
+  ray meets is a separate question, with its own consumers.
+
+- **A query row no longer outlives the row after it.** `toArray()` on an
+  engine-backed component returned three rows that were one object, every value
+  equal to the last entity's — the pointer fast path fills one preallocated
+  object per resolver, and the query put that object into every row it handed
+  out. A reader that never writes was still getting the wrong answer.
+
+- **A client joining a quiet server is told the world as it is.** `sample()`
+  returns early with no connections, so the registry stops following the world
+  while nobody is listening — and the initial state is built from that registry
+  and never re-reads the world. After any period with zero clients, the next
+  client's first frame described the world as the last one left it, with anything
+  spawned in between simply absent. A network identity also survives a membership
+  round trip now, and a connection that cannot be sent to stops counting as a
+  participant.
+
+- **A frame is closed once.** `beginFrame()` closed a frame a host might have
+  left open, so a host that honours the pairing closed it twice — and the second
+  close failed the capture booked for the frame about to be rendered against a
+  texture the first had already released. Invisible on WebGL2, whose `endFrame`
+  is a no-op, while every WebGPU readback came back empty. A host that opens a
+  frame without closing it is a bug to report, not one to absorb.
+
+- **A recovered material's samplers point where they did before.** A device
+  recovery relinks every program, and a relink clears uniform state — including
+  the sampler unit each texture param reads. Those units were seeded once at
+  material registration and nowhere else, so after a recovery every material
+  sampled from unit 0 and a normal-mapped material behaved permanently like one
+  with no normal map.
+
+- **A package that cannot load its own code says so.** The host imported the
+  project's bundle inside a bare `try/catch`, because a build with no project
+  code has nothing to import — so a project whose module THREW at load booted an
+  empty world, painted a frame and reported `errors=0`. The cost is not
+  hypothetical: a user component colliding with a builtin threw a clear message
+  from the engine, the catch ate it, and the missing systems read for hours as a
+  renderer problem and then a gameplay one.
 
 ## [0.60.0] - 2026-09-02
 
