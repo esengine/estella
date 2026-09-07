@@ -150,7 +150,7 @@ export const Facing = defineComponent('Facing', {
     y: 0,
 });
 
-export const Health = defineComponent('Health', {
+export const Vitality = defineComponent('Vitality', {
     current: 100,
     max: 100,
     /** Seconds of invulnerability a hit grants, so one swing lands once. */
@@ -174,7 +174,7 @@ export const HealthBarFill = defineComponent('HealthBarFill', {
  * arc test and damage — so `hits`, the mask of what a swing can reach, is the
  * only thing separating Lyra's sword from a wisp's touch.
  */
-export const MeleeAttack = defineComponent('MeleeAttack', {
+export const Swing = defineComponent('Swing', {
     damage: 25,
     /** Swing radius in world units. */
     reach: 96,

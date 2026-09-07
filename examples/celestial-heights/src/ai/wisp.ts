@@ -3,7 +3,7 @@ import {
     registerAction, registerCondition, setNavDestination,
     Perception, Status,
 } from 'esengine';
-import { Facing, MeleeAttack } from '../components';
+import { Facing, Swing } from '../components';
 
 // Leaves for assets/ai/wisp.esbt. The tree is authored as data and resolves
 // these names from the engine's AI registry, so the brain's shape is editable
@@ -12,16 +12,16 @@ import { Facing, MeleeAttack } from '../components';
 registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);
 
 registerCondition('inStrikeRange', (ctx) => {
-    if (!ctx.has(Perception) || !ctx.has(MeleeAttack)) return false;
+    if (!ctx.has(Perception) || !ctx.has(Swing)) return false;
     const perception = ctx.get(Perception);
     // Short of the full reach, so the wisp closes in rather than poking from the
     // edge of its own arc.
-    return perception.visible && perception.distance <= ctx.get(MeleeAttack).reach * 0.75;
+    return perception.visible && perception.distance <= ctx.get(Swing).reach * 0.75;
 });
 
 registerAction('strike', (ctx) => {
-    if (!ctx.has(MeleeAttack)) return Status.Failure;
-    ctx.set(MeleeAttack, { ...ctx.get(MeleeAttack), pending: true });
+    if (!ctx.has(Swing)) return Status.Failure;
+    ctx.set(Swing, { ...ctx.get(Swing), pending: true });
     return Status.Success;
 });
 

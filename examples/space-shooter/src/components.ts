@@ -25,7 +25,7 @@ export const Explosion = defineComponent('Explosion', {
     timer: 0.3,
 });
 
-export const Health = defineComponent('Health', {
+export const Hull = defineComponent('Hull', {
     value: 3,
     maxValue: 3,
 });

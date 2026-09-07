@@ -49,11 +49,18 @@ describe('Component Registry', () => {
             expect(retrieved).toBe(Custom);
         });
 
-        it('should reuse existing component on duplicate names', () => {
+        it('reuses the definition when a name is declared twice with the same fields', () => {
             const comp1 = defineComponent('Duplicate', { a: 1 });
-            const comp2 = defineComponent('Duplicate', { b: 2 });
+            const comp2 = defineComponent('Duplicate', { a: 1 });
 
             expect(comp1).toBe(comp2);
+        });
+
+        it('refuses a second component that claims a taken name with other fields', () => {
+            defineComponent('Contested', { a: 1 });
+
+            expect(() => defineComponent('Contested', { b: 2 }))
+                .toThrow(/Component name collision: "Contested"/);
         });
     });
 
@@ -137,7 +144,7 @@ describe('Component Registry', () => {
     describe('component reuse', () => {
         it('should reuse component on duplicate names', () => {
             const comp1 = defineComponent('Reusable', { x: 1 });
-            const comp2 = defineComponent('Reusable', { y: 2 });
+            const comp2 = defineComponent('Reusable', { x: 1 });
 
             expect(comp1).toBe(comp2);
         });

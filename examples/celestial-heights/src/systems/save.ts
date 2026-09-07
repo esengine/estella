@@ -2,13 +2,13 @@ import {
     defineSystem, Query, Mut, Res, Commands, GetWorld,
     Transform, Name, SceneManager, Localization, transitionTo,
 } from 'esengine';
-import { Enemy, Health, Player } from '../components';
+import { Enemy, Vitality, Player } from '../components';
 import { saves, SLOT, type RunState } from '../save';
 import { Actions } from '../actions';
 import { session } from '../state';
 
 export const saveRunSystem = defineSystem(
-    [Query(Transform, Health, Player), Query(Name, Enemy), Res(SceneManager), Res(Localization)],
+    [Query(Transform, Vitality, Player), Query(Name, Enemy), Res(SceneManager), Res(Localization)],
     (players, living, scenes, i18n) => {
         if (!Actions.pressed('Save')) return;
         const area = scenes.getActive();
@@ -55,7 +55,7 @@ export const loadRunSystem = defineSystem(
  * than being written into whichever one happened to be up.
  */
 export const applyRestoreSystem = defineSystem(
-    [Query(Mut(Transform), Mut(Health), Player), Query(Name, Enemy), Res(SceneManager), Commands(), GetWorld()],
+    [Query(Mut(Transform), Mut(Vitality), Player), Query(Name, Enemy), Res(SceneManager), Commands(), GetWorld()],
     (players, living, scenes, commands, world) => {
         const run = session.restore;
         if (!run || scenes.getActive() !== run.area || scenes.isTransitioning()) return;
@@ -86,7 +86,7 @@ export const applyRestoreSystem = defineSystem(
 let lastArea = '';
 
 export const vitalitySystem = defineSystem(
-    [Query(Mut(Health), Player), Res(SceneManager)],
+    [Query(Mut(Vitality), Player), Res(SceneManager)],
     (players, scenes) => {
         const area = scenes.getActive();
         if (!area || scenes.isTransitioning()) return;

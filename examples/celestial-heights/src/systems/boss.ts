@@ -4,7 +4,7 @@ import {
     NavAgent, setNavDestination, stopNavAgent,
 } from 'esengine';
 import type { Entity } from 'esengine';
-import { Boss, Charge, Facing, Health, Summoner } from '../components';
+import { Boss, Charge, Facing, Vitality, Summoner } from '../components';
 
 /**
  * Vesper's phase, read off her health. Deriving it rather than advancing it on
@@ -12,7 +12,7 @@ import { Boss, Charge, Facing, Health, Summoner } from '../components';
  * brain, the HUD bar and this system never disagree about which fight is on.
  */
 export const bossPhaseSystem = defineSystem(
-    [Query(Mut(Boss), Health)],
+    [Query(Mut(Boss), Vitality)],
     (bosses) => {
         for (const [, boss, health] of bosses) {
             const fraction = health.max > 0 ? health.current / health.max : 0;

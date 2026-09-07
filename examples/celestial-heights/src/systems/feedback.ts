@@ -2,7 +2,7 @@ import {
     defineSystem, Query, Mut, Transform, Sprite, Parent, GetWorld, UIVisual, UINode, UIDisplay,
 } from 'esengine';
 import {
-    Boss, BossMeter, BossPanel, Health, HealthBarFill, Player, VitalityMeter,
+    Boss, BossMeter, BossPanel, Vitality, HealthBarFill, Player, VitalityMeter,
 } from '../components';
 
 /**
@@ -14,8 +14,8 @@ export const healthBarSystem = defineSystem(
     [Query(Mut(Transform), Mut(Sprite), HealthBarFill, Parent), GetWorld()],
     (bars, world) => {
         for (const [, transform, sprite, bar, parent] of bars) {
-            if (!world.has(parent.entity, Health)) continue;
-            const health = world.get(parent.entity, Health);
+            if (!world.has(parent.entity, Vitality)) continue;
+            const health = world.get(parent.entity, Vitality);
             const fraction = health.max > 0 ? Math.max(0, health.current / health.max) : 0;
             const width = bar.width * fraction;
             sprite.size.x = width;
@@ -30,7 +30,7 @@ export const healthBarSystem = defineSystem(
  * the amount is the whole state — no geometry to keep in step with a layout.
  */
 export const vitalityMeterSystem = defineSystem(
-    [Query(Mut(UIVisual), VitalityMeter), Query(Health, Player)],
+    [Query(Mut(UIVisual), VitalityMeter), Query(Vitality, Player)],
     (meters, players) => {
         for (const [, visual] of meters) {
             for (const [, health] of players) {
@@ -48,7 +48,7 @@ export const vitalityMeterSystem = defineSystem(
  * whether it is on screen — not which scene is loaded.
  */
 export const bossMeterSystem = defineSystem(
-    [Query(Mut(UIVisual), BossMeter), Query(Mut(UINode), BossPanel), Query(Health, Boss)],
+    [Query(Mut(UIVisual), BossMeter), Query(Mut(UINode), BossPanel), Query(Vitality, Boss)],
     (meters, panels, bosses) => {
         let fraction = -1;
         for (const [, health] of bosses) {
@@ -67,7 +67,7 @@ export const bossMeterSystem = defineSystem(
 
 /** Blinks whoever is in invulnerability frames, so a hit is visible at all. */
 export const hitFlashSystem = defineSystem(
-    [Query(Mut(Sprite), Health)],
+    [Query(Mut(Sprite), Vitality)],
     (bodies) => {
         for (const [, sprite, health] of bodies) {
             sprite.color.a = health.invulnerable > 0

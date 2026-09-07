@@ -93,7 +93,7 @@
           }
         },
         {
-          "type": "Health",
+          "type": "Hull",
           "data": {
             "value": 3,
             "maxValue": 3

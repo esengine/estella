@@ -2,7 +2,7 @@ import {
     defineSystem, Query, Mut, Res, Time, Transform, Physics2D, Commands,
     EventWriter, EventReader, GetWorld,
 } from 'esengine';
-import { Facing, Health, MeleeAttack, Player } from '../components';
+import { Facing, Vitality, Swing, Player } from '../components';
 import { DamageDealt, Died } from '../events';
 import { POINT_BLANK } from '../config';
 
@@ -15,7 +15,7 @@ const DEG = Math.PI / 180;
  */
 export const meleeResolveSystem = defineSystem(
     [
-        Query(Transform, Facing, Mut(MeleeAttack)),
+        Query(Transform, Facing, Mut(Swing)),
         Res(Time), Res(Physics2D), GetWorld(), EventWriter(DamageDealt),
     ],
     (attackers, time, physics, world, damage) => {
@@ -47,11 +47,11 @@ export const damageSystem = defineSystem(
     [EventReader(DamageDealt), GetWorld(), EventWriter(Died)],
     (blows, world, died) => {
         for (const blow of blows) {
-            if (!world.has(blow.target, Health)) continue;
-            const health = world.get(blow.target, Health);
+            if (!world.has(blow.target, Vitality)) continue;
+            const health = world.get(blow.target, Vitality);
             if (health.invulnerable > 0 || health.current <= 0) continue;
             let killed = false;
-            world.update(blow.target, Health, (h) => {
+            world.update(blow.target, Vitality, (h) => {
                 h.current -= blow.amount;
                 h.invulnerable = h.invulnerability;
                 if (h.current <= 0) {
@@ -66,7 +66,7 @@ export const damageSystem = defineSystem(
 );
 
 export const invulnerabilitySystem = defineSystem(
-    [Query(Mut(Health)), Res(Time)],
+    [Query(Mut(Vitality)), Res(Time)],
     (bodies, time) => {
         for (const [, health] of bodies) {
             if (health.invulnerable > 0) health.invulnerable -= time.delta;

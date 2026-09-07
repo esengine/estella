@@ -51,7 +51,7 @@
                     }
                 },
                 {
-                    "type": "Health",
+                    "type": "Vitality",
                     "data": {
                         "current": 45,
                         "max": 45,
@@ -60,7 +60,7 @@
                     }
                 },
                 {
-                    "type": "MeleeAttack",
+                    "type": "Swing",
                     "data": {
                         "damage": 10,
                         "reach": 76,

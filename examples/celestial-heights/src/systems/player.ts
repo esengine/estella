@@ -1,5 +1,5 @@
 import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
-import { Player, Facing, MeleeAttack } from '../components';
+import { Player, Facing, Swing } from '../components';
 import { Actions } from '../actions';
 import { DEPTH_FORESHORTEN } from '../config';
 
@@ -35,7 +35,7 @@ export const playerMoveSystem = defineSystem(
 
 /** Turns the attack key into the same `pending` flag the wisps' brain sets. */
 export const playerAttackSystem = defineSystem(
-    [Query(Mut(MeleeAttack), Player)],
+    [Query(Mut(Swing), Player)],
     (players) => {
         if (!Actions.pressed('Attack')) return;
         for (const [, attack] of players) attack.pending = true;

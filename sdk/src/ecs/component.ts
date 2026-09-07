@@ -388,7 +388,21 @@ export function defineComponent<T extends object>(
     metadata?: ComponentMetadata,
 ): ComponentDef<T> {
     const existing = userComponents().get(name);
-    if (existing) return existing as ComponentDef<T>;
+    if (existing) {
+        // Same fields is one declaration reached twice (two import paths, a hot
+        // reload). DIFFERENT fields is two components claiming one name, and the
+        // loser's fields are dropped from every scene that carries them.
+        const had = Object.keys(existing._default as object).sort();
+        const wants = Object.keys(defaults).sort();
+        if (had.length !== wants.length || had.some((k, i) => k !== wants[i])) {
+            throw new Error(
+                `Component name collision: "${name}" is already defined with fields `
+                + `[${had.join(', ')}], and this declaration has [${wants.join(', ')}]. `
+                + 'One of them loses its fields wherever a scene carries them — rename one.',
+            );
+        }
+        return existing as ComponentDef<T>;
+    }
 
     if (builtinRegistry.has(name)) {
         throw new Error(

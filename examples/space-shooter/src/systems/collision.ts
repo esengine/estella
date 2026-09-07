@@ -2,7 +2,7 @@ import {
     defineSystem, Query, Mut, ResMut, Res, Commands,
     Transform, Prefabs, type Entity,
 } from 'esengine';
-import { Bullet, Enemy, Player, Health } from '../components';
+import { Bullet, Enemy, Player, Hull } from '../components';
 import {
     GameState, PREFAB_EXPLOSION, positionOverride,
     ENEMY_A_SIZE, ENEMY_B_SIZE, PLAYER_SIZE,
@@ -25,7 +25,7 @@ export const collisionSystem = defineSystem(
         Res(Prefabs),
         Query(Transform, Bullet),
         Query(Transform, Enemy),
-        Query(Transform, Mut(Health), Player),
+        Query(Transform, Mut(Hull), Player),
     ],
     (cmds, stateMut, prefabServer, bulletQuery, enemyQuery, playerQuery) => {
         const state = stateMut.get();
