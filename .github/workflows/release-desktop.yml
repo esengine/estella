@@ -404,15 +404,14 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Empty on BOTH legs. macOS signs out of the CSC_KEYCHAIN stood up above;
-          # Windows must never see a certificate here — CSC_LINK is electron-builder's
-          # PLATFORM-NEUTRAL variable, so the Windows leg would sign its NSIS
-          # installer with the Apple Developer ID .p12, stamp that identity into
-          # app-update.yml as `publisherName`, and electron-updater would then refuse
-          # every update whose Authenticode status is not Valid. v0.36.0 shipped that
-          # way. An empty value reads as absent (getCscLink treats "" as null).
-          CSC_LINK: ''
-          CSC_KEY_PASSWORD: ''
+          # CSC_LINK is declared on NEITHER leg. Empty is not absent: 26.15.3
+          # resolves "" as a path and dies with "<projectDir> not a file". macOS
+          # signs out of the CSC_KEYCHAIN stood up above, and Windows must never
+          # see a certificate here — CSC_LINK is electron-builder's PLATFORM-NEUTRAL
+          # variable, so that leg would sign its NSIS installer with the Apple
+          # Developer ID .p12, stamp the identity into app-update.yml as
+          # `publisherName`, and electron-updater would refuse every update whose
+          # Authenticode status is not Valid. v0.36.0 shipped exactly that way.
           # An app-specific password, NOT the Apple ID's own.
           APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
