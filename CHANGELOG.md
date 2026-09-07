@@ -309,8 +309,13 @@ published separately; it ships inside the editor.
   what a ghost of that key is, and the server names one per entity through
   `Replicated.archetype`. Ownership rides the spawn as identity rather than
   arriving inside a component dump. The baseline is built FROM the replication
-  table rather than filtered against it, which is where the cost went: 14.7µs to
-  3.8µs per spawned entity, then 4.2x again on the payload itself.
+  table rather than filtered against it, which is where the cost went: a spawn
+  payload of 9,877 bytes becomes 2,368, and the sample beside it drops 39%.
+
+  A v3 endpoint parses a v4 spawn without complaint and builds a different world
+  from it, so the handshake is the only place the difference can be seen. A game
+  relying on a non-replicated component reaching clients must declare an
+  archetype for it, or declare the fields replicated and mean it.
 
 - **Interest is prepare-once, query-many.** An `InterestPolicy` is handed the
   population per connection, so whatever it reads it reads C times — and the
