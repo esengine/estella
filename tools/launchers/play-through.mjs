@@ -273,6 +273,7 @@ async function main() {
     let plan = [];
     let replan = 0;
     let last = null;
+    let absent = 'nothing was';
     // Frames spent waiting for a scene to hand out its entities — disk and decode,
     // not walking, and charging the walk for it made one door cost 104 frames on
     // one run and 704 on the next. Capped: a door that never opens still fails.
@@ -343,7 +344,10 @@ async function main() {
     while (spent < timeout && frames < BUDGET && waited < WAIT_CAP) {
       const state = await probe([leg.goal, 'Lyra_Player']);
       // Nothing is true about a world that is halfway through being replaced.
-      if (state.transitioning) { await exec(stepScript([], STEP, null), 'step'); waited += STEP; frames += STEP; continue; }
+      if (state.transitioning) {
+        absent = `the world stayed mid-replacement in ${state.scene}`;
+        await exec(stepScript([], STEP, null), 'step'); waited += STEP; frames += STEP; continue;
+      }
       if (state.scene === leg.area) sawArea = true;
       // The leg is over when the area it was aiming for has been left behind:
       // walking into a door IS the arrival, and the door is gone by the time
@@ -409,6 +413,10 @@ async function main() {
         await exec(stepScript(keys, STEP, leg.swing ? 'Space' : null), 'step');
       } else {
         // Between areas: the next scene has not handed out its entities yet.
+        // WHICH one is missing decides where to look, and a wait that ends in a
+        // cap said only that something had been.
+        absent = `${me ? `${leg.goal} was` : goal ? 'Lyra_Player was' : 'neither Lyra nor '
+          + `${leg.goal} were`} in ${state.scene}`;
         await exec(stepScript([], STEP, null), 'step');
         waited += STEP;
         frames += STEP;
@@ -419,7 +427,17 @@ async function main() {
     }
 
     if (!arrived) {
-      failure = `${label} — ${waited >= WAIT_CAP ? 'the scene never handed out its entities'
+      // Once, and only where the wait ran out: which of despawned, renamed or
+      // Transform-less the goal became is three different bugs, and the driver
+      // cannot tell them apart from a name it did not find.
+      if (waited >= WAIT_CAP) {
+        const c = await exec('window.__estellaCooked.census?.() ?? null', 'probe').catch(() => null);
+        if (c) {
+          console.log(`  census: ${c.entities} entities, ${c.named.length} named — ${c.named.join(', ')}`);
+          console.log(`  with health: ${c.alive.map((a) => `${a.name} ${a.hp}`).join(', ') || 'none'}`);
+        }
+      }
+      failure = `${label} — ${waited >= WAIT_CAP ? `the scene never handed out its entities (${absent})`
         : spent >= timeout ? 'ran out of leg budget' : 'ran out of run budget'} after ${spent} frames`
         + (last ? `; last seen ${Math.round(last.me.x)},${Math.round(last.me.y)} with the goal at `
           + `${Math.round(last.goal.x)},${Math.round(last.goal.y)} (${Math.round(last.gap)} away)` : '; never saw both')

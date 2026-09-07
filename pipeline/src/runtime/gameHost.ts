@@ -18,7 +18,7 @@ import {
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
-  Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough,
+  Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport,
 } from 'esengine';
 import type {
@@ -314,6 +314,27 @@ async function boot(): Promise<void> {
         // the frame loop can land in the middle of that. Half a world reads as
         // "the thing I was walking to is gone", which is a lie with a cost.
         return { scene: scenes?.getActive() ?? null, transitioning: scenes?.isTransitioning() ?? false, at };
+      },
+      /**
+       * Who the world still holds, asked once by a driver that lost sight of its
+       * goal. `probe` can only report a name it did not find, and "despawned",
+       * "renamed" and "alive but with no Transform" are three different bugs.
+       */
+      census(limit = 24): {
+        entities: number;
+        named: string[];
+        alive: { name: string; hp: number }[];
+      } {
+        const named: string[] = [];
+        const alive: { name: string; hp: number }[] = [];
+        for (const e of app.world.getEntitiesWithComponents([Name])) {
+          const n = app.world.get(e, Name).value;
+          if (named.length < limit) named.push(n);
+          if (app.world.has(e, Health) && alive.length < limit) {
+            alive.push({ name: n, hp: app.world.get(e, Health).current });
+          }
+        }
+        return { entities: app.world.getAllEntities().length, named, alive };
       },
       /**
        * What an autonomous character is doing, and on whose terms. Read-only and
