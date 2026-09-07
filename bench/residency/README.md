@@ -530,11 +530,7 @@ thread was afterwards instead: on the miss arm that reported 52.5 ms for the sam
 
 Two things this remeasure does not settle, both older than it:
 
-- `hit`'s publication is witnessed by one instrument. The cross-check reads the
-  frame profiler's `scene` domain, which carries 0.1 ms there against 7.5 ms of
-  named phases, so the hit arm exits non-zero on that check and on that check
-  alone. Publication on a hit lands in the residency system's own timer, not in
-  `scene`; the witness has not been moved.
+- `hit`'s publication was witnessed by one instrument. Closed below.
 - `miss`'s `issue → prepared` is latency, not CPU, and varies 22–65 ms with what
   the fetch and the frame queue do. The named phases account for it when nothing
   stalls; a stalled run leaves the stall unnamed, which is what it is.
@@ -544,6 +540,41 @@ from and nothing more; the evidence clears it. Moving 6 ms from the first visibl
 frame into the publication transaction would not be a fix either — a hitch
 relocated is still a hitch. The numbers above are what makes that a settled
 question rather than a principle: publication did not move.
+
+#### Publication witness closure
+
+The HIT arm's cross-check read the frame profiler's `scene` domain and found
+0.03–0.2 ms against 7 ms of named phases. Three instruments, and it took all
+three to see why:
+
+| instrument | what it covers | on a hit |
+| --- | --- | --- |
+| named publication phases | the transaction body, wherever it runs | 7.2–13.7 ms |
+| the demand frame's wall that no system claimed | the same body, from the frame's side | 6.7–12.7 ms |
+| `scene` domain (`WorldResidencySystem`) | what ran INSIDE the system function | 0.03–0.2 ms |
+| `publish → resident` wall | the streamer's clock, which spans the rest of the frame | 10.6 ms |
+
+`step_` runs synchronously out of `WorldResidencySystem` only as far as
+`loadAdditive`'s first await. Everything after that — which is the transaction —
+is microtask continuations: inside the frame, after the system function returned.
+So no SYSTEM timer contains it, and the domain that names the system is not a
+witness for the work. It was not the wrong domain; it was the wrong kind of
+instrument.
+
+The frame it lands in is the DEMAND frame, the first one recorded — the launcher
+sends the keydown before the loop. `publishAt` is where the resident flag flips,
+which on this path is the frame after the work. Witnessing across the realization
+window therefore missed the publication frame as well.
+
+Witnessed by the demand frame's unclaimed wall, the two instruments agree to
+107.9–111.3% across three runs and track each other run to run. The `scene`
+number is still printed, beside it, as what it is.
+
+One flake is left, and it is not this: `and so is the preparation prefetch hides`
+allows a fixed 0.6 ms of unnamed preparation, and the residual grows with the
+number of await hops a preparation makes — 0.5 ms at `prepareMs` 20–34, 0.9 ms at
+40.6. The sibling per-frame budget is proportional for exactly this reason and
+this one is not. Left as measured rather than widened here.
 
 #### What MISS now means, which is not what it meant
 

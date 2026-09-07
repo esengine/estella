@@ -405,10 +405,17 @@ function report(arm, frames, delivery) {
         `peak render.mesh.programCompiles ${compiledInWindow} in the window,`
         + ` ${compiledInRun} across the run`);
 
-    // Which clock brackets the publication transaction depends on where it runs:
-    // between frames the streamer's wall time does; inside the frame that spans
-    // the rest of it, and only the profiler's `scene` domain is left.
-    const sceneExcess = window.reduce((a, f) => a + (byDomain(f).get('scene') ?? 0), 0)
+    // No SYSTEM timer brackets a hit's publication: `step_` leaves the residency
+    // system at `loadAdditive`'s first await. The demand frame's unclaimed wall
+    // does — frames[0]; `publishAt` is the flag flipping, a frame later.
+    const demandFrame = frames[0];
+    const claimedByNoSystem = demandFrame
+        ? Math.max(0, demandFrame.ms - sumDomains(demandFrame))
+        : 0;
+    // Reported beside it, never as it: this is what ran INSIDE the residency
+    // system — deciding and starting the load — and it is 0.1 ms against a 7 ms
+    // transaction. Witnessing publication with it was witnessing another domain.
+    const residencySystem = window.reduce((a, f) => a + (byDomain(f).get('scene') ?? 0), 0)
         - (baselineDomains.get('scene') ?? 0) * window.length;
 
     for (const [cell, v] of Object.entries(delivery ?? {})) {
@@ -430,7 +437,7 @@ function report(arm, frames, delivery) {
         // inside the frame that asked, so wall time there spans the whole frame.
         // Keying it on the arm made a third hitting arm read the wrong clock.
         const witness = v.outcome === 'hit'
-            ? { ms: sceneExcess, what: "the frame profiler's `scene` domain" }
+            ? { ms: claimedByNoSystem, what: "the demand frame's wall that no system claimed" }
             : { ms: v.publishMs, what: 'publish → resident wall time' };
         console.log(`    ${'= accounted'.padEnd(22)}${published.toFixed(2).padStart(7)} ms`);
         console.log(`    ${'against'.padEnd(22)}${witness.ms.toFixed(2).padStart(7)} ms`
@@ -438,6 +445,9 @@ function report(arm, frames, delivery) {
         if (v.outcome === 'hit') {
             console.log(`    ${'(publish → resident'.padEnd(22)}${v.publishMs.toFixed(2).padStart(7)} ms`
                 + `  wall, which on a hit spans the whole frame — not the transaction.)`);
+            console.log(`    ${'(WorldResidencySystem'.padEnd(22)}${residencySystem.toFixed(2).padStart(7)} ms`
+                + '  the `scene` domain: what ran inside the system, which is the'
+                + ' decision and the start of the load — not the transaction.)');
         }
         console.log(`\n    ${'delivery'.padEnd(22)}${v.deliveryMs.toFixed(2).padStart(7)} ms  issue → resident`);
 
