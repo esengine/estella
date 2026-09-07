@@ -172,7 +172,10 @@ const policies = new Map();
 let mints = 0;
 
 for (const file of files) {
-    const rel = path.relative(ROOT, file);
+    // Compared against tools/meshProducers.mjs, which spells its paths with
+    // forward slashes: on Windows path.relative gives backslashes, every one of
+    // those comparisons goes the wrong way, and the gate reports the separator.
+    const rel = path.relative(ROOT, file).split(path.sep).join('/');
     const code = blank(readFileSync(file, 'utf8'));
     for (const hit of occurrences(code)) {
         const where = `${rel}:${lineOf(code, hit.index)}`;
