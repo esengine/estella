@@ -232,6 +232,9 @@ export const GATES = [
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
+  // A published desktop artifact has one name, declared, whitespace-free, and
+  // still distinct once the asset store has normalised it.
+  { id: 'release-artifact-names', run: 'node tools/check-release-artifact-names.mjs', needs: 'editor' },
   { id: 'shipped-resources', run: 'node tools/check-shipped-resources.mjs', needs: 'editor' },
   { id: 'golden', run: 'node tools/check-golden.mjs' },
   {
