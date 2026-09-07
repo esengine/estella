@@ -16,10 +16,11 @@
  *   node tools/check-comment-style.mjs           added lines vs origin/master
  *   node tools/check-comment-style.mjs --all     whole tree (reporting only)
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { corpusRoots, censusFindings, trackedFiles, untrackedFiles, addedDiff }
+  from './lib/sourceCensus.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = /\.(ts|tsx|mjs|js|cpp|hpp|h)$/;
@@ -68,14 +69,13 @@ function docRefs(text) {
  * means the question could not be asked, and a scan that cannot ask must not
  * answer green.
  */
+const ROOTS = corpusRoots();
+const CENSUS = censusFindings(ROOTS);
+
 const TRACKED = (() => {
-  let out = '';
-  try {
-    out = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  } catch { /* reported below */ }
-  const files = out.split('\n').filter(Boolean);
+  const files = ROOTS.flatMap((r) => trackedFiles(r));
   if (files.length === 0) {
-    console.error('check-comment-style: `git ls-files` gave nothing — cannot judge doc references.');
+    console.error('check-comment-style: the census is empty — cannot judge doc references.');
     process.exit(2);
   }
   return new Set([...files, ...files.map((f) => f.slice(f.lastIndexOf('/') + 1))]);
@@ -86,57 +86,50 @@ function isTracked(ref) {
   return TRACKED.has(clean) || TRACKED.has(clean.slice(clean.lastIndexOf('/') + 1));
 }
 
-/** Added lines per file, as [lineNumber, text]. */
-function addedLines() {
-  let base = '';
-  for (const ref of ['origin/master', 'master']) {
-    try {
-      base = execFileSync('git', ['merge-base', 'HEAD', ref], { cwd: ROOT, encoding: 'utf8' }).trim();
-      break;
-    } catch { /* try the next ref */ }
-  }
-  const args = base ? ['diff', '-U0', base, '--'] : ['diff', '-U0', 'HEAD', '--'];
-  const diff = execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+/** Every line of `file`, as [lineNumber, text] — a new file is all added. */
+function wholeFile(byFile, f) {
+  try {
+    byFile.set(f, readFileSync(path.join(ROOT, f), 'utf8').split('\n').map((t, i) => [i + 1, t]));
+  } catch { /* vanished between listing and reading */ }
+}
 
+/** Added lines per file, as [lineNumber, text], across every corpus root. */
+function addedLines() {
   const byFile = new Map();
-  // A file git has never seen produces no diff, and a brand-new file is exactly
-  // where prose collects — every line of it is added.
-  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'],
-    { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  for (const f of untracked.split('\n')) {
-    if (!f || SKIP.test(f) || !SOURCE.test(f)) continue;
-    try {
-      byFile.set(f, readFileSync(path.join(ROOT, f), 'utf8').split('\n').map((t, i) => [i + 1, t]));
-    } catch { /* vanished between listing and reading */ }
-  }
-  let file = null;
-  let line = 0;
-  for (const raw of diff.split('\n')) {
-    if (raw.startsWith('+++ b/')) {
-      file = raw.slice(6).trim();
-      if (SKIP.test(file) || !SOURCE.test(file)) file = null;
-      continue;
+  for (const root of ROOTS) {
+    // A file git has never seen produces no diff, and a brand-new file is exactly
+    // where prose collects — every line of it is added.
+    for (const f of untrackedFiles(root)) {
+      if (!SKIP.test(f) && SOURCE.test(f)) wholeFile(byFile, f);
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
-    if (hunk) { line = Number(hunk[1]); continue; }
-    if (!file) continue;
-    if (raw.startsWith('+')) {
-      if (!byFile.has(file)) byFile.set(file, []);
-      byFile.get(file).push([line, raw.slice(1)]);
-      line++;
+    let file = null;
+    let line = 0;
+    for (const raw of addedDiff(root, ['-U0']).split('\n')) {
+      if (raw.startsWith('+++ b/')) {
+        const named = root.prefix ? `${root.prefix}/${raw.slice(6).trim()}` : raw.slice(6).trim();
+        file = SKIP.test(named) || !SOURCE.test(named) ? null : named;
+        continue;
+      }
+      const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+      if (hunk) { line = Number(hunk[1]); continue; }
+      if (!file) continue;
+      if (raw.startsWith('+')) {
+        if (!byFile.has(file)) byFile.set(file, []);
+        byFile.get(file).push([line, raw.slice(1)]);
+        line++;
+      }
     }
   }
   return byFile;
 }
 
 function allLines() {
-  const listed = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   const byFile = new Map();
-  for (const f of listed.split('\n')) {
-    if (!f || SKIP.test(f) || !SOURCE.test(f)) continue;
-    let text;
-    try { text = readFileSync(path.join(ROOT, f), 'utf8'); } catch { continue; }
-    byFile.set(f, text.split('\n').map((t, i) => [i + 1, t]));
+  for (const root of ROOTS) {
+    for (const f of trackedFiles(root)) {
+      if (SKIP.test(f) || !SOURCE.test(f)) continue;
+      wholeFile(byFile, f);
+    }
   }
   return byFile;
 }
@@ -221,10 +214,26 @@ function scan(byFile) {
 }
 
 const all = process.argv.includes('--all');
-const findings = scan(all ? allLines() : addedLines());
+const lines = all ? allLines() : addedLines();
+const findings = scan(lines);
+
+/** What the run READ, so "clean" is attached to a corpus rather than to silence. */
+const present = ROOTS.filter((r) => r.present);
+const absent = ROOTS.filter((r) => !r.present).map((r) => r.prefix);
+const read = `${lines.size} file(s) across ${present.length} repositor${present.length === 1 ? 'y' : 'ies'}`
+  + (absent.length ? `, and none in ${absent.join(', ')} — not checked out` : '');
+
+// A census that could not look is not a style opinion, so it fails even under
+// --all: the whole failure mode here is a green run that read nothing.
+if (CENSUS.length) {
+  for (const f of CENSUS) console.error(`  - ${f}`);
+  console.error(`\ncheck-comment-style: ${CENSUS.length} problem(s) with the corpus itself.`);
+  process.exit(1);
+}
 
 if (findings.length === 0) {
-  console.log(`check-comment-style: ${all ? 'tree' : 'added lines'} clean — comments state contracts, not stories.`);
+  console.log(`check-comment-style: ${all ? 'tree' : 'added lines'} clean — ${read}; `
+    + 'comments state contracts, not stories.');
   process.exit(0);
 }
 
@@ -240,5 +249,6 @@ for (const [file, fs] of byFile) {
     if (f.text) console.error(`      ${f.text}`);
   }
 }
-console.error(`\ncheck-comment-style: ${findings.length} finding(s). See docs/CODE_COMMENTS.md.`);
+console.error(`\ncheck-comment-style: ${findings.length} finding(s) in ${read}. `
+  + 'See docs/CODE_COMMENTS.md.');
 process.exit(all ? 0 : 1);

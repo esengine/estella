@@ -1,9 +1,11 @@
 [submodule "third_party/glm"]
 	path = third_party/glm
 	url = https://github.com/g-truc/glm.git
+	estella-corpus = vendored
 [submodule "third_party/glfw"]
 	path = third_party/glfw
 	url = https://github.com/glfw/glfw.git
+	estella-corpus = vendored
 [submodule "third_party/spine-runtimes-3.8"]
 	path = third_party/spine-runtimes-3.8
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -11,9 +13,11 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+	estella-corpus = vendored
 [submodule "third_party/box2d"]
 	path = third_party/box2d
 	url = https://github.com/erincatto/box2d.git
+	estella-corpus = vendored
 [submodule "third_party/spine-runtimes-4.1"]
 	path = third_party/spine-runtimes-4.1
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -21,6 +25,7 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+	estella-corpus = vendored
 [submodule "third_party/spine-runtimes-4.2"]
 	path = third_party/spine-runtimes-4.2
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -28,15 +33,19 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+	estella-corpus = vendored
 [submodule "third_party/basis_universal"]
 	path = third_party/basis_universal
 	url = https://github.com/BinomialLLC/basis_universal.git
+	estella-corpus = vendored
 [submodule "tools/emsdk"]
 	path = tools/emsdk
 	url = https://github.com/emscripten-core/emsdk.git
+	estella-corpus = vendored
 [submodule "third_party/glslang"]
 	path = third_party/glslang
 	url = https://github.com/KhronosGroup/glslang
+	estella-corpus = vendored
 [submodule "third_party/spine-runtimes-4.3"]
 	path = third_party/spine-runtimes-4.3
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
@@ -44,12 +53,14 @@
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+	estella-corpus = vendored
 [submodule "third_party/spine-runtimes-2.1"]
 	path = third_party/spine-runtimes-2.1
 	url = https://github.com/EsotericSoftware/spine-runtimes.git
 	# Vendored and read-only: an uninitialised nested example directory is not
 	# a change to this repo, and reporting it as one only invites a stray commit.
 	ignore = untracked
+	estella-corpus = vendored
 [submodule "desktop"]
 	path = desktop
 	url = https://github.com/esengine/estella-editor.git
@@ -58,3 +69,4 @@
 	# skips the eight gates whose subject is the editor and names them, and
 	# verify-render --host engine runs 100 of the 108 pixel gates. Do not make
 	# anything engine-side require this path to exist.
+	estella-corpus = source
