@@ -360,23 +360,50 @@ jobs:
       - name: Build desktop renderer + main
         run: pnpm --filter ./desktop build
 
+      # electron-builder makes its own keychain and unlocks it with a password it
+      # generated. On the runner provisioner that landed 2026-08-28 that unlock
+      # fails — `set-key-partition-list` calls the passphrase wrong before anything
+      # is signed — while the same secrets signed fine on 20260707.563. So the
+      # keychain is stood up here, where its password is known, and handed over.
+      - name: Stand up the signing keychain
+        if: matrix.platform == 'macos-latest' && github.event_name == 'push'
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/estella-signing.keychain-db"
+          PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          printf '%s' "$MAC_CSC_LINK" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MAC_CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # An identity that is not there signs nothing and says nothing: without
+          # this the build would ship UNSIGNED, which reads as a success.
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q 'Developer ID Application' \
+            || { echo '::error::the signing keychain holds no Developer ID Application identity'; exit 1; }
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
       - name: Package and publish desktop app
         if: github.event_name == 'push'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS ONLY. CSC_LINK is electron-builder's platform-NEUTRAL certificate
-          # variable: handed to the Windows leg it signs the NSIS installer with the
-          # Apple Developer ID .p12 (windowsSignToolManager falls back to CSC_LINK
-          # when WIN_CSC_LINK is unset), producing an installer whose chain Windows
-          # cannot build to a trusted root — and stamping that identity into
-          # app-update.yml as `publisherName`. electron-updater then demands an
-          # Authenticode status of Valid before installing, so every Windows
-          # auto-update is refused AFTER downloading the whole installer. An empty
-          # value reads as absent (getCscLink treats "" as null), so the Windows leg
-          # ships unsigned, which is what this project intends.
-          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          # Empty on BOTH legs. macOS signs out of the CSC_KEYCHAIN stood up above;
+          # Windows must never see a certificate here — CSC_LINK is electron-builder's
+          # PLATFORM-NEUTRAL variable, so the Windows leg would sign its NSIS
+          # installer with the Apple Developer ID .p12, stamp that identity into
+          # app-update.yml as `publisherName`, and electron-updater would then refuse
+          # every update whose Authenticode status is not Valid. v0.36.0 shipped that
+          # way. An empty value reads as absent (getCscLink treats "" as null).
+          CSC_LINK: ''
+          CSC_KEY_PASSWORD: ''
           # An app-specific password, NOT the Apple ID's own.
           APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
