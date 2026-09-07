@@ -707,8 +707,8 @@
           "type": "ParticleEmitter",
           "data": {
             "maxParticles": 8,
-            "emissionRate": 0,
-            "playing": false,
+            "rate": 0,
+            "playOnStart": false,
             "subEmitter": 9
           }
         }
@@ -781,8 +781,8 @@
           "type": "ParticleEmitter",
           "data": {
             "maxParticles": 8,
-            "emissionRate": 0,
-            "playing": false
+            "rate": 0,
+            "playOnStart": false
           }
         },
         {
