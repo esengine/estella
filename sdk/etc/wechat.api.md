@@ -10320,6 +10320,8 @@ cellCount: number
 cellEntityCounts: Record<string, number>
 cellRenderCounts: Record<string, number>
 cellRows: Record<string, { id: number; entity: number; }[]>
+cellSize: number
+cells: { name: string; x: number; z: number; }[]
 delivery: Record<string, CellDelivery>
 desiredCells: string[]
 lastDemandToResidentMs: number

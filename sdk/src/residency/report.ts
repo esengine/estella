@@ -26,6 +26,16 @@ export interface WorldResidencyReport {
     /** False when this build has no cooked world; every other field is empty. */
     streamed: boolean;
     cellCount: number;
+    /**
+     * Where the cells ARE, in manifest order — the ground each name stands for.
+     *
+     * Every other list here is names, and a name cannot be drawn. A reader that
+     * had to find the coordinates elsewhere would be reading a second copy of
+     * the partition, which agrees with this one only until one of them moves.
+     */
+    cells: Array<{ name: string; x: number; z: number }>;
+    /** Edge of one grid square, world units — what the coordinates above scale by. */
+    cellSize: number;
     sourceCount: number;
     desiredCells: string[];
     /** Cells any source is close enough to speculate about. */
@@ -80,7 +90,7 @@ export interface WorldResidencyReport {
 }
 
 const EMPTY: WorldResidencyReport = {
-    streamed: false, cellCount: 0, sourceCount: 0,
+    streamed: false, cellCount: 0, cells: [], cellSize: 0, sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
     preparedWithRenderClaim: [], renderClaims: {},
     loadingCells: [], unloadingCells: [],
@@ -134,6 +144,8 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
     return {
         streamed: true,
         cellCount: status.cellCount,
+        cells: manifest.cells.map((cell) => ({ name: cell.name, x: cell.x, z: cell.z })),
+        cellSize: manifest.cellSize,
         sourceCount: status.sourceCount,
         desiredCells: status.desiredCells,
         prefetchCells: status.prefetchCells,

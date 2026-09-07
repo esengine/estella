@@ -78,6 +78,32 @@ if (installs.length !== 1) {
     say('sdk/src', `${installs.length} place(s) schedule the residency system — exactly one may`);
 }
 
+// 6b. The editor READS residency and never derives it. A panel classifying a
+//     cell from a source's radius is a second author of existence, so the
+//     report's lists become a word in ONE editor file.
+const DERIVES = /\b(residentCells|preparedCells|loadingCells|unloadingCells)\b/;
+const DECIDES = /\b(desiredResidency|distanceToCell)\b/;
+const EDITOR_STATE_AUTHOR = 'desktop/src/engine/worldRuntimeStore.ts';
+if (existsSync(path.join(ROOT, 'desktop', 'src'))) {
+    for (const file of walk(path.join(ROOT, 'desktop', 'src'), /\.tsx?$/)) {
+        const rel = path.relative(ROOT, file).split(path.sep).join('/');
+        const text = readFileSync(file, 'utf8');
+        if (DECIDES.test(text)) {
+            say(rel, 'runs the residency decision — the editor shows what the streamer decided, it does not decide');
+        }
+        if (rel !== EDITOR_STATE_AUTHOR && DERIVES.test(text)) {
+            say(rel, `reads the report's cell lists directly — import cellState from ${EDITOR_STATE_AUTHOR}`);
+        }
+    }
+    // …and the author has to exist, or the rule above is satisfied by a codebase
+    // that dropped the reader entirely.
+    if (!existsSync(path.join(ROOT, EDITOR_STATE_AUTHOR))) {
+        say(EDITOR_STATE_AUTHOR, 'the editor\'s one residency reader is missing');
+    } else if (!DERIVES.test(read(EDITOR_STATE_AUTHOR))) {
+        say(EDITOR_STATE_AUTHOR, 'no longer derives a cell state from the report — the rule above now guards nothing');
+    }
+}
+
 // 6. Reading residency cannot change it. A report that reconciled would make
 //    what exists depend on who looked.
 const report = read('sdk/src/residency/report.ts');
@@ -87,13 +113,13 @@ for (const mutator of ['.update(', '.loadManifest(', '.clear(']) {
     }
 }
 
-function* walk(dir) {
+function* walk(dir, match = /\.ts$/) {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) yield* walk(full);
-        else if (/\.ts$/.test(entry.name)) yield full;
+        if (entry.isDirectory()) yield* walk(full, match);
+        else if (match.test(entry.name)) yield full;
     }
 }
 
@@ -102,4 +128,4 @@ if (problems.length > 0) {
     console.error(`check-residency-authority: ${problems.length} finding(s).`);
     process.exit(1);
 }
-console.log('check-residency-authority: one author decides what exists, and unloading destroys.');
+console.log('check-residency-authority: one author decides what exists, one reader names it, and unloading destroys.');

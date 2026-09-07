@@ -77,6 +77,22 @@ for (const d of DECISIONS) {
     if (surface.has && (surface.owed || surface.unavailable)) {
       problems.push(`${d.id} → ${s} both claims a surface and explains its absence`);
     }
+    // `unavailable` is a claim about the CODE, and prose carries no probe — so
+    // residency's premise outlived the release that removed it. This one holds
+    // the OPPOSITE way round: the premise still being findable keeps it true.
+    if (surface.unavailable) {
+      if (!surface.while) {
+        problems.push(`${d.id} → ${s} is unavailable with nothing to disprove it — add \`while\``);
+      } else if (!(!HAS_EDITOR && surface.while.path.startsWith('desktop/'))) {
+        claimed++;
+        const gone = probeHolds(surface.while);
+        if (gone) {
+          problems.push(
+            `${d.id} → ${s}: the premise for calling it unavailable is gone `
+            + `(${surface.while.path} ${gone}) — the surface may be buildable now`);
+        }
+      }
+    }
     // Two defects, counted apart: one is a reader nobody wrote, the other is a
     // fact this realm never produces. Only the first is a panel.
     if (!surface.has) {
