@@ -269,6 +269,11 @@ jobs:
     - name: Check performance snapshot
       env:
         ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
+        # The benchmarks are the SDK suite's own globalSetup, so this step proves
+        # emcc exactly like the test step above and needs the same declaration.
+        # Without it the run died before collecting, and the guard reported the
+        # silence as 234 benchmarks that had stopped measuring.
+        ESTELLA_NO_EMCC: '1'
       run: node tools/perf-guard.mjs --check
 
   # The other half of the performance contract: ceilings on whole operations at a

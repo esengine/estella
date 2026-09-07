@@ -76,14 +76,42 @@ const SUITES = ['compiler/tests', 'pipeline/tests', 'sdk/tests'].filter((d) => e
 /**
  * Whether a workflow step runs one of those suites, and so fires their provers.
  *
- * Two doors: the gate list, and vitest aimed at the package directly. Only the
- * first was recognised, and the second is how a lane that downloads the wasm
- * instead of building it ran the SDK suite with no emsdk and no declaration.
+ * Three doors: the gate list, vitest aimed at the package, and a tool script
+ * that runs one from inside. Each was added after a lane came through it
+ * undeclared — the last being `node tools/perf-guard.mjs`, whose benchmarks
+ * died in globalSetup and were read as 234 metrics that had stopped measuring.
  */
 function runsASuite(step) {
-    if (/run-gates\.mjs/.test(step)) return true;
-    if (!/\bvitest\b/.test(step)) return false;
-    return SUITES.some((d) => new RegExp(`\\b${d.split('/')[0]}\\b`).test(step));
+    const cmd = commandOf(step);
+    if (/run-gates\.mjs/.test(cmd)) return true;
+    const names = (src) => SUITES.some((d) => new RegExp(`\\b${d.split('/')[0]}\\b`).test(src));
+    if (/\bvitest\b/.test(cmd) && names(cmd)) return true;
+    // Read what the script does rather than what the step says: the step names a
+    // path, and the suite it starts is inside the file at that path.
+    for (const [, rel] of cmd.matchAll(/\b(tools\/[\w.-]+\.mjs)\b/g)) {
+        if (!existsSync(path.join(ROOT, rel))) continue;
+        const src = read(rel);
+        if (/\bvitest\b/.test(src) && names(src)) return true;
+    }
+    return false;
+}
+
+/** What a step RUNS: the `run:` block, without the name and the prose around it.
+ *  A comment naming a script is not a step that starts it, and reading the whole
+ *  step made the paragraph above one lane's step into another lane's finding. */
+function commandOf(step) {
+    const lines = step.split('\n');
+    const start = lines.findIndex((l) => /^\s*run:/.test(l));
+    if (start < 0) return '';
+    const indent = /^(\s*)run:/.exec(lines[start])[1].length;
+    const out = [lines[start]];
+    for (const line of lines.slice(start + 1)) {
+        if (line.trim() === '') { out.push(line); continue; }
+        if (line.trim().startsWith('#')) break;
+        if (/^(\s*)/.exec(line)[1].length <= indent) break;
+        out.push(line);
+    }
+    return out.join('\n');
 }
 const problems = [];
 let checked = 0;
