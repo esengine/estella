@@ -111,7 +111,7 @@ for (const [spec, name] of Object.entries(${JSON.stringify(WITNESS)})) {
 }
 const p3 = reg?.['esengine/physics3d']?.Physics3D;
 const { App } = globalThis.ESEngine;
-const app = new App();
+const app = App.new();
 app.insertResource(p3, null);
 out.identity = app.hasResource(p3) === true;
 out.rivalRejected = app.hasResource(globalThis.ESEngine.defineResource(null, 'Physics3D')) === false;

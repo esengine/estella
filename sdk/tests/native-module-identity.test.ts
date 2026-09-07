@@ -58,7 +58,7 @@ describe('native subpath modules resolve to this graph', () => {
 
 describe('identity, which is the whole point', () => {
     it('a resource installed by the runtime is found by the token a game imported', () => {
-        const app = new App();
+        const app = App.new();
         // What installing physics3d does, reduced to the part identity depends on.
         app.insertResource(Physics3D, null);
 
@@ -67,7 +67,7 @@ describe('identity, which is the whole point', () => {
     });
 
     it('a second bundle of the same module is NOT found — the failure this prevents', () => {
-        const app = new App();
+        const app = App.new();
         app.insertResource(Physics3D, null);
 
         // Byte-for-byte what Physics3DPlugin.ts declares. Same name, same default,
