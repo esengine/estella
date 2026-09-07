@@ -92,6 +92,10 @@ pipeline/.hotupdate-verify/
 # emsdk discovery cache (per-machine path written by build-tools auto-discovery)
 .emsdk-path
 
+# CI installs emsdk here (setup-emsdk's actions-cache-folder) so the toolchain
+# sits at one path across runs and ccache can hash it the same way twice.
+.emsdk-ci/
+
 # Astro
 .astro/
 

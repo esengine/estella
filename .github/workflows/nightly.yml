@@ -44,6 +44,8 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # Shares the key build.yml fills, so it has to agree on the ceiling —
     # whichever workflow names the smallest one trims the cache back to it.
@@ -197,6 +199,8 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # electron-preconditions: job-wide. play-stop-conserves and scene-churn-flat
     # run the EDITOR's own check scripts, which live in the private submodule and
@@ -291,6 +295,8 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # A game is packaged INTO a template, and this job never had one: the default
     # path is a directory a checkout does not carry, so all 47 exports failed at

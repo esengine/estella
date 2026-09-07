@@ -94,6 +94,8 @@ jobs:
         uses: mymindstorm/setup-emsdk@v16
         with:
           version: 5.0.0
+          actions-cache-folder: .emsdk-ci
+          cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
       # Shares the key build.yml fills, so it has to agree on the ceiling —
       # whichever workflow names the smallest one trims the cache back to it.

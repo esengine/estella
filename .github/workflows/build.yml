@@ -47,9 +47,14 @@ jobs:
     - uses: ./.github/actions/setup
 
     - name: Setup Emscripten
+      # actions-cache-folder puts emsdk at a FIXED path under the workspace. Without
+      # it the toolchain lands in $RUNNER_TEMP/<fresh uuid>/ every run, so ccache hashed
+      # a different compiler and different sysroot headers each time and never hit.
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # 500M could not hold ONE generation of this job's objects: 1157 compile
     # calls, 76 cleanups inside the single job, 11% hits. Sized to the measurement.
@@ -128,6 +133,8 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # No size here meant the action's 500M default, and Debug+ASan objects run
     # about 2.6 MB each — 193 of them filled it to 100% with 53 cleanups. One
@@ -648,6 +655,8 @@ jobs:
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
     # The golden corpus, packaged and opened the way a player opens it, then held
     # against the editor's own frame of the same game. Exporting was checked and
