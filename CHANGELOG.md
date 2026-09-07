@@ -367,6 +367,35 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A packaged native game receives what it imports from an `esengine/*`
+  subpath.** A native build has no module loader, so the exporter rewrites each
+  `esengine` import to something the host already evaluated — and it matched the
+  bare specifier and everything under it with one rule, handing every match the
+  core namespace. `import { Physics3D } from 'esengine/physics3d'` therefore
+  arrived as `undefined`, along with 49 exports across physics, physics3d, spine
+  and dragonbones. `Res` holds what it is given without looking, so nothing said
+  so until a frame resolved it: the third-person example threw
+  `cannot read property '_id' of undefined` on every frame it ran on a device,
+  and spine's `formatSpineDiagnostics` was quietly absent.
+
+  Each specifier is now looked up rather than matched, and a subpath resolves to
+  its own namespace from the SDK graph the host is already running. That last
+  part is the point: a resource token is a JS identity, so a separately bundled
+  copy would mint a second `Physics3D` and the runtime would install a resource
+  the game could never find. An `esengine/*` specifier the SDK does not publish,
+  or one a game script must not use, now fails while the game is being packaged.
+
+- **`Physics3D` is reachable from the main entry, like the other three
+  subsystems.** `Physics2D`, `Spine` and `DragonBones` are re-exported onto the
+  flat surface and `Physics3D` never was, so `import { Physics3D } from
+  'esengine'` did not work while its three siblings did.
+
+- **A streamed world's emitters name the fields `ParticleEmitter` actually has.**
+  `emissionRate` and `playing` are not among them; `rate` and `playOnStart` are.
+  The scene loader dropped both and applied the defaults, which are the opposite
+  of what was authored — two emitters written to stay off were emitting ten
+  particles a second, on every platform, since they were written.
+
 - **The tween enums are generated now, and an enum may live outside the reflected
   directory.** Easing curves, tween state, loop mode and tween target were each
   written once in C++ and again in TypeScript, tied only by a test. They cross as
