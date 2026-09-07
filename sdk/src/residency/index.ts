@@ -20,3 +20,11 @@ export {
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
 export { worldResidencyReport, type WorldResidencyReport } from './report';
 export { persistentEntityRows, stableEntityId } from './identity';
+export {
+    partitionWorld,
+    type PartitionOptions, type PartitionedCell, type PrefabRoot, type WorldPartition,
+} from './partitionWorld';
+export {
+    cutWorld, cellDocumentPath, worldManifestPath, WORLD_DIR, type CutWorld,
+} from './cutWorld';
+export { registryEntityFields } from './componentRefs';

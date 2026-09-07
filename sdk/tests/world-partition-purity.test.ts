@@ -11,9 +11,9 @@
  * true, and on the input surviving the call unchanged.
  */
 import { describe, it, expect } from 'vitest';
-import { partitionWorld } from '../src/world/partitionWorld';
-import { engineEntityFields } from '../src/world/componentRefs';
-import type { SceneData } from 'esengine';
+import { partitionWorld } from '../src/residency/partitionWorld';
+import { registryEntityFields } from '../src/residency/componentRefs';
+import type { SceneData } from '../src/scene/scene';
 
 const CELL = 100;
 
@@ -32,7 +32,7 @@ function world(sentinelX: number): SceneData {
   } as unknown as SceneData;
 }
 
-const opts = { entityFieldsOf: engineEntityFields };
+const opts = { entityFieldsOf: registryEntityFields() };
 const cellOf = (p: ReturnType<typeof partitionWorld>, name: string): string | null =>
   p!.cells.find((c) =>
     (c.data.entities as unknown as Array<{ name?: string }>).some((e) => e.name === name))?.name ?? null;

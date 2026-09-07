@@ -254,6 +254,12 @@ export {
     worldResidencyReport,
     persistentEntityRows,
     stableEntityId,
+    partitionWorld,
+    cutWorld,
+    cellDocumentPath,
+    worldManifestPath,
+    registryEntityFields,
+    WORLD_DIR,
     type StreamedWorldData,
     type WorldStreamingSourceData,
     type WorldCell,
@@ -264,6 +270,11 @@ export {
     type WorldStreamHost,
     type WorldStreamerStatus,
     type WorldResidencyReport,
+    type PartitionOptions,
+    type PartitionedCell,
+    type PrefabRoot,
+    type WorldPartition,
+    type CutWorld,
 } from './residency/index';
 
 export {

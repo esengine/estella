@@ -2,9 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cookWorld.ts
- * @brief   Turning a staged scene into a persistent scene plus cell documents.
+ * @brief   Writing a cut world to a package.
  *
- * @details Runs over the COOKED payload rather than the project: by then every
+ * @details The cut itself is `cutWorld`, which the editor's play realm also goes
+ *          through; what is here is the half only a build does — reading prefab
+ *          roots off disk, and putting the documents where the manifest says.
+ *
+ *          Runs over the COOKED payload rather than the project: by then every
  *          asset reference is in the form the runtime resolves, so a cell is the
  *          same bytes the whole scene would have been, minus the places that are
  *          somewhere else.
@@ -12,13 +16,9 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { SceneData, WorldManifest } from 'esengine';
-import { partitionWorld, type PrefabRoot } from './partitionWorld';
-import { engineEntityFields } from './componentRefs';
+import type { SceneData, PrefabRoot } from 'esengine';
+import { cutWorld, worldManifestPath, registryEntityFields, WORLD_DIR } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
-
-/** Where cooked world content goes, package-relative. */
-const WORLD_DIR = 'world';
 
 /** One streamed scene, as `game.config.json` names it. */
 export interface CookedWorld {
@@ -29,11 +29,6 @@ export interface CookedWorld {
 export interface CookWorldsResult {
     worlds: CookedWorld[];
     warnings: string[];
-}
-
-/** A file name that survives a scene living in a subdirectory. */
-function fileSafe(name: string): string {
-    return name.replace(/[^A-Za-z0-9_.-]/g, '_');
 }
 
 /**
@@ -129,46 +124,33 @@ export async function cookWorlds(
             }
         }
 
-        const partition = partitionWorld(document, scene.name, {
-            entityFieldsOf: engineEntityFields,
+        const cut = cutWorld(document, scene.name, {
+            entityFieldsOf: registryEntityFields(),
             resolvePrefab: (ref) => roots.get(ref) ?? null,
         });
-        if (partition === null) continue;
-        if (partition.errors.length > 0) {
+        if (cut === null) continue;
+        if (cut.errors.length > 0) {
             throw new Error(
                 `scene "${scene.name}" cannot be cut into cells:\n`
-                + partition.errors.map((e) => `  ${e}`).join('\n'),
+                + cut.errors.map((e) => `  ${e}`).join('\n'),
             );
         }
-        warnings.push(...partition.warnings.map((w) => `${scene.name}: ${w}`));
+        warnings.push(...cut.warnings.map((w) => `${scene.name}: ${w}`));
 
-        const worldDir = path.join(payloadDir, WORLD_DIR);
-        await mkdir(worldDir, { recursive: true });
-        const manifest: WorldManifest = {
-            version: 1,
-            scene: scene.name,
-            cellSize: partition.cellSize,
-            persistentRefs: partition.persistentRefs,
-            cells: partition.cells.map((cell) => ({
-                name: cell.name,
-                path: `${WORLD_DIR}/${fileSafe(cell.name)}.json`,
-                x: cell.x, z: cell.z,
-                minX: cell.minX, minZ: cell.minZ, maxX: cell.maxX, maxZ: cell.maxZ,
-                entityCount: cell.entityCount,
-                rootCount: cell.rootCount,
-            })),
-        };
-        for (const cell of partition.cells) {
+        await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
+        for (const cell of cut.manifest.cells) {
             await writeFile(
-                path.join(worldDir, `${fileSafe(cell.name)}.json`),
-                JSON.stringify(cell.data) + '\n',
+                path.join(payloadDir, cell.path),
+                JSON.stringify(cut.documents.get(cell.name)) + '\n',
             );
         }
-        const manifestPath = `${WORLD_DIR}/${fileSafe(scene.name)}.world.json`;
-        await writeFile(path.join(payloadDir, manifestPath), JSON.stringify(manifest, null, 2) + '\n');
+        const manifestPath = worldManifestPath(scene.name);
+        await writeFile(
+            path.join(payloadDir, manifestPath), JSON.stringify(cut.manifest, null, 2) + '\n',
+        );
         // The staged scene becomes the PERSISTENT world. What a package boots is
         // then the thing residency never removes, and the places arrive later.
-        await writeFile(staged, JSON.stringify(partition.persistent) + '\n');
+        await writeFile(staged, JSON.stringify(cut.persistent) + '\n');
         worlds.push({ scene: scene.name, manifest: manifestPath });
     }
 

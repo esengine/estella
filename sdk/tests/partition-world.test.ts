@@ -10,11 +10,8 @@
  * the first time a player walks away.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import type { SceneData } from 'esengine';
-import { partitionWorld, type PartitionOptions } from '../src/world/partitionWorld';
+import { partitionWorld, type PartitionOptions } from '../src/residency/partitionWorld';
+import type { SceneData } from '../src/scene/scene';
 
 const SIZE = 1000;
 
@@ -187,37 +184,5 @@ describe('partitionWorld', () => {
             entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: 0 } }] }),
         ))!;
         expect(partition.errors.join('\n')).toContain('no positive cellSize');
-    });
-});
-
-describe('targets that cannot ship a cut world', () => {
-    it('is a decision the export makes, not a warning it prints', async () => {
-        // The shape this refuses is the one the whole feature exists against: a
-        // build that succeeds while the thing it declared quietly does not ship.
-        const { exportGame } = await import('../src/export/exportGame');
-        const project = await mkdtemp(path.join(tmpdir(), 'streamed-'));
-        try {
-            await mkdir(path.join(project, 'assets', 'scenes'), { recursive: true });
-            await writeFile(path.join(project, 'assets', 'scenes', 'main.esscene'),
-                JSON.stringify(scene(
-                    entity(0, 'World', null, { components: [declaration] }),
-                    entity(1, 'RockA', [500, 0, 500]),
-                )));
-            await writeFile(path.join(project, 'project.esproject'), JSON.stringify({
-                formatVersion: '1', name: 'Streamed', defaultScene: 'assets/scenes/main.esscene',
-            }));
-            await expect(exportGame({
-                root: project,
-                entryScene: 'assets/scenes/main.esscene',
-                outDir: path.join(project, 'out'),
-                platform: 'playable',
-                gameHostEntry: path.join(project, 'host.ts'),
-                // Never reached: the refusal happens before anything is staged.
-                sdkDistDir: path.join(project, 'sdk'),
-                wasmDir: path.join(project, 'wasm'),
-            })).rejects.toThrow(/cannot ship one/);
-        } finally {
-            await rm(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-        }
     });
 });

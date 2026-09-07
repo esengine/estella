@@ -4,7 +4,12 @@
  * @file    partitionWorld.ts
  * @brief   Cutting one authored world into a persistent scene plus cells.
  *
- * @details Spatial partition is COOKED content. A packaged game that walked its
+ * @details Lives in the runtime rather than the pipeline because a packaged build
+ *          is not the only host that has to cut a world: an editor Play session
+ *          cuts the unsaved document the same way, and two implementations of
+ *          "which cell is this in" is two worlds.
+ *
+ *          The RESULT is still cooked content. A packaged game that walked its
  *          whole world at boot to decide who lives where has already paid for the
  *          world it was trying not to load.
  *
@@ -19,10 +24,11 @@
  *          fields hold entity references, and where a prefab's root sits.
  */
 
-import { isPrefabEntry, cellAt, cellSquare } from 'esengine';
-import type {
-    SceneData, SceneEntityData, SceneComponentData, SceneEntry, PrefabInstanceEntry,
-} from 'esengine';
+import { isPrefabEntry } from '../scene/sceneEntry';
+import { cellAt, cellSquare } from './cells';
+import type { SceneData, SceneEntityData, SceneComponentData } from '../scene/scene';
+import type { SceneEntry } from '../scene/sceneEntry';
+import type { PrefabInstanceEntry } from '../prefab/sceneInstance';
 
 interface Vec3 { x: number; y: number; z: number }
 
