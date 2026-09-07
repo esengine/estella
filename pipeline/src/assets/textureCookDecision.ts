@@ -16,6 +16,25 @@
  *        what an inspector predicts are one function with one branch order.
  */
 
+/**
+ * What a source image becomes under the import's `maxSize` — the size every
+ * later decision is about, block alignment included.
+ *
+ * Here rather than beside the packer that downsamples: reading it must not cost
+ * a PNG decoder, which reached the renderer as a `require('util')` that throws.
+ */
+export function downscaledSize(
+    width: number, height: number, maxDim: number,
+): { width: number; height: number } {
+    const longest = Math.max(width, height);
+    if (!(maxDim > 0) || longest <= maxDim) return { width, height };
+    const scale = maxDim / longest;
+    return {
+        width: Math.max(1, Math.round(width * scale)),
+        height: Math.max(1, Math.round(height * scale)),
+    };
+}
+
 /** The Basis encoding modes a cooked KTX2 can be written in. */
 export type TextureCookFormat = 'uastc' | 'etc1s';
 

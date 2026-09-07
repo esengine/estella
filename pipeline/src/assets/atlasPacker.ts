@@ -12,6 +12,7 @@
  */
 import { PNG } from 'pngjs';
 import { ShelfPacker } from '../../../sdk/src/util/shelfPack';
+import { downscaledSize } from './textureCookDecision';
 
 export interface AtlasInputImage {
     /** Stable identity (the project-relative texture path). */
@@ -180,18 +181,6 @@ export function encodePagePng(page: AtlasPage): Uint8Array {
  * to a texture needs this number rather than the source's — from the same
  * arithmetic the resize uses, or the prediction is right until a rounding case.
  */
-export function downscaledSize(
-    width: number, height: number, maxDim: number,
-): { width: number; height: number } {
-    const longest = Math.max(width, height);
-    if (!(maxDim > 0) || longest <= maxDim) return { width, height };
-    const scale = maxDim / longest;
-    return {
-        width: Math.max(1, Math.round(width * scale)),
-        height: Math.max(1, Math.round(height * scale)),
-    };
-}
-
 export function downscaleRgba(img: AtlasInputImage, maxDim: number): AtlasInputImage {
     const longest = Math.max(img.width, img.height);
     if (!(maxDim > 0) || longest <= maxDim) return img;
