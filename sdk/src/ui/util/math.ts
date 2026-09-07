@@ -140,16 +140,9 @@ export function quaternionToAngle2D(rz: number, rw: number): number {
 /**
  * A world point in clip space, and where that lands on screen.
  *
- * @details @p x / @p y are a screen position only while @p clipW is positive.
- *          Behind the eye the perspective divide flips the sign of both
- *          coordinates, so a point BEHIND the camera comes out as a perfectly
- *          plausible position on the OTHER side of the view — indistinguishable
- *          from a real one once the w is thrown away. That is why this carries
- *          the clip facts rather than answering with a bare pair of numbers.
- *
- *          @p clipZ is kept so a segment straddling the near plane
- *          (`clipZ = -clipW`) can be cut there without projecting its endpoints
- *          a second time.
+ * @details @p x / @p y are a position only while @p clipW is positive: behind the eye
+ *          the divide flips both signs, mirroring the point into a screen position
+ *          nothing tells from a real one. @p clipZ cuts a segment at the near plane.
  */
 export interface ProjectedPoint {
     x: number;
@@ -173,9 +166,8 @@ export function isProjectable(p: ProjectedPoint): boolean {
  * @details A point off the z = 0 plane projects to a different place than its
  *          shadow on it: nearer content is larger and further from the centre.
  *          Dropping @p wz would put an entity's outline, gizmo and screen rect
- *          where the entity is NOT drawn — the exact error the unproject side
- *          already fixed by taking a plane. There is no default: which plane a
- *          point sits on is the caller's fact, not this function's guess.
+ *          where the entity is NOT drawn. No default: which plane a point sits on
+ *          is the caller's fact, not this function's guess.
  */
 export function projectWorldPoint(
     wx: number, wy: number, wz: number,
