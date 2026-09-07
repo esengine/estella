@@ -242,6 +242,10 @@ export const GOLDEN = [
     // verify-third-person's, over this same package: a frame that differs says
     // something moved, not that the world allowed it.
     interact: { keys: ['KeyW'], frames: 60 },
+    // Measured, not guessed: 22 of 30 settle frames inside the 2D default's 30 s,
+    // on a frame that came back LIVE with no errors — an arena of LOD'd rocks costs
+    // about 1.4 s each on a software rasteriser. lighting-3d's shadow pass got here first.
+    launchTimeoutMs: 180_000,
   },
   {
     id: 'world-streaming-3d',
