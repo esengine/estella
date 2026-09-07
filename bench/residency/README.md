@@ -630,6 +630,48 @@ separate mechanism that has been visible in every run here and has never been
 decomposed — they carry no collect, and they land outside every arrival window.
 That is the next cut.
 
+### Render Finalize Spike Decomposition — the author, not yet a fix
+
+`render.finalize` held two synchronous calls and no scopes inside it, so a 9–15 ms
+spike visible in every run here had a name and no author. It has one now, and the
+top level was enough:
+
+| | steady | spiking |
+| --- | --- | --- |
+| `render.finalize` | 0.1 ms | 4.3–7.4 ms |
+| `render.finalize.upload` | 0.1 ms | 4.3–7.4 ms |
+| `render.finalize.drawList` | 0.1–0.2 ms | 0.1–0.2 ms |
+
+`upload` equals `finalize` to the printed digit on every spike across eight runs
+(f166 7.4, f209 4.3, f205 4.8, f166 6.0, f169 5.4). `drawList.finalize` — the sort
+and the coalesce — is not it.
+
+**And the work does not change.** The counters say what the upload was ASKED to
+move on the very frame it cost 6 ms:
+
+    steady   0.80 ms   streams 1   vtx 50028 B   idx 0 B   grows 0   writes 1
+    f166     6.90 ms   streams 1   vtx 50028 B   idx 0 B   grows 0   writes 1
+    f169     6.20 ms   streams 1   vtx 50028 B   idx 0 B   grows 0   writes 1
+
+One stream, one `updateBuffer`, the same 50 028 bytes, no buffer growth — and
+sixty times the cost. This is not a workload spike. It is the same call, on the
+same bytes, occasionally blocking.
+
+Destructively: skipping the `updateBuffer` calls and leaving everything else about
+the frame standing, `render.finalize` does not reach the 4 ms spike list once in
+eight runs, against five spikes in eight wired runs. The largest frames that
+remain are publication frames, whose render scopes total 1.9 ms of a 16 ms wall.
+
+**What this measures, and what it does not.** These scopes bracket the CALL. In
+WebGL2 `updateBuffer` is `glBufferSubData`, which may block on the driver and
+therefore shows here; anything the GPU does afterwards has its own clock and is
+not in this number. A wall clock cannot stand in for GPU time — that needs
+timestamp queries, which is a different instrument and not this one.
+
+Not optimised, deliberately. The next question is why the same write blocks, and
+the shape of the answer (buffer still in flight, orphaning, a second stream)
+decides the fix. Measuring it as fixed before that would be picking one.
+
 ### Instrumentation, and how it is kept honest
 
 The driver's probe used to call `enableStats()` on every read, swapping the maps

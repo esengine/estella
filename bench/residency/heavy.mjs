@@ -567,12 +567,26 @@ function report(arm, frames, delivery) {
         .sort((a, b) => b.f.ms - a.f.ms).slice(0, 6);
     if (spikes.length > 0) {
         console.log('\n    every frame more than 4 ms above steady state:');
+        const calm = frames.slice(-60).find((f) => f.upload && f.upload[1] > 0);
+        if (calm) {
+            console.log(`      steady   ${calm.ms.toFixed(2).padStart(7)} ms`
+                + `  upload  streams ${calm.upload[0]}  vtx ${calm.upload[1]}B`
+                + `  idx ${calm.upload[2]}B  grows ${calm.upload[3]}  writes ${calm.upload[4]}`);
+        }
         for (const { i, f } of spikes) {
             const own = arrived && i >= arrivalAt && i < arrivalAt + window.length;
             console.log(`      f${String(i).padEnd(5)}${f.ms.toFixed(2).padStart(7)} ms`
                 + `  collect ${(f.collect ?? 0).toFixed(2).padStart(6)}`
                 + `  drawn ${String(drawn(f)).padStart(5)}`
                 + `  ${own ? '(the arrival)' : '(NOT the arrival)'}`);
+            // Beside the cost, what the upload was asked to move on that very
+            // frame — and what a quiet frame was asked to move, so "the same
+            // bytes cost ten times as much" is readable rather than inferred.
+            const u = f.upload;
+            if (u) {
+                console.log(`          upload  streams ${u[0]}  vtx ${u[1]}B  idx ${u[2]}B`
+                    + `  grows ${u[3]}  writes ${u[4]}`);
+            }
             // A spike with no collect in it is a different mechanism wearing the
             // same shape, and naming it needs its own scopes rather than the
             // window's — which is what made it look like a delayed arrival.

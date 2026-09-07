@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "./TransientBufferPool.hpp"
 #include "../../core/Log.hpp"
+#include "../../core/FrameProfiler.hpp"
 
 #include <cstring>
 #include <algorithm>
@@ -123,11 +124,18 @@ u32 TransientBufferPool::appendIndices(LayoutId layout, const u32* data, u32 cou
 }
 
 void TransientBufferPool::upload() {
+    // What the upload was ASKED to move, beside what it cost. A spike that tracks
+    // bytes is workload; a spike at unchanged bytes is the allocation or driver
+    // path, and one number cannot tell those apart.
+    u32 streams = 0, vertexBytes = 0, indexBytes = 0, grows = 0, writes = 0;
     // Growth goes through resizeBuffer, which keeps the handle stable, so per-draw
     // buffer bindings and the backend's cached vertex state stay valid.
     for (auto& s : streams_) {
         if (s.vbo == BufferHandle::Invalid) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
+        ++streams;
+        vertexBytes += s.vertex_write_pos;
+        indexBytes += s.index_write_pos * static_cast<u32>(sizeof(u32));
 
         // Grow to the STAGING capacity, which already doubles — not to what this
         // frame needed, which reallocates every frame for a workload creeping
@@ -135,8 +143,10 @@ void TransientBufferPool::upload() {
         if (s.vertex_write_pos > s.vbo_capacity) {
             s.vbo_capacity = static_cast<u32>(s.vertex_staging.size());
             device_.resizeBuffer(s.vbo, s.vbo_capacity, s.vertex_staging.data());
+            ++grows;
         } else if (s.vertex_write_pos > 0) {
             device_.updateBuffer(s.vbo, 0, s.vertex_staging.data(), s.vertex_write_pos);
+            ++writes;
         }
 
         u32 eboBytes = s.index_write_pos * sizeof(u32);
@@ -145,10 +155,17 @@ void TransientBufferPool::upload() {
             s.ebo_capacity = static_cast<u32>(s.index_staging.size());
             device_.resizeBuffer(s.ebo, static_cast<u32>(s.ebo_capacity * sizeof(u32)),
                                  s.index_staging.data());
+            ++grows;
         } else if (eboBytes > 0) {
             device_.updateBuffer(s.ebo, 0, s.index_staging.data(), eboBytes);
+            ++writes;
         }
     }
+    ES_PROFILE_COUNTER("render.upload.streams", streams);
+    ES_PROFILE_COUNTER("render.upload.vertexBytes", vertexBytes);
+    ES_PROFILE_COUNTER("render.upload.indexBytes", indexBytes);
+    ES_PROFILE_COUNTER("render.upload.grows", grows);
+    ES_PROFILE_COUNTER("render.upload.writes", writes);
 }
 
 void TransientBufferPool::bindLayout(LayoutId layout) {

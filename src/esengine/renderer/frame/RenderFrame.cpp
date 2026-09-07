@@ -467,8 +467,16 @@ void RenderFrame::flush() {
     // host asks for them before the graph has run.
     {
         ES_PROFILE_SCOPE("render.finalize");
-        draw_list_.finalize(pool_);
-        pool_.upload();
+        // Around the CALLS, which are synchronous: what the device does with an
+        // upload afterwards is its own clock and cannot be read off this one.
+        {
+            ES_PROFILE_SCOPE("render.finalize.drawList");
+            draw_list_.finalize(pool_);
+        }
+        {
+            ES_PROFILE_SCOPE("render.finalize.upload");
+            pool_.upload();
+        }
     }
 
     // The rect the scene draws into. Opening a pass resets the viewport, so the

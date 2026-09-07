@@ -341,6 +341,14 @@ async function main() {
           // makes a frame expensive, so recording it only there cannot answer
           // whether a cheap arrival had one.
           row.compiles = counters['render.mesh.programCompiles'] ?? 0;
+          // What the upload was ASKED to move, on EVERY frame: a spike that tracks
+          // bytes is workload, and one at unchanged bytes is the allocation path.
+          // Five numbers rather than the table, which overruns the pipe.
+          row.upload = [counters['render.upload.streams'] ?? 0,
+                        counters['render.upload.vertexBytes'] ?? 0,
+                        counters['render.upload.indexBytes'] ?? 0,
+                        counters['render.upload.grows'] ?? 0,
+                        counters['render.upload.writes'] ?? 0];
           row.domains = {};
           for (const c of costs.systems) row.domains[c.domain] = (row.domains[c.domain] ?? 0) + c.ms;
           for (const d of Object.keys(row.domains)) row.domains[d] = Math.round(row.domains[d] * 1000) / 1000;
