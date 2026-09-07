@@ -507,6 +507,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
       - name: Check the release carries everything
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -563,10 +567,6 @@ jobs:
       # no precompiled bytecode, so every game packaged from it opened on a black
       # screen the first time and nothing here noticed. Check the contents against
       # the same table the emitter writes from, under release strictness.
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup
-
       - name: Check the templates carry everything
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
