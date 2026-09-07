@@ -59,6 +59,15 @@ export const CRITERIA = [
     needs: ['tools/launchers/inputScript.mjs'],
   },
   {
+    id: 'a-character-may-only-do-what-the-world-allows',
+    says: 'a packaged third-person character climbs, is stopped, and lands where its world says',
+    // 29 launches over 2440 rendered frames — the arena costs about 1.4 s a frame
+    // on a runner with no GPU, so this is a nightly question. It sat in the push
+    // gate behind a step that always failed first, and never once ran there.
+    answeredBy: 'node tools/verify-third-person.mjs',
+    needs: ['tools/verify-third-person.mjs', 'examples/third-person-3d/project.esproject'],
+  },
+  {
     id: '3d-runs-where-it-ships',
     host: 'android',
     why: 'the same emulator boot, for the 3D corpus — nightly answers it against the RELEASED template, which is the host a creator already has; HEAD\'s own template costs 40 minutes to build and is native-smoke\'s question, asked by the release pipeline',

@@ -629,7 +629,10 @@ jobs:
     name: Packages (golden + released)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 30
+    # 30 was sized when this job took 11.3 min end to end. The golden step alone
+    # is 14m37s now that third-person-3d settles instead of failing at 30 s, and
+    # the streamed-world step below has never once run. Room to find out.
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v7
@@ -664,12 +667,6 @@ jobs:
     # claim, since a build that boots to its rotate-to-portrait gate launches fine.
     - name: Launch the golden packages and compare them to the editor (PR tier)
       run: node tools/verify-golden.mjs --tier pr
-
-    # What the third-person character DOES in that package: the ramp it climbs,
-    # the step it crosses, the wall that stops it. A frame that differs says
-    # something moved; only the world's own answer says it was allowed to.
-    - name: Drive the third-person character in its package
-      run: node tools/verify-third-person.mjs
 
     # Which places EXIST in that package, and what leaves with them. A camera
     # cannot answer this: a cell that is not drawn and a cell that is not there
