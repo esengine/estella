@@ -1812,6 +1812,7 @@ ResourceDef<CameraViewAPI>
 ```
 getWorldBounds: () => { left: number; right: number; bottom: number; top: number; } | null
 getWorldMousePosition: () => { x: number; y: number; } | null
+projectDirectionAt: (at: Vec3, dir: Vec3) => { x: number; y: number; } | null
 screenRay: (screenX: number, screenY: number) => WorldRay | null
 screenToWorld: (screenX: number, screenY: number, planeZ?: number) => { x: number; y: number; } | null
 worldToScreen: (worldX: number, worldY: number, worldZ?: number) => { x: number; y: number; } | null

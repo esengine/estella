@@ -187,6 +187,29 @@ export function projectWorldPoint(
     };
 }
 
+/**
+ * How a world direction moves the projection of its own anchor, in viewport
+ * pixels per world unit, y-up.
+ *
+ * @details Under perspective the answer depends on the POINT: the divide by w
+ *          swings an axis's screen direction with where it stands.
+ */
+export function projectDirectionAt(
+    at: ProjectedPoint,
+    dx: number, dy: number, dz: number,
+    vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number,
+): { x: number; y: number } {
+    const ndcX = ((at.x - vpX) / vpW) * 2 - 1;
+    const ndcY = ((at.y - vpY) / vpH) * 2 - 1;
+    const cx = vp[0] * dx + vp[4] * dy + vp[8] * dz;
+    const cy = vp[1] * dx + vp[5] * dy + vp[9] * dz;
+    const cw = vp[3] * dx + vp[7] * dy + vp[11] * dz;
+    return {
+        x: ((cx - ndcX * cw) / at.clipW) * 0.5 * vpW,
+        y: ((cy - ndcY * cw) / at.clipW) * 0.5 * vpH,
+    };
+}
+
 export function createInvVPCache() {
     const invVP = new Float32Array(16);
     const cachedVP = new Float32Array(16);

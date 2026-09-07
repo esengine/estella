@@ -340,6 +340,7 @@ export {
     pointInOBB,
     quaternionToAngle2D,
     projectWorldPoint,
+    projectDirectionAt,
     isProjectable,
     createInvVPCache,
     type ScreenRect,

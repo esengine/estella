@@ -3,7 +3,8 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { screenToWorld, projectWorldPoint, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
+import type { Vec3 } from '../types';
+import { screenToWorld, projectWorldPoint, projectDirectionAt, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -72,6 +73,23 @@ export class CameraViewAPI {
         const p = projectWorldPoint(worldX, worldY, worldZ,
                                     cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
         return isProjectable(p) ? { x: p.x, y: p.y } : null;
+    }
+
+    /**
+     * Where a world DIRECTION points on screen at @p at — px per world unit, y-up.
+     *
+     * @details Null when @p at has no projection. Perspective makes this a fact
+     *          about the POINT: an arm drawn on something asks here, where a basis
+     *          read off the camera answers only for the centre of the view.
+     */
+    projectDirectionAt(at: Vec3, dir: Vec3): { x: number; y: number } | null {
+        const cam = this.cam();
+        if (!cam) return null;
+        const p = projectWorldPoint(at.x, at.y, at.z,
+                                    cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        if (!isProjectable(p)) return null;
+        return projectDirectionAt(p, dir.x, dir.y, dir.z,
+                                  cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
     }
 
     getWorldMousePosition(): { x: number; y: number } | null {

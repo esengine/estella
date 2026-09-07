@@ -8,13 +8,14 @@ import {
     pointInWorldRect,
     quaternionToAngle2D,
     projectWorldPoint,
+    projectDirectionAt,
     isProjectable,
     createInvVPCache,
     pointInOBB,
     screenRay,
     rayPlaneHit,
 } from '../src/ui/util/math';
-import type { ScreenRect } from '../src/ui/util/math';
+import type { ScreenRect, ProjectedPoint } from '../src/ui/util/math';
 
 // =============================================================================
 // Helpers
@@ -660,6 +661,59 @@ describe('projectWorldPoint says whether a point has a screen position at all', 
         expect(atNear.clipZ / atNear.clipW).toBeCloseTo(-1, 5);
         const atFar = projectWorldPoint(0, 0, -1000, vp, 0, 0, 640, 480);
         expect(atFar.clipZ / atFar.clipW).toBeCloseTo(1, 5);
+    });
+});
+
+describe('projectDirectionAt answers for the point, not just for the camera', () => {
+    const VP_W = 830;
+    const VP_H = 494;
+    const ASPECT = VP_W / VP_H;
+    const project = (vp: Float32Array, x: number, y: number, z: number): ProjectedPoint =>
+        projectWorldPoint(x, y, z, vp, 0, 0, VP_W, VP_H);
+    const direction = (vp: Float32Array, at: ProjectedPoint, d: readonly number[]) =>
+        projectDirectionAt(at, d[0], d[1], d[2], vp, 0, 0, VP_W, VP_H);
+
+    // The derivative and the projector have to be the same function, or an arm is
+    // drawn along one and dragged along the other.
+    it('is the projection own slope, to the digit a difference can measure', () => {
+        const vp = perspective4(Math.PI / 3, ASPECT, 1, 5000);
+        const h = 1e-4;
+        for (const [x, y, z] of [[0, 0, -600], [500, 200, -600], [-320, -90, -1800]]) {
+            for (const d of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
+                const here = project(vp, x, y, z);
+                const step = project(vp, x + d[0] * h, y + d[1] * h, z + d[2] * h);
+                const slope = direction(vp, here, d);
+                expect(slope.x).toBeCloseTo((step.x - here.x) / h, 4);
+                expect(slope.y).toBeCloseTo((step.y - here.y) / h, 4);
+            }
+        }
+    });
+
+    // Orthographically there is no divide to vary, so the camera alone DOES answer
+    // — which is why a basis read off it was right until the eye gained a fov.
+    it('is the same everywhere under an orthographic projection', () => {
+        const vp = ortho4(160 * ASPECT, 160, 4000);
+        for (const d of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
+            const centre = direction(vp, project(vp, 0, 0, 0), d);
+            const corner = direction(vp, project(vp, 150 * ASPECT, 140, -900), d);
+            expect(corner.x).toBeCloseTo(centre.x, 9);
+            expect(corner.y).toBeCloseTo(centre.y, 9);
+        }
+    });
+
+    // Head-on, world Z runs straight at the eye and projects to nothing — AT THE
+    // CENTRE. Off to the side the same axis leans outward, and by a length worth
+    // grabbing: the arm a camera-only basis draws as zero everywhere.
+    it('turns the axis that runs at the eye into a real arm off-centre', () => {
+        const vp = perspective4(Math.PI / 3, ASPECT, 1, 5000);
+        const centre = direction(vp, project(vp, 0, 0, -600), [0, 0, 1]);
+        expect(Math.hypot(centre.x, centre.y)).toBeLessThan(1e-9);
+
+        const at = project(vp, 500, 0, -600);
+        const alongZ = direction(vp, at, [0, 0, 1]);
+        const alongX = direction(vp, at, [1, 0, 0]);
+        expect(alongZ.x).toBeGreaterThan(0); // outward, toward the edge it sits near
+        expect(Math.hypot(alongZ.x, alongZ.y)).toBeGreaterThan(Math.hypot(alongX.x, alongX.y) * 0.5);
     });
 });
 
