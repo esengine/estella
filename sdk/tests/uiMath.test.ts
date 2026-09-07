@@ -7,7 +7,8 @@ import {
     screenToWorld,
     pointInWorldRect,
     quaternionToAngle2D,
-    worldToScreen,
+    projectWorldPoint,
+    isProjectable,
     createInvVPCache,
     pointInOBB,
     screenRay,
@@ -237,45 +238,45 @@ describe('uiMath', () => {
             expect(result.y).toBeCloseTo(0);
         });
 
-        it('should roundtrip with worldToScreen for identity VP', () => {
+        it('should roundtrip with projectWorldPoint for identity VP', () => {
             const vp = identity4();
             const invVP = invertMatrix4(vp);
             const sx = 250, sy = 180;
             const vpX = 0, vpY = 0, vpW = 800, vpH = 600;
             const world = screenToWorld(sx, sy, invVP, vpX, vpY, vpW, vpH);
-            const [backX, backY] = worldToScreen(world.x, world.y, vp, vpX, vpY, vpW, vpH);
+            const { x: backX, y: backY } = projectWorldPoint(world.x, world.y, 0, vp, vpX, vpY, vpW, vpH);
             expect(backX).toBeCloseTo(sx);
             expect(backY).toBeCloseTo(sy);
         });
 
-        it('should roundtrip with worldToScreen for scaled VP', () => {
+        it('should roundtrip with projectWorldPoint for scaled VP', () => {
             const vp = scale4(0.5, 0.5, 1);
             vp[15] = 1;
             const invVP = invertMatrix4(vp);
             const sx = 300, sy = 400;
             const vpX = 0, vpY = 0, vpW = 800, vpH = 600;
             const world = screenToWorld(sx, sy, invVP, vpX, vpY, vpW, vpH);
-            const [backX, backY] = worldToScreen(world.x, world.y, vp, vpX, vpY, vpW, vpH);
+            const { x: backX, y: backY } = projectWorldPoint(world.x, world.y, 0, vp, vpX, vpY, vpW, vpH);
             expect(backX).toBeCloseTo(sx);
             expect(backY).toBeCloseTo(sy);
         });
     });
 
     // =========================================================================
-    // worldToScreen
+    // projectWorldPoint
     // =========================================================================
 
-    describe('worldToScreen', () => {
+    describe('projectWorldPoint', () => {
         it('should map world origin to viewport center with identity VP', () => {
             const vp = identity4();
-            const [sx, sy] = worldToScreen(0, 0, vp, 0, 0, 800, 600);
+            const { x: sx, y: sy } = projectWorldPoint(0, 0, 0, vp, 0, 0, 800, 600);
             expect(sx).toBeCloseTo(400);
             expect(sy).toBeCloseTo(300);
         });
 
         it('should map world (-1,-1) to viewport origin with identity VP', () => {
             const vp = identity4();
-            const [sx, sy] = worldToScreen(-1, -1, vp, 0, 0, 800, 600);
+            const { x: sx, y: sy } = projectWorldPoint(-1, -1, 0, vp, 0, 0, 800, 600);
             expect(sx).toBeCloseTo(0);
             expect(sy).toBeCloseTo(0);
         });
@@ -283,14 +284,14 @@ describe('uiMath', () => {
         it('should handle scaled VP matrix', () => {
             const vp = scale4(2, 2, 1);
             vp[15] = 1;
-            const [sx, sy] = worldToScreen(0.5, 0.5, vp, 0, 0, 800, 600);
+            const { x: sx, y: sy } = projectWorldPoint(0.5, 0.5, 0, vp, 0, 0, 800, 600);
             expect(sx).toBeCloseTo(800);
             expect(sy).toBeCloseTo(600);
         });
 
         it('should apply viewport offset', () => {
             const vp = identity4();
-            const [sx, sy] = worldToScreen(0, 0, vp, 50, 100, 800, 600);
+            const { x: sx, y: sy } = projectWorldPoint(0, 0, 0, vp, 50, 100, 800, 600);
             expect(sx).toBeCloseTo(450);
             expect(sy).toBeCloseTo(400);
         });
@@ -300,7 +301,7 @@ describe('uiMath', () => {
             const invVP = invertMatrix4(vp);
             const vpX = 10, vpY = 20, vpW = 640, vpH = 480;
             const wx = 3.5, wy = -2.1;
-            const [sx, sy] = worldToScreen(wx, wy, vp, vpX, vpY, vpW, vpH);
+            const { x: sx, y: sy } = projectWorldPoint(wx, wy, 0, vp, vpX, vpY, vpW, vpH);
             const back = screenToWorld(sx, sy, invVP, vpX, vpY, vpW, vpH);
             expect(back.x).toBeCloseTo(wx);
             expect(back.y).toBeCloseTo(wy);
@@ -577,24 +578,24 @@ describe('screenToWorld picking planes', () => {
     });
 });
 
-describe('worldToScreen carries the same third dimension', () => {
+describe('projectWorldPoint carries the same third dimension', () => {
     // The unproject took a plane; the project has to take the point's depth, or
     // an overlay drawn ON an entity (outline, gizmo, screen rect) lands on the
     // entity's shadow at z = 0 instead of on the entity.
     it('is unchanged orthographically, whatever depth the point is at', () => {
         const vp = ortho4(160, 120, 1000);
-        const flat = worldToScreen(80, -30, vp, 0, 0, 640, 480);
-        const deep = worldToScreen(80, -30, vp, 0, 0, 640, 480, -400);
-        expect(deep[0]).toBeCloseTo(flat[0], 6);
-        expect(deep[1]).toBeCloseTo(flat[1], 6);
+        const flat = projectWorldPoint(80, -30, 0, vp, 0, 0, 640, 480);
+        const deep = projectWorldPoint(80, -30, -400, vp, 0, 0, 640, 480);
+        expect(deep.x).toBeCloseTo(flat.x, 6);
+        expect(deep.y).toBeCloseTo(flat.y, 6);
     });
 
     it('projects nearer content further from the centre under perspective', () => {
         const vp = perspective4(Math.PI / 2, 1, 0.1, 1000);
-        const near = worldToScreen(50, 0, vp, 0, 0, 640, 480, -100);
-        const far = worldToScreen(50, 0, vp, 0, 0, 640, 480, -400);
+        const near = projectWorldPoint(50, 0, -100, vp, 0, 0, 640, 480);
+        const far = projectWorldPoint(50, 0, -400, vp, 0, 0, 640, 480);
         const centre = 320;
-        expect(Math.abs(near[0] - centre)).toBeGreaterThan(Math.abs(far[0] - centre) * 2);
+        expect(Math.abs(near.x - centre)).toBeGreaterThan(Math.abs(far.x - centre) * 2);
     });
 
     // The round trip is the whole contract: project a point at its depth, ask the
@@ -607,11 +608,59 @@ describe('worldToScreen carries the same third dimension', () => {
         // In front of the camera (which sits at the origin looking down -z); z = 0
         // is the eye itself, where a projection divides by zero for anyone.
         for (const z of [-1, -100, -400, -900]) {
-            const [sx, sy] = worldToScreen(37, -21, vp, 0, 0, 640, 480, z);
+            const { x: sx, y: sy } = projectWorldPoint(37, -21, z, vp, 0, 0, 640, 480);
             const back = screenToWorld(sx, sy, inv, 0, 0, 640, 480, z);
             expect(back.x).toBeCloseTo(37, 3);
             expect(back.y).toBeCloseTo(-21, 3);
         }
+    });
+});
+
+describe('projectWorldPoint says whether a point has a screen position at all', () => {
+    // Behind the eye the divide flips the sign of x, y AND w, so the point comes
+    // back mirrored through the centre of the view — inside the viewport, on the
+    // wrong side, and indistinguishable from a real position once w is dropped.
+    // Every editor overlay that "follows" an entity used to follow that mirror.
+    it('rejects a point behind a perspective eye, which the mirror hides', () => {
+        const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
+        const centre = 320;
+        const front = projectWorldPoint(50, 0, -200, vp, 0, 0, 640, 480);
+        const behind = projectWorldPoint(50, 0, 200, vp, 0, 0, 640, 480);
+        expect(isProjectable(front)).toBe(true);
+        expect(isProjectable(behind)).toBe(false);
+        expect(front.x).toBeGreaterThan(centre);
+        // The mirror: same world x, opposite side, and on screen the whole time.
+        expect(behind.x).toBeLessThan(centre);
+        expect(behind.x).toBeGreaterThan(0);
+    });
+
+    // Off-screen is not the same fact. A collider or a frustum reaching past the
+    // edge still HAS coordinates there, and an overlay clipped to the canvas needs
+    // them to know which way it left.
+    it('keeps a point that is merely outside the viewport', () => {
+        const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
+        const off = projectWorldPoint(5000, 0, -200, vp, 0, 0, 640, 480);
+        expect(isProjectable(off)).toBe(true);
+        expect(off.x).toBeGreaterThan(640);
+    });
+
+    // An orthographic projection has no eye to stand behind: w is 1 everywhere,
+    // and the 2D editor — whose content sits at and below z = 0 — depends on that.
+    it('accepts every depth orthographically', () => {
+        const vp = ortho4(160, 120, 1000);
+        for (const z of [-400, 0, 400]) {
+            expect(isProjectable(projectWorldPoint(80, -30, z, vp, 0, 0, 640, 480))).toBe(true);
+        }
+    });
+
+    // What a segment cut at the near plane interpolates on; see the editor's
+    // near-plane clipping of collider and frustum wireframes.
+    it('reports the clip depth the near plane is expressed in', () => {
+        const vp = perspective4(Math.PI / 2, 4 / 3, 0.1, 1000);
+        const atNear = projectWorldPoint(0, 0, -0.1, vp, 0, 0, 640, 480);
+        expect(atNear.clipZ / atNear.clipW).toBeCloseTo(-1, 5);
+        const atFar = projectWorldPoint(0, 0, -1000, vp, 0, 0, 640, 480);
+        expect(atFar.clipZ / atFar.clipW).toBeCloseTo(1, 5);
     });
 });
 

@@ -138,6 +138,35 @@ export function quaternionToAngle2D(rz: number, rw: number): number {
 }
 
 /**
+ * A world point in clip space, and where that lands on screen.
+ *
+ * @details @p x / @p y are a screen position only while @p clipW is positive.
+ *          Behind the eye the perspective divide flips the sign of both
+ *          coordinates, so a point BEHIND the camera comes out as a perfectly
+ *          plausible position on the OTHER side of the view — indistinguishable
+ *          from a real one once the w is thrown away. That is why this carries
+ *          the clip facts rather than answering with a bare pair of numbers.
+ *
+ *          @p clipZ is kept so a segment straddling the near plane
+ *          (`clipZ = -clipW`) can be cut there without projecting its endpoints
+ *          a second time.
+ */
+export interface ProjectedPoint {
+    x: number;
+    y: number;
+    clipZ: number;
+    clipW: number;
+}
+
+/** At or below this, w names the eye itself and the divide has no answer. */
+export const CLIP_W_EPSILON = 1e-6;
+
+/** Whether the point has a screen position at all — see {@link ProjectedPoint}. */
+export function isProjectable(p: ProjectedPoint): boolean {
+    return p.clipW > CLIP_W_EPSILON;
+}
+
+/**
  * Where a world point lands on screen — the inverse of {@link screenToWorld}, and
  * it takes the same third dimension.
  *
@@ -145,23 +174,25 @@ export function quaternionToAngle2D(rz: number, rw: number): number {
  *          shadow on it: nearer content is larger and further from the centre.
  *          Dropping @p wz would put an entity's outline, gizmo and screen rect
  *          where the entity is NOT drawn — the exact error the unproject side
- *          already fixed by taking a plane. Defaults to the 2D plane, so every
- *          existing 2D caller keeps its answer to the bit.
+ *          already fixed by taking a plane. There is no default: which plane a
+ *          point sits on is the caller's fact, not this function's guess.
  */
-export function worldToScreen(
-    wx: number, wy: number,
+export function projectWorldPoint(
+    wx: number, wy: number, wz: number,
     vp: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number,
-    wz = 0,
-): [number, number] {
+): ProjectedPoint {
     const clipX = vp[0] * wx + vp[4] * wy + vp[8] * wz + vp[12];
     const clipY = vp[1] * wx + vp[5] * wy + vp[9] * wz + vp[13];
+    const clipZ = vp[2] * wx + vp[6] * wy + vp[10] * wz + vp[14];
     const clipW = vp[3] * wx + vp[7] * wy + vp[11] * wz + vp[15];
     const ndcX = clipX / clipW;
     const ndcY = clipY / clipW;
-    return [
-        vpX + (ndcX * 0.5 + 0.5) * vpW,
-        vpY + (ndcY * 0.5 + 0.5) * vpH,
-    ];
+    return {
+        x: vpX + (ndcX * 0.5 + 0.5) * vpW,
+        y: vpY + (ndcY * 0.5 + 0.5) * vpH,
+        clipZ,
+        clipW,
+    };
 }
 
 export function createInvVPCache() {

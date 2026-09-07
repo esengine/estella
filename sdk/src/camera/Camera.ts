@@ -3,7 +3,7 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { screenToWorld, worldToScreen, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
+import { screenToWorld, projectWorldPoint, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -61,12 +61,19 @@ export class CameraViewAPI {
      * @p worldZ projects nowhere near its shadow on the 2D plane, so anything
      * drawing an overlay ON an entity (an outline, a gizmo, a screen rect) has to
      * pass the entity's z or it draws where the entity is not.
+     *
+     * Null means the point has NO screen position: there is no camera, or it
+     * stands at or behind the eye, where the perspective divide mirrors it to the
+     * opposite side of the view. Being outside the viewport is not that — a
+     * collider or a frustum reaching past the edge still has coordinates there,
+     * and an overlay clipped to the canvas needs them.
      */
     worldToScreen(worldX: number, worldY: number, worldZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
-        const [sx, sy] = worldToScreen(worldX, worldY, cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH, worldZ);
-        return { x: sx, y: sy };
+        const p = projectWorldPoint(worldX, worldY, worldZ,
+                                    cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        return isProjectable(p) ? { x: p.x, y: p.y } : null;
     }
 
     getWorldMousePosition(): { x: number; y: number } | null {

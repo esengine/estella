@@ -5,7 +5,7 @@ import type { World } from '../../ecs/world';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { ScreenOverlayData } from '../core/screen-overlay';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
-import { screenToWorld, worldToScreen, createInvVPCache, screenRay, type WorldRay } from './math';
+import { screenToWorld, projectWorldPoint, createInvVPCache, screenRay, type WorldRay } from './math';
 
 const NO_HIT = 0xffffffff;
 const vpCache = createInvVPCache();
@@ -86,14 +86,15 @@ export function isScreenEntity(world: PickableWorld, entity: Entity): boolean {
 export function uiLayoutToScreen(
   overlay: ScreenOverlayData, x: number, y: number,
 ): { x: number; y: number } {
-  const [sx, sy] = worldToScreen(x, y, overlay.projection,
-                                 overlay.vpX, overlay.vpY, overlay.vpW, overlay.vpH);
-  return { x: sx, y: sy };
+  const p = projectWorldPoint(x, y, 0, overlay.projection,
+                              overlay.vpX, overlay.vpY, overlay.vpW, overlay.vpH);
+  return { x: p.x, y: p.y };
 }
 
 export function uiWorldToScreen(camera: UICameraData, worldX: number, worldY: number): { x: number; y: number } {
-  const [x, y] = worldToScreen(worldX, worldY, camera.viewProjection, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
-  return { x, y };
+  const p = projectWorldPoint(worldX, worldY, 0, camera.viewProjection,
+                              camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+  return { x: p.x, y: p.y };
 }
 
 /**

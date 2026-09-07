@@ -339,10 +339,12 @@ export {
     pointInWorldRect,
     pointInOBB,
     quaternionToAngle2D,
-    worldToScreen,
+    projectWorldPoint,
+    isProjectable,
     createInvVPCache,
     type ScreenRect,
     type WorldRay,
+    type ProjectedPoint,
 } from './util/math';
 
 // ─── Plugins (composed UI pipeline + the concept plugins it builds) ─────────
