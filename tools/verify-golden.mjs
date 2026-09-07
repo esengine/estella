@@ -333,6 +333,10 @@ for (const { id, target } of pairs) {
   // Parity compares like for like, so the package is opened at exactly the size
   // the editor's play surface came out — never a guessed one.
   const golden = atTier(TIER).find((g) => g.id === id);
+  // Declared up here because four launches below need it and three were taking
+  // the 30 s default: a project's settle window is the project's, whichever
+  // question this is asking of its package.
+  const timeoutMs = launchTimeoutFor(golden);
 
   // Did the cook actually pack? Parity cannot answer this: an atlas that stopped
   // working still draws the same frame from nine standalone textures.
@@ -363,6 +367,7 @@ for (const { id, target } of pairs) {
   if (audio && target === 'web') {
     const probed = launchPackage(id, target, [
       '--dir', out,
+      ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
       '--input', JSON.stringify({ pointer: { x: audio.toggle.x, y: audio.toggle.y }, frames: audio.frames ?? 60 }),
       '--probe', audio.bar,
     ]);
@@ -389,7 +394,6 @@ for (const { id, target } of pairs) {
   }
 
   const packagePng = SHOTS ? path.join(SHOTS, `${id}-${target}.png`) : path.join(WORK, `${id}-${target}.png`);
-  const timeoutMs = launchTimeoutFor(golden);
   const launch = launchPackage(id, target, [
     '--dir', out, '--out', packagePng,
     ...(editor ? ['--w', String(editor.w), '--h', String(editor.h)] : []),
@@ -487,9 +491,13 @@ for (const { id, target } of pairs) {
   let allAnswered = true;
   for (const gesture of gestures) {
     const drivenPng = path.join(WORK, `${id}-${target}-driven-${gesture.what.replace(/\W+/g, '-')}.png`);
+    // The same window the undriven launch got. Driving a package does not make
+    // its frames cheaper, and a project that needs minutes to settle needs them
+    // twice — this asked for 30 s and read the shortfall as a dead gesture.
     const drive = launchPackage(id, target, [
       '--dir', out, '--out', drivenPng,
       '--w', String(editor.w), '--h', String(editor.h),
+      ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
       ...(gesture.touch ? ['--touch'] : []),
       '--input', JSON.stringify(gesture.spec),
     ]);
@@ -531,6 +539,7 @@ for (const { id, target } of pairs) {
   const suspend = suspendFor(golden);
   if (suspend) {
     const where = (hidden) => probePositions(target, out, editor.w, editor.h, [suspend.entity], [
+      ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
       '--input', JSON.stringify({ keys: suspend.keys, frames: suspend.frames, hidden }),
     ])?.[suspend.entity]?.x ?? null;
 
@@ -565,8 +574,10 @@ for (const { id, target } of pairs) {
   if (safe) {
     const names = [safe.entity, safe.reference];
     const offset = (insets) => {
-      const at = probePositions(target, out, editor.w, editor.h, names,
-        insets ? ['--safe-area', insets] : []);
+      const at = probePositions(target, out, editor.w, editor.h, names, [
+        ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
+        ...(insets ? ['--safe-area', insets] : []),
+      ]);
       const node = at?.[safe.entity];
       const ref = at?.[safe.reference];
       return node && ref ? { x: node.x - ref.x, y: node.y - ref.y } : null;
