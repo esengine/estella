@@ -33,6 +33,24 @@ describe('the source census spans this repository and the submodules that hold o
         expect(censusFindings(roots)).toEqual([]);
     });
 
+    // A hook exports GIT_DIR, and it outranks `cwd`: unscrubbed, the submodule
+    // corpus is the ROOT's file list wearing the submodule's prefix — every path a
+    // lie, and only inside a push, which is the worst place to first meet it.
+    it('is about the directory it runs in even when git pins one from the environment', () => {
+        const editor = roots.find((r) => r.prefix === 'desktop')!;
+        if (!editor.present) return;
+        const before = process.env.GIT_DIR;
+        process.env.GIT_DIR = `${process.cwd()}/.git`;
+        try {
+            const files: string[] = trackedFiles(editor);
+            expect(files).toContain('desktop/package.json');
+            expect(files).not.toContain('desktop/sdk/package.json');
+        } finally {
+            if (before === undefined) delete process.env.GIT_DIR;
+            else process.env.GIT_DIR = before;
+        }
+    });
+
     it('prefixes a submodule file so it names one path from the repo root', () => {
         const editor = roots.find((r) => r.prefix === 'desktop')!;
         const files: string[] = trackedFiles(editor);

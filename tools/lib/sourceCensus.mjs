@@ -25,8 +25,20 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const CORPUS_KEY = 'estella-corpus';
 const OURS = 'source';
 
+/**
+ * The environment a git command must run in to be ABOUT the directory it is run
+ * in. A hook exports GIT_DIR and friends, and they outrank `cwd`: unscrubbed, a
+ * submodule corpus comes back as the root's file list wearing the submodule's
+ * prefix — worse than the empty one this file exists to prevent.
+ */
+function unpinnedEnv() {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  return env;
+}
+
 const git = (dir, args, max = 256 * 1024 * 1024) =>
-  execFileSync('git', args, { cwd: dir, encoding: 'utf8', maxBuffer: max });
+  execFileSync('git', args, { cwd: dir, encoding: 'utf8', maxBuffer: max, env: unpinnedEnv() });
 
 /**
  * Every submodule `.gitmodules` declares, with the corpus it claims.
