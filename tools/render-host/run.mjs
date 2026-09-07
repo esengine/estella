@@ -200,7 +200,8 @@ function finish(result, server) {
   // which no pixel in the frame can show.
   const pickOk = !result.pick || result.pick.hit === result.pick.want;
   const renderedOk = result.capture?.rendered ?? false;
-  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) && (result.seam?.ok ?? true) &&
+  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) && (result.count?.ok ?? true) &&
+    (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
@@ -661,6 +662,28 @@ app.whenReady().then(async () => {
         return { points: out, ok: out.every((o) => o.ok) };
       `);
     }
+    // ESTELLA_VERIFY_COUNT is a JSON array of { rgb:[r,g,b], tol?, atLeast?, atMost? }:
+    // HOW MANY pixels of the frame are that colour, rather than which ones — a
+    // point probe cannot ask that without also naming where a font put them.
+    let count = null;
+    if (process.env.ESTELLA_VERIFY_COUNT) {
+      count = await readFrame(`
+        const specs = ${JSON.stringify(JSON.parse(process.env.ESTELLA_VERIFY_COUNT))};
+        const rows = specs.map((s) => {
+          const tol = s.tol ?? 24;
+          let n = 0;
+          for (let i = 0; i < px.length; i += 4) {
+            if (Math.abs(px[i] - s.rgb[0]) <= tol
+              && Math.abs(px[i + 1] - s.rgb[1]) <= tol
+              && Math.abs(px[i + 2] - s.rgb[2]) <= tol) n++;
+          }
+          const ok = (s.atLeast === undefined || n >= s.atLeast)
+            && (s.atMost === undefined || n <= s.atMost);
+          return { rgb: s.rgb, tol, count: n, atLeast: s.atLeast ?? null, atMost: s.atMost ?? null, ok };
+        });
+        return { rows, ok: rows.every((r) => r.ok) };
+      `);
+    }
     // ESTELLA_VERIFY_SEAM is JSON { period, phase, band:{y0,y1}, limit?, atLeast? }
     // in TOP-DOWN screen pixels. The pixels come back to node so seamProbe stays
     // one implementation rather than being re-typed into an injected script.
@@ -820,7 +843,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

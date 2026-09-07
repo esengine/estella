@@ -46,7 +46,10 @@ for (const s of SCENES) {
   // where it is not.
   // A SEAM is an expectation too, and the kind a point probe cannot state: a
   // column that behaves unlike its neighbours on a grid is not a pixel colour.
-  const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_SEAM
+  // A COUNT is an expectation too, and the one a point probe cannot make: how
+  // much of a colour the frame holds does not depend on where a font put it.
+  const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_COUNT
+    || s.env.ESTELLA_VERIFY_SEAM
     || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
     || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_COUNTERS_MAX
