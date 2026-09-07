@@ -421,7 +421,34 @@ export function isTransientProjectPath(rel: string): boolean {
 /** Editor-local, transient state (`.esengine/workspace.json`; gitignored). */
 export interface WorkspaceState {
   lastOpenedScene?: string;
+  /** The dock arrangement, as dockview serializes it. */
   panelLayout?: unknown;
+  /** Editor mode the session was in (`scene` / `ui` / `tilemap` / `world` / …). */
+  activeWorkspace?: string;
+  /** Asset editors that were open, by document id and file. The dock layout says
+   *  a panel existed; only this says WHICH file it was showing. */
+  openDocuments?: Array<{ kind: string; path: string }>;
+  activeDocument?: { kind: string; path: string };
+  /** The AUTHORED id of the selected entity. Never a runtime handle: those are
+   *  minted per session and index-reused, so a restored one names whatever
+   *  happens to occupy the slot. */
+  selectedEntity?: number;
+  /** Editor camera centre and the world half-height it saw. */
+  viewportCamera?: { x: number; y: number; z: number; orthoSize: number };
+  contentBrowserPath?: string;
+  timelinePlayhead?: number;
+  /**
+   * The World workspace's own view state — where the author was looking, never
+   * what the world was doing. Residency, prefetch counters and delivery latency
+   * belong to a play session and are gone with it; a restored `Resident` would
+   * be a stopped game's last frame presented as the state of the world.
+   */
+  world?: {
+    /** Expanded rows, by AUTHORED identity (`persistent`, `cell:0,0`) — an index
+     *  into a list would expand a different row once the list is sorted again. */
+    outlinerExpanded?: string[];
+    selectedCell?: { x: number; z: number };
+  };
 }
 
 /** An opened project as returned over IPC (plain, structured-clone-safe). */
@@ -450,6 +477,9 @@ export interface RecentEntry {
   /** engineBuildId or version from the manifest, for the build badge. */
   build?: string;
   thumbnail?: string;
+  /** The document this project was last open on, from its workspace state — so
+   *  a card can say what continuing it means before anyone clicks. */
+  lastScene?: string;
 }
 
 const versionNum = (v: string): number => {
