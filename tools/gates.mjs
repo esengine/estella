@@ -80,6 +80,7 @@ export const GATES = [
   { id: 'plugin-api-contract', run: 'node tools/check-plugin-api-contract.mjs' },
   { id: 'residency-authority', run: 'node tools/check-residency-authority.mjs' },
   { id: 'workspace-continuity', run: 'node tools/check-workspace-continuity.mjs' },
+  { id: 'project-health', run: 'node tools/check-project-health.mjs' },
   // Everything below reads what this emits: the declaration snapshot, the
   // editor's own type-check and the examples all resolve `esengine` from dist.
   { id: 'sdk-build', run: 'pnpm --filter ./sdk build' },

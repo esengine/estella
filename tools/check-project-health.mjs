@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  check-project-health.mjs — whether a project can ship has one author.
+ *
+ * Two implementations of "can this ship" agree until one is edited, and the one
+ * anybody believes is whichever spoke last. So the checks live in one list,
+ * every consumer reads the report, and the ways they could differ are refused.
+ *
+ *   node tools/check-project-health.mjs
+ */
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
+const has = (rel) => existsSync(path.join(ROOT, rel));
+
+const CHECKS = 'desktop/src/project/projectHealth.ts';
+const READER = 'desktop/src/project/projectHealthReader.ts';
+/** Everyone who states a verdict about whether this project can ship. */
+const CONSUMERS = {
+  'desktop/src/components/BuildDialog.tsx': 'the build refuses to start past a blocker',
+  'desktop/src/panels/HealthPanel.tsx': 'the panel shows the same verdict',
+  'desktop/shared/toolCatalog.mjs': 'the agent asks the same question',
+};
+
+const problems = [];
+const say = (file, what) => problems.push(`${file}: ${what}`);
+
+if (!has(CHECKS)) {
+  console.log('check-project-health: no editor checkout — skipped.');
+  process.exit(0);
+}
+
+const checks = read(CHECKS);
+
+// 1. The checks are a declared LIST. A body of ifs cannot be counted, and
+//    "23 checks passed" is a claim about how many ran.
+const list = /export const HEALTH_CHECKS: HealthCheck\[\] = \[([\s\S]*?)\n\];/.exec(checks);
+if (!list) say(CHECKS, 'HEALTH_CHECKS is not a declared list any more — the tally means nothing');
+const ids = [...(list?.[1] ?? '').matchAll(/^\s{4}id: '([^']+)'/gm)].map((m) => m[1]);
+if (ids.length === 0) say(CHECKS, 'no checks are declared');
+if (new Set(ids).size !== ids.length) say(CHECKS, 'two checks share an id — a consumer keying off one is ambiguous');
+
+// 2. Every check declares a scope, and the ones about THIS MACHINE say so in
+//    their own words. A current-device finding read as a target's is a verdict
+//    about a build nobody has run.
+for (const block of (list?.[1] ?? '').split(/\n  \},?/)) {
+  const id = /id: '([^']+)'/.exec(block)?.[1];
+  if (!id) continue;
+  const scope = /scope: '([^']+)'/.exec(block)?.[1];
+  if (!scope) { say(CHECKS, `check "${id}" declares no scope`); continue; }
+  if (scope !== 'current-device') continue;
+  if (!/this machine|this backend|this viewport/.test(block)) {
+    say(CHECKS, `check "${id}" is about this machine and never says so — it reads as a target's verdict`);
+  }
+  // …and never speaks of the target. "MSAA is unavailable for this target" is
+  // the sentence a device measurement must not produce, and saying "this
+  // machine" elsewhere in the wording does not undo it.
+  if (/\btargets?\b/.test(block.replace(/scope: '[^']*'/g, ''))) {
+    say(CHECKS, `check "${id}" measures this machine and speaks about a build target`);
+  }
+}
+
+// 3. The checks are PURE: they read facts handed to them. One that went and
+//    measured a capability would be previewing itself, not the build.
+for (const forbidden of ['EngineHost', 'window.estella', 'PlayRealm', 'ProjectStore']) {
+  if (checks.includes(forbidden)) {
+    say(CHECKS, `the checks reach for "${forbidden}" — they read facts, they do not gather them`);
+  }
+}
+
+// 4. Nobody states a verdict without the report. This is the whole point: a
+//    consumer with its own half of the answer is a second author of it.
+for (const [file, why] of Object.entries(CONSUMERS)) {
+  if (!has(file)) { say(file, `missing — ${why}`); continue; }
+  const text = read(file);
+  if (!/projectHealth|project_health/.test(text)) {
+    say(file, `does not go through the report — ${why}`);
+  }
+  // …and does not re-derive one. Naming a check id outside the list is a
+  // consumer that decided what that check means for itself.
+  for (const id of ids) {
+    if (new RegExp(`['"\`]${id.replace('.', '\\.')}['"\`]`).test(text)) {
+      say(file, `names the check "${id}" itself — read the finding, do not re-decide it`);
+    }
+  }
+}
+
+// 5. A blocker STOPS the build. Showing it and packaging anyway is the failure
+//    this whole stage exists against.
+const dialog = has('desktop/src/components/BuildDialog.tsx')
+  ? read('desktop/src/components/BuildDialog.tsx') : '';
+const build = /const build = async \(\) => \{([\s\S]*?)\n  \};/.exec(dialog);
+if (!build) say('desktop/src/components/BuildDialog.tsx', 'no build() to check — the gate cannot be located');
+else if (!/blockers\([^)]*\)\.length > 0[\s\S]{0,200}return;/.test(build[1])) {
+  say('desktop/src/components/BuildDialog.tsx',
+    'build() does not return on a blocker — a refusal that packages anyway is not a refusal');
+}
+
+// That the report is not CACHED is not checked here: every static shape of it
+// was position-sensitive, and a rule sabotage cannot redden is worse than none.
+// The editor check breaks a project, repairs it, and asks again.
+
+// 6. The reader reports what it could not obtain. A check that did not run and
+//    a check that passed are opposite answers about the same project.
+if (has(READER) && !/unavailable/.test(read(READER))) {
+  say(READER, 'nothing is ever reported unavailable — an unobtainable fact is passing silently');
+}
+
+if (problems.length > 0) {
+  for (const problem of problems) console.error(`  ${problem}`);
+  console.error(`check-project-health: ${problems.length} finding(s).`);
+  process.exit(1);
+}
+console.log(
+  `check-project-health: ${ids.length} declared check(s), one report, `
+  + `${Object.keys(CONSUMERS).length} consumers — none of them decides for itself.`);
