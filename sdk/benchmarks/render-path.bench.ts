@@ -69,9 +69,12 @@ function chainedWorld(count: number, depth: number): any {
     return reg;
 }
 
-/** One frame of the pass: begin clears the once-per-frame latch, then it runs. */
+/** One composition of the pass. The epoch is the word a producer of a local
+ *  transform moves; without moving it `ensureComposed` is a compare that returns,
+ *  and this measures the short circuit rather than the walk. Re-read every call:
+ *  a heap that grew detaches the view. */
 function frame(reg: any): void {
-    module.renderer_beginFrame(0);
+    module.HEAPU32[module.transform_epochAddress() >> 2]++;
     module.renderer_updateTransforms(reg);
 }
 
