@@ -37,6 +37,10 @@ export { Physics2DPlugin, Physics2DEvents, Physics2D, loadPhysicsModule } from '
 // game code) must be able to spell `trigger_enter` without importing the side
 // module, since the wire is authored whether or not physics is loaded.
 export { Physics2DEventType, type Physics2DContactEventData } from './physics';
+// Beside the 2D solver's and for its reason: the native host maps every
+// `esengine/*` import onto ONE global, so a symbol the main entry does not carry
+// reaches a game that imports the subpath as `undefined`.
+export { Physics3DPlugin, Physics3DEvents, Physics3D } from './physics3d';
 export { SpinePlugin, SpineEvents, Spine } from './spine';
 // DragonBones beside it, and in the barrel for the same reason: the native entry
 // collapses every `esengine*` import onto ONE global, so a game reaching
