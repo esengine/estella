@@ -455,7 +455,7 @@ answer to "is the exact variant key derivable at `prepared`" turned out to be
 yes: a cell's own document names every requirement before a single entity of it
 exists.
 
-### Shader Variant Readiness — COMPLETE
+### Shader Variant Readiness — COMPLETE / FROZEN
 
 Three conclusions, each with a counterfactual behind it rather than a
 before-and-after:
@@ -544,6 +544,55 @@ from and nothing more; the evidence clears it. Moving 6 ms from the first visibl
 frame into the publication transaction would not be a fix either — a hitch
 relocated is still a hitch. The numbers above are what makes that a settled
 question rather than a principle: publication did not move.
+
+#### What MISS now means, which is not what it meant
+
+A miss used to be the arm without the headroom: nothing readied it early, so the
+cold compile met first visibility. That is no longer what the numbers say, and
+the reason is not that misses got faster. Readying became an obligation
+publication cannot waive, so a cell with no dwell pays the compile in its
+preparation anyway — 6.4–7.4 ms of `readying` on the MISS arm, and zero compiles
+at first visibility.
+
+The lifecycle changed with it. Prefetch used to be a performance optimisation
+layered over a publish that would hand an unpaid compile to the first visible
+frame. It is now only the question of how far from demand that cost is paid:
+
+    readiness   a prerequisite publication owes, whatever the dwell
+    prefetch    how much earlier than demand it is settled
+
+Which means a mandatory preparation cost may now delay readiness — and through
+it, publication — where it previously would have published on time and left the
+shader debt on the frame the player was looking at. That trade is the one this
+campaign made, and it is the lifecycle change, not the millisecond count.
+
+#### Frozen
+
+Proven, on the shipping build:
+
+- cold shader-variant compile was the author of the first-visible hitch;
+- a prepared document yields the exact production requirement digest, material
+  and stock alike;
+- production readiness pays the mandatory compile BEFORE `prepared`;
+- `prepared` includes the render-program obligation, and a headless host
+  satisfies it by not having it;
+- publish re-verifies against `requirementDigest` AND `programEpoch`;
+- `deviceGeneration` guards the claim and does not enter the stamp;
+- device loss invalidates the old epoch's claim and restamps at the publish
+  boundary;
+- the shipping binary carries no test prewarm ABI;
+- HIT / MISS / BLIND all reach first visibility with zero compiles;
+- BLIND reveal attributes the warming to readiness and nothing else;
+- the cost is IN preparation, named, at 98.7% phase attribution — not inferred
+  from publication having failed to grow.
+
+Two debts leave the freeze, and neither is a shader-readiness correctness debt:
+
+1. **Publication witness / domain alignment** — a measurement debt. See below.
+2. **`render.finalize` spikes** — an independent performance mechanism.
+
+Anyone reading the HIT arm's non-zero exit should read it as the first of those,
+not as this campaign being unfinished.
 
 **Next is not more readiness.** The `render.finalize` spikes of 9–15 ms are a
 separate mechanism that has been visible in every run here and has never been
