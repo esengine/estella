@@ -183,6 +183,9 @@ export const GATES = [
   // …and that whoever mints one can say how it survives a device generation:
   // recovery only ever holds a number, so the answer has to exist before it runs.
   { id: 'mesh-provenance', run: 'node tools/check-mesh-provenance.mjs' },
+  // Every `esengine/*` specifier the SDK publishes has one answer for a script
+  // inside a packaged native game, and a subpath never means the bare specifier.
+  { id: 'native-script-modules', run: 'node tools/check-native-script-modules.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
   {
