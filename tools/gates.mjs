@@ -91,6 +91,10 @@ export const GATES = [
   { id: 'tsc-editor', run: 'pnpm --filter @estella/editor exec tsc --noEmit', needs: 'editor' },
   { id: 'editor-tests', run: 'pnpm --filter @estella/editor test',
     needs: 'editor', covers: ['desktop/tests'] },
+  // What type-checking cannot see: the renderer runs in a browser, so a module
+  // that reaches it with a node dependency throws before React mounts and takes
+  // the whole editor with it.
+  { id: 'renderer-bundle', run: 'node tools/check-renderer-bundle.mjs', needs: 'editor' },
   // The shipped plugins type-check against the editor's LIVE plugin API surface
   // (types.ts, the file authors are handed), so a change to it that no plugin
   // could survive fails here rather than in someone else's project.
