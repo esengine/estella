@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-09-06
+
 ### Added
 
 - **World streaming: a place exists because something is near it, and stops
@@ -10974,7 +10976,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.61.0...HEAD
+[0.61.0]: https://github.com/esengine/estella/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/esengine/estella/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/esengine/estella/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/esengine/estella/compare/v0.57.0...v0.58.0
