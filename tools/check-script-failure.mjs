@@ -141,7 +141,6 @@ mkdirSync(WORK, { recursive: true });
         console.log('check-script-failure: the GPU went away before anything could be drawn'
             + ' — this machine cannot judge whether the package boots clean');
         for (const l of said) console.log(`    ${l}`);
-        cleanup();
         process.exit(2);
     }
     check('and boots clean', run.ok && run.errors === 0,
