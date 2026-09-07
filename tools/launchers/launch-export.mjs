@@ -59,6 +59,12 @@ import { inputScript } from './inputScript.mjs';
 // Without it Chromium refuses the context outright and the package boots to
 // "WebGL2 is not available" — which is a runner without a GPU, not a broken game.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
+// does not reach: on a runner with no device it dies before the first frame.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// ...and on Linux there is no GPU process at all — one launch per check races
+// the service that answers for WebGL2, and in-process SwiftShader draws the same.
+if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 // capturePage pixels go through the OS display profile; pin sRGB so a colour
 // judgement reads the same on a wide-gamut machine as on a CI runner.
 app.commandLine.appendSwitch('force-color-profile', 'srgb');

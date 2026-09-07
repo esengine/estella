@@ -26,6 +26,12 @@ const PACKAGE = path.resolve(process.argv[process.argv.length - 1]);
 const W = 256, H = 256;
 
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
+// does not reach: on a runner with no device it dies before the first frame.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// ...and on Linux there is no GPU process at all — one launch per check races
+// the service that answers for WebGL2, and in-process SwiftShader draws the same.
+if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
 const MIME = {

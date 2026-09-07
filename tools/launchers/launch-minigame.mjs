@@ -29,6 +29,12 @@ import { inputScript } from './inputScript.mjs';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
+// does not reach: on a runner with no device it dies before the first frame.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// ...and on Linux there is no GPU process at all — one launch per check races
+// the service that answers for WebGL2, and in-process SwiftShader draws the same.
+if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 // Both of the above pin a machine's answer to the code's; so does this. A capture
 // is in DEVICE pixels, so a scaled display returns a frame the editor's own

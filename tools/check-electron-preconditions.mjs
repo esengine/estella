@@ -77,6 +77,15 @@ for (const rel of tracked('tools/launchers/*.mjs').concat(tracked('tools/render-
   if (!/enable-unsafe-swiftshader/.test(src)) {
     problems.push(`${rel} — launches Electron without the software-GL fallback`);
   }
+  // The software rasteriser is only half of it. The GPU PROCESS keeps a sandbox
+  // ELECTRON_DISABLE_SANDBOX does not reach, and it died at frame 0 on the runner
+  // — one gate spent a fortnight reporting that as the package's own failure.
+  if (!/disable-gpu-sandbox/.test(src)) {
+    problems.push(`${rel} — launches Electron without disabling the GPU process sandbox`);
+  }
+  if (!/in-process-gpu/.test(src)) {
+    problems.push(`${rel} — launches Electron without asking Linux for an in-process GPU`);
+  }
 }
 if (!mains) problems.push('tools/launchers — found no Electron main at all; this scan is broken');
 

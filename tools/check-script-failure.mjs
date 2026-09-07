@@ -89,12 +89,19 @@ const GPU_GONE = /GPU device lost|createTexture failed|Failed to create texture/
 /**
  * What the launcher said the errors WERE, not how many.
  *
- * It prints each one indented under its verdict; this kept only the count, so a
- * failure read "errors 3" and left nothing to act on — a gate that saw the
- * answer and reported the arithmetic.
+ * It prints each one indented under its verdict, capped at five, and then keeps
+ * writing at that same indent — how far it got, what the canvas was, "one flat
+ * colour". Taking every indented line therefore took diagnosis for error, which
+ * is what made a wholly environmental failure look partly like the package's.
  */
+const SHOWN = 5;
 function errorLines(text) {
-    return text.split('\n').filter((l) => /^ {4}\S/.test(l.trimEnd())).map((l) => l.trim());
+    const lines = text.split('\n');
+    const at = lines.findIndex((l) => /^[✓✗] /.test(l.trim()));
+    if (at < 0) return [];
+    const n = Math.min(Number(/errors=(\d+)/.exec(lines[at])?.[1] ?? 0), SHOWN);
+    return lines.slice(at + 1, at + 1 + n)
+        .filter((l) => /^ {4}\S/.test(l.trimEnd())).map((l) => l.trim());
 }
 
 /** Boot it headless and report what the page said while doing so. */

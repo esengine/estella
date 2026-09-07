@@ -46,6 +46,12 @@ import { onRendererConsole } from '../lib/rendererConsole.mjs';
 // Chromium blocklisted WebGL2, the game drew nothing, and the flagship criterion
 // reported that its route could not be played.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
+// does not reach: on a runner with no device it dies before the first frame.
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// ...and on Linux there is no GPU process at all — one launch per check races
+// the service that answers for WebGL2, and in-process SwiftShader draws the same.
+if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
 const argv = process.argv.slice(2);
