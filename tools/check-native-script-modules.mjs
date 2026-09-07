@@ -21,7 +21,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODULES, DISPOSITIONS, NATIVE_MODULE_REGISTRY, subpathOf, specifierOf, nativeSubpaths }
-    from './nativeScriptModules.mjs';
+    from './nativeScriptModules.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = path.join(ROOT, 'sdk', 'package.json');
@@ -93,6 +93,31 @@ if (existsSync(REGISTRY)) {
 if (existsSync(NATIVE_ENTRY) && !readFileSync(NATIVE_ENTRY, 'utf8').includes('installNativeModuleRegistry()')) {
     problems.push('sdk/src/index.native.ts does not call installNativeModuleRegistry() — the '
         + 'namespaces exist and no host ever publishes them.');
+}
+
+// 6. The exporter dispatches on this table rather than pattern-matching. A rule
+//    that covers the bare specifier and its subpaths together is how a subpath
+//    came to mean the core namespace, and the fix is only real if it is read here.
+const EXPORTER = path.join(ROOT, 'pipeline', 'src', 'export', 'exportGame.ts');
+if (existsSync(EXPORTER)) {
+    const src = readFileSync(EXPORTER, 'utf8');
+    if (!src.includes('nativeScriptModules.js')) {
+        problems.push(
+            'pipeline/src/export/exportGame.ts does not read tools/nativeScriptModules.js — '
+            + 'a second, unchecked opinion about what a specifier means.');
+    }
+    // The identifier, not its value: the exporter importing the constant is what
+    // keeps the emitted global and this table spelled the same way.
+    if (!src.includes('NATIVE_MODULE_REGISTRY')) {
+        problems.push(
+            `pipeline/src/export/exportGame.ts never emits ${NATIVE_MODULE_REGISTRY}, so every `
+            + 'specifier still resolves to the core global and a subpath means the bare name.');
+    }
+    if (!src.includes("'forbidden-native-script'")) {
+        problems.push(
+            'pipeline/src/export/exportGame.ts does not refuse forbidden specifiers — an entry '
+            + 'a game script must not import would package and fail on a device instead.');
+    }
 }
 
 if (problems.length) {

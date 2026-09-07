@@ -60,6 +60,7 @@ import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
 import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
+import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
 export type { ExportPlatform };
 
 /**
@@ -284,17 +285,36 @@ function indexHtml(title: string, orientation?: ScreenOrientation): string {
 }
 
 /** A filesystem-safe slug for the app id / package name. */
-/** Resolve every `esengine` import to the host's global SDK. A native build has
- *  no module loader and no second copy of the SDK: the engine bundle the host
- *  already evaluated installs `globalThis.ESEngine`, and the project's scripts
- *  must bind to THAT instance or their components land in a rival registry. */
+/** Bind every `esengine` import to what the host already evaluated: a native
+ *  build has no module loader, and a second copy would put a game's tokens in
+ *  a rival registry. Each specifier is LOOKED UP in tools/nativeScriptModules.js,
+ *  never pattern-matched — a subpath must never be able to mean the bare name. */
 function esengineGlobalPlugin(): Plugin {
   return {
     name: 'esengine-global',
     setup(build) {
-      build.onResolve({ filter: /^esengine(\/.*)?$/ }, (args) => ({ path: args.path, namespace: 'esengine-global' }));
-      build.onLoad({ filter: /.*/, namespace: 'esengine-global' }, () => ({
-        contents: 'module.exports = globalThis.ESEngine;', loader: 'js',
+      build.onResolve({ filter: /^esengine(\/.*)?$/ }, (args) => {
+        const m = MODULES[args.path];
+        if (!m) {
+          return { errors: [{ text:
+            `"${args.path}" is not a module the SDK publishes. Importing it from a game `
+            + `script would resolve to nothing on a native build. Declare it in `
+            + `tools/nativeScriptModules.js if it is meant to exist.` }] };
+        }
+        if (m.disposition === 'forbidden-native-script') {
+          return { errors: [{ text:
+            `"${args.path}" cannot be imported by a game script in a native package: `
+            + `${m.why ?? 'no reason recorded'}.` }] };
+        }
+        return { path: args.path, namespace: 'esengine-global' };
+      });
+      build.onLoad({ filter: /.*/, namespace: 'esengine-global' }, (args) => ({
+        // The bare specifier is the core global; a subpath is its own namespace
+        // from that same running graph, so a resource token has one author.
+        contents: MODULES[args.path]?.disposition === 'native-subpath'
+          ? `module.exports = globalThis.${NATIVE_MODULE_REGISTRY}[${JSON.stringify(args.path)}];`
+          : 'module.exports = globalThis.ESEngine;',
+        loader: 'js',
       }));
     },
   };
