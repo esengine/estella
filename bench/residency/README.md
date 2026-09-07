@@ -499,6 +499,46 @@ one the player stands in, so a zero there is soundness rather than attribution.
 Attribution lives here, on a fixture whose cell needs a variant nothing else
 does — which is why disconnecting readiness changes this number and not that one.
 
+#### Remeasured on the shipping build, 2026-09-07
+
+The table above was taken with the readying UNNAMED — the one phase this campaign
+created was the one phase preparation had no name for, so its 6 ms showed only as
+a residual and "the work moved into prefetch headroom" could be argued only from
+publication not growing. Named, `issue → prepared` closes from 68.4% to 98.7%.
+
+Three arms, three runs each, on a wasm built the way the product ships it
+(`ES_ENABLE_TEST_PROBES=OFF`, so `engine_prewarmMeshVariants` is not in the binary
+and no arm here can reach it — every number below is the production path):
+
+| arm | readying | publication | first-visible | `programCompiles` | BUDGET |
+| --- | --- | --- | --- | --- | --- |
+| miss | 6.4–7.4 ms | 6.8–9.1 ms | 2.5–3.6 ms | 0 | ✓ 1.2–2.8 / 8.33 ms |
+| hit | 6.5–6.9 ms | 7.4–7.6 ms | 3.0–3.2 ms | 0 | ✓ 2.0–2.4 / 8.33 ms |
+| blind → published | 6.7–7.3 ms | 6.7–6.9 ms | 2.4–2.8 ms | 0 | ✓ 1.7–2.1 / 8.33 ms |
+| blind → revealed | — | — | 0.9–2.9 ms | 0 | ✓ −0.2–1.8 / 8.33 ms |
+
+`programCompiles` is zero in the arrival window AND across the whole run, on every
+arm. The arrival frame's `collect` is 0.20 ms against a 0.10–0.20 ms steady state,
+so first visibility does nothing a warm frame does not. `blind → published` draws
+0 → 0: when it is revealed there is no other visible content that could have warmed
+the cache for it.
+
+The readying is timed around the CALL rather than the settle. It is synchronous
+work behind an async signature, and waiting on the promise measures how busy the
+thread was afterwards instead: on the miss arm that reported 52.5 ms for the same
+6 ms of compile, and closed the accounting by absorbing the queue into a phase.
+
+Two things this remeasure does not settle, both older than it:
+
+- `hit`'s publication is witnessed by one instrument. The cross-check reads the
+  frame profiler's `scene` domain, which carries 0.1 ms there against 7.5 ms of
+  named phases, so the hit arm exits non-zero on that check and on that check
+  alone. Publication on a hit lands in the residency system's own timer, not in
+  `scene`; the witness has not been moved.
+- `miss`'s `issue → prepared` is latency, not CPU, and varies 22–65 ms with what
+  the fetch and the frame queue do. The named phases account for it when nothing
+  stalls; a stalled run leaves the stall unnamed, which is what it is.
+
 **Do not optimise `MeshPlugin::collect`.** It is where the lazy compile is called
 from and nothing more; the evidence clears it. Moving 6 ms from the first visible
 frame into the publication transaction would not be a fix either — a hitch

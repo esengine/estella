@@ -5,7 +5,7 @@
  *        about it. The decision is pure and is held to on its own; the streamer
  *        is held to the moves it issues, against a host that records them.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     desiredResidency, distanceToCell, type WorldCell, type ResidencySource,
 } from '../src/residency/cells';
@@ -217,6 +217,45 @@ describe('WorldStreamer', () => {
             expect(readied.has('c_0_0')).toBe(true);
             expect(s.residencyOf('c_0_0')).not.toBe('prepared');
             expect(s.residencyOf('c_0_0')).toBe('preparing');
+        });
+
+        // The phase prefetch exists to hide: unnamed, it was 6 ms of preparation
+        // nothing could account for. What it cost is the work, not the wait — a
+        // promise nobody settles still readied.
+        it('names what the readying cost, as the work rather than the wait', async () => {
+            let clock = 0;
+            const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+            try {
+                const base = recordingHost(() => claim);
+                const host: WorldStreamHost = {
+                    ...base.host,
+                    readyRenderPrograms() {
+                        clock += 7;
+                        return new Promise<RenderReadiness>(() => { /* never settles */ });
+                    },
+                };
+                const s = new WorldStreamer(host);
+                s.loadManifest(manifest(cell(0, 0)));
+                s.update([nearby()]);
+                await flush();
+                // Still owed — the claim never came back — and the cost is named.
+                expect(s.residencyOf('c_0_0')).toBe('preparing');
+                expect(s.delivery()['c_0_0']?.phases.readying).toBeCloseTo(7, 6);
+            } finally {
+                now.mockRestore();
+            }
+        });
+
+        // No renderer is no obligation, so there is no phase — an absent cost and
+        // a zero one are the same only if nothing was ever owed.
+        it('names no readying where there was no renderer to ready', async () => {
+            const { host } = recordingHost();
+            const s = new WorldStreamer(host);
+            s.loadManifest(manifest(cell(0, 0)));
+            s.update([nearby()]);
+            await flush();
+            expect(s.residencyOf('c_0_0')).toBe('prepared');
+            expect(s.delivery()['c_0_0']?.phases.readying).toBeUndefined();
         });
 
         it('an unpaid claim is a debt the next progression retries', async () => {

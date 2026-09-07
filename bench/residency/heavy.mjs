@@ -666,7 +666,7 @@ function printTree(nodes, indent) {
 }
 
 /** Which half of delivery owns a root phase — the split prefetch turns on. */
-const PREPARATION = new Set(['fetch', 'prefab', 'assets', 'discover', 'subsystems']);
+const PREPARATION = new Set(['fetch', 'prefab', 'assets', 'discover', 'subsystems', 'readying']);
 
 
 const pct = (part, whole) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—');

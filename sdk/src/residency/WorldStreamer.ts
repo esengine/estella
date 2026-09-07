@@ -479,10 +479,16 @@ export class WorldStreamer {
     private askReadiness_(
         name: string, ready: NonNullable<WorldStreamHost['readyRenderPrograms']>,
     ): Promise<RenderReadiness> {
+        // Timed around the CALL, not the settle: the readying is synchronous work
+        // behind an async signature, so waiting on the promise measures how busy
+        // the thread was afterwards — 6 ms of compile read as 52 on a busy arrival.
+        const began = performance.now();
         try {
             return Promise.resolve(ready.call(this.host_, name));
         } catch (err) {
             return Promise.reject(err);
+        } finally {
+            this.recordPhase(name, 'readying', performance.now() - began);
         }
     }
 
