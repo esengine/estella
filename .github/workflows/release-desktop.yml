@@ -280,11 +280,20 @@ jobs:
           path: artifacts/*.zip
           retention-days: 3
 
+  # The boot, and nothing waits on it. It is the only check that starts a template
+  # on a device — v0.61.0's found two runtime errors no web gate can see, each on
+  # BOTH platforms — and it has also stopped three correct releases by misreading
+  # its own frame. Reporting and gating are separate jobs; this one reports.
+  smoke-templates:
+    name: Boot the templates this release will publish
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    uses: ./.github/workflows/native-smoke.yml
+
   # One job holds every archive, so only it can describe the set: the index
   # carries a digest per template, and the editor refuses a download that does not
-  # match it. The templates are checked for CONTENTS below and are not booted here:
-  # native-smoke stays runnable by hand (workflow_dispatch), off the release path.
-
+  # match it. smoke-templates is deliberately NOT in `needs`: a boot that misreads
+  # a frame must not leave a finished release sitting as a draft.
   publish-templates:
     needs: [draft, native-templates]
     if: github.event_name == 'push' && needs.draft.result == 'success'
