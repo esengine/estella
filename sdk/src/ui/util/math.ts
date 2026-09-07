@@ -188,6 +188,17 @@ export function projectWorldPoint(
 }
 
 /**
+ * How far a projected point is in FRONT of the near plane, in clip units.
+ *
+ * @details Negative behind it, and affine along a world segment — so where a
+ *          segment crosses solves for one t, and the world point at that t is the
+ *          furthest the segment can be drawn to.
+ */
+export function nearPlaneSide(p: ProjectedPoint): number {
+    return p.clipZ + p.clipW;
+}
+
+/**
  * How a world direction moves the projection of its own anchor, in viewport
  * pixels per world unit, y-up.
  *

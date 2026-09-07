@@ -1805,6 +1805,7 @@ ResourceDef<CameraViewAPI>
 
 ## CameraViewAPI — class @experimental
 ```
+clipSegment: (a: Vec3, b: Vec3) => { a: Vec3; b: Vec3; } | null
 getWorldBounds: () => { left: number; right: number; bottom: number; top: number; } | null
 getWorldMousePosition: () => { x: number; y: number; } | null
 projectDirectionAt: (at: Vec3, dir: Vec3) => { x: number; y: number; } | null

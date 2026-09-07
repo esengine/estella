@@ -341,6 +341,7 @@ export {
     quaternionToAngle2D,
     projectWorldPoint,
     projectDirectionAt,
+    nearPlaneSide,
     isProjectable,
     createInvVPCache,
     type ScreenRect,

@@ -4,7 +4,7 @@ import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
 import type { Vec3 } from '../types';
-import { screenToWorld, projectWorldPoint, projectDirectionAt, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
+import { screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -15,6 +15,9 @@ import { screenToWorld, projectWorldPoint, projectDirectionAt, isProjectable, cr
  * inverse-view-projection cache, so two Apps running at once never share a
  * single cached `app` or clobber each other's cache.
  */
+/** How far inside the near plane a cut lands, as a fraction of the segment. */
+const CLIP_NUDGE = 1e-4;
+
 export class CameraViewAPI {
     private readonly invVPCache = createInvVPCache();
 
@@ -73,6 +76,32 @@ export class CameraViewAPI {
         const p = projectWorldPoint(worldX, worldY, worldZ,
                                     cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
         return isProjectable(p) ? { x: p.x, y: p.y } : null;
+    }
+
+    /**
+     * The part of segment @p a → @p b that can be drawn, cut at the near plane.
+     *
+     * @details One end behind the eye still leaves a visible part, and dropping the
+     *          whole segment is what makes a wireframe come apart as the eye moves
+     *          into it. Null when none of it is in front.
+     */
+    clipSegment(a: Vec3, b: Vec3): { a: Vec3; b: Vec3 } | null {
+        const cam = this.cam();
+        if (!cam) return null;
+        const at = (p: Vec3) => projectWorldPoint(p.x, p.y, p.z,
+                                                  cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        const sa = nearPlaneSide(at(a));
+        const sb = nearPlaneSide(at(b));
+        if (sa >= 0 && sb >= 0) return { a, b };
+        if (sa < 0 && sb < 0) return null;
+        const cross = sa / (sa - sb);
+        const t = sa >= 0 ? cross * (1 - CLIP_NUDGE) : cross + (1 - cross) * CLIP_NUDGE;
+        const cut = {
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+            z: a.z + (b.z - a.z) * t,
+        };
+        return sa >= 0 ? { a, b: cut } : { a: cut, b };
     }
 
     /**

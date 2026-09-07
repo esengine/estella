@@ -9,6 +9,7 @@ import {
     quaternionToAngle2D,
     projectWorldPoint,
     projectDirectionAt,
+    nearPlaneSide,
     isProjectable,
     createInvVPCache,
     pointInOBB,
@@ -661,6 +662,44 @@ describe('projectWorldPoint says whether a point has a screen position at all', 
         expect(atNear.clipZ / atNear.clipW).toBeCloseTo(-1, 5);
         const atFar = projectWorldPoint(0, 0, -1000, vp, 0, 0, 640, 480);
         expect(atFar.clipZ / atFar.clipW).toBeCloseTo(1, 5);
+    });
+});
+
+describe('nearPlaneSide is what a segment is cut on', () => {
+    const vp = perspective4(Math.PI / 2, 4 / 3, 10, 1000);
+    const side = (x: number, y: number, z: number) =>
+        nearPlaneSide(projectWorldPoint(x, y, z, vp, 0, 0, 640, 480));
+
+    it('is zero on the near plane and signed either side of it', () => {
+        expect(side(0, 0, -10)).toBeCloseTo(0, 6);
+        expect(side(0, 0, -200)).toBeGreaterThan(0);
+        expect(side(0, 0, -1)).toBeLessThan(0);   // between the eye and the near plane
+        expect(side(0, 0, 200)).toBeLessThan(0);  // behind the eye
+    });
+
+    // The whole cut rests on this: one crossing, solved for one t, and the world
+    // point at that t is where the drawable part ends.
+    it('is affine along a world segment', () => {
+        const a = { x: -300, y: 120, z: -400 };
+        const b = { x: 500, y: -80, z: 300 };
+        const sa = side(a.x, a.y, a.z);
+        const sb = side(b.x, b.y, b.z);
+        for (const t of [0.1, 0.37, 0.5, 0.9]) {
+            const mid = side(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+            expect(mid).toBeCloseTo(sa + (sb - sa) * t, 6);
+        }
+        // And it does cross, or the case above is never exercised.
+        expect(sa * sb).toBeLessThan(0);
+    });
+
+    // Orthographically w does not vary and the volume the editor builds is vast, so
+    // nothing a 2D scene contains is ever on the wrong side of this.
+    it('keeps every depth a 2D scene uses under an orthographic projection', () => {
+        const flat = ortho4(160, 120, 100000);
+        for (const z of [-4000, -400, 0, 400]) {
+            expect(nearPlaneSide(projectWorldPoint(80, -30, z, flat, 0, 0, 640, 480)))
+                .toBeGreaterThan(0);
+        }
     });
 });
 
