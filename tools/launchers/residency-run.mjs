@@ -20,8 +20,8 @@
  *
  * A script is a list of steps: {do:"read",as},  {do:"walkTo",x,z},
  * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count},
- * {do:"loseDevice",as}, {do:"readiness",as,cell}, {do:"counters",as}. Each read
- * prints one JSON line.
+ * {do:"loseDevice",as}, {do:"readiness",as,cell}, {do:"counters",as},
+ * {do:"renderFacts",as}, {do:"decisions",as,name}. Each read prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -251,6 +251,19 @@ async function main() {
         `window.__estellaCooked.readiness(${JSON.stringify(step.cell)})`);
       const device = await exec('window.__estellaCooked.device()');
       console.log(`readiness ${step.as}: ${JSON.stringify({ claim, device })}`);
+      continue;
+    }
+    if (step.do === 'renderFacts') {
+      await settle();
+      const facts = await exec('window.__estellaCooked.renderFacts()');
+      console.log(`reading ${step.as}: ${JSON.stringify(facts)}`);
+      continue;
+    }
+    if (step.do === 'decisions') {
+      await settle();
+      const d = await exec(
+        `window.__estellaCooked.decisions(${JSON.stringify(step.name)}, ${step.view ?? 0})`);
+      console.log(`reading ${step.as}: ${JSON.stringify(d)}`);
       continue;
     }
     if (step.do === 'counters') {

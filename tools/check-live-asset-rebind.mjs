@@ -257,8 +257,43 @@ if (loaders < 10) {
   process.exit(1);
 }
 
+/**
+ * 6. A slot takes an asset out through the door its loader HAS. Seven loaders
+ *    publish by name — a `registry` era and no `.load` — and `Assets.loadX`
+ *    rejects those, so the editor's live load threw for every timeline, tilemap,
+ *    tileset, state machine, behaviour tree, animator controller and anim clip.
+ *    The failure was recorded against the path and the preflight read it as a
+ *    reference resolving to nothing: three golden projects could not be built.
+ *    Ground truth (does the loader declare `.load`) against the declaration
+ *    (which door the slot calls), so neither can drift alone.
+ */
+const SLOTS = 'desktop/src/project/assetSlots.ts';
+const byName = new Set();
+for (const name of readdirSync(LOADERS_DIR).filter((f) => f.endsWith('.ts'))) {
+  const code = stripComments(readFileSync(path.join(LOADERS_DIR, name), 'utf8'));
+  const type = /readonly type = '([a-z-]+)'/.exec(code);
+  if (!type) continue;
+  const hasLoad = /^\s{4}(?:async )?load\(/m.test(code) || /^\s{4}load:/m.test(code);
+  if (!hasLoad && /readonly registry/.test(code)) byName.add(type[1]);
+}
+if (byName.size === 0) {
+  findings.push(`${LOADERS_DIR}: no name-publishing loader found — the parser no longer matches how they declare a registry.`);
+} else if (existsSync(path.join(ROOT, SLOTS))) {
+  const slots = stripComments(readFileSync(path.join(ROOT, SLOTS), 'utf8'));
+  for (const type of byName) {
+    const row = new RegExp(`['"]?${type}['"]?: \\{[^}]*\\}`).exec(slots);
+    if (!row) {
+      findings.push(`${SLOTS}: no slot for "${type}", which the preload acquires — a live load has no door.`);
+    } else if (/\ba\.load[A-Z]/.test(row[0])) {
+      findings.push(`${SLOTS}: the "${type}" slot loads through a load* door, and its loader publishes by name — acquire it through its slot.`);
+    }
+  }
+} else {
+  console.log(`check-live-asset-rebind: no editor checkout — ${SLOTS} was not read, so the ${byName.size} name-publishing slot(s) were not judged.`);
+}
+
 if (findings.length === 0) {
-  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door, owns nothing and declares no edges.`);
+  console.log(`check-live-asset-rebind: the rebind path reads the declaration for all ${components.size} asset-bearing components, acquires by receipt, asks one place who owns what, and each of the ${loaders} loaders has one door, owns nothing and declares no edges; ${byName.size} name-publishing slot(s) acquire through theirs.`);
   process.exit(0);
 }
 for (const f of findings) console.error(f);

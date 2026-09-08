@@ -19,7 +19,7 @@ import {
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
   Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough, Name,
-  worldResidencyReport,
+  worldResidencyReport, PostProcess, Renderer,
 } from 'esengine';
 import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
@@ -572,6 +572,37 @@ async function boot(): Promise<void> {
         } catch {
           return {};
         }
+      },
+      /**
+       * The capability decisions the SHIPPING renderer committed to, asked of
+       * the frame that drew rather than of the editor's account of what a build
+       * would do. Those are two code paths, and an explanation that is right
+       * about one nothing takes explains nothing.
+       */
+      renderFacts(): Record<string, unknown> {
+        const post = app.hasResource(PostProcess) ? app.getResource(PostProcess) : null;
+        return {
+          backend: gpu.device ? 'webgpu' : 'webgl2',
+          msaa: { requested: cfg.msaaSamples ?? null, ...(post?.msaaCapability() ?? {}) },
+          hdr: post?.hdrFormat() ?? null,
+          texture: app.getResource(Assets)?.textureFormatReport() ?? null,
+        };
+      },
+      /**
+       * The per-entity decisions a frame made about one named thing: which LOD
+       * the view chose, whether the light cap kept it, what the shadow atlas
+       * granted. Read through the same Renderer API the editor's panels use, so
+       * a divergence here is the shipping path and not a second implementation.
+       */
+      decisions(name: string, view = 0): Record<string, unknown> | null {
+        const entity = app.world.findEntityByName(name);
+        if (entity === null) return null;
+        return {
+          entity,
+          lod: Renderer.lodInspect(view, entity),
+          light: Renderer.lightStatus(entity),
+          shadow: Renderer.shadowStatus(entity),
+        };
       },
       /**
        * Take the GPU away, and read what the renderer says about itself after.
