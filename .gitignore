@@ -175,3 +175,4 @@ native/ios/app.generated.yml
 # resolution), and a crashed run leaves one behind for the source gates to judge.
 pipeline/src/.build-*/
 .aot-verify/
+.walkthrough/
