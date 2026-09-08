@@ -15,7 +15,7 @@
  * (check-golden.mjs) refuses a capability nobody covers unless the gap is
  * declared here in the open.
  */
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,6 +43,102 @@ export const DEFAULT_PARITY = 0.06;
 export const DEFAULT_RESPONDS = 0.15;
 
 /**
+ * The release the shipped-feature census reaches back to. Older releases are out
+ * of its scope BY DECLARATION rather than by silence, and the gate says so.
+ */
+export const CENSUS_FLOOR = '0.60.0';
+
+/**
+ * Every shipped feature at or after {@link CENSUS_FLOOR}, classified: key names
+ * one release-note headline, value the capability a project must carry or why
+ * none can. A feature missing from {@link CAPABILITIES} reads exactly like one
+ * that does not exist, and release notes are a different act. Theirs is ungated.
+ */
+export const SHIPPED = {
+  // — 0.61.0 —
+  'World streaming': { certifies: 'world-streaming' },
+  'Level of detail': { certifies: 'level-of-detail' },
+  'An inventory of what the engine\'s runtime contract facts':
+    { notCertifiable: 'an inventory OF contracts; check-contract-inventory reads it, and no game act exercises it' },
+  'Two ways out of an animation': { certifies: ['animation-events', 'root-motion'] },
+  'Emission asks the shape': { certifies: 'particles' },
+  'Screen-space ambient occlusion': { certifies: 'ssao' },
+  'The hitch when something first becomes visible': { certifies: 'shader-readiness' },
+  'A mesh comes back after a device loss':
+    { notCertifiable: 'a playthrough cannot lose the device; the device-loss harness is the proof' },
+  'A texture\'s compression is two decisions':
+    { notCertifiable: 'a cook/upload pair, read by check-texture-format; a game ships the result and cannot tell the two records apart' },
+  'The shadow atlas and the light cap name who they turned away':
+    { notCertifiable: 'a census of refusals, read by check-shadow-plan and check-light-cap' },
+  'The post chain commits to one intermediate format':
+    { notCertifiable: 'one format per frame, read by check-hdr-format' },
+  'The built-in audio buses are declared once': { certifies: 'audio' },
+  'A saved map says which encoding it was painted under': { certifies: 'tilemap' },
+  'An event payload has a shape': { certifies: 'ecs' },
+  'A game can state what its own run has reached':
+    { notCertifiable: 'the playthrough seam every certification runs THROUGH, not a capability it certifies' },
+  'The multiplayer example ships the server': { certifies: 'networking' },
+  'The packaged native host answers the AOT conformance fixture':
+    { notCertifiable: 'a conformance fixture across two hosts; no game content decides it' },
+  'An inventory of the decisions the engine takes':
+    { notCertifiable: 'an inventory OF decisions, read by check-decision-inventory' },
+
+  // — 0.60.0 —
+  'A sprite frame draws at its own size': { certifies: 'animation' },
+  'A flipbook editor that reads in frames': { notCertifiable: 'an editor panel; the editor suite owns it' },
+  'A spine skeleton nobody can see costs an advance': { certifies: 'spine' },
+  'A spine frame that can say what it cost': { certifies: 'spine' },
+  'A skeleton an editor can pose': { notCertifiable: 'an editor preview surface; the editor suite owns it' },
+  'A hot update reaches what was built': { certifies: 'hot-update' },
+  'A live binding follows the asset': { certifies: 'asset-lifecycle' },
+  'A persistent entity owns what it carries out of its scene': { certifies: 'scene-transition' },
+  'A ref-bound asset is owned as a slot': { certifies: 'asset-lifecycle' },
+  'A render-graph pass can name a resource the graph must not bind':
+    { notCertifiable: 'a graph authoring rule, read by check-frame-lifecycle' },
+  'An offscreen preview is addressed by its handle':
+    { notCertifiable: 'an editor preview surface; the editor suite owns it' },
+};
+
+/** Numeric compare of two `x.y.z` strings. */
+function versionAtLeast(v, floor) {
+  const a = v.split('.').map(Number);
+  const b = floor.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return true;
+}
+
+/**
+ * The shipped features the CHANGELOG names at or after the floor — the ground
+ * {@link SHIPPED} is answerable against. Headlines only: a bullet leads with a
+ * bolded sentence, and the prose under it is the same claim at length.
+ */
+export function shippedGround() {
+  const text = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  const out = [];
+  let version = null;
+  let inAdded = false;
+  let bullet = null;
+  const flush = () => {
+    if (bullet === null) return;
+    const head = /^-\s+\*\*(.+?)\*\*/s.exec(bullet.replace(/\n/g, ' '));
+    if (head) out.push({ version, headline: head[1].replace(/\s+/g, ' ').trim() });
+    bullet = null;
+  };
+  for (const line of text.split('\n')) {
+    const release = /^## \[(\d+\.\d+\.\d+)\]/.exec(line);
+    if (release) { flush(); version = release[1]; inAdded = false; continue; }
+    if (/^## /.test(line)) { flush(); version = null; inAdded = false; continue; }
+    if (/^### /.test(line)) { flush(); inAdded = /^### Added/.test(line); continue; }
+    if (!inAdded || version === null || !versionAtLeast(version, CENSUS_FLOOR)) continue;
+    if (/^- /.test(line)) { flush(); bullet = line; } else if (bullet !== null) { bullet += `\n${line}`; }
+  }
+  flush();
+  return out;
+}
+
+/**
  * What the suite claims to cover. A capability here with no project behind it
  * is a hole in the release argument, so the gate fails on one that is not in
  * {@link KNOWN_GAPS}.
@@ -54,6 +150,7 @@ export const CAPABILITIES = [
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
+  'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -102,6 +199,16 @@ export const EVIDENCE = {
   // its world is cut and by carrying something that asks for places.
   'world-streaming': /\b(StreamedWorld|WorldStreamingSource)\b/,
   environment: /\.esenv\b/,
+  // The post effect a scene turns on, not the pass that implements it.
+  ssao: /"type":\s*"ssao"/,
+  'navigation-3d': /\b(NavVolume|NavLink|NavAgent3D)\b/,
+  'root-motion': /\brootMotion\b/,
+  // Events authored ON a clip. The runtime always read them; what shipped is a
+  // format and an editor that can write them.
+  'animation-events': /"events"\s*:\s*\[/,
+  // Nothing in a project's text can show it: the claim is that the first visible
+  // frame pays no compile, which only a run can settle. See NEEDS_RUN.
+  'shader-readiness': null,
   'asset-lifecycle': /\b(Assets|loadGroup|releaseGroup|preload)\b/,
   tilemap: /\bTilemap(Layer)?\b/,
   'tile-collision': /\b(collision|Collider|tileCollision)\b/,
@@ -134,6 +241,12 @@ export const EVIDENCE = {
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
+  // Shipped in 0.61 and carried by no project — the 3D stack's composition debt.
+  // Work items, not dispensations: the staleness check below forces an entry out
+  // the moment a project certifies it.
+  'root-motion': 'no golden project has a character moved by its animation; the 3D composition project owes it',
+  'animation-events': 'no golden project authors events on a clip and acts on them; the 3D composition project owes it',
+  'shader-readiness': 'no golden project watches the frame something first appears on; needs a runBy a release criterion schedules',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
@@ -235,7 +348,7 @@ export const GOLDEN = [
   },
   {
     id: 'third-person-3d',
-    certifies: ['third-person', 'level-of-detail'],
+    certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d'],
     targets: ['web'],
     tier: 'pr',
     // The character walks on the key it declares. What it DOES on the way is

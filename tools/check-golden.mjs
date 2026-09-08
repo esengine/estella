@@ -16,6 +16,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, EVIDENCE, TIERS, TARGETS,
+  SHIPPED, CENSUS_FLOOR, shippedGround,
   atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
 } from './goldenProjects.mjs';
 import { CRITERIA } from './releaseGate.mjs';
@@ -59,6 +60,9 @@ const NEEDS_RUN = {
   // both look like. Nothing about replication is visible in a screenshot, so the
   // claim needs the run that opens a socket.
   networking: 'runBy',
+  // A packaged frame looks the same whether the first sight of something cost a
+  // compile or not. Only a run that watches the frame it first appears on says.
+  'shader-readiness': 'runBy',
 };
 
 /** Commands a release is defined as running — what makes `runBy` more than a string. */
@@ -196,6 +200,40 @@ for (const g of GOLDEN) {
 }
 
 // 2. No capability is claimed by the suite and covered by nobody.
+// Every shipped feature is classified, and every classification names one.
+// CAPABILITIES is otherwise the only author of how big the world is, and a list
+// answerable only against itself reports full coverage of whatever it contains.
+const ground = shippedGround();
+const matched = new Map();
+for (const bullet of ground) {
+  const keys = Object.keys(SHIPPED).filter((k) => bullet.headline.startsWith(k));
+  if (keys.length === 0) {
+    fail(`${bullet.version} ships "${bullet.headline.slice(0, 60)}…" and nothing classifies it`
+      + ' — name the capability a project must carry, or why none can');
+  } else if (keys.length > 1) {
+    fail(`${bullet.version} "${bullet.headline.slice(0, 40)}…" is classified ${keys.length} times`
+      + ` (${keys.join(' / ')}) — one shipped feature, one classification`);
+  } else {
+    matched.set(keys[0], (matched.get(keys[0]) ?? 0) + 1);
+  }
+}
+for (const [key, entry] of Object.entries(SHIPPED)) {
+  // The other direction: a classification naming no feature is a census that has
+  // stopped reading the thing it censuses.
+  if (!matched.has(key)) {
+    fail(`nothing at or after ${CENSUS_FLOOR} ships "${key}" — the classification names no feature`);
+  }
+  const certifies = entry.certifies === undefined ? [] : [entry.certifies].flat();
+  if (certifies.length === 0 && !entry.notCertifiable) {
+    fail(`"${key}" is classified as neither certifiable nor not — say which`);
+  }
+  for (const c of certifies) {
+    if (!CAPABILITIES.includes(c)) {
+      fail(`"${key}" says a project must certify "${c}", which is not a declared capability`);
+    }
+  }
+}
+
 for (const c of uncoveredCapabilities()) {
   fail(`nothing certifies "${c}" — add a project, or declare the gap in KNOWN_GAPS with a reason`);
 }
@@ -224,8 +262,15 @@ const gaps = Object.keys(KNOWN_GAPS).length;
 const pairs = TIERS.map((t) => `${t} ${atTier(t).length}`).join(' / ');
 console.log(
   `check-golden: ${GOLDEN.length} golden project(s) certify ${covered.size}/${CAPABILITIES.length} capabilities`
+  + `, ${ground.length} shipped feature(s) classified since ${CENSUS_FLOOR}`
+  + ' (release notes are the ground; nothing gates THEIR completeness)'
   + `, ${gaps} declared gap(s) — ok (${pairs})`,
 );
+// Named, not counted. A number is a hole nobody reads; the whole bargain of
+// declaring one is that it stays in front of the next person to run this.
+for (const [c, why] of Object.entries(KNOWN_GAPS)) {
+  console.log(`  no project certifies "${c}" — ${why}`);
+}
 console.log(`  ${driven.length} project(s) drive their package with input; ${GOLDEN.length - driven.length} say why they cannot`);
 for (const g of noParity) console.log(`  no editor/package comparison for ${g.id}: ${g.parityGap}`);
 const rest = nonGoldenExamples();
