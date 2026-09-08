@@ -188,6 +188,7 @@ export const GATES = [
   { id: 'native-components', run: 'node tools/check-native-components.mjs' },
   { id: 'shader-conditionals', run: 'node tools/check-shader-conditionals.mjs' },
   { id: 'mesh-vocabulary', run: 'node tools/check-mesh-vocabulary.mjs' },
+  { id: 'mesh-shader-inputs', run: 'node tools/check-mesh-shader-inputs.mjs' },
   // …and that whoever mints one can say how it survives a device generation:
   // recovery only ever holds a number, so the answer has to exist before it runs.
   { id: 'mesh-provenance', run: 'node tools/check-mesh-provenance.mjs' },

@@ -134,13 +134,13 @@ enum class MeshChannel : u8 {
 
 /**
  * @brief Whether the mesh shaders READ a channel, as opposed to the file carrying it.
- * @details A channel kept for its information stays in the vertex buffer and out
- *          of the LAYOUT: an attribute nothing reads spends a slot and a fetch
- *          per vertex. Binding it anyway was tried on both backends and neither
- *          refused, so this is a cost, not a correctness fix.
+ * @details An attribute nothing reads spends a slot and a fetch per vertex, so a
+ *          channel kept for its information stays out of the LAYOUT. Binding it
+ *          anyway was tried on both backends and neither refused: a cost, not a
+ *          correctness fix. check-mesh-shader-inputs holds this both ways.
  */
 constexpr bool meshShaderReads(MeshChannel c) {
-    return c != MeshChannel::TexCoord1;
+    return c != MeshChannel::Tangent && c != MeshChannel::TexCoord1;
 }
 
 /**
