@@ -60,6 +60,28 @@ const ENGINE_OF = (target) => (target === 'wechat'
   : { dir: path.join(DESKTOP, 'public', 'wasm'), variant: 'web' });
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 
+/**
+ * The summary took the LAST line of a recorded reason, which for the exporter's
+ * JSON report is `}`. So a run whose only red was a missing wechat runtime said
+ * `✗ input-actions wechat (package) — }` and a reader learned nothing.
+ */
+function lastSpeakingLine(why) {
+  const said = why.split('\n').map((l) => l.trim()).filter((l) => /[A-Za-z]/.test(l));
+  return (said.pop() ?? why.trim()).slice(0, 300);
+}
+
+/** The exporter states its reasons in `errors`; anything else is its shape. */
+function exporterReason(out) {
+  const at = out.indexOf('{');
+  if (at >= 0) {
+    try {
+      const errors = JSON.parse(out.slice(at))?.errors;
+      if (Array.isArray(errors) && errors.length) return errors.join('; ').slice(0, 300);
+    } catch { /* not a report — the trailing text is the best there is */ }
+  }
+  return out.slice(-300);
+}
+
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
 const projects = atTier(TIER).filter((g) => !only || only.has(g.id));
 
@@ -308,10 +330,10 @@ for (const { id, target } of pairs) {
   ], { encoding: 'utf8', cwd: ROOT });
 
   if (exported.status !== 0) {
-    results.push({ id, target, stage: 'package', ok: false, why: (exported.stderr || exported.stdout || '').trim().slice(-300) });
     // The reason was recorded and never printed, so the whole account of a
     // failed export was two words. It is the only place the exporter speaks.
     const why = (exported.stderr || exported.stdout || '').trim();
+    results.push({ id, target, stage: 'package', ok: false, why: exporterReason(why) });
     console.log(`✗ ${id} ${target} — package failed`);
     for (const l of why.split('\n').slice(-8)) if (l.trim()) console.log(`    ${l}`);
     continue;
@@ -619,7 +641,7 @@ console.log(`\ngolden ${TIER}: ${results.length - bad.length}/${results.length} 
 for (const d of deferred) console.log(`  deferred: ${d}`);
 if (bad.length) {
   for (const b of bad) {
-    console.log(`  ✗ ${b.id} ${b.target} (${b.stage})${b.why ? ` — ${b.why.split('\n').pop()}` : ''}`);
+    console.log(`  ✗ ${b.id} ${b.target} (${b.stage})${b.why ? ` — ${lastSpeakingLine(b.why)}` : ''}`);
   }
   process.exit(1);
 }
