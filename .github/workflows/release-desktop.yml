@@ -374,8 +374,11 @@ jobs:
       # fails — `set-key-partition-list` calls the passphrase wrong before anything
       # is signed — while the same secrets signed fine on 20260707.563. So the
       # keychain is stood up here, where its password is known, and handed over.
+      # BOTH legs: the dry run's own comment calls itself "signed and notarized like
+      # the real thing", and gating this to a tag push made it the one leg that
+      # signed by another mechanism — and the one nobody had ever run.
       - name: Stand up the signing keychain
-        if: matrix.platform == 'macos-latest' && github.event_name == 'push'
+        if: matrix.platform == 'macos-latest'
         shell: bash
         env:
           MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -439,10 +442,10 @@ jobs:
       - name: Package desktop app (dry run, no publish)
         if: github.event_name != 'push'
         env:
-          # macOS only — see the publish step above for why the Windows leg must
-          # never see a certificate meant for the other platform.
-          CSC_LINK: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          # CSC_LINK is declared on NEITHER leg, for the reasons the publish step
+          # gives: macOS signs out of the CSC_KEYCHAIN above, and this leg handing
+          # electron-builder the .p12 instead failed on set-key-partition-list —
+          # a rehearsal of a mechanism the release does not use.
           APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}

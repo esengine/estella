@@ -19,7 +19,7 @@
  * workspace tooling, the job used the composite setup action, before that step,
  * with its install. Everything else about a workflow is left alone.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GATES, SCOPES } from './gates.mjs';
@@ -205,6 +205,37 @@ if (shellViolations.length > 0) {
     process.exit(1);
 }
 
+/**
+ * The two packaging legs of a release sign by ONE mechanism. The dry run calls
+ * itself "signed and notarized like the real thing"; gated to a tag push, the
+ * keychain it signs out of was stood up on only one of them, and the other
+ * handed electron-builder the .p12 through CSC_LINK and died unlocking it. So a
+ * rehearsal rehearsed a mechanism the release does not use, and only a dispatch
+ * could ever find out.
+ */
+const RELEASE_WF = 'release-desktop.yml';
+const signing = [];
+if (existsSync(path.join(WORKFLOWS, RELEASE_WF))) {
+    const text = readFileSync(path.join(WORKFLOWS, RELEASE_WF), 'utf8');
+    const keychain = /- name: Stand up the signing keychain\n\s+if: ([^\n]+)/.exec(text);
+    if (!keychain) {
+        signing.push('no "Stand up the signing keychain" step — the signing mechanism cannot be located');
+    } else if (/event_name/.test(keychain[1])) {
+        signing.push(`the signing keychain is gated on the event (${keychain[1].trim()}) — then one`
+            + ' packaging leg signs by another mechanism, and it is the leg nobody runs');
+    }
+    for (const m of text.matchAll(/^\s+CSC_LINK:/gm)) {
+        signing.push(`CSC_LINK is declared at character ${m.index} — neither leg may: macOS signs out`
+            + ' of the keychain, and on Windows it would sign the installer with an Apple certificate');
+    }
+}
+if (signing.length > 0) {
+    console.error(`\n✗ the release's two packaging legs do not sign the same way:\n`);
+    for (const v of signing) console.error(`  ${RELEASE_WF}: ${v}`);
+    console.error('\nA dry run is a rehearsal only if it rehearses what the release does.\n');
+    process.exit(1);
+}
+
 if (violations.length > 0) {
     console.error(`\n✗ ${violations.length} workflow step(s) run workspace tooling with no install:\n`);
     for (const v of violations) {
@@ -219,3 +250,4 @@ if (violations.length > 0) {
 console.log('✓ every workflow step that runs workspace tooling installs it first');
 console.log('✓ every windows-capable step that speaks POSIX shell says which shell it wants');
 console.log(`✓ ${GATES.length} static gate(s) in one list; CI runs it through run-gates.mjs`);
+console.log('✓ the release\'s dry run signs by the same mechanism its publish does');
