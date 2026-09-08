@@ -495,13 +495,19 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     // engine's and is appended here, so no caller has to know how a transform
     // reaches the shader — the reason a mesh is drawn without touching its bytes.
     VertexLayoutDesc layout;
-    if (channels.size() + MESH_INSTANCE_ATTRIBUTES > MAX_VERTEX_ATTRIBUTES) {
-        ES_LOG_ERROR("realizeMesh: {} channels exceeds the layout budget", channels.size());
-        return false;
-    }
-    for (usize i = 0; i < channels.size(); ++i) {
-        layout.attributes[i] = channels[i];
-        layout.attributes[i].bufferSlot = 0;
+    // A channel no shader reads stays out of the layout (meshShaderReads): it
+    // would spend an attribute slot and a fetch per vertex. The stride is
+    // unchanged, so the bytes remain for whoever starts reading them.
+    u32 bound = 0;
+    for (const GfxVertexAttribute& c : channels) {
+        if (!meshShaderReads(static_cast<MeshChannel>(c.location))) continue;
+        if (bound + MESH_INSTANCE_ATTRIBUTES >= MAX_VERTEX_ATTRIBUTES) {
+            ES_LOG_ERROR("realizeMesh: {} bound channels exceeds the layout budget", bound + 1);
+            return false;
+        }
+        layout.attributes[bound] = c;
+        layout.attributes[bound].bufferSlot = 0;
+        ++bound;
     }
     bool hasNormals = false;
     bool skinned = false;
@@ -515,7 +521,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     layout.strides[1] = skinned ? MESH_INSTANCE_STRIDE_SKINNED
                        : hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
     layout.instanceStep[1] = true;
-    u32 next = static_cast<u32>(channels.size());
+    u32 next = bound;
     // Only where the shader will read them: a layout may not declare an attribute
     // its shader does not consume, which WebGPU rejects. A skinned record thus
     // carries neither model nor normal matrix — its bones are world-space.

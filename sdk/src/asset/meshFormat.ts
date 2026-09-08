@@ -43,6 +43,11 @@ export const MeshChannel = {
     Joints: 5,
     /** How much each of those four joints moves it. */
     Weights: 6,
+    /** A second UV set: what an unwrap produces for a lightmap, a detail pass or an
+     *  AO atlas. Carried because the boundary is lossy in one direction — a source
+     *  that had one cannot be re-derived — and read by nothing yet, which is why
+     *  `meshShaderReads` in GfxEnums.hpp keeps it out of the vertex LAYOUT. */
+    TexCoord1: 7,
 } as const;
 
 /** How a channel's components are stored. Append only — serialized. */

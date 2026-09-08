@@ -74,6 +74,58 @@ function withInlineImage(): Record<string, unknown> {
   };
 }
 
+/**
+ * A glTF whose triangle carries TWO UV sets, the second offset from the first.
+ * Identical sets would pass a reader that kept only one, so the fixture makes the
+ * difference visible.
+ */
+function gltfWithSecondUv(): Uint8Array {
+  const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  const uv0 = new Float32Array([0, 0, 1, 0, 0, 1]);
+  const uv1 = new Float32Array([0.5, 0.25, 0.75, 0.25, 0.5, 0.5]);
+  const indices = new Uint16Array([0, 1, 2]);
+  const bytes = Buffer.concat([
+    Buffer.from(positions.buffer), Buffer.from(uv0.buffer),
+    Buffer.from(uv1.buffer), Buffer.from(indices.buffer),
+  ]);
+  const doc = {
+    asset: { version: '2.0' },
+    buffers: [{ byteLength: 90, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: 36 },
+      { buffer: 0, byteOffset: 36, byteLength: 24 },
+      { buffer: 0, byteOffset: 60, byteLength: 24 },
+      { buffer: 0, byteOffset: 84, byteLength: 6 },
+    ],
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3' },
+      { bufferView: 1, componentType: 5126, count: 3, type: 'VEC2' },
+      { bufferView: 2, componentType: 5126, count: 3, type: 'VEC2' },
+      { bufferView: 3, componentType: 5123, count: 3, type: 'SCALAR' },
+    ],
+    meshes: [{ name: 'Tri', primitives: [{
+      attributes: { POSITION: 0, TEXCOORD_0: 1, TEXCOORD_1: 2 }, indices: 3, mode: 4,
+    }] }],
+    nodes: [{ mesh: 0 }],
+    scenes: [{ nodes: [0] }],
+    scene: 0,
+  };
+  return new TextEncoder().encode(JSON.stringify(doc));
+}
+
+/** One channel's values, vertex by vertex. */
+function uvsOf(mesh: ImportedMesh, semantic: number): number[] {
+  const channel = mesh.data.channels.find(c => c.semantic === semantic);
+  if (!channel) return [];
+  const view = new DataView(mesh.data.vertices.buffer, mesh.data.vertices.byteOffset);
+  const out: number[] = [];
+  for (let i = 0; i < mesh.vertexCount; i++) {
+    const at = i * mesh.data.vertexStride + channel.offset;
+    out.push(view.getFloat32(at, true), view.getFloat32(at + 4, true));
+  }
+  return out;
+}
+
 function texCoords(mesh: ImportedMesh): number[] {
   const channel = mesh.data.channels.find(c => c.semantic === MeshChannel.TexCoord0)!;
   const view = new DataView(mesh.data.vertices.buffer, mesh.data.vertices.byteOffset);
@@ -870,5 +922,28 @@ describe('Draco-compressed geometry', () => {
     const { warnings, meshes } = await importGltfMeshes(await dracoTriangle(), 'model');
     expect(warnings).toEqual([]);
     expect(meshes).toHaveLength(1);
+  });
+});
+
+describe('a second UV set', () => {
+  it('reaches the mesh, distinct from the first', async () => {
+    const result = await importGltfMeshes(gltfWithSecondUv(), 'twoUv');
+    const mesh = result.meshes[0]!;
+    const uv0 = uvsOf(mesh, MeshChannel.TexCoord0);
+    const uv1 = uvsOf(mesh, MeshChannel.TexCoord1);
+    expect(uv1).toHaveLength(6);
+    expect(uv1).not.toEqual(uv0);
+    // Both sets are V-flipped at this boundary, as UV0 always has been: two sets
+    // disagreeing about which way is up would be worse than one.
+    expect(uv1).toEqual([0.5, 0.75, 0.75, 0.75, 0.5, 0.5]);
+  });
+
+  it('is absent from a mesh whose source has one set', async () => {
+    const result = await importGltfMeshes(gltf({}), 'oneUv');
+    const mesh = result.meshes[0]!;
+    // Not "zeroes in a channel nobody wrote": a file states what it has, so a
+    // mesh without a second set stays a mesh without one.
+    expect(mesh.data.channels.some(c => c.semantic === MeshChannel.TexCoord1)).toBe(false);
+    expect(uvsOf(mesh, MeshChannel.TexCoord1)).toEqual([]);
   });
 });

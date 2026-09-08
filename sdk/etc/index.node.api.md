@@ -4897,7 +4897,7 @@ static prototype: MemoryTransport
 
 ## MeshChannel — const @experimental
 ```
-{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; readonly Joints: 5; readonly Weights: 6; }
+{ readonly Position: 0; readonly Color: 1; readonly TexCoord0: 2; readonly Normal: 3; readonly Tangent: 4; readonly Joints: 5; readonly Weights: 6; readonly TexCoord1: 7; }
 ```
 
 ## MeshChannelDesc — interface @experimental

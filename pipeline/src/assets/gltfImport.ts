@@ -436,7 +436,11 @@ function readSampler(ctx: MaterialContext, index: number | undefined,
 /** Resolves a glTF texture index to the file a MeshRenderer will sample, extracting inline images. */
 function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef | null>,
                      ref: GltfTextureRef, label: string): ImportedImageRef | null {
-    if (ref.texCoord) ctx.warnings.push(`${label}: TEXCOORD_${ref.texCoord} is not imported (one UV set)`);
+    // The mesh carries a second set; a MATERIAL still samples the first, so a
+    // texture asking for another one is the loss to report — not the UVs.
+    if (ref.texCoord) {
+        ctx.warnings.push(`${label}: samples TEXCOORD_${ref.texCoord}; materials read the first set, so it will sample UV0`);
+    }
     for (const name of Object.keys(ref.extensions ?? {})) {
         ctx.warnings.push(`${label}: ${name} not imported (uvs are used as authored)`);
     }
@@ -881,8 +885,14 @@ export async function importGltfMeshes(
                 const positions = attribute('POSITION', posIndex)!;
                 const vertexCount = positions.length / 3;
                 const uvIndex = prim.attributes.TEXCOORD_0;
+                const uv1Index = prim.attributes.TEXCOORD_1;
                 const colorIndex = prim.attributes.COLOR_0;
                 const uvs = attribute('TEXCOORD_0', uvIndex);
+                // Tolerant where TEXCOORD_0 is not: a Draco blob that omits a set it
+                // declared must not fail an import that has no need of it.
+                let uvs1: Float32Array | null = null;
+                try { uvs1 = attribute('TEXCOORD_1', uv1Index); }
+                catch { warnings.push(`${label}: TEXCOORD_1 is declared and missing from the Draco blob`); }
                 const normalIndex = prim.attributes.NORMAL;
                 const normals = attribute('NORMAL', normalIndex);
                 const colorsRaw = attribute('COLOR_0', colorIndex);
@@ -925,6 +935,9 @@ export async function importGltfMeshes(
                     { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
                     ...(normals ? [{ semantic: MeshChannel.Normal, components: 3,
                                      type: MeshChannelType.Float32 }] : []),
+                    // Ahead of the skinning pair, which the two lines below find by position.
+                    ...(uvs1 ? [{ semantic: MeshChannel.TexCoord1, components: 2,
+                                  type: MeshChannelType.Float32 }] : []),
                     ...(skinned ? [
                         { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16 },
                         { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32 },
@@ -932,6 +945,7 @@ export async function importGltfMeshes(
                 ]);
                 const jointsChannel = skinned ? channels[channels.length - 2]! : null;
                 const weightsChannel = skinned ? channels[channels.length - 1]! : null;
+                const uv1Channel = channels.find(c => c.semantic === MeshChannel.TexCoord1) ?? null;
 
                 const vertices = new Uint8Array(vertexCount * vertexStride);
                 const dv = new DataView(vertices.buffer);
@@ -953,6 +967,12 @@ export async function importGltfMeshes(
                     // bottom-up, and the two conventions each look right alone.
                     dv.setFloat32(at + channels[1]!.offset + 4,
                                   uvs ? 1 - (uvs[i * 2 + 1] ?? 0) : 0, true);
+                    if (uv1Channel && uvs1) {
+                        // Flipped exactly as UV0 is: two sets that disagreed about
+                        // which way is up would be worse than one.
+                        dv.setFloat32(at + uv1Channel.offset, uvs1[i * 2] ?? 0, true);
+                        dv.setFloat32(at + uv1Channel.offset + 4, 1 - (uvs1[i * 2 + 1] ?? 0), true);
+                    }
                     for (let c = 0; c < 4; c++) {
                         const v = colorsRaw
                             ? (c < colorComps ? colorsRaw[i * colorComps + c] ?? 1 : 1)

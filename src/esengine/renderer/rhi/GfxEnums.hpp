@@ -127,7 +127,21 @@ enum class MeshChannel : u8 {
     Tangent   = 4,
     Joints    = 5,
     Weights   = 6,
+    /// A second UV set. Location 7 is the last one before the per-object record
+    /// at MESH_INSTANCE_FIRST_LOCATION, which is why that constant is fixed.
+    TexCoord1 = 7,
 };
+
+/**
+ * @brief Whether the mesh shaders READ a channel, as opposed to the file carrying it.
+ * @details A channel kept for its information stays in the vertex buffer and out
+ *          of the LAYOUT: an attribute nothing reads spends a slot and a fetch
+ *          per vertex. Binding it anyway was tried on both backends and neither
+ *          refused, so this is a cost, not a correctness fix.
+ */
+constexpr bool meshShaderReads(MeshChannel c) {
+    return c != MeshChannel::TexCoord1;
+}
 
 /**
  * @brief How a channel's components are stored, as the file spells it.
