@@ -206,12 +206,9 @@ if (shellViolations.length > 0) {
 }
 
 /**
- * The two packaging legs of a release sign by ONE mechanism. The dry run calls
- * itself "signed and notarized like the real thing"; gated to a tag push, the
- * keychain it signs out of was stood up on only one of them, and the other
- * handed electron-builder the .p12 through CSC_LINK and died unlocking it. So a
- * rehearsal rehearsed a mechanism the release does not use, and only a dispatch
- * could ever find out.
+ * The two packaging legs of a release sign by ONE mechanism. Gated to a tag push,
+ * the keychain stood up for only one of them and the other took the .p12 through
+ * CSC_LINK — so the rehearsal rehearsed what the release does not do.
  */
 const RELEASE_WF = 'release-desktop.yml';
 const signing = [];
