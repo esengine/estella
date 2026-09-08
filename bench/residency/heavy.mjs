@@ -369,6 +369,17 @@ function report(arm, frames, delivery) {
     console.log(`  need f0  →  publish ${publishAt < 0 ? '(never)' : `f${publishAt}`}`
         + `  →  first renderable accepted ${visibleAt < 0 ? '(never)' : `f${visibleAt}`}`
         + `   (${floor} → ${peak} drawn)`);
+    // The upload's cost over EVERY frame, not the frames that happened to clear the
+    // spike bar. The stall it exists to catch fires about six times in a thousand
+    // frames, so "did this run show one" is a coin toss and a rate is not.
+    {
+        const up = frames.map((f) => (f.native ?? {})['render.finalize.upload'] ?? 0);
+        const over = (t) => up.filter((v) => v >= t).length;
+        const first = up.findIndex((v) => v >= 1);
+        console.log(`  upload over ${up.length} frames: >=1ms ${over(1)}, >=4ms ${over(4)},`
+            + ` max ${Math.max(...up).toFixed(2)} ms, first at `
+            + `${first < 0 ? 'never' : `f${first}`} — see README, Transient Upload Stall`);
+    }
     // MEANS, and means for both halves. A median wall time against mean domain
     // times is two baselines, and the excess arithmetic below then does not
     // close — it reported 112% of an excess it had mis-subtracted.

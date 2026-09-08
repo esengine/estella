@@ -672,6 +672,58 @@ Not optimised, deliberately. The next question is why the same write blocks, and
 the shape of the answer (buffer still in flight, orphaning, a second stream)
 decides the fix. Measuring it as fixed before that would be picking one.
 
+### Transient Upload Stall — what it is not, and what it scales with
+
+B1 left one call to explain: the same `glBufferSubData`, the same 50 028 bytes,
+0.1 ms almost always and 4–14 ms about six times in a thousand frames. Four arms,
+run INTERLEAVED — a 14-run block of the current code spiked in runs 1–7 and not
+once in 8–14, so block order and arm are confounded by construction and any
+sequential comparison would have read machine drift as an arm effect.
+
+| arm | what changes | frames | ≥1 ms | rate /1000 |
+| --- | --- | --- | --- | --- |
+| A current | — | 4800 | 29 | 6.0 |
+| B orphan before write | a fresh store every frame | 4800 | 33 | 6.9 |
+| C 3-deep ring | never rewrite last frame's store | 2400 | 17 | 7.1 |
+
+**It is not a storage-reuse hazard.** Orphaning and ring buffering are the two
+independent ways to stop rewriting a store the GPU may still be reading, and
+neither moves the rate. The same arm measured 4.6 and 9.2 per 1000 in two
+different blocks — a spread wider than any difference between the arms.
+
+**It is not the previous frame's work being outstanding.** A non-blocking
+`glClientWaitSync` on a fence from the end of the previous frame returns
+`GL_TIMEOUT_EXPIRED` on 100% of frames — with and without
+`GL_SYNC_FLUSH_COMMANDS_BIT`, and on the fast frames exactly as much as on the
+slow ones. Never `GL_WAIT_FAILED`, so the oracle works and its answer is simply
+the same on both sides of the question. The GPU is always a frame behind here,
+and 99.4% of the writes issued into that state cost nothing.
+
+**It is not preemption landing inside the window.** Every native scope that ever
+exceeds 1 ms is `render.finalize.upload` and its two parents. `render.collect`,
+`render.graph`, `render.submit`'s own body — never once, across every run here.
+
+**It scales with the bytes crossing the API, not with the per-call work.** No
+stall has ever been seen in the first ~70 frames of a run; it needs accumulation.
+Writing the same range twice per frame — identical final contents, identical
+draws, double the bytes — moves the first stall earlier in every run measured:
+
+    A  first stall at frame   103, 126, 133, 136, 136, 213   (mean 141)
+    D  first stall at frame    70,  81,  81,  99, 108, 140   (mean  96)
+
+That is the shape of a fixed-capacity path being filled and recycled, and it is
+what rules the two storage arms out rather than any single timing.
+
+**What this does not establish.** Which resource fills is inference from the
+scaling, not an observation of the driver. And the arms cannot resolve an effect
+smaller than the block-to-block drift, which is roughly the size of the effects
+they were looking for.
+
+**What it says about a fix.** Not orphaning and not ring buffering: both were
+built, both were measured, and neither is it. The lever the evidence supports is
+the number of bytes crossing per frame — which is a design question about what
+the instance stream carries, not a change to how it is written.
+
 ### Instrumentation, and how it is kept honest
 
 The driver's probe used to call `enableStats()` on every read, swapping the maps
