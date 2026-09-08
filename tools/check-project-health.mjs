@@ -94,7 +94,10 @@ for (const [file, why] of Object.entries(CONSUMERS)) {
 // 5. A blocker STOPS the build, at EVERY door that can produce a package.
 //    Packaging anyway is this stage's failure; so is a second door that never asks.
 const STORE = 'desktop/src/project/ProjectStore.ts';
-const DIALOG = 'desktop/src/components/BuildDialog.tsx';
+// The user's build: the dialog now only edits a spec and projects the attempt,
+// while the run itself lives here — outside the window, because the job outlives
+// it. Same rule either way: ask the one adjudicator, and stop when it refuses.
+const RUNNER = 'desktop/src/project/runBuild.ts';
 const CATALOG = 'desktop/shared/toolCatalog.mjs';
 const store = has(STORE) ? read(STORE) : '';
 
@@ -142,14 +145,16 @@ if (has(CATALOG)) {
   }
 }
 
-// 5d. The dialog asks the same adjudicator rather than keeping its own copy.
-const dialog = has(DIALOG) ? read(DIALOG) : '';
-const build = /const build = async \(\) => \{([\s\S]*?)\n  \};/.exec(dialog);
-if (!build) say(DIALOG, 'no build() to check — the gate cannot be located');
-else if (!/preflightBuild\([\s\S]{0,300}?return;/.test(build[1])) {
-  say(DIALOG, 'build() does not return on a refused preflight — a refusal that packages anyway is not a refusal');
-} else if (/blockers\([^)]*\)\.length/.test(build[1])) {
-  say(DIALOG, 'build() decides on blockers itself — two doors with their own copy of the rule is how they came to disagree');
+// 5d. The user's build asks the same adjudicator rather than keeping its own copy.
+const runner = has(RUNNER) ? read(RUNNER) : '';
+const build = /export async function runBuild\([\s\S]*?\n\}/.exec(runner);
+if (!build) say(RUNNER, 'no runBuild() to check — the gate cannot be located');
+// The REFUSAL has to be what returns. "Some return follows the preflight" was
+// satisfied by an unrelated early exit sitting between the two.
+else if (!/if \(!allowed\)[^;]{0,80}return\b/.test(build[0])) {
+  say(RUNNER, 'runBuild() does not return on a refused preflight — a refusal that packages anyway is not a refusal');
+} else if (/blockers\([^)]*\)\.length/.test(build[0])) {
+  say(RUNNER, 'runBuild() decides on blockers itself — two doors with their own copy of the rule is how they came to disagree');
 }
 
 // That the report is not CACHED is not checked here: every static shape of it
