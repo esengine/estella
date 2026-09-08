@@ -258,14 +258,10 @@ if (loaders < 10) {
 }
 
 /**
- * 6. A slot takes an asset out through the door its loader HAS. Seven loaders
- *    publish by name — a `registry` era and no `.load` — and `Assets.loadX`
- *    rejects those, so the editor's live load threw for every timeline, tilemap,
- *    tileset, state machine, behaviour tree, animator controller and anim clip.
- *    The failure was recorded against the path and the preflight read it as a
- *    reference resolving to nothing: three golden projects could not be built.
- *    Ground truth (does the loader declare `.load`) against the declaration
- *    (which door the slot calls), so neither can drift alone.
+ * 6. A slot takes an asset out through the door its loader HAS. `Assets.loadX`
+ *    rejects a loader that publishes by name, and the failure surfaces much
+ *    later as a preflight blocker about the reference. The loaders' own shape
+ *    against what the slot table calls, so neither can drift alone.
  */
 const SLOTS = 'desktop/src/project/assetSlots.ts';
 const byName = new Set();
