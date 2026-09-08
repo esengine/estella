@@ -19,7 +19,7 @@ import {
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
   Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough, Name,
-  worldResidencyReport, PostProcess, Renderer, Audio,
+  worldResidencyReport, PostProcess, Renderer, Audio, Camera,
 } from 'esengine';
 import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
@@ -594,12 +594,16 @@ async function boot(): Promise<void> {
        * granted. Read through the same Renderer API the editor's panels use, so
        * a divergence here is the shipping path and not a second implementation.
        */
-      decisions(name: string, view = 0): Record<string, unknown> | null {
+      decisions(name: string, view?: number): Record<string, unknown> | null {
         const entity = app.world.findEntityByName(name);
         if (entity === null) return null;
+        // A LOD level belongs to a VIEW, not to the entity: asked with view 0 the
+        // renderer has no record and answers null, which reads as "no LOD here".
+        const camera = view ?? [...app.world.getEntitiesWithComponents([Camera])][0] ?? 0;
         return {
           entity,
-          lod: Renderer.lodInspect(view, entity),
+          view: camera,
+          lod: Renderer.lodInspect(camera >>> 0, entity),
           light: Renderer.lightStatus(entity),
           shadow: Renderer.shadowStatus(entity),
         };
@@ -621,6 +625,19 @@ async function boot(): Promise<void> {
             }])),
           } : null,
         };
+      },
+      /**
+       * Resize one named thing, so a LOD decision can be driven WITHOUT moving the
+       * camera. Distance and projected size change together when a driver walks,
+       * and a selector that used distance would pass a test that only ever walked.
+       */
+      setScale(name: string, s: number): boolean {
+        const entity = app.world.findEntityByName(name);
+        if (entity === null || !app.world.has(entity, Transform)) return false;
+        app.world.update(entity, Transform, (t) => {
+          t.scale.x = s; t.scale.y = s; t.scale.z = s;
+        });
+        return true;
       },
       /**
        * Take the GPU away, and read what the renderer says about itself after.

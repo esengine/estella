@@ -21,7 +21,8 @@
  * A script is a list of steps: {do:"read",as},  {do:"walkTo",x,z},
  * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count},
  * {do:"loseDevice",as}, {do:"readiness",as,cell}, {do:"counters",as},
- * {do:"renderFacts",as}, {do:"decisions",as,name}, {do:"configFacts",as,buses}.
+ * {do:"renderFacts",as}, {do:"decisions",as,name}, {do:"configFacts",as,buses},
+ * {do:"scale",name,to}.
  * Each read prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
@@ -254,6 +255,13 @@ async function main() {
       console.log(`readiness ${step.as}: ${JSON.stringify({ claim, device })}`);
       continue;
     }
+    if (step.do === 'scale') {
+      const ok = await exec(
+        `window.__estellaCooked.setScale(${JSON.stringify(step.name)}, ${Number(step.to)})`);
+      if (!ok) { console.error(`✗ scale: no "${step.name}" to resize`); process.exit(1); }
+      await exec(holdScript([], step.frames ?? 5));
+      continue;
+    }
     if (step.do === 'configFacts') {
       await settle();
       const f = await exec(
@@ -270,7 +278,7 @@ async function main() {
     if (step.do === 'decisions') {
       await settle();
       const d = await exec(
-        `window.__estellaCooked.decisions(${JSON.stringify(step.name)}, ${step.view ?? 0})`);
+        `window.__estellaCooked.decisions(${JSON.stringify(step.name)}, ${step.view ?? 'undefined'})`);
       console.log(`reading ${step.as}: ${JSON.stringify(d)}`);
       continue;
     }
