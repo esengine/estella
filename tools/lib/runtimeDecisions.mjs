@@ -114,10 +114,18 @@ export const DECISIONS = [
   },
   {
     id: 'project.spineVersion',
-    what: 'Which Spine runtime the project bundles — a size and compatibility decision.',
+    what: 'A recorded preference for a Spine runtime. The build does not read it: '
+      + 'the runtimes a package carries are detected from its own skeletons.',
     kind: 'agent-parity',
     owner: { path: 'desktop/src/project/ProjectStore.ts', probe: /async setSpineVersion/ },
-    runtime: { has: true, cite: { path: 'pipeline/src/project/format.ts', probe: /spineVersion\?: string/ } },
+    // A field existing in a manifest interface is not a runtime reading it: the
+    // old citation was `spineVersion?: string`, the field's own type. Measured
+    // across 4.2 / 3.8 / absent, the package shipped the same two modules.
+    runtime: {
+      has: false,
+      owed: 'nothing in sdk/src or pipeline/src reads it; sideModuleScan detects '
+        + 'each skeleton\'s version instead. Wiring it up is a feature, not a gap to close here',
+    },
     editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /'project\.spine\.version'/ } },
     agent: { has: true, cite: { path: 'desktop/src/main.tsx', probe: /spineVersion: \(v\) => ProjectStore\.setSpineVersion/ } },
   },

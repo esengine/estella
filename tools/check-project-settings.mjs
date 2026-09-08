@@ -42,7 +42,8 @@
  *
  * No answer is not an option: a setting nobody decided about fails here.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -233,8 +234,71 @@ for (const field of fields) {
   }
 }
 
+/**
+ * Settings a creator can WRITE that are not RuntimeProjectConfig fields, so the
+ * transport questions above never see them. An authoring surface proves only
+ * that a value can be written; this asks whether anything CONSUMES it, and
+ * refuses to let a `metadata-only` one be described as changing a build.
+ */
+const CONSUMPTION = {
+  spineVersion: {
+    kind: 'metadata-only',
+    why: 'the runtimes a package carries are detected from its own skeletons '
+      + '(sideModuleScan → detectSpineVersion); nothing reads this field',
+    /** Everything a creator is told about it: none of it may promise an effect. */
+    saidBy: ['set.project.spine.version.desc', 'set.project.spine.none'],
+    /** …and one of them must SAY it has none. Absence of a lie is not a truth: the
+     *  row looks like every other one, so silence still reads as "this works". */
+    disclaimedBy: 'set.project.spine.version.desc',
+  },
+};
+/** An absolute promise about what a build produces. Not the word "ships": the
+ *  disclaimer has to be allowed to use it ("does not change what ships"). */
+const BUILD_PROMISE = /and no other|package weighs|构建只会携带|决定了.*包体/;
+const DISCLAIMS = /does not change what ships|不会改变最终打包/;
+const MESSAGES = 'desktop/src/i18n/messages/settings.ts';
+const messages = existsSync(path.join(ROOT, MESSAGES)) ? read(MESSAGES) : '';
+/** Every tracked line naming `needle` under `dirs`, as `<path>:<line>`. */
+function grep(needle, dirs) {
+  try {
+    return execFileSync('git', ['grep', '-n', '--', needle, ...dirs],
+      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean)
+      .filter((l) => !l.includes('.generated.'));
+  } catch {
+    return []; // git grep exits 1 when nothing matches
+  }
+}
+for (const [field, decl] of Object.entries(CONSUMPTION)) {
+  if (!decl.why) problems.push(`${field} declares "${decl.kind}" consumption with no reason`);
+  if (decl.kind !== 'metadata-only' && decl.kind !== 'unavailable') continue;
+  // Ground truth against the declaration: a field that GAINS a reader must stop
+  // calling itself metadata-only, or the note outlives the fact it described.
+  // FORMAT declares the field's own type, which is not a reading of it.
+  const readers = grep(field, ['sdk/src', 'pipeline/src']).filter((l) => !l.startsWith(FORMAT));
+  if (readers.length) {
+    problems.push(`${field} declares "${decl.kind}" but ${readers.length} site(s) now read it`
+      + ` (${readers[0]}) — say what consumes it instead.`);
+  }
+  if (!messages) continue;
+  for (const key of decl.saidBy ?? []) {
+    const at = messages.indexOf(`'${key}'`);
+    if (at < 0) { problems.push(`${field}: no message "${key}" to check what a creator is told`); continue; }
+    const said = messages.slice(at, at + 700);
+    if (BUILD_PROMISE.test(said)) {
+      problems.push(`${field} is ${decl.kind}, and "${key}" promises a creator it decides what a build ships`);
+    }
+  }
+  const dk = decl.disclaimedBy;
+  const at = dk ? messages.indexOf(`'${dk}'`) : -1;
+  if (dk && (at < 0 || !DISCLAIMS.test(messages.slice(at, at + 700)))) {
+    problems.push(`${field} is ${decl.kind} and "${dk}" never says so — a row that reads like`
+      + ' every other one is read as one that takes effect like every other one.');
+  }
+}
+
 if (process.argv.includes('--list')) {
   console.log(`project settings (${fields.length}): ${fields.join(', ')}`);
+  for (const [f, d] of Object.entries(CONSUMPTION)) console.log(`  consumption: ${f} — ${d.kind} (${d.why})`);
   if (gaps.length) console.log(`declared gaps:\n${gaps.join('\n')}`);
   if (owed.length) console.log(`owed — creator-facing, authorable from no editor surface:\n${owed.join('\n')}`);
 }
