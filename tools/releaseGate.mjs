@@ -68,6 +68,17 @@ export const CRITERIA = [
     needs: ['tools/verify-third-person.mjs', 'examples/third-person-3d/project.esproject'],
   },
   {
+    id: 'a-streamed-place-is-ready-before-it-is-seen',
+    says: 'a streamed place pays its own shader requirements while it is being prepared,'
+      + ' not on the frame the player first sees it',
+    // The same command as above, deliberately under its own name: deleting the
+    // shader half would leave the character half green, and the registry unable
+    // to say what this command still owes.
+    answeredBy: 'node tools/verify-third-person.mjs',
+    needs: ['tools/verify-third-person.mjs',
+            'examples/third-person-3d/assets/materials/beacon.esmaterial'],
+  },
+  {
     id: '3d-runs-where-it-ships',
     host: 'android',
     why: 'the same emulator boot, for the 3D corpus — nightly answers it against the RELEASED template, which is the host a creator already has; HEAD\'s own template costs 40 minutes to build and is native-smoke\'s question, asked by the release pipeline',

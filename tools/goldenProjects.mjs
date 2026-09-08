@@ -275,9 +275,6 @@ export const EVIDENCE = {
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  // A work item, not a dispensation: the staleness check below forces the entry
-  // out the moment a project certifies it.
-  'shader-readiness': 'no golden project watches the frame something first appears on; needs a runBy a release criterion schedules',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
@@ -380,7 +377,11 @@ export const GOLDEN = [
   {
     id: 'third-person-3d',
     certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
-                'root-motion', 'animation-events', 'world-streaming'],
+                'root-motion', 'animation-events', 'world-streaming', 'shader-readiness'],
+    // A packaged frame looks the same whether first sight of the outpost cost a
+    // compile or not; the run is what reads the counter on both sides of the
+    // boundary. Scheduled by `a-streamed-place-is-ready-before-it-is-seen`.
+    runBy: 'node tools/verify-third-person.mjs',
     targets: ['web'],
     tier: 'pr',
     // The character walks on the key it declares. What it DOES on the way is

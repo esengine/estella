@@ -703,6 +703,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     ES_PROFILE_COUNTER("render.mesh.lodGathers", lodGathers);
     ES_PROFILE_COUNTER("render.mesh.programAsks", programAsks);
     ES_PROFILE_COUNTER("render.mesh.programCompiles", compiled_this_frame_);
+    // Material-owned programs built so far, CUMULATIVE. Read-only: an observer
+    // that had to ask for readiness to see it would be the one paying, and the
+    // frame it asked about would be clean because of the asking.
+    if (ctx.materials != nullptr) {
+        ES_PROFILE_COUNTER("render.mesh.materialPrograms", ctx.materials->builtVariantCount());
+    }
     if (compiled_this_frame_ > 0) {
         ES_PROFILE_COUNTER("render.mesh.compiledKey", last_compiled_variant_);
     }

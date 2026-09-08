@@ -496,18 +496,19 @@ const START = { y: 60, z: 120 };
 // on is persistent, and one outpost past the causeway is the only thing cut into
 // a cell. The claim is gameplay only a resident cell makes possible.
 function excursion({ out, frames, swings = 0, back = 0 }) {
-    const holds = [{ key: 'KeyS', from: 0, to: out }];
+    const holds = out > 0 ? [{ key: 'KeyS', from: 0, to: out }] : [];
     for (let i = 0; i < swings; i++) holds.push({ key: 'KeyJ', from: 225 + i * 20, to: 228 + i * 20 });
     if (back > 0) holds.push({ key: 'KeyW', from: out + 10, to: out + 10 + back });
     const r = runElectron([
         LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '30', '--timeout', '120000', '--scene', 'main', '--streaming',
         '--gameplay', 'Player,Camera', '--combat', 'Player:Sentry,Beacon,Player',
-        '--ai', 'Sentry', '--input', JSON.stringify({ holds, frames }),
+        '--ai', 'Sentry', '--render', '--input', JSON.stringify({ holds, frames }),
     ], { encoding: 'utf8', cwd: ROOT });
     return {
         at: reading(r.stdout, 'gameplay'),
         world: reading(r.stdout, 'streaming'),
+        counters: reading(r.stdout, 'render') ?? {},
         combat: reading(r.stdout, 'combat') ?? { targets: {} },
         ai: reading(r.stdout, 'ai') ?? { found: false },
     };
@@ -563,6 +564,46 @@ const HOME_AGENTS = 1;
           + ` ${JSON.stringify(seen.world?.residentCells)}, ${seen.world?.navAgents} nav agent(s),`
           + ` ${seen.world?.stalePhysics} stale physics row(s), sentry`
           + ` ${seen.combat?.targets?.Sentry === undefined ? 'gone' : 'still there'}`);
+}
+
+// The outpost's beacon carries the project's ONLY material, so a program that
+// path owns cannot have been built by anything at home. `materialPrograms` counts
+// them cumulatively, and reading it asks for nothing.
+const materials = (seen) => seen.counters?.['render.mesh.materialPrograms'] ?? -1;
+
+{
+    // The guard, not the claim: it fails the day the home half gains a material,
+    // which is the day everything below stops being about the outpost.
+    const home = excursion({ out: 0, frames: 40 });
+    check('nothing at home needs the material the outpost brings',
+          materials(home) === 0 && (home.world?.residentCells?.length ?? 9) === 0,
+          `${materials(home)} material program(s) with the outpost unpublished`);
+}
+
+{
+    // Prepared, and nothing of it in the world yet — and the program is built.
+    // This is where the compile is meant to be paid, and it is the reading that
+    // says it was.
+    const near = excursion({ out: 130, frames: 170 });
+    check('the outpost pays for its own shader while it is still only prepared',
+          near.world?.preparedCells?.includes('main.cell_0_2') === true
+          && (near.world?.residentCells?.length ?? 9) === 0 && materials(near) === 1,
+          `prepared ${JSON.stringify(near.world?.preparedCells)}, resident`
+          + ` ${JSON.stringify(near.world?.residentCells)}, ${materials(near)} material program(s)`);
+}
+
+{
+    // And seeing it adds nothing. The counter is cumulative, so one that is
+    // already 1 before publication and 1 after is a frame delta of zero without
+    // sampling every frame to say so.
+    const there = excursion({ out: 300, frames: 400 });
+    check('first sight of the outpost pays no shader compile',
+          there.world?.residentCells?.includes('main.cell_0_2') === true
+          && materials(there) === 1
+          && (there.counters?.['render.mesh.programCompiles'] ?? -1) === 0,
+          `resident ${JSON.stringify(there.world?.residentCells)},`
+          + ` ${materials(there)} material program(s) — the same one preparation built —`
+          + ` and ${there.counters?.['render.mesh.programCompiles']} stock compile(s) on the frame`);
 }
 
 const failed = results.filter((r) => !r.ok);
