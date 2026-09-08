@@ -147,6 +147,48 @@ const NOT_PROSE = /^\s*(\/\*+\s*$|\*\/|\/\/\s*[=-]+\s*$|\*\s*$|\/\/\s*$)|@(param
 const FILE_HEADER = /@file\b/;
 
 const headerSpanCache = new Map();
+const fileTextCache = new Map();
+
+/** A file's lines, cached — the diff cannot answer questions about what it omitted. */
+function fileLines(file) {
+  if (!fileTextCache.has(file)) {
+    let lines = null;
+    try { lines = readFileSync(path.join(ROOT, file), 'utf8').split('\n'); }
+    catch { /* vanished, or unreadable */ }
+    fileTextCache.set(file, lines);
+  }
+  return fileTextCache.get(file);
+}
+
+/**
+ * The comment block a line belongs to, read from the file rather than the diff.
+ * `-U0` carries no context, so a block edited twice arrives as two short runs and
+ * is never weighed whole. `*/` closes a block and `/*` opens one: a doc comment
+ * above a run of `//` stays two blocks, or the length reported is nobody's.
+ */
+function enclosingBlock(file, line) {
+  const lines = fileLines(file);
+  if (!lines) return null;
+  const at = (n) => lines[n - 1];
+  if (at(line) === undefined || !COMMENT.test(at(line))) return null;
+  const opens = (t) => /^\s*\/\*/.test(t);
+  const closes = (t) => /\*\//.test(t);
+  let first = line;
+  while (first > 1 && !opens(at(first))) {
+    const above = at(first - 1);
+    if (above === undefined || !COMMENT.test(above) || closes(above)) break;
+    first -= 1;
+  }
+  let last = line;
+  while (!closes(at(last))) {
+    const below = at(last + 1);
+    if (below === undefined || !COMMENT.test(below) || opens(below)) break;
+    last += 1;
+  }
+  const out = [];
+  for (let n = first; n <= last; n++) out.push([n, at(n)]);
+  return out;
+}
 
 /**
  * Whether a line falls inside the file's `@file` header. Reading the diff means a
@@ -176,10 +218,10 @@ function insideFileHeader(file, line) {
 function scan(byFile) {
   const findings = [];
   for (const [file, lines] of byFile) {
-    const index = new Map(lines.map(([n, t]) => [n, t]));
-    let block = [];
-    const flushBlock = () => {
-      if (block.length === 0) return;
+    // One finding per real block, however many runs of it reached us.
+    const measured = new Set();
+    let run = [];
+    const weigh = (block) => {
       const prose = block.filter(([, t]) => !NOT_PROSE.test(t));
       const isHeader = block.some(([, t]) => FILE_HEADER.test(t))
         || insideFileHeader(file, block[0][0]);
@@ -194,21 +236,40 @@ function scan(byFile) {
           say: `${prose.length} lines of prose (limit ${limit}) — state the contract or the trap, not the story`,
         });
       }
-      block = [];
+    };
+    /**
+     * A run of comment lines can span SEVERAL real blocks — SPDX lines above a
+     * doc header are one run and two blocks — so each line's own block is weighed
+     * and the run itself is never the unit.
+     */
+    const flushRun = () => {
+      const seeds = run;
+      run = [];
+      if (seeds.length === 0) return;
+      let any = false;
+      for (const [n] of seeds) {
+        const real = enclosingBlock(file, n);
+        if (!real) continue;
+        any = true;
+        const start = real[0][0];
+        if (measured.has(start)) continue;
+        measured.add(start);
+        weigh(real);
+      }
+      if (!any) weigh(seeds);
     };
     let prev = -2;
     for (const [n, text] of lines) {
-      if (!COMMENT.test(text)) { flushBlock(); prev = -2; continue; }
-      if (n !== prev + 1) flushBlock();
-      block.push([n, text]);
+      if (!COMMENT.test(text)) { flushRun(); prev = -2; continue; }
+      if (n !== prev + 1) flushRun();
+      run.push([n, text]);
       prev = n;
       for (const rule of RULES) {
         const hit = typeof rule.test === 'function' ? rule.test(text) : rule.test.test(text);
         if (hit) findings.push({ file, line: n, id: rule.id, say: rule.say, text: text.trim() });
       }
     }
-    flushBlock();
-    void index;
+    flushRun();
   }
   return findings;
 }
