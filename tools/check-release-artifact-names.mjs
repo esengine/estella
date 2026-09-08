@@ -52,7 +52,7 @@ const lines = readFileSync(CONFIG, 'utf8').split(/\r?\n/);
  * Comments and blank lines are dropped; only the keys below are understood.
  */
 function readConfig() {
-    const out = { productName: null, nsis: null, mac: [] };
+    const out = { productName: null, nsis: null, dmg: null, macDefault: null, mac: [] };
     let top = null;                 // the column-0 key we are inside
     let item = null;                // the current `- target:` entry
     for (const raw of lines) {
@@ -70,12 +70,19 @@ function readConfig() {
         if (!kv) continue;
         const [, key, value] = kv;
         if (top === 'nsis' && key === 'artifactName') out.nsis = value.trim();
+        if (top === 'dmg' && key === 'artifactName') out.dmg = value.trim();
         if (top === 'mac') {
+            // A key back at the platform's own indent ends the target entry: the
+            // list items sit deeper, and `mac.artifactName` is not one of them.
+            if (indent <= 2 && item) { out.mac.push(item); item = null; }
             if (line.startsWith('- target:')) {
                 if (item) out.mac.push(item);
                 item = { target: value.trim(), artifactName: null };
-            } else if (item && key === 'artifactName') {
-                item.artifactName = value.trim();
+            } else if (key === 'artifactName') {
+                // A target entry may not carry one — see the check below. The
+                // platform default and a target's own block are where they live.
+                if (item) item.artifactName = value.trim();
+                else out.macDefault = value.trim();
             }
         }
     }
@@ -85,9 +92,26 @@ function readConfig() {
 
 const cfg = readConfig();
 
-/** Every target the release matrix actually publishes, with its declared name. */
-const declared = cfg.mac.map((t) => ({ where: `mac/${t.target}`, name: t.artifactName }));
+/**
+ * Every target the release matrix publishes, with the name electron-builder will
+ * give it: a target's own block if it has one, else the platform default.
+ */
+const BLOCK_OF = { dmg: () => cfg.dmg };
+const declared = cfg.mac.map((t) => ({
+    where: `mac/${t.target}`,
+    name: t.artifactName ?? BLOCK_OF[t.target]?.() ?? cfg.macDefault,
+}));
 declared.push({ where: 'nsis', name: cfg.nsis });
+
+// 0. A target entry carries a target and an arch and nothing else. This config
+//    is validated as a whole, so one bad mac entry fails every platform's job —
+//    and the names below would be checked against a config nothing can package.
+for (const t of cfg.mac) {
+    if (t.artifactName) {
+        problems.push(`mac/${t.target} declares artifactName inside its target entry, which`
+            + ' electron-builder rejects — put it in the target\'s own block or on `mac:`.');
+    }
+}
 
 // 1. Declared at all. An undeclared name is electron-builder's opinion of
 //    productName, and that opinion is not the same for every target.
