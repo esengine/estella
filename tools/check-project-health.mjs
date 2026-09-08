@@ -91,15 +91,58 @@ for (const [file, why] of Object.entries(CONSUMERS)) {
   }
 }
 
-// 5. A blocker STOPS the build. Showing it and packaging anyway is the failure
-//    this whole stage exists against.
-const dialog = has('desktop/src/components/BuildDialog.tsx')
-  ? read('desktop/src/components/BuildDialog.tsx') : '';
+// 5. A blocker STOPS the build, at EVERY door that can produce a package.
+//    Packaging anyway is this stage's failure; so is a second door that never asks.
+const STORE = 'desktop/src/project/ProjectStore.ts';
+const DIALOG = 'desktop/src/components/BuildDialog.tsx';
+const CATALOG = 'desktop/shared/toolCatalog.mjs';
+const store = has(STORE) ? read(STORE) : '';
+
+// 5a. The rule has ONE author, and it decides rather than reports.
+const adjudicator = /async preflightBuild\([\s\S]{0,600}?\n  \}/.exec(store);
+if (!adjudicator) say(STORE, 'no preflightBuild — the one place a build is adjudicated is gone');
+else if (!/blockers\([^)]*\)\.length === 0/.test(adjudicator[0])) {
+  say(STORE, 'preflightBuild no longer decides on blockers — it is an observation again');
+}
+
+// 5b. The store's export door REFUSES, before it calls the exporter. Order is
+//     the claim: adjudicating after the cook leaves half a package behind.
+const door = /async exportGame\([\s\S]*?\n  \}/.exec(store);
+if (!door) say(STORE, 'no exportGame to check — the build door cannot be located');
+else {
+  const at = door[0].indexOf('preflightBuild');
+  const exporter = door[0].indexOf('window.estella.project.exportGame');
+  if (at < 0) say(STORE, 'exportGame does not preflight — the agent\'s build skips what the dialog refuses on');
+  else if (exporter >= 0 && at > exporter) {
+    say(STORE, 'exportGame preflights AFTER calling the exporter — a refusal that already wrote is not a refusal');
+  }
+  if (!/reason: 'preflight-blocked'/.test(door[0])) {
+    say(STORE, 'a refused build is not distinguishable from a failed one — it owes reason: preflight-blocked');
+  }
+}
+
+// 5c. No door reaches around the store to the bridge: a tool naming the exporter
+//     directly is a build nothing adjudicated. Having a get_project_health TOOL
+//     is not enforcement — this is the check that tells them apart.
+if (has(CATALOG)) {
+  const catalog = read(CATALOG);
+  // To the next entry or the end of the list: entries do not close on a line of
+  // their own, so an indentation anchor finds nothing and reads as "no tool".
+  const tool = /\{ name: 'export_game'[\s\S]*?(?=\n  \{ name: '|\n\];)/.exec(catalog);
+  if (!tool) say(CATALOG, 'no export_game tool to check');
+  else if (/window\.estella\.project\.exportGame/.test(tool[0])) {
+    say(CATALOG, 'export_game calls the bridge exporter directly — it must go through the adjudicated door');
+  }
+}
+
+// 5d. The dialog asks the same adjudicator rather than keeping its own copy.
+const dialog = has(DIALOG) ? read(DIALOG) : '';
 const build = /const build = async \(\) => \{([\s\S]*?)\n  \};/.exec(dialog);
-if (!build) say('desktop/src/components/BuildDialog.tsx', 'no build() to check — the gate cannot be located');
-else if (!/blockers\([^)]*\)\.length > 0[\s\S]{0,200}return;/.test(build[1])) {
-  say('desktop/src/components/BuildDialog.tsx',
-    'build() does not return on a blocker — a refusal that packages anyway is not a refusal');
+if (!build) say(DIALOG, 'no build() to check — the gate cannot be located');
+else if (!/preflightBuild\([\s\S]{0,300}?return;/.test(build[1])) {
+  say(DIALOG, 'build() does not return on a refused preflight — a refusal that packages anyway is not a refusal');
+} else if (/blockers\([^)]*\)\.length/.test(build[1])) {
+  say(DIALOG, 'build() decides on blockers itself — two doors with their own copy of the rule is how they came to disagree');
 }
 
 // That the report is not CACHED is not checked here: every static shape of it
