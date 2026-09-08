@@ -119,6 +119,13 @@ else {
   if (!/reason: 'preflight-blocked'/.test(door[0])) {
     say(STORE, 'a refused build is not distinguishable from a failed one — it owes reason: preflight-blocked');
   }
+  // What a project's assets cook as is the PROJECT's, so the shared door has to
+  // derive it. Left to each caller, an agent's build shipped a raw PNG and no
+  // basis transcoder where the dialog's shipped a KTX2 and one — same project.
+  if (!/cookOptionsOf\(/.test(door[0])) {
+    say(STORE, 'exportGame does not derive the cook options from the project — a caller that'
+      + ' says nothing gets `undefined`, which is not what the project asked for');
+  }
 }
 
 // 5c. No door reaches around the store to the bridge: a tool naming the exporter
