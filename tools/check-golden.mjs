@@ -16,7 +16,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, EVIDENCE, TIERS, TARGETS,
-  SHIPPED, CENSUS_FLOOR, shippedGround,
+  SHIPPED, CENSUS_FLOOR, shippedGround, EVIDENCE_FORMATS, NOT_EVIDENCE_FORMATS,
   atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
 } from './goldenProjects.mjs';
 import { CRITERIA } from './releaseGate.mjs';
@@ -27,6 +27,8 @@ const fail = (msg) => problems.push(msg);
 /** What a project is, as text: its sources plus the scene and prefab data it
  *  opens, since a capability can be exercised declaratively. */
 const projectTextCache = new Map();
+/** Every extension the reader met, so it can be held to classifying them. */
+const seenFormats = new Set();
 function projectText(id) {
   if (projectTextCache.has(id)) return projectTextCache.get(id);
   const parts = [];
@@ -37,8 +39,12 @@ function projectText(id) {
       if (e.name === '.esengine' || e.name === 'node_modules' || e.name === 'dist') continue;
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else if (/\.(ts|esscene|esprefab|esproject|json)$/.test(e.name)) {
-        try { parts.push(readFileSync(p, 'utf8')); } catch { /* unreadable */ }
+      else {
+        const ext = e.name.slice(e.name.lastIndexOf('.'));
+        seenFormats.add(ext);
+        if (EVIDENCE_FORMATS.includes(ext)) {
+          try { parts.push(readFileSync(p, 'utf8')); } catch { /* unreadable */ }
+        }
       }
     }
   };
@@ -234,6 +240,19 @@ for (const [key, entry] of Object.entries(SHIPPED)) {
   }
 }
 
+// Every format a golden project holds is either evidence or declared not to be.
+// A reader that opens some of a project answers about all of it: root motion and
+// clip events were authored, verified on the packaged game, and read by nothing.
+for (const g of GOLDEN) projectText(g.id);
+for (const ext of [...seenFormats].sort()) {
+  if (EVIDENCE_FORMATS.includes(ext) || ext in NOT_EVIDENCE_FORMATS) continue;
+  fail(`golden projects hold "${ext}" files and the evidence reader classifies it as neither`
+    + ' read nor irrelevant — say which, or a capability authored in one reads as absent');
+}
+for (const ext of EVIDENCE_FORMATS) {
+  if (ext in NOT_EVIDENCE_FORMATS) fail(`"${ext}" is declared both evidence and not`);
+}
+
 for (const c of uncoveredCapabilities()) {
   fail(`nothing certifies "${c}" — add a project, or declare the gap in KNOWN_GAPS with a reason`);
 }
@@ -266,6 +285,9 @@ console.log(
   + ' (release notes are the ground; nothing gates THEIR completeness)'
   + `, ${gaps} declared gap(s) — ok (${pairs})`,
 );
+console.log(`  evidence read from ${EVIDENCE_FORMATS.length} authored format(s);`
+  + ` ${Object.keys(NOT_EVIDENCE_FORMATS).length} more carry no claim;`
+  + ` ${seenFormats.size} met in the corpus, 0 unclassified`);
 // Named, not counted. A number is a hole nobody reads; the whole bargain of
 // declaring one is that it stays in front of the next person to run this.
 for (const [c, why] of Object.entries(KNOWN_GAPS)) {

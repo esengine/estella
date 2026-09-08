@@ -43,6 +43,40 @@ export const DEFAULT_PARITY = 0.06;
 export const DEFAULT_RESPONDS = 0.15;
 
 /**
+ * The authored, textual formats a capability claim can be found in — what
+ * `projectText` opens. A reader that opens SOME of a project still answers about
+ * all of it, so a capability authored in an unread format reads as absent.
+ */
+export const EVIDENCE_FORMATS = [
+  '.ts', '.esproject', '.esscene', '.esprefab',
+  '.esanimator', '.estimeline', '.esanim',
+  '.esmaterial', '.esshader', '.esenv',
+  '.estileset', '.tmj', '.eslocale', '.esbt', '.inputmap',
+  '.json',
+];
+
+/**
+ * Every other extension a golden project may hold, and why it carries no claim.
+ * An extension in neither list fails: a format nobody classified is one the
+ * reader is silently not reading.
+ */
+export const NOT_EVIDENCE_FORMATS = {
+  '.meta': 'import settings for the file beside it; the asset is the claim, not its import row',
+  '.md': 'prose about the project, not the project',
+  '.mjs': 'the project\'s own tooling — engine-gaps ledgers and helpers',
+  '.gitignore': 'version control, not content',
+  '.png': 'a texture; what USES it is authored elsewhere',
+  '.ktx2': 'a compressed texture; same',
+  '.hdr': 'an environment map; the .esenv referencing it is the claim',
+  '.gltf': 'an imported model; the .esmesh and prefab it produced are the claim',
+  '.esmesh': 'the import result, not an authored file — regenerated from the .gltf',
+  '.atlas': 'a Spine atlas, written by Spine',
+  '.skel': 'a Spine skeleton, written by Spine',
+  '.mp4': 'video content',
+  '.wav': 'audio content',
+};
+
+/**
  * The release the shipped-feature census reaches back to. Older releases are out
  * of its scope BY DECLARATION rather than by silence, and the gate says so.
  */
@@ -203,9 +237,9 @@ export const EVIDENCE = {
   ssao: /"type":\s*"ssao"/,
   'navigation-3d': /\b(NavVolume|NavLink|NavAgent3D)\b/,
   'root-motion': /\brootMotion\b/,
-  // Events authored ON a clip. The runtime always read them; what shipped is a
-  // format and an editor that can write them.
-  'animation-events': /"events"\s*:\s*\[/,
+  // The authored track, not any key called events: the runtime always read them,
+  // and what shipped is a format and an editor that can write them.
+  'animation-events': /"type":\s*"customEvent"/,
   // Nothing in a project's text can show it: the claim is that the first visible
   // frame pays no compile, which only a run can settle. See NEEDS_RUN.
   'shader-readiness': null,
@@ -241,11 +275,8 @@ export const EVIDENCE = {
  * coverage — the same bargain check-project-settings strikes.
  */
 export const KNOWN_GAPS = {
-  // Shipped in 0.61 and carried by no project — the 3D stack's composition debt.
-  // Work items, not dispensations: the staleness check below forces an entry out
-  // the moment a project certifies it.
-  'root-motion': 'no golden project has a character moved by its animation; the 3D composition project owes it',
-  'animation-events': 'no golden project authors events on a clip and acts on them; the 3D composition project owes it',
+  // A work item, not a dispensation: the staleness check below forces the entry
+  // out the moment a project certifies it.
   'shader-readiness': 'no golden project watches the frame something first appears on; needs a runBy a release criterion schedules',
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
@@ -348,7 +379,8 @@ export const GOLDEN = [
   },
   {
     id: 'third-person-3d',
-    certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d'],
+    certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
+                'root-motion', 'animation-events'],
     targets: ['web'],
     tier: 'pr',
     // The character walks on the key it declares. What it DOES on the way is
