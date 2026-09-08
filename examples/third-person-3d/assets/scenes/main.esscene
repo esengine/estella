@@ -57,6 +57,10 @@
               }
             ]
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -136,6 +140,19 @@
         {
           "type": "PerceptionTarget",
           "data": {}
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
+        },
+        {
+          "type": "WorldStreamingSource",
+          "data": {
+            "loadRadius": 250,
+            "unloadRadius": 450,
+            "prefetchRadius": 900,
+            "enabled": true
+          }
         }
       ]
     },
@@ -258,6 +275,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -291,6 +312,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -347,6 +372,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -386,6 +415,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -425,6 +458,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -464,6 +501,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -503,6 +544,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -542,6 +587,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -581,6 +630,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -637,6 +690,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -693,6 +750,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -749,6 +810,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -805,6 +870,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -861,6 +930,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -917,6 +990,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -973,6 +1050,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1029,6 +1110,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1085,6 +1170,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1141,6 +1230,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1197,6 +1290,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1244,6 +1341,10 @@
             "halfZ": 240,
             "damagePerSecond": 34
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1306,6 +1407,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1362,6 +1467,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1401,6 +1510,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1440,6 +1553,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1496,6 +1613,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1546,6 +1667,10 @@
             "radius": 110,
             "prompt": "take the core"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1596,6 +1721,10 @@
             "radius": 190,
             "prompt": "take the core"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1646,6 +1775,10 @@
             "radius": 110,
             "prompt": "take the core"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1702,6 +1835,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1758,6 +1895,10 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1808,6 +1949,10 @@
             "radius": 170,
             "prompt": "open the archive"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1834,6 +1979,10 @@
             "armZ": 200,
             "id": "start"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1860,6 +2009,10 @@
             "armZ": -740,
             "id": "shelf"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1886,6 +2039,10 @@
             "armZ": -1120,
             "id": "gap"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1912,6 +2069,10 @@
             "armZ": -1820,
             "id": "bridge"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1938,6 +2099,10 @@
             "armZ": -2850,
             "id": "plaza"
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -1975,6 +2140,10 @@
         },
         {
           "type": "UINode",
+          "data": {}
+        },
+        {
+          "type": "WorldPersistent",
           "data": {}
         }
       ]
@@ -2416,6 +2585,10 @@
             "layer": 0,
             "simulationSpace": 0
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2478,6 +2651,10 @@
             "layer": 0,
             "simulationSpace": 0
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2536,6 +2713,10 @@
             "current": 100,
             "max": 100
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2622,6 +2803,10 @@
             "current": 50,
             "max": 50
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2740,7 +2925,7 @@
             "position": {
               "x": 0,
               "y": 60,
-              "z": -3150
+              "z": -650
             }
           }
         },
@@ -2750,7 +2935,7 @@
             "halfExtents": {
               "x": 700,
               "y": 220,
-              "z": 450
+              "z": 2950
             },
             "cellSize": 25,
             "cellHeight": 10,
@@ -2758,6 +2943,10 @@
             "agentRadius": 30,
             "stepHeight": 40
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2818,6 +3007,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2878,6 +3071,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2938,6 +3135,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -2998,6 +3199,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3058,6 +3263,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3118,6 +3327,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3178,6 +3391,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3238,6 +3455,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3298,6 +3519,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3358,6 +3583,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3418,6 +3647,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3478,6 +3711,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3538,6 +3775,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3598,6 +3839,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3658,6 +3903,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3718,6 +3967,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3778,6 +4031,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3838,6 +4095,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3898,6 +4159,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -3958,6 +4223,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4018,6 +4287,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4078,6 +4351,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4138,6 +4415,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4198,6 +4479,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4258,6 +4543,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4318,6 +4607,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4378,6 +4671,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4438,6 +4735,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4498,6 +4799,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4558,6 +4863,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4618,6 +4927,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4678,6 +4991,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4738,6 +5055,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4798,6 +5119,10 @@
             "hysteresis": 0.1,
             "enabled": true
           }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
         }
       ]
     },
@@ -4857,6 +5182,350 @@
             "cullSize": 0.02,
             "hysteresis": 0.1,
             "enabled": true
+          }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 135,
+      "name": "World",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "StreamedWorld",
+          "data": {
+            "cellSize": 600
+          }
+        }
+      ]
+    },
+    {
+      "id": 136,
+      "name": "Causeway",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -20,
+              "z": 1225
+            },
+            "scale": {
+              "x": 3,
+              "y": 0.4,
+              "z": 19.5
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 150,
+              "y": 20,
+              "z": 975
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.24,
+              "g": 0.31,
+              "b": 0.24,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "WorldPersistent",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 138,
+      "name": "OutpostPad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": -20,
+              "z": 1500
+            },
+            "scale": {
+              "x": 4,
+              "y": 0.4,
+              "z": 4
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 200,
+              "y": 20,
+              "z": 200
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.33,
+              "g": 0.3,
+              "b": 0.36,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 139,
+      "name": "Beacon",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 30,
+              "y": 60,
+              "z": 1480
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 30,
+              "y": 60,
+              "z": 30
+            },
+            "isSensor": true
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.9,
+              "g": 0.85,
+              "b": 0.4,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      ]
+    },
+    {
+      "id": 140,
+      "name": "OutpostRock",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 80,
+              "y": 22.5,
+              "z": 1380
+            },
+            "scale": {
+              "x": 1.4,
+              "y": 1.4,
+              "z": 1.4
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/rock-lod0.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.52,
+              "g": 0.5,
+              "b": 0.47,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "LODGroup",
+          "data": {
+            "lod1": "assets/models/rock-lod1.esmesh",
+            "lod2": "assets/models/rock-lod2.esmesh",
+            "lod3": 0,
+            "lod1Size": 0.25,
+            "lod2Size": 0.11,
+            "lod3Size": 0.0,
+            "cullSize": 0.02,
+            "hysteresis": 0.1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 141,
+      "name": "Sentry",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 120,
+              "y": 60,
+              "z": 1720
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 1.2,
+              "z": 0.6
+            }
+          }
+        },
+        {
+          "type": "CharacterController3D",
+          "data": {
+            "radius": 30,
+            "halfHeight": 30,
+            "stepHeight": 40,
+            "snapDown": 50
+          }
+        },
+        {
+          "type": "NavAgent",
+          "data": {
+            "speed": 260,
+            "radius": 30,
+            "arriveRadius": 40,
+            "repathInterval": 0.35
+          }
+        },
+        {
+          "type": "Perceiver",
+          "data": {
+            "range": 420,
+            "fovDegrees": 360,
+            "losLayers": 1
+          }
+        },
+        {
+          "type": "Perception",
+          "data": {}
+        },
+        {
+          "type": "Hunter",
+          "data": {
+            "attackRange": 50,
+            "attackInterval": 1.6
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.8,
+              "g": 0.3,
+              "b": 0.28,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Health",
+          "data": {
+            "current": 200,
+            "max": 200
+          }
+        },
+        {
+          "type": "MeleeAttack",
+          "data": {
+            "radius": 60,
+            "damage": 20
           }
         }
       ]

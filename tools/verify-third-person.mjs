@@ -492,6 +492,79 @@ const START = { y: 60, z: 120 };
           + ` ${counters['render.lod.culled'] ?? 0} too small to draw`);
 }
 
+// The excursion. `main` is a streamed world; everything the other criteria stand
+// on is persistent, and one outpost past the causeway is the only thing cut into
+// a cell. The claim is gameplay only a resident cell makes possible.
+function excursion({ out, frames, swings = 0, back = 0 }) {
+    const holds = [{ key: 'KeyS', from: 0, to: out }];
+    for (let i = 0; i < swings; i++) holds.push({ key: 'KeyJ', from: 225 + i * 20, to: 228 + i * 20 });
+    if (back > 0) holds.push({ key: 'KeyW', from: out + 10, to: out + 10 + back });
+    const r = runElectron([
+        LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
+        '--settle', '30', '--timeout', '120000', '--scene', 'main', '--streaming',
+        '--gameplay', 'Player,Camera', '--combat', 'Player:Sentry,Beacon,Player',
+        '--ai', 'Sentry', '--input', JSON.stringify({ holds, frames }),
+    ], { encoding: 'utf8', cwd: ROOT });
+    return {
+        at: reading(r.stdout, 'gameplay'),
+        world: reading(r.stdout, 'streaming'),
+        combat: reading(r.stdout, 'combat') ?? { targets: {} },
+        ai: reading(r.stdout, 'ai') ?? { found: false },
+    };
+}
+
+/** Nav agents and hunters the PERSISTENT world holds: the arena keeps one of each. */
+const HOME_AGENTS = 1;
+
+{
+    // Near enough to prepare, not near enough to publish. The distinction is the
+    // whole of residency: a cell that is ready and a cell that is THERE differ by
+    // whether anything in it can be met.
+    const seen = excursion({ out: 130, frames: 170 });
+    check('walking toward the outpost prepares it without publishing it',
+          seen.world?.preparedCells?.includes('main.cell_0_2') === true
+          && (seen.world?.residentCells?.length ?? 9) === 0
+          && seen.world?.navAgents === HOME_AGENTS && seen.ai?.found === false,
+          `z ${seen.at?.position?.z?.toFixed(0)} — prepared`
+          + ` ${JSON.stringify(seen.world?.preparedCells)}, resident`
+          + ` ${JSON.stringify(seen.world?.residentCells)}, ${seen.world?.navAgents} nav agent(s)`);
+}
+
+{
+    // Crossing publishes a PLACE, not a load: the sentry navigates to the player
+    // and the swing the gym criteria drive kills it. It walks the persistent
+    // CAUSEWAY — the navmesh bakes once, so a cell's own floor gets none.
+    const seen = excursion({ out: 300, frames: 400, swings: 7 });
+    const sentry = seen.ai ?? {};
+    const walked = Math.hypot((sentry.position?.x ?? 120) - 120, (sentry.position?.z ?? 1720) - 1720);
+    // Two claims, and the damaged one is the STANDING target: whether a swing
+    // meets something that is itself closing is choreography, and a criterion
+    // that depends on it reports the geometry of one run.
+    const beacon = seen.combat?.targets?.Beacon?.health ?? 100;
+    check('crossing into the outpost brings a place that hunts and can be struck',
+          seen.world?.residentCells?.includes('main.cell_0_2') === true
+          && seen.world?.navAgents === HOME_AGENTS + 1 && walked > 150 && beacon < 100,
+          `resident ${JSON.stringify(seen.world?.residentCells)},`
+          + ` ${seen.world?.navAgents} nav agent(s), sentry walked ${walked.toFixed(0)} from where`
+          + ` it was authored, beacon ${beacon}/100`);
+}
+
+{
+    // And the place stops existing. Not hidden: the physics rows, the nav agent
+    // and the entities go with it, and nothing is left holding a row for an
+    // entity the world no longer has.
+    const seen = excursion({ out: 260, frames: 500, back: 200 });
+    check('walking home destroys the outpost rather than hiding it',
+          (seen.world?.residentCells?.length ?? 9) === 0
+          && seen.world?.navAgents === HOME_AGENTS
+          && seen.world?.stalePhysics === 0
+          && seen.combat?.targets?.Sentry === undefined,
+          `z ${seen.at?.position?.z?.toFixed(0)} — resident`
+          + ` ${JSON.stringify(seen.world?.residentCells)}, ${seen.world?.navAgents} nav agent(s),`
+          + ` ${seen.world?.stalePhysics} stale physics row(s), sentry`
+          + ` ${seen.combat?.targets?.Sentry === undefined ? 'gone' : 'still there'}`);
+}
+
 const failed = results.filter((r) => !r.ok);
 console.log(`\nverify-third-person: ${results.length - failed.length}/${results.length}`
     + ' behaviour(s) hold up in the packaged game.');

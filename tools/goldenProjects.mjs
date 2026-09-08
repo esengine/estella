@@ -380,7 +380,7 @@ export const GOLDEN = [
   {
     id: 'third-person-3d',
     certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
-                'root-motion', 'animation-events'],
+                'root-motion', 'animation-events', 'world-streaming'],
     targets: ['web'],
     tier: 'pr',
     // The character walks on the key it declares. What it DOES on the way is

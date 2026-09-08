@@ -161,6 +161,8 @@ async function main() {
   }
   const PROBE = flag('probe', '');
 const FACTS = has('facts');
+/** What residency did — which cells exist, and what the subsystems still hold. */
+const STREAMING = has('streaming');
 const GAMEPLAY = flag('gameplay', '');
 const PARTICLES = flag('particles', '');
 const COMBAT = flag('combat', '');
@@ -170,7 +172,7 @@ const RENDER = has('render');
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''));
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || STREAMING) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -236,6 +238,13 @@ const SCENE = flag('scene', '');
       `window.__estellaCooked?.probe(${JSON.stringify(names)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  probe: ${JSON.stringify(seen)}`);
+  }
+
+  if (STREAMING) {
+    const seen = await win.webContents.executeJavaScript(
+      'window.__estellaCooked?.streaming() ?? null',
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  streaming: ${JSON.stringify(seen)}`);
   }
 
   if (GAMEPLAY) {
