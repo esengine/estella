@@ -214,6 +214,14 @@ function reportSuites() {
 const spent = [];
 
 /**
+ * A gate that exits 2 said it could not answer, which is the runner's problem
+ * and not the engine's — counted apart from a failure, and never as a pass.
+ */
+const CANNOT_ANSWER = 2;
+/** Gates that answered nothing here. A hole, so `--complete` refuses on them. */
+const unanswered = [];
+
+/**
  * The line a reader wants out of a red gate's output. Gates print their own
  * verdict in their own shape, so this is a net over the shapes they use rather
  * than a parser for one — and the whole output is kept beside it, because a
@@ -264,7 +272,7 @@ for (const gate of gates) {
       // report a missing toolchain as a broken subject.
       : r.status === 2 ? 'unanswered'
         : r.status === 0 ? 'pass' : 'fail';
-    if (status !== 'pass' && !firstRed) firstRed = gate.id;
+    if (status !== 'pass' && status !== 'unanswered' && !firstRed) firstRed = gate.id;
     matrix.push({
       id: gate.id,
       run: gate.run,
@@ -274,12 +282,23 @@ for (const gate of gates) {
       suite: !!gate.covers?.length,
       // Ordering is load-bearing here, so a red behind another red is a
       // candidate for the invented problem the short-circuit exists to avoid.
-      afterRed: status !== 'pass' && firstRed !== gate.id,
+      afterRed: status !== 'pass' && status !== 'unanswered' && firstRed !== gate.id,
       firstFailingLine: status === 'pass' ? null
         : r.error ? r.error.message : firstFailingLine(out),
     });
     console.log(status === 'pass' ? `✓ ${gate.id} (${(ms / 1000).toFixed(0)}s)`
-      : `✗ ${gate.id} — ${status} (${(ms / 1000).toFixed(0)}s)`);
+      // Three marks for three states: a gate that could not answer is not a red
+      // one, and a scan that draws them the same makes the survey unreadable.
+      : status === 'unanswered' ? `— ${gate.id} — answered nothing (${(ms / 1000).toFixed(0)}s)`
+        : `✗ ${gate.id} — ${status} (${(ms / 1000).toFixed(0)}s)`);
+    continue;
+  }
+  // Eight gates already exit 2 for "could not answer" and this runner heard it as
+  // "the subject is broken", reporting a missing Python as a red gate and
+  // stopping the sixty behind it. run-release-gate's convention, here too.
+  if (r.status === CANNOT_ANSWER) {
+    console.error(`\n— ${gate.id} UNANSWERED — nothing here could answer it (see its output above)`);
+    unanswered.push(gate.id);
     continue;
   }
   if (r.status !== 0) {
@@ -293,12 +312,19 @@ for (const gate of gates) {
 }
 
 if (SCAN) {
-  const red = matrix.filter((m) => m.status !== 'pass');
-  console.log(`\ngates ${SCOPE} SCAN: ${matrix.length - red.length}/${matrix.length} green`
+  // Unanswered is neither: counted apart so a survey does not read a missing
+  // toolchain as a broken subject, and never folded into the green count.
+  const blank = matrix.filter((m) => m.status === 'unanswered');
+  const red = matrix.filter((m) => m.status !== 'pass' && m.status !== 'unanswered');
+  console.log(`\ngates ${SCOPE} SCAN: ${matrix.length - red.length - blank.length}/${matrix.length} green`
     + ` in ${(spent.reduce((t, g) => t + g.ms, 0) / 1000).toFixed(0)}s`);
   for (const m of red) {
     console.log(`  ✗ ${m.id} — ${m.status}${m.exit === null ? '' : ` (exit ${m.exit})`}`
       + `${m.afterRed ? ' [after-red: may be downstream]' : ''}`);
+    console.log(`      ${m.firstFailingLine}`);
+  }
+  for (const m of blank) {
+    console.log(`  — ${m.id} — answered nothing here`);
     console.log(`      ${m.firstFailingLine}`);
   }
   if (noEditor.length) {
@@ -322,12 +348,19 @@ if (SCAN) {
     }, null, 2)}\n`);
     console.log(`  matrix written to ${MATRIX}`);
   }
-  process.exit(red.length ? 1 : 0);
+  // A survey that could not answer some of the list has not said the list is
+  // green; 2 rather than 1, because the fix is the runner's and not the engine's.
+  process.exit(red.length ? 1 : blank.length ? CANNOT_ANSWER : 0);
 }
 
-console.log(`\ngates ${SCOPE}: ${gates.length}/${gates.length} green`
+console.log(`\ngates ${SCOPE}: ${gates.length - unanswered.length}/${gates.length} green`
   + ` in ${(spent.reduce((t, g) => t + g.ms, 0) / 1000).toFixed(0)}s`
   + (noEditor.length ? ` (${noEditor.length} editor gate(s) had no checkout to run against)` : ''));
+// Said at the top of the summary, not buried: a count that reads as the whole
+// list is exactly how a skip becomes a green light.
+if (unanswered.length) {
+  console.log(`  ${unanswered.length} gate(s) answered nothing here: ${unanswered.join(', ')}`);
+}
 // Name the costliest: "the gates are slow" is not something anyone can act on,
 // and "sdk-tests took 78 of the 210 seconds" is.
 const dear = [...spent].sort((x, y) => y.ms - x.ms).slice(0, 5);
@@ -344,6 +377,10 @@ if (COMPLETE) {
   const holes = [
     ...[...noEditor, ...unpaid].map((g) => g.id),
     ...declared.map((g) => `${g.env}=${g.value}`),
+    // A gate that ran and could not answer is the same hole as one that never
+    // ran. `static-gates` read 118/118 green while check-native-build built
+    // nothing, because only the text said so.
+    ...unanswered,
   ];
   if (holes.length) {
     console.error(`\n${holes.length} declared gate(s) or capability gap(s) never ran here: ${holes.join(', ')}`);

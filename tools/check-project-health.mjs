@@ -29,9 +29,11 @@ const CONSUMERS = {
 const problems = [];
 const say = (file, what) => problems.push(`${file}: ${what}`);
 
+// Every check below reads the editor, so without it this judges nothing — and 2
+// is what makes the runner count a hole rather than a pass.
 if (!has(CHECKS)) {
-  console.log('check-project-health: no editor checkout — skipped.');
-  process.exit(0);
+  console.log('check-project-health: no editor checkout — nothing was judged.');
+  process.exit(2);
 }
 
 const checks = read(CHECKS);

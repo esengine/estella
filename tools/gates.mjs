@@ -196,7 +196,7 @@ export const GATES = [
   { id: 'native-script-modules', run: 'node tools/check-native-script-modules.mjs' },
   // …and that a packaged game really receives them: the table above is a
   // promise, this exports a project and reads what its scripts bind to.
-  { id: 'native-subpath-imports', run: 'node tools/check-native-subpath-imports.mjs || [ $? -eq 2 ]' },
+  { id: 'native-subpath-imports', run: 'node tools/check-native-subpath-imports.mjs' },
   { id: 'shader-blocks', run: 'node tools/check-shader-blocks.mjs' },
   { id: 'wgsl-twin', run: 'node tools/check-wgsl-twin.mjs' },
   {

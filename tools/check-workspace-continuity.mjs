@@ -34,6 +34,18 @@ const RUNTIME_WORDS = [
 const problems = [];
 const say = (file, what) => problems.push(`${file}: ${what}`);
 
+/**
+ * Files this run could not read, and so did not judge. Three of the four claims
+ * below live in the editor, which is an optional submodule — and without it this
+ * printed its closing sentence, which is a verdict, having checked one of them.
+ */
+const unread = [];
+const reads = (rel) => {
+  if (existsSync(path.join(ROOT, rel))) return true;
+  unread.push(rel);
+  return false;
+};
+
 // 1. The declared shape carries no runtime fact.
 const format = read(FORMAT);
 const shape = /export interface WorkspaceState \{([\s\S]*?)\n\}/.exec(format);
@@ -53,7 +65,7 @@ if (!shape) {
 
 // 2. …and neither does what the editor puts in it. A field can be spelled
 //    innocently and still be filled from the runtime.
-if (existsSync(path.join(ROOT, CAPTURE))) {
+if (reads(CAPTURE)) {
   const capture = read(CAPTURE);
   const body = /export function captureWorkspace\([\s\S]*?\n\}/.exec(capture);
   if (!body) {
@@ -73,7 +85,7 @@ if (existsSync(path.join(ROOT, CAPTURE))) {
 //    it writes a blank editor over what it was about to restore. Checked here
 //    because reaching that race depends on how slowly a project opens.
 const STORE = 'desktop/src/project/ProjectStore.ts';
-if (existsSync(path.join(ROOT, STORE))) {
+if (reads(STORE)) {
   const store = read(STORE);
   for (const fn of ['saveWorkspaceSession', 'flushWorkspaceSession']) {
     // Anchored at the DECLARATION: an unanchored name also matches the call
@@ -89,7 +101,7 @@ if (existsSync(path.join(ROOT, STORE))) {
 
 // 4. A project keeps its session out of source control. Without this the
 //    zero-diff claim holds only for whoever wrote their own .gitignore.
-if (existsSync(path.join(ROOT, SCAFFOLD))) {
+if (reads(SCAFFOLD)) {
   const scaffold = read(SCAFFOLD);
   const ignore = /export const PROJECT_GITIGNORE = `([\s\S]*?)`;/.exec(scaffold);
   if (!ignore) say(SCAFFOLD, 'no PROJECT_GITIGNORE — a new project would commit its workspace');
@@ -102,5 +114,14 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`  ${problem}`);
   console.error(`check-workspace-continuity: ${problems.length} finding(s).`);
   process.exit(1);
+}
+// A finding beats a hole: what was read and is wrong is still wrong. But with
+// nothing wrong and part of the subject unread, the closing sentence would be a
+// claim about files this run never opened.
+if (unread.length) {
+  console.log(`check-workspace-continuity: ${unread.length} of the subject was not read`
+    + ` — ${unread.join(', ')}. Nothing was judged about the capture, the write gate`
+    + ' or the scaffold; the authored-format half holds.');
+  process.exit(2);
 }
 console.log('check-workspace-continuity: the session remembers an author, not a play session.');

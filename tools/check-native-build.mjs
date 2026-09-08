@@ -27,9 +27,12 @@ import { DESKTOP_BUILD_DIR } from '../build-tools/tasks/native.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
 
+/** 2, not 0: the file header already says a machine that has never built native
+ *  gets "a note, not a green light", and the note was the only thing saying it —
+ *  run-gates read the status and counted this toward 118/118. */
 const skip = (why) => {
     console.log(`check-native-build: ${why} — skipped (CI still builds every native target).`);
-    process.exit(0);
+    process.exit(2);
 };
 
 if (!HOST) skip(`no native desktop target for ${process.platform}`);

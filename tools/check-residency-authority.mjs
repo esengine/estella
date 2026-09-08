@@ -84,7 +84,11 @@ if (installs.length !== 1) {
 const DERIVES = /\b(residentCells|preparedCells|loadingCells|unloadingCells)\b/;
 const DECIDES = /\b(desiredResidency|distanceToCell)\b/;
 const EDITOR_STATE_AUTHOR = 'desktop/src/engine/worldRuntimeStore.ts';
-if (existsSync(path.join(ROOT, 'desktop', 'src'))) {
+/** Whether the editor half of the rule was read at all. The editor is an
+ *  optional submodule, and without it this scanned nothing and still printed
+ *  "one reader names it" — a claim about a directory it never opened. */
+const editorRead = existsSync(path.join(ROOT, 'desktop', 'src'));
+if (editorRead) {
     for (const file of walk(path.join(ROOT, 'desktop', 'src'), /\.tsx?$/)) {
         const rel = path.relative(ROOT, file).split(path.sep).join('/');
         const text = readFileSync(file, 'utf8');
@@ -127,5 +131,10 @@ if (problems.length > 0) {
     for (const problem of problems) console.error(`  ${problem}`);
     console.error(`check-residency-authority: ${problems.length} finding(s).`);
     process.exit(1);
+}
+if (!editorRead) {
+    console.log('check-residency-authority: no editor checkout — desktop/src was not scanned,'
+        + ' so nothing was judged about who reads the report. The runtime half holds.');
+    process.exit(2);
 }
 console.log('check-residency-authority: one author decides what exists, one reader names it, and unloading destroys.');
