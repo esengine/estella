@@ -19,7 +19,7 @@ import {
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
   Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough, Name,
-  worldResidencyReport, PostProcess, Renderer,
+  worldResidencyReport, PostProcess, Renderer, Audio,
 } from 'esengine';
 import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
@@ -602,6 +602,24 @@ async function boot(): Promise<void> {
           lod: Renderer.lodInspect(view, entity),
           light: Renderer.lightStatus(entity),
           shadow: Renderer.shadowStatus(entity),
+        };
+      },
+      /**
+       * The project's own configuration, as the SHIPPING runtime holds it: what
+       * the package carries beside what the runtime ended up with. A manifest
+       * proving itself proves only that the packager wrote what it wrote.
+       */
+      configFacts(busNames: string[] = []): Record<string, unknown> {
+        const audio = app.hasResource(Audio) ? app.getResource(Audio) : null;
+        const names = new Set([...busNames, ...(cfg.audioConfig?.buses ?? []).map((b) => b.name)]);
+        return {
+          carried: { audioConfig: cfg.audioConfig ?? null },
+          audio: audio ? {
+            maxVoices: audio.maxVoices,
+            buses: Object.fromEntries([...names].map((n) => [n, {
+              volume: audio.getBusVolume(n), muted: audio.isBusMuted(n),
+            }])),
+          } : null,
         };
       },
       /**

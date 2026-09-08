@@ -621,7 +621,9 @@ export function parseManifest(raw: unknown): ProjectManifest {
     }
     if (f.audio && typeof f.audio === 'object') {
       const audio = parseAudioProjectConfig(f.audio);
-      if (audio.buses) features.audio = audio;
+      // A voice cap is a policy on its own: keeping this to `buses` dropped a
+      // project that asked for one and shipped the default instead, silently.
+      if (audio.buses || audio.maxVoices !== undefined) features.audio = audio;
     }
     if (f.ui && typeof f.ui === 'object') {
       const u = f.ui as Record<string, unknown>;

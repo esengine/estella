@@ -199,7 +199,8 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     // this would have spelled out.
     ...(rc.physicsEnabled ? { physicsEnabled: true } : {}),
     ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
-    ...(rc.audioConfig.buses?.length ? { audioConfig: rc.audioConfig } : {}),
+    ...(rc.audioConfig.buses?.length || rc.audioConfig.maxVoices !== undefined
+      ? { audioConfig: rc.audioConfig } : {}),
     ...(rc.achievements.length ? { achievements: rc.achievements } : {}),
     ...(rc.steamAppId > 0 ? { steamAppId: rc.steamAppId } : {}),
   };

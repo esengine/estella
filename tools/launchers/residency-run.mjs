@@ -21,7 +21,8 @@
  * A script is a list of steps: {do:"read",as},  {do:"walkTo",x,z},
  * {do:"tap",key}, {do:"step",frames}, {do:"stream",as,key,count},
  * {do:"loseDevice",as}, {do:"readiness",as,cell}, {do:"counters",as},
- * {do:"renderFacts",as}, {do:"decisions",as,name}. Each read prints one JSON line.
+ * {do:"renderFacts",as}, {do:"decisions",as,name}, {do:"configFacts",as,buses}.
+ * Each read prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -251,6 +252,13 @@ async function main() {
         `window.__estellaCooked.readiness(${JSON.stringify(step.cell)})`);
       const device = await exec('window.__estellaCooked.device()');
       console.log(`readiness ${step.as}: ${JSON.stringify({ claim, device })}`);
+      continue;
+    }
+    if (step.do === 'configFacts') {
+      await settle();
+      const f = await exec(
+        `window.__estellaCooked.configFacts(${JSON.stringify(step.buses ?? [])})`);
+      console.log(`reading ${step.as}: ${JSON.stringify(f)}`);
       continue;
     }
     if (step.do === 'renderFacts') {
