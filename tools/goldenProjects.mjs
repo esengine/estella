@@ -89,6 +89,20 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.62.0 —
+  'Play streams the world the way a package does': { certifies: 'world-streaming' },
+  'World Workspace: the report says where its cells are':
+    { notCertifiable: 'coordinates ON the residency report, read by the editor\'s World panel and'
+      + ' by verify-world-residency; a game consumes the cells and never asks where they are' },
+  'Readying is a named preparation phase':
+    { notCertifiable: 'a phase name in the preparation interval, read by the residency bench;'
+      + ' a game pays the cost either way and cannot tell which phase carried it' },
+  'Workspace Continuity: a project reopens where it was left':
+    { notCertifiable: 'an editor session across two processes; a package has no workspace,'
+      + ' and desktop/scripts/editor-checks/workspace-continuity.mjs is the proof' },
+  'Project Health / Preflight: whether a project can ship has one author':
+    { notCertifiable: 'a verdict taken BEFORE a package exists; check-project-health and the'
+      + ' editor check hold it, and a shipped game is what it permits rather than what it tests' },
   // — 0.61.0 —
   'World streaming': { certifies: 'world-streaming' },
   'Level of detail': { certifies: 'level-of-detail' },

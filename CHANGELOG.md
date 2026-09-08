@@ -14,6 +14,119 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-09-08
+
+### Added
+
+- **Play streams the world the way a package does.** The editor's Play realm
+  used to load a streamed scene whole, so the one thing a creator could not
+  rehearse was the thing streaming exists for: what is resident when. Play now
+  cuts the world through the same partition the cook uses — one author, one set
+  of cells — and `worldResidencyReport(app)` answers in both realms. Verified by
+  reconciling the two rather than comparing pictures: a package and the editor
+  boot the same four cells, resident on the same one, holding the same documents,
+  because a place that is not drawn and a place that is not there look identical
+  from a camera.
+
+- **World Workspace: the report says where its cells are.** Every list in the
+  residency report was names, and a name cannot be drawn — a viewport that wanted
+  to shade a cell had to find its coordinates in a second copy of the partition.
+  `cells` and `cellSize` carry the manifest's own answer, so there is one, and
+  the editor's World panel reads it rather than deriving its own. `unavailable`
+  now owes a citation: the premise behind residency's ("neither the edit realm
+  nor playHost passes a cooked world") had outlived the release that removed it,
+  in a green gate.
+
+- **Readying is a named preparation phase.** `settleReadiness_` emitted no
+  `onPhase`, so its ~6.5 ms showed only as the gap between `issue → prepared` and
+  the phases that had names — 68.4% of the interval accounted for. Named, the
+  interval closes to 98.7%, and the claim becomes positive: the compile is THERE,
+  in preparation, on the shipping build.
+
+- **Workspace Continuity: a project reopens where it was left.** `WorkspaceState`
+  held a last scene and a panel layout nothing ever wrote. It now carries the
+  authored working context — open documents, the selection (an authored id, never
+  a runtime handle), the camera, the browser folder, the World view — and
+  `RecentEntry` reads the document a project was last on from that project's own
+  workspace. It deliberately carries no residency, no prefetch counters and no
+  "was playing": those ended with the play session, and restoring one would
+  present a stopped game as the state of the world. A scaffolded project keeps
+  `.esengine/` out of source control, without which the zero-diff claim held only
+  for whoever wrote their own `.gitignore`.
+
+- **Project Health / Preflight: whether a project can ship has one author.** The
+  answer used to be spread across a build's own output, the scene validator, the
+  cook's decisions and the platform probes, with each consumer asking its own
+  half. The checks are now a declared list, every consumer reads the report, and
+  each finding declares the world it is true in — "this viewport got 1x
+  multisampling" is a fact about the machine the editor runs on and says nothing
+  about what an Android package will do.
+
+### Changed
+
+- **A build is adjudicated once, at every door that can package.** The Build
+  dialog asked the preflight and refused past a blocker; `export_game` — the
+  agent's door, and what an automated build uses — called the exporter underneath
+  the store and asked nothing. Both now pass through `ProjectStore.preflightBuild`,
+  and a refused build answers `{ exported: false, reason: 'preflight-blocked',
+  blockers, warnings }` before the exporter is called, so nothing is written.
+  Warnings do not refuse and ask for no force.
+
+- **An edit that will not be in the build stops it.** Play reads the unsaved
+  authoring snapshot and a build reads what is saved. The divergence is right —
+  packaging memory would give up reproducible builds — and the silence was not:
+  moving an entity across a cell boundary and leaving it unsaved, Play
+  re-partitioned while the package was written from the older state, and the
+  build reported success. `project.dirtyBuildInputs` is a blocker, and counts
+  build inputs only.
+
+- **The Spine runtime-version row says what it does.** It promised that "a build
+  ships the one named here and no other"; a build detects the version of each
+  skeleton and carries the runtimes those need, and nothing reads the field. The
+  setting stays — removing it would break every project that holds one — and the
+  claim does not.
+
+- The gate list can be surveyed as well as gated on (`--keep-going`, `--matrix`,
+  `--only`), and a gate that could not answer is no longer counted as one that
+  passed: `run-gates` speaks the same three exit states as the release runner.
+
+### Fixed
+
+- **An empty required field no longer refuses a build.** `required` is soft where
+  it is declared, and the engine tints a white texture when a Sprite has none, so
+  a coloured quad is not a mistake. As a blocker it refused to build the flagship
+  — 28 of them, including the player — while that project plays through all ten
+  of its legs and draws 324 pixel scenes.
+
+- **Seven asset types could not live-load in the editor.** Timeline, tilemap,
+  tileset, state machine, behaviour tree, animator controller and anim clip
+  publish BY NAME, and `Assets.loadX` rejects exactly those; the failure was
+  recorded against the path and read later as a reference resolving to nothing.
+  Three golden projects could not be built through either Build door.
+
+- **A voice cap reaches a package without a bus to carry it.** Both gates on the
+  way asked only about buses, so a project setting `maxVoices` and declaring no
+  bus was dropped twice and shipped the default.
+
+- **The two Build doors produced the same game.** The dialog derived cook options
+  from the project; the tool forwarded what it was given, and `undefined` reads as
+  false all the way down. The same project through the two doors shipped a raw
+  PNG and no basis transcoder one way, and a KTX2 with one the other.
+
+- `set_field` no longer demands the `type` argument its own description calls
+  advisory and its implementation never reads.
+
+- A point behind the eye has no screen position, rather than a mirrored one
+  inside the viewport; a canvas's pixel ratio is its own window's, not the
+  ambient one; and the transform tool's fake viewport answers the call it makes.
+
+- A failed export says what the exporter said rather than how its report ended —
+  a run whose only red was a missing wechat runtime used to end with `— }`.
+
+- The comment scan reads the editor too and says what it read; the source census
+  is about the directory it runs in rather than the one `GIT_DIR` pins, which is
+  why it passed standalone and failed only inside a push.
+
 ## [0.61.0] - 2026-09-06
 
 ### Added
@@ -11005,7 +11118,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.61.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.62.0...HEAD
+[0.62.0]: https://github.com/esengine/estella/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/esengine/estella/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/esengine/estella/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/esengine/estella/compare/v0.58.0...v0.59.0
