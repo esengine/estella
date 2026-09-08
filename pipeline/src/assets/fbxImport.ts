@@ -80,6 +80,8 @@ interface FbxMeshPart {
     positions: Slice;
     normals: Slice | null;
     uvs: Slice | null;
+    /** The second UV set, where the source has one. */
+    uvs1: Slice | null;
     colors: Slice | null;
     joints: Slice | null;
     weights: Slice | null;
@@ -426,6 +428,7 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
     const positions = floats(payload, part.positions);
     const normals = part.normals ? floats(payload, part.normals) : null;
     const uvs = part.uvs ? floats(payload, part.uvs) : null;
+    const uvs1 = part.uvs1 ? floats(payload, part.uvs1) : null;
     const joints = part.joints ? ushorts(payload, part.joints) : null;
     const weights = part.weights ? floats(payload, part.weights) : null;
     const indices = uints(payload, part.indices);
@@ -451,6 +454,9 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
         { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
         ...(normals ? [{ semantic: MeshChannel.Normal, components: 3,
                          type: MeshChannelType.Float32 }] : []),
+        // Ahead of the skinning pair, which the two lines below find by position.
+        ...(uvs1 ? [{ semantic: MeshChannel.TexCoord1, components: 2,
+                      type: MeshChannelType.Float32 }] : []),
         ...(skinned ? [
             { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16 },
             { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32 },
@@ -458,6 +464,7 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
     ]);
     const jointsChannel = skinned ? channels[channels.length - 2]! : null;
     const weightsChannel = skinned ? channels[channels.length - 1]! : null;
+    const uv1Channel = channels.find(c => c.semantic === MeshChannel.TexCoord1) ?? null;
 
     const vertices = new Uint8Array(vertexCount * vertexStride);
     const dv = new DataView(vertices.buffer);
@@ -475,6 +482,11 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
         // left, which is where the engine's textures start too.
         dv.setFloat32(at + channels[1]!.offset, uvs ? uvs[i * 2] ?? 0 : 0, true);
         dv.setFloat32(at + channels[1]!.offset + 4, uvs ? uvs[i * 2 + 1] ?? 0 : 0, true);
+        if (uv1Channel && uvs1) {
+            // No flip, as UV0 above: the two sets share one convention.
+            dv.setFloat32(at + uv1Channel.offset, uvs1[i * 2] ?? 0, true);
+            dv.setFloat32(at + uv1Channel.offset + 4, uvs1[i * 2 + 1] ?? 0, true);
+        }
         for (let c = 0; c < 4; c++) {
             const v = colors ? colors[i * 4 + c] ?? 1 : 1;
             dv.setUint8(at + channels[2]!.offset + c,

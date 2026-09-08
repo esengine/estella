@@ -202,12 +202,15 @@ typedef struct {
     es_vec3 *positions;
     es_vec3 *normals;
     es_vec2 *uvs;
+    /** The second UV set, where the mesh has one — a lightmap or detail unwrap. */
+    es_vec2 *uvs1;
     es_vec4 *colors;
     es_joints *joints;
     es_vec4 *weights;
     uint32_t *indices;
     int has_normals;
     int has_uvs;
+    int has_uvs1;
     int has_colors;
     int has_skin;
 } es_part;
@@ -216,6 +219,7 @@ static void es_part_free(es_part *p) {
     free(p->positions);
     free(p->normals);
     free(p->uvs);
+    free(p->uvs1);
     free(p->colors);
     free(p->joints);
     free(p->weights);
@@ -271,6 +275,8 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
 
     out->has_normals = mesh->vertex_normal.exists;
     out->has_uvs = mesh->vertex_uv.exists;
+    // uv_sets[0] IS vertex_uv; a second set is the one the engine could not carry.
+    out->has_uvs1 = mesh->uv_sets.count > 1 && mesh->uv_sets.data[1].vertex_uv.exists;
     out->has_colors = mesh->vertex_color.exists;
     out->has_skin = skin != NULL;
 
@@ -278,6 +284,7 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
     out->indices = (uint32_t *)malloc(corners * sizeof(uint32_t));
     if (out->has_normals) out->normals = (es_vec3 *)malloc(corners * sizeof(es_vec3));
     if (out->has_uvs) out->uvs = (es_vec2 *)malloc(corners * sizeof(es_vec2));
+    if (out->has_uvs1) out->uvs1 = (es_vec2 *)malloc(corners * sizeof(es_vec2));
     if (out->has_colors) out->colors = (es_vec4 *)malloc(corners * sizeof(es_vec4));
     if (out->has_skin) {
         out->joints = (es_joints *)malloc(corners * sizeof(es_joints));
@@ -287,6 +294,7 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
     uint32_t *tri = (uint32_t *)malloc(tri_cap * sizeof(uint32_t));
     if (!out->positions || !out->indices || !tri
         || (out->has_normals && !out->normals) || (out->has_uvs && !out->uvs)
+        || (out->has_uvs1 && !out->uvs1)
         || (out->has_colors && !out->colors)
         || (out->has_skin && (!out->joints || !out->weights))) {
         free(tri);
@@ -311,6 +319,11 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
                 out->uvs[at].x = (float)uv.x;
                 out->uvs[at].y = (float)uv.y;
             }
+            if (out->has_uvs1) {
+                ufbx_vec2 uv = ufbx_get_vertex_vec2(&mesh->uv_sets.data[1].vertex_uv, ix);
+                out->uvs1[at].x = (float)uv.x;
+                out->uvs1[at].y = (float)uv.y;
+            }
             if (out->has_colors) {
                 ufbx_vec4 c = ufbx_get_vertex_vec4(&mesh->vertex_color, ix);
                 out->colors[at].x = (float)c.x;
@@ -331,7 +344,7 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
         return 0;
     }
 
-    ufbx_vertex_stream streams[6];
+    ufbx_vertex_stream streams[7];
     size_t stream_count = 0;
     streams[stream_count].data = out->positions;
     streams[stream_count].vertex_count = at;
@@ -343,6 +356,11 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
     }
     if (out->has_uvs) {
         streams[stream_count].data = out->uvs;
+        streams[stream_count].vertex_count = at;
+        streams[stream_count++].vertex_size = sizeof(es_vec2);
+    }
+    if (out->has_uvs1) {
+        streams[stream_count].data = out->uvs1;
         streams[stream_count].vertex_count = at;
         streams[stream_count++].vertex_size = sizeof(es_vec2);
     }
@@ -558,6 +576,13 @@ static void write_meshes(es_writer *w, const ufbx_scene *scene) {
             json_key(&w->json, "uvs");
             if (built.has_uvs) {
                 json_slice(w, built.uvs, built.vertex_count * sizeof(es_vec2));
+            } else {
+                es_buf_text(&w->json, "null");
+            }
+            es_buf_text(&w->json, ",");
+            json_key(&w->json, "uvs1");
+            if (built.has_uvs1) {
+                json_slice(w, built.uvs1, built.vertex_count * sizeof(es_vec2));
             } else {
                 es_buf_text(&w->json, "null");
             }
