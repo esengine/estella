@@ -34,6 +34,29 @@ export interface CameraCommitData {
     valid: boolean;
 }
 
+/**
+ * Told when the committed camera CHANGES — not when one is published.
+ *
+ * A commit happens on every drawn frame, so "a commit happened" says nothing
+ * about what is on screen. Told the other question instead: looking for it on a
+ * clock of one's own is a poll that never sleeps, or a change that lands late.
+ * @beta
+ */
+export type CameraCommitListener = () => void;
+
+const listeners = new Set<CameraCommitListener>();
+
+/** Subscribe to committed-camera changes. Returns an unsubscribe. @beta */
+export function onCameraCommitChanged(fn: CameraCommitListener): () => void {
+    listeners.add(fn);
+    return () => { listeners.delete(fn); };
+}
+
+/** Announce a change. Called by the camera plugin, after the submit. @beta */
+export function cameraCommitChanged(): void {
+    for (const fn of [...listeners]) fn();
+}
+
 /** The last drawn camera, as a resource. @beta */
 export const CameraCommit = defineResource<CameraCommitData>({
     revision: 0,

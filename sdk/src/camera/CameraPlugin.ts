@@ -16,7 +16,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { CameraCommit } from './CameraCommit';
+import { CameraCommit, cameraCommitChanged } from './CameraCommit';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
@@ -603,6 +603,10 @@ function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): vo
         commit.valid = false;
         return;
     }
+    const moved = !commit.valid
+        || commit.vpX !== uiCam.vpX || commit.vpY !== uiCam.vpY
+        || commit.vpW !== uiCam.vpW || commit.vpH !== uiCam.vpH
+        || !sameMatrix(commit.viewProjection, cam.viewProjection);
     commit.viewProjection.set(cam.viewProjection);
     commit.vpX = uiCam.vpX;
     commit.vpY = uiCam.vpY;
@@ -610,6 +614,14 @@ function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): vo
     commit.vpH = uiCam.vpH;
     commit.revision = uiCam.revision;
     commit.valid = true;
+    if (moved) cameraCommitChanged();
+}
+
+/** Exact: the question is whether the projection moved, not whether two cameras
+ *  are close enough to look alike. */
+function sameMatrix(a: Float32Array, b: Float32Array): boolean {
+    for (let i = 0; i < 16; i++) if (a[i] !== b[i]) return false;
+    return true;
 }
 
 function syncUICameraInfo(

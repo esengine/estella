@@ -15,7 +15,7 @@ import { bootMockApp } from './helpers/mockApp';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 import { cameraPlugin } from '../src/camera/CameraPlugin';
-import { CameraCommit } from '../src/camera/CameraCommit';
+import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { RenderPipeline } from '../src/render/renderPipeline';
 import { setRendererBackend, type RendererBackend } from '../src/render/renderer';
@@ -50,7 +50,7 @@ describe('the camera a frame was drawn with', () => {
     }
 
     /** An app with one orthographic camera, drawing through the fake backend. */
-    function bootWithCamera() {
+    function bootWithCamera(viewport = { width: 800, height: 600 }) {
         const { app, module } = bootMockApp();
         const registry = registryOf(module);
         const cam = app.world.spawn('camera') as Entity;
@@ -62,7 +62,7 @@ describe('the camera a frame was drawn with', () => {
         registry.getCanvasEntities = () => [];
         app.setPipeline(new RenderPipeline());
         setRendererBackend(fakeBackend());
-        app.addPlugin(cameraPlugin(() => ({ width: 800, height: 600 })));
+        app.addPlugin(cameraPlugin(() => ({ ...viewport })));
         return { app, cam };
     }
 
@@ -142,6 +142,39 @@ describe('the camera a frame was drawn with', () => {
 
         const commit = app.getResource(CameraCommit);
         expect(Array.from(commit.viewProjection)).toEqual(Array.from(drawnWith!));
+    });
+
+    it('announces a change, not a commit', async () => {
+        // A commit happens every drawn frame, so a listener told about commits is
+        // told 60 times a second that nothing happened. Anything aligning to the
+        // picture would then either poll or repaint forever.
+        const { app } = bootWithCamera();
+        let told = 0;
+        const off = onCameraCommitChanged(() => { told++; });
+        try {
+            await app.tick(1 / 60);
+            const first = told;
+            expect(first).toBeGreaterThan(0);
+            for (let i = 0; i < 5; i++) await app.tick(1 / 60);
+            expect(told).toBe(first);
+        } finally { off(); }
+    });
+
+    it('announces again the moment the projection moves', async () => {
+        // Through the viewport, because this fake backend resolves no transforms
+        // and the mock registry does not read a component written back by hand.
+        const viewport = { width: 800, height: 600 };
+        const { app } = bootWithCamera(viewport);
+        await app.tick(1 / 60);
+        let told = 0;
+        const off = onCameraCommitChanged(() => { told++; });
+        try {
+            await app.tick(1 / 60);
+            expect(told).toBe(0);
+            viewport.width = 1200;
+            await app.tick(1 / 60);
+            expect(told).toBe(1);
+        } finally { off(); }
     });
 
     it('says nothing when no camera drew', async () => {
