@@ -128,6 +128,14 @@ struct Light {
                 tooltip="Baked environment (.esenv) this Ambient light casts.")
     resource::EnvironmentHandle environment;
 
+    /** @brief Turn the environment about +Y, in degrees. One number turns all three
+     *         of it — sky, diffuse irradiance and specular reflection — because
+     *         moving a reflection to the other side of a model means all three or
+     *         none. Here rather than in the `.esenv` so one bake is reusable. */
+    ES_PROPERTY(unit=deg, shown_when=type:Ambient,
+                tooltip="Turn the environment about the up axis, in degrees.")
+    f32 environmentRotation{0.0f};
+
     /** @brief Draw @ref environment as the background as well as reflecting it. Off by
      *         default, so a scene that adopts an environment for its lighting does not
      *         also acquire a sky it did not ask for. Ignored without one — and the

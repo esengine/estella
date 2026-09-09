@@ -239,8 +239,9 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'meshShadows', type: 'bool', offset: 48 },
             { name: 'shadowExtent', type: 'f32', offset: 52 },
             { name: 'environment', type: 'u32', offset: 56 },
-            { name: 'drawEnvironment', type: 'bool', offset: 60 },
-            { name: 'enabled', type: 'bool', offset: 61 },
+            { name: 'environmentRotation', type: 'f32', offset: 60 },
+            { name: 'drawEnvironment', type: 'bool', offset: 64 },
+            { name: 'enabled', type: 'bool', offset: 65 },
         ],
     },
     MeshCollider3D: {

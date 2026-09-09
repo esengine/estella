@@ -94,16 +94,16 @@ public:
         dirty_ = true;
     }
 
-    /// Sets the frame's environment: nine irradiance coefficients, the reflection
-    /// params, and the tint scaling both. The FIRST ambient light carrying one wins —
-    /// several environments do not sum the way flat terms do.
+    /// The frame's environment. The FIRST ambient light carrying one wins — several
+    /// do not sum the way flat terms do. `yaw` turns it about +Y in RADIANS and rides
+    /// in the tint's alpha, which std140 pads into existence whether it is used or not.
     /// @return false when one was already set this frame.
     bool setEnvironment(const glm::vec3* irradiance, const glm::vec4& params,
-                        const glm::vec3& tint) {
+                        const glm::vec3& tint, f32 yaw) {
         if (hasEnvironment_) return false;
         for (usize i = 0; i < 9; ++i) data_.envIrradiance[i] = glm::vec4(irradiance[i], 0.0f);
         data_.envParams = params;
-        data_.envTint = glm::vec4(tint, 0.0f);
+        data_.envTint = glm::vec4(tint, yaw);
         hasEnvironment_ = true;
         dirty_ = true;
         return true;

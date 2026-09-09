@@ -1074,7 +1074,17 @@ fn envBRDFApprox(NdotV : f32, roughness : f32) -> vec2f {
     let a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
     return vec2f(-1.04, 1.04) * a + r.zw;
 }
-fn envIrradiance(N : vec3f) -> vec3f {
+// One authority for the environment's orientation: every direction that asks the
+// environment anything comes through here, so a turned sky cannot disagree with a
+// turned reflection. The query turns the other way, the world under it.
+fn envDirection(d : vec3f) -> vec3f {
+    let a = -lc.u_envTint.a;
+    let s = sin(a);
+    let c = cos(a);
+    return vec3f(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);
+}
+fn envIrradiance(Nw : vec3f) -> vec3f {
+    let N = envDirection(Nw);
     let sh = lc.u_envIrradiance[0].rgb * 0.282095
         + lc.u_envIrradiance[1].rgb * (0.488603 * N.y)
         + lc.u_envIrradiance[2].rgb * (0.488603 * N.z)
@@ -1104,7 +1114,7 @@ fn envSampleMip(R : vec3f, mip : f32) -> vec3f {
     let atlasW = face + 2.0;
     let atlasH = 2.0 * face * (1.0 - exp2(-(lc.u_envParams.z + 1.0)))
                + 2.0 * (lc.u_envParams.z + 1.0);
-    let uv = octEncode(R);
+    let uv = octEncode(envDirection(R));
     let px = vec2f(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);
     let t = textureSampleLevel(t3, s3, px / vec2f(atlasW, atlasH), 0.0);
     return t.rgb * t.rgb * (t.a * t.a * lc.u_envParams.y);
@@ -1799,10 +1809,18 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float a = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;\n"
             "    return vec2(-1.04, 1.04) * a + r.zw;\n"
             "}\n"
+            // The WGSL twin's envDirection, for the same reason.
+            "highp vec3 envDirection(in highp vec3 d) {\n"
+            "    highp float a = -u_envTint.a;\n"
+            "    highp float s = sin(a);\n"
+            "    highp float c = cos(a);\n"
+            "    return vec3(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);\n"
+            "}\n"
             // The environment's diffuse half. With no environment the coefficients are
             // zero and this IS the flat ambient term, which is what keeps every existing
             // scene pixel-identical rather than merely close.
-            "highp vec3 envIrradiance(in highp vec3 N) {\n"
+            "highp vec3 envIrradiance(in highp vec3 Nw) {\n"
+            "    highp vec3 N = envDirection(Nw);\n"
             "    highp vec3 sh = u_envIrradiance[0].rgb * 0.282095\n"
             "        + u_envIrradiance[1].rgb * (0.488603 * N.y)\n"
             "        + u_envIrradiance[2].rgb * (0.488603 * N.z)\n"
@@ -1836,7 +1854,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float atlasW = face + 2.0;\n"
             "    highp float atlasH = 2.0 * face * (1.0 - exp2(-(u_envParams.z + 1.0)))\n"
             "                       + 2.0 * (u_envParams.z + 1.0);\n"
-            "    highp vec2 uv = octEncode(R);\n"
+            "    highp vec2 uv = octEncode(envDirection(R));\n"
             "    highp vec2 px = vec2(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);\n"
             "    highp vec4 t = texture(u_envMap, px / vec2(atlasW, atlasH));\n"
             "    return t.rgb * t.rgb * (t.a * t.a * u_envParams.y);\n"

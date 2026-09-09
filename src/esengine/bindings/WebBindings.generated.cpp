@@ -581,6 +581,7 @@ struct LightJS {
     bool meshShadows;
     f32 shadowExtent;
     u32 environment;
+    f32 environmentRotation;
     bool drawEnvironment;
     bool enabled;
 };
@@ -598,6 +599,7 @@ void lightApplyJS(esengine::ecs::Light& c, const LightJS& js) {
     c.meshShadows = js.meshShadows;
     c.shadowExtent = js.shadowExtent;
     c.environment = resource::EnvironmentHandle(js.environment);
+    c.environmentRotation = js.environmentRotation;
     c.drawEnvironment = js.drawEnvironment;
     c.enabled = js.enabled;
 }
@@ -622,6 +624,7 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
     js.meshShadows = c.meshShadows;
     js.shadowExtent = c.shadowExtent;
     js.environment = c.environment.id();
+    js.environmentRotation = c.environmentRotation;
     js.drawEnvironment = c.drawEnvironment;
     js.enabled = c.enabled;
     return js;
@@ -1564,6 +1567,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("meshShadows", &LightJS::meshShadows)
         .field("shadowExtent", &LightJS::shadowExtent)
         .field("environment", &LightJS::environment)
+        .field("environmentRotation", &LightJS::environmentRotation)
         .field("drawEnvironment", &LightJS::drawEnvironment)
         .field("enabled", &LightJS::enabled);
 
@@ -2974,8 +2978,9 @@ static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 44, "ABI offset 
 static_assert(offsetof(esengine::ecs::Light, meshShadows) == 48, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 52, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::Light, environment) == 56, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 60, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::Light, enabled) == 61, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 61)");
+static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 60, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 64, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::Light, enabled) == 65, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 65)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
@@ -3208,7 +3213,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7756afcaec734824";
+static const char* kEsAbiLayoutHash = "840383cc170f0e8f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

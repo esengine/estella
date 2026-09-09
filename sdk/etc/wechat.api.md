@@ -4440,6 +4440,7 @@ color: Color
 drawEnvironment: boolean
 enabled: boolean
 environment: number
+environmentRotation: number
 innerAngle: number
 intensity: number
 meshShadows: boolean

@@ -1082,7 +1082,8 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     const glm::vec4 params{textureId != 0 ? 1.0f : 0.0f, environment->maxRange,
                            static_cast<f32>(environment->mipCount) - 1.0f,
                            environment->faceSize};
-    if (!context_.lights().setEnvironment(environment->irradiance.data(), params, scale)) {
+    if (!context_.lights().setEnvironment(environment->irradiance.data(), params, scale,
+                                         glm::radians(light.environmentRotation))) {
         return false;
     }
     environment_texture_id_ = textureId;

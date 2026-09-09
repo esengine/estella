@@ -810,6 +810,7 @@ export interface LightPtrData {
     meshShadows: boolean;
     shadowExtent: number;
     environment: number;
+    environmentRotation: number;
     drawEnvironment: boolean;
     enabled: boolean;
 }
@@ -830,8 +831,9 @@ export function fillLight(
     out.meshShadows = u8[ptr + 48] !== 0;
     out.shadowExtent = f32[(ptr + 52) >> 2];
     out.environment = u32[(ptr + 56) >> 2];
-    out.drawEnvironment = u8[ptr + 60] !== 0;
-    out.enabled = u8[ptr + 61] !== 0;
+    out.environmentRotation = f32[(ptr + 60) >> 2];
+    out.drawEnvironment = u8[ptr + 64] !== 0;
+    out.enabled = u8[ptr + 65] !== 0;
 }
 
 export function writeLight(
@@ -850,8 +852,9 @@ export function writeLight(
     u8[ptr + 48] = data.meshShadows ? 1 : 0;
     f32[(ptr + 52) >> 2] = data.shadowExtent;
     u32[(ptr + 56) >> 2] = data.environment;
-    u8[ptr + 60] = data.drawEnvironment ? 1 : 0;
-    u8[ptr + 61] = data.enabled ? 1 : 0;
+    f32[(ptr + 60) >> 2] = data.environmentRotation;
+    u8[ptr + 64] = data.drawEnvironment ? 1 : 0;
+    u8[ptr + 65] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -868,6 +871,7 @@ export function createLightData(): LightPtrData {
         meshShadows: false,
         shadowExtent: 0,
         environment: 0,
+        environmentRotation: 0,
         drawEnvironment: false,
         enabled: false,
     };

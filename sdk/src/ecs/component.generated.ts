@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '7756afcaec734824';
+export const ABI_LAYOUT_HASH = '840383cc170f0e8f';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -456,6 +456,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             meshShadows: false,
             shadowExtent: 0,
             environment: 0,
+            environmentRotation: 0,
             drawEnvironment: false,
             enabled: true,
         },
@@ -476,6 +477,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional, Spot, Point).", shownWhen: { field: "type", values: [0, 1, 3] } },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true, shownWhen: { field: "type", values: [1] } },
             environment: { tooltip: "Baked environment (.esenv) this Ambient light casts.", shownWhen: { field: "type", values: [2] } },
+            environmentRotation: { unit: "deg", tooltip: "Turn the environment about the up axis, in degrees.", shownWhen: { field: "type", values: [2] } },
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene.", shownWhen: { field: "type", values: [2] } },
         },
     },
@@ -1298,6 +1300,7 @@ export interface LightData {
     meshShadows: boolean;
     shadowExtent: number;
     environment: number;
+    environmentRotation: number;
     drawEnvironment: boolean;
     enabled: boolean;
 }

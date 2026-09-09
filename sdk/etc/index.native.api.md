@@ -5,7 +5,7 @@ Symbols: 113 public · 97 beta · 1682 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"7756afcaec734824"
+"840383cc170f0e8f"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4446,6 +4446,7 @@ color: Color
 drawEnvironment: boolean
 enabled: boolean
 environment: number
+environmentRotation: number
 innerAngle: number
 intensity: number
 meshShadows: boolean
