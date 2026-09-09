@@ -45,7 +45,13 @@ export interface CapturedFrame {
     entities?: number;
     memory?: { wasmBytes?: number; jsHeapBytes?: number; vramBytes?: number };
     /** Editor-only. Absent from anything a shipped game records. */
-    editor?: { ms: number; phases: Record<string, number> };
+    editor?: {
+        ms: number;
+        phases: Record<string, number>;
+        /** Brackets INSIDE a phase above, already counted by it. Optional: a
+         *  capture written before they existed simply has none. */
+        parts?: Record<string, number>;
+    };
 }
 
 export interface ProfileCapture {

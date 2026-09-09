@@ -1943,7 +1943,7 @@ worstFrameMs: number
 counters: Record<string, number> | undefined
 drawCalls: number | undefined
 dtMs: number
-editor: { ms: number; phases: Record<string, number>; } | undefined
+editor: { ms: number; phases: Record<string, number>; parts?: Record<string, number>; } | undefined
 entities: number | undefined
 gpuMs: number | undefined
 id: number
