@@ -3357,6 +3357,7 @@ advanced: boolean | undefined
 bitmask: { bits?: number; source?: string; } | undefined
 category: string | undefined
 curve: boolean | undefined
+effectStack: boolean | undefined
 enum: readonly { label: string; value: number; }[] | undefined
 enumSource: string | undefined
 flags: readonly { label: string; value: number; }[] | undefined

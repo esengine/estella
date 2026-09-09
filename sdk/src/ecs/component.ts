@@ -77,6 +77,10 @@ export interface FieldMeta {
      *  properties. Value-shape inference can't tell a property map from any other object,
      *  so a field must opt in here. */
     map?: boolean;
+    /** Render as a post-process effect stack (the field value is the `effects` array).
+     *  The rows, their parameters and their ranges come from the effect registry, so an
+     *  effect the engine gains is authorable without touching the editor. */
+    effectStack?: boolean;
     /**
      * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
      * collision layers from project settings) rather than fixed here. `bits` is the
@@ -1210,6 +1214,10 @@ export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostPro
     weight: 1,
     blendDistance: 0,
 }, {
+    // WHAT the volume applies. Every other field is about WHERE, and value-shape
+    // inference drops a list of objects, so without this opt-in the whole effect
+    // registry is a runtime the scene format carries and no panel can reach.
+    fields: { effects: { effectStack: true } },
     // The COMPLETE asset manifest for discovery: effect texture params (LUTs,
     // masks) preload with the scene so the volume system's cache lookups hit.
     discoverAssets: (data) => {
