@@ -21,6 +21,7 @@ three layers: the developer-facing guides below, the generated C++ API reference
 |---|---|---|
 | [CODING_STYLE.md](./CODING_STYLE.md) | C++ and TypeScript naming & formatting rules. | English |
 | [CODE_COMMENTS.md](./CODE_COMMENTS.md) | The comment convention all source code follows (explain *why*, not *what*; English-only comments). | 中文 |
+| [VERIFICATION.md](./VERIFICATION.md) | What a criterion, gate or measurement has to answer before its result is believed. | English |
 
 ### Building & publishing
 
