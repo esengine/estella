@@ -108,6 +108,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
             worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
             worldMouseX: 0, worldMouseY: 0,
             valid: false,
+            revision: 1,
         });
         app.insertResource(ScreenLayout, { ...ScreenLayout._default });
 

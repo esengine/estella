@@ -114,7 +114,7 @@ describe.skipIf(!HAS_WASM)('anchor presets lay out via Yoga (WASM integration)',
             viewProjection: new Float32Array(16),
             vpX: 0, vpY: 0, vpW: 0, vpH: 0, screenW: 0, screenH: 0,
             worldLeft: -400, worldBottom: -300, worldRight: 400, worldTop: 300,
-            worldMouseX: 0, worldMouseY: 0, valid: true,
+            worldMouseX: 0, worldMouseY: 0, valid: true, revision: 1,
         });
         setScreenBox(app, -400, -300, 400, 300);
         app.addPlugin(uiLayoutPlugin);

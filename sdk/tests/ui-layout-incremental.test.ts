@@ -64,7 +64,7 @@ describe.skipIf(!HAS_WASM)('incremental layout equals a fresh solve', () => {
             vpX: 0, vpY: 0, vpW: 0, vpH: 0, screenW: 0, screenH: 0,
             worldLeft: -camW / 2, worldBottom: -camH / 2,
             worldRight: camW / 2, worldTop: camH / 2,
-            worldMouseX: 0, worldMouseY: 0, valid: true,
+            worldMouseX: 0, worldMouseY: 0, valid: true, revision: 1,
         });
         setScreenBox(app, -camW / 2, -camH / 2, camW / 2, camH / 2);
         app.addPlugin(uiLayoutPlugin);

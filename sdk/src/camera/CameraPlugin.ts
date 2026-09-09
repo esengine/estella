@@ -16,6 +16,7 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
+import { CameraCommit } from './CameraCommit';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
@@ -589,6 +590,28 @@ function publishScreenLayout(
     );
 }
 
+/**
+ * Publish the camera this frame was drawn from, as a copy.
+ *
+ * After the submit, never from the early peek: the value names a picture, and a
+ * peek draws nothing. Copied because UICameraInfo's array is rewritten in place,
+ * so a view onto it would change under a reader mid-gizmo.
+ */
+function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): void {
+    const commit = app.getResource(CameraCommit);
+    if (!cam) {
+        commit.valid = false;
+        return;
+    }
+    commit.viewProjection.set(cam.viewProjection);
+    commit.vpX = uiCam.vpX;
+    commit.vpY = uiCam.vpY;
+    commit.vpW = uiCam.vpW;
+    commit.vpH = uiCam.vpH;
+    commit.revision = uiCam.revision;
+    commit.valid = true;
+}
+
 function syncUICameraInfo(
     app: App,
     module: ESEngineModule | null,
@@ -606,6 +629,9 @@ function syncUICameraInfo(
     if (cameras.length > 0) {
         const cam = cameras[0];
         uiCam.viewProjection.set(cam.viewProjection);
+        // In the same statement group as the write it names: a revision published
+        // apart from the matrix is a reader's chance to see one without the other.
+        uiCam.revision++;
         // Against the WINDOW, not the camera's render target: this rect is what a
         // pointer's coordinates are normalised by, and a pointer is on the window.
         const box = viewportPixels(cam.viewportRect, width, height);
@@ -639,6 +665,7 @@ function syncUICameraInfo(
         uiCam.valid = true;
     } else {
         uiCam.valid = false;
+        uiCam.revision++;
     }
     publishScreenOverlay(app, width, height, uiCam, cameras);
 }
@@ -860,6 +887,11 @@ export function cameraPlugin(
                         // swapchain image goes back.
                         pipeline.endFrame();
                     }, { remainder: 'wait' });
+
+                    // The frame is drawn; say which camera drew it. After the
+                    // submit, so nothing can publish a commit for a picture that
+                    // then failed to render.
+                    commitCamera(app, cameras.length > 0 ? cameras[0] : null, app.getResource(UICameraInfo));
                 },
             };
 

@@ -77,6 +77,7 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
             worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
             worldMouseX: 0, worldMouseY: 0,
             valid: false,
+            revision: 1,
         });
 
         app.addPlugin(uiLayoutPlugin);

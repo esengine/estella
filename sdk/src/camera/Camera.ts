@@ -3,6 +3,7 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
+import { CameraCommit } from './CameraCommit';
 import type { Vec3 } from '../types';
 import { screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
@@ -18,12 +19,60 @@ import { screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, is
 /** How far inside the near plane a cut lands, as a fraction of the segment. */
 const CLIP_NUDGE = 1e-4;
 
+/**
+ * The camera as a LENS — what a projection needs, and nothing about the surface.
+ *
+ * Narrower than {@link UICameraData} on purpose: it is the part two different
+ * cameras can both supply, one being resolved and one already drawn with.
+ * @beta
+ */
+export interface CameraLens {
+    viewProjection: Float32Array;
+    vpX: number;
+    vpY: number;
+    vpW: number;
+    vpH: number;
+}
+
+/** The camera currently being resolved — moves twice a frame. */
+const liveLens = (app: App): CameraLens | null => {
+    const cam: UICameraData = app.getResource(UICameraInfo);
+    return cam.valid ? cam : null;
+};
+
+/** The camera the last frame was drawn with. */
+const committedLens = (app: App): CameraLens | null => {
+    const commit = app.getResource(CameraCommit);
+    return commit.valid ? commit : null;
+};
+
 export class CameraViewAPI {
     private readonly invVPCache = createInvVPCache();
 
-    constructor(private readonly app_: App) {}
+    /**
+     * @param lens_ Which camera this view answers for. The default is the one
+     *              being resolved — what a system inside the frame wants.
+     *              Anything aligning to the PICTURE wants
+     *              {@link PresentedCameraView}: the live one moves mid-frame and
+     *              can hold a state no frame was drawn from.
+     */
+    constructor(
+        private readonly app_: App,
+        private readonly lens_: (app: App) => CameraLens | null = liveLens,
+    ) {}
 
-    private cam(): UICameraData | null {
+    private cam(): CameraLens | null {
+        return this.lens_(this.app_);
+    }
+
+    /**
+     * The live UI surface, for the two answers that are not projections.
+     *
+     * Where the pointer is and what box UI lays out within are facts about the
+     * surface as it stands, not about a picture that was drawn — so they read
+     * the live resource even on a view over the committed camera.
+     */
+    private surface(): UICameraData | null {
         const cam = this.app_.getResource(UICameraInfo);
         return cam.valid ? cam : null;
     }
@@ -122,13 +171,13 @@ export class CameraViewAPI {
     }
 
     getWorldMousePosition(): { x: number; y: number } | null {
-        const cam = this.cam();
+        const cam = this.surface();
         if (!cam) return null;
         return { x: cam.worldMouseX, y: cam.worldMouseY };
     }
 
     getWorldBounds(): { left: number; right: number; bottom: number; top: number } | null {
-        const cam = this.cam();
+        const cam = this.surface();
         if (!cam) return null;
         return { left: cam.worldLeft, right: cam.worldRight, bottom: cam.worldBottom, top: cam.worldTop };
     }
@@ -140,3 +189,16 @@ export class CameraViewAPI {
  * `CameraView` rather than `Camera` because `Camera` is the ECS component.)
  */
 export const CameraView = defineResource<CameraViewAPI>(null!, 'CameraView');
+
+/**
+ * The same queries, against the camera the last frame was actually drawn with.
+ *
+ * One implementation, two sources: a second projection written over the commit
+ * would be a second near-plane cut to keep in step, and a wireframe cut by one
+ * and drawn by the other comes apart exactly where a segment leaves the view.
+ * @beta
+ */
+export const PresentedCameraView = defineResource<CameraViewAPI>(null!, 'PresentedCameraView');
+
+/** A view over the camera the last frame was drawn with. @beta */
+export const presentedCameraView = (app: App): CameraViewAPI => new CameraViewAPI(app, committedLens);

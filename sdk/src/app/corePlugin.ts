@@ -11,7 +11,7 @@ import { initGeometryAPI, shutdownGeometryAPI } from '../render/geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from '../postprocess';
 import { initRendererAPI, shutdownRendererAPI } from '../render/renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from '../render/glDebug';
-import { CameraView, CameraViewAPI } from '../camera/Camera';
+import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from '../camera/Camera';
 
 let offMemoryWarning: (() => void) | null = null;
 
@@ -37,6 +37,10 @@ export const corePlugin: Plugin = {
         initRendererAPI(module);
         initGLDebugAPI(module);
         app.insertResource(CameraView, new CameraViewAPI(app));
+        // Published beside it, not instead of it: a system inside the frame
+        // wants the camera being resolved, and an overlay on the picture wants
+        // the one that drew it. Two questions, so two resources.
+        app.insertResource(PresentedCameraView, presentedCameraView(app));
     },
 
     cleanup() {
@@ -60,4 +64,5 @@ export const DEFAULT_UI_CAMERA_INFO = {
     worldLeft: 0, worldBottom: 0, worldRight: 0, worldTop: 0,
     worldMouseX: 0, worldMouseY: 0,
     valid: false,
+    revision: 0,
 } as const;
