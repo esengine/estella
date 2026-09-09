@@ -86,6 +86,34 @@ its keep.
 
 ---
 
+## 5. The sampling window is part of the instrument
+
+When comparing observers that run at different cadences, bound both observations
+to the same logical event or frame. One recorded per call and one recorded per
+rendered frame will differ by however many frames the window stayed open, and an
+integer ratio reads exactly like a defect in the thing being measured.
+
+*Measured here:* two paths deriving identical geometry reported 248 segments and
+496, every entity a clean 2x, because the probe was read two frames after it was
+armed. Latched to one frame, the two agreed to the last endpoint.
+
+---
+
+## 6. Know what surface an image instrument observes
+
+Two captures of "the editor" are two different worlds:
+
+- `capture_viewport` — the engine's render target. DOM and editor overlays are
+  not in it.
+- a composited window screenshot — what the person sees, overlays included.
+
+*Measured here:* an SVG overlay scored zero coverage under `capture_viewport`
+and 902,602 under a screenshot. Several rounds of comparison between a DOM
+implementation and a renderer one were taken with the instrument that could only
+see one of them.
+
+---
+
 ## Checklist
 
 Six questions, before writing a gate or a benchmark:
@@ -96,3 +124,4 @@ Six questions, before writing a gate or a benchmark:
 - [ ] What sabotage separates them?
 - [ ] Can the observer change the system?
 - [ ] Does the census prove what it actually covered?
+- [ ] Are both sides sampled over the same window, on the same surface?
