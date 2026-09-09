@@ -235,6 +235,16 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "tooltip": "Baked environment (.esenv) this Ambient light casts.",
     },
+    "environmentRotation": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          2,
+        ],
+      },
+      "tooltip": "Turn the environment about the up axis, in degrees.",
+      "unit": "deg",
+    },
     "innerAngle": {
       "advanced": true,
       "max": 180,
