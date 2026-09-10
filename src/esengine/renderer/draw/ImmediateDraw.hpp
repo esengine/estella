@@ -86,7 +86,7 @@ public:
     // =========================================================================
 
     /** @brief Begins a new draw frame */
-    void begin(const glm::mat4& viewProjection);
+    void begin(const glm::mat4& viewProjection, i32 viewportWidth = 0, i32 viewportHeight = 0);
 
     /** @brief Ends the frame and submits all draw commands */
     void end();
@@ -114,6 +114,10 @@ public:
      */
     void line3D(const glm::vec3& from, const glm::vec3& to,
                 const glm::vec4& color, f32 thickness = 1.0f);
+
+    /** A world-space line with an explicit framebuffer-pixel thickness. */
+    void line3DScreen(const glm::vec3& from, const glm::vec3& to,
+                      const glm::vec4& color, f32 thickness = 1.0f);
 
     void polyline(std::span<const glm::vec2> vertices, const glm::vec4& color,
                   f32 thickness = 1.0f, bool closed = false);
@@ -209,6 +213,11 @@ private:
     /// Where the camera looks, from the view-projection this frame began with —
     /// what a 3D line is widened across.
     glm::vec3 viewForward_{0.0f, 0.0f, -1.0f};
+    /// Canonical (OpenGL-depth) lens for cutting 3D lines before ribbon expansion.
+    glm::mat4 viewProjection_{1.0f};
+    glm::mat4 inverseViewProjection_{1.0f};
+    f32 viewportWidth_ = 1.0f;
+    f32 viewportHeight_ = 1.0f;
 
     i32 currentLayer_ = 0;
     f32 currentDepth_ = 0.0f;

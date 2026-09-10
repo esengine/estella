@@ -176,7 +176,7 @@ describe('RenderPipeline', () => {
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
-            expect(Draw.begin).toHaveBeenCalledWith(viewProjection);
+            expect(Draw.begin).toHaveBeenCalledWith(viewProjection, 800, 600);
             expect(cb).toHaveBeenCalledWith(16);
             expect(Draw.end).toHaveBeenCalled();
         });
@@ -257,7 +257,7 @@ describe('RenderPipeline', () => {
 
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 16 });
 
-            expect(Draw.begin).toHaveBeenCalledWith(viewProjection);
+            expect(Draw.begin).toHaveBeenCalledWith(viewProjection, 400, 300);
             expect(cb).toHaveBeenCalledWith(16);
             expect(Draw.end).toHaveBeenCalled();
         });

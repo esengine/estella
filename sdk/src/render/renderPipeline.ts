@@ -180,7 +180,7 @@ export class RenderPipeline {
         this.runPreFlushCallbacks(registry);
         Renderer.flush();
 
-        this.executeDrawCallbacks(viewProjection, _elapsed);
+        this.executeDrawCallbacks(viewProjection, viewport, _elapsed);
     }
 
     render(params: RenderParams): void {
@@ -265,7 +265,7 @@ export class RenderPipeline {
         // Same bargain as the post-scene pass: a core with no Draw API has no
         // batch to open, and the callbacks would have nowhere to draw.
         if (cbs.size === 0 || !isDrawAPIReady()) return;
-        Draw.begin(viewProjection);
+        Draw.begin(viewProjection, viewport.w, viewport.h);
         const failed: string[] = [];
         for (const [id, fn] of cbs.entries()) {
             try {
@@ -281,13 +281,13 @@ export class RenderPipeline {
         }
     }
 
-    private executeDrawCallbacks(viewProjection: Float32Array, elapsed: number): void {
+    private executeDrawCallbacks(viewProjection: Float32Array, viewport: Viewport, elapsed: number): void {
         const cbs = getDrawCallbacks();
         // Plugins register overlays at build time whether one is ever turned on,
         // and a core with no Draw API has no batch to open — opening one throws
         // the frame away for a callback that would have drawn nothing.
         if (cbs.size > 0 && isDrawAPIReady()) {
-            Draw.begin(viewProjection);
+            Draw.begin(viewProjection, viewport.w, viewport.h);
             const failed: string[] = [];
             for (const [id, entry] of cbs.entries()) {
                 if (entry.scene && this.activeScenes_ && !this.activeScenes_.has(entry.scene)) continue;

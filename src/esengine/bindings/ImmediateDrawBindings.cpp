@@ -34,7 +34,7 @@ static void flushImmediateDrawIfActive() {
     }
 }
 
-void draw_begin(uintptr_t matrixPtr) {
+void draw_begin(uintptr_t matrixPtr, i32 viewportWidth, i32 viewportHeight) {
     if (!g_initialized || !g_immediateDraw) return;
 
     g_device->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
@@ -42,7 +42,10 @@ void draw_begin(uintptr_t matrixPtr) {
     const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "draw_begin.matrix");
     if (!matrixData) return;
     ctx().state().current_view_projection = glm::make_mat4(matrixData);
-    g_immediateDraw->begin(g_currentViewProjection);
+    g_immediateDraw->begin(
+        g_currentViewProjection,
+        viewportWidth > 0 ? viewportWidth : static_cast<i32>(g_viewportWidth),
+        viewportHeight > 0 ? viewportHeight : static_cast<i32>(g_viewportHeight));
     ctx().state().immediate_draw_active = true;
 }
 
@@ -70,6 +73,18 @@ void draw_line3D(f32 fromX, f32 fromY, f32 fromZ, f32 toX, f32 toY, f32 toZ,
     if (!g_immediateDraw || !g_immediateDrawActive) return;
 
     g_immediateDraw->line3D(
+        glm::vec3(fromX, fromY, fromZ),
+        glm::vec3(toX, toY, toZ),
+        glm::vec4(r, g, b, a),
+        thickness
+    );
+}
+
+void draw_line3DScreen(f32 fromX, f32 fromY, f32 fromZ, f32 toX, f32 toY, f32 toZ,
+                       f32 r, f32 g, f32 b, f32 a, f32 thickness) {
+    if (!g_immediateDraw || !g_immediateDrawActive) return;
+
+    g_immediateDraw->line3DScreen(
         glm::vec3(fromX, fromY, fromZ),
         glm::vec3(toX, toY, toZ),
         glm::vec4(r, g, b, a),

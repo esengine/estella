@@ -26,6 +26,7 @@
 
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <string>
@@ -40,6 +41,30 @@ constexpr glm::vec2 QUAD_LOCAL[4] = {
 constexpr glm::vec2 QUAD_UV[4] = {
     {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}
 };
+
+constexpr f32 NEAR_CLIP_NUDGE = 1e-4f;
+
+/** Cut a world segment against the canonical clip-space near plane (z >= -w). */
+bool clipLineToNearPlane(glm::vec3& from, glm::vec3& to, const glm::mat4& viewProjection) {
+    const auto side = [&viewProjection](const glm::vec3& point) {
+        const glm::vec4 clip = viewProjection * glm::vec4(point, 1.0f);
+        return clip.z + clip.w;
+    };
+    const f32 fromSide = side(from);
+    const f32 toSide = side(to);
+    if (!std::isfinite(fromSide) || !std::isfinite(toSide)) return false;
+    if (fromSide >= 0.0f && toSide >= 0.0f) return true;
+    if (fromSide < 0.0f && toSide < 0.0f) return false;
+
+    const f32 crossing = fromSide / (fromSide - toSide);
+    const f32 t = fromSide >= 0.0f
+        ? crossing * (1.0f - NEAR_CLIP_NUDGE)
+        : crossing + (1.0f - crossing) * NEAR_CLIP_NUDGE;
+    const glm::vec3 cut = glm::mix(from, to, t);
+    if (fromSide >= 0.0f) to = cut;
+    else from = cut;
+    return true;
+}
 
 }  // namespace
 
@@ -124,8 +149,12 @@ void ImmediateDraw::shutdown() {
     ES_LOG_INFO("ImmediateDraw shutdown");
 }
 
-void ImmediateDraw::begin(const glm::mat4& viewProjection) {
+void ImmediateDraw::begin(const glm::mat4& viewProjection, i32 viewportWidth, i32 viewportHeight) {
     if (!initialized_) return;
+
+    viewProjection_ = viewProjection;
+    viewportWidth_ = static_cast<f32>(std::max(viewportWidth, 1));
+    viewportHeight_ = static_cast<f32>(std::max(viewportHeight, 1));
 
     // The batch shader reads u_projection from the shared FrameConstants UBO; update it
     // for this pass rather than uploading a loose uniform per flush. A camera's, so it
@@ -136,9 +165,9 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection) {
 
     // Near-centre to far-centre through the inverse: one direction that works for
     // both projections, where a perspective camera's own position does not.
-    const glm::mat4 inverseVP = glm::inverse(viewProjection);
-    const glm::vec4 nearPoint = inverseVP * glm::vec4(0.0f, 0.0f, -1.0f, 1.0f);
-    const glm::vec4 farPoint = inverseVP * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    inverseViewProjection_ = glm::inverse(viewProjection);
+    const glm::vec4 nearPoint = inverseViewProjection_ * glm::vec4(0.0f, 0.0f, -1.0f, 1.0f);
+    const glm::vec4 farPoint = inverseViewProjection_ * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
     const glm::vec3 forward = glm::vec3(farPoint) / farPoint.w - glm::vec3(nearPoint) / nearPoint.w;
     if (glm::length(forward) > 0.0001f) viewForward_ = glm::normalize(forward);
 
@@ -268,7 +297,11 @@ void ImmediateDraw::line3D(const glm::vec3& from, const glm::vec3& to,
                            const glm::vec4& color, f32 thickness) {
     if (!inFrame_) return;
 
-    const glm::vec3 delta = to - from;
+    glm::vec3 clippedFrom = from;
+    glm::vec3 clippedTo = to;
+    if (!clipLineToNearPlane(clippedFrom, clippedTo, viewProjection_)) return;
+
+    const glm::vec3 delta = clippedTo - clippedFrom;
     const f32 length = glm::length(delta);
     if (length < 0.0001f) return;
     const glm::vec3 dir = delta / length;
@@ -287,11 +320,72 @@ void ImmediateDraw::line3D(const glm::vec3& from, const glm::vec3& to,
     useTexture(white_texture_id_);
     const u32 packed = packColor(color);
     const std::array<BatchVertex, 4> verts{
-        BatchVertex{ from - side, packed, {0.0f, 0.0f} },
-        BatchVertex{ from + side, packed, {1.0f, 0.0f} },
-        BatchVertex{ to + side, packed, {1.0f, 1.0f} },
-        BatchVertex{ to - side, packed, {0.0f, 1.0f} },
+        BatchVertex{ clippedFrom - side, packed, {0.0f, 0.0f} },
+        BatchVertex{ clippedFrom + side, packed, {1.0f, 0.0f} },
+        BatchVertex{ clippedTo + side, packed, {1.0f, 1.0f} },
+        BatchVertex{ clippedTo - side, packed, {0.0f, 1.0f} },
     };
+    const u32 base =
+        pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+    const u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };
+    pool_.appendIndices(LayoutId::Batch, idx, 6);
+    pendingGeometry_ = true;
+    ++primitiveCount_;
+}
+
+void ImmediateDraw::line3DScreen(const glm::vec3& from, const glm::vec3& to,
+                                 const glm::vec4& color, f32 thickness) {
+    if (!inFrame_ || !(thickness > 0.0f)) return;
+
+    glm::vec3 clippedFrom = from;
+    glm::vec3 clippedTo = to;
+    if (!clipLineToNearPlane(clippedFrom, clippedTo, viewProjection_)) return;
+
+    const glm::vec4 clipFrom = viewProjection_ * glm::vec4(clippedFrom, 1.0f);
+    const glm::vec4 clipTo = viewProjection_ * glm::vec4(clippedTo, 1.0f);
+    if (std::abs(clipFrom.w) < 1e-9f || std::abs(clipTo.w) < 1e-9f) return;
+    const glm::vec2 ndcFrom = glm::vec2(clipFrom) / clipFrom.w;
+    const glm::vec2 ndcTo = glm::vec2(clipTo) / clipTo.w;
+    const glm::vec2 pixelDelta{
+        (ndcTo.x - ndcFrom.x) * viewportWidth_,
+        (ndcTo.y - ndcFrom.y) * viewportHeight_,
+    };
+    const f32 pixelLength = glm::length(pixelDelta);
+    if (!(pixelLength > 1e-6f) || !std::isfinite(pixelLength)) return;
+    const glm::vec2 normal{-pixelDelta.y / pixelLength, pixelDelta.x / pixelLength};
+    const glm::vec2 ndcOffset{
+        normal.x * thickness / viewportWidth_,
+        normal.y * thickness / viewportHeight_,
+    };
+
+    const auto unproject = [this](const glm::vec4& clip, glm::vec3& point) {
+        const glm::vec4 world = inverseViewProjection_ * clip;
+        if (!std::isfinite(world.x) || !std::isfinite(world.y) ||
+            !std::isfinite(world.z) || !std::isfinite(world.w) ||
+            std::abs(world.w) < 1e-9f) {
+            return false;
+        }
+        point = glm::vec3(world) / world.w;
+        return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z);
+    };
+    const glm::vec4 fromOffset{ndcOffset * clipFrom.w, 0.0f, 0.0f};
+    const glm::vec4 toOffset{ndcOffset * clipTo.w, 0.0f, 0.0f};
+    std::array<glm::vec3, 4> points;
+    if (!unproject(clipFrom - fromOffset, points[0]) ||
+        !unproject(clipFrom + fromOffset, points[1]) ||
+        !unproject(clipTo + toOffset, points[2]) ||
+        !unproject(clipTo - toOffset, points[3])) {
+        return;
+    }
+    const u32 packed = packColor(color);
+    const std::array<BatchVertex, 4> verts{
+        BatchVertex{ points[0], packed, {0.0f, 0.0f} },
+        BatchVertex{ points[1], packed, {1.0f, 0.0f} },
+        BatchVertex{ points[2], packed, {1.0f, 1.0f} },
+        BatchVertex{ points[3], packed, {0.0f, 1.0f} },
+    };
+
+    useTexture(white_texture_id_);
     const u32 base =
         pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
     const u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };

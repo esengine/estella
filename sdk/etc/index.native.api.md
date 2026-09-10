@@ -2951,7 +2951,7 @@ DrawAPI
 
 ## DrawAPI — interface @experimental
 ```
-begin: (viewProjection: Float32Array) => void
+begin: (viewProjection: Float32Array, viewportWidth?: number, viewportHeight?: number) => void
 circle: (center: Vec2, radius: number, color: Color, filled?: boolean, segments?: number) => void
 circleOutline: (center: Vec2, radius: number, color: Color, thickness?: number, segments?: number) => void
 drawMesh: (geometry: GeometryHandle, shader: ShaderHandle, transform: Float32Array) => void
@@ -2960,6 +2960,7 @@ end: () => void
 getDrawCallCount: () => number
 getPrimitiveCount: () => number
 line3D: (from: Vec3, to: Vec3, color: Color, thickness?: number) => void
+line3DScreen: (from: Vec3, to: Vec3, color: Color, thickness?: number) => void
 line: (from: Vec2, to: Vec2, color: Color, thickness?: number) => void
 rect: (position: Vec2, size: Vec2, color: Color, filled?: boolean) => void
 rectOutline: (position: Vec2, size: Vec2, color: Color, thickness?: number) => void

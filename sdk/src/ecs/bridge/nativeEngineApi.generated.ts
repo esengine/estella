@@ -23,7 +23,7 @@ export interface NativeEngineApi {
     anim_setSequenceNext?(registry: unknown, tweenEntity: number, nextEntity: number): void;
     anim_setTweenBezier?(registry: unknown, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number): void;
     anim_updateTweens?(registry: unknown, deltaTime: number): void;
-    draw_begin?(matrixPtr: number): void;
+    draw_begin?(matrixPtr: number, viewportWidth: number, viewportHeight: number): void;
     draw_circle?(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, filled: boolean, segments: number): void;
     draw_circleOutline?(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, thickness: number, segments: number): void;
     draw_end?(): void;
@@ -31,6 +31,7 @@ export interface NativeEngineApi {
     draw_getPrimitiveCount?(): number;
     draw_line?(fromX: number, fromY: number, toX: number, toY: number, r: number, g: number, b: number, a: number, thickness: number): void;
     draw_line3D?(fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number, r: number, g: number, b: number, a: number, thickness: number): void;
+    draw_line3DScreen?(fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number, r: number, g: number, b: number, a: number, thickness: number): void;
     draw_mesh?(geometryHandle: number, shaderHandle: number, transformPtr: number): void;
     draw_meshWithMaterial?(geometryHandle: number, materialId: number): boolean;
     draw_meshWithUniforms?(geometryHandle: number, shaderHandle: number, transformPtr: number, uniformsPtr: number, uniformCount: number): void;
@@ -292,6 +293,7 @@ export function createNativeEngineApi(
     bind('draw_getPrimitiveCount', 'es_draw_getPrimitiveCount', false);
     bind('draw_line', 'es_draw_line', false);
     bind('draw_line3D', 'es_draw_line3D', false);
+    bind('draw_line3DScreen', 'es_draw_line3DScreen', false);
     bind('draw_mesh', 'es_draw_mesh', false);
     bind('draw_meshWithMaterial', 'es_draw_meshWithMaterial', false);
     bind('draw_meshWithUniforms', 'es_draw_meshWithUniforms', false);

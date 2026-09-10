@@ -51,6 +51,8 @@ function createDrawMockModule() {
         draw_begin: vi.fn(),
         draw_end: vi.fn(),
         draw_line: vi.fn(),
+        draw_line3D: vi.fn(),
+        draw_line3DScreen: vi.fn(),
         draw_rect: vi.fn(),
         draw_rectOutline: vi.fn(),
         draw_circle: vi.fn(),
@@ -157,7 +159,13 @@ describe('Draw API', () => {
             for (let i = 0; i < 16; i++) {
                 expect(mock.HEAPF32[offset + i]).toBe(i + 1);
             }
-            expect(mock.draw_begin).toHaveBeenCalledWith(vpPtr);
+            expect(mock.draw_begin).toHaveBeenCalledWith(vpPtr, 0, 0);
+        });
+
+        it('passes the camera viewport used by screen-sized world lines', () => {
+            Draw.begin(new Float32Array(16), 800, 600);
+            const vpPtr = mock._malloc.mock.results[0].value;
+            expect(mock.draw_begin).toHaveBeenCalledWith(vpPtr, 800, 600);
         });
     });
 
@@ -190,6 +198,18 @@ describe('Draw API', () => {
 
             expect(mock.draw_line).toHaveBeenCalledWith(
                 0, 0, 1, 1, 1, 1, 1, 1, 1,
+            );
+        });
+    });
+
+    describe('Draw.line3DScreen', () => {
+        it('passes world endpoints and pixel thickness to the native primitive', () => {
+            Draw.line3DScreen(
+                { x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 },
+                { r: 0.1, g: 0.2, b: 0.3, a: 0.4 }, 1.75,
+            );
+            expect(mock.draw_line3DScreen).toHaveBeenCalledWith(
+                1, 2, 3, 4, 5, 6, 0.1, 0.2, 0.3, 0.4, 1.75,
             );
         });
     });

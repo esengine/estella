@@ -84,8 +84,10 @@ export interface DrawAPI {
     /**
      * Begins a new draw frame with the given view-projection matrix.
      * Must be called before any draw commands.
+     * @param viewportWidth Framebuffer width used by screen-sized 3D primitives
+     * @param viewportHeight Framebuffer height used by screen-sized 3D primitives
      */
-    begin(viewProjection: Float32Array): void;
+    begin(viewProjection: Float32Array, viewportWidth?: number, viewportHeight?: number): void;
 
     /**
      * Ends the current draw frame and submits all commands.
@@ -110,6 +112,12 @@ export interface DrawAPI {
      * line thins out the way the geometry beside it does.
      */
     line3D(from: Vec3, to: Vec3, color: Color, thickness?: number): void;
+
+    /**
+     * Draws a world-space line with a stable framebuffer-pixel thickness.
+     * The active draw frame must include its framebuffer dimensions.
+     */
+    line3DScreen(from: Vec3, to: Vec3, color: Color, thickness?: number): void;
 
     /**
      * Draws a filled or outlined rectangle.
@@ -241,11 +249,11 @@ function getModule(): ESEngineModule {
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
 
 export const Draw: DrawAPI = {
-    begin(viewProjection: Float32Array): void {
+    begin(viewProjection: Float32Array, viewportWidth = 0, viewportHeight = 0): void {
         const m = getModule();
         try {
             m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
-            m.draw_begin(viewProjectionPtr);
+            m.draw_begin(viewProjectionPtr, viewportWidth, viewportHeight);
         } catch (e) {
             handleWasmError(e, 'Draw.begin');
         }
@@ -282,6 +290,19 @@ export const Draw: DrawAPI = {
             );
         } catch (e) {
             handleWasmError(e, 'Draw.line3D');
+        }
+    },
+
+    line3DScreen(from: Vec3, to: Vec3, color: Color, thickness = 1): void {
+        try {
+            getModule().draw_line3DScreen(
+                from.x, from.y, from.z,
+                to.x, to.y, to.z,
+                color.r, color.g, color.b, color.a,
+                thickness
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.line3DScreen');
         }
     },
 
