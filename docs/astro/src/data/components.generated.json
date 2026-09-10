@@ -1992,6 +1992,12 @@
           "doc": "Baked environment (.esenv) this Ambient light casts."
         },
         {
+          "key": "environmentRotation",
+          "type": "number",
+          "default": "0",
+          "doc": "Turn the environment about the up axis, in degrees."
+        },
+        {
           "key": "drawEnvironment",
           "type": "boolean",
           "default": "false",
