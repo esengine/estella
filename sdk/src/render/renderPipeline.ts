@@ -10,7 +10,7 @@ import type { Entity } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
 import type { ScreenOverlayData } from '../ui/core/screen-overlay';
-import { Draw, isDrawAPIReady } from './draw';
+import { Draw, endPresentedDraw, isDrawAPIReady } from './draw';
 import {
     getDrawCallbacks,
     unregisterDrawCallback,
@@ -292,13 +292,17 @@ export class RenderPipeline {
             for (const [id, entry] of cbs.entries()) {
                 if (entry.scene && this.activeScenes_ && !this.activeScenes_.has(entry.scene)) continue;
                 try {
-                    entry.fn(elapsed);
+                    entry.fn(elapsed, {
+                        viewProjection,
+                        width: viewport.w,
+                        height: viewport.h,
+                    });
                 } catch (e) {
                     log.error('render', `callback '${id}' error`, e);
                     failed.push(id);
                 }
             }
-            Draw.end();
+            endPresentedDraw();
             for (const id of failed) {
                 unregisterDrawCallback(id);
             }

@@ -76,6 +76,15 @@ export function shutdownDrawAPI(): void {
     module = null;
 }
 
+/** @internal Close custom overlay collection for the owning renderer pass. */
+export function endPresentedDraw(): void {
+    try {
+        getModule().draw_deferEnd();
+    } catch (e) {
+        handleWasmError(e, 'Draw.endPresented');
+    }
+}
+
 // =============================================================================
 // Draw API Interface
 // =============================================================================
@@ -118,6 +127,10 @@ export interface DrawAPI {
      * The active draw frame must include its framebuffer dimensions.
      */
     line3DScreen(from: Vec3, to: Vec3, color: Color, thickness?: number): void;
+
+    /** Draws a framebuffer-sized line at one world anchor. Offsets are pixels, +Y up. */
+    line3DScreenOffset(anchor: Vec3, fromOffset: Vec2, toOffset: Vec2,
+                       color: Color, thickness?: number): void;
 
     /**
      * Draws a filled or outlined rectangle.
@@ -303,6 +316,20 @@ export const Draw: DrawAPI = {
             );
         } catch (e) {
             handleWasmError(e, 'Draw.line3DScreen');
+        }
+    },
+
+    line3DScreenOffset(anchor: Vec3, fromOffset: Vec2, toOffset: Vec2,
+                       color: Color, thickness = 1): void {
+        try {
+            getModule().draw_line3DScreenOffset(
+                anchor.x, anchor.y, anchor.z,
+                fromOffset.x, fromOffset.y, toOffset.x, toOffset.y,
+                color.r, color.g, color.b, color.a,
+                thickness,
+            );
+        } catch (e) {
+            handleWasmError(e, 'Draw.line3DScreenOffset');
         }
     },
 

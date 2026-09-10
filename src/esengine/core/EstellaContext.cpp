@@ -216,6 +216,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     auto* rc = services_.getService<RenderContext>();
     auto immediateDraw = makeUnique<ImmediateDraw>(*gfxDevicePtr, *rc, *rm);
     immediateDraw->init();
+    auto* immediateDrawPtr = immediateDraw.get();
     services_.registerOwned<ImmediateDraw>(std::move(immediateDraw));
 
     services_.registerOwned<GeometryManager>(makeUnique<GeometryManager>());
@@ -225,6 +226,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 #endif
 
     auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *rc, *rm);
+    renderFrame->setPresentedOverlayDraw(immediateDrawPtr);
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
 #ifdef ES_ENABLE_BITMAP_TEXT

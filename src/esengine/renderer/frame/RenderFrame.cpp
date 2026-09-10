@@ -5,6 +5,7 @@
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../store/LightStore.hpp"
 #include "../draw/BatchBuilder.hpp"
+#include "../draw/ImmediateDraw.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
@@ -545,7 +546,10 @@ void RenderFrame::end() {
         if (shadow_resource_ != rg::kNoResource) {
             scene.dependencies.push_back(shadow_resource_);
         }
-        scene.execute = [this](const rg::PassContext&) { drawScene(); };
+        scene.execute = [this](const rg::PassContext&) {
+            drawScene();
+            if (presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+        };
         graph_.addPass(std::move(scene));
     }
 

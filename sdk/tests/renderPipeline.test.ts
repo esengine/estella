@@ -51,12 +51,16 @@ vi.mock('../src/render/draw', () => ({
         begin: vi.fn(),
         end: vi.fn(),
     },
+    endPresentedDraw: vi.fn(),
     // These cases are about a core that HAS a Draw API; the one that has not is
     // covered where the skip lives (nav-debug-draw).
     isDrawAPIReady: () => true,
 }));
 
-const mockCallbacks = new Map<string, { fn: (elapsed: number) => void; scene: string }>();
+const mockCallbacks = new Map<string, {
+    fn: (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void;
+    scene: string;
+}>();
 const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
 vi.mock('../src/render/customDraw', () => ({
     getDrawCallbacks: vi.fn(() => mockCallbacks),
@@ -68,7 +72,7 @@ vi.mock('../src/render/customDraw', () => ({
 import { RenderPipeline } from '../src/render/renderPipeline';
 import { Renderer } from '../src/render/renderer';
 import { PostProcess } from '../src/postprocess';
-import { Draw } from '../src/render/draw';
+import { Draw, endPresentedDraw } from '../src/render/draw';
 import { unregisterDrawCallback } from '../src/render/customDraw';
 
 describe('RenderPipeline', () => {
@@ -164,33 +168,45 @@ describe('RenderPipeline', () => {
     });
 
     describe('custom draw callbacks', () => {
-        it('does not call Draw.begin/end when no callbacks', () => {
+        it('does not open or close a presented draw when no callbacks', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
             expect(Draw.begin).not.toHaveBeenCalled();
-            expect(Draw.end).not.toHaveBeenCalled();
+            expect(endPresentedDraw).not.toHaveBeenCalled();
         });
 
-        it('calls Draw.begin/end and callback when callbacks exist', () => {
+        it('collects a presented draw around callbacks', () => {
             const cb = vi.fn();
             mockCallbacks.set('test-cb', { fn: cb, scene: '' });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
             expect(Draw.begin).toHaveBeenCalledWith(viewProjection, 800, 600);
-            expect(cb).toHaveBeenCalledWith(16);
-            expect(Draw.end).toHaveBeenCalled();
+            expect(cb).toHaveBeenCalledWith(16, { viewProjection, width: 800, height: 600 });
+            expect(endPresentedDraw).toHaveBeenCalled();
         });
 
-        it('calls callbacks in correct order within Draw.begin/end', () => {
+        it('hands callbacks the exact draw-frame camera facts', () => {
+            const cb = vi.fn();
+            mockCallbacks.set('test-cb', { fn: cb, scene: '' });
+
+            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 7 });
+
+            const [, frame] = cb.mock.calls[0]!;
+            expect(frame.viewProjection).toBe(viewProjection);
+            expect(frame).toEqual({ viewProjection, width: 800, height: 600 });
+        });
+
+        it('calls callbacks in order before closing the presented draw', () => {
             const callOrder: string[] = [];
             (Draw.begin as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('Draw.begin'));
-            (Draw.end as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('Draw.end'));
+            (endPresentedDraw as ReturnType<typeof vi.fn>)
+                .mockImplementation(() => callOrder.push('endPresentedDraw'));
             mockCallbacks.set('cb1', { fn: () => callOrder.push('cb1'), scene: '' });
             mockCallbacks.set('cb2', { fn: () => callOrder.push('cb2'), scene: '' });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
-            expect(callOrder).toEqual(['Draw.begin', 'cb1', 'cb2', 'Draw.end']);
+            expect(callOrder).toEqual(['Draw.begin', 'cb1', 'cb2', 'endPresentedDraw']);
         });
 
         it('filters callbacks by activeScenes', () => {
@@ -221,13 +237,13 @@ describe('RenderPipeline', () => {
             errorSpy.mockRestore();
         });
 
-        it('still calls Draw.end even when callback throws', () => {
+        it('still closes the presented draw when a callback throws', () => {
             vi.spyOn(console, 'error').mockImplementation(() => {});
             mockCallbacks.set('bad-cb', { fn: () => { throw new Error('fail'); }, scene: '' });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
-            expect(Draw.end).toHaveBeenCalled();
+            expect(endPresentedDraw).toHaveBeenCalled();
             vi.restoreAllMocks();
         });
     });
@@ -258,8 +274,8 @@ describe('RenderPipeline', () => {
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 16 });
 
             expect(Draw.begin).toHaveBeenCalledWith(viewProjection, 400, 300);
-            expect(cb).toHaveBeenCalledWith(16);
-            expect(Draw.end).toHaveBeenCalled();
+            expect(cb).toHaveBeenCalledWith(16, { viewProjection, width: 400, height: 300 });
+            expect(endPresentedDraw).toHaveBeenCalled();
         });
     });
 

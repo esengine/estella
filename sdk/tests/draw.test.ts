@@ -27,7 +27,7 @@ vi.mock('../src/render/material', () => {
 });
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Draw, initDrawAPI, shutdownDrawAPI, BlendMode } from '../src/render/draw';
+import { Draw, initDrawAPI, shutdownDrawAPI, endPresentedDraw, BlendMode } from '../src/render/draw';
 import { Material, isTextureRef } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -50,9 +50,11 @@ function createDrawMockModule() {
 
         draw_begin: vi.fn(),
         draw_end: vi.fn(),
+        draw_deferEnd: vi.fn(),
         draw_line: vi.fn(),
         draw_line3D: vi.fn(),
         draw_line3DScreen: vi.fn(),
+        draw_line3DScreenOffset: vi.fn(),
         draw_rect: vi.fn(),
         draw_rectOutline: vi.fn(),
         draw_circle: vi.fn(),
@@ -202,6 +204,14 @@ describe('Draw API', () => {
         });
     });
 
+    describe('endPresentedDraw', () => {
+        it('defers submission to the owning renderer pass', () => {
+            endPresentedDraw();
+            expect(mock.draw_deferEnd).toHaveBeenCalledOnce();
+            expect(mock.draw_end).not.toHaveBeenCalled();
+        });
+    });
+
     describe('Draw.line3DScreen', () => {
         it('passes world endpoints and pixel thickness to the native primitive', () => {
             Draw.line3DScreen(
@@ -210,6 +220,18 @@ describe('Draw API', () => {
             );
             expect(mock.draw_line3DScreen).toHaveBeenCalledWith(
                 1, 2, 3, 4, 5, 6, 0.1, 0.2, 0.3, 0.4, 1.75,
+            );
+        });
+    });
+
+    describe('Draw.line3DScreenOffset', () => {
+        it('passes one world anchor and framebuffer offsets to the native primitive', () => {
+            Draw.line3DScreenOffset(
+                { x: 1, y: 2, z: 3 }, { x: -4, y: 5 }, { x: 6, y: -7 },
+                { r: 0.1, g: 0.2, b: 0.3, a: 0.4 }, 2,
+            );
+            expect(mock.draw_line3DScreenOffset).toHaveBeenCalledWith(
+                1, 2, 3, -4, 5, 6, -7, 0.1, 0.2, 0.3, 0.4, 2,
             );
         });
     });

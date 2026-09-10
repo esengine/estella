@@ -66,6 +66,26 @@ bool clipLineToNearPlane(glm::vec3& from, glm::vec3& to, const glm::mat4& viewPr
     return true;
 }
 
+/** Unproject one framebuffer-pixel offset at an anchor's clip depth. */
+bool screenOffsetPoint(const glm::mat4& inverseViewProjection,
+                       const glm::vec4& clipAnchor,
+                       const glm::vec2& offset,
+                       f32 viewportWidth, f32 viewportHeight,
+                       glm::vec3& point) {
+    const glm::vec4 clip = clipAnchor + glm::vec4(
+        2.0f * offset.x * clipAnchor.w / viewportWidth,
+        2.0f * offset.y * clipAnchor.w / viewportHeight,
+        0.0f, 0.0f);
+    const glm::vec4 world = inverseViewProjection * clip;
+    if (!std::isfinite(world.x) || !std::isfinite(world.y)
+        || !std::isfinite(world.z) || !std::isfinite(world.w)
+        || std::abs(world.w) < 1e-9f) {
+        return false;
+    }
+    point = glm::vec3(world) / world.w;
+    return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z);
+}
+
 }  // namespace
 
 ImmediateDraw::ImmediateDraw(GfxDevice& device, RenderContext& context,
@@ -223,6 +243,20 @@ void ImmediateDraw::end() {
     // No state restore needed: the next render phase invalidates the pipeline cache and
     // binds its own pipeline, which sets blend/depth/stencil afresh.
     inFrame_ = false;
+}
+
+void ImmediateDraw::deferEnd() {
+    if (!inFrame_) return;
+    deferredGeometry_ = pendingGeometry_;
+    inFrame_ = false;
+}
+
+void ImmediateDraw::flushDeferred() {
+    if (!deferredGeometry_) return;
+    inFrame_ = true;
+    flush();
+    inFrame_ = false;
+    deferredGeometry_ = false;
 }
 
 void ImmediateDraw::useTexture(u32 textureId) {
@@ -392,6 +426,28 @@ void ImmediateDraw::line3DScreen(const glm::vec3& from, const glm::vec3& to,
     pool_.appendIndices(LayoutId::Batch, idx, 6);
     pendingGeometry_ = true;
     ++primitiveCount_;
+}
+
+void ImmediateDraw::line3DScreenOffset(const glm::vec3& anchor,
+                                       const glm::vec2& fromOffset,
+                                       const glm::vec2& toOffset,
+                                       const glm::vec4& color, f32 thickness) {
+    if (!inFrame_ || !(thickness > 0.0f)) return;
+
+    const glm::vec4 clipAnchor = viewProjection_ * glm::vec4(anchor, 1.0f);
+    if (!std::isfinite(clipAnchor.x) || !std::isfinite(clipAnchor.y)
+        || !std::isfinite(clipAnchor.z) || !std::isfinite(clipAnchor.w)
+        || std::abs(clipAnchor.w) < 1e-9f || clipAnchor.z + clipAnchor.w < 0.0f) {
+        return;
+    }
+
+    glm::vec3 from;
+    glm::vec3 to;
+    if (!screenOffsetPoint(inverseViewProjection_, clipAnchor, fromOffset,
+                           viewportWidth_, viewportHeight_, from)
+        || !screenOffsetPoint(inverseViewProjection_, clipAnchor, toOffset,
+                              viewportWidth_, viewportHeight_, to)) return;
+    line3DScreen(from, to, color, thickness);
 }
 
 void ImmediateDraw::polyline(std::span<const glm::vec2> vertices,

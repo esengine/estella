@@ -91,6 +91,12 @@ public:
     /** @brief Ends the frame and submits all draw commands */
     void end();
 
+    /** Close collection now and submit it when the owning scene pass executes. */
+    void deferEnd();
+
+    /** Submit a collection closed by deferEnd inside the active render pass. */
+    void flushDeferred();
+
     /**
      * @brief Flushes pending draw commands without ending the frame
      * @details Use before operations that change GL state to ensure accumulated
@@ -118,6 +124,17 @@ public:
     /** A world-space line with an explicit framebuffer-pixel thickness. */
     void line3DScreen(const glm::vec3& from, const glm::vec3& to,
                       const glm::vec4& color, f32 thickness = 1.0f);
+
+    /**
+     * @brief A framebuffer-sized line attached to one world-space anchor.
+     * @details Offsets use framebuffer pixels (+X right, +Y up). The anchor is
+     *          projected through the active draw frame, so editor handles keep a
+     *          stable size without sampling a second camera.
+     */
+    void line3DScreenOffset(const glm::vec3& anchor,
+                            const glm::vec2& fromOffset,
+                            const glm::vec2& toOffset,
+                            const glm::vec4& color, f32 thickness = 1.0f);
 
     void polyline(std::span<const glm::vec2> vertices, const glm::vec4& color,
                   f32 thickness = 1.0f, bool closed = false);
@@ -209,6 +226,7 @@ private:
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;
     bool pendingGeometry_ = false;
+    bool deferredGeometry_ = false;
 
     /// Where the camera looks, from the view-projection this frame began with —
     /// what a 3D line is widened across.

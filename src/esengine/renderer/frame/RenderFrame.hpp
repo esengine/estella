@@ -36,6 +36,7 @@
 namespace esengine {
 
 namespace ecs { struct Light; }
+class ImmediateDraw;
 
 /// The one shadow texture every map a frame renders shares. One size for every
 /// scene: coverage adapts to the camera instead, so texel density is a property of
@@ -101,6 +102,9 @@ public:
     void init(u32 width, u32 height);
     void shutdown();
     void resize(u32 width, u32 height);
+
+    /** Geometry collected for this camera and drawn after its scene. */
+    void setPresentedOverlayDraw(ImmediateDraw* draw) { presented_overlay_draw_ = draw; }
 
     /// Rebuilds everything this frame owns after a device loss: the transient
     /// pool, the render targets, the batch program ids and the post-process chain.
@@ -454,6 +458,7 @@ private:
     GfxDevice& device_;
     RenderContext& context_;
     resource::ResourceManager& resource_manager_;
+    ImmediateDraw* presented_overlay_draw_ = nullptr;
 
 #ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> post_process_;

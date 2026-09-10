@@ -5,7 +5,16 @@
  * @brief   Custom draw callback registration for the render pipeline
  */
 
-export type DrawCallback = (elapsed: number) => void;
+/** The camera facts used by the draw pass invoking a callback. */
+export interface DrawFrameInfo {
+    /** Canonical view-projection matrix for this render pass. Valid for the callback. */
+    readonly viewProjection: Float32Array;
+    /** Framebuffer viewport dimensions used by Draw.begin. */
+    readonly width: number;
+    readonly height: number;
+}
+
+export type DrawCallback = (elapsed: number, frame: DrawFrameInfo) => void;
 
 const callbacks = new Map<string, { fn: DrawCallback; scene: string }>();
 

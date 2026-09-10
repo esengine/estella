@@ -545,9 +545,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::function("draw_begin", &esengine::draw_begin);
     emscripten::function("draw_end", &esengine::draw_end);
+    emscripten::function("draw_deferEnd", &esengine::draw_deferEnd);
     emscripten::function("draw_line", &esengine::draw_line);
     emscripten::function("draw_line3D", &esengine::draw_line3D);
     emscripten::function("draw_line3DScreen", &esengine::draw_line3DScreen);
+    emscripten::function("draw_line3DScreenOffset", &esengine::draw_line3DScreenOffset);
     emscripten::function("draw_rect", &esengine::draw_rect);
     emscripten::function("draw_rectOutline", &esengine::draw_rectOutline);
     emscripten::function("draw_circle", &esengine::draw_circle);

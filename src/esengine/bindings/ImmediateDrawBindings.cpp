@@ -56,6 +56,13 @@ void draw_end() {
     ctx().state().immediate_draw_active = false;
 }
 
+void draw_deferEnd() {
+    if (!g_initialized || !g_immediateDraw || !g_immediateDrawActive) return;
+
+    g_immediateDraw->deferEnd();
+    ctx().state().immediate_draw_active = false;
+}
+
 void draw_line(f32 fromX, f32 fromY, f32 toX, f32 toY,
                f32 r, f32 g, f32 b, f32 a, f32 thickness) {
     if (!g_immediateDraw || !g_immediateDrawActive) return;
@@ -87,6 +94,20 @@ void draw_line3DScreen(f32 fromX, f32 fromY, f32 fromZ, f32 toX, f32 toY, f32 to
     g_immediateDraw->line3DScreen(
         glm::vec3(fromX, fromY, fromZ),
         glm::vec3(toX, toY, toZ),
+        glm::vec4(r, g, b, a),
+        thickness
+    );
+}
+
+void draw_line3DScreenOffset(f32 anchorX, f32 anchorY, f32 anchorZ,
+                             f32 fromX, f32 fromY, f32 toX, f32 toY,
+                             f32 r, f32 g, f32 b, f32 a, f32 thickness) {
+    if (!g_immediateDraw || !g_immediateDrawActive) return;
+
+    g_immediateDraw->line3DScreenOffset(
+        glm::vec3(anchorX, anchorY, anchorZ),
+        glm::vec2(fromX, fromY),
+        glm::vec2(toX, toY),
         glm::vec4(r, g, b, a),
         thickness
     );
