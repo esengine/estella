@@ -21,6 +21,13 @@ const DIST = resolve(__dirname, '../../dist/index.js');
 const HAS_DIST = existsSync(DIST);
 
 describe.skipIf(!HAS_DIST)('the built SDK', () => {
+    /**
+     * The 5s default is a cap on IMPORTING a megabyte bundle, not on the claim.
+     * Alone this takes ~0.9s; inside the full 527-file suite it has been measured
+     * at 2.1s and has timed out — so at the default it reports the machine's load
+     * as a missing census, which is the loudest possible way to be wrong about
+     * something that is fine. Raised until it can only fire on a real hang.
+     */
     it('ships a census with its probes attached', async () => {
         const sdk = await import(DIST) as {
             takeCensus: (ctx?: unknown) => { entries: Map<string, unknown>; failedProbes: string[] };
@@ -41,5 +48,5 @@ describe.skipIf(!HAS_DIST)('the built SDK', () => {
         expect([...census.entries.keys()]).toEqual(
             expect.arrayContaining(['events.emitterHandlers', 'events.domListeners']),
         );
-    });
+    }, 30_000);
 });
