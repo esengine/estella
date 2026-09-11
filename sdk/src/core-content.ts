@@ -145,6 +145,9 @@ export {
 } from './asset/builtinMeshes';
 export { AssetScope, type AssetLease } from './asset/AssetLease';
 export { createCanvasTexture, type CanvasTexture } from './asset/canvasTexture';
+export {
+    sheetCols, sheetRows, sheetCellCount, sheetCellRect, sheetCellUv, type SheetGrid,
+} from './asset/sheetGrid';
 export type { GlImageSource } from './asset/glTextureUpload';
 
 // =============================================================================

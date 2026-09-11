@@ -86,6 +86,21 @@ const TEXTURE: ImporterFieldSpec[] = [
   { key: 'sliceBorder.right', label: 'Border Right', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.top', label: 'Border Top', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.bottom', label: 'Border Bottom', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
+  // How this image is cut into cells, declared ONCE on the sheet rather than on
+  // every Sprite that shows a frame of it. A cell size of 0 means "not a sheet",
+  // which is what almost every texture is — so the section costs an unsliced image
+  // nothing but a collapsed header.
+  {
+    key: 'sheet.cellWidth', label: 'Cell Width', type: 'number', default: 0, min: 0, category: 'Sheet',
+    tooltip: 'Width of one cell, in pixels. 0 = this image is not a sprite sheet. '
+      + 'Setting it lets a Sprite pick a frame of this image instead of showing all of it.',
+  },
+  { key: 'sheet.cellHeight', label: 'Cell Height', type: 'number', default: 0, min: 0, category: 'Sheet',
+    tooltip: 'Height of one cell, in pixels. 0 = this image is not a sprite sheet.' },
+  { key: 'sheet.margin', label: 'Margin', type: 'number', default: 0, min: 0, category: 'Sheet',
+    tooltip: 'Padding before the first cell, on both axes.' },
+  { key: 'sheet.spacing', label: 'Spacing', type: 'number', default: 0, min: 0, category: 'Sheet',
+    tooltip: 'Gap between neighbouring cells. Paid between cells only, never after the last one.' },
 ];
 
 // `cullingBounds` promises no pose of this skeleton leaves it. The runtime's

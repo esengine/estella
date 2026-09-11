@@ -8,6 +8,9 @@
 
 import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
 import { log } from '../util/logger';
+import {
+    sheetCols, sheetRows, sheetCellRect, sheetCellUv, type SheetGrid,
+} from '../asset/sheetGrid';
 
 // =============================================================================
 // .esanim File Format
@@ -51,14 +54,9 @@ export type AnimClipSizing = 'entity' | 'frame';
  * `pageWidth`/`pageHeight` are baked by the editor from the image's natural
  * size (UV normalization needs them; the runtime never reads the image).
  */
-export interface AnimClipSheetData {
+/** A clip's sheet: the cutting geometry every sheet has, plus the image it cuts. */
+export interface AnimClipSheetData extends SheetGrid {
     texture: string;
-    cellWidth: number;
-    cellHeight: number;
-    margin: number;
-    spacing: number;
-    pageWidth: number;
-    pageHeight: number;
 }
 
 export interface AnimClipFrameData {
@@ -129,52 +127,35 @@ export interface AnimClipAssetData {
 // Sheet grid math
 // =============================================================================
 
-/** Columns the sheet grid fits (same stride math as the tileset atlas grid). */
+// A clip's sheet is cut the way every sheet is cut, so the arithmetic is in
+// asset/sheetGrid.ts and these four are its `.esanim` spellings. Kept because
+// they are what the flipbook's own code reads; new callers should reach for the
+// neutral names, which do not ask a sprite to describe itself as an anim clip.
+
+/** @see sheetCols */
 export function animClipSheetCols(sheet: AnimClipSheetData): number {
-    const stride = sheet.cellWidth + sheet.spacing;
-    return stride > 0 ? Math.max(1, Math.floor((sheet.pageWidth - sheet.margin + sheet.spacing) / stride)) : 1;
+    return sheetCols(sheet);
 }
 
-/** Rows the sheet grid fits. At least 1 so cell 0 always resolves. */
+/** @see sheetRows */
 export function animClipSheetRows(sheet: AnimClipSheetData): number {
-    const stride = sheet.cellHeight + sheet.spacing;
-    return stride > 0 ? Math.max(1, Math.floor((sheet.pageHeight - sheet.margin + sheet.spacing) / stride)) : 1;
+    return sheetRows(sheet);
 }
 
-/** Pixel rect of a grid cell, clamped into the valid cell range. */
+/** @see sheetCellRect */
 export function animClipCellRect(
     sheet: AnimClipSheetData,
     cell: number,
 ): { x: number; y: number; width: number; height: number } {
-    const cols = animClipSheetCols(sheet);
-    const rows = animClipSheetRows(sheet);
-    const clamped = Math.min(Math.max(0, Math.floor(cell)), cols * rows - 1);
-    const col = clamped % cols;
-    const row = Math.floor(clamped / cols);
-    return {
-        x: sheet.margin + col * (sheet.cellWidth + sheet.spacing),
-        y: sheet.margin + row * (sheet.cellHeight + sheet.spacing),
-        width: sheet.cellWidth,
-        height: sheet.cellHeight,
-    };
+    return sheetCellRect(sheet, cell);
 }
 
-/** UV window (flipY space) of a grid cell — what a Sprite shows for that frame. */
+/** @see sheetCellUv */
 export function animClipCellUv(
     sheet: AnimClipSheetData,
     cell: number,
 ): { uvOffset: { x: number; y: number }; uvScale: { x: number; y: number } } {
-    const rect = animClipCellRect(sheet, cell);
-    return {
-        uvOffset: {
-            x: rect.x / sheet.pageWidth,
-            y: 1.0 - (rect.y + rect.height) / sheet.pageHeight,
-        },
-        uvScale: {
-            x: rect.width / sheet.pageWidth,
-            y: rect.height / sheet.pageHeight,
-        },
-    };
+    return sheetCellUv(sheet, cell);
 }
 
 // =============================================================================
