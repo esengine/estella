@@ -124,6 +124,38 @@ describe('decomposePolygon2D', () => {
         expect(covered(p(1.35, 1.35), d.pieces)).toBe(false); // the gap between two
     });
 
+    it('partitions a comb — several teeth, several slots, one ring', () => {
+        const comb = [
+            p(-3, -1), p(3, -1), p(3, 0), p(2, 0), p(2, 2), p(1, 2),
+            p(1, 0), p(0, 0), p(0, 2), p(-1, 2), p(-1, 0), p(-3, 0),
+        ];
+        const d = decomposePolygon2D(comb);
+        expect(d.degenerate).toBe(false);
+        expectWellFormed(d.pieces);
+        expect(covered(p(0.5, 1), d.pieces)).toBe(false); // the slot between the teeth
+        expect(covered(p(1.5, 1), d.pieces)).toBe(true);  // a tooth
+        expect(covered(p(-0.5, 1), d.pieces)).toBe(true); // the other tooth
+        expect(covered(p(0.5, -0.5), d.pieces)).toBe(true); // the base under the slot
+    });
+
+    it('survives a ring whose first eight points are collinear', () => {
+        // What the editor's insert makes of one edge subdivided over and over. The
+        // hull only ever looks at eight points, so using it to ask "is this a shape"
+        // answered no here, and the collider vanished.
+        let ring = [p(-1, -1), p(1, -1), p(1, 1), p(-1, 1)];
+        for (let k = 0; k < 8; k++) {
+            const a = ring[0];
+            const b = ring[1];
+            ring = [a, p((a.x + b.x) / 2, (a.y + b.y) / 2), ...ring.slice(1)];
+        }
+        expect(ring.length).toBeGreaterThan(MAX_POLYGON_VERTICES);
+        const d = decomposePolygon2D(ring);
+        expect(d.degenerate).toBe(false);
+        expectWellFormed(d.pieces);
+        expect(covered(p(0, 0), d.pieces)).toBe(true);     // still a solid square
+        expect(covered(p(0, 2), d.pieces)).toBe(false);
+    });
+
     it('is deterministic — the same ring gives the same pieces every time', () => {
         expect(decomposePolygon2D(C).pieces).toEqual(decomposePolygon2D(C).pieces);
     });

@@ -25,11 +25,29 @@ import { computePolygonHull, MAX_POLYGON_VERTICES, MIN_POLYGON_VERTICES } from '
 /** Points nearer than this are one point, matching the hull's own welding. */
 const WELD = 0.02;
 
+/** Box2D's linear slop; {@link WELD} is the 4x radius its hull welds within. */
+const SLOP = WELD / 4;
+
 const cross = (ax: number, ay: number, bx: number, by: number): number => ax * by - ay * bx;
 
 /** The turn at `b` walking a → b → c. Positive is a left turn, so convex in CCW. */
 function turn(a: Vec2, b: Vec2, c: Vec2): number {
     return cross(b.x - a.x, b.y - a.y, c.x - b.x, c.y - b.y);
+}
+
+/**
+ * Whether the ring encloses more than slop. Area against PERIMETER, because area
+ * alone has no scale to be small against: a long thin sliver and a small honest
+ * triangle measure alike, and only one of them is a shape Box2D builds.
+ */
+function hasArea(ring: readonly Vec2[]): boolean {
+    let perimeter = 0;
+    for (let i = 0; i < ring.length; i++) {
+        const a = ring[i];
+        const b = ring[(i + 1) % ring.length];
+        perimeter += Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    return Math.abs(signedArea2(ring)) > 2 * SLOP * perimeter;
 }
 
 /** Twice the signed area of a ring: positive counter-clockwise. */
@@ -84,11 +102,11 @@ function selfIntersects(ring: readonly Vec2[]): boolean {
     return false;
 }
 
-/** Strictly inside — a point ON an edge must not block the ear that owns it. */
+/** Inside or ON the boundary of a counter-clockwise triangle. */
 function inTriangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2): boolean {
-    return cross(b.x - a.x, b.y - a.y, p.x - a.x, p.y - a.y) > 0
-        && cross(c.x - b.x, c.y - b.y, p.x - b.x, p.y - b.y) > 0
-        && cross(a.x - c.x, a.y - c.y, p.x - c.x, p.y - c.y) > 0;
+    return cross(b.x - a.x, b.y - a.y, p.x - a.x, p.y - a.y) >= 0
+        && cross(c.x - b.x, c.y - b.y, p.x - b.x, p.y - b.y) >= 0
+        && cross(a.x - c.x, a.y - c.y, p.x - c.x, p.y - c.y) >= 0;
 }
 
 /** The ring with consecutive duplicates removed, wound counter-clockwise. */
@@ -114,6 +132,9 @@ function normalize(vertices: readonly Vec2[]): Vec2[] {
 function earClip(pts: readonly Vec2[]): number[][] | null {
     const live = pts.map((_, i) => i);
     const out: number[][] = [];
+    const turnAt = (i: number): number => turn(
+        pts[live[(i + live.length - 1) % live.length]], pts[live[i]], pts[live[(i + 1) % live.length]]);
+
     while (live.length > 3) {
         let clipped = -1;
         for (let i = 0; i < live.length; i++) {
@@ -122,9 +143,14 @@ function earClip(pts: readonly Vec2[]): number[][] | null {
             const c = live[(i + 1) % live.length];
             if (turn(pts[a], pts[b], pts[c]) <= 0) continue;
             let blocked = false;
-            for (const k of live) {
+            for (let j = 0; j < live.length && !blocked; j++) {
+                const k = live[j];
                 if (k === a || k === b || k === c) continue;
-                if (inTriangle(pts[k], pts[a], pts[b], pts[c])) { blocked = true; break; }
+                // Only a REFLEX vertex can invalidate an ear, and touching the
+                // triangle invalidates it as surely as sitting inside: a cut that
+                // grazes the boundary leaves a remainder with no ear at all.
+                if (turnAt(j) > 0) continue;
+                if (inTriangle(pts[k], pts[a], pts[b], pts[c])) blocked = true;
             }
             if (blocked) continue;
             out.push([a, b, c]);
@@ -248,19 +274,25 @@ function partition(vertices: readonly Vec2[]): PolygonDecomposition {
     const ring = normalize(vertices);
     if (ring.length < MIN_POLYGON_VERTICES) return { pieces: [], degenerate: false };
 
-    // The hull is the solver's own verdict on whether these points are a shape at
-    // all — welded down to a line, or to fewer than three. Asking it here keeps
-    // the fast path below from handing back a ring Box2D would refuse.
-    const hull = computePolygonHull(ring);
-    if (hull.length < MIN_POLYGON_VERTICES) return { pieces: [], degenerate: false };
+    // Crossing is asked FIRST. A symmetric bow tie encloses zero net area, so the
+    // area gate below would call it nothing at all — and "you crossed your own
+    // outline" is both the truer answer and the one an author can act on.
+    if (selfIntersects(ring)) return { pieces: [computePolygonHull(ring)], degenerate: true };
 
-    if (selfIntersects(ring)) return { pieces: [hull], degenerate: true };
+    // Asked of the WHOLE ring. The hull models what b2ComputeHull does to an array,
+    // and that keeps only the first eight points — so as a shape gate it judges a
+    // long ring by eight of them, and loses the collider when those are collinear.
+    if (!hasArea(ring)) return { pieces: [], degenerate: false };
+
+    // Only now: a star traced as one stroke has no right turn either, so this test
+    // is a claim about convexity only once crossing has been ruled out. Normalizing
+    // already welded to Box2D's radius, so the points stay the ones an author placed.
     if (ring.length <= MAX_POLYGON_VERTICES && isConvex(ring)) {
         return { pieces: [ring], degenerate: false };
     }
 
     const triangles = earClip(ring);
-    if (!triangles) return { pieces: [hull], degenerate: true };
+    if (!triangles) return { pieces: [computePolygonHull(ring)], degenerate: true };
 
     // Each piece is finally what Box2D would make of it, so a sliver the solver
     // refuses is dropped where it can be seen rather than at shape creation.

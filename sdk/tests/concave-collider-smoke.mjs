@@ -55,12 +55,12 @@ const CUP_RING = [
     { x: 1, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 3 }, { x: -2, y: 3 },
 ];
 
-/** Drop a small box down the middle from `y`, and answer where it stops. */
-function dropInto(pieces, fromY) {
+/** Drop a small box from (`x`, `fromY`), and answer where it comes to rest. */
+function dropInto(pieces, fromY, x = 0) {
     m._physics_init(0, -9.81, 1 / 60, 4, 30, 10, 3);
     m._physics_createBody(CUP, STATIC, 0, 0, 0, 1, 0, 0, 0, 0);
     for (const piece of pieces) addPiece(CUP, piece);
-    m._physics_createBody(DROP, DYNAMIC, 0, fromY, 0, 1, 0, 0, 0, 0);
+    m._physics_createBody(DROP, DYNAMIC, x, fromY, 0, 1, 0, 0, 0, 0);
     m._physics_addBoxShape(DROP, 0.2, 0.2, 0, 0, 0, 1, 0.3, 0, 0, 1, 0xffff);
     for (let i = 0; i < 420; i++) m._physics_step(1 / 60);
     const at = bodyPos(DROP);
@@ -89,6 +89,27 @@ check('the hull of the same ring seals it — the control', onLid && Math.abs(on
       `y=${onLid?.y.toFixed(3)} (want ≈3.2, the sealed rim)`);
 check('the two answers are far apart', landed && onLid && onLid.y - landed.y > 2.5,
       `${landed?.y.toFixed(3)} vs ${onLid?.y.toFixed(3)}`);
+
+// Past the eight vertices one Box2D polygon holds: a comb with two teeth and a
+// slot between them, twelve points in one ring. The cap is a PIECE's, so this has
+// to behave like the geometry it is rather than like the hull of it.
+const COMB = [
+    { x: -3, y: -1 }, { x: 3, y: -1 }, { x: 3, y: 0 }, { x: 2, y: 0 },
+    { x: 2, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 0 }, { x: 0, y: 0 },
+    { x: 0, y: 2 }, { x: -1, y: 2 }, { x: -1, y: 0 }, { x: -3, y: 0 },
+];
+const comb = decomposePolygon2D(COMB);
+check('a twelve-point ring partitions', !comb.degenerate && comb.pieces.length > 1,
+      `${COMB.length} points -> ${comb.pieces.length} piece(s): ${comb.pieces.map((q) => q.length).join('+')}`);
+check('and no piece exceeds what one polygon holds', comb.pieces.every((q) => q.length <= 8),
+      comb.pieces.map((q) => q.length).join('+'));
+
+const inSlot = dropInto(comb.pieces, 5, 0.5);
+check('a body drops down the slot between two teeth', inSlot && Math.abs(inSlot.y - 0.2) < 0.1,
+      `y=${inSlot?.y.toFixed(3)} (want \u22480.2, the slot floor)`);
+const onTooth = dropInto(comb.pieces, 5, 1.5);
+check('and rests on the tooth beside it', onTooth && Math.abs(onTooth.y - 2.2) < 0.1,
+      `y=${onTooth?.y.toFixed(3)} (want \u22482.2, the tooth top)`);
 
 console.log(pass ? '\nconcave-collider-smoke: PASS' : '\nconcave-collider-smoke: FAIL');
 process.exit(pass ? 0 : 1);
