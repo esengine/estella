@@ -70,6 +70,10 @@ export const EXT_TO_TYPE = Object.freeze({
     // The same shape for lighting: a `.hdr` panorama is import-only and produces
     // the `.esenv` + atlas a scene references.
     '.hdr': 'panorama',
+    // And for 2D art: a layered document produces one image per layer plus the
+    // prefab that stacks them, and those are what a scene references.
+    '.psd': 'layered',
+    '.psb': 'layered',
     '.esenv': 'environment',
     '.esmesh': 'mesh',
     '.esanim': 'animclip',

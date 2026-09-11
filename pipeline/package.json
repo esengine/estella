@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "ag-psd": "^31.0.2",
     "draco3dgltf": "^1.5.7",
     "esbuild": "^0.27.0",
     "esengine": "workspace:*",
