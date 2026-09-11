@@ -179,10 +179,19 @@ export {
     shapeCenter,
     collider2DOutline,
     CAPSULE_ARC_SEGMENTS,
+    MIN_CHAIN_POINTS,
     type Collider2DShape,
     type Collider2DInstance,
     type Collider2DOutline,
 } from './physics/ColliderShape2D';
+
+export {
+    computePolygonHull,
+    polygonHullDiff,
+    MAX_POLYGON_VERTICES,
+    MIN_POLYGON_VERTICES,
+    type PolygonHullDiff,
+} from './physics/polygonHull2D';
 
 export {
     RigidBody3D,

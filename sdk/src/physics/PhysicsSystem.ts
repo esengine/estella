@@ -30,6 +30,8 @@ import {
     type DistanceJoint2DData, type SliderJoint2DData, type FixedJoint2DData, type WheelJoint2DData,
     type MotorJoint2DData,
 } from './PhysicsComponents';
+import { MAX_POLYGON_VERTICES } from './polygonHull2D';
+import { MIN_CHAIN_POINTS } from './ColliderShape2D';
 import {
     Physics2DEvents,
     COLLISION_EVENT_STRIDE,
@@ -148,7 +150,7 @@ export function addShapeForEntity(
         const category = poly.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, poly.maskBits ?? 0xFFFF, layerMasks);
         const verts = poly.vertices;
-        const count = Math.min(verts.length, 8);
+        const count = Math.min(verts.length, MAX_POLYGON_VERTICES);
         const byteSize = count * 2 * 4;
         withMalloc(module, byteSize, ptr => {
             const base = ptr >> 2;
@@ -167,7 +169,7 @@ export function addShapeForEntity(
     const chain = activeCollider(world, entity, ChainCollider2D) as ChainCollider2DData | null;
     if (chain) {
         const pts = chain.points;
-        if (pts.length < 4) return;
+        if (pts.length < MIN_CHAIN_POINTS) return;
         const byteSize = pts.length * 2 * 4;
         withMalloc(module, byteSize, ptr => {
             const base = ptr >> 2;

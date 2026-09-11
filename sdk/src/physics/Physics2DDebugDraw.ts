@@ -37,6 +37,8 @@ const KINEMATIC_COLOR: Color = { r: 0.2, g: 1.0, b: 1.0, a: 0.7 };
 const SENSOR_COLOR: Color = { r: 1.0, g: 1.0, b: 0.2, a: 0.5 };
 const VELOCITY_COLOR: Color = { r: 1.0, g: 0.2, b: 0.2, a: 0.8 };
 const CONTACT_COLOR: Color = { r: 1.0, g: 0.2, b: 0.2, a: 1.0 };
+/** The outline the solver declined — drawn faintly, in the colour of a mistake. */
+const DECLINED_COLOR: Color = { r: 1.0, g: 0.35, b: 0.1, a: 0.45 };
 const DEBUG_LINE_THICKNESS = 1.5;
 const CONTACT_POINT_RADIUS = 3;
 const VELOCITY_SCALE = 0.5;
@@ -132,6 +134,14 @@ export function drawPhysics2DDebug(
                 }
                 for (const circ of outline.circles) {
                     Draw.circleOutline(circ.c, circ.r, color, DEBUG_LINE_THICKNESS, CIRCLE_SEGMENTS);
+                }
+                // What was authored past what collides: a concave polygon's filled-in
+                // notch. Without it the overlay draws a hull nobody wrote and reads as
+                // the collider having moved.
+                for (const pl of outline.declined ?? []) {
+                    for (let i = 0; i + 1 < pl.length; i++) {
+                        Draw.line(pl[i], pl[i + 1], DECLINED_COLOR, DEBUG_LINE_THICKNESS);
+                    }
                 }
             }
         }

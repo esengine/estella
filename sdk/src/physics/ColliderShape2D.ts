@@ -23,9 +23,13 @@ import type {
     BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
     SegmentCollider2DData, PolygonCollider2DData, ChainCollider2DData,
 } from './PhysicsComponents';
+import { computePolygonHull } from './polygonHull2D';
 
 /** Semicircle-cap segment count for a capsule outline (matches the legacy debug draw). */
 export const CAPSULE_ARC_SEGMENTS = 16;
+
+/** Box2D builds no chain below four points; the editor may not author one either. */
+export const MIN_CHAIN_POINTS = 4;
 
 /** A collider's geometry, in physics metres. Offset (box/circle/capsule) is metres too;
  *  segment/polygon/chain carry their points directly and sit at the entity origin. */
@@ -52,6 +56,13 @@ export interface Collider2DInstance {
 export interface Collider2DOutline {
     polylines: Vec2[][];
     circles: { c: Vec2; r: number }[];
+    /**
+     * The authored outline where the solver does not have it — a concave polygon's
+     * filled-in notch, or vertices past the eight Box2D takes. Absent when what was
+     * drawn is what collides; every backend strokes it apart, or the viewport says
+     * a shape exists where nothing can be hit.
+     */
+    declined?: Vec2[][];
 }
 
 const ZERO: Vec2 = { x: 0, y: 0 };
@@ -120,8 +131,16 @@ export function collider2DOutline(shape: Collider2DShape, center: Vec2, angle: n
                 circles: [],
             };
         case 'polygon': {
-            const p = shape.vertices.map((v) => w(v.x * ppu, v.y * ppu));
-            return { polylines: p.length > 0 ? [[...p, p[0]]] : [], circles: [] };
+            const ring = (vs: readonly Vec2[]): Vec2[][] => {
+                const p = vs.map((v) => w(v.x * ppu, v.y * ppu));
+                return p.length > 0 ? [[...p, p[0]]] : [];
+            };
+            // A hull as long as the ring carries every authored vertex, since a hull
+            // is a subset of what it was given: equal counts mean nothing was welded,
+            // truncated or filled in, so the authored ring IS the solver's polygon.
+            const hull = computePolygonHull(shape.vertices);
+            if (hull.length === shape.vertices.length) return { polylines: ring(shape.vertices), circles: [] };
+            return { polylines: ring(hull), circles: [], declined: ring(shape.vertices) };
         }
         case 'chain': {
             const p = shape.points.map((v) => w(v.x * ppu, v.y * ppu));
