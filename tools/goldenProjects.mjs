@@ -89,6 +89,48 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.63.0 —
+  'One number turns the sky, the irradiance and the reflection': { certifies: 'environment' },
+  'A second UV set survives the import boundary':
+    { notCertifiable: 'a channel carried and deliberately unread — no lightmapper, no graph node,'
+      + ' no material change — so no game act can observe it; check-mesh-vocabulary holds the two'
+      + ' halves of the format and the .esmesh decode fixtures hold the bytes' },
+  'The camera a frame was drawn with is a value anyone can hold':
+    { notCertifiable: 'a publication the renderer makes for overlay authors; a game draws from the'
+      + ' resolve directly and never asks which camera a past frame used' },
+  'A commit says when the camera CHANGED':
+    { notCertifiable: 'the same publication\'s change signal, consumed by the editor overlay;'
+      + ' camera-commit.test.ts asserts the divergence a game cannot see' },
+  'A renderer-owned geometric overlay':
+    { notCertifiable: 'the EDITOR\'s overlay geometry, drawn by the engine for it; a package has no'
+      + ' gizmos, and the editor checks plus profile_frames are what hold it' },
+  'A capture carries the brackets inside a phase':
+    { notCertifiable: 'a shape inside a profile capture, read by profile_frames; a game pays the'
+      + ' same time whichever bracket is named' },
+  'A volume\'s effects are an authored field':
+    { notCertifiable: 'an Inspector door onto effects the runtime already had; what a volume DOES'
+      + ' is certified by ssao, and the editor suite owns the authoring' },
+  'Go to Anything':
+    { notCertifiable: 'an editor palette; the editor suite owns it' },
+  'Third Person Character is something you can ask for':
+    { notCertifiable: 'a Create-menu entry; the composition it produces is exactly what'
+      + ' third-person certifies, and asking for it is an editor act' },
+  'Every open document reconciles a change made on disk':
+    { notCertifiable: 'open editor documents against a watcher; a package opens no document' },
+  'A build belongs to the editor':
+    { notCertifiable: 'the lifetime of a package JOB, which exists only before a package does' },
+  'A slow plugin says so where the plugins are listed':
+    { notCertifiable: 'a projection of PerfMonitor into the editor\'s plugin list; a game loads no'
+      + ' editor plugin' },
+  'A health report says which moment it is a reading of':
+    { notCertifiable: 'freshness of a verdict taken BEFORE a package exists; the editor check and'
+      + ' check-project-health hold it' },
+  'A drop target answers while the pointer is still down':
+    { notCertifiable: 'a drag gesture inside the editor; a game has no drop targets' },
+  'Every discrete camera intent travels':
+    { notCertifiable: 'how the EDITOR\'s eye moves between poses; a game moves its own camera and'
+      + ' the editor checks establish the poses they capture from' },
+
   // — 0.62.0 —
   'Play streams the world the way a package does': { certifies: 'world-streaming' },
   'World Workspace: the report says where its cells are':

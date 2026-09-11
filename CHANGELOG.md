@@ -14,6 +14,295 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-09-10
+
+### Added
+
+- **One number turns the sky, the irradiance and the reflection.** An HDRI
+  arrives in the frame its photographer stood in, and moving a reflection to the
+  other side of a model meant re-authoring the image outside Estella — nothing in
+  the Light schema, the `.hdr` import settings or the `.esenv` document expressed
+  an orientation. `Light.environmentRotation` is degrees about +Y, on the light
+  rather than in the `.esenv`, so one bake is reusable at a different angle in
+  another scene. Every direction that asks the environment anything passes
+  through one `envDirection`, which rules out turning the sky without turning the
+  reflection by construction; the alternative — a rotation applied at each call
+  site — is three chances to forget one. The fixtures had to be built before
+  anything could be claimed: every environment scene in the tree is azimuthally
+  symmetric, so a rotation reads identically at every angle and any criterion over
+  them passes a rotation that does nothing.
+
+- **A second UV set survives the import boundary, through glTF and FBX both.** An
+  unwrap produces a UV1 for a lightmap, a detail pass or an AO atlas, and every
+  exporter writes it. Estella read TEXCOORD_0 and dropped the rest, with no
+  warning — the AI-DCC walkthrough measured it: Blender made two sets, the GLB
+  carried two, the `.esmesh` had one, and nothing said so. This is the one loss
+  worth closing before it is needed. A missing feature can be added whenever;
+  information discarded at import cannot be recovered without re-importing every
+  asset that came through in the meantime, and by then there are thousands.
+  **Nothing reads UV1 yet, and that is deliberate** — no lightmapper, no graph
+  node, no material change. The bytes are kept. The format was built for it: the
+  channel table is written into the file rather than implied, so `TexCoord1 = 7`
+  is an append to the vocabulary and not a version, and it sits at the last
+  location before the per-object record, which is fixed precisely so a mesh
+  gaining a channel cannot move it.
+
+- **The camera a frame was drawn with is a value anyone can hold.**
+  `UICameraInfo` is rewritten in place twice a frame — an early peek that must not
+  tick the director's blend, then the authoritative resolve the renderer draws
+  from — so a reader on its own clock could hold a camera no frame was ever drawn
+  with. Not the previous one: a third state, arrived at and discarded inside one
+  frame. `CameraCommit` is published once after the submit, carrying a COPY, and
+  `PresentedCameraView` projects over it. One near plane, two cameras: a wireframe
+  cut by one and drawn by the other comes apart exactly where a segment leaves the
+  view.
+
+- **A commit says when the camera CHANGED, not when one happened.** A commit is
+  published on every drawn frame, so "a commit happened" is true sixty times a
+  second and says nothing about what is on screen. `commitCamera` compares the
+  projection it is about to publish against the one already there and announces
+  only a difference — exactly, because the question is whether the projection
+  moved, and an epsilon drops a slow drift a frame at a time. The editor's
+  viewport has sixteen places that can move the eye, and announcing from each of
+  them is a rule sixteen callers have to remember.
+
+- **A renderer-owned geometric overlay, with colliders, extents and the transform
+  gizmos as its consumers.** The editor's 3D overlay geometry leaves the DOM and
+  is drawn by the engine, inside the same pass and from the same resolve as the
+  scene — so there is no second camera to keep in step with the one that drew the
+  picture. Screen-space overlay lines are part of that surface, so a gizmo keeps
+  its pixel width without a projection of its own. The geometry is also clipped to
+  the viewport it belongs to now: `worldToScreen` keeps the coordinates of a point
+  outside the view and nothing clipped it, so on `world-streaming-3d` 322 of 496
+  endpoints were outside the canvas and the SVG drew every one, over the editor's
+  other panels.
+
+- **A capture carries the brackets inside a phase, apart from it.** An editor
+  phase can be timed in parts — a viewport tick split into the grid, the collider
+  wires and the rest. A part is time its parent already counted, so folding it in
+  with the phases would inflate the frame it belongs to and let the largest
+  bracket be read as the frame's dominant phase. `parts` is its own map, and
+  optional: a capture written before they existed has none. `profile_frames` can
+  answer for the editor itself, which is how the overlay work above was measured.
+
+- **A volume's effects are an authored field, not just scene data.** Fifteen
+  effects shipped, the scene format carried them, the 3D flagship used SSAO, and a
+  creator could reach none of it: `PostProcessVolume`'s Inspector showed only
+  where the volume applies while `effects`, the list that says WHAT it applies,
+  was refused by name — value-shape inference drops a list of objects. The opt-in
+  says what the list IS, so the rows are generated from the effect registry and an
+  effect the engine registers becomes authorable with no UI of its own. A panel
+  per effect would be a second place to forget one. Nothing about the runtime
+  changes.
+
+- **Go to Anything — assets, entities, panels, commands and settings in one
+  place.** The editor's search was strong and scattered, and nothing could take
+  the word "player" and show the entity, the prefab and the script at once. Three
+  ownerships are kept apart on purpose: a provider owns DISCOVERY, a domain owns
+  the EFFECT — accepting an asset row calls the same opener a double-click does,
+  an entity row selects, reveals and frames through `view.frameSelected` — and
+  Quick Open owns ranking and presentation and nothing else. Discovery happens
+  once per opening rather than per keystroke, which makes the list stale by the
+  time Enter lands; that is the correct trade, because a row is an intent and the
+  door it calls decides against the world as it is then.
+
+- **Third Person Character is something you can ask for.** The runtime has had
+  every part of this for a while — a character controller, a controller that reads
+  the stick against a camera, a camera that orbits a target. What it had no way to
+  express was the ASK: an author had to know the four component names, that a body
+  goes underneath, that the camera is a second root, and that the two halves point
+  at each other. Create ▸ Gameplay ▸ Third Person Character produces the
+  composition the flagship example actually uses, read off its scene rather than
+  invented — a second "recommended setup" that drifts from the one the engine is
+  exercised with would be worse than none.
+
+- **Every open document reconciles a change made on disk.** The watcher
+  reconciled the scene, and the prefab in Prefab Mode. Every other open document —
+  behaviour tree, state machine, animator, material, material graph, tileset,
+  flipbook, timeline — kept editing a file that no longer said what it held,
+  silently, until a save overwrote the other version. A git checkout, a generator,
+  an edit in another program: all invisible. Clean reloads seamlessly, dirty asks
+  and takes "keep mine" as an answer rather than a deferral. "Is this our own write
+  coming back?" is answered by comparing the bytes on disk with what the document
+  WOULD write, rather than by remembering what we last wrote — which is a second
+  copy of the answer to keep in step.
+
+- **A build belongs to the editor, not to the window that asked for it.**
+  Everything about a package job lived as React state inside the Build dialog, so
+  preflight counted as idle: a second click started a second preflight and could
+  reach a second export into the same directory, and closing the dialog cancelled
+  nothing — it only removed the one surface that knew. The attempt now begins at
+  the first click and lives outside the window, and its spec is frozen when it
+  starts, because a build reports on what it was asked to make rather than on
+  whatever the form has been edited to since.
+
+- **A slow plugin says so where the plugins are listed.** `PluginHost` already
+  timed every plugin callback and nothing read it, so "why did the editor get
+  slow" was answerable only by someone who thought to open the profiler, while the
+  list of suspects sat one panel away saying nothing. The panel projects the
+  plugin's costliest callback over the window, when it is past a fraction of a
+  frame — no second timing, because a plugin measured twice is two answers to one
+  question.
+
+- **A health report says which moment it is a reading of.** The panel takes a
+  reading on open and holds it still on purpose; what it also did was keep LOOKING
+  current after the project moved, and an old verdict worn as the present one is
+  the failure this preflight exists against. The report carries a pulse of the
+  inputs it was made from, and the header says so beside the Re-check it belongs
+  to. Freshness is "has anything the verdict was made of moved", never "would the
+  verdict differ" — the second question is running the checks again.
+
+- **A drop target answers while the pointer is still down.** An asset slot called
+  `preventDefault` on every dragover — the browser-level promise that a drop will
+  be taken — and only checked the type on drop, where the write door refused it:
+  a font lit a texture slot green and then produced an error toast. During
+  dragover the DnD data store is protected and a target genuinely cannot see what
+  it is being offered, so the payload now lives in the process for the length of
+  the gesture, and the answer is produced while hovering and CONSUMED by the drop
+  rather than recomputed. The viewport stage, the Outliner row and the last two
+  targets all answer from the payload rather than from the shape of the drag.
+
+- **Every discrete camera intent travels, and automation still lands exactly.**
+  Frame Selected, Frame Design Screen, the axis presets and the user's view reset
+  all go through one drive; Frame Design Screen derives its whole target before
+  anything moves, so its position and zoom cannot come apart. Reduced motion
+  arrives in the call that asked for it, and Frame Selected lets go the moment a
+  hand arrives.
+
+### Changed
+
+- **One palette.** Two palettes with two enablement projections is how Ctrl+P
+  comes to say Build is enabled while Ctrl+Shift+P says it is disabled, so the
+  command palette is gone rather than kept alongside: both keys open the same
+  component, one showing everything and one scoped to commands. `palette.open`
+  survives as a command id — that is the user's vocabulary, and what a keybinding,
+  a menu entry and a plugin all name; only the surface behind it changed.
+
+- **The load overlay lets go for a reason, and says so afterwards.** The gate
+  recomputed whether it was blocking from the pending list, so "you may come in"
+  and "everything finished" were the same fact: a safety timeout that had let
+  someone in was undone by the next task to report, and a task that FAILED never
+  settled at all. Release is terminal now and carries why — ready, degraded,
+  timeout, aborted — and the tasks keep reporting after it.
+
+- The build gate follows the run out of the dialog, `meshShaderReads` is held
+  against the shader it is a claim about, and comment-style weighs the block
+  rather than the lines a commit happened to touch.
+
+### Fixed
+
+- **A scene holding an instance of a re-imported model can be saved again.** The
+  override diff took the UNION of the base's and the instance's component keys, so
+  a key the base carried and the instance did not was diffed as an override whose
+  value is `undefined` — and the diff's deep clone cannot serialise that
+  (`JSON.stringify(undefined)` is `undefined`). `save_scene` threw `"undefined"
+  is not valid JSON` and went on throwing on every attempt after, so a creator
+  whose DCC model round-tripped could no longer write the scene at all, and the
+  preflight then correctly refused the package because a build reads what is on
+  disk. Re-importing a model nothing references saved normally; what broke it was
+  having an INSTANCE of the re-imported asset in the open scene, which is the
+  whole point of a round trip. A component's schema owns which keys exist — which
+  is why the vocabulary has `metadata_removed` and no `property_removed` — so an
+  instance captured before the base gained a field now INHERITS it. Shipped in
+  every release since 0.13.0; the AI-DCC corpus is what finally walked into it.
+
+- **The editor document loads as a transaction, newest intent only.** Five paths
+  reach the two irreversible sections — project adoption, an external-change
+  reload, `openScene`, `openPrefab`, `newScene` — and none was ordered against the
+  others, so two scene opens, or a scene open crossing a prefab open, interleaved
+  releasing the outgoing scene's assets, clearing history and selection, and
+  rebuilding the World. A lane is not enough for a document whose steps cannot be
+  abandoned halfway: loads never overlap, and only the newest intent runs.
+
+- **One project open at a time, claimed in the store.** A project root is
+  process-wide authority — adopting one flushes the previous project's workspace
+  session, re-points the main process and arms a scene bootstrap — and two of
+  those interleaved leave the last writer's state beside an earlier one's
+  bootstrap: one project's scene loaded into another. Clicking a recent project
+  called through with no busy identity at all. The claim is in the STORE because
+  five callers reach it, and a gate on one of them is not a gate.
+
+- **The document a surface opens is the last one asked for.** Opening a document
+  is read-before-open, and two opens inside that window raced: double-clicking B
+  while A was still reading left you looking at A, and A's later failure popped an
+  error about a file you had already navigated away from.
+
+- **A scrub the OS takes away aborts instead of hanging open.** `useScrub` heard
+  pointerdown, move and up. A `pointercancel` — a pen leaving the digitiser, a
+  touch the system turns into its own gesture — left the drag in the ref and the
+  transaction open for the rest of the session, so every later edit folded into
+  that one undo step and the value it happened to stop at stayed.
+
+- **A retired play attempt cannot speak for the one that replaced it.** The
+  settles asked whether the stage was still `starting`, which two different
+  attempts both answer yes to: stop a session mid-boot and start another, and the
+  first realm's "it came up" landed on the second, marking a session running that
+  had not begun.
+
+- **A residency reading is published when it changes, not when it is taken.** The
+  poll built a fresh object every 400ms and handed it to the store unread, waking
+  every subscriber four times a second for a world that had not moved — and in the
+  edit realm there is no running world at all, so the same absence was being
+  announced as news.
+
+- **A health finding's asset location is reachable.** `scene.entry` emits an asset
+  location — the entry scene the manifest names but the project does not have —
+  and every consumer read only the entity, so the finding that most needs
+  somewhere to go was the one with no way to get there.
+
+- **The export door stays one door the health gate can read.** Splitting a private
+  implementation out of `exportGame` moved the preflight, the refusal reason and
+  the cook-option derivation past where `check-project-health` looks; it reads the
+  door as one method on purpose, because adjudicating after the cook leaves half a
+  package behind.
+
+- Reduced motion skips the transitional phases, not just the hold — an opening
+  surface used to spend `entering` waiting out two frames, which with transitions
+  near zero is a delay before anything appears rather than a gentler animation.
+
+- Gizmos align with the presented camera and are built from world geometry, so
+  what a gizmo is drawn over is what the frame was drawn with.
+
+- A Windows path is not a module specifier; the census criteria can fail on the
+  platform they guard; and the open-race contract holds under load, not only
+  alone. The workspace-continuity probe no longer copies the source example's own
+  `.esengine/workspace.json` into the project it calls session-less — gitignored,
+  so whether it existed depended on whether anyone had opened that example on the
+  machine, which is why the isolation clause was red locally and green on CI.
+
+### Performance
+
+- **A settled viewport paints nothing.** The overlay rewrote every gizmo, wire and
+  grid line on each browser frame whether or not anything had moved. Measured on
+  `world-streaming-3d` — eighteen entities — that held the editor at 7-15fps with
+  gizmos on and 60 with them off, on 0.55ms of JS: the cost is not the JS, it is
+  what Chromium does with the SVG afterwards, which no bracket inside the frame
+  can see and only not writing avoids. The overlay is quiescent rather than "wake
+  and check", because a hundred later overlay features cannot each poll for their
+  own changes, and the camera announces instead of being polled — a scheduler
+  keyed on `CameraCommit.revision` never settles, since that advances on every
+  drawn frame. At rest: 60fps and two paints in 2500ms, where it was fifteen
+  hundred.
+
+- **What a necessary overlay paint costs, settled by counterfactual.** A frame
+  carrying one committed camera change cost 116.7ms with the overlay on and 16.7ms
+  without, over four arms on the same stimulus — one camera change per frame, so a
+  slow arm is not measured on a smaller stimulus than a fast one:
+
+  | arm | frame | rate | what it did |
+  |---|---|---|---|
+  | A | 116.7ms | 9fps | projections, writes, rendered (as shipped) |
+  | B | 16.7ms | 60fps | projections, no write |
+  | C | 16.7ms | 60fps | projections, only the transform gizmo's own root |
+  | D | 16.7ms | 60fps | projections, every write, layers `display:none` |
+
+  Overlay JS is 0.7-1.05ms per paint in all four. D lands 26,397 writes and still
+  holds 60fps, so the mutation calls are not the cost; C lets the gizmo root's own
+  344 through and holds 60fps, so no single gizmo is. What remains is the browser
+  rendering 28 mutated geometric layers — which is the case for owning them in the
+  renderer rather than making the writes cheaper, and is what the renderer-owned
+  overlay above does.
+
 ## [0.62.0] - 2026-09-08
 
 ### Added
@@ -11118,7 +11407,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.62.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.63.0...HEAD
+[0.63.0]: https://github.com/esengine/estella/compare/v0.62.0...v0.63.0
 [0.62.0]: https://github.com/esengine/estella/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/esengine/estella/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/esengine/estella/compare/v0.59.0...v0.60.0
