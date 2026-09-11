@@ -266,6 +266,10 @@ function diffComponents(
             ...Object.keys(instComp.data),
         ]);
         for (const key of keys) {
+            // A key only the BASE carries is INHERITED — a component's schema owns
+            // which keys exist, hence `metadata_removed` and no `property_removed`.
+            // Diffing one clones an `undefined` that no save can write.
+            if (!(key in instComp.data)) continue;
             // Entity refs diff (and store) in stable-id space so an unchanged
             // cross-reference isn't logged as a dangling numeric override — both
             // sides normalise through their own runtime-id→stable-id map.

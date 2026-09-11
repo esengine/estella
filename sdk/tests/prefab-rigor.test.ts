@@ -461,6 +461,31 @@ describe('diffAgainstSource', () => {
         });
     });
 
+    // The trap: `JSON.stringify(undefined)` is `undefined`, so diffing a key only
+    // the source carries threw `"undefined" is not valid JSON` out of save, for
+    // good. A re-imported model an open scene instances is the path there.
+    it('inherits a source key the instance does not carry, rather than throwing', () => {
+        const prefab = uuidPrefab();
+        const instance = cloneForInstance(prefab);
+        delete (instance[0].components[1].data as Record<string, unknown>).color;
+        const { overrides } = diffAgainstSource(prefab, instance);
+        expect(overrides).toEqual([]);
+    });
+
+    it('still emits a property override for a key only the instance carries', () => {
+        const prefab = uuidPrefab();
+        const instance = cloneForInstance(prefab);
+        (instance[0].components[1].data as Record<string, unknown>).flipX = true;
+        const { overrides } = diffAgainstSource(prefab, instance);
+        expect(overrides).toContainEqual({
+            prefabEntityId: 'root',
+            type: 'property',
+            componentType: 'Sprite',
+            propertyName: 'flipX',
+            value: true,
+        });
+    });
+
     it('emits component_added for new component and component_removed for missing one', () => {
         const prefab = uuidPrefab();
         const instance = cloneForInstance(prefab);
