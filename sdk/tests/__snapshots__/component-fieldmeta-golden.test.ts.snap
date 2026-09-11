@@ -903,6 +903,19 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       ],
     },
   },
+  "SortingGroup": {
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+      "tooltip": "Sorting layer for the entire group — members no longer state their own.",
+    },
+    "order": {
+      "max": 127,
+      "min": -128,
+      "step": 1,
+      "tooltip": "Draw order of the whole group inside its sorting layer — higher draws on top.",
+    },
+  },
   "SpineAnimation": {
     "animation": {
       "enumSource": "spineAnimations",

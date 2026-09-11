@@ -118,7 +118,53 @@ sprite.layer = 2;   // e.g. "Foreground" — drawn on top
 
 <Aside type="tip">
   Sorting layers group things coarsely (background vs gameplay vs UI-in-world). For
-  fine ordering *within* a layer, use the entity's `Transform` z position.
+  fine ordering *within* a layer, state `sprite.order` — see below.
+</Aside>
+
+### Order within a layer
+
+`sprite.order` is where a sprite sits **inside** its sorting layer: higher draws on
+top, the range is −128…127, and `0` says nothing at all. It outranks whatever the
+layer would otherwise have inferred — z on a painter layer, world Y on a Y-sorted one:
+
+```typescript
+shadow.order = -1;  // under its owner, wherever the owner walks
+weapon.order = 1;   // over the hand holding it
+```
+
+On a Y-sorted layer this is the *only* override there is, because z never reaches
+that key at all. Without it, keeping a shadow under its owner meant moving the sprite
+in Y and lying about where it stands.
+
+### Sorting groups
+
+An order is a promise about one sprite against **everything else in the layer**, and
+that stops scaling as soon as two assembled characters overlap: raising a weapon above
+the other character raises it above its own body too.
+
+`SortingGroup` makes an entity and its whole subtree sort as **one unit**. The group
+states the layer and order the assembly presents outward; each member's own
+`sprite.order` becomes its place *inside* the group, and nothing outside the group can
+land between two members.
+
+```typescript
+world.insert(character, SortingGroup, { layer: 2, order: 5 });
+// Inside the character, these are now free to mean only "which part is in front".
+world.update(body, Sprite, (s) => { s.order = 0; });
+world.update(arm, Sprite, (s) => { s.order = 1; });
+```
+
+Two characters are then ordered against each other by their groups alone, and neither
+one's parts can interleave with the other's.
+
+Groups nest. A weapon prefab that carries its own `SortingGroup`, rigged under an
+arm, stays one block wherever the arm goes — the outer group still owns the layer, and
+the block does not come apart around a sibling of the arm.
+
+<Aside type="caution">
+  A group's members and an ungrouped sprite that happens to share the group's layer
+  *and* order interleave in an unspecified way — "nothing lands between the members"
+  is a promise about the group's own place, so give the group a place of its own.
 </Aside>
 
 ### Scene order breaks the tie

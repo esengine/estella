@@ -402,6 +402,14 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 44 },
         ],
     },
+    SortingGroup: {
+        ptrFn: 'getSortingGroupPtr',
+        fields: [
+            { name: 'layer', type: 'i32', offset: 0 },
+            { name: 'order', type: 'i32', offset: 4 },
+            { name: 'enabled', type: 'bool', offset: 8 },
+        ],
+    },
     SphereCollider3D: {
         ptrFn: 'getSphereCollider3DPtr',
         fields: [

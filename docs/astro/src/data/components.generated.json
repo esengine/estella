@@ -3738,6 +3738,31 @@
       ]
     },
     {
+      "name": "SortingGroup",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "layer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Sorting layer for the entire group — members no longer state their own.",
+          "range": "step 1"
+        },
+        {
+          "key": "order",
+          "type": "number",
+          "default": "0",
+          "doc": "Draw order of the whole group inside its sorting layer — higher draws on top.",
+          "range": "-128–127, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "SphereCollider3D",
       "source": "cpp",
       "fields": [

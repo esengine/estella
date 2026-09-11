@@ -15,6 +15,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
+    SortingGroupData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -797,6 +798,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
+    SortingGroupData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -910,6 +912,16 @@ export const Light = defineBuiltin<LightData>('Light',
 
 export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
     metaDefaults<ShadowCaster2DData>('ShadowCaster2D')
+);
+
+/**
+ * Makes this entity and everything under it sort as ONE unit: the group states the
+ * layer and order the whole subtree presents outward, and each member's own
+ * `Sprite.order` becomes its place INSIDE the group. Nothing outside the group can
+ * land between two of its members, which is what a per-sprite order cannot promise.
+ */
+export const SortingGroup = defineBuiltin<SortingGroupData>('SortingGroup',
+    metaDefaults<SortingGroupData>('SortingGroup')
 );
 
 // The authoring defaults that differ from the C++ ctor (an active Orthographic

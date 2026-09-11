@@ -31,6 +31,7 @@
 #include "../ecs/components/RigidBody3D.hpp"
 #include "../ecs/components/ShadowCaster2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
+#include "../ecs/components/SortingGroup.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/TilemapLayer.hpp"
@@ -1711,6 +1712,11 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("parallax", &esengine::ecs::ShapeRenderer::parallax)
         .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
 
+    value_object<esengine::ecs::SortingGroup>("SortingGroup")
+        .field("layer", &esengine::ecs::SortingGroup::layer)
+        .field("order", &esengine::ecs::SortingGroup::order)
+        .field("enabled", &esengine::ecs::SortingGroup::enabled);
+
     value_object<esengine::ecs::SphereCollider3D>("SphereCollider3D")
         .field("radius", &esengine::ecs::SphereCollider3D::radius)
         .field("friction", &esengine::ecs::SphereCollider3D::friction)
@@ -2503,6 +2509,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::ShapeRenderer>(entity);
         }))
 
+        // SortingGroup
+        .function("hasSortingGroup", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SortingGroup>(static_cast<Entity>(e));
+        }))
+        .function("getSortingGroup", optional_override([](Registry& r, u32 e) -> esengine::ecs::SortingGroup& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SortingGroup s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SortingGroup>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SortingGroup>(entity);
+        }), allow_raw_pointers())
+        .function("addSortingGroup", optional_override([](Registry& r, u32 e, const esengine::ecs::SortingGroup& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SortingGroup>(entity, c);
+        }))
+        .function("removeSortingGroup", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SortingGroup>(entity)) return;
+            r.remove<esengine::ecs::SortingGroup>(entity);
+        }))
+
         // SphereCollider3D
         .function("hasSphereCollider3D", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::SphereCollider3D>(static_cast<Entity>(e));
@@ -2822,6 +2849,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("SegmentCollider2D")));
     arr.set(i++, val(std::string("ShadowCaster2D")));
     arr.set(i++, val(std::string("ShapeRenderer")));
+    arr.set(i++, val(std::string("SortingGroup")));
     arr.set(i++, val(std::string("SphereCollider3D")));
     arr.set(i++, val(std::string("SpineAnimation")));
     arr.set(i++, val(std::string("Sprite")));
@@ -3098,6 +3126,9 @@ static_assert(offsetof(esengine::ecs::ShapeRenderer, cornerRadius) == 28, "ABI o
 static_assert(offsetof(esengine::ecs::ShapeRenderer, layer) == 32, "ABI offset drift: esengine::ecs::ShapeRenderer.layer (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, parallax) == 36, "ABI offset drift: esengine::ecs::ShapeRenderer.parallax (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, enabled) == 44, "ABI offset drift: esengine::ecs::ShapeRenderer.enabled (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::SortingGroup, layer) == 0, "ABI offset drift: esengine::ecs::SortingGroup.layer (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::SortingGroup, order) == 4, "ABI offset drift: esengine::ecs::SortingGroup.order (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::SortingGroup, enabled) == 8, "ABI offset drift: esengine::ecs::SortingGroup.enabled (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::SphereCollider3D, radius) == 0, "ABI offset drift: esengine::ecs::SphereCollider3D.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::SphereCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::SphereCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::SphereCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::SphereCollider3D.restitution (EHT expected 8)");
@@ -3218,7 +3249,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "ffa08b49cfb9df43";
+static const char* kEsAbiLayoutHash = "a30e798cbaa98d41";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

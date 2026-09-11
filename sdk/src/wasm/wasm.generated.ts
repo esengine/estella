@@ -695,6 +695,12 @@ export interface ShapeRenderer {
     enabled: boolean;
 }
 
+export interface SortingGroup {
+    layer: number;
+    order: number;
+    enabled: boolean;
+}
+
 export interface SphereCollider3D {
     radius: number;
     friction: number;
@@ -968,6 +974,10 @@ export interface Registry {
     getShapeRenderer(entity: Entity): ShapeRenderer;
     addShapeRenderer(entity: Entity, component: ShapeRenderer): void;
     removeShapeRenderer(entity: Entity): void;
+    hasSortingGroup(entity: Entity): boolean;
+    getSortingGroup(entity: Entity): SortingGroup;
+    addSortingGroup(entity: Entity, component: SortingGroup): void;
+    removeSortingGroup(entity: Entity): void;
     hasSphereCollider3D(entity: Entity): boolean;
     getSphereCollider3D(entity: Entity): SphereCollider3D;
     addSphereCollider3D(entity: Entity, component: SphereCollider3D): void;
@@ -1058,6 +1068,7 @@ export interface ESEngineModule {
     SegmentCollider2D: new () => SegmentCollider2D;
     ShadowCaster2D: new () => ShadowCaster2D;
     ShapeRenderer: new () => ShapeRenderer;
+    SortingGroup: new () => SortingGroup;
     SphereCollider3D: new () => SphereCollider3D;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;

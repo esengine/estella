@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ffa08b49cfb9df43';
+export const ABI_LAYOUT_HASH = 'a30e798cbaa98d41';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -793,6 +793,21 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
         },
     },
+    SortingGroup: {
+        defaults: {
+            layer: 0,
+            order: 0,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            layer: { step: 1, tooltip: "Sorting layer for the entire group — members no longer state their own.", enumSource: "sortingLayers" },
+            order: { min: -128, max: 127, step: 1, tooltip: "Draw order of the whole group inside its sorting layer — higher draws on top." },
+        },
+    },
     SphereCollider3D: {
         defaults: {
             radius: 0.5,
@@ -1464,6 +1479,18 @@ export interface ShapeRendererData {
     cornerRadius: number;
     layer: number;
     parallax: Vec2;
+    enabled: boolean;
+}
+
+/**
+ * The fields of the engine's `SortingGroup` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface SortingGroupData {
+    layer: number;
+    order: number;
     enabled: boolean;
 }
 

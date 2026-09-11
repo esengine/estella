@@ -27,6 +27,7 @@
 #include "esengine/ecs/components/RigidBody2D.hpp"
 #include "esengine/ecs/components/ShadowCaster2D.hpp"
 #include "esengine/ecs/components/ShapeRenderer.hpp"
+#include "esengine/ecs/components/SortingGroup.hpp"
 #include "esengine/ecs/components/SpineAnimation.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
 #include "esengine/ecs/components/TilemapLayer.hpp"
@@ -198,6 +199,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "ShapeRenderer") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::ShapeRenderer>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "SortingGroup") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::SortingGroup>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "SphereCollider3D") == 0) {
@@ -404,6 +410,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::ShapeRenderer>());
         };
     }
+    if (std::strcmp(name, "SortingGroup") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::SortingGroup>());
+        };
+    }
     if (std::strcmp(name, "SphereCollider3D") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::SphereCollider3D>());
@@ -496,6 +507,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "SegmentCollider2D") == 0) return true;
     if (std::strcmp(name, "ShadowCaster2D") == 0) return true;
     if (std::strcmp(name, "ShapeRenderer") == 0) return true;
+    if (std::strcmp(name, "SortingGroup") == 0) return true;
     if (std::strcmp(name, "SphereCollider3D") == 0) return true;
     if (std::strcmp(name, "SpineAnimation") == 0) return true;
     if (std::strcmp(name, "Sprite") == 0) return true;

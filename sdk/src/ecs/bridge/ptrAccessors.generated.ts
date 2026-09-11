@@ -1509,6 +1509,38 @@ export function createShapeRendererData(): ShapeRendererPtrData {
     };
 }
 
+export interface SortingGroupPtrData {
+    layer: number;
+    order: number;
+    enabled: boolean;
+}
+
+export function fillSortingGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: SortingGroupPtrData,
+): void {
+    out.layer = u32[ptr >> 2] | 0;
+    out.order = u32[(ptr + 4) >> 2] | 0;
+    out.enabled = u8[ptr + 8] !== 0;
+}
+
+export function writeSortingGroup(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: SortingGroupPtrData,
+): void {
+    u32[ptr >> 2] = data.layer | 0;
+    u32[(ptr + 4) >> 2] = data.order | 0;
+    u8[ptr + 8] = data.enabled ? 1 : 0;
+}
+
+export function createSortingGroupData(): SortingGroupPtrData {
+    return {
+        layer: 0,
+        order: 0,
+        enabled: false,
+    };
+}
+
 export interface SphereCollider3DPtrData {
     radius: number;
     friction: number;
@@ -2237,6 +2269,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SegmentCollider2D: { fill: fillSegmentCollider2D, write: writeSegmentCollider2D, create: createSegmentCollider2DData },
     ShadowCaster2D: { fill: fillShadowCaster2D, write: writeShadowCaster2D, create: createShadowCaster2DData },
     ShapeRenderer: { fill: fillShapeRenderer, write: writeShapeRenderer, create: createShapeRendererData },
+    SortingGroup: { fill: fillSortingGroup, write: writeSortingGroup, create: createSortingGroupData },
     SphereCollider3D: { fill: fillSphereCollider3D, write: writeSphereCollider3D, create: createSphereCollider3DData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },

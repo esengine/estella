@@ -176,6 +176,14 @@ target_include_directories(test_draw_params PRIVATE
 )
 add_test(NAME test_draw_params COMMAND test_draw_params)
 
+# The sort key's field layout, asserted on the bits. Header-only, so no engine link.
+add_executable(test_sort_key renderer/test_sort_key.cpp)
+target_include_directories(test_sort_key PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_sort_key COMMAND test_sort_key)
+
 # Clip-depth convention: the engine builds for [-1,1] and a device keeping [0,1]
 # is handed the same projection in its terms. Header-only math, so no engine link.
 add_executable(test_clip_depth renderer/test_clip_depth.cpp)

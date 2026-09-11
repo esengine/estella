@@ -11,8 +11,10 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, Sprite } from './component';
-import { layerOrderOf, rankPickCandidates, type PickCandidate } from '../render/layerOrder';
+import { Transform, Sprite, SortingGroup, Parent } from './component';
+import {
+    layerOrderOf, rankPickCandidates, sortingIdentity, type PickCandidate,
+} from '../render/layerOrder';
 import {
     entityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld,
 } from './entityBox';
@@ -21,6 +23,28 @@ import {
  *  gizmo for it: above every real layer, so a small marker wins against the
  *  sprite it sits on. A realm that draws no gizmos has nothing up there. */
 const GIZMO_PICK_LAYER = 1e6;
+
+/**
+ * The groups enclosing @p entity, OUTERMOST first — what `sortingIdentity` needs.
+ *
+ * Walked per hit rather than resolved once for the world: a pick sees a handful of
+ * candidates, and a table built for all of them would be the renderer's job done a
+ * second time, on a different clock, to answer about the frame that was drawn.
+ */
+function enclosingGroups(world: PickWorld, entity: Entity): { layer: number; order: number }[] {
+    const chain: { layer: number; order: number }[] = [];
+    let current: Entity | undefined = entity;
+    const seen = new Set<Entity>();
+    while (current !== undefined && !seen.has(current)) {
+        seen.add(current);
+        if (world.has(current, SortingGroup)) {
+            const g = world.get(current, SortingGroup);
+            if (g.enabled) chain.push({ layer: g.layer, order: g.order });
+        }
+        current = world.has(current, Parent) ? world.get(current, Parent).entity : undefined;
+    }
+    return chain.reverse();
+}
 
 /**
  * The reads a pick needs: a box's, plus the World's own list of entities.
@@ -71,15 +95,22 @@ export function pickEntitiesByRay(
         if (!box || entityBoxRayHit(box, ray.origin, ray.dir) === null) continue;
 
         const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
-        const layer = sprite ? sprite.layer : unlayered;
+        // A group owns the layer as well as the order, so the layer's RULE is asked of
+        // the group's — the same resolution pushBatchDraw does, for the same reason.
+        const identity = sortingIdentity(
+            enclosingGroups(world, entity),
+            sprite ? sprite.layer : unlayered,
+            sprite?.order ?? 0,
+        );
         const t = world.get(entity, Transform);
         hits.push({
             entity,
             index: hits.length,
             rank: {
-                layer,
-                order: layerOrderOf(layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
-                orderInLayer: sprite?.order ?? 0,
+                layer: identity.layer,
+                order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
+                orderInLayer: identity.orderInLayer,
+                groupInner: identity.groupInner,
                 worldY: t.worldPosition.y,
                 worldZ: t.worldPosition.z ?? 0,
             },

@@ -14,6 +14,41 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A subtree can sort as one unit.** `sprite.order` is a promise about one sprite
+  against everything else in its layer, and that stops scaling the moment two
+  assembled characters overlap: raising a weapon over the other character raises it
+  over its own body too, and the only way out was globally unique orders across every
+  entity that might ever meet. `SortingGroup` states the layer and order a whole
+  subtree presents outward, and each member's own order becomes its place INSIDE the
+  group — so nothing outside can land between two members, which is the one thing a
+  per-sprite order cannot offer.
+
+  The group takes over everything DERIVED from a layer, not just the key: the camera's
+  culling bit and the layer's ordering rule are asked of the group's layer too.
+  Leaving either on the member y-sorts a group through one sprite and not the next.
+
+  Groups nest, and an inner one does not start a fresh identity — a weapon prefab
+  rigged under an arm would drift out of the character. It becomes one BLOCK in the
+  outer group instead, so it stays whole wherever the arm goes.
+
+  Where the member's order LIVES is the whole design. The group owns the key's top
+  fields, so the member needs the highest field left, and it must be the same field in
+  every packing or two members of one group are incomparable — a group holds an opaque
+  prop under a blended character. [37:30] is the only field directly under stage in all
+  three layouts, and it is stamped there after the fact, which costs nothing outside a
+  group and inside one replaces a projection (depth, shader, world Y) the author's
+  order was overriding anyway.
+
+  Held at three levels, each watched failing first: the bit layout in a new header-only
+  `test_sort_key` harness, the draw path's resolution in `test_batch_builder`, and the
+  editor's picking — which mirrors all of this in `layerOrder.ts`, or a click selects
+  what the person cannot see. Two of the engine cases were TRIVIALLY satisfied when
+  first written (a stated order outranks both depth and world Y, so it cannot be what
+  makes two layer rules disagree) and were rebuilt until sabotage reddened them.
+
+
 ## [0.63.0] - 2026-09-10
 
 ### Added

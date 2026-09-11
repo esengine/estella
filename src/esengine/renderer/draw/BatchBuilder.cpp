@@ -47,12 +47,24 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
                    u32 vertexByteOffset, u32 vertexCount, u32 indexOffset, u32 indexCount,
                    const BatchDrawKey& key) {
     if (indexCount == 0) return;
+
+    // A group takes over its members' outward identity, so EVERY layer-derived decision
+    // below asks the group's layer: the culling bit, the ordering rule, the key's top field.
+    // Leaving one on the member y-sorts a group through one sprite and not the next.
+    i32 layer = key.layer;
+    i32 order = key.order;
+    const DrawList::GroupIdentity* group = drawList.sortingGroupOf(key.entity.id());
+    if (group) {
+        layer = group->layer;
+        order = group->order;
+    }
+
     // The camera's culling mask, applied at the one place draws are produced, so no
     // render path can be added that forgets it.
-    if (!drawList.layerVisible(key.cullBit ? key.cullBit : DrawList::layerBit(key.layer))) return;
+    if (!drawList.layerVisible(key.cullBit ? key.cullBit : DrawList::layerBit(layer))) return;
 
     DrawCommand cmd{};
-    const auto resolve = drawList.layerOrder(key.layer);
+    const auto resolve = drawList.layerOrder(layer);
 
     // A depth layer decides its own stage and depth state; every other layer takes
     // what the caller resolved from the material. The rule is the physical one, so
@@ -76,10 +88,17 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     // exists. A stencil write still precedes the draws testing it because UI pre-order
     // puts a mask below its descendants in LAYER, the key's top field. Not so on one layer.
     cmd.sort_key = resolve == DrawList::LayerOrder::YSort
-        ? DrawCommand::buildSortKeyYSorted(stage, key.layer, key.y, key.shaderId,
-                                           key.blend, 0, key.order)
-        : DrawCommand::buildSortKey(stage, key.layer, key.shaderId,
-                                    key.blend, 0, key.depth, key.materialId, key.order);
+        ? DrawCommand::buildSortKeyYSorted(stage, layer, key.y, key.shaderId,
+                                           key.blend, 0, order)
+        : DrawCommand::buildSortKey(stage, layer, key.shaderId,
+                                    key.blend, 0, key.depth, key.materialId, order);
+    // Inside a group the member's own order is all that separates siblings. Under a NESTED
+    // group it is the inner group's instead — a block does not come apart around another
+    // block's contents.
+    if (group) {
+        cmd.sort_key = DrawCommand::withGroupOrder(
+            cmd.sort_key, group->blockOrder ? group->block : key.order);
+    }
     cmd.stage = stage;
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
@@ -125,7 +144,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     }
     cmd.entity = key.entity;
     cmd.type = key.type;
-    cmd.layer = key.layer;
+    cmd.layer = layer;
 
     clips.applyTo(key.entity, cmd);
     drawList.push(cmd);

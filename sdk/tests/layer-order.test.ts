@@ -9,7 +9,9 @@
  * individual answer still looks plausible.
  */
 import { describe, it, expect } from 'vitest';
-import { LayerOrder, layerOrderOf, layerFrontness, compareDrawRank } from '../src/render/layerOrder';
+import {
+  LayerOrder, layerOrderOf, layerFrontness, compareDrawRank, sortingIdentity,
+} from '../src/render/layerOrder';
 
 describe('layerOrderOf', () => {
   it('is painter order when neither mask claims the layer', () => {
@@ -120,5 +122,66 @@ describe('compareDrawRank', () => {
                            rank(1, LayerOrder.Painter))).toBeLessThan(0);
     expect(compareDrawRank(rank(1, LayerOrder.Painter, 0, 0, 200),
                            rank(1, LayerOrder.Painter, 0, 0, 300))).toBe(0);
+  });
+});
+
+/**
+ * A group's whole claim is that nothing outside it lands between its members. That is
+ * the property to pin — not "a group sorts" — because every wrong resolution here still
+ * orders the members correctly among themselves and only fails against an outsider.
+ */
+describe('sortingIdentity', () => {
+  const rank = (id: ReturnType<typeof sortingIdentity>, worldZ = 0) => ({
+    layer: id.layer,
+    order: LayerOrder.Painter,
+    orderInLayer: id.orderInLayer,
+    groupInner: id.groupInner,
+    worldY: 0,
+    worldZ,
+  });
+
+  it('leaves an ungrouped draw stating its own layer and order', () => {
+    const id = sortingIdentity([], 3, 7);
+    expect(id).toEqual({ layer: 3, orderInLayer: 7, groupInner: null });
+  });
+
+  it('hands the group the outward identity and the member the inner one', () => {
+    const id = sortingIdentity([{ layer: 5, order: 2 }], 3, 7);
+    expect(id).toEqual({ layer: 5, orderInLayer: 2, groupInner: 7 });
+  });
+
+  it('keeps an outsider from landing between two members', () => {
+    const group = [{ layer: 5, order: 2 }];
+    const low = rank(sortingIdentity(group, 0, -100));
+    const high = rank(sortingIdentity(group, 0, 100));
+    const above = rank(sortingIdentity([], 5, 3));
+    const below = rank(sortingIdentity([], 5, 1));
+    expect(compareDrawRank(low, high)).toBeLessThan(0);
+    expect(compareDrawRank(below, low)).toBeLessThan(0);
+    expect(compareDrawRank(high, above)).toBeLessThan(0);
+  });
+
+  // The engine's nesting rule: the FIRST nesting decides the block and deeper ones
+  // join it, so a sub-assembly cannot be split around a sibling of the block it is in.
+  it('gives a nested group one block order, whatever the member states', () => {
+    const nested = [{ layer: 5, order: 2 }, { layer: 9, order: 4 }];
+    expect(sortingIdentity(nested, 0, 99).groupInner).toBe(4);
+    expect(sortingIdentity(nested, 0, -99).groupInner).toBe(4);
+  });
+
+  it('reads the outermost group for the layer, however deep the nesting', () => {
+    const nested = [{ layer: 5, order: 2 }, { layer: 9, order: 4 }, { layer: 1, order: 6 }];
+    const id = sortingIdentity(nested, 0, 0);
+    expect(id.layer).toBe(5);
+    expect(id.orderInLayer).toBe(2);
+  });
+
+  // Members separate by their stated place BEFORE the layer's rule gets a say —
+  // mirroring the key, where the member field sits directly under stage.
+  it('ranks a member above a nearer sibling it was stated above', () => {
+    const group = [{ layer: 5, order: 0 }];
+    const front = rank(sortingIdentity(group, 0, 0), 1000);
+    const stated = rank(sortingIdentity(group, 0, 1), -1000);
+    expect(compareDrawRank(front, stated)).toBeLessThan(0);
   });
 });

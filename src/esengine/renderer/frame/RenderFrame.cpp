@@ -9,6 +9,8 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
+#include "../../ecs/components/SortingGroup.hpp"
+#include "../../ecs/components/Hierarchy.hpp"
 #include "../../ecs/components/MeshRenderer.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
@@ -895,6 +897,68 @@ void RenderFrame::buildClipState() {
     }
 }
 
+namespace {
+
+/**
+ * @brief Hands one group's identity to a subtree, stopping the descent at nothing.
+ *
+ * @details An inner group does not start a new identity — a weapon rigged under an arm
+ *          would drift out of its character. It becomes a BLOCK in the outer one:
+ *          everything below shares the inner group's order.
+ */
+void assignSortingSubtree(ecs::Registry& registry, DrawList& list, Entity entity,
+                          DrawList::GroupIdentity identity) {
+    list.setSortingGroup(entity.id(), identity);
+    if (!registry.has<ecs::Children>(entity)) return;
+    for (auto child : registry.get<ecs::Children>(entity).entities) {
+        DrawList::GroupIdentity childIdentity = identity;
+        // The FIRST nesting decides the block; deeper ones join it. A grandchild group
+        // restating it would interleave its contents with a sibling of its own block.
+        if (!childIdentity.blockOrder && registry.has<ecs::SortingGroup>(child)) {
+            const auto& inner = registry.get<ecs::SortingGroup>(child);
+            if (inner.enabled) {
+                childIdentity.blockOrder = true;
+                childIdentity.block = inner.order;
+            }
+        }
+        assignSortingSubtree(registry, list, child, childIdentity);
+    }
+}
+
+/// Whether some ENABLED group already encloses @p entity, making it a member rather
+/// than a root. A disabled group is not a group, so it does not enclose anything.
+bool hasEnclosingGroup(ecs::Registry& registry, Entity entity) {
+    Entity current = entity;
+    while (registry.has<ecs::Parent>(current)) {
+        Entity parent = registry.get<ecs::Parent>(current).entity;
+        if (parent == INVALID_ENTITY) break;
+        if (registry.has<ecs::SortingGroup>(parent) &&
+            registry.get<ecs::SortingGroup>(parent).enabled) {
+            return true;
+        }
+        current = parent;
+    }
+    return false;
+}
+
+}  // namespace
+
+void RenderFrame::buildSortingGroups(ecs::Registry& registry) {
+    draw_list_.clearSortingGroups();
+
+    auto groups = registry.view<ecs::SortingGroup>();
+    for (auto entity : groups) {
+        const auto& group = groups.get(entity);
+        if (!group.enabled) continue;
+        // Only the OUTERMOST group seeds an identity; the walk below reaches the inner
+        // ones as blocks. Seeding from an inner group too would overwrite what the outer
+        // one just wrote, and which of the two won would be view iteration order.
+        if (hasEnclosingGroup(registry, entity)) continue;
+        assignSortingSubtree(registry, draw_list_, entity,
+                             {group.layer, group.order, false, 0});
+    }
+}
+
 RenderFrameContext RenderFrame::makeContext() {
     return {
         context_,
@@ -1631,6 +1695,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // gathering lights and walking one render type's population are different
     // work that a single total cannot be told apart by.
     { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
+    { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); }
     { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws

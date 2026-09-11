@@ -9,6 +9,7 @@
 #include "../frame/FrameCapture.hpp"
 #include "../../math/Math.hpp"
 
+#include <unordered_map>
 #include <vector>
 
 namespace esengine {
@@ -109,6 +110,32 @@ public:
         return LayerOrder::Painter;
     }
 
+    /** @brief The sorting identity a SortingGroup imposes on one of its members. */
+    struct GroupIdentity {
+        /// What the whole group presents outward — the key's top two fields.
+        i32 layer = 0;
+        i32 order = 0;
+        /// Set when an INNER group stands between this draw and the outer one: the inner
+        /// group is one block inside the outer, so every draw under it shares the inner
+        /// group's order and stops separating by its own.
+        bool blockOrder = false;
+        i32 block = 0;
+    };
+
+    /** @brief Resolved once per collect, by the one walk that knows the hierarchy —
+     *         the draw path only reads it, exactly as it reads ClipState. */
+    void setSortingGroup(u32 entity, const GroupIdentity& identity) {
+        group_identities_[entity] = identity;
+    }
+    void clearSortingGroups() { group_identities_.clear(); }
+
+    /** @brief The group @p entity belongs to, or null when it sorts on its own. */
+    const GroupIdentity* sortingGroupOf(u32 entity) const {
+        if (group_identities_.empty()) return nullptr;
+        auto it = group_identities_.find(entity);
+        return it != group_identities_.end() ? &it->second : nullptr;
+    }
+
 private:
     struct SortEntry {
         u64 key;
@@ -122,6 +149,8 @@ private:
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()
     u32 merged_draw_calls_ = 0;
+    /// Members of a SortingGroup, by entity id — empty in the common frame.
+    std::unordered_map<u32, GroupIdentity> group_identities_;
     u32 ysort_mask_ = 0;
     u32 depth_mask_ = 0;
     /// Any command pushed this collect that tests or writes depth — see needsDepth.

@@ -1047,3 +1047,145 @@ TEST_CASE("growth: a steady workload inside capacity never reallocates") {
     }
     CHECK_EQ(device.resizeBufferCalls, before);
 }
+
+// ============================================================================
+// SortingGroup — the resolution pushBatchDraw does, asserted through the frame.
+// The key's own field layout is test_sort_key's; what these hold is that the draw
+// path ASKS the group rather than the member, everywhere a layer is consulted.
+// ============================================================================
+
+// The promise a per-sprite order cannot make. Two members straddle an outsider's
+// order, and the outsider still may not come between them.
+TEST_CASE("group: an outsider cannot be drawn between two members") {
+    Harness h;
+    h.list.setSortingGroup(11, {/*layer=*/3, /*order=*/5, false, 0});
+    h.list.setSortingGroup(12, {/*layer=*/3, /*order=*/5, false, 0});
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey low = quadKey(1, /*layer=*/9);   // the member's own layer is ignored
+    low.order = -100;
+    low.entity = Entity(11);
+    BatchDrawKey high = quadKey(3, /*layer=*/9);
+    high.order = 100;
+    high.entity = Entity(12);
+    // Ungrouped, and stated BETWEEN what the two members state for themselves. Sorting
+    // by the member's own order — the pre-group behaviour — puts it in the middle.
+    BatchDrawKey outsider = quadKey(2, /*layer=*/3);
+    outsider.order = 6;
+    outsider.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, low);
+    appendQuad(h.pool, h.list, h.clips, quad, outsider);
+    appendQuad(h.pool, h.list, h.clips, quad, high);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 3);
+    // The two members adjacent and in their stated order, the outsider clear of both.
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+    CHECK(h.list.command(1).texture_ids[0] == 3);
+    CHECK(h.list.command(2).texture_ids[0] == 2);
+}
+
+// Everything derived from a layer has to come from the GROUP's layer. A member whose
+// own layer is y-sorted, in a group whose layer is not, must not y-sort.
+TEST_CASE("group: the layer's rule is the group's, not the member's") {
+    Harness h;
+    h.list.setYSortMask(1u << 4);
+    h.list.setSortingGroup(21, {/*layer=*/6, 0, false, 0});
+    h.list.setSortingGroup(22, {/*layer=*/6, 0, false, 0});
+    BatchVertex quad[4] = {};
+
+    // The two rules must DISAGREE or this passes whichever ran. A stated order cannot make
+    // them — it outranks both — so the orders are equal and depth and world Y are set to
+    // opposite conclusions.
+    BatchDrawKey backY = quadKey(1, /*layer=*/4);
+    backY.y = -100.0f;      // y-sort: lower Y draws LAST
+    backY.depth = -100.0f;  // painter: further draws FIRST
+    backY.entity = Entity(21);
+    BatchDrawKey frontY = quadKey(2, /*layer=*/4);
+    frontY.y = 100.0f;
+    frontY.depth = 100.0f;
+    frontY.shaderId = 8;
+    frontY.entity = Entity(22);
+
+    appendQuad(h.pool, h.list, h.clips, quad, backY);
+    appendQuad(h.pool, h.list, h.clips, quad, frontY);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    // The group's layer is painter-ordered, so depth decides: y-sort would have
+    // reversed exactly this pair.
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+    CHECK(h.list.command(1).texture_ids[0] == 2);
+}
+
+// A group's members answer the camera's culling mask on the group's layer too —
+// otherwise half a character disappears when a camera drops the layer it was rigged in.
+TEST_CASE("group: culling reads the group's layer") {
+    Harness h;
+    h.list.setCullingMask(1u << 6);  // the group's layer only
+    h.list.setSortingGroup(31, {/*layer=*/6, 0, false, 0});
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey member = quadKey(1, /*layer=*/4);  // a layer this camera does not draw
+    member.entity = Entity(31);
+    BatchDrawKey ungrouped = quadKey(2, /*layer=*/4);
+
+    appendQuad(h.pool, h.list, h.clips, quad, member);
+    appendQuad(h.pool, h.list, h.clips, quad, ungrouped);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 1);
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+}
+
+// A nested group is one block: its contents share the block's order and do not
+// interleave with a sibling of the block, whatever they state for themselves.
+TEST_CASE("group: a nested group's contents stay one block") {
+    Harness h;
+    h.list.setSortingGroup(41, {/*layer=*/3, 0, /*blockOrder=*/true, /*block=*/0});
+    h.list.setSortingGroup(42, {/*layer=*/3, 0, /*blockOrder=*/true, /*block=*/0});
+    h.list.setSortingGroup(43, {/*layer=*/3, 0, false, 0});
+    BatchVertex quad[4] = {};
+
+    // Two members of the inner block, stated far apart, and a sibling of the block
+    // whose own order sits between those two statements.
+    BatchDrawKey blockLow = quadKey(1, 3);
+    blockLow.order = -50;
+    blockLow.entity = Entity(41);
+    BatchDrawKey sibling = quadKey(2, 3);
+    sibling.order = 1;
+    sibling.shaderId = 8;
+    sibling.entity = Entity(43);
+    BatchDrawKey blockHigh = quadKey(3, 3);
+    blockHigh.order = 50;
+    blockHigh.entity = Entity(42);
+
+    appendQuad(h.pool, h.list, h.clips, quad, blockLow);
+    appendQuad(h.pool, h.list, h.clips, quad, sibling);
+    appendQuad(h.pool, h.list, h.clips, quad, blockHigh);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 3);
+    CHECK(h.list.command(2).texture_ids[0] == 2);  // the sibling is above the whole block
+}
+
+// A group that is not there changes nothing — the field that decides is the table,
+// not the presence of the component elsewhere in the scene.
+TEST_CASE("group: an ungrouped draw is unaffected by another entity's group") {
+    Harness h;
+    h.list.setSortingGroup(51, {/*layer=*/0, /*order=*/100, false, 0});
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey a = quadKey(1, /*layer=*/2);
+    BatchDrawKey b = quadKey(2, /*layer=*/1);
+    b.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, a);
+    appendQuad(h.pool, h.list, h.clips, quad, b);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+}

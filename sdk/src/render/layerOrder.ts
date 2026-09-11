@@ -60,6 +60,30 @@ export function clampDrawOrder(order: number): number {
     return Math.max(-128, Math.min(127, Math.trunc(order) || 0));
 }
 
+/**
+ * The identity a draw presents to the frame once any enclosing `SortingGroup` has had
+ * its say — the JS mirror of `RenderFrame::buildSortingGroups` and `pushBatchDraw`.
+ *
+ * @param groups  Enclosing groups, OUTERMOST first, disabled ones already dropped.
+ *
+ * The outermost group owns what the frame sees: nothing outside lands between two
+ * members, which separate by their own order — or the block's, one nesting in.
+ */
+export function sortingIdentity(
+    groups: ReadonlyArray<{ layer: number; order: number }>,
+    ownLayer: number,
+    ownOrder: number,
+): { layer: number; orderInLayer: number; groupInner: number | null } {
+    if (groups.length === 0) {
+        return { layer: ownLayer, orderInLayer: ownOrder, groupInner: null };
+    }
+    return {
+        layer: groups[0].layer,
+        orderInLayer: groups[0].order,
+        groupInner: groups.length > 1 ? groups[1].order : ownOrder,
+    };
+}
+
 /** What a draw's place in the frame depends on: its layer, where it sits inside
  *  that layer, the layer's rule, and the two world coordinates either rule uses. */
 export interface DrawRank {
@@ -70,6 +94,10 @@ export interface DrawRank {
     /** `Sprite.order`: the author's explicit place within the layer, outranking
      *  whatever the rule would have inferred. 0 means nothing was stated. */
     orderInLayer: number;
+    /** Where this draw sits inside its `SortingGroup`, or null when it is in none.
+     *  See {@link sortingIdentity} — with a group, `layer`/`orderInLayer` are the
+     *  GROUP's and this is what separates the members. */
+    groupInner?: number | null;
     worldY: number;
     worldZ: number;
 }
@@ -95,6 +123,14 @@ export function compareDrawRank(a: DrawRank, b: DrawRank): number {
     const ao = clampDrawOrder(a.orderInLayer);
     const bo = clampDrawOrder(b.orderInLayer);
     if (ao !== bo) return ao - bo;
+    // Above the rule, where the key spends those bits. Only when BOTH are grouped: a
+    // group colliding with an ungrouped draw on layer AND order interleaves undefined —
+    // that promise is about the group's own place.
+    if (a.groupInner != null && b.groupInner != null) {
+        const ai = clampDrawOrder(a.groupInner);
+        const bi = clampDrawOrder(b.groupInner);
+        if (ai !== bi) return ai - bi;
+    }
     return layerFrontness(a.order, a.worldY, a.worldZ) - layerFrontness(b.order, b.worldY, b.worldZ);
 }
 

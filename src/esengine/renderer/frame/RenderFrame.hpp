@@ -558,6 +558,8 @@ private:
 
     RenderFrameContext makeContext();
     void buildClipState();
+    /// Resolves every SortingGroup into the per-entity identity the draw path reads.
+    void buildSortingGroups(ecs::Registry& registry);
     /// Adds a finalized list's cost to this frame's tally (see the definition).
     void accumulateStats(const DrawList& list);
     /// The overlay pass's body: the projection its geometry was built for, then

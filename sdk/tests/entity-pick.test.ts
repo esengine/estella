@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { pickEntitiesByRay } from '../src/ecs/entityPick';
-import { Transform, Sprite, MeshRenderer } from '../src/ecs/component';
+import { Transform, Sprite, MeshRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
@@ -103,5 +103,46 @@ describe('picking entities by ray', () => {
             2: { [name(Transform)]: T(0, 0, -900), [name(Sprite)]: sprite(0) },
         });
         expect(pickEntitiesByRay(world, down(0, 0))).toHaveLength(2);
+    });
+});
+
+/**
+ * A click has to land on what the person SEES, so the pick resolves groups the way
+ * the renderer does. These pin the two ways that can silently go wrong: reading the
+ * member's layer instead of the group's, and dropping the member order that is the
+ * only thing separating siblings once the group owns the layer.
+ */
+describe('picking inside a sorting group', () => {
+    const g = (layer: number, order: number) => ({ layer, order, enabled: true });
+
+    it('picks the group member stated on top, not the one with the higher own layer', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), SortingGroup: g(2, 0) },
+            // Both in the group. The BODY claims a far higher sorting layer of its own,
+            // which the group overrides — while the arm is stated above it inside.
+            2: { Transform: T(0, 0), Sprite: { ...sprite(30), order: 0 }, Parent: { entity: ent(1) } },
+            3: { Transform: T(0, 0), Sprite: { ...sprite(0), order: 1 }, Parent: { entity: ent(1) } },
+        });
+        expect(pickEntitiesByRay(world, down(0, 0))[0]).toBe(ent(3));
+    });
+
+    it('puts a whole group above an outsider the members individually sink below', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), SortingGroup: g(5, 4) },
+            2: { Transform: T(0, 0), Sprite: { ...sprite(5), order: -120 }, Parent: { entity: ent(1) } },
+            // Ungrouped, stated above what the member states for itself — and still below
+            // the group the member belongs to.
+            9: { Transform: T(0, 0), Sprite: { ...sprite(5), order: 3 } },
+        });
+        expect(pickEntitiesByRay(world, down(0, 0))[0]).toBe(ent(2));
+    });
+
+    it('is unaffected by a group that is disabled', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), SortingGroup: { layer: 9, order: 9, enabled: false } },
+            2: { Transform: T(0, 0), Sprite: { ...sprite(1), order: 0 }, Parent: { entity: ent(1) } },
+            9: { Transform: T(0, 0), Sprite: { ...sprite(2), order: 0 } },
+        });
+        expect(pickEntitiesByRay(world, down(0, 0))[0]).toBe(ent(9));
     });
 });

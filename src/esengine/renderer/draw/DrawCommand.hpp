@@ -147,6 +147,9 @@ struct DrawCommand {
     //   opaque   [37:30] shader | [29:27] blend | [26:25] flags | [24:14] material | [13:0] depth
     //   blended  [37:18] depth  | [17:10] shader | [9:7] blend  | [6:5] flags | [4:0] material
 
+    // A SortingGroup owns [63:40] for its members; [37:30] then carries the member's own
+    // order. See withGroupOrder.
+
     // Material pays for the order field, being the only one that can afford it: a
     // batching HINT, not identity (canMergeWith compares in full), so a collision costs
     // a merge and never a wrong draw.
@@ -203,6 +206,19 @@ struct DrawCommand {
      *           turning into "behind everything" is the one failure a clamp cannot make. */
     static u64 orderBits(i32 order) {
         return static_cast<u64>(std::clamp(order + 128, 0, 255)) << 40;
+    }
+
+    /**
+     * @brief Re-stamps a member's own order into a key whose top fields a SortingGroup
+     *        has taken over.
+     *
+     * @details [37:30] is the only field directly under stage in ALL three packings, and
+     *          it must be one field or two members of a group are incomparable. Costs
+     *          those bits' projection (depth, shader, worldY) inside a group only.
+     */
+    static u64 withGroupOrder(u64 key, i32 memberOrder) {
+        constexpr u64 field = 0xFFull << 30;
+        return (key & ~field) | (static_cast<u64>(std::clamp(memberOrder + 128, 0, 255)) << 30);
     }
 
     // Order-preserving float → u32: flip the sign bit for positives, all bits for
