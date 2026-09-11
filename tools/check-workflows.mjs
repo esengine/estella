@@ -213,8 +213,10 @@ if (shellViolations.length > 0) {
 const RELEASE_WF = 'release-desktop.yml';
 const signing = [];
 if (existsSync(path.join(WORKFLOWS, RELEASE_WF))) {
+    // Newlines are read as \r?\n: a Windows checkout carries CRLF, and a rule that
+    // cannot see the step reports it MISSING — the loudest way to be wrong.
     const text = readFileSync(path.join(WORKFLOWS, RELEASE_WF), 'utf8');
-    const keychain = /- name: Stand up the signing keychain\n\s+if: ([^\n]+)/.exec(text);
+    const keychain = /- name: Stand up the signing keychain\r?\n\s+if: ([^\r\n]+)/.exec(text);
     if (!keychain) {
         signing.push('no "Stand up the signing keychain" step — the signing mechanism cannot be located');
     } else if (/event_name/.test(keychain[1])) {
