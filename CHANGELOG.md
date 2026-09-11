@@ -264,8 +264,9 @@ published separately; it ships inside the editor.
   what a gizmo is drawn over is what the frame was drawn with.
 
 - A Windows path is not a module specifier; the census criteria can fail on the
-  platform they guard; and the open-race contract holds under load, not only
-  alone. The workspace-continuity probe no longer copies the source example's own
+  platform they guard; the open-race contract holds under load, not only alone;
+  and the signing-mechanism rule can read a checkout whose line breaks are CRLF,
+  rather than reporting the step it cannot match as one the workflow lacks. The workspace-continuity probe no longer copies the source example's own
   `.esengine/workspace.json` into the project it calls session-less — gitignored,
   so whether it existed depended on whether anyone had opened that example on the
   machine, which is why the isolation clause was red locally and green on CI.
