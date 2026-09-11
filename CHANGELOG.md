@@ -47,6 +47,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A texture's geometry is one picture.** The 9-slice border had a canvas in the
+  asset inspector — drag the guides on the sprite — and the sheet grid, added
+  alongside it, had four numbers in a list. A grid is the case where numbers are
+  least sufficient: `cellWidth` is easy to type and impossible to check without
+  seeing the cells land on the art. The canvas draws both now, and is named for
+  what it is rather than for one of the two.
+
+  Where the cells fall is not decided there. `sheetGrid` in the SDK is the one
+  author of that and the runtime cuts by the same function, so a grid that reads
+  right in the inspector cannot cut differently at load — the editor only carries
+  the cells across the letterbox fit the border is already drawn through.
+
 - **A sprite can be cut by another sprite's shape.** 2D needed a hole and had no way to
   make one: a blood bar that fills, a torch clearing fog, a character seen through a
   window. `SpriteMask` turns an entity's OWN `Sprite` into the stencil — not a second
