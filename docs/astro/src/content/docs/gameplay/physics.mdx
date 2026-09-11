@@ -115,39 +115,42 @@ are in meters.
 | `CircleCollider2D` | `radius` (`0.5`). |
 | `CapsuleCollider2D` | `radius`, `halfHeight`. |
 | `SegmentCollider2D` | `point1`, `point2` (a one-sided edge). |
-| `PolygonCollider2D` | `vertices: Vec2[]` (convex, at most 8), `radius` (rounded). |
+| `PolygonCollider2D` | `vertices: Vec2[]` (any shape, concave allowed), `radius` (rounded). |
 | `ChainCollider2D` | `points: Vec2[]`, `isLoop` (static edge chain; no `density`/`isSensor`). |
 
-#### Polygons are convex, and hold eight vertices
+#### Concave polygons, and how many vertices you may draw
 
-A `PolygonCollider2D` collides as the **convex hull** of its vertices. Author a
-notch and the solver fills it in: nothing can enter the dent, because in the
-physics world the dent is not there. Box2D stores at most **8** vertices per
-polygon, and a vertex welded onto its neighbour or sitting flat on the edge its
-neighbours already span is dropped as well.
+`PolygonCollider2D.vertices` takes as many points as you like, in any shape,
+concave included. Box2D itself builds only CONVEX polygons of at most 8 vertices,
+so a ring that is neither is split into convex pieces and each piece becomes its
+own shape on the same body. The cap belongs to a piece, not to what you draw.
 
-The editor does not hide this. Whatever the solver declined — the filled-in
-notch, the ninth vertex — is drawn as a dashed amber outline beside the solid
-one, in the viewport gizmo and in the runtime debug draw alike. A solid outline
-is what collides; a dashed one is what you drew.
+Pieces behave as one collider: mass sums over them the way it does over any two
+colliders on a body, and a contact with any piece is a contact with the entity.
+The cost is real, though — each piece is a shape in the broadphase — so a
+400-point outline is 400 points' worth of work, not one polygon's.
 
-For **concave static geometry** — terrain, cave walls, the inside of a bowl — use
-a `ChainCollider2D` instead. A chain is a run of edges, so it can be as concave
-as you like. It is level geometry, though, not a body's shape: it has no
-`density` or `isSensor`, and its points are not rebuilt while the game runs.
+Two things a divided polygon cannot do:
 
-For a **concave moving body**, neither answers on its own: split the shape into
-convex pieces. One entity carries one collider of each type, and every collider
-on it becomes a shape on the same body — so a box plus a polygon covers the
-simple cases. Anything more wants child entities with their own bodies, joined.
+- **`radius`** (rounded corners) rounds the OUTER boundary, and a cut between two
+  pieces is not boundary. It applies only when the ring stays in one piece.
+- **A ring that crosses itself** has no partition at all. It falls back to the
+  convex hull, and the editor draws the authored ring beside it as a dashed amber
+  outline so the difference is visible without playing the scene. A solid outline
+  is what collides; a dashed one is what you drew.
+
+A `ChainCollider2D` is still the better answer for long static edge geometry —
+terrain, cave walls — where nothing needs the inside to be solid. A chain is a run
+of edges: no `density`, no `isSensor`, and its points are not rebuilt while the
+game runs, but it costs one shape however long it is.
 
 #### Editing vertices in the viewport
 
 Select the entity and the collider's points become handles. Drag one to move it,
 **click a point to delete it**, and **click the hollow handle on an edge** to
-insert a vertex there and drag it into place — one gesture, one undo step. An
-edit the solver would refuse (a polygon below 3 points or above 8, a chain below
-4) is refused in the editor too, and says which limit it hit.
+insert a vertex there and drag it into place — one gesture, one undo step. The
+floors below which the solver builds nothing (3 points for a polygon, 4 for a
+chain) are refused in the editor too, and say which limit they hit.
 
 ## Collision filtering
 

@@ -13,12 +13,13 @@
  * that would catch a hull rewritten as a monotone chain: quickhull leaves it in
  * an order no angular sweep produces, and a shape drawn in another order is a
  * different shape.
+ *
+ * Concavity is not this file's subject. A concave collider is divided into convex
+ * pieces before it reaches the solver — see polygon-decompose.test.ts; these are
+ * the rules each piece is then held to.
  */
 import { describe, it, expect } from 'vitest';
-import {
-    computePolygonHull, polygonHullDiff, MAX_POLYGON_VERTICES,
-} from '../src/physics/polygonHull2D';
-import { collider2DOutline, type Collider2DShape } from '../src/physics/ColliderShape2D';
+import { computePolygonHull, MAX_POLYGON_VERTICES } from '../src/physics/polygonHull2D';
 
 type P = { x: number; y: number };
 const p = (x: number, y: number): P => ({ x, y });
@@ -100,47 +101,5 @@ describe('computePolygonHull — measured against b2ComputeHull', () => {
             return p(Math.cos(a), Math.sin(a));
         });
         expect(computePolygonHull(ring).length).toBeLessThanOrEqual(MAX_POLYGON_VERTICES);
-        expect(polygonHullDiff(ring).overflow).toBe(12 - MAX_POLYGON_VERTICES);
-    });
-});
-
-describe('polygonHullDiff', () => {
-    it('counts nothing lost when the ring is already convex', () => {
-        const d = polygonHullDiff([p(-0.5, -0.5), p(0.5, -0.5), p(0.5, 0.5), p(-0.5, 0.5)]);
-        expect(d.overflow).toBe(0);
-        expect(d.declined).toBe(0);
-    });
-
-    it('counts the notch the hull declines', () => {
-        expect(polygonHullDiff([p(-1, -1), p(0, 0), p(1, -1), p(0, 1)]).declined).toBe(1);
-    });
-
-    it('reports an empty hull as no shape, not as a hull short of vertices', () => {
-        const d = polygonHullDiff([p(0, 0), p(1, 0), p(2, 0)]);
-        expect(d.hull).toEqual([]);
-        expect(d.declined).toBe(0);
-    });
-});
-
-describe('collider2DOutline draws what collides', () => {
-    const outlineOf = (vertices: P[]) =>
-        collider2DOutline({ kind: 'polygon', vertices } as Collider2DShape, p(0, 0), 0, 100);
-
-    it('a convex polygon draws once — nothing was declined', () => {
-        const o = outlineOf([p(-0.5, -0.5), p(0.5, -0.5), p(0.5, 0.5), p(-0.5, 0.5)]);
-        expect(o.declined).toBeUndefined();
-        expect(o.polylines[0]).toHaveLength(5); // 4 corners + the closing point
-    });
-
-    it('a concave polygon draws the hull solid and the authored ring apart', () => {
-        const o = outlineOf([p(-1, -1), p(0, 0), p(1, -1), p(0, 1)]);
-        expect(o.polylines[0]).toHaveLength(4);  // 3 hull corners + closing
-        expect(o.declined?.[0]).toHaveLength(5); // 4 authored corners + closing
-    });
-
-    it('a ring that builds no shape draws no solid outline at all', () => {
-        const o = outlineOf([p(0, 0), p(1, 0), p(2, 0)]);
-        expect(o.polylines).toEqual([]);
-        expect(o.declined?.[0]).toHaveLength(4);
     });
 });

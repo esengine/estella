@@ -94,11 +94,14 @@ export {
 
 export {
     computePolygonHull,
-    polygonHullDiff,
     MAX_POLYGON_VERTICES,
     MIN_POLYGON_VERTICES,
-    type PolygonHullDiff,
 } from './polygonHull2D';
+
+export {
+    decomposePolygon2D,
+    type PolygonDecomposition,
+} from './polygonDecompose2D';
 
 export {
     CharacterController2D,

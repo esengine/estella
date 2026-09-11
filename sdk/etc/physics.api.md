@@ -593,11 +593,10 @@ restitution: number
 vertices: Vec2[]
 ```
 
-## PolygonHullDiff — interface @experimental
+## PolygonDecomposition — interface @experimental
 ```
-declined: number
-hull: Vec2[]
-overflow: number
+degenerate: boolean
+pieces: readonly Vec2[][]
 ```
 
 ## RaycastHit — interface @experimental
@@ -723,6 +722,11 @@ upperTranslation: number
 (vertices: readonly Vec2[]): Vec2[]
 ```
 
+## decomposePolygon2D — function @experimental
+```
+(vertices: readonly Vec2[]): PolygonDecomposition
+```
+
 ## drawPhysics2DDebug — function @experimental
 ```
 (app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<Physics2DEventsData>): void
@@ -741,11 +745,6 @@ upperTranslation: number
 ## physics2dPlugin — function @experimental
 ```
 (wasmUrl: string, config?: Physics2DPluginConfig, factory?: PhysicsModuleFactory): Physics2DPlugin
-```
-
-## polygonHullDiff — function @experimental
-```
-(vertices: readonly Vec2[]): PolygonHullDiff
 ```
 
 ## readCollider2DShapes — function @experimental

@@ -187,11 +187,14 @@ export {
 
 export {
     computePolygonHull,
-    polygonHullDiff,
     MAX_POLYGON_VERTICES,
     MIN_POLYGON_VERTICES,
-    type PolygonHullDiff,
 } from './physics/polygonHull2D';
+
+export {
+    decomposePolygon2D,
+    type PolygonDecomposition,
+} from './physics/polygonDecompose2D';
 
 export {
     RigidBody3D,

@@ -25,7 +25,8 @@ const TESTS = path.join(ROOT, 'sdk', 'tests');
 const WASM = path.join(ROOT, 'build', 'wasm', 'web', 'physics.wasm');
 
 /** The smokes this gate schedules, and the module each needs. */
-const SMOKES = ['mover-smoke.mjs', 'physics-features-smoke.mjs', 'sensor-smoke.mjs'];
+const SMOKES = ['mover-smoke.mjs', 'physics-features-smoke.mjs', 'sensor-smoke.mjs',
+    'concave-collider-smoke.mjs'];
 
 // Every smoke has to be scheduled by SOMEONE. Others run elsewhere (the 3D one
 // is check-physics3d's), so a file is only orphaned when no gate names it.
@@ -68,4 +69,5 @@ for (const smoke of SMOKES) {
 }
 
 console.log(`check-physics2d: ${total} behaviour(s) hold across ${SMOKES.length} smoke(s)`
-    + ' — mover rest/skin/snap/ceiling, joints and the mouse drag, sensor overlap.');
+    + ' — mover rest/skin/snap/ceiling, joints and the mouse drag, sensor overlap,'
+    + ' and a body falling into a concave collider rather than onto its hull.');

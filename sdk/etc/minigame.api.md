@@ -6624,11 +6624,10 @@ enabled: boolean
 ComponentDef<PolygonCollider2DData>
 ```
 
-## PolygonHullDiff — interface @experimental
+## PolygonDecomposition — interface @experimental
 ```
-declined: number
-hull: Vec2[]
-overflow: number
+degenerate: boolean
+pieces: readonly Vec2[][]
 ```
 
 ## PooledAudioNode — interface @experimental
@@ -11549,6 +11548,11 @@ Plugin
 (blob: string): DecodedChunk[]
 ```
 
+## decomposePolygon2D — function @experimental
+```
+(vertices: readonly Vec2[]): PolygonDecomposition
+```
+
 ## defaultFrameStats — function @experimental
 ```
 (): FrameStats
@@ -12952,11 +12956,6 @@ PerceptionPlugin
 ## pointInWorldRect — function @experimental
 ```
 (px: number, py: number, worldX: number, worldY: number, worldW: number, worldH: number, pivotX: number, pivotY: number): boolean
-```
-
-## polygonHullDiff — function @experimental
-```
-(vertices: readonly Vec2[]): PolygonHullDiff
 ```
 
 ## postProcessPlugin — const @experimental

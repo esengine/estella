@@ -30,7 +30,7 @@ import {
     type DistanceJoint2DData, type SliderJoint2DData, type FixedJoint2DData, type WheelJoint2DData,
     type MotorJoint2DData,
 } from './PhysicsComponents';
-import { MAX_POLYGON_VERTICES } from './polygonHull2D';
+import { decomposePolygon2D } from './polygonDecompose2D';
 import { MIN_CHAIN_POINTS } from './ColliderShape2D';
 import {
     Physics2DEvents,
@@ -149,21 +149,29 @@ export function addShapeForEntity(
     if (poly) {
         const category = poly.categoryBits ?? 0x0001;
         const mask = resolveCollisionMask(category, poly.maskBits ?? 0xFFFF, layerMasks);
-        const verts = poly.vertices;
-        const count = Math.min(verts.length, MAX_POLYGON_VERTICES);
-        const byteSize = count * 2 * 4;
-        withMalloc(module, byteSize, ptr => {
-            const base = ptr >> 2;
-            for (let i = 0; i < count; i++) {
-                module.HEAPF32[base + i * 2] = verts[i].x;
-                module.HEAPF32[base + i * 2 + 1] = verts[i].y;
-            }
-            module._physics_addPolygonShape(
-                entity, ptr, count, poly.radius ?? 0,
-                poly.density, poly.friction, poly.restitution, poly.isSensor ? 1 : 0,
-                category, mask
-            );
-        });
+        // Box2D takes only convex polygons, and only eight vertices of one, so an
+        // authored ring becomes as many shapes as it needs. They share the body,
+        // and density sums over them the way it does over any two colliders.
+        const { pieces } = decomposePolygon2D(poly.vertices);
+        // A corner radius rounds the BOUNDARY, and a cut between two pieces is not
+        // boundary: rounding each piece would bulge the shape outward along every
+        // seam. Only an undivided polygon can carry it.
+        const radius = pieces.length === 1 ? (poly.radius ?? 0) : 0;
+        for (const piece of pieces) {
+            const byteSize = piece.length * 2 * 4;
+            withMalloc(module, byteSize, ptr => {
+                const base = ptr >> 2;
+                for (let i = 0; i < piece.length; i++) {
+                    module.HEAPF32[base + i * 2] = piece[i].x;
+                    module.HEAPF32[base + i * 2 + 1] = piece[i].y;
+                }
+                module._physics_addPolygonShape(
+                    entity, ptr, piece.length, radius,
+                    poly.density, poly.friction, poly.restitution, poly.isSensor ? 1 : 0,
+                    category, mask
+                );
+            });
+        }
     }
 
     const chain = activeCollider(world, entity, ChainCollider2D) as ChainCollider2DData | null;

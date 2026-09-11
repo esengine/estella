@@ -23,7 +23,7 @@ import type {
     BoxCollider2DData, CircleCollider2DData, CapsuleCollider2DData,
     SegmentCollider2DData, PolygonCollider2DData, ChainCollider2DData,
 } from './PhysicsComponents';
-import { computePolygonHull } from './polygonHull2D';
+import { decomposePolygon2D } from './polygonDecompose2D';
 
 /** Semicircle-cap segment count for a capsule outline (matches the legacy debug draw). */
 export const CAPSULE_ARC_SEGMENTS = 16;
@@ -135,12 +135,17 @@ export function collider2DOutline(shape: Collider2DShape, center: Vec2, angle: n
                 const p = vs.map((v) => w(v.x * ppu, v.y * ppu));
                 return p.length > 0 ? [[...p, p[0]]] : [];
             };
-            // A hull as long as the ring carries every authored vertex, since a hull
-            // is a subset of what it was given: equal counts mean nothing was welded,
-            // truncated or filled in, so the authored ring IS the solver's polygon.
-            const hull = computePolygonHull(shape.vertices);
-            if (hull.length === shape.vertices.length) return { polylines: ring(shape.vertices), circles: [] };
-            return { polylines: ring(hull), circles: [], declined: ring(shape.vertices) };
+            // The ring is the collision boundary whenever it can be partitioned, and
+            // the pieces behind it are how that boundary is built rather than a
+            // different shape — so a concave collider draws as one outline, once.
+            const { pieces, degenerate } = decomposePolygon2D(shape.vertices);
+            if (!degenerate && pieces.length > 0) return { polylines: ring(shape.vertices), circles: [] };
+            // It crosses itself, or has no area: what collides is not what was drawn.
+            return {
+                polylines: pieces.flatMap((piece) => ring(piece)),
+                circles: [],
+                declined: ring(shape.vertices),
+            };
         }
         case 'chain': {
             const p = shape.points.map((v) => w(v.x * ppu, v.y * ppu));
