@@ -34,6 +34,7 @@
 #include "../ecs/components/SortingGroup.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/SpriteMask.hpp"
 #include "../ecs/components/TilemapLayer.hpp"
 #include "../ecs/components/TrailRenderer.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -220,6 +221,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::SimulationSpace>("SimulationSpace")
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
+
+    enum_<esengine::ecs::SpriteMaskInteraction>("SpriteMaskInteraction")
+        .value("None", esengine::ecs::SpriteMaskInteraction::None)
+        .value("VisibleInside", esengine::ecs::SpriteMaskInteraction::VisibleInside)
+        .value("VisibleOutside", esengine::ecs::SpriteMaskInteraction::VisibleOutside);
 
     enum_<esengine::ecs::SubEmitterTrigger>("SubEmitterTrigger")
         .value("Death", esengine::ecs::SubEmitterTrigger::Death)
@@ -1024,6 +1030,7 @@ struct SpriteJS {
     glm::vec2 uvScale;
     i32 layer;
     i32 order;
+    i32 maskInteraction;
     bool lit;
     bool flipX;
     bool flipY;
@@ -1043,6 +1050,7 @@ void spriteApplyJS(esengine::ecs::Sprite& c, const SpriteJS& js) {
     c.uvScale = js.uvScale;
     c.layer = js.layer;
     c.order = js.order;
+    c.maskInteraction = js.maskInteraction;
     c.lit = js.lit;
     c.flipX = js.flipX;
     c.flipY = js.flipY;
@@ -1069,6 +1077,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.uvScale = c.uvScale;
     js.layer = c.layer;
     js.order = c.order;
+    js.maskInteraction = c.maskInteraction;
     js.lit = c.lit;
     js.flipX = c.flipX;
     js.flipY = c.flipY;
@@ -1749,6 +1758,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("uvScale", &SpriteJS::uvScale)
         .field("layer", &SpriteJS::layer)
         .field("order", &SpriteJS::order)
+        .field("maskInteraction", &SpriteJS::maskInteraction)
         .field("lit", &SpriteJS::lit)
         .field("flipX", &SpriteJS::flipX)
         .field("flipY", &SpriteJS::flipY)
@@ -1757,6 +1767,13 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("parallax", &SpriteJS::parallax)
         .field("material", &SpriteJS::material)
         .field("enabled", &SpriteJS::enabled);
+
+    value_object<esengine::ecs::SpriteMask>("SpriteMask")
+        .field("alphaCutoff", &esengine::ecs::SpriteMask::alphaCutoff)
+        .field("limitRange", &esengine::ecs::SpriteMask::limitRange)
+        .field("rangeEndLayer", &esengine::ecs::SpriteMask::rangeEndLayer)
+        .field("rangeEndOrder", &esengine::ecs::SpriteMask::rangeEndOrder)
+        .field("enabled", &esengine::ecs::SpriteMask::enabled);
 
     value_object<TilemapLayerJS>("TilemapLayer")
         .field("cellSize", &TilemapLayerJS::cellSize)
@@ -2596,6 +2613,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Sprite>(entity);
         }))
 
+        // SpriteMask
+        .function("hasSpriteMask", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::SpriteMask>(static_cast<Entity>(e));
+        }))
+        .function("getSpriteMask", optional_override([](Registry& r, u32 e) -> esengine::ecs::SpriteMask& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::SpriteMask s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpriteMask>(entity)) return s_dummy;
+            return r.get<esengine::ecs::SpriteMask>(entity);
+        }), allow_raw_pointers())
+        .function("addSpriteMask", optional_override([](Registry& r, u32 e, const esengine::ecs::SpriteMask& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::SpriteMask>(entity, c);
+        }))
+        .function("removeSpriteMask", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::SpriteMask>(entity)) return;
+            r.remove<esengine::ecs::SpriteMask>(entity);
+        }))
+
         // TilemapLayer
         .function("hasTilemapLayer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::TilemapLayer>(static_cast<Entity>(e));
@@ -2853,6 +2891,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("SphereCollider3D")));
     arr.set(i++, val(std::string("SpineAnimation")));
     arr.set(i++, val(std::string("Sprite")));
+    arr.set(i++, val(std::string("SpriteMask")));
     arr.set(i++, val(std::string("TilemapLayer")));
     arr.set(i++, val(std::string("TrailRenderer")));
     arr.set(i++, val(std::string("Transform")));
@@ -3152,14 +3191,20 @@ static_assert(offsetof(esengine::ecs::Sprite, uvOffset) == 36, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Sprite, uvScale) == 44, "ABI offset drift: esengine::ecs::Sprite.uvScale (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::Sprite, layer) == 52, "ABI offset drift: esengine::ecs::Sprite.layer (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::Sprite, order) == 56, "ABI offset drift: esengine::ecs::Sprite.order (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Sprite, lit) == 60, "ABI offset drift: esengine::ecs::Sprite.lit (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::Sprite, flipX) == 61, "ABI offset drift: esengine::ecs::Sprite.flipX (EHT expected 61)");
-static_assert(offsetof(esengine::ecs::Sprite, flipY) == 62, "ABI offset drift: esengine::ecs::Sprite.flipY (EHT expected 62)");
-static_assert(offsetof(esengine::ecs::Sprite, tileSize) == 64, "ABI offset drift: esengine::ecs::Sprite.tileSize (EHT expected 64)");
-static_assert(offsetof(esengine::ecs::Sprite, tileSpacing) == 72, "ABI offset drift: esengine::ecs::Sprite.tileSpacing (EHT expected 72)");
-static_assert(offsetof(esengine::ecs::Sprite, parallax) == 80, "ABI offset drift: esengine::ecs::Sprite.parallax (EHT expected 80)");
-static_assert(offsetof(esengine::ecs::Sprite, material) == 88, "ABI offset drift: esengine::ecs::Sprite.material (EHT expected 88)");
-static_assert(offsetof(esengine::ecs::Sprite, enabled) == 92, "ABI offset drift: esengine::ecs::Sprite.enabled (EHT expected 92)");
+static_assert(offsetof(esengine::ecs::Sprite, maskInteraction) == 60, "ABI offset drift: esengine::ecs::Sprite.maskInteraction (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::Sprite, lit) == 64, "ABI offset drift: esengine::ecs::Sprite.lit (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::Sprite, flipX) == 65, "ABI offset drift: esengine::ecs::Sprite.flipX (EHT expected 65)");
+static_assert(offsetof(esengine::ecs::Sprite, flipY) == 66, "ABI offset drift: esengine::ecs::Sprite.flipY (EHT expected 66)");
+static_assert(offsetof(esengine::ecs::Sprite, tileSize) == 68, "ABI offset drift: esengine::ecs::Sprite.tileSize (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::Sprite, tileSpacing) == 76, "ABI offset drift: esengine::ecs::Sprite.tileSpacing (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::Sprite, parallax) == 84, "ABI offset drift: esengine::ecs::Sprite.parallax (EHT expected 84)");
+static_assert(offsetof(esengine::ecs::Sprite, material) == 92, "ABI offset drift: esengine::ecs::Sprite.material (EHT expected 92)");
+static_assert(offsetof(esengine::ecs::Sprite, enabled) == 96, "ABI offset drift: esengine::ecs::Sprite.enabled (EHT expected 96)");
+static_assert(offsetof(esengine::ecs::SpriteMask, alphaCutoff) == 0, "ABI offset drift: esengine::ecs::SpriteMask.alphaCutoff (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::SpriteMask, limitRange) == 4, "ABI offset drift: esengine::ecs::SpriteMask.limitRange (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::SpriteMask, rangeEndLayer) == 8, "ABI offset drift: esengine::ecs::SpriteMask.rangeEndLayer (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::SpriteMask, rangeEndOrder) == 12, "ABI offset drift: esengine::ecs::SpriteMask.rangeEndOrder (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::SpriteMask, enabled) == 16, "ABI offset drift: esengine::ecs::SpriteMask.enabled (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, cellSize) == 0, "ABI offset drift: esengine::ecs::TilemapLayer.cellSize (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, orientation) == 8, "ABI offset drift: esengine::ecs::TilemapLayer.orientation (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, hexSideLength) == 12, "ABI offset drift: esengine::ecs::TilemapLayer.hexSideLength (EHT expected 12)");
@@ -3249,7 +3294,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "a30e798cbaa98d41";
+static const char* kEsAbiLayoutHash = "73a4e6e098cc7a9b";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

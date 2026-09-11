@@ -51,13 +51,11 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     // A group takes over its members' outward identity, so EVERY layer-derived decision
     // below asks the group's layer: the culling bit, the ordering rule, the key's top field.
     // Leaving one on the member y-sorts a group through one sprite and not the next.
-    i32 layer = key.layer;
-    i32 order = key.order;
+    const DrawList::SortIdentity identity =
+        drawList.sortIdentity(key.entity.id(), key.layer, key.order);
+    const i32 layer = identity.layer;
+    const i32 order = identity.order;
     const DrawList::GroupIdentity* group = drawList.sortingGroupOf(key.entity.id());
-    if (group) {
-        layer = group->layer;
-        order = group->order;
-    }
 
     // The camera's culling mask, applied at the one place draws are produced, so no
     // render path can be added that forgets it.

@@ -133,6 +133,7 @@ const DISPOSITION = {
   'CacheAsBitmap.width': ['not-world', 'the cache texture\'s pixel size'],
   'CacheAsBitmap.height': ['not-world', 'the cache texture\'s pixel size'],
   'UIDropdown.optionHeight': ['not-world', 'a row height inside a laid-out box, resolved by layout rather than placed'],
+  'SpriteMask.rangeEndOrder': ['not-world', 'the last draw ORDER a mask reaches, not a distance it reaches over'],
   'LODGroup.lod1Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],
   'LODGroup.lod2Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],
   'LODGroup.lod3Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],

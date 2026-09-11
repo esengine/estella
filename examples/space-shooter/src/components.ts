@@ -32,4 +32,6 @@ export const Hull = defineComponent('Hull', {
 
 export const ScoreDisplay = defineTag('ScoreDisplay');
 export const HealthHeart = defineTag('HealthHeart');
+/** The mask whose width IS the hull bar's fill — see the HUD system. */
+export const HullBarMask = defineTag('HullBarMask');
 export const GameOverScreen = defineTag('GameOverScreen');

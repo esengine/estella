@@ -30,6 +30,7 @@
 #include "esengine/ecs/components/SortingGroup.hpp"
 #include "esengine/ecs/components/SpineAnimation.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
+#include "esengine/ecs/components/SpriteMask.hpp"
 #include "esengine/ecs/components/TilemapLayer.hpp"
 #include "esengine/ecs/components/TrailRenderer.hpp"
 #include "esengine/ecs/components/Transform.hpp"
@@ -219,6 +220,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "Sprite") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::Sprite>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "SpriteMask") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::SpriteMask>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "TilemapLayer") == 0) {
@@ -430,6 +436,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::Sprite>());
         };
     }
+    if (std::strcmp(name, "SpriteMask") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::SpriteMask>());
+        };
+    }
     if (std::strcmp(name, "TilemapLayer") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::TilemapLayer>());
@@ -511,6 +522,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "SphereCollider3D") == 0) return true;
     if (std::strcmp(name, "SpineAnimation") == 0) return true;
     if (std::strcmp(name, "Sprite") == 0) return true;
+    if (std::strcmp(name, "SpriteMask") == 0) return true;
     if (std::strcmp(name, "TilemapLayer") == 0) return true;
     if (std::strcmp(name, "TrailRenderer") == 0) return true;
     if (std::strcmp(name, "Transform") == 0) return true;

@@ -136,6 +136,24 @@ public:
         return it != group_identities_.end() ? &it->second : nullptr;
     }
 
+    /** @brief Where a draw sits in the frame's order, once any group has had its say. */
+    struct SortIdentity {
+        i32 layer = 0;
+        i32 order = 0;
+        bool operator<(const SortIdentity& o) const {
+            return layer != o.layer ? layer < o.layer : order < o.order;
+        }
+        bool operator<=(const SortIdentity& o) const { return !(o < *this); }
+    };
+
+    /** @brief The one answer to "where does this draw sit". Asked by the draw path when it
+     *         builds a key, and by anything that must reason about that order BEFORE the
+     *         keys exist — a second implementation is a second order. */
+    SortIdentity sortIdentity(u32 entity, i32 ownLayer, i32 ownOrder) const {
+        if (const GroupIdentity* g = sortingGroupOf(entity)) return {g->layer, g->order};
+        return {ownLayer, ownOrder};
+    }
+
 private:
     struct SortEntry {
         u64 key;

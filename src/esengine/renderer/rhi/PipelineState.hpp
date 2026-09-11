@@ -31,9 +31,10 @@ namespace esengine {
  *        (GfxDevice::setStencilReference), the compare/op/masks are pipeline state.
  */
 enum class GfxStencilMode : u8 {
-    Off,    ///< No stencil test; full color write.
-    Write,  ///< Write the reference where drawn (mask fill): func Always, op Replace, color write off.
-    Test,   ///< Draw only where the stencil equals the reference (mask clip): func Equal, op Keep.
+    Off,          ///< No stencil test; full color write.
+    Write,        ///< Write the reference where drawn (mask fill): func Always, op Replace, color write off.
+    Test,         ///< Draw only INSIDE the mask: func Equal, op Keep.
+    TestOutside,  ///< Draw only OUTSIDE it: func NotEqual, op Keep — a hole, not a window.
 };
 
 /**

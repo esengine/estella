@@ -16,6 +16,49 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sprite can be cut by another sprite's shape.** 2D needed a hole and had no way to
+  make one: a blood bar that fills, a torch clearing fog, a character seen through a
+  window. `SpriteMask` turns an entity's OWN `Sprite` into the stencil — not a second
+  texture field on a mask component, because everything a mask shape needs (texture,
+  size, pivot, flips, 9-slice) the sprite already says, and a second one is a second
+  thing to keep in step with what the author sees. While it is masking, the mask's
+  sprite is not drawn; turning it off puts the picture back, which is what makes
+  "is this masking?" answerable by looking.
+
+  Cutting is opt-in per sprite (`Sprite.maskInteraction`: `VisibleInside` for a window,
+  `VisibleOutside` for a hole), so a mask added to a scene can never make an unrelated
+  sprite vanish.
+
+  Reach is a RANGE, not a subtree. What a 2D mask cuts is rarely its own children — fog
+  belongs to no part of the torch clearing it — so a mask reaches the sprites drawn
+  after it, in the order the author already arranges by layer and order. That is also
+  the order its stencil is written in, so nothing had to be added to the sort key to
+  make the mask come first; a sprite at the mask's exact layer AND order is not cut at
+  all, because those two have no order between them. `UIMask` keeps the subtree rule,
+  because a UI tree IS its containment.
+
+  `GfxStencilMode` gains `TestOutside` (compare NotEqual) on both backends — the engine
+  could only ever test INSIDE a stencil, so a hole was not expressible. The state flags
+  now resolve to a mode through one function rather than in each caller's words: the
+  first version of that mapping had no criterion over it, and sabotage proved it —
+  ignoring the outside bit entirely left every test green.
+
+  The stencil clears on the same terms as depth, which it shares an attachment with. A
+  frame keeping the last one's stencil cuts along a mask that has since moved.
+
+  The reach rule is a pure header (`SpriteMaskRange.hpp`) held by `test_sprite_mask_range`,
+  because a frame can show that SOME mask won and never which one the rule chose. Four
+  sabotages, each reddening its own case: reaching backwards, choosing the farthest mask
+  instead of the nearest, ignoring a stated range, and picking a mask that never got a
+  stencil ref — which would test ref 0, every unmasked pixel in the frame.
+
+  What a frame CAN show is held by the `sprite-mask` pixel scene: one mask, both its
+  sides, and a bar that never asked to be cut. Dropping the resolver paints the frame
+  red; mapping `TestOutside` to Equal leaves the right half black. And `space-shooter`
+  now draws its hull as one, because a capability no game has called is a promise with
+  nothing behind it — the fill is cut rather than scaled, so the art never stretches
+  with the number, and the lost segment is the same mask's other side.
+
 - **A subtree can sort as one unit.** `sprite.order` is a promise about one sprite
   against everything else in its layer, and that stops scaling the moment two
   assembled characters overlap: raising a weapon over the other character raises it

@@ -15,7 +15,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData,
+    SortingGroupData, SpriteMaskData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -26,7 +26,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing } from '../wasm/wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, SpriteMaskInteraction } from '../wasm/wasm.generated';
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
@@ -773,7 +773,7 @@ export function ensureBuiltinComponentsRegistered(): void {
 // EmitterShape, SimulationSpace, LightType and ShapeType are re-exported from the
 // generated module; their values and the editor dropdowns built from them now have
 // one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, ShapeType };
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, ShapeType, SpriteMaskInteraction };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
@@ -798,7 +798,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData,
+    SortingGroupData, SpriteMaskData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -912,6 +912,15 @@ export const Light = defineBuiltin<LightData>('Light',
 
 export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
     metaDefaults<ShadowCaster2DData>('ShadowCaster2D')
+);
+
+/**
+ * Turns this entity's `Sprite` into a stencil: the sprites drawn AFTER it that ask to be
+ * masked (`Sprite.maskInteraction`) are cut by its shape. The mask's own sprite is not
+ * drawn while it is masking — it is the cut, not a picture.
+ */
+export const SpriteMask = defineBuiltin<SpriteMaskData>('SpriteMask',
+    metaDefaults<SpriteMaskData>('SpriteMask')
 );
 
 /**

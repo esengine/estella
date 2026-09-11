@@ -206,6 +206,17 @@ export enum SimulationSpace {
 }
 
 /**
+ * The engine's `SpriteMaskInteraction`, generated from the C++ enum.
+ *
+ * @public
+ */
+export enum SpriteMaskInteraction {
+    None = 0,
+    VisibleInside = 1,
+    VisibleOutside = 2,
+}
+
+/**
  * The engine's `SubEmitterTrigger`, generated from the C++ enum.
  *
  * @beta
@@ -735,6 +746,7 @@ export interface Sprite {
     uvScale: Vec2;
     layer: number;
     order: number;
+    maskInteraction: number;
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
@@ -742,6 +754,14 @@ export interface Sprite {
     tileSpacing: Vec2;
     parallax: Vec2;
     material: number;
+    enabled: boolean;
+}
+
+export interface SpriteMask {
+    alphaCutoff: number;
+    limitRange: boolean;
+    rangeEndLayer: number;
+    rangeEndOrder: number;
     enabled: boolean;
 }
 
@@ -990,6 +1010,10 @@ export interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
+    hasSpriteMask(entity: Entity): boolean;
+    getSpriteMask(entity: Entity): SpriteMask;
+    addSpriteMask(entity: Entity, component: SpriteMask): void;
+    removeSpriteMask(entity: Entity): void;
     hasTilemapLayer(entity: Entity): boolean;
     getTilemapLayer(entity: Entity): TilemapLayer;
     addTilemapLayer(entity: Entity, component: TilemapLayer): void;
@@ -1072,6 +1096,7 @@ export interface ESEngineModule {
     SphereCollider3D: new () => SphereCollider3D;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;
+    SpriteMask: new () => SpriteMask;
     TilemapLayer: new () => TilemapLayer;
     TrailRenderer: new () => TrailRenderer;
     Transform: new () => Transform;

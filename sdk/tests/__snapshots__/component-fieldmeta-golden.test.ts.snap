@@ -946,6 +946,23 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "lit": {
       "tooltip": "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this.",
     },
+    "maskInteraction": {
+      "enum": [
+        {
+          "label": "None",
+          "value": 0,
+        },
+        {
+          "label": "VisibleInside",
+          "value": 1,
+        },
+        {
+          "label": "VisibleOutside",
+          "value": 2,
+        },
+      ],
+      "tooltip": "Whether a SpriteMask drawn before this sprite clips it, and which side survives.",
+    },
     "material": {
       "advanced": true,
     },
@@ -974,6 +991,40 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "uvScale": {
       "advanced": true,
+    },
+  },
+  "SpriteMask": {
+    "alphaCutoff": {
+      "max": 1,
+      "min": 0,
+      "slider": true,
+      "tooltip": "Cut to the sprite's shape instead of its box: fragments below this alpha do not mask.",
+    },
+    "limitRange": {
+      "tooltip": "Limit how far this mask reaches; off = every sprite drawn after it.",
+    },
+    "rangeEndLayer": {
+      "enumSource": "sortingLayers",
+      "shownWhen": {
+        "field": "limitRange",
+        "values": [
+          1,
+        ],
+      },
+      "step": 1,
+      "tooltip": "Last sorting layer this mask reaches.",
+    },
+    "rangeEndOrder": {
+      "max": 127,
+      "min": -128,
+      "shownWhen": {
+        "field": "limitRange",
+        "values": [
+          1,
+        ],
+      },
+      "step": 1,
+      "tooltip": "Last order inside that layer this mask reaches, inclusive.",
     },
   },
   "TilemapLayer": {

@@ -34,6 +34,14 @@ public:
     void setStencilTest(u32 entity, i32 refValue) {
         auto& e = entries_[entity];
         e.flags |= CMD_STATE_STENCIL_TEST;
+        e.flags &= ~(CMD_STATE_STENCIL_WRITE | CMD_STATE_STENCIL_OUT);
+        e.stencil_ref = refValue;
+    }
+
+    /// Drawn only where the mask is NOT — the hole, rather than the window.
+    void setStencilTestOutside(u32 entity, i32 refValue) {
+        auto& e = entries_[entity];
+        e.flags |= CMD_STATE_STENCIL_TEST | CMD_STATE_STENCIL_OUT;
         e.flags &= ~CMD_STATE_STENCIL_WRITE;
         e.stencil_ref = refValue;
     }

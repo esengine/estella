@@ -21,6 +21,7 @@
 #include "../rhi/TransientBufferPool.hpp"
 #include "../draw/DrawList.hpp"
 #include "../draw/ClipState.hpp"
+#include "../draw/SpriteMaskRange.hpp"
 #include "../../ecs/Registry.hpp"
 #include "../../resource/ResourceManager.hpp"
 
@@ -558,6 +559,8 @@ private:
 
     RenderFrameContext makeContext();
     void buildClipState();
+    /// Resolves every SpriteMask into the stencil refs the draw path reads.
+    void buildSpriteMasks(ecs::Registry& registry);
     /// Resolves every SortingGroup into the per-entity identity the draw path reads.
     void buildSortingGroups(ecs::Registry& registry);
     /// Adds a finalized list's cost to this frame's tally (see the definition).
@@ -740,6 +743,9 @@ private:
     i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
     u32 overlay_vp_w_ = 0, overlay_vp_h_ = 0;
 
+    /// buildSpriteMasks scratch, reused across cameras/frames.
+    std::vector<ResolvedMask> sprite_mask_scratch_;
+    std::vector<Entity> mask_entities_scratch_;
     // processMasks scratch, reused across cameras/frames.
     std::vector<Entity> mask_scissor_scratch_;
     std::vector<Entity> mask_stencil_scratch_;

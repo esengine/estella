@@ -1650,6 +1650,7 @@ export interface SpritePtrData {
     uvScale: Vec2;
     layer: number;
     order: number;
+    maskInteraction: number;
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
@@ -1672,14 +1673,15 @@ export function fillSprite(
     const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 44) >> 2]; uvScale_.y = f32[((ptr + 44) >> 2) + 1];
     out.layer = u32[(ptr + 52) >> 2] | 0;
     out.order = u32[(ptr + 56) >> 2] | 0;
-    out.lit = u8[ptr + 60] !== 0;
-    out.flipX = u8[ptr + 61] !== 0;
-    out.flipY = u8[ptr + 62] !== 0;
-    const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 64) >> 2]; tileSize_.y = f32[((ptr + 64) >> 2) + 1];
-    const tileSpacing_ = out.tileSpacing; tileSpacing_.x = f32[(ptr + 72) >> 2]; tileSpacing_.y = f32[((ptr + 72) >> 2) + 1];
-    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 80) >> 2]; parallax_.y = f32[((ptr + 80) >> 2) + 1];
-    out.material = u32[(ptr + 88) >> 2];
-    out.enabled = u8[ptr + 92] !== 0;
+    out.maskInteraction = u32[(ptr + 60) >> 2] | 0;
+    out.lit = u8[ptr + 64] !== 0;
+    out.flipX = u8[ptr + 65] !== 0;
+    out.flipY = u8[ptr + 66] !== 0;
+    const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 68) >> 2]; tileSize_.y = f32[((ptr + 68) >> 2) + 1];
+    const tileSpacing_ = out.tileSpacing; tileSpacing_.x = f32[(ptr + 76) >> 2]; tileSpacing_.y = f32[((ptr + 76) >> 2) + 1];
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 84) >> 2]; parallax_.y = f32[((ptr + 84) >> 2) + 1];
+    out.material = u32[(ptr + 92) >> 2];
+    out.enabled = u8[ptr + 96] !== 0;
 }
 
 export function writeSprite(
@@ -1694,14 +1696,15 @@ export function writeSprite(
     f32[(ptr + 44) >> 2] = data.uvScale.x; f32[((ptr + 44) >> 2) + 1] = data.uvScale.y;
     u32[(ptr + 52) >> 2] = data.layer | 0;
     u32[(ptr + 56) >> 2] = data.order | 0;
-    u8[ptr + 60] = data.lit ? 1 : 0;
-    u8[ptr + 61] = data.flipX ? 1 : 0;
-    u8[ptr + 62] = data.flipY ? 1 : 0;
-    f32[(ptr + 64) >> 2] = data.tileSize.x; f32[((ptr + 64) >> 2) + 1] = data.tileSize.y;
-    f32[(ptr + 72) >> 2] = data.tileSpacing.x; f32[((ptr + 72) >> 2) + 1] = data.tileSpacing.y;
-    f32[(ptr + 80) >> 2] = data.parallax.x; f32[((ptr + 80) >> 2) + 1] = data.parallax.y;
-    u32[(ptr + 88) >> 2] = data.material;
-    u8[ptr + 92] = data.enabled ? 1 : 0;
+    u32[(ptr + 60) >> 2] = data.maskInteraction | 0;
+    u8[ptr + 64] = data.lit ? 1 : 0;
+    u8[ptr + 65] = data.flipX ? 1 : 0;
+    u8[ptr + 66] = data.flipY ? 1 : 0;
+    f32[(ptr + 68) >> 2] = data.tileSize.x; f32[((ptr + 68) >> 2) + 1] = data.tileSize.y;
+    f32[(ptr + 76) >> 2] = data.tileSpacing.x; f32[((ptr + 76) >> 2) + 1] = data.tileSpacing.y;
+    f32[(ptr + 84) >> 2] = data.parallax.x; f32[((ptr + 84) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 92) >> 2] = data.material;
+    u8[ptr + 96] = data.enabled ? 1 : 0;
 }
 
 export function createSpriteData(): SpritePtrData {
@@ -1714,6 +1717,7 @@ export function createSpriteData(): SpritePtrData {
         uvScale: { x: 0, y: 0 },
         layer: 0,
         order: 0,
+        maskInteraction: 0,
         lit: false,
         flipX: false,
         flipY: false,
@@ -1721,6 +1725,46 @@ export function createSpriteData(): SpritePtrData {
         tileSpacing: { x: 0, y: 0 },
         parallax: { x: 0, y: 0 },
         material: 0,
+        enabled: false,
+    };
+}
+
+export interface SpriteMaskPtrData {
+    alphaCutoff: number;
+    limitRange: boolean;
+    rangeEndLayer: number;
+    rangeEndOrder: number;
+    enabled: boolean;
+}
+
+export function fillSpriteMask(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: SpriteMaskPtrData,
+): void {
+    out.alphaCutoff = f32[ptr >> 2];
+    out.limitRange = u8[ptr + 4] !== 0;
+    out.rangeEndLayer = u32[(ptr + 8) >> 2] | 0;
+    out.rangeEndOrder = u32[(ptr + 12) >> 2] | 0;
+    out.enabled = u8[ptr + 16] !== 0;
+}
+
+export function writeSpriteMask(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: SpriteMaskPtrData,
+): void {
+    f32[ptr >> 2] = data.alphaCutoff;
+    u8[ptr + 4] = data.limitRange ? 1 : 0;
+    u32[(ptr + 8) >> 2] = data.rangeEndLayer | 0;
+    u32[(ptr + 12) >> 2] = data.rangeEndOrder | 0;
+    u8[ptr + 16] = data.enabled ? 1 : 0;
+}
+
+export function createSpriteMaskData(): SpriteMaskPtrData {
+    return {
+        alphaCutoff: 0,
+        limitRange: false,
+        rangeEndLayer: 0,
+        rangeEndOrder: 0,
         enabled: false,
     };
 }
@@ -2273,6 +2317,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SphereCollider3D: { fill: fillSphereCollider3D, write: writeSphereCollider3D, create: createSphereCollider3DData },
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
+    SpriteMask: { fill: fillSpriteMask, write: writeSpriteMask, create: createSpriteMaskData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
     TrailRenderer: { fill: fillTrailRenderer, write: writeTrailRenderer, create: createTrailRendererData },
     Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },

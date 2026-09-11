@@ -1189,3 +1189,43 @@ TEST_CASE("group: an ungrouped draw is unaffected by another entity's group") {
     CHECK(h.list.command(0).texture_ids[0] == 2);
     CHECK(h.list.command(1).texture_ids[0] == 1);
 }
+
+// A sprite cut to the inside of a mask and one cut to the outside of the SAME mask differ
+// only in a state flag. Merged, one of them would be drawn with the other's stencil compare
+// — the hole and the window are the same picture then.
+TEST_CASE("stencil: inside and outside of one mask are different draws") {
+    Harness h;
+    h.clips.setStencilTest(61, 1);
+    h.clips.setStencilTestOutside(62, 1);
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey inside = quadKey(1, /*layer=*/2);
+    inside.entity = Entity(61);
+    BatchDrawKey outside = quadKey(1, /*layer=*/2);
+    outside.entity = Entity(62);
+
+    appendQuad(h.pool, h.list, h.clips, quad, inside);
+    appendQuad(h.pool, h.list, h.clips, quad, outside);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK((h.list.command(0).state_flags & CMD_STATE_STENCIL_OUT) == 0);
+    CHECK((h.list.command(1).state_flags & CMD_STATE_STENCIL_OUT) != 0);
+}
+
+// Setting one mode must clear the other, or a sprite switched from outside to inside keeps
+// both flags and reads as outside forever.
+TEST_CASE("stencil: the two test modes are exclusive on one entity") {
+    ClipState clips;
+    clips.setStencilTestOutside(70, 3);
+    clips.setStencilTest(70, 3);
+    DrawCommand cmd{};
+    clips.applyTo(Entity(70), cmd);
+    CHECK((cmd.state_flags & CMD_STATE_STENCIL_TEST) != 0);
+    CHECK((cmd.state_flags & CMD_STATE_STENCIL_OUT) == 0);
+
+    clips.setStencilTestOutside(70, 3);
+    DrawCommand back{};
+    clips.applyTo(Entity(70), back);
+    CHECK((back.state_flags & CMD_STATE_STENCIL_OUT) != 0);
+}

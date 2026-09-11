@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleEasing, ProjectionType, ScrollMovement, ShapeType, SimulationSpace, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleEasing, ProjectionType, ScrollMovement, ShapeType, SimulationSpace, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'a30e798cbaa98d41';
+export const ABI_LAYOUT_HASH = '73a4e6e098cc7a9b';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -867,6 +867,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvScale: { x: 1, y: 1 },
             layer: 0,
             order: 0,
+            maskInteraction: 0,
             lit: false,
             flipX: false,
             flipY: false,
@@ -891,11 +892,32 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvScale: { advanced: true },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },
             order: { min: -128, max: 127, step: 1, tooltip: "Draw order inside the sorting layer — higher draws on top. Overrides the layer's Y-sort or depth ordering; leave 0 to keep it." },
+            maskInteraction: { enum: [{ label: 'None', value: 0 }, { label: 'VisibleInside', value: 1 }, { label: 'VisibleOutside', value: 2 }], tooltip: "Whether a SpriteMask drawn before this sprite clips it, and which side survives." },
             lit: { tooltip: "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this." },
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             material: { advanced: true },
+        },
+    },
+    SpriteMask: {
+        defaults: {
+            alphaCutoff: 0,
+            limitRange: false,
+            rangeEndLayer: 0,
+            rangeEndOrder: 0,
+            enabled: true,
+        },
+        renderableField: 'enabled',
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            alphaCutoff: { min: 0, max: 1, slider: true, tooltip: "Cut to the sprite's shape instead of its box: fragments below this alpha do not mask." },
+            limitRange: { tooltip: "Limit how far this mask reaches; off = every sprite drawn after it." },
+            rangeEndLayer: { step: 1, tooltip: "Last sorting layer this mask reaches.", enumSource: "sortingLayers", shownWhen: { field: "limitRange", values: [1] } },
+            rangeEndOrder: { min: -128, max: 127, step: 1, tooltip: "Last order inside that layer this mask reaches, inclusive.", shownWhen: { field: "limitRange", values: [1] } },
         },
     },
     TilemapLayer: {
@@ -1540,6 +1562,7 @@ export interface SpriteData {
     uvScale: Vec2;
     layer: number;
     order?: number;
+    maskInteraction?: SpriteMaskInteraction;
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
@@ -1547,6 +1570,20 @@ export interface SpriteData {
     tileSpacing: Vec2;
     parallax: Vec2;
     material: number;
+    enabled: boolean;
+}
+
+/**
+ * The fields of the engine's `SpriteMask` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface SpriteMaskData {
+    alphaCutoff: number;
+    limitRange: boolean;
+    rangeEndLayer: number;
+    rangeEndOrder: number;
     enabled: boolean;
 }
 

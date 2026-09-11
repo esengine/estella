@@ -1,18 +1,33 @@
 import {
     defineSystem, Query, Mut, Res, ResMut, Commands,
-    Input, Text, UIVisual, Transform,
+    Input, Text, UIVisual, Transform, Sprite,
 } from 'esengine';
-import { Player, Hull, ScoreDisplay, HealthHeart, GameOverScreen, Enemy, Bullet, Explosion } from '../components';
-import { GameState, PLAYER_START_Y } from '../resources';
+import {
+    Player, Hull, ScoreDisplay, HealthHeart, HullBarMask,
+    GameOverScreen, Enemy, Bullet, Explosion,
+} from '../components';
+import { GameState, PLAYER_START_Y, HULL_BAR_WIDTH } from '../resources';
 
 export const hudSystem = defineSystem(
-    [Res(GameState), Query(Mut(Text), ScoreDisplay), Query(Hull, Player), Query(Mut(UIVisual), HealthHeart)],
-    (state, scoreQuery, playerQuery, heartQuery) => {
+    [
+        Res(GameState), Query(Mut(Text), ScoreDisplay), Query(Hull, Player),
+        Query(Mut(UIVisual), HealthHeart), Query(Mut(Sprite), HullBarMask),
+    ],
+    (state, scoreQuery, playerQuery, heartQuery, barMaskQuery) => {
         for (const [_entity, text] of scoreQuery) {
             text.content = `SCORE: ${state.score}`;
         }
 
         for (const [_entity, health] of playerQuery) {
+            // The bar's reading is the MASK's width: the fill keeps its own size and is
+            // cut to this, so the artwork never stretches with the number.
+            const fraction = health.maxValue > 0
+                ? Math.max(0, Math.min(1, health.value / health.maxValue))
+                : 0;
+            for (const [_mEntity, maskSprite] of barMaskQuery) {
+                maskSprite.size = { x: HULL_BAR_WIDTH * fraction, y: maskSprite.size.y };
+            }
+
             let heartIndex = 0;
             for (const [_hEntity, visual] of heartQuery) {
                 visual.color = heartIndex < health.value

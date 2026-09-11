@@ -1,0 +1,62 @@
+{
+  "version": 4,
+  "name": "SpriteMask",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 128, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Mask",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -64, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 128, "y": 256 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "layer": 0, "order": 0, "enabled": true } },
+        { "type": "SpriteMask", "data": { "alphaCutoff": 0, "limitRange": false, "rangeEndLayer": 0, "rangeEndOrder": 0, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Inside",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 256, "y": 256 }, "color": { "r": 0, "g": 1, "b": 0, "a": 1 }, "layer": 0, "order": 1, "maskInteraction": 1, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Outside",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 256, "y": 256 }, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "layer": 0, "order": 2, "maskInteraction": 2, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Unmasked",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -112, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 256, "y": 24 }, "color": { "r": 0, "g": 0, "b": 1, "a": 1 }, "layer": 0, "order": 3, "enabled": true } }
+      ],
+      "visible": true
+    }
+  ]
+}

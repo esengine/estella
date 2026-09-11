@@ -37,6 +37,7 @@ import { BodyType } from '../src/physics/PhysicsComponents';
 import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
 import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
 import { MaskMode } from '../src/ui/core/ui-mask';
+import { SpriteMaskInteraction } from '../src/ecs/component';
 import { ScrollMovement } from '../src/ui/core/ui-scroll';
 import { TilemapOrientation } from '../src/tilemap/tileGeometry';
 import { TextAlign } from '../src/ui/core/text';
@@ -191,6 +192,7 @@ describe('C++ contract: module-published enums ARE their EHT-generated twin', ()
         ['FillOrigin', FillOrigin, gen.UIFillOrigin],
         ['ParticleEasing', ParticleEasing, gen.ParticleEasing],
         ['MaskMode', MaskMode, gen.MaskMode],
+        ['SpriteMaskInteraction', SpriteMaskInteraction, gen.SpriteMaskInteraction],
         ['ScrollMovement', ScrollMovement, gen.ScrollMovement],
         ['TilemapOrientation', TilemapOrientation, gen.TilemapOrientation],
         ['FlexDirection', FlexDirection, gen.FlexDirection],
@@ -237,7 +239,9 @@ describe('C++ contract: a component field that IS an enum is typed as one', () =
                         .map((l) => /^\s*(?:u8|u16|u32|i8|i16|i32)\s+(\w+)\s*[{=]/.exec(l)?.[1])
                         .find(Boolean);
                     if (!decl) return;
-                    if (!new RegExp(`^\\s*${decl}: ${enumName};$`, 'm').test(data)) {
+                    // `?` because a field added to a frozen component is optional — the
+                    // mark is additive, the TYPE is what this holds.
+                    if (!new RegExp(`^\\s*${decl}\\??: ${enumName};$`, 'm').test(data)) {
                         loose.push(`${name}: ${decl} should be generated as ${enumName}`);
                     }
                 });

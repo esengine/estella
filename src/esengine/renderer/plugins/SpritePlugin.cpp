@@ -7,6 +7,7 @@
 #include "../rhi/Texture.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Sprite.hpp"
+#include "../../ecs/components/SpriteMask.hpp"
 #include "../../ecs/components/UINode.hpp"
 
 #include <cmath>
@@ -116,6 +117,16 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             // A material owns shading fully, so it takes precedence over the toggle.
             if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
             if (litProgram != 0) key.shaderId = litProgram;
+        }
+
+        // A mask with a cutoff cuts to the SHAPE it draws, not its box: this same draw runs
+        // with colour writes off to fill the stencil, so it needs the variant that discards
+        // transparent fragments or a round mask cuts a rectangle. Same resolution as UIMask.
+        if (ctx.frame) {
+            if (const auto* mask = registry.tryGet<ecs::SpriteMask>(entity);
+                mask && mask->enabled && mask->alphaCutoff > 0.0f) {
+                key.shaderId = ctx.frame->batchProgram({"ALPHA_CLIP"});
+            }
         }
 
         if (hasTiling) {

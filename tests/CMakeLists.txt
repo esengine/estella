@@ -176,6 +176,14 @@ target_include_directories(test_draw_params PRIVATE
 )
 add_test(NAME test_draw_params COMMAND test_draw_params)
 
+# Which SpriteMask cuts a sprite — the reach rule, apart from a frame. Header-only.
+add_executable(test_sprite_mask_range renderer/test_sprite_mask_range.cpp)
+target_include_directories(test_sprite_mask_range PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_sprite_mask_range COMMAND test_sprite_mask_range)
+
 # The sort key's field layout, asserted on the bits. Header-only, so no engine link.
 add_executable(test_sort_key renderer/test_sort_key.cpp)
 target_include_directories(test_sort_key PRIVATE

@@ -3,6 +3,8 @@ import { defineResource, type SpawnOverride } from 'esengine';
 export const HALF_HEIGHT = 540;
 export const HALF_WIDTH = 300;
 export const PLAYER_START_Y = -420;
+/** Full extent of the hull bar, in world units — setup draws it, the HUD cuts it. */
+export const HULL_BAR_WIDTH = 220;
 export const SPAWN_Y = HALF_HEIGHT + 60;
 export const DESTROY_Y = -(HALF_HEIGHT + 60);
 

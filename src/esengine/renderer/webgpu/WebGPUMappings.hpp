@@ -276,6 +276,11 @@ inline WGPUStencilFaceState toWGPUStencilFace(GfxStencilMode mode) {
         face.failOp = WGPUStencilOperation_Keep;
         face.passOp = WGPUStencilOperation_Keep;
         break;
+    case GfxStencilMode::TestOutside:
+        face.compare = WGPUCompareFunction_NotEqual;
+        face.failOp = WGPUStencilOperation_Keep;
+        face.passOp = WGPUStencilOperation_Keep;
+        break;
     case GfxStencilMode::Off:
     default:
         face.compare = WGPUCompareFunction_Always;

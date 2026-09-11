@@ -167,6 +167,45 @@ the block does not come apart around a sibling of the arm.
   is a promise about the group's own place, so give the group a place of its own.
 </Aside>
 
+### Sprite masks
+
+A `SpriteMask` turns an entity's **own sprite** into a stencil: sprites drawn after it
+that ask to be masked are cut by its shape. Nothing else about the sprite changes — the
+texture, size, pivot, flips and 9-slice are the ones you already authored — and while it
+is masking, the mask's sprite is not drawn. It is the cut, not a picture.
+
+```typescript
+world.insert(hole, SpriteMask, { alphaCutoff: 0.5 });
+world.update(fog, Sprite, (s) => {
+  s.maskInteraction = SpriteMaskInteraction.VisibleOutside;  // a hole in the fog
+});
+```
+
+Masking is **opt-in per sprite** (`Sprite.maskInteraction`), so adding a mask to a scene
+can never make an unrelated sprite vanish:
+
+| `maskInteraction` | What survives |
+|---|---|
+| `None` (default) | The mask is ignored. |
+| `VisibleInside` | Only the part over the mask — a window. |
+| `VisibleOutside` | Only the part away from it — a hole. |
+
+`alphaCutoff` above 0 cuts to the sprite's **shape** rather than its box: fragments below
+that alpha do not mask, so a round mask cuts a circle.
+
+A mask reaches **forward** — it cuts what is drawn after it, in the order you already
+arrange by layer and order. That is the order its stencil is written in, so a sprite at
+the same layer *and* order as the mask is not cut at all. Turn on `limitRange` to stop
+the reach at a stated layer and order.
+
+<Aside type="caution">
+  Where two masks overlap, the **nearer** one decides — it wrote last, and that is what
+  the stencil holds. A sprite cut by the farther mask would disappear exactly inside the
+  nearer one, so only one mask cuts any given sprite.
+</Aside>
+
+A mask cuts the picture, not the scene: picking, physics and queries do not see it.
+
 ### Scene order breaks the tie
 
 Same layer, same z? Then **scene order** decides: the engine draws entities in the

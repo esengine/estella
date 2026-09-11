@@ -7,6 +7,7 @@
 #include "./RenderItem.hpp"
 #include "./BlendMode.hpp"
 #include "../rhi/TransientBufferPool.hpp"
+#include "../rhi/PipelineState.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -20,6 +21,25 @@ static constexpr u16 CMD_STATE_SCISSOR       = 0x01;
 static constexpr u16 CMD_STATE_STENCIL_WRITE = 0x02;
 static constexpr u16 CMD_STATE_STENCIL_TEST  = 0x04;
 static constexpr u16 CMD_STATE_CUSTOM_DRAW   = 0x08;
+// Tests the reference the other way: drawn only where the stencil does NOT match.
+// A separate flag rather than a sign on the ref, so a draw inside a mask and one
+// outside the same mask never merge — they are different pipelines.
+static constexpr u16 CMD_STATE_STENCIL_OUT   = 0x10;
+
+/**
+ * @brief The stencil mode a draw's state flags mean.
+ * @details One reading of these bits. Done at the point of use it would be done in each
+ *          backend's own words, and a mode nobody mapped is a draw that quietly tests the
+ *          wrong way — which looks like a mask that works everywhere but one path.
+ */
+inline GfxStencilMode stencilModeOf(u16 stateFlags) {
+    if (stateFlags & CMD_STATE_STENCIL_WRITE) return GfxStencilMode::Write;
+    if (stateFlags & CMD_STATE_STENCIL_TEST) {
+        return (stateFlags & CMD_STATE_STENCIL_OUT) ? GfxStencilMode::TestOutside
+                                                    : GfxStencilMode::Test;
+    }
+    return GfxStencilMode::Off;
+}
 
 /**
  * Why a draw call had to start rather than join the one before it. Every member

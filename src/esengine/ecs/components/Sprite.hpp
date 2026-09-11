@@ -43,6 +43,18 @@ namespace esengine::ecs {
  * sprite.layer = 10; // Render on top
  * @endcode
  */
+/**
+ * @brief What a `SpriteMask` reaching this sprite does to it.
+ * @details Opt-in per sprite: a mask cuts only what asks to be cut, so adding a mask to a
+ *          scene cannot make unrelated sprites vanish.
+ */
+ES_ENUM(stability=public)
+enum class SpriteMaskInteraction : i32 {
+    None = 0,            ///< Masks reaching this sprite are ignored.
+    VisibleInside = 1,   ///< Drawn only where the mask is — a window.
+    VisibleOutside = 2,  ///< Drawn only where the mask is NOT — a hole.
+};
+
 ES_COMPONENT(renderable=enabled, stability=public)
 struct Sprite {
     /** @brief Texture resource handle (type-safe) */
@@ -78,6 +90,12 @@ struct Sprite {
      *         the only one a Y-sorted layer has. Range -128..127 (clamped). */
     ES_PROPERTY(step=1, min=-128, max=127, optional, tooltip="Draw order inside the sorting layer — higher draws on top. Overrides the layer's Y-sort or depth ordering; leave 0 to keep it.")
     i32 order{0};
+
+    /** @brief What a SpriteMask drawn before this sprite does to it. Opt-in, so a mask
+     *         added to a scene cannot make an unrelated sprite disappear. */
+    ES_PROPERTY(enum=SpriteMaskInteraction, optional,
+                tooltip="Whether a SpriteMask drawn before this sprite clips it, and which side survives.")
+    i32 maskInteraction{0};
 
     /** @brief Lit by the scene's 2D lights (Light), no material needed. Off = unlit. */
     ES_PROPERTY(tooltip="Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this.")

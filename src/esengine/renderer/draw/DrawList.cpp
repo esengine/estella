@@ -178,9 +178,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
 
-        GfxStencilMode stencil = GfxStencilMode::Off;
-        if (cmd.state_flags & CMD_STATE_STENCIL_WRITE) stencil = GfxStencilMode::Write;
-        else if (cmd.state_flags & CMD_STATE_STENCIL_TEST) stencil = GfxStencilMode::Test;
+        const GfxStencilMode stencil = stencilModeOf(cmd.state_flags);
 
         // Resolve the immutable pipeline. Depth/cull come from the command (resolved from
         // its material, or the 2D defaults: depth_write on with the test off). createPipeline

@@ -10,6 +10,8 @@
 #include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
 #include "../../ecs/components/SortingGroup.hpp"
+#include "../../ecs/components/SpriteMask.hpp"
+#include "../../ecs/components/Sprite.hpp"
 #include "../../ecs/components/Hierarchy.hpp"
 #include "../../ecs/components/MeshRenderer.hpp"
 #include "../../resource/ShaderParser.hpp"
@@ -369,6 +371,10 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
     RenderPassDesc pass{};
     pass.clearColor = clear.color;
     pass.clearDepth = clear.depth;
+    // Stencil shares depth's attachment, so it clears on the same terms and costs the same
+    // load-op. A frame keeping last frame's stencil cuts along a mask that has since moved;
+    // a camera deliberately keeping depth means to keep that cut too.
+    pass.clearStencil = clear.depth;
     // Authored clear colors are sRGB; the linear frame clears in linear light.
     const glm::vec3 clearRgb = linear_color_
         ? srgbToLinearCpu({clear.colorValue.r, clear.colorValue.g, clear.colorValue.b})
@@ -957,6 +963,72 @@ void RenderFrame::buildSortingGroups(ecs::Registry& registry) {
         assignSortingSubtree(registry, draw_list_, entity,
                              {group.layer, group.order, false, 0});
     }
+}
+
+void RenderFrame::buildSpriteMasks(ecs::Registry& registry) {
+    // 255 is the stencil attachment's, not a budget: refs are per FRAME and a mask past
+    // the last one is dropped rather than aliased onto another mask's cut.
+    static constexpr i32 MAX_MASK_REF = 255;
+
+    std::vector<ResolvedMask>& masks = sprite_mask_scratch_;
+    masks.clear();
+
+    auto maskView = registry.view<ecs::SpriteMask>();
+    for (auto entity : maskView) {
+        const auto& mask = maskView.get(entity);
+        if (!mask.enabled) continue;
+        // The mask IS its sprite, so a sprite that will not be drawn cuts nothing. Without
+        // this, hiding a mask makes everything it reached disappear instead of appear.
+        if (!registry.has<ecs::Sprite>(entity)) continue;
+        const auto& sprite = registry.get<ecs::Sprite>(entity);
+        if (!sprite.enabled) continue;
+
+        masks.push_back({
+            draw_list_.sortIdentity(entity.id(), sprite.layer, sprite.order),
+            {mask.rangeEndLayer, mask.rangeEndOrder},
+            mask.limitRange,
+            0,
+        });
+        mask_entities_scratch_.push_back(entity);
+    }
+    if (masks.empty()) { mask_entities_scratch_.clear(); return; }
+
+    // Refs run in DRAW order so a later mask overwrites an earlier one where they overlap,
+    // which is what the stencil does anyway — assigning them in view order would make which
+    // mask wins depend on entity creation.
+    std::vector<u32> byDraw(masks.size());
+    for (u32 i = 0; i < masks.size(); ++i) byDraw[i] = i;
+    std::sort(byDraw.begin(), byDraw.end(),
+              [&](u32 a, u32 b) { return masks[a].at < masks[b].at; });
+
+    i32 nextRef = 1;
+    for (u32 slot : byDraw) {
+        if (nextRef > MAX_MASK_REF) {
+            ES_LOG_WARN("SpriteMask: more than 255 masks in one frame; the rest cut nothing");
+            break;
+        }
+        masks[slot].ref = nextRef++;
+        clip_state_.setStencilMask(mask_entities_scratch_[slot].id(), masks[slot].ref);
+    }
+
+    auto spriteView = registry.view<ecs::Sprite>();
+    for (auto entity : spriteView) {
+        const auto& sprite = spriteView.get(entity);
+        if (sprite.maskInteraction == 0 || !sprite.enabled) continue;
+        if (registry.has<ecs::SpriteMask>(entity)) continue;  // a mask is not its own subject
+
+        const auto where = draw_list_.sortIdentity(entity.id(), sprite.layer, sprite.order);
+        const ResolvedMask* nearest =
+            nearestReachingMask(masks.data(), static_cast<u32>(masks.size()), where);
+        if (!nearest) continue;
+
+        if (sprite.maskInteraction == static_cast<i32>(ecs::SpriteMaskInteraction::VisibleOutside)) {
+            clip_state_.setStencilTestOutside(entity.id(), nearest->ref);
+        } else {
+            clip_state_.setStencilTest(entity.id(), nearest->ref);
+        }
+    }
+    mask_entities_scratch_.clear();
 }
 
 RenderFrameContext RenderFrame::makeContext() {
@@ -1696,6 +1768,8 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // work that a single total cannot be told apart by.
     { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
     { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); }
+    // After the groups, because a mask's reach is stated in the order a group may own.
+    { ES_PROFILE_SCOPE("render.collect.spriteMasks"); buildSpriteMasks(registry); }
     { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws

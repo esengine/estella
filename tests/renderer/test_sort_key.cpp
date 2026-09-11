@@ -102,6 +102,30 @@ int main() {
               "stamping a member order touches no other field");
     }
 
+    // ---- What the state flags mean ------------------------------------------------
+    // The one reading of these bits. A backend doing it in its own words is how a mask
+    // ends up working everywhere but one path.
+    {
+        CHECK(stencilModeOf(0) == GfxStencilMode::Off, "no stencil bits means no stencil");
+        CHECK(stencilModeOf(CMD_STATE_STENCIL_WRITE) == GfxStencilMode::Write,
+              "the write bit fills the mask");
+        CHECK(stencilModeOf(CMD_STATE_STENCIL_TEST) == GfxStencilMode::Test,
+              "the test bit alone cuts to the INSIDE");
+        CHECK(stencilModeOf(CMD_STATE_STENCIL_TEST | CMD_STATE_STENCIL_OUT)
+                  == GfxStencilMode::TestOutside,
+              "the outside bit cuts to the hole instead");
+        // Write outranks test: a mask filling the stencil cannot also be tested against
+        // the value it is in the middle of writing.
+        CHECK(stencilModeOf(CMD_STATE_STENCIL_WRITE | CMD_STATE_STENCIL_TEST)
+                  == GfxStencilMode::Write,
+              "a draw that writes is not also a draw that tests");
+        // The outside bit on its own is not a test — it qualifies one.
+        CHECK(stencilModeOf(CMD_STATE_STENCIL_OUT) == GfxStencilMode::Off,
+              "the outside bit alone turns nothing on");
+        CHECK(stencilModeOf(CMD_STATE_SCISSOR) == GfxStencilMode::Off,
+              "a scissored draw is not a stencilled one");
+    }
+
     std::printf(g_failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

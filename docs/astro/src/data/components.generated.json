@@ -3928,6 +3928,17 @@
           "range": "-128–127, step 1"
         },
         {
+          "key": "maskInteraction",
+          "type": "enum",
+          "default": "None",
+          "doc": "Whether a SpriteMask drawn before this sprite clips it, and which side survives.",
+          "values": [
+            "None",
+            "VisibleInside",
+            "VisibleOutside"
+          ]
+        },
+        {
           "key": "lit",
           "type": "boolean",
           "default": "false",
@@ -4032,6 +4043,44 @@
         "speed",
         "currentFrame",
         "frameTimer"
+      ]
+    },
+    {
+      "name": "SpriteMask",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "alphaCutoff",
+          "type": "number",
+          "default": "0",
+          "doc": "Cut to the sprite's shape instead of its box: fragments below this alpha do not mask.",
+          "range": "0–1"
+        },
+        {
+          "key": "limitRange",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Limit how far this mask reaches; off = every sprite drawn after it."
+        },
+        {
+          "key": "rangeEndLayer",
+          "type": "enum (sortingLayers)",
+          "default": "0",
+          "doc": "Last sorting layer this mask reaches.",
+          "range": "step 1"
+        },
+        {
+          "key": "rangeEndOrder",
+          "type": "number",
+          "default": "0",
+          "doc": "Last order inside that layer this mask reaches, inclusive.",
+          "range": "-128–127, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
       ]
     },
     {
