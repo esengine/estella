@@ -20,7 +20,8 @@
  * runtime and the editor preview bridge.
  */
 
-import { TrackType, InterpType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
+import { TrackType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
+import { sampleKeyframes } from '../math/keyframes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Pose, PoseTrack, PoseWorld } from '../animation/pose';
@@ -30,66 +31,9 @@ import type { World } from '../ecs/world';
 
 const RAD2DEG = 180 / Math.PI;
 
-// ---------------------------------------------------------------------------
-// Core math — 1:1 port of TimelineSystem.cpp (keep in lock-step)
-// ---------------------------------------------------------------------------
-
-function hermite(p0: number, p1: number, m0: number, m1: number, t: number): number {
-    const t2 = t * t;
-    const t3 = t2 * t;
-    const h00 = 2 * t3 - 3 * t2 + 1;
-    const h10 = t3 - 2 * t2 + t;
-    const h01 = -2 * t3 + 3 * t2;
-    const h11 = t3 - t2;
-    return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
-}
-
-function easeIn(t: number): number {
-    return t * t;
-}
-
-function easeOut(t: number): number {
-    return 1 - (1 - t) * (1 - t);
-}
-
-function easeInOut(t: number): number {
-    return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
-}
-
 /** Evaluate a single property channel at `time` (seconds). Endpoints clamp. */
 export function evaluateChannel(channel: PropertyChannel, time: number): number {
-    const kfs = channel.keyframes;
-    if (!kfs || kfs.length === 0) return 0;
-    if (kfs.length === 1) return kfs[0].value;
-
-    if (time <= kfs[0].time) return kfs[0].value;
-    if (time >= kfs[kfs.length - 1].time) return kfs[kfs.length - 1].value;
-
-    let i = 0;
-    while (i < kfs.length - 1 && kfs[i + 1].time <= time) i++;
-
-    const k0 = kfs[i];
-    const k1 = kfs[i + 1];
-    const dt = k1.time - k0.time;
-    if (dt <= 0) return k0.value;
-
-    const t = (time - k0.time) / dt;
-
-    switch (k0.interpolation) {
-        case InterpType.Linear:
-            return k0.value + (k1.value - k0.value) * t;
-        case InterpType.Step:
-            return k0.value;
-        case InterpType.EaseIn:
-            return k0.value + (k1.value - k0.value) * easeIn(t);
-        case InterpType.EaseOut:
-            return k0.value + (k1.value - k0.value) * easeOut(t);
-        case InterpType.EaseInOut:
-            return k0.value + (k1.value - k0.value) * easeInOut(t);
-        case InterpType.Hermite:
-        default:
-            return hermite(k0.value, k1.value, k0.outTangent * dt, k1.inTangent * dt, t);
-    }
+    return sampleKeyframes(channel.keyframes, time);
 }
 
 /** Map an absolute time through the clip's wrap mode (for forward playback). */

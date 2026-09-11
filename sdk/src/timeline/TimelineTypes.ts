@@ -59,24 +59,11 @@ export const TrackType = {
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
 
-export const InterpType = {
-    Hermite: 'hermite',
-    Linear: 'linear',
-    Step: 'step',
-    EaseIn: 'easeIn',
-    EaseOut: 'easeOut',
-    EaseInOut: 'easeInOut',
-} as const;
-
-export type InterpType = (typeof InterpType)[keyof typeof InterpType];
-
-export interface Keyframe {
-    time: number;
-    value: number;
-    inTangent: number;
-    outTangent: number;
-    interpolation?: InterpType;
-}
+// A channel's keys are the engine's ONE curve shape — see math/keyframes. Re-exported
+// rather than restated: a timeline that spelled its own would drift from what the
+// particle system and the editor's curve view sample.
+import { InterpType, type Keyframe } from '../math/keyframes';
+export { InterpType, type Keyframe };
 
 export interface PropertyChannel {
     property: string;

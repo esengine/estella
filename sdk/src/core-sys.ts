@@ -17,6 +17,12 @@
 // =============================================================================
 
 export { exact, scalar, v2, v3, q, col } from './math';
+// The engine's one curve: a timeline channel, a particle's size over life, and the
+// editor's curve control all author and sample THIS.
+export {
+    InterpType, sampleKeyframes, linearKey,
+    type Keyframe, type Curve,
+} from './math/keyframes';
 
 // =============================================================================
 // Localization (i18n)

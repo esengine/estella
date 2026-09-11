@@ -47,8 +47,8 @@
             { "t": 1, "color": { "r": 0, "g": 1, "b": 0, "a": 1 } }
           ] },
           "sizeCurve": { "keys": [
-            { "t": 0, "v": 0.4 },
-            { "t": 1, "v": 0.4 }
+            { "time": 0, "value": 0.4, "inTangent": 0, "outTangent": 0, "interpolation": "linear" },
+            { "time": 1, "value": 0.4, "inTangent": 0, "outTangent": 0, "interpolation": "linear" }
           ] }
         }}
       ],

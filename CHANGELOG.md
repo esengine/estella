@@ -14,6 +14,37 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **One curve, sampled by everything that has one.** A timeline channel carried keys
+  with tangents and six interpolations, drawn by an editor that understood them; a
+  particle's size-over-life carried `{t, v}` pairs joined by straight lines; and the
+  Inspector's curve control carried a third copy of the second. Three shapes for "a
+  value that changes over a span", and the seam between them was invisible because each
+  half worked — a particle curve simply could not be told to ease, and nothing said so.
+
+  `math/keyframes` now owns the shape and the sampler. `evaluateChannel` is one call
+  into it, `bakeCurve` is another, and `TimelineTypes` re-exports rather than restates.
+  A particle curve gains tangents and all six interpolations by arriving; where `time`
+  runs stays the caller's — seconds for a timeline, 0..1 of a life for a particle.
+
+  The editor's curve control now DRAWS through the same sampler instead of connecting
+  its points with straight lines. An eased or hermite segment used to look straight
+  while bending in the game; what an author sees is now what the sim bakes, by
+  construction rather than by keeping two renderings in step. Its selected key gained
+  an interpolation picker, which is the field the old shape had nowhere to put.
+
+  BREAKING (`@beta`): `ParticleEmitterData.sizeCurve` keys are
+  `{ time, value, inTangent, outTangent, interpolation? }` rather than `{ t, v }`.
+  Nothing exported the old type, so a curve could only be written as a literal; the two
+  fixture scenes that held one are migrated. A curve whose keys are not finite is now
+  REFUSED with a warning rather than baked — the old shape read as `NaN`, and a particle
+  sized `NaN` does not draw, so the emitter vanished with nothing said. Falling back to
+  start/end size is wrong, but it is visible.
+
+  `GradientStop` is deliberately NOT folded in: a colour stop is not a scalar key, and
+  one shape for both would be a name over two things.
+
 ### Added
 
 - **A sprite can be cut by another sprite's shape.** 2D needed a hole and had no way to
