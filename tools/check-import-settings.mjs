@@ -57,11 +57,9 @@ const unverified = [];
 const readers = files
     .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes('generated') && f !== SPECS.split(path.sep).join('/'))
     .map((f) => readFileSync(path.join(ROOT, f), 'utf8'))
-    // `importer`, not `importer`: the word boundary excluded every file whose
-    // accessor is NAMED for the thing — `importerFor`, `importerDefaults`,
-    // `applyImporterEdit` — which is to say the files most likely to be readers.
-    // A sheet grid read through `AssetRegistry.importerFor(path)?.sheet` was
-    // reported as a knob that does nothing.
+    // `importer`, not `importer`: the boundary excluded `importerFor`,
+    // `importerDefaults`, `applyImporterEdit` — the accessors a setting is read
+    // through, and so the files most likely to hold a reader.
     .filter((text) => /importer/i.test(text))
     .join('\n');
 

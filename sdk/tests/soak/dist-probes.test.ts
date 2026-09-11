@@ -22,11 +22,10 @@ const HAS_DIST = existsSync(DIST);
 
 describe.skipIf(!HAS_DIST)('the built SDK', () => {
     /**
-     * The 5s default is a cap on IMPORTING a megabyte bundle, not on the claim.
-     * Alone this takes ~0.9s; inside the full 527-file suite it has been measured
-     * at 2.1s and has timed out — so at the default it reports the machine's load
-     * as a missing census, which is the loudest possible way to be wrong about
-     * something that is fine. Raised until it can only fire on a real hang.
+     * The claim is about CONTENT, so the timeout may only fire on a real hang. At
+     * the 5s default it fires on LOAD: importing this megabyte bundle is ~0.9s
+     * alone, 2.1s inside the full suite, and has timed out — reporting a missing
+     * census about an SDK whose census is fine.
      */
     it('ships a census with its probes attached', async () => {
         const sdk = await import(DIST) as {

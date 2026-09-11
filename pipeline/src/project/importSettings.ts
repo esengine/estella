@@ -86,10 +86,9 @@ const TEXTURE: ImporterFieldSpec[] = [
   { key: 'sliceBorder.right', label: 'Border Right', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.top', label: 'Border Top', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.bottom', label: 'Border Bottom', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
-  // How this image is cut into cells, declared ONCE on the sheet rather than on
-  // every Sprite that shows a frame of it. A cell size of 0 means "not a sheet",
-  // which is what almost every texture is — so the section costs an unsliced image
-  // nothing but a collapsed header.
+  // How this image is cut, declared ONCE on the sheet — not on every Sprite that
+  // shows a frame of it, which is how four numbers become four disagreeing copies.
+  // A cell size of 0 means "not a sheet", which is what most textures are.
   {
     key: 'sheet.cellWidth', label: 'Cell Width', type: 'number', default: 0, min: 0, category: 'Sheet',
     tooltip: 'Width of one cell, in pixels. 0 = this image is not a sprite sheet. '

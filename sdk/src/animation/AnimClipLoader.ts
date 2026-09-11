@@ -127,10 +127,9 @@ export interface AnimClipAssetData {
 // Sheet grid math
 // =============================================================================
 
-// A clip's sheet is cut the way every sheet is cut, so the arithmetic is in
-// asset/sheetGrid.ts and these four are its `.esanim` spellings. Kept because
-// they are what the flipbook's own code reads; new callers should reach for the
-// neutral names, which do not ask a sprite to describe itself as an anim clip.
+// The arithmetic is asset/sheetGrid.ts's; these four are its `.esanim` spellings,
+// kept because the flipbook's own code reads them. New callers take the neutral
+// names — a sprite should not have to call itself an anim clip to find a cell.
 
 /** @see sheetCols */
 export function animClipSheetCols(sheet: AnimClipSheetData): number {

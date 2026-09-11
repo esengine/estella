@@ -70,13 +70,11 @@ export function sheetCellRect(
 }
 
 /**
- * UV window of a cell — exactly what `Sprite.uvOffset` / `Sprite.uvScale` take,
- * and what a flipbook frame shows.
+ * UV window of a cell — exactly what `Sprite.uvOffset` / `Sprite.uvScale` take.
  *
- * Y is flipped: a sheet is addressed from its TOP-left because that is where an
- * image's first pixel is, and UV space runs from the bottom. Cell 0 of a sheet is
- * therefore the HIGHEST v, which is the one thing about this that surprises
- * people reading a uvOffset in an inspector.
+ * Y is flipped: a sheet is addressed from its top-left, UV space runs from the
+ * bottom, so cell 0 carries the HIGHEST v. That is the one thing here that reads
+ * as wrong in an inspector until you remember which way an image is stored.
  */
 export function sheetCellUv(
     grid: SheetGrid,

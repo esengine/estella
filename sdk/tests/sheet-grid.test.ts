@@ -19,15 +19,10 @@ const plain: SheetGrid = {
 };
 
 /**
- * The same 4x2 grid, TIGHT: a 2px margin before the first cell and 2px between
- * them, and nothing after the last. 2 + 4*32 + 3*2 = 136 across, 2 + 2*32 + 2 = 68
- * down.
+ * The same 4x2 grid, TIGHT: 136 x 68, ending flush with the last cell.
  *
- * Tight on purpose, and it is the whole point of this fixture. The first draft
- * gave the page 2px of trailing margin as well — and with that slack the
- * `+ spacing` term in the column count does nothing, so dropping it (the actual
- * off-by-one this arithmetic invites) left every assertion green. A sheet exported
- * with no trailing padding is the one that tells the two apart.
+ * The trap: give the page trailing margin and the `+ spacing` term in the column
+ * count stops mattering, so dropping it leaves every assertion here green.
  */
 const padded: SheetGrid = {
     cellWidth: 32, cellHeight: 32, margin: 2, spacing: 2, pageWidth: 136, pageHeight: 68,
