@@ -85,7 +85,10 @@ published separately; it ships inside the editor.
 
   What a frame CAN show is held by the `sprite-mask` pixel scene: one mask, both its
   sides, and a bar that never asked to be cut. Dropping the resolver paints the frame
-  red; mapping `TestOutside` to Equal leaves the right half black. And `space-shooter`
+  red; mapping `TestOutside` to Equal leaves the right half black. An editor check
+  carries it the rest of the way — through the scene file, the reconciler and the Add
+  Component list — and asks what no picture can: that the component can be added at
+  all, and that its range fields stay hidden until `limitRange` turns them on. And `space-shooter`
   now draws its hull as one, because a capability no game has called is a promise with
   nothing behind it — the fill is cut rather than scaled, so the art never stretches
   with the number, and the lost segment is the same mask's other side.
@@ -115,10 +118,11 @@ published separately; it ships inside the editor.
   group and inside one replaces a projection (depth, shader, world Y) the author's
   order was overriding anyway.
 
-  Held at three levels, each watched failing first: the bit layout in a new header-only
-  `test_sort_key` harness, the draw path's resolution in `test_batch_builder`, and the
+  Held at four levels, each watched failing first: the bit layout in a new header-only
+  `test_sort_key` harness, the draw path's resolution in `test_batch_builder`, the
   editor's picking — which mirrors all of this in `layerOrder.ts`, or a click selects
-  what the person cannot see. Two of the engine cases were TRIVIALLY satisfied when
+  what the person cannot see — and an editor check on real pixels, where a member whose
+  own layer would put it on top is drawn underneath and a click agrees. Two of the engine cases were TRIVIALLY satisfied when
   first written (a stated order outranks both depth and world Y, so it cannot be what
   makes two layer rules disagree) and were rebuilt until sabotage reddened them.
 
