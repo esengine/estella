@@ -3005,6 +3005,7 @@ width: number
 ```
 layer: number
 order: LayerOrder
+orderInLayer: number
 worldY: number
 worldZ: number
 ```
@@ -8223,6 +8224,7 @@ flipY: boolean
 layer: number
 lit: boolean
 material: number
+order: number | undefined
 parallax: Vec2
 pivot: Vec2
 size: Vec2

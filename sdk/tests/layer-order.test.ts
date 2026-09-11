@@ -55,8 +55,8 @@ describe('layerFrontness', () => {
 });
 
 describe('compareDrawRank', () => {
-  const rank = (layer: number, order: LayerOrder, worldZ = 0, worldY = 0) =>
-    ({ layer, order, worldY, worldZ });
+  const rank = (layer: number, order: LayerOrder, worldZ = 0, worldY = 0, orderInLayer = 0) =>
+    ({ layer, order, worldY, worldZ, orderInLayer });
 
   it('gives the higher sorting layer the front, as paint order does', () => {
     expect(compareDrawRank(rank(5, LayerOrder.Painter), rank(1, LayerOrder.Painter))).toBeGreaterThan(0);
@@ -88,5 +88,37 @@ describe('compareDrawRank', () => {
     const b = rank(7, LayerOrder.Depth, -40);
     expect(Math.sign(compareDrawRank(a, b))).toBe(-Math.sign(compareDrawRank(b, a)));
     expect(compareDrawRank(a, a)).toBe(0);
+  });
+
+  // Each of these is a case the layer's own rule gets wrong on purpose, so what is
+  // measured is Sprite.order overriding it — the thing the sort key does one field
+  // below the layer. A pick that skipped this selects the sprite underneath.
+  it('lets a stated order override the rule that would have decided', () => {
+    // Painter: the farther sprite is told to sit on top.
+    expect(compareDrawRank(rank(1, LayerOrder.Painter, -10, 0, 1),
+                           rank(1, LayerOrder.Painter, 10))).toBeGreaterThan(0);
+    // Y-sort: the one further back is told to sit on top. This layer had no other
+    // override at all — z never reaches a y-sorted key.
+    expect(compareDrawRank(rank(1, LayerOrder.YSort, 0, 50, 1),
+                           rank(1, LayerOrder.YSort, 0, -50))).toBeGreaterThan(0);
+  });
+
+  it('leaves the rule in charge where no order was stated', () => {
+    expect(compareDrawRank(rank(1, LayerOrder.YSort, 0, -50, 5),
+                           rank(1, LayerOrder.YSort, 0, 50, 5))).toBeGreaterThan(0);
+  });
+
+  it('keeps an order inside its own layer', () => {
+    expect(compareDrawRank(rank(1, LayerOrder.Painter, 0, 0, 127),
+                           rank(2, LayerOrder.Painter, 0, 0, -128))).toBeLessThan(0);
+  });
+
+  // Biased and clamped like the engine's key: -1 sinks below an unstated 0, and two
+  // orders past the range compare EQUAL because the frame drew them equal.
+  it('mirrors the key’s sign and its clamp', () => {
+    expect(compareDrawRank(rank(1, LayerOrder.Painter, 0, 0, -1),
+                           rank(1, LayerOrder.Painter))).toBeLessThan(0);
+    expect(compareDrawRank(rank(1, LayerOrder.Painter, 0, 0, 200),
+                           rank(1, LayerOrder.Painter, 0, 0, 300))).toBe(0);
   });
 });

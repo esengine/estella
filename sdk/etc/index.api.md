@@ -5,7 +5,7 @@ Symbols: 113 public · 92 beta · 1676 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"840383cc170f0e8f"
+"ffa08b49cfb9df43"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -3010,6 +3010,7 @@ width: number
 ```
 layer: number
 order: LayerOrder
+orderInLayer: number
 worldY: number
 worldZ: number
 ```
@@ -8228,6 +8229,7 @@ flipY: boolean
 layer: number
 lit: boolean
 material: number
+order: number | undefined
 parallax: Vec2
 pivot: Vec2
 size: Vec2

@@ -51,11 +51,25 @@ export function layerFrontness(order: LayerOrder, worldY: number, worldZ: number
     return order === LayerOrder.YSort ? -worldY : worldZ;
 }
 
-/** What a draw's place in the frame depends on: its layer, that layer's rule, and
- *  the two world coordinates either rule can be about. */
+/**
+ * The range the engine's sort key gives an order, which this mirror has to share:
+ * ranking 200 above 300 here while the frame drew both clamped to 127 would pick
+ * the sprite underneath. See `DrawCommand::orderBits`.
+ */
+export function clampDrawOrder(order: number): number {
+    return Math.max(-128, Math.min(127, Math.trunc(order) || 0));
+}
+
+/** What a draw's place in the frame depends on: its layer, where it sits inside
+ *  that layer, the layer's rule, and the two world coordinates either rule uses. */
 export interface DrawRank {
     layer: number;
+    /** The layer's RULE — how it resolves its contents. Not to be confused with
+     *  `orderInLayer`, which is one draw's stated place inside it. */
     order: LayerOrder;
+    /** `Sprite.order`: the author's explicit place within the layer, outranking
+     *  whatever the rule would have inferred. 0 means nothing was stated. */
+    orderInLayer: number;
     worldY: number;
     worldZ: number;
 }
@@ -75,6 +89,12 @@ export interface DrawRank {
 export function compareDrawRank(a: DrawRank, b: DrawRank): number {
     if (a.order === LayerOrder.Depth && b.order === LayerOrder.Depth) return a.worldZ - b.worldZ;
     if (a.layer !== b.layer) return a.layer - b.layer;
+    // Below the layer and above the rule, exactly where the sort key puts it: a
+    // stated order is the author overriding what the rule would infer, and the pick
+    // has to agree or it selects the sprite that lost.
+    const ao = clampDrawOrder(a.orderInLayer);
+    const bo = clampDrawOrder(b.orderInLayer);
+    if (ao !== bo) return ao - bo;
     return layerFrontness(a.order, a.worldY, a.worldZ) - layerFrontness(b.order, b.worldY, b.worldZ);
 }
 

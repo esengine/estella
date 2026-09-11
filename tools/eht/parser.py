@@ -48,6 +48,11 @@ class CppParser:
     FLAG_ANNOTATIONS = frozenset({
         'animatable', 'anim_override', 'entity_ref', 'readonly',
         'slider', 'advanced', 'skip_serialize', 'replicated',
+        # Marks the field OPTIONAL in the generated `<Name>Data` interface. What a
+        # field added to a component already frozen `stability=public` needs: the
+        # struct always carries it, but `world.set` takes the whole interface, so a
+        # required member would stop code written before the field from compiling.
+        'optional',
         # An enum-typed field renders as a multi-select bitmask instead of a single-
         # choice dropdown; suppresses the auto-generated `enum` options (the bit list
         # is curated in TS — combined values like ColorAndDepth aren't single bits).

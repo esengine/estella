@@ -324,7 +324,10 @@ class MetadataGenerator:
                     used_base.add(base)
                 elif base in self.types.CUSTOM_STRUCTS or base in self._enum_ts_names():
                     used_struct.add(base)
-                field_lines.append(f'    {prop.name}: {ts};')
+                # `optional` relaxes the WRITE side only: the struct always has the
+                # field, and a reader gets the default. See parser.FLAG_ANNOTATIONS.
+                mark = '?' if 'optional' in prop.annotations else ''
+                field_lines.append(f'    {prop.name}{mark}: {ts};')
             # The SDK's tier, from ES_COMPONENT(stability=). It has to sit on the
             # declaration: a release tag in this file's header would not survive
             # the declaration bundle a project compiles against.

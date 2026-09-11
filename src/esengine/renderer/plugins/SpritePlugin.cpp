@@ -90,6 +90,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         BatchDrawKey key{
             .stage = ctx.current_stage,
             .layer = sprite.layer,
+            .order = sprite.order,
             .shaderId = batch_shader_id_,
             .blend = BlendMode::Normal,
             .textureId = textureId,

@@ -70,7 +70,8 @@ export function pickEntitiesByRay(
         const box = meshWorldBox(world, entity) ?? entityWorldBox(world, entity, { iconHalf });
         if (!box || entityBoxRayHit(box, ray.origin, ray.dir) === null) continue;
 
-        const layer = world.has(entity, Sprite) ? world.get(entity, Sprite).layer : unlayered;
+        const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
+        const layer = sprite ? sprite.layer : unlayered;
         const t = world.get(entity, Transform);
         hits.push({
             entity,
@@ -78,6 +79,7 @@ export function pickEntitiesByRay(
             rank: {
                 layer,
                 order: layerOrderOf(layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
+                orderInLayer: sprite?.order ?? 0,
                 worldY: t.worldPosition.y,
                 worldZ: t.worldPosition.z ?? 0,
             },

@@ -3896,6 +3896,13 @@
           "range": "step 1"
         },
         {
+          "key": "order",
+          "type": "number",
+          "default": "0",
+          "doc": "Draw order inside the sorting layer — higher draws on top. Overrides the layer's Y-sort or depth ordering; leave 0 to keep it.",
+          "range": "-128–127, step 1"
+        },
+        {
           "key": "lit",
           "type": "boolean",
           "default": "false",

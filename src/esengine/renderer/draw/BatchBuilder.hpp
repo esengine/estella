@@ -80,6 +80,10 @@ inline glm::vec3 rotatePoint(const glm::vec3& center, f32 px, f32 py, f32 cosA, 
 struct BatchDrawKey {
     RenderStage stage = RenderStage::Transparent;
     i32 layer = 0;
+    // Where this draw sits INSIDE its sorting layer; higher draws on top. Outranks depth
+    // and y-sort alike, so it holds whatever ordering the layer was given. Clamped to
+    // -128..127; 0 says nothing, leaving a renderable without such a field as it was.
+    i32 order = 0;
     u32 shaderId = 0;
     BlendMode blend = BlendMode::Normal;
     u32 textureId = 0;

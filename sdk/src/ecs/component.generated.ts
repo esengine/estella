@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '840383cc170f0e8f';
+export const ABI_LAYOUT_HASH = 'ffa08b49cfb9df43';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -851,6 +851,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvOffset: { x: 0, y: 0 },
             uvScale: { x: 1, y: 1 },
             layer: 0,
+            order: 0,
             lit: false,
             flipX: false,
             flipY: false,
@@ -874,6 +875,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             uvOffset: { advanced: true },
             uvScale: { advanced: true },
             layer: { step: 1, tooltip: "Sorting layer — controls draw order across sprites.", enumSource: "sortingLayers" },
+            order: { min: -128, max: 127, step: 1, tooltip: "Draw order inside the sorting layer — higher draws on top. Overrides the layer's Y-sort or depth ordering; leave 0 to keep it." },
             lit: { tooltip: "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this." },
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
@@ -1510,6 +1512,7 @@ export interface SpriteData {
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
+    order?: number;
     lit: boolean;
     flipX: boolean;
     flipY: boolean;

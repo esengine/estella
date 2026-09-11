@@ -728,6 +728,7 @@ export interface Sprite {
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
+    order: number;
     lit: boolean;
     flipX: boolean;
     flipY: boolean;

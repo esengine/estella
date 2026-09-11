@@ -52,7 +52,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     if (!drawList.layerVisible(key.cullBit ? key.cullBit : DrawList::layerBit(key.layer))) return;
 
     DrawCommand cmd{};
-    const auto order = drawList.layerOrder(key.layer);
+    const auto resolve = drawList.layerOrder(key.layer);
 
     // A depth layer decides its own stage and depth state; every other layer takes
     // what the caller resolved from the material. The rule is the physical one, so
@@ -65,7 +65,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     RenderStage stage = key.stage;
     bool depthTest = key.depthTest;
     bool depthWrite = key.depthWrite;
-    if (order == DrawList::LayerOrder::Depth) {
+    if (resolve == DrawList::LayerOrder::Depth) {
         const bool opaque = key.blend == BlendMode::None;
         stage = opaque ? RenderStage::Opaque : RenderStage::Transparent;
         depthTest = true;
@@ -75,11 +75,11 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     // stateFlags is 0: ClipState stamps the real scissor/stencil below, after the key
     // exists. A stencil write still precedes the draws testing it because UI pre-order
     // puts a mask below its descendants in LAYER, the key's top field. Not so on one layer.
-    cmd.sort_key = order == DrawList::LayerOrder::YSort
+    cmd.sort_key = resolve == DrawList::LayerOrder::YSort
         ? DrawCommand::buildSortKeyYSorted(stage, key.layer, key.y, key.shaderId,
-                                           key.blend, 0)
+                                           key.blend, 0, key.order)
         : DrawCommand::buildSortKey(stage, key.layer, key.shaderId,
-                                    key.blend, 0, key.depth, key.materialId);
+                                    key.blend, 0, key.depth, key.materialId, key.order);
     cmd.stage = stage;
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;

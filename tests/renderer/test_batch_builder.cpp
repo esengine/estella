@@ -630,6 +630,185 @@ TEST_CASE("depth layer: y-sort wins when a layer declares both") {
     CHECK(h.list.layerOrder(5) == DrawList::LayerOrder::Painter);
 }
 
+// ─── Order within a layer ────────────────────────────────────────────────────
+// The author's explicit answer to "what is on top of what", inside one layer. Each case
+// below is one the layer's own ordering gets wrong on purpose, so it measures an override.
+
+// Each pair gets two shaders, which keeps them from coalescing into one multi-texture
+// draw and leaves their order observable. Shader ranks below every field under test.
+
+TEST_CASE("order: a higher order draws on top of a nearer sprite") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey near = quadKey(1, /*layer=*/3);
+    near.depth = 50.0f;   // nearest — depth alone would put it last
+    BatchDrawKey far = quadKey(2, /*layer=*/3);
+    far.depth = -50.0f;
+    far.order = 1;
+    far.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, near);
+    appendQuad(h.pool, h.list, h.clips, quad, far);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+    CHECK(h.list.command(1).texture_ids[0] == 2);
+}
+
+// The gap this field was added for. A y-sorted layer drops z from the key entirely, so
+// before this there was NO way to pin a draw inside one — a shadow that must stay under
+// its owner had only the owner's own Y to argue with.
+TEST_CASE("order: inside a y-sorted layer, a stated order beats world Y") {
+    Harness h;
+    h.list.setYSortMask(1u << 4);
+    BatchVertex quad[4] = {};
+
+    // Lower Y draws last under y-sort, so this one would land on top unaided.
+    BatchDrawKey low = quadKey(1, /*layer=*/4);
+    low.y = -100.0f;
+    BatchDrawKey high = quadKey(2, /*layer=*/4);
+    high.y = 100.0f;
+    high.order = 1;
+    high.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, low);
+    appendQuad(h.pool, h.list, h.clips, quad, high);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+    CHECK(h.list.command(1).texture_ids[0] == 2);
+}
+
+// Y-sort still orders everything the author did not speak for. Without this, a field
+// that simply disabled y-sort would pass every other case here.
+TEST_CASE("order: equal orders leave y-sort to decide") {
+    Harness h;
+    h.list.setYSortMask(1u << 4);
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey low = quadKey(1, /*layer=*/4);  low.y = -100.0f;
+    BatchDrawKey high = quadKey(2, /*layer=*/4); high.y = 100.0f; high.shaderId = 8;
+    low.order = high.order = 5;                  // stated, and stated the same
+
+    appendQuad(h.pool, h.list, h.clips, quad, low);
+    appendQuad(h.pool, h.list, h.clips, quad, high);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);  // higher Y is further back
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+}
+
+// An order is a promise about one layer's contents, never about the layer itself.
+TEST_CASE("order: the largest order never escapes its own layer") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey shouted = quadKey(1, /*layer=*/3);
+    shouted.order = 127;
+    BatchDrawKey above = quadKey(2, /*layer=*/4);
+    above.order = -128;
+    above.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, shouted);
+    appendQuad(h.pool, h.list, h.clips, quad, above);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).layer == 3);
+    CHECK(h.list.command(1).layer == 4);
+}
+
+// Biased, not masked: -1 has to land below 0 rather than wrapping to the top of the
+// field, which is what a two's-complement cast into the key would have done.
+TEST_CASE("order: a negative order sinks below an unstated one") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey plain = quadKey(1, /*layer=*/3);
+    BatchDrawKey behind = quadKey(2, /*layer=*/3);
+    behind.order = -1;
+    behind.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, plain);
+    appendQuad(h.pool, h.list, h.clips, quad, behind);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+}
+
+// Clamped, not wrapped. A project ported from an engine with a wider range keeps the
+// SIGN of what it asked for: "far on top" degrades to "on top", never to "behind".
+TEST_CASE("order: an order past the range pins to the end it ran past") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey huge = quadKey(1, /*layer=*/3);
+    huge.order = 32000;
+    BatchDrawKey tiny = quadKey(2, /*layer=*/3);
+    tiny.order = -32000;
+    tiny.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, huge);
+    appendQuad(h.pool, h.list, h.clips, quad, tiny);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+}
+
+// Order outranks stage for the same reason layer does: it is a promise the author made,
+// and a stage is only how a layer groups what it holds. An opaque draw the author put
+// underneath must stay underneath, early-z or not.
+TEST_CASE("order: a blended draw ordered below an opaque one still draws first") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey blended = quadKey(1, /*layer=*/3);
+    blended.order = -1;
+    BatchDrawKey opaque = quadKey(2, /*layer=*/3);
+    opaque.stage = RenderStage::Opaque;
+    opaque.shaderId = 8;
+
+    appendQuad(h.pool, h.list, h.clips, quad, opaque);
+    appendQuad(h.pool, h.list, h.clips, quad, blended);
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 1);
+    CHECK(h.list.command(1).texture_ids[0] == 2);
+}
+
+// BlendMode::None is 9 and the key's blend field is 3 bits, so unmasked it set a bit in
+// the SHADER field above it. Painter-ordered on purpose: a depth layer routes a None
+// blend to the Opaque stage, never reaching the blended packing where the spill showed.
+TEST_CASE("sort key: an opaque blend mode cannot reach the shader field") {
+    Harness h;
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey none = quadKey(1, /*layer=*/3);
+    none.blend = BlendMode::None;
+    BatchDrawKey normal = quadKey(2, /*layer=*/3);
+
+    // Same shader, same depth, same everything the key ranks above blend: whatever
+    // separates them is the blend field, and it may not reach past its own 3 bits.
+    CHECK((DrawCommand::buildSortKey(RenderStage::Transparent, 3, none.shaderId,
+                                     BlendMode::None, 0, 0.0f) >> 10)
+          == (DrawCommand::buildSortKey(RenderStage::Transparent, 3, normal.shaderId,
+                                        BlendMode::Normal, 0, 0.0f) >> 10));
+
+    appendQuad(h.pool, h.list, h.clips, quad, none);
+    appendQuad(h.pool, h.list, h.clips, quad, normal);
+    h.list.finalize(h.pool);
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+}
+
 // ─── Stencil mask ordering ───────────────────────────────────────────────────
 // A stencil write must precede the draws that test it, and the sort key holds no
 // clip state. The layer does it: UI pre-order puts a parent below its descendants.

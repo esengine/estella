@@ -132,30 +132,37 @@ struct DrawCommand {
     // can rewrite their texIndex when coalescing into a multi-texture batch.
     u32 vertex_count = 0;
 
-    // Texture is no longer part of the sort key: dropping it lets draws that differ only
-    // by texture sort adjacent and coalesce into one multi-texture batch (up to 8 textures,
-    // selected per-vertex in the shader). Order within a layer is otherwise unchanged.
-    // Below stage the field order depends on it: a blended draw composites onto what is
-    // already there, so its depth order IS the result and outranks batching, while an
-    // opaque draw is order-independent, so material groups first and depth breaks ties.
-    //
-    // Layer outranks stage, and that order is load-bearing. A sorting layer is a promise
-    // the user made about what draws on top of what; a stage is how one layer resolves
-    // its own contents. Ranking stage first — the classic 3D pipeline order, where every
-    // opaque draw precedes every transparent one — would let an opaque draw in layer 5
-    // jump ahead of a painter draw in layer 3, which is the sorting layer's entire
-    // meaning inverted. Within a layer the 3D order is the right one: opaque first
-    // (front-to-back, early-z), then blended (back-to-front).
-    //
-    // [63:48] layer | [47:44] stage, then 44 bits whose order the stage decides:
-    //   opaque   [43:36] shader | [35:33] blend | [32:31] flags | [30:14] material | [13:0] depth
-    //   blended  [43:24] depth  | [23:16] shader | [15:13] blend | [12:11] flags | [10:0] material
+    // Texture is not in the key: draws differing only by texture then sort adjacent and
+    // coalesce into one multi-texture batch (up to 8, selected per-vertex in the shader).
+
+    // Layer, then order, then stage — the author's two promises outrank the physical
+    // grouping. Stage first would let an opaque draw in layer 5 precede a painter draw in
+    // layer 3: a sorting layer's whole meaning inverted, and an order's one level finer.
+
+    // Under both, the 3D order. A blended draw composites onto what is there, so its
+    // depth IS the result and outranks batching; an opaque one is order-independent, so
+    // material groups first and depth breaks ties. Interleaved orders cost early-z.
+
+    // [63:48] layer | [47:40] order | [39:38] stage, then 38 bits the stage decides:
+    //   opaque   [37:30] shader | [29:27] blend | [26:25] flags | [24:14] material | [13:0] depth
+    //   blended  [37:18] depth  | [17:10] shader | [9:7] blend  | [6:5] flags | [4:0] material
+
+    // Material pays for the order field, being the only one that can afford it: a
+    // batching HINT, not identity (canMergeWith compares in full), so a collision costs
+    // a merge and never a wrong draw.
+
+    // Stage now has exactly its four values and no spare. A fifth would land in `order`
+    // and reorder the frame silently, so it stops the build here instead.
+    static_assert(static_cast<u32>(RenderStage::Overlay) <= 3,
+                  "RenderStage outgrew the sort key's 2-bit field — re-lay the key out");
+
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
-                            BlendMode blend, u16 stateFlags, f32 depth, u32 materialId = 0) {
+                            BlendMode blend, u16 stateFlags, f32 depth, u32 materialId = 0,
+                            i32 order = 0) {
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
         u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
 
-        u64 stageKey = static_cast<u64>(stage) << 44;
+        u64 stageKey = static_cast<u64>(stage) << 38;
 
         // Order-preserving float mapping — monotonic over the FULL float range, so
         // any real-world depth sorts. `depth` is CameraView::viewDepth, larger =
@@ -164,22 +171,38 @@ struct DrawCommand {
         u32 orderedDepth = blended ? orderedFloatBits(depth) : ~orderedFloatBits(depth);
 
         // Blended spends its bits on depth (20: sign, exponent, 11 mantissa — a step of
-        // ~0.004 around z=10) and leaves material 11. Material here is a batching hint,
-        // not identity: truncating it costs a merge, and canMergeWith compares in full.
+        // ~0.004 around z=10) and leaves material 5; opaque keeps depth at 14 and material
+        // 11. One trade twice: depth is what the eye sees, material only what batches well.
         if (blended) {
-            return layerKey | stageKey
-                 | (static_cast<u64>(orderedDepth >> 12) << 24)
-                 | (static_cast<u64>(shaderId & 0xFF) << 16)
-                 | (static_cast<u64>(blend) << 13)
-                 | (static_cast<u64>(stateFlags & 0x03) << 11)
-                 | (static_cast<u64>(materialId) & 0x7FF);
+            return layerKey | orderBits(order) | stageKey
+                 | (static_cast<u64>(orderedDepth >> 12) << 18)
+                 | (static_cast<u64>(shaderId & 0xFF) << 10)
+                 | (blendBits(blend) << 7)
+                 | (static_cast<u64>(stateFlags & 0x03) << 5)
+                 | (static_cast<u64>(materialId) & 0x1F);
         }
-        return layerKey | stageKey
-             | (static_cast<u64>(shaderId & 0xFF) << 36)
-             | (static_cast<u64>(blend) << 33)
-             | (static_cast<u64>(stateFlags & 0x03) << 31)
-             | ((static_cast<u64>(materialId) & 0x1FFFF) << 14)
+        return layerKey | orderBits(order) | stageKey
+             | (static_cast<u64>(shaderId & 0xFF) << 30)
+             | (blendBits(blend) << 27)
+             | (static_cast<u64>(stateFlags & 0x03) << 25)
+             | ((static_cast<u64>(materialId) & 0x7FF) << 14)
              | static_cast<u64>(orderedDepth >> 18);
+    }
+
+    /** @brief The blend field, 3 bits wide wherever it appears.
+     *  @details Masked, because the enum outgrew the field: BlendMode::None is 9, and
+     *           unmasked it set a bit in the SHADER field above it. Aliasing None onto
+     *           Additive costs a merge; the spill cost a wrong order. */
+    static u64 blendBits(BlendMode blend) {
+        return static_cast<u64>(blend) & 0x7;
+    }
+
+    /** @brief The order field at [47:40], biased so a negative order sorts below zero.
+     *  @details CLAMPED, not wrapped: an order past the range pins to the extreme it ran
+     *           past, where a wrap would land it on the far side — "very much on top"
+     *           turning into "behind everything" is the one failure a clamp cannot make. */
+    static u64 orderBits(i32 order) {
+        return static_cast<u64>(std::clamp(order + 128, 0, 255)) << 40;
     }
 
     // Order-preserving float → u32: flip the sign bit for positives, all bits for
@@ -189,31 +212,35 @@ struct DrawCommand {
         return (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
     }
 
-    // Y-sorted variant (top-down occlusion): within a layer the painter's order by
-    // world Y dominates everything — higher Y (further "back" under Y-up) draws
-    // first, so lower-on-screen entities land on top. Material/depth leave the key
-    // (Y-order beats batching by design; adjacent same-state runs still merge in
-    // finalize), shader/blend/flags remain as tie-breaks so equal-Y draws group.
-    // Same top two fields as buildSortKey, so a y-sorted layer and a plain one order
+    // Y-sorted variant (top-down occlusion): higher Y (further "back" under Y-up) draws
+    // first, so lower-on-screen entities land on top. Material and depth leave the key;
+    // shader/blend/flags stay as tie-breaks so equal-Y draws group for the merge.
+
+    // Same top three fields as buildSortKey, so a y-sorted layer and a plain one order
     // correctly against each other; below them this spends its bits on worldY instead.
-    //
-    // [63:48] layer | [47:44] stage | [43:20] worldY | [19:12] shader
-    // [11:9] blend  | [8:7] flags
+
+    // Order outranks worldY because y-sort INFERS an order from position and an author
+    // stating one is overriding that inference. Without it a y-sorted layer has no
+    // override at all: z never reaches this key, so a shadow cannot be pinned under its owner.
+
+    // [63:48] layer | [47:40] order | [39:38] stage | [37:14] worldY
+    // [13:6] shader | [5:3] blend   | [2:1] flags
     static u64 buildSortKeyYSorted(RenderStage stage, i32 layer, f32 worldY,
-                                   u32 shaderId, BlendMode blend, u16 stateFlags) {
+                                   u32 shaderId, BlendMode blend, u16 stateFlags,
+                                   i32 order = 0) {
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
         u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
 
-        u64 stageKey = static_cast<u64>(stage) << 44;
+        u64 stageKey = static_cast<u64>(stage) << 38;
 
         u32 yDescending = (~orderedFloatBits(worldY)) >> 8;  // 24 bits, larger Y → smaller key
-        u64 yKey = static_cast<u64>(yDescending & 0xFFFFFF) << 20;
+        u64 yKey = static_cast<u64>(yDescending & 0xFFFFFF) << 14;
 
-        u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 12;
-        u64 blendKey = static_cast<u64>(blend) << 9;
-        u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 7;
+        u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 6;
+        u64 blendKey = blendBits(blend) << 3;
+        u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 1;
 
-        return stageKey | layerKey | yKey | shaderKey | blendKey | flagsKey;
+        return stageKey | layerKey | orderBits(order) | yKey | shaderKey | blendKey | flagsKey;
     }
 
     /** @brief Finds @p texId in this command's texture set, adds it (returns its slot), or
