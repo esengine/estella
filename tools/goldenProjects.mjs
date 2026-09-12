@@ -240,6 +240,7 @@ export const CAPABILITIES = [
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
+  'lighting-2d',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
@@ -268,6 +269,7 @@ export const EVIDENCE = {
   ecs: /\b(defineComponent|defineSystem)\b/,
   'third-person': /\b(ThirdPersonController|ThirdPersonCamera)\b/,
   particles: /\bParticleEmitter\b/,
+  'lighting-2d': /\b(Light2D|ShadowCaster2D)\b/,
   // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
   // component, and a pattern that only knew the components read it as unused.
   audio: /\b(AudioSource|AudioListener|AudioAPI|audioPlugin)\b|Res\(Audio\)/,
@@ -419,6 +421,19 @@ export const GOLDEN = [
       // this bright only because both are in the package.
       { what: 'sun and environment light the panel', x: 0.8, y: 0.5, rgb: [206, 195, 181], tol: 14 },
     ],
+  },
+  {
+    id: 'lighting-2d',
+    certifies: ['lighting-2d'],
+    // The shadow is a pass of the engine's, not of the web build's: it renders a mask
+    // and samples it back, and the two backends store the rows of a target the other
+    // way up. A packaged game on the desktop runtime is the second backend.
+    targets: ['web', 'desktop'],
+    tier: 'pr',
+    interactGap: 'the torch follows a pointer the runner does not have; what it certifies is that the pass survives the package',
+    // No points: one light follows the pointer, so where a shadow falls is where the
+    // runner's pointer happens to be. What a 2D shadow LOOKS like is nine render
+    // criteria's answer; this asks only that the pass survives a package.
   },
   {
     id: 'physics-3d',
