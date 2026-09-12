@@ -14,6 +14,21 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A camera drawing half the screen now keeps to its half.** A camera states the rect it
+  draws into when it opens its frame; the engine took that rect back off the DEVICE later,
+  after the collect, where it was whatever the last thing to touch the device had left
+  behind. So a second camera covered the first, and split screen — two cameras with half
+  the frame each — drew one of them over the whole of it. What it looked like was the
+  second camera's view at full size, which reads as a camera that was never set up rather
+  than as a viewport that was ignored.
+
+  The rect is now taken where it is stated, and a zero size still means the whole target.
+  Two criteria cover it: two cameras with a half each, and the same split with 2D shadows
+  in it — the mask is screen space, so what a fragment reads has to be the part of it its
+  own camera filled.
+
 ### Changed
 
 - **2D shadows are drawn, not solved.** A 2D shadow used to be an analytic test inside

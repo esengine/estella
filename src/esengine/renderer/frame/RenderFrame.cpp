@@ -364,6 +364,11 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 
     openPass(clear, target);
 
+    // The rect this camera draws into, taken where the camera STATES it — a zero size
+    // means the whole target, as it does to a pass. Read off the device at flush it is
+    // whatever the collect between left there, and one camera covered the other.
+    scene_viewport_ = {clear.x, clear.y, clear.w, clear.h};
+
     // What the scene pass writes. With a chain engaged the capture is already a
     // graph resource (the pipeline declared it when it opened); without one the
     // frame's own target is imported, and the graph culls back from it.
@@ -514,10 +519,6 @@ void RenderFrame::flush() {
             pool_.upload();
         }
     }
-
-    // The rect the scene draws into. Opening a pass resets the viewport, so the
-    // pass carries the camera's own rather than inheriting it.
-    scene_viewport_ = device_.viewport();
 
     accumulateStats(draw_list_);
 

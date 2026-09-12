@@ -1,0 +1,270 @@
+{
+  "version": 4,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "CameraLeft",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2000,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0,
+            "viewport": {
+              "x": 0,
+              "y": 0,
+              "z": 0.5,
+              "w": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "CameraRight",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2000,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 1,
+            "viewport": {
+              "x": 0.5,
+              "y": 0,
+              "z": 0.5,
+              "w": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Floor10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2000,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 1200,
+              "y": 1200
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "/scenes/mat-lit/lit.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Light10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2120,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 1200,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Wall10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2000,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 300
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Floor20",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2000,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 1200,
+              "y": 1200
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "/scenes/mat-lit/lit.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Light20",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1880,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 1200,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Wall20",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2000,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 300
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

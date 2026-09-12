@@ -560,6 +560,13 @@ export const SCENES = [
   // material sampler — so a recovered material sampling every texture from unit
   // 0 looked exactly like one with no normal map, and nothing could tell.
   { id: "device-loss-material", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },
+  // Two cameras with half the frame each: what a camera draws is bounded by the rect
+  // it asked for, and one covering the other is what taking that rect off the device
+  // after the collect came to.
+  { id: "camera-split-viewport", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-split.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/camera-split.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":40}]" } },
+  // The same split with 2D shadows in it. The mask is screen space, so what a fragment
+  // reads has to be the part of it its OWN camera filled.
+  { id: "shadow2d-split", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/shadow2d-split.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/shadow2d-split.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.15,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":70},{\"x\":0.40,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.65,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":70},{\"x\":0.90,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // The mask again after the device it was drawn on went away: the pass owns a
   // buffer, a layout and a shader, and one kept across a loss names nothing.
   { id: "device-loss-shadow2d", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-many.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-many.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
