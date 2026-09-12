@@ -2,13 +2,15 @@
 // refs, and the palette. Kept data-only so the systems read as pure wiring.
 import type { Color } from 'esengine';
 
-/** The `pack` addressable group (see `.esengine/asset-groups.json`) pulled on
- *  demand by the "Download pack" button — the DLC pattern. */
+/** The `pack` group (see `.esengine/asset-groups.json`), pulled on demand by the
+ *  "Download pack" button. Delivered as a SUBPACKAGE — it ships inside the
+ *  package and the vendor fetches it on the first `loadGroup` (WeChat 分包) —
+ *  unlike `cdn`, which is remote so a hot update can replace it after ship. */
 export const PACK_GROUP = 'pack';
 
 /** The pack's textures, by ordinary project-relative path (the ref a game
- *  actually writes — loaders resolve it, routing through the `pack` remote group
- *  to the CDN automatically). The order here is the on-screen tile order. */
+ *  actually writes — the loader resolves it to wherever the `pack` group's
+ *  delivery staged it). The order here is the on-screen tile order. */
 export const PACK_TILES: readonly string[] = [
     'assets/pack/tile0.png',
     'assets/pack/tile1.png',

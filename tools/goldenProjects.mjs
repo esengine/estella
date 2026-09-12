@@ -362,9 +362,10 @@ export const KNOWN_GAPS = {
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
-  // Nothing in the corpus makes a vendor mount a subPackage root and read a file
-  // out of it, so the download itself has only ever been exercised by hand.
-  subpackage: 'no golden project ships a 分包: loadGroup on a lazy group is unit-tested against a stubbed platform, and the download itself needs devtools',
+  // hot-update-demo ships one now, so the package SHAPE is a real project's.
+  // What no automated run reaches is the vendor mounting it: only a mini-game
+  // host implements the download, and none of the tiers builds for one.
+  subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
 /**

@@ -7,7 +7,7 @@
     },
     "pack": {
       "folder": "assets/pack",
-      "mode": "remote"
+      "mode": "subpackage"
     }
   },
   "activeProfile": "dev",

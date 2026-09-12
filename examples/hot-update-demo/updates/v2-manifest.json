@@ -17,7 +17,7 @@
       }
     },
     "pack": {
-      "bundleMode": "remote",
+      "bundleMode": "lazy",
       "labels": [],
       "assets": {
         "a1b2c3d4-0003-4003-8003-000000000000": { "path": "assets/pack/tile0.png", "type": "texture", "size": 0, "labels": [] },

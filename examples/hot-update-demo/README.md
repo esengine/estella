@@ -22,7 +22,7 @@ frame. The layout lives in the scene — the code never builds UI.
 
 ### 1. On-demand download (the DLC pattern) — watch it download
 
-`assets/pack/` is a `remote` group the scene does **not** reference, so nothing
+`assets/pack/` is a `subpackage` group the scene does **not** reference, so nothing
 loads it at boot. Press **下载资源包** and the game calls:
 
 ```ts
@@ -81,15 +81,17 @@ it by `contentHash`, download the assets whose hash changed, swap the active
 manifest.* Nothing is ever overwritten, so a cache can never go stale, and
 `applyUpdate` verifies every downloaded file's hash before committing.
 
-The delivery config is `.esengine/asset-groups.json`: `assets/cdn` and
-`assets/pack` are ordinarily-named folders the config marks as `remote` groups,
-and build profiles (`dev` / `prod`) carry the CDN root per environment:
+The delivery config is `.esengine/asset-groups.json`, and the two groups take
+the two modes their flows need: `cdn` is **remote** because a hot update has to
+replace it after the game shipped, and `pack` is a **subpackage** because it
+ships inside the package and is only fetched when asked for. Build profiles
+(`dev` / `prod`) carry the CDN root per environment:
 
 ```json
 {
   "groups": {
     "cdn":  { "folder": "assets/cdn",  "mode": "remote" },
-    "pack": { "folder": "assets/pack", "mode": "remote" }
+    "pack": { "folder": "assets/pack", "mode": "subpackage" }
   },
   "activeProfile": "dev",
   "profiles": { "dev": { "remoteRoot": "" }, "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" } }

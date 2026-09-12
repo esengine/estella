@@ -14,6 +14,15 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The hot-update demo now ships a real 分包.** Its two groups take the two modes
+  their flows need: `cdn` stays remote, because a hot update has to replace it after
+  the game shipped, and `pack` — the DLC tile strip the *下载资源包* button pulls on
+  demand — is a subpackage, which is what shipping optional content inside a
+  mini-game package means. Nothing in the corpus delivered a group lazily before, so
+  no project produced a subPackage root for anyone to check.
+
 ### Fixed
 
 - **A folder that is no longer a 分包 stops being declared as one.** A group is a
