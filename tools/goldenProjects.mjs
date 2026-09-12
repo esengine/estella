@@ -268,7 +268,7 @@ export const CAPABILITIES = [
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
   'single-file', 'startup-size',
-  'hot-update', 'rollback',
+  'hot-update', 'rollback', 'subpackage',
   'networking',
   'persistence', 'save-versioning',
   // What a game needs and no sample carried end to end. Each holds a gap below
@@ -362,6 +362,9 @@ export const KNOWN_GAPS = {
   // Present in the engine and shown by non-golden samples, but never carried
   // through the chain by a project the release argues from.
   settings: 'Celestial Heights persists language, effects and key bindings and reads them back at boot; volume waits on the game having sound',
+  // Nothing in the corpus makes a vendor mount a subPackage root and read a file
+  // out of it, so the download itself has only ever been exercised by hand.
+  subpackage: 'no golden project ships a 分包: loadGroup on a lazy group is unit-tested against a stubbed platform, and the download itself needs devtools',
 };
 
 /**
