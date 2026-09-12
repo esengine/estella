@@ -49,6 +49,8 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `innerRadius` | `0` | Radius held at full strength before the falloff starts (Point / Spot). |
 | `falloff` | `1` | Falloff shape: `1` is linear, higher pools near the light, lower reaches further. |
 | `shadowStrength` | `1` | How much of this light its shadows remove; `0.6` leaves a shadow that is dark rather than black. |
+| `cookie` | — | A texture whose **alpha** is this light's shape (Point / Spot). |
+| `cookieSize` | `{0,0}` | How big the cookie is drawn, in world units; `0` covers the light's own reach. |
 | `innerAngle` | `30` | Spot cone inner angle, degrees (full brightness inside). |
 | `outerAngle` | `45` | Spot cone outer angle, degrees (falls to zero by here). |
 | `shadowSoftness` | `0` | Shadow edge softness (light-source size); `0` = hard edge. |
@@ -100,6 +102,32 @@ entity.insert(Light, {
 
 Both default to the straight line, so a scene written before them renders exactly as it
 did.
+
+## Giving a light a shape
+
+A light is a circle, or a cone. Real ones are neither: a lantern throws a ragged glow, a
+window throws a shaft, a torch flickers in a shape a falloff curve cannot describe. Hand
+a light a **`cookie`** — a texture whose alpha is the shape — and that is what it lights.
+
+```ts
+entity.insert(Light, {
+    type: LightType.Point, radius: 300, intensity: 1.6,
+    cookie: 'assets/textures/lantern-glow.png',
+});
+```
+
+- **The alpha is the shape.** The cookie's colour is not read: a light's colour is the
+  light's, and two places to set it is one too many.
+- **It is drawn where the light is**, turned by the entity's rotation and sized by
+  `cookieSize` — or, when that is zero, covering the light's own reach.
+- It **multiplies** the falloff rather than replacing it, so a shaped light still fades
+  out at `radius` and still respects `innerRadius` and `falloff`.
+- **Four shaped lights fit a frame.** Past that a light lights the scene without a shape,
+  the same way a fifth shadow-caster keeps lighting without casting.
+
+The shape is drawn into a screen-space mask, one channel per shaped light — the same
+machine the 2D shadows use, which is why a cookie costs one quad rather than a texture
+slot per light.
 
 ## Making a renderer receive light
 

@@ -217,6 +217,27 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "Light": {
+    "cookie": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          3,
+        ],
+      },
+      "tooltip": "A texture whose alpha shapes this light (a cookie).",
+    },
+    "cookieSize": {
+      "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          3,
+        ],
+      },
+      "tooltip": "Cookie size in world units; 0 = the light's own reach.",
+    },
     "drawEnvironment": {
       "shownWhen": {
         "field": "type",

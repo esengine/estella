@@ -12,6 +12,7 @@
 #include "../../core/Log.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
+#include "../../ecs/components/Light.hpp"
 #include "../RenderTypePlugin.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
@@ -27,6 +28,10 @@ namespace {
 /// Floats one mask vertex carries: position, how much light survives, and the
 /// one-hot channel of the light it was cast from.
 constexpr u32 kShadow2DFloats = 7;
+
+/// Floats one shape-mask vertex carries: position, the cookie's uv, and the one-hot
+/// channel of the light it belongs to.
+constexpr u32 kShape2DFloats = 8;
 
 /// Samples across a source that has width. A penumbra made of samples IS banded,
 /// and sixteen is where the bands stop reading as rays from the corner that threw
@@ -46,7 +51,7 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     shadow_2d_lights_.clear();
     shadow_2d_resource_ = rg::kNoResource;
     shadow_2d_texture_id_ = 0;
-    context_.lights().setShadow2DRect(glm::vec4(0.0f));
+    context_.lights().setMask2DRect(glm::vec4(0.0f));
 
     auto casters = registry.view<ecs::Transform, ecs::ShadowCaster2D>();
     for (auto entity : casters) {
@@ -358,6 +363,195 @@ void RenderFrame::executeShadow2DPass() {
     device_.drawArrays(0, static_cast<u32>(shadow_2d_vertices_.size() / kShadow2DFloats));
 
     shadow_2d_texture_id_ = static_cast<u32>(graph_.textureOf(shadow_2d_resource_));
+}
+
+
+// The shape mask — the same target as the shadow mask above, carrying the other half
+// of "how much of this light is here": what its own cookie covers.
+
+void RenderFrame::collectShape2D(ecs::Registry& registry) {
+    shape_2d_lights_.clear();
+    shape_2d_resource_ = rg::kNoResource;
+    shape_2d_texture_id_ = 0;
+
+    const LightConstants& lights = context_.lights().data();
+    auto view = registry.view<ecs::Transform, ecs::Light>();
+    for (auto entity : view) {
+        if (shape_2d_lights_.size() >= MAX_SHAPE_2D_LIGHTS) break;
+        const auto& light = view.get<ecs::Light>(entity);
+        if (!light.enabled || !light.cookie.isValid()) continue;
+        Texture* tex = resource_manager_.getTexture(light.cookie);
+        if (!tex || tex->getId() == 0) continue;
+
+        // The light's own slot, found by where it stands: the collect wrote the array,
+        // and a light the cap dropped has no slot to give a channel to.
+        const glm::vec3 p = [&] {
+            auto& transform = view.get<ecs::Transform>(entity);
+            transform.ensureDecomposed();
+            return transform.worldPosition;
+        }();
+        u32 slot = MAX_LIGHTS;
+        for (u32 i = 0; i < context_.lights().count(); ++i) {
+            const GpuLight& gpu = lights.lights[i];
+            if (gpu.posDir.z > 1.5f || gpu.posDir.z < 0.5f) {
+                if (std::abs(gpu.posDir.x - p.x) < 1e-3f && std::abs(gpu.posDir.y - p.y) < 1e-3f) {
+                    slot = i;
+                    break;
+                }
+            }
+        }
+        if (slot >= MAX_LIGHTS) continue;
+
+        // The light's own reach where the author named no size: a shape smaller than the
+        // reach cuts the light off, and one larger is trimmed by the falloff anyway.
+        const f32 reach = std::max(light.radius, 0.0f) * 2.0f;
+        const f32 w = light.cookieSize.x > 0.0f ? light.cookieSize.x : reach;
+        const f32 h = light.cookieSize.y > 0.0f ? light.cookieSize.y : reach;
+        if (w <= 0.0f || h <= 0.0f) continue;
+
+        auto& transform = view.get<ecs::Transform>(entity);
+        const glm::vec2 turn = flatTurnZ(transform.worldRotation);
+        const auto corner = [&](f32 sx, f32 sy) {
+            const f32 lx = sx * w * 0.5f;
+            const f32 ly = sy * h * 0.5f;
+            return glm::vec2{p.x + lx * turn.x - ly * turn.y, p.y + lx * turn.y + ly * turn.x};
+        };
+        Shape2DLight entry;
+        entry.corners[0] = corner(-1.0f, -1.0f);
+        entry.corners[1] = corner(1.0f, -1.0f);
+        entry.corners[2] = corner(1.0f, 1.0f);
+        entry.corners[3] = corner(-1.0f, 1.0f);
+        entry.texture = tex->getId();
+        entry.slot = slot;
+        shape_2d_lights_.push_back(entry);
+    }
+    if (shape_2d_lights_.empty()) return;
+
+    for (u32 i = 0; i < shape_2d_lights_.size(); ++i) {
+        context_.lights().setLightShape2DChannel(shape_2d_lights_[i].slot, i);
+    }
+
+    rg::TargetDesc desc;
+    desc.scale = 1.0f;
+    desc.format = GfxPixelFormat::RGBA8;
+    // Linear: a cookie is artwork, and its edge is meant to be soft. The shadow mask
+    // reads nearest for the opposite reason — there, a filtered read would blend in the
+    // neighbouring light's silhouette.
+    desc.linearFilter = true;
+    shape_2d_resource_ = graph_.createTarget(desc);
+}
+
+void RenderFrame::releaseShape2DResources() {
+    if (shape_2d_vbo_ != BufferHandle::Invalid) device_.deleteBuffer(shape_2d_vbo_);
+    if (shape_2d_layout_ != VertexLayoutHandle::Invalid) device_.deleteVertexLayout(shape_2d_layout_);
+    shape_2d_vbo_ = BufferHandle::Invalid;
+    shape_2d_vbo_bytes_ = 0;
+    shape_2d_layout_ = VertexLayoutHandle::Invalid;
+}
+
+bool RenderFrame::ensureShape2DShader() {
+    if (shape_2d_shader_.isValid()) return true;
+    if (shape_2d_shader_tried_) return false;
+    shape_2d_shader_tried_ = true;
+
+    auto& resources = resource_manager_;
+    const auto target = resources.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::LIGHTSHAPE2D);
+    shape_2d_shader_ = resources.createShader(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
+        /*rewriteLoose=*/false, resources.preferredShaderLanguage());
+    if (!shape_2d_shader_.isValid()) {
+        ES_LOG_ERROR("RenderFrame: no 2D light-shape shader; shaped lights are off this run");
+        return false;
+    }
+
+    VertexLayoutDesc layout;
+    layout.attributeCount = 3;
+    layout.strides[0] = kShape2DFloats * sizeof(f32);
+    layout.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+    layout.attributes[1] = {1, 2, GfxDataType::Float, false, 2 * sizeof(f32), 0};
+    layout.attributes[2] = {2, 4, GfxDataType::Float, false, 4 * sizeof(f32), 0};
+    shape_2d_layout_ = device_.createVertexLayout(layout);
+    return shape_2d_layout_ != VertexLayoutHandle::Invalid;
+}
+
+void RenderFrame::declareShape2DPass() {
+    if (shape_2d_resource_ == rg::kNoResource) return;
+
+    rg::PassDesc mask;
+    mask.name = "light-shape-2d";
+    mask.write = shape_2d_resource_;
+    mask.clear = true;
+    // Zero is "this light's shape does not reach here", which is what a frame whose
+    // quads come back empty has to read as.
+    mask.clearColor[0] = mask.clearColor[1] = mask.clearColor[2] = 0.0f;
+    mask.clearColor[3] = 0.0f;
+    mask.execute = [this](const rg::PassContext&) { executeShape2DPass(); };
+    graph_.addPass(std::move(mask));
+}
+
+void RenderFrame::executeShape2DPass() {
+    if (shape_2d_resource_ == rg::kNoResource) return;
+    if (!ensureShape2DShader()) return;
+
+    ES_PROFILE_SCOPE("render.lightshape2d");
+    ES_PROFILE_COUNTER("render.lightshape2d.lights", static_cast<u32>(shape_2d_lights_.size()));
+
+    shape_2d_vertices_.clear();
+    for (u32 i = 0; i < shape_2d_lights_.size(); ++i) {
+        const Shape2DLight& light = shape_2d_lights_[i];
+        const glm::vec2 uv[4] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+        const u32 order[6] = {0, 1, 2, 0, 2, 3};
+        for (u32 k = 0; k < 6; ++k) {
+            const u32 c = order[k];
+            shape_2d_vertices_.push_back(light.corners[c].x);
+            shape_2d_vertices_.push_back(light.corners[c].y);
+            shape_2d_vertices_.push_back(uv[c].x);
+            shape_2d_vertices_.push_back(uv[c].y);
+            for (u32 ch = 0; ch < 4; ++ch) {
+                shape_2d_vertices_.push_back(ch == i ? 1.0f : 0.0f);
+            }
+        }
+    }
+    if (shape_2d_vertices_.empty()) return;
+
+    const u32 bytes = static_cast<u32>(shape_2d_vertices_.size() * sizeof(f32));
+    if (shape_2d_vbo_ == BufferHandle::Invalid || bytes > shape_2d_vbo_bytes_) {
+        if (shape_2d_vbo_ != BufferHandle::Invalid) device_.deleteBuffer(shape_2d_vbo_);
+        shape_2d_vbo_bytes_ = std::max(bytes * 2u, 1024u);
+        shape_2d_vbo_ = device_.createBuffer(
+            {GfxBufferUsage::Vertex, shape_2d_vbo_bytes_, /*dynamic=*/true}, nullptr);
+        if (shape_2d_vbo_ == BufferHandle::Invalid) return;
+    }
+    device_.updateBuffer(shape_2d_vbo_, 0, shape_2d_vertices_.data(), bytes);
+
+    Shader* shader = resource_manager_.getShader(shape_2d_shader_);
+    if (!shader) return;
+
+    PipelineDesc desc{};
+    desc.program = shader->handle();
+    desc.vertexLayout = shape_2d_layout_;
+    // Adding: the channels are independent, so what a quad writes lands only in its
+    // own — and two quads of one light are not a thing this pass builds.
+    desc.blend = BlendMode::PmaAdditive;
+    desc.blendEnabled = true;
+    desc.depthTest = false;
+    desc.depthWrite = false;
+    device_.setPipeline(device_.createPipeline(desc));
+    device_.setViewport(std::max(scene_viewport_.x, 0), std::max(scene_viewport_.y, 0),
+                        static_cast<i32>(scene_viewport_.w), static_cast<i32>(scene_viewport_.h));
+    context_.updateCameraConstants(view_projection_);
+    device_.setVertexBuffer(0, shape_2d_vbo_, 0);
+    device_.setIndexBuffer(BufferHandle::Invalid);
+    // One draw per light: the cookie is the draw's own texture, which is what an atlas
+    // would exist to avoid — and four quads do not need one.
+    for (u32 i = 0; i < shape_2d_lights_.size(); ++i) {
+        device_.bindTexture(0, TextureHandle{shape_2d_lights_[i].texture});
+        device_.drawArrays(i * 6, 6);
+    }
+
+    shape_2d_texture_id_ = static_cast<u32>(graph_.textureOf(shape_2d_resource_));
 }
 
 }  // namespace esengine

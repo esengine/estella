@@ -4447,6 +4447,8 @@ BuiltinComponentDef<LightData>
 ## LightData — interface @experimental
 ```
 color: Color
+cookie: number
+cookieSize: Vec2
 drawEnvironment: boolean
 enabled: boolean
 environment: number

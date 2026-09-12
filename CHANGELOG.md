@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A 2D light can take the shape of a texture.** Every light was a circle or a cone,
+  and a lantern's ragged glow or a window's shaft was not expressible at all. `Light.cookie`
+  is a texture whose ALPHA is the shape: drawn where the light is, turned by its entity,
+  sized by `cookieSize` or by the light's own reach, and multiplied into the falloff
+  rather than replacing it — so a shaped light still fades out at `radius`.
+
+  It is drawn into a screen-space mask, a channel per shaped light, which is the machine
+  the 2D shadows already are: one quad per light instead of a texture slot per light, and
+  any number of distinct cookies without an atlas to pack them into. Four shaped lights
+  fit a frame; past that a light lights without a shape, the way a fifth caster keeps
+  lighting without casting.
+
 - **A 2D light can be shaped, and its shadows can be less than total.** A Point or Spot
   light faded from its own centre to nothing at `radius`, in a straight line, and there
   was no other line available. `innerRadius` holds it at full strength out to a radius of

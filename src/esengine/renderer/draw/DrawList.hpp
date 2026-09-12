@@ -9,6 +9,7 @@
 #include "../frame/FrameCapture.hpp"
 #include "../../math/Math.hpp"
 
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
@@ -26,14 +27,16 @@ public:
     // (hence the pool, whose staging it rewrites; call before upload()).
     void finalize(TransientBufferPool& pool);
 
-    /// Whether the frame keeps its top texture unit for a 2D shadow mask. Set BEFORE
-    /// finalize: the merge spends slots there, and the mask's own texture does not
-    /// exist until the pass that draws it has run.
-    void reserveShadow2DSlot(bool reserved) { shadow_2d_reserved_ = reserved; }
+    /// How many of the frame's TOP texture units are screen-space light masks: one for
+    /// the shadow mask, two when a light also carries a shape. Set BEFORE finalize (the
+    /// merge spends slots) and reserved top-down, so a sampler's unit never moves.
+    void reserveMask2DSlots(u32 count) { mask_2d_slots_ = std::min(count, MAX_CMD_TEXTURE_SLOTS); }
 
-    /// The mask itself, which every draw then binds on that unit. Zero leaves the unit
-    /// filled with white, which reads as "nothing shadows anything".
-    void setShadow2DTexture(u32 textureId) { shadow_2d_texture_ = textureId; }
+    /// A mask itself, which every draw then binds on its unit. Zero leaves the unit
+    /// filled with white — "nothing shadows anything", and "the shape covers all".
+    void setMask2DTexture(u32 unit, u32 textureId) {
+        if (unit < MAX_CMD_TEXTURE_SLOTS) mask_2d_textures_[unit] = textureId;
+    }
 
     // Each merged command resolves to an immutable pipeline (program + layout + blend +
     // depth + stencil + cull) bound via GfxDevice::setPipeline; per-draw dynamic state
@@ -175,10 +178,10 @@ private:
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()
-    /// @see setShadow2DTexture
-    u32 shadow_2d_texture_ = 0;
-    /// @see reserveShadow2DSlot
-    bool shadow_2d_reserved_ = false;
+    /// @see setMask2DTexture — indexed by texture unit, 0 where that unit is not a mask.
+    u32 mask_2d_textures_[MAX_CMD_TEXTURE_SLOTS] = {};
+    /// @see reserveMask2DSlots
+    u32 mask_2d_slots_ = 0;
     u32 merged_draw_calls_ = 0;
     /// Members of a SortingGroup, by entity id — empty in the common frame.
     std::unordered_map<u32, GroupIdentity> group_identities_;

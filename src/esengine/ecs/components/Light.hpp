@@ -96,6 +96,23 @@ struct Light {
                 tooltip="How much of this light its shadows remove (1 = all of it).")
     f32 shadowStrength{1.0f};
 
+    /** @brief A texture whose ALPHA is this light's shape — a lantern's glow, a window's
+     *         shaft. Drawn at the light's own place, turned by its Transform, and
+     *         multiplied into what the light gives a pixel; the colour is not read,
+     *         because a light's colour is the light's. Four shaped lights fit a frame,
+     *         and past that a light lights without a shape. */
+    ES_PROPERTY(asset = texture, shown_when=type:Point|Spot,
+                tooltip="A texture whose alpha shapes this light (a cookie).")
+    resource::TextureHandle cookie;
+
+    /** @brief How big @ref cookie is drawn, in world units. 0 on an axis covers the
+     *         light's own reach on it — a square of 2 × @ref radius — which is what a
+     *         cookie drawn for this light almost always wants: a shape smaller than the
+     *         reach cuts the light off, and one larger is trimmed by the falloff. */
+    ES_PROPERTY(animatable, min=0, shown_when=type:Point|Spot,
+                tooltip="Cookie size in world units; 0 = the light's own reach.")
+    glm::vec2 cookieSize{0.0f, 0.0f};
+
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced, shown_when=type:Spot)
     f32 innerAngle{30.0f};

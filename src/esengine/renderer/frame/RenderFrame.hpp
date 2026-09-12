@@ -640,6 +640,29 @@ private:
     /// binding both key off.
     bool shadow2DActive() const { return shadow_2d_texture_id_ != 0; }
 
+    /**
+     * @brief Gathers the frame's SHAPED lights and hands each one a shape-mask channel.
+     *
+     * @details The sibling of collectShadow2D, in the same no-GPU phase: a light with a
+     *          cookie gets a channel, and past the cap a light lights without a shape.
+     */
+    void collectShape2D(ecs::Registry& registry);
+
+    /// Declares the pass that draws the shape mask, ahead of the scene that samples it.
+    void declareShape2DPass();
+
+    /// The shape pass's body: one textured quad per shaped light, into its own channel.
+    void executeShape2DPass();
+
+    /// Frees the shape mask's own GPU objects. Called while the device is still valid.
+    void releaseShape2DResources();
+
+    /// Compiles the shape shader on first use, and says whether it is usable.
+    bool ensureShape2DShader();
+
+    /// Whether this frame drew a shape mask.
+    bool shape2DActive() const { return shape_2d_texture_id_ != 0; }
+
     /// Grows the per-view frame-constant buffers to @p count and no further.
     void ensureShadowFrameUbos(u32 count);
 
@@ -758,6 +781,28 @@ private:
     VertexLayoutHandle shadow_2d_layout_ = VertexLayoutHandle::Invalid;
     resource::ShaderHandle shadow_2d_shader_{};
     bool shadow_2d_shader_tried_ = false;
+
+    /** @brief A light whose shape the frame draws, and the mask channel it owns. */
+    struct Shape2DLight {
+        /// The quad's four world corners, in the order the two triangles take them.
+        glm::vec2 corners[4]{};
+        /// The cookie itself — one draw per light, because each binds its own.
+        u32 texture = 0;
+        /// Its slot in the light array, which is what the channel is recorded against.
+        u32 slot = 0;
+    };
+
+    std::vector<Shape2DLight> shape_2d_lights_;
+    /// The shape mask as a graph resource, read through its own pinned sampler unit.
+    rg::ResourceId shape_2d_resource_ = rg::kNoResource;
+    u32 shape_2d_texture_id_ = 0;
+    /// Interleaved (x, y, u, v, channel.rgba), six vertices per light.
+    std::vector<f32> shape_2d_vertices_;
+    BufferHandle shape_2d_vbo_ = BufferHandle::Invalid;
+    u32 shape_2d_vbo_bytes_ = 0;
+    VertexLayoutHandle shape_2d_layout_ = VertexLayoutHandle::Invalid;
+    resource::ShaderHandle shape_2d_shader_{};
+    bool shape_2d_shader_tried_ = false;
 
     /// The atlas as a graph resource: the shadow pass writes it and the scene names
     /// it, which is what orders the two. Borrowed from the pool every other target

@@ -76,6 +76,7 @@ const DISPOSITION = {
   'Camera.orthoSize': 'extent',
   'Light.radius': 'extent',
   'Light.innerRadius': 'extent',
+  'Light.cookieSize': 'extent',
   'MeleeAttack.radius': 'extent',
   'NavAgent.radius': 'extent',
   'NavAgent.arriveRadius': 'extent',

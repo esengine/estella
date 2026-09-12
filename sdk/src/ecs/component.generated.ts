@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'e2362078463a35b5';
+export const ABI_LAYOUT_HASH = '422d8d4f497e4e40';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -459,6 +459,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerRadius: 0,
             falloff: 1,
             shadowStrength: 1,
+            cookie: 0,
+            cookieSize: { x: 0, y: 0 },
             innerAngle: 30,
             outerAngle: 45,
             shadowSoftness: 0,
@@ -472,10 +474,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             enabled: true,
         },
         renderableField: 'enabled',
-        assetFields: [{ field: 'environment', type: 'environment' as AssetFieldType }],
+        assetFields: [{ field: 'cookie', type: 'texture' as AssetFieldType }, { field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'cookieSize.x', 'cookieSize.y', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance'],
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
@@ -483,6 +485,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerRadius: { min: 0, tooltip: "Radius held at full strength before the falloff starts.", shownWhen: { field: "type", values: [0, 3] } },
             falloff: { min: 0, max: 8, tooltip: "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.", shownWhen: { field: "type", values: [0, 3] } },
             shadowStrength: { min: 0, max: 1, slider: true, tooltip: "How much of this light its shadows remove (1 = all of it).", shownWhen: { field: "type", values: [0, 1, 3] } },
+            cookie: { tooltip: "A texture whose alpha shapes this light (a cookie).", shownWhen: { field: "type", values: [0, 3] } },
+            cookieSize: { min: 0, tooltip: "Cookie size in world units; 0 = the light's own reach.", shownWhen: { field: "type", values: [0, 3] } },
             innerAngle: { min: 0, max: 180, unit: "°", advanced: true, shownWhen: { field: "type", values: [3] } },
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true, shownWhen: { field: "type", values: [3] } },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge.", shownWhen: { field: "type", values: [0, 1, 3] } },
@@ -1350,6 +1354,8 @@ export interface LightData {
     innerRadius: number;
     falloff: number;
     shadowStrength: number;
+    cookie: number;
+    cookieSize: Vec2;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;

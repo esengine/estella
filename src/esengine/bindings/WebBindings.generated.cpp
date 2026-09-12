@@ -583,6 +583,8 @@ struct LightJS {
     f32 innerRadius;
     f32 falloff;
     f32 shadowStrength;
+    u32 cookie;
+    glm::vec2 cookieSize;
     f32 innerAngle;
     f32 outerAngle;
     f32 shadowSoftness;
@@ -604,6 +606,8 @@ void lightApplyJS(esengine::ecs::Light& c, const LightJS& js) {
     c.innerRadius = js.innerRadius;
     c.falloff = js.falloff;
     c.shadowStrength = js.shadowStrength;
+    c.cookie = resource::TextureHandle(js.cookie);
+    c.cookieSize = js.cookieSize;
     c.innerAngle = js.innerAngle;
     c.outerAngle = js.outerAngle;
     c.shadowSoftness = js.shadowSoftness;
@@ -632,6 +636,8 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
     js.innerRadius = c.innerRadius;
     js.falloff = c.falloff;
     js.shadowStrength = c.shadowStrength;
+    js.cookie = c.cookie.id();
+    js.cookieSize = c.cookieSize;
     js.innerAngle = c.innerAngle;
     js.outerAngle = c.outerAngle;
     js.shadowSoftness = c.shadowSoftness;
@@ -1613,6 +1619,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("innerRadius", &LightJS::innerRadius)
         .field("falloff", &LightJS::falloff)
         .field("shadowStrength", &LightJS::shadowStrength)
+        .field("cookie", &LightJS::cookie)
+        .field("cookieSize", &LightJS::cookieSize)
         .field("innerAngle", &LightJS::innerAngle)
         .field("outerAngle", &LightJS::outerAngle)
         .field("shadowSoftness", &LightJS::shadowSoftness)
@@ -3089,17 +3097,19 @@ static_assert(offsetof(esengine::ecs::Light, radius) == 24, "ABI offset drift: e
 static_assert(offsetof(esengine::ecs::Light, innerRadius) == 28, "ABI offset drift: esengine::ecs::Light.innerRadius (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::Light, falloff) == 32, "ABI offset drift: esengine::ecs::Light.falloff (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::Light, shadowStrength) == 36, "ABI offset drift: esengine::ecs::Light.shadowStrength (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::Light, innerAngle) == 40, "ABI offset drift: esengine::ecs::Light.innerAngle (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::Light, outerAngle) == 44, "ABI offset drift: esengine::ecs::Light.outerAngle (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::Light, shadowSoftness) == 48, "ABI offset drift: esengine::ecs::Light.shadowSoftness (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::Light, sourceAngle) == 52, "ABI offset drift: esengine::ecs::Light.sourceAngle (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 56, "ABI offset drift: esengine::ecs::Light.shadowDistance (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Light, meshShadows) == 60, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 60)");
-static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 64, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 64)");
-static_assert(offsetof(esengine::ecs::Light, environment) == 68, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 68)");
-static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 72, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 72)");
-static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 76, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 76)");
-static_assert(offsetof(esengine::ecs::Light, enabled) == 77, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 77)");
+static_assert(offsetof(esengine::ecs::Light, cookie) == 40, "ABI offset drift: esengine::ecs::Light.cookie (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::Light, cookieSize) == 44, "ABI offset drift: esengine::ecs::Light.cookieSize (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::Light, innerAngle) == 52, "ABI offset drift: esengine::ecs::Light.innerAngle (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::Light, outerAngle) == 56, "ABI offset drift: esengine::ecs::Light.outerAngle (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::Light, shadowSoftness) == 60, "ABI offset drift: esengine::ecs::Light.shadowSoftness (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::Light, sourceAngle) == 64, "ABI offset drift: esengine::ecs::Light.sourceAngle (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 68, "ABI offset drift: esengine::ecs::Light.shadowDistance (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::Light, meshShadows) == 72, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 76, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 76)");
+static_assert(offsetof(esengine::ecs::Light, environment) == 80, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 84, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 84)");
+static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 88, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 88)");
+static_assert(offsetof(esengine::ecs::Light, enabled) == 89, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 89)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
@@ -3342,7 +3352,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "e2362078463a35b5";
+static const char* kEsAbiLayoutHash = "422d8d4f497e4e40";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

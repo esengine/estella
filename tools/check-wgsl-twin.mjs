@@ -121,7 +121,10 @@ function embedded(file, text) {
 }
 
 const sources = [];
-for (const file of listed(['ls-files', '*.esshader'])) {
+// --others: a shader that is NEW is the one most likely to be missing a binding, and
+// a listing of only tracked files answers "clean" about the file nobody has read.
+for (const file of listed(['ls-files', '--cached', '--others', '--exclude-standard',
+                           '*.esshader'])) {
     sources.push({ label: file, text: readFileSync(path.join(ROOT, file), 'utf8') });
 }
 for (const file of listed(['grep', '-l', '-F', '#pragma fragment wgsl', '--', '*.ts'])) {

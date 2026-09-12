@@ -392,6 +392,14 @@ export const SCENES = [
   { id: "material-instance", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-instance.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-instance.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   { id: "material-texture", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-tex.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-tex.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
   { id: "material-switch", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-sw.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-sw.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":50},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
+  // A light with a SHAPE of its own: its cookie is opaque in the image's top-left
+  // quadrant and nowhere else, so three of these four probes have to stay black.
+  // A cookie read any way up would light a different quadrant, not a dimmer one.
+  { id: "light-cookie", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/light-cookie.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/light-cookie.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3333,\"y\":0.3333,\"rgb\":[0,155,0],\"tol\":35},{\"x\":0.6667,\"y\":0.3333,\"rgb\":[0,0,0],\"tol\":25},{\"x\":0.3333,\"y\":0.6667,\"rgb\":[0,0,0],\"tol\":25},{\"x\":0.6667,\"y\":0.6667,\"rgb\":[0,0,0],\"tol\":25}]" } },
+  // The same cookie with no size of its own, which covers the light's REACH: the lit
+  // quadrant runs 400 units out instead of 200. The first probe is the one that
+  // says so — it is outside the authored size and inside this one.
+  { id: "light-cookie-reach", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/light-cookie.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/light-cookie.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Light\",\"key\":\"cookieSize\",\"value\":[0,0]}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.1,\"y\":0.3333,\"rgb\":[0,76,0],\"tol\":30},{\"x\":0.4167,\"y\":0.4167,\"rgb\":[0,207,0],\"tol\":35},{\"x\":0.5833,\"y\":0.4167,\"rgb\":[0,0,0],\"tol\":25},{\"x\":0.1,\"y\":0.6667,\"rgb\":[0,0,0],\"tol\":25}]" } },
   // What a light's reach LOOKS like on the way out. One fixture, one light, three
   // probes along its radius; each gate changes exactly the field it is named for,
   // and the first changes nothing — the linear ramp every scene was written against.

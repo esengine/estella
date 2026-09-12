@@ -65,6 +65,7 @@ const ENGINE_SAMPLERS = [
   { name: 'u_shadowMap', unit: 2 },
   { name: 'u_envMap', unit: 3 },
   { name: 'u_shadow2D', unit: 7 },
+  { name: 'u_lightShape2D', unit: 6 },
 ];
 
 // Group-1 unit map — mirrors WebGPUMappings textureBindingForUnit/samplerBindingForUnit.

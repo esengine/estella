@@ -273,6 +273,86 @@ void main() {
 #pragma end
 )esshader";
 
+inline constexpr const char* LIGHTSHAPE2D = R"esshader(#pragma shader "LightShape2D"
+#pragma version 300 es
+
+// The 2D light-shape mask: one channel per shaped light, carrying what that light's
+// own cookie covers. A quad per light, drawn where the light is and turned with it,
+// so a lantern's glow is the shape the artist drew rather than a circle.
+//
+// One draw per light rather than one for all four: each carries its own texture, and
+// a channel it does not name receives zero — which reads as "this light is not here".
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in vec2 a_texCoord;
+layout(location = 2) in vec4 a_channel;
+
+out vec2 v_texCoord;
+out vec4 v_channel;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_texCoord = a_texCoord;
+    v_channel = a_channel;
+}
+#pragma end
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+in vec4 v_channel;
+
+uniform sampler2D u_cookie;
+
+out vec4 fragColor;
+
+void main() {
+    // Alpha alone: the shape is what the artist drew the edge of, and a colour here
+    // would be a second place a light's colour comes from.
+    fragColor = v_channel * texture(u_cookie, v_texCoord).a;
+}
+#pragma end
+
+#pragma vertex wgsl
+struct VSIn {
+    @location(0) a_position : vec2f,
+    @location(1) a_texCoord : vec2f,
+    @location(2) a_channel : vec4f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_channel : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
+    out.v_texCoord = v.a_texCoord;
+    out.v_channel = v.a_channel;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+// The cookie, on the draw's own first slot — this pass binds one texture per light.
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_channel : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return v.v_channel * textureSample(t0, s0, v.v_texCoord).a;
+}
+#pragma end
+)esshader";
+
 inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 #pragma version 300 es
 // Lit domain for the LIGHTING it injects (LightConstants + applyLighting2D),
@@ -555,6 +635,9 @@ struct VSOut {
 // lighting reads it for every Lit shader rather than behind a feature.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
+// The light-shape mask, one unit below it, on the same terms.
+@group(1) @binding(6) var t6 : texture_2d<f32>;
+@group(1) @binding(14) var s6 : sampler;
 
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -889,6 +972,9 @@ struct VSOut {
 // The 2D shadow mask, which the injected lighting reads for every Lit shader.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
+// The light-shape mask, one unit below it, on the same terms.
+@group(1) @binding(6) var t6 : texture_2d<f32>;
+@group(1) @binding(14) var s6 : sampler;
 
 // Declared again: each WGSL block is compiled on its own, so a struct defined in
 // the vertex one is an undeclared name here — and that reaches anyone as an

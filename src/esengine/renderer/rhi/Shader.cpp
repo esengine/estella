@@ -263,7 +263,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     // blocks above are: the header reaches every Lit shader, so a compile site that
     // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
     if (hasUniform(SHADOW_MAP_SAMPLER) || hasUniform(ENV_MAP_SAMPLER)
-        || hasUniform(SHADOW_2D_SAMPLER)) {
+        || hasUniform(SHADOW_2D_SAMPLER) || hasUniform(SHAPE_2D_SAMPLER)) {
         bind();
         if (hasUniform(SHADOW_MAP_SAMPLER)) {
             setUniform(SHADOW_MAP_SAMPLER, static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT));
@@ -273,6 +273,9 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         }
         if (hasUniform(SHADOW_2D_SAMPLER)) {
             setUniform(SHADOW_2D_SAMPLER, static_cast<i32>(SHADOW_2D_TEXTURE_UNIT));
+        }
+        if (hasUniform(SHAPE_2D_SAMPLER)) {
+            setUniform(SHAPE_2D_SAMPLER, static_cast<i32>(SHAPE_2D_TEXTURE_UNIT));
         }
         unbind();
     }

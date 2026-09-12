@@ -5,7 +5,7 @@ Symbols: 114 public · 99 beta · 1700 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"e2362078463a35b5"
+"422d8d4f497e4e40"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4460,6 +4460,8 @@ BuiltinComponentDef<LightData>
 ## LightData — interface @experimental
 ```
 color: Color
+cookie: number
+cookieSize: Vec2
 drawEnvironment: boolean
 enabled: boolean
 environment: number

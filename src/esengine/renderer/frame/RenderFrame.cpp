@@ -187,6 +187,7 @@ void RenderFrame::shutdown() {
     shadow_pool_.shutdown();
     releaseShadowFrameUbos();
     releaseShadow2DResources();
+    releaseShape2DResources();
     releaseFrameTargets();
     target_pool_.clear();
 
@@ -263,22 +264,23 @@ void RenderFrame::drawScene() {
     // Where THIS camera's pixels sit inside the 2D shadow mask. Per camera because the
     // mask is screen space: two cameras drew into two parts of one target, and a
     // fragment has to read the part its own camera filled.
-    if (shadow2DActive() && width_ > 0 && height_ > 0) {
+    if ((shadow2DActive() || shape2DActive()) && width_ > 0 && height_ > 0) {
         const f32 w = static_cast<f32>(width_);
         const f32 h = static_cast<f32>(height_);
         // The height's SIGN carries which way this backend stores the rows it just drew.
         // One shader source serves both backends — the WGSL a material runs is translated
         // from the GLSL — so the convention travels as data rather than a #ifdef.
         const f32 rows = device_.textureOriginTopLeft() ? -1.0f : 1.0f;
-        context_.lights().setShadow2DRect(glm::vec4(
+        context_.lights().setMask2DRect(glm::vec4(
             static_cast<f32>(std::max(scene_viewport_.x, 0)) / w,
             static_cast<f32>(std::max(scene_viewport_.y, 0)) / h,
             static_cast<f32>(scene_viewport_.w) / w,
             static_cast<f32>(scene_viewport_.h) / h * rows));
     } else {
-        context_.lights().setShadow2DRect(glm::vec4(0.0f));
+        context_.lights().setMask2DRect(glm::vec4(0.0f));
     }
-    draw_list_.setShadow2DTexture(shadow_2d_texture_id_);
+    draw_list_.setMask2DTexture(SHADOW_2D_TEXTURE_UNIT, shadow_2d_texture_id_);
+    draw_list_.setMask2DTexture(SHAPE_2D_TEXTURE_UNIT, shape_2d_texture_id_);
     // Here and not in flush(): the shadow pass runs before this one and decides
     // which atlas tile each light reads, so the block has to go up after it.
     context_.lights().uploadAndBind();
@@ -513,9 +515,12 @@ void RenderFrame::flush() {
         // upload afterwards is its own clock and cannot be read off this one.
         {
             ES_PROFILE_SCOPE("render.finalize.drawList");
-            // Before the merge, which spends texture slots: the mask needs the top one
-            // and does not exist yet — its own pass has not run.
-            draw_list_.reserveShadow2DSlot(shadow_2d_resource_ != rg::kNoResource);
+            // Before the merge, which spends texture slots: a mask needs a top one and
+            // does not exist yet. The shape mask sits below the shadow one, so a frame
+            // with a shape keeps both whether anything casts or not.
+            draw_list_.reserveMask2DSlots(
+                shape_2d_resource_ != rg::kNoResource ? 2u
+                    : (shadow_2d_resource_ != rg::kNoResource ? 1u : 0u));
             draw_list_.finalize(pool_);
         }
         {
@@ -588,6 +593,9 @@ void RenderFrame::end() {
         }
         // The same terms for the 2D mask: every Lit draw samples it through a pinned
         // unit, so the graph owes the scene its ordering and its lifetime, not a bind.
+        if (shape_2d_resource_ != rg::kNoResource) {
+            scene.dependencies.push_back(shape_2d_resource_);
+        }
         if (shadow_2d_resource_ != rg::kNoResource) {
             scene.dependencies.push_back(shadow_2d_resource_);
         }
@@ -1238,6 +1246,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // Last, because which lights the mask can carry is a question about the array the
     // loop above just filled.
     collectShadow2D(registry);
+    collectShape2D(registry);
 }
 
 bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale) {
@@ -1809,6 +1818,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadow2dDeclare"); declareShadow2DPass(); }
+    { ES_PROFILE_SCOPE("render.collect.shape2dDeclare"); declareShape2DPass(); }
 
     auto ctx = makeContext();
 

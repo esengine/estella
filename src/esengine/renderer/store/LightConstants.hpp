@@ -55,6 +55,19 @@ inline constexpr const char* SHADOW_2D_SAMPLER = "u_shadow2D";
 inline constexpr u32 SHADOW_2D_TEXTURE_UNIT = 7;
 
 /**
+ * @brief The 2D light-shape mask, and the unit below the shadow mask's.
+ * @details The same target shape carrying the other half of "how much of this light is
+ *          here": what its SHAPE covers, drawn as the light's own cookie. Two planes
+ *          rather than one channel, because a fragment needs both numbers to multiply
+ *          them — a single channel could only carry their sum.
+ */
+inline constexpr const char* SHAPE_2D_SAMPLER = "u_lightShape2D";
+inline constexpr u32 SHAPE_2D_TEXTURE_UNIT = 6;
+
+/** @brief Lights whose SHAPE one frame can carry — the shape mask's four channels. */
+inline constexpr u32 MAX_SHAPE_2D_LIGHTS = 4;
+
+/**
  * @brief Lights whose 2D shadows one frame can carry — the mask's four channels.
  * @details A cap on CASTERS, not on lights: past it a light still lights the scene and
  *          stops shadowing, which is the failure a 2D scene can look at and understand.
@@ -111,9 +124,9 @@ struct GpuLight {
     /// light that stands somewhere); w = its 2D mask channel, -1 for none.
     glm::vec4 shadowMap{0.0f, 0.0f, 0.0f, -1.0f};
     /// How the light ENDS, as opposed to where: x = the radius it holds full strength
-    /// out to, y = the power its ramp is raised to (1 = linear), z = how much of it a
-    /// shadow removes (1 = all). The defaults ARE the old linear ramp. w unused.
-    glm::vec4 falloff{0.0f, 1.0f, 1.0f, 0.0f};
+    /// out to, y = the power its ramp is raised to (1 = linear), z = how much a shadow
+    /// removes (1 = all), w = its shape-mask channel (-1 = unshaped). Defaults = linear.
+    glm::vec4 falloff{0.0f, 1.0f, 1.0f, -1.0f};
 };
 
 /**
@@ -125,10 +138,10 @@ struct GpuLight {
 struct LightConstants {
     glm::vec4 ambient{0.0f};
     GpuLight lights[MAX_LIGHTS];
-    /// Where the CAMERA NOW DRAWING lands in the 2D shadow mask: xy = its low corner,
-    /// zw = its size, as fractions of the mask; zero width = no mask this frame. Per
-    /// camera, because the mask is screen space and two cameras own two parts of it.
-    glm::vec4 shadow2DRect{0.0f};
+    /// Where the CAMERA NOW DRAWING lands in a screen-space light mask: xy = its low
+    /// corner, zw = its size, as fractions of one; zero width = no mask this frame. One
+    /// rect for BOTH masks — same size, same viewport, so two would be two answers.
+    glm::vec4 mask2DRect{0.0f};
     /// World -> tile i's clip space. Identity where a tile is unclaimed; which tiles
     /// a light may read are the ones its own `shadowMap` names.
     glm::mat4 shadowMatrix[MAX_SHADOW_TILES];

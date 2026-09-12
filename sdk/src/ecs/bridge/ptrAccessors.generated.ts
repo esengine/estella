@@ -805,6 +805,8 @@ export interface LightPtrData {
     innerRadius: number;
     falloff: number;
     shadowStrength: number;
+    cookie: number;
+    cookieSize: Vec2;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;
@@ -829,17 +831,19 @@ export function fillLight(
     out.innerRadius = f32[(ptr + 28) >> 2];
     out.falloff = f32[(ptr + 32) >> 2];
     out.shadowStrength = f32[(ptr + 36) >> 2];
-    out.innerAngle = f32[(ptr + 40) >> 2];
-    out.outerAngle = f32[(ptr + 44) >> 2];
-    out.shadowSoftness = f32[(ptr + 48) >> 2];
-    out.sourceAngle = f32[(ptr + 52) >> 2];
-    out.shadowDistance = f32[(ptr + 56) >> 2];
-    out.meshShadows = u8[ptr + 60] !== 0;
-    out.shadowExtent = f32[(ptr + 64) >> 2];
-    out.environment = u32[(ptr + 68) >> 2];
-    out.environmentRotation = f32[(ptr + 72) >> 2];
-    out.drawEnvironment = u8[ptr + 76] !== 0;
-    out.enabled = u8[ptr + 77] !== 0;
+    out.cookie = u32[(ptr + 40) >> 2];
+    const cookieSize_ = out.cookieSize; cookieSize_.x = f32[(ptr + 44) >> 2]; cookieSize_.y = f32[((ptr + 44) >> 2) + 1];
+    out.innerAngle = f32[(ptr + 52) >> 2];
+    out.outerAngle = f32[(ptr + 56) >> 2];
+    out.shadowSoftness = f32[(ptr + 60) >> 2];
+    out.sourceAngle = f32[(ptr + 64) >> 2];
+    out.shadowDistance = f32[(ptr + 68) >> 2];
+    out.meshShadows = u8[ptr + 72] !== 0;
+    out.shadowExtent = f32[(ptr + 76) >> 2];
+    out.environment = u32[(ptr + 80) >> 2];
+    out.environmentRotation = f32[(ptr + 84) >> 2];
+    out.drawEnvironment = u8[ptr + 88] !== 0;
+    out.enabled = u8[ptr + 89] !== 0;
 }
 
 export function writeLight(
@@ -853,17 +857,19 @@ export function writeLight(
     f32[(ptr + 28) >> 2] = data.innerRadius;
     f32[(ptr + 32) >> 2] = data.falloff;
     f32[(ptr + 36) >> 2] = data.shadowStrength;
-    f32[(ptr + 40) >> 2] = data.innerAngle;
-    f32[(ptr + 44) >> 2] = data.outerAngle;
-    f32[(ptr + 48) >> 2] = data.shadowSoftness;
-    f32[(ptr + 52) >> 2] = data.sourceAngle;
-    f32[(ptr + 56) >> 2] = data.shadowDistance;
-    u8[ptr + 60] = data.meshShadows ? 1 : 0;
-    f32[(ptr + 64) >> 2] = data.shadowExtent;
-    u32[(ptr + 68) >> 2] = data.environment;
-    f32[(ptr + 72) >> 2] = data.environmentRotation;
-    u8[ptr + 76] = data.drawEnvironment ? 1 : 0;
-    u8[ptr + 77] = data.enabled ? 1 : 0;
+    u32[(ptr + 40) >> 2] = data.cookie;
+    f32[(ptr + 44) >> 2] = data.cookieSize.x; f32[((ptr + 44) >> 2) + 1] = data.cookieSize.y;
+    f32[(ptr + 52) >> 2] = data.innerAngle;
+    f32[(ptr + 56) >> 2] = data.outerAngle;
+    f32[(ptr + 60) >> 2] = data.shadowSoftness;
+    f32[(ptr + 64) >> 2] = data.sourceAngle;
+    f32[(ptr + 68) >> 2] = data.shadowDistance;
+    u8[ptr + 72] = data.meshShadows ? 1 : 0;
+    f32[(ptr + 76) >> 2] = data.shadowExtent;
+    u32[(ptr + 80) >> 2] = data.environment;
+    f32[(ptr + 84) >> 2] = data.environmentRotation;
+    u8[ptr + 88] = data.drawEnvironment ? 1 : 0;
+    u8[ptr + 89] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -875,6 +881,8 @@ export function createLightData(): LightPtrData {
         innerRadius: 0,
         falloff: 0,
         shadowStrength: 0,
+        cookie: 0,
+        cookieSize: { x: 0, y: 0 },
         innerAngle: 0,
         outerAngle: 0,
         shadowSoftness: 0,

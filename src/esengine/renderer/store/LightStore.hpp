@@ -120,11 +120,19 @@ public:
         dirty_ = true;
     }
 
-    /// Where the camera about to draw sits inside the mask (xy = low corner, zw = size,
-    /// as fractions of it). A zero size says the frame has no mask; set per camera,
+    /// Gives light @p slot a channel of the frame's shape mask. A slot nobody names
+    /// keeps -1, which is a light with no shape of its own — it lights a full circle.
+    void setLightShape2DChannel(u32 slot, u32 channel) {
+        if (slot >= count_ || channel >= MAX_SHAPE_2D_LIGHTS) return;
+        data_.lights[slot].falloff.w = static_cast<f32>(channel);
+        dirty_ = true;
+    }
+
+    /// Where the camera about to draw sits inside the masks (xy = low corner, zw = size,
+    /// as fractions of one). A zero size says the frame has none; set per camera,
     /// because two cameras read two different parts of one screen-space target.
-    void setShadow2DRect(const glm::vec4& rect) {
-        data_.shadow2DRect = rect;
+    void setMask2DRect(const glm::vec4& rect) {
+        data_.mask2DRect = rect;
         dirty_ = true;
     }
 

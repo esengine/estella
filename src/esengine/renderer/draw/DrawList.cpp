@@ -123,8 +123,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
                 if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
                     // Multi-texture: give this command's texture a slot in the head's set
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
-                    const u8 slotBudget = static_cast<u8>(
-                        shadow_2d_reserved_ ? MAX_CMD_TEXTURE_SLOTS - 1 : MAX_CMD_TEXTURE_SLOTS);
+                    const u8 slotBudget =
+                        static_cast<u8>(MAX_CMD_TEXTURE_SLOTS - mask_2d_slots_);
                     i32 slot = head.addTextureSlot(commands_[i].texture_ids[0], slotBudget);
                     if (slot >= 0) {
                         // Staging verts default to texIndex 0, so only a non-zero slot
@@ -239,10 +239,12 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // any pass. The fill is a STABLE white, so unused units cost no rebind.
         if (cmd.texture_count > 0) {
             for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
-                // The top unit is the frame's 2D shadow mask wherever one exists — the
-                // merge was kept off it, so what a draw holds there is the fill.
-                const bool masked = shadow_2d_reserved_ && slot == MAX_CMD_TEXTURE_SLOTS - 1;
-                u32 tex = masked ? (shadow_2d_texture_ != 0 ? shadow_2d_texture_ : white_texture_id)
+                // The top units are the frame's screen-space light masks wherever one
+                // exists — the merge was kept off them, so what a draw holds there is
+                // the mask, or the fill where the pass drew nothing.
+                const bool masked = slot >= MAX_CMD_TEXTURE_SLOTS - mask_2d_slots_;
+                u32 tex = masked ? (mask_2d_textures_[slot] != 0 ? mask_2d_textures_[slot]
+                                                                 : white_texture_id)
                                  : ((slot < cmd.texture_count) ? cmd.texture_ids[slot]
                                                                : white_texture_id);
                 device.bindTexture(slot, TextureHandle{tex});

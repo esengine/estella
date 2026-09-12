@@ -832,7 +832,7 @@ const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, sp
 struct LightConstants {
     u_ambient : vec4f,
     u_lights : array<Light, 16>,
-    u_shadow2DRect : vec4f,
+    u_mask2DRect : vec4f,
     u_shadowMatrix : array<mat4x4f, 16>,
     u_shadowTile : array<vec4f, 16>,
     u_shadowParams : vec4f,
@@ -1004,24 +1004,38 @@ fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f)
     let invmax = inverseSqrt(m);
     return normalize(mat3x3f(T * invmax, B * invmax, N) * tangentNormal);
 }
-// What the frame's 2D shadow mask says about this fragment, for the light holding
-// `channel` (negative = a light that casts none). Where a world point lands in the
-// mask is where this same camera puts it, measured on the plane the occluders are in.
-fn shadowFactor2D(channel : f32, worldPos : vec2f) -> f32 {
-    if (channel < 0.0 || lc.u_shadow2DRect.z <= 0.0) { return 1.0; }
+// Where a world point lands in this camera's part of a screen-space mask: on the Z = 0
+// plane, which is the plane a 2D occluder hides things in, and through this same camera
+// so the landing agrees. Negative x = nothing to read.
+fn mask2DUv(worldPos : vec2f) -> vec2f {
     let clip = frame.projection * vec4f(worldPos, 0.0, 1.0);
-    if (clip.w <= 0.0) { return 1.0; }
+    if (clip.w <= 0.0) { return vec2f(-1.0, -1.0); }
     // A negative height is the backend saying its texture rows run the other way.
     let ndc = clip.xy / clip.w * 0.5 + 0.5;
-    let v = select(ndc.y, 1.0 - ndc.y, lc.u_shadow2DRect.w < 0.0);
-    let uv = lc.u_shadow2DRect.xy
-        + vec2f(ndc.x * lc.u_shadow2DRect.z, v * abs(lc.u_shadow2DRect.w));
-    let m = textureSampleLevel(t7, s7, uv, 0.0);
-    var hidden = m.a;
-    if (channel < 0.5) { hidden = m.r; }
-    else if (channel < 1.5) { hidden = m.g; }
-    else if (channel < 2.5) { hidden = m.b; }
+    let v = select(ndc.y, 1.0 - ndc.y, lc.u_mask2DRect.w < 0.0);
+    return lc.u_mask2DRect.xy
+        + vec2f(ndc.x * lc.u_mask2DRect.z, v * abs(lc.u_mask2DRect.w));
+}
+fn mask2DChannel(m : vec4f, channel : f32) -> f32 {
+    if (channel < 0.5) { return m.r; }
+    if (channel < 1.5) { return m.g; }
+    if (channel < 2.5) { return m.b; }
+    return m.a;
+}
+fn shadowFactor2D(channel : f32, worldPos : vec2f) -> f32 {
+    if (channel < 0.0 || lc.u_mask2DRect.z <= 0.0) { return 1.0; }
+    let uv = mask2DUv(worldPos);
+    if (uv.x < 0.0) { return 1.0; }
+    let hidden = mask2DChannel(textureSampleLevel(t7, s7, uv, 0.0), channel);
     return 1.0 - min(hidden, 1.0);
+}
+// What the light's own SHAPE covers here — its cookie, drawn into the shape mask at the
+// light's place. A light with no shape keeps the whole circle it always had.
+fn shapeFactor2D(channel : f32, worldPos : vec2f) -> f32 {
+    if (channel < 0.0 || lc.u_mask2DRect.z <= 0.0) { return 1.0; }
+    let uv = mask2DUv(worldPos);
+    if (uv.x < 0.0) { return 1.0; }
+    return min(mask2DChannel(textureSampleLevel(t6, s6, uv, 0.0), channel), 1.0);
 }
 )"
 // Split, not restructured: MSVC caps ONE string literal at 16380 bytes
@@ -1174,6 +1188,9 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
             atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);
             L = towardLight(toL, N);
             atten *= spotCone(sp, sh, toL, dist);
+        }
+        if (col.a > 0.0 && atten > 0.0) {
+            atten *= shapeFactor2D(fo.w, worldPos.xy);
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
             atten *= mix(1.0, shadowFactor2D(lc.u_lights[i].shadowMap.w, worldPos.xy), fo.z);
@@ -1515,7 +1532,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    Light u_lights[16];\n"
-            "    highp vec4 u_shadow2DRect;\n"    // xy = this camera's corner of the mask, zw its size
+            "    highp vec4 u_mask2DRect;\n"      // xy = this camera's corner of a mask, zw its size
             "    highp mat4 u_shadowMatrix[16];\n"  // world -> each atlas tile's clip
             "    highp vec4 u_shadowTile[16];\n"  // xy = origin, z = side, w = bias
             "    highp vec4 u_shadowParams;\n"    // x = has map, y = one atlas texel
@@ -1532,10 +1549,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#ifdef ES_ENV_MAP\n"
             "uniform highp sampler2D u_envMap;\n"
             "#endif\n"
-            // The 2D shadow mask, on the top slot of the batch stream's eight. Declared
-            // for every Lit shader: a sprite receives 2D shadows, and a mesh standing in
-            // the same scene receives the same ones.
+            // The 2D shadow mask, on the top slot of the batch stream's eight, and the
+            // light-shape mask one below it. Declared for every Lit shader: a sprite
+            // receives 2D shadows, and a mesh standing in the same scene receives them.
             "uniform highp sampler2D u_shadow2D;\n"
+            "uniform highp sampler2D u_lightShape2D;\n"
             // 24 bits of depth across RGB — an 8-bit target is what both backends have
             // in common, and a metre of world depth does not survive 8 of them. The
             // pair lives together: two files would be two chances to disagree.
@@ -1708,30 +1726,40 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float invmax = inversesqrt(m);\n"
             "    return normalize(mat3(T * invmax, B * invmax, N) * tangentNormal);\n"
             "}\n"
-            // What the frame's 2D shadow mask says about this fragment, for the light
-            // holding `channel` (negative = a light that casts none). The rect is this
-            // camera's own part of the mask, which is what serves a second camera.
-            "highp float shadowFactor2D(in highp float channel, in highp vec2 worldPos) {\n"
-            "    if (channel < 0.0 || u_shadow2DRect.z <= 0.0) return 1.0;\n"
-            // Measured on the Z = 0 plane, which is the plane a 2D occluder hides
-            // things in — and drawn through this same camera, so the landing agrees.
+            // Where a world point lands in this camera's part of a screen-space mask.
+            // Measured on the Z = 0 plane, which is the plane a 2D occluder hides things
+            // in, and drawn through this same camera so the landing agrees.
+            "highp vec2 mask2DUv(in highp vec2 worldPos) {\n"
             "    highp vec4 clip = u_projection * vec4(worldPos, 0.0, 1.0);\n"
-            "    if (clip.w <= 0.0) return 1.0;\n"
+            "    if (clip.w <= 0.0) return vec2(-1.0);\n"
             // A negative height is the backend saying its texture rows run the other way.
             "    highp vec2 ndc = clip.xy / clip.w * 0.5 + 0.5;\n"
-            "    highp float v = u_shadow2DRect.w < 0.0 ? 1.0 - ndc.y : ndc.y;\n"
-            "    highp vec2 uv = u_shadow2DRect.xy\n"
-            "        + vec2(ndc.x * u_shadow2DRect.z, v * abs(u_shadow2DRect.w));\n"
-            // An explicit level, not an implicit one: this is read inside the light loop,
-            // where a twin's WGSL forbids a sampled derivative — and the mask has no
-            // mip chain for one to choose from anyway.
-            "    highp vec4 m = textureLod(u_shadow2D, uv, 0.0);\n"
-            // The mask holds how much of this light is hidden, summed over the samples
-            // that make a source soft — clamped, because two walls over one pixel add
-            // past one and a light cannot be hidden more than entirely.
-            "    highp float hidden = (channel < 0.5) ? m.r\n"
-            "        : (channel < 1.5) ? m.g : (channel < 2.5) ? m.b : m.a;\n"
+            "    highp float v = u_mask2DRect.w < 0.0 ? 1.0 - ndc.y : ndc.y;\n"
+            "    return u_mask2DRect.xy + vec2(ndc.x * u_mask2DRect.z, v * abs(u_mask2DRect.w));\n"
+            "}\n"
+            "highp float mask2DChannel(in highp vec4 m, in highp float channel) {\n"
+            "    return (channel < 0.5) ? m.r : (channel < 1.5) ? m.g\n"
+            "        : (channel < 2.5) ? m.b : m.a;\n"
+            "}\n"
+            // What the shadow mask says here, for the light holding `channel` (negative
+            // = one that casts none). An explicit LOD because this is read inside the
+            // light loop, where a twin's WGSL forbids a sampled derivative.
+            "highp float shadowFactor2D(in highp float channel, in highp vec2 worldPos) {\n"
+            "    if (channel < 0.0 || u_mask2DRect.z <= 0.0) return 1.0;\n"
+            "    highp vec2 uv = mask2DUv(worldPos);\n"
+            "    if (uv.x < 0.0) return 1.0;\n"
+            // Clamped, because two walls over one pixel add past one and a light cannot
+            // be hidden more than entirely.
+            "    highp float hidden = mask2DChannel(textureLod(u_shadow2D, uv, 0.0), channel);\n"
             "    return 1.0 - min(hidden, 1.0);\n"
+            "}\n"
+            // What the light's own SHAPE covers here — its cookie, drawn into the shape
+            // mask at the light's place. A light with no shape keeps its whole circle.
+            "highp float shapeFactor2D(in highp float channel, in highp vec2 worldPos) {\n"
+            "    if (channel < 0.0 || u_mask2DRect.z <= 0.0) return 1.0;\n"
+            "    highp vec2 uv = mask2DUv(worldPos);\n"
+            "    if (uv.x < 0.0) return 1.0;\n"
+            "    return min(mask2DChannel(textureLod(u_lightShape2D, uv, 0.0), channel), 1.0);\n"
             "}\n"
             // The microfacet terms: GGX distribution, Smith geometry (the direct-light k,
             // off perceptual roughness), Schlick fresnel. Guarded denominators, because a
@@ -1916,6 +1944,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        }\n"
             // Only pay for the mask read when the light actually reaches this fragment (skips
             // the zeroed/inactive slots and unlit fragments).
+            "        if (col.a > 0.0 && atten > 0.0) {\n"
+            "            atten *= shapeFactor2D(fo.w, worldPos.xy);\n"
+            "        }\n"
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
             "            atten *= mix(1.0, shadowFactor2D(u_lights[i].shadowMap.w, worldPos.xy), fo.z);\n"
             "        }\n"

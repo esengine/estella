@@ -1956,6 +1956,19 @@
           "range": "0–1"
         },
         {
+          "key": "cookie",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "A texture whose alpha shapes this light (a cookie)."
+        },
+        {
+          "key": "cookieSize",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Cookie size in world units; 0 = the light's own reach.",
+          "range": "≥ 0"
+        },
+        {
           "key": "innerAngle",
           "type": "number",
           "default": "30",
@@ -2040,6 +2053,8 @@
         "innerRadius",
         "falloff",
         "shadowStrength",
+        "cookieSize.x",
+        "cookieSize.y",
         "innerAngle",
         "outerAngle",
         "shadowSoftness",
