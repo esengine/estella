@@ -121,7 +121,10 @@ export const GATES = [
   // with any C compiler, and as wasm where emsdk is unpacked. Without either it
   // still passes and PRINTS that the differential did not run — read the log.
   { id: 'compiler-tests', run: 'pnpm --filter @estella/compiler test', covers: ['compiler/tests'],
-    owns: ['compiler'] },
+    // Components too: EngineDigest.generated.h is a digest over every one of their
+    // fields, written by a compiler test, and a field added without it leaves a
+    // packaged native game refusing its own AOT module.
+    owns: ['compiler', 'src/esengine/ecs/components'] },
   // The plugins we ship prove the public API only if they are held to it.
   { id: 'plugin-boundary', run: 'node tools/check-plugin-boundary.mjs' },
   // Same shape of rule, other direction: what builds a project may not need the
