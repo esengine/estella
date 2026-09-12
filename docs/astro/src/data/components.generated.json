@@ -3497,7 +3497,7 @@
           "key": "size",
           "type": "Vec2",
           "default": "(32, 32)",
-          "doc": "Occluder box size in world units (centered on the entity).",
+          "doc": "Occluder box size in world units (centred on the entity, turning with it).",
           "range": "≥ 0"
         },
         {
