@@ -5,20 +5,20 @@ namespace esengine::ShaderEmbeds {
 inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 #pragma version 300 es
 
-// Compile-time variant: when enabled the fragment stage treats the sampled
-// alpha as a signed distance field (runtime glyph atlas) and
-// derives crisp, resolution-independent coverage instead of sampling RGBA.
+
+
+
 #pragma feature SDF
 
-// Compile-time variant: lit by the scene's 2D lights (Sprite.lit). Compiled as a
-// Lit-domain shader, so applyLighting2D + LightConstants are injected.
+
+
 #pragma feature LIT
 
-// Compile-time variant: discard fragments the sprite draws as (near-)transparent.
-// Selected for a STENCIL MASK draw, which runs this shader with color writes off:
-// without the discard every transparent corner of the quad still writes stencil,
-// so a circular mask sprite would clip a rectangle. Off for ordinary sprites, so
-// they keep an unconditional (early-Z friendly) fragment path.
+
+
+
+
+
 #pragma feature ALPHA_CLIP
 
 #pragma vertex
@@ -55,8 +55,8 @@ void main() {
 #pragma end
 
 #pragma fragment
-// highp: the SDF text branch needs precise distance + fwidth derivatives, and
-// sprite sampling is unaffected by the wider range.
+
+
 precision highp float;
 
 in vec4 v_color;
@@ -69,9 +69,9 @@ in float v_sdfBias;
 in highp vec2 v_worldPos;
 #endif
 
-// Up to 8 textures bound per multi-texture batch. GLSL ES 3.00 forbids indexing a
-// sampler array with a non-uniform expression, so the slot is selected by a constant
-// branch chain (the standard WebGL2 multi-texture batching technique).
+
+
+
 uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
@@ -87,32 +87,32 @@ void main() {
     else if (v_texIndex == 6) texColor = texture(u_textures[6], v_texCoord);
     else texColor = texture(u_textures[7], v_texCoord);
 #ifdef ES_LINEAR
-    // Vertex colors are authored sRGB; the sampled texel is already linear
-    // (sRGB texture formats decode in hardware). Alpha is coverage — never encoded.
+
+
     vec4 tint = vec4(srgbToLinear(v_color.rgb), v_color.a);
 #else
     vec4 tint = v_color;
 #endif
 #ifdef SDF
-    // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
-    // Distance ÷ fwidth = screen px from the edge; the ±0.5px clamp is exactly
-    // one pixel of linear coverage ramp (the msdfgen standard).
-    // v_sdfBias moves the edge outward before the ramp, which grows the glyph's
-    // own shape by that many distance units — an outline pass draws the same
-    // quads with it raised and its colour in the vertices.
+
+
+
+
+
+
     float dist = texColor.a;
     float screenPxDist = (dist - 0.5 + v_sdfBias) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(tint.rgb, tint.a * coverage);
 #elif defined(LIT)
-    // Flat normal; the tinted color is the albedo. Normal maps need a material.
+
     vec4 base = texColor * tint;
     fragColor = vec4(applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
 #else
   #ifdef ALPHA_CLIP
-    // The SPRITE's alpha, not the tinted result: a mask graphic is routinely
-    // tinted to near-zero alpha so it masks without being seen, and testing the
-    // tinted value would discard the whole mask and clip everything away.
+
+
+
     if (texColor.a < 0.5) discard;
   #endif
     fragColor = texColor * tint;
@@ -190,8 +190,8 @@ struct VSOut {
 #endif
 };
 
-// textureSampleLevel(…, 0) keeps sampling uniform-flow-legal inside the
-// constant branch chain; 2D sprites sample mip 0.
+
+
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let idx = i32(v.v_texIndex + 0.5);
     var texColor : vec4f;
@@ -209,8 +209,8 @@ struct VSOut {
     let tint = v.v_color;
 #endif
 #ifdef SDF
-    // Same coverage math as the GLSL stage; fwidth here is in uniform control
-    // flow (main scope), which WGSL requires of derivative builtins.
+
+
     let dist = texColor.a;
     let screenPxDist = (dist - 0.5 + v.v_sdfBias) / max(fwidth(dist), 1e-6);
     let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
@@ -220,7 +220,7 @@ struct VSOut {
     return vec4f(applyLighting2D(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos), base.a);
 #else
   #ifdef ALPHA_CLIP
-    // See the GLSL stage: test the sprite's alpha, not the tinted result.
+
     if (texColor.a < 0.5) { discard; }
   #endif
     return texColor * tint;
@@ -243,14 +243,14 @@ out vec4 fragColor;
 void main() {
     vec4 c = texture(u_texture, v_texCoord);
 #ifdef ES_TONEMAP
-    // The output transform: scene radiance can exceed 1.0 on an HDR target,
-    // and this is the one place a chain maps it down. Before the OETF, which
-    // is a transfer function and not a look.
+
+
+
     c = vec4(acesFilmic(c.rgb), c.a);
 #endif
 #ifdef ES_LINEAR
-    // The one mandatory OETF: the chain upstream is linear (sRGB attachments
-    // decode on sample), the canvas backbuffer is plain UNORM.
+
+
     fragColor = vec4(linearToSrgb(c.rgb), c.a);
 #else
     fragColor = c;
@@ -276,12 +276,12 @@ void main() {
 inline constexpr const char* LIGHTSHAPE2D = R"esshader(#pragma shader "LightShape2D"
 #pragma version 300 es
 
-// The 2D light-shape mask: one channel per shaped light, carrying what that light's
-// own cookie covers. A quad per light, drawn where the light is and turned with it,
-// so a lantern's glow is the shape the artist drew rather than a circle.
-//
-// One draw per light rather than one for all four: each carries its own texture, and
-// a channel it does not name receives zero — which reads as "this light is not here".
+
+
+
+
+
+
 
 #pragma vertex
 layout(location = 0) in vec2 a_position;
@@ -309,8 +309,8 @@ uniform sampler2D u_cookie;
 out vec4 fragColor;
 
 void main() {
-    // Alpha alone: the shape is what the artist drew the edge of, and a colour here
-    // would be a second place a light's colour comes from.
+
+
     fragColor = v_channel * texture(u_cookie, v_texCoord).a;
 }
 #pragma end
@@ -351,43 +351,43 @@ struct VSOut {
 
 inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 #pragma version 300 es
-// Lit domain for the LIGHTING it injects (LightConstants + applyLighting2D),
-// not for its canonical vertex stage — that is only supplied to a shader which
-// writes none, and this one writes its own to place local vertices by a model
-// matrix. So the light math is shared with every 2D lit surface rather than
-// copied, and the std140 block stays the engine's to own.
+
+
+
+
+
 #pragma domain Lit
 
-// What the GEOMETRY carries. A layout may not declare an attribute its shader
-// does not consume, so the normal channel and the per-object normal matrix are
-// inside this switch on both sides — whether or not the draw asks to be lit.
+
+
+
 #pragma feature MESH_NORMALS
 
-// What the DRAW asks for. Orthogonal to the above on purpose: geometry with
-// normals can be drawn unlit, and geometry without them can still take light
-// (off a constant normal, which is what a 2D surface has).
+
+
+
 #pragma feature LIT
 
-// Geometry deformed by joints. Its own transform is NOT read: a skinned mesh's
-// node placement is ignored (glTF requires it) because the bones are already
-// world-space, so the per-object record carries only a tint.
+
+
+
 #pragma feature SKINNED
 
-// A normal map on top of those normals. Its tangent frame comes from the shared
-// perturbNormal (screen-space derivatives), so the geometry needs no tangent
-// channel — which is why this rides LIT rather than a vertex attribute.
+
+
+
 #pragma feature NORMAL_MAP
 
-// The shadow-map pass: the same geometry, from the light, writing depth as colour
-// instead of shading. A feature and not a second shader, because what has to be
-// identical between the two passes is the VERTEX stage — a skinned occluder must
-// land where its skinned self lands, and one copy of that is one that cannot drift.
+
+
+
+
 #pragma feature SHADOW_DEPTH
 
-// GPU-resident geometry. Slot 0 is the mesh's own vertices, which are LOCAL
-// space and are never rewritten; slot 1 is the per-object record the frame
-// streams, so the same mesh drawn twice costs one more transform rather than
-// one more copy of its vertices.
+
+
+
+
 
 #pragma vertex
 layout(location = 0) in vec3 a_position;
@@ -401,8 +401,8 @@ layout(location = 5) in uvec4 a_joints;
 layout(location = 6) in vec4 a_weights;
 #endif
 
-// 8.. and not 3..: a channel's semantic IS its location, so adding normals to a
-// mesh must not move the per-object record (see MESH_INSTANCE_FIRST_LOCATION).
+
+
 #ifndef SKINNED
 layout(location = 8)  in vec4 a_model0;
 layout(location = 9)  in vec4 a_model1;
@@ -411,16 +411,16 @@ layout(location = 11) in vec4 a_model3;
 #endif
 layout(location = 12) in vec4 a_instTint;
 #if defined(MESH_NORMALS) && !defined(SKINNED)
-// The normal matrix (inverse transpose of the model's 3x3), per object: under a
-// non-uniform scale the model matrix skews a normal, and inverting one per
-// vertex is the alternative.
+
+
+
 layout(location = 13) in vec3 a_nrm0;
 layout(location = 14) in vec3 a_nrm1;
 layout(location = 15) in vec3 a_nrm2;
 #endif
 
 #ifdef SKINNED
-// This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
+
 layout(std140) uniform SkinConstants {
     mat4 u_bones[64];
 };
@@ -430,24 +430,24 @@ out vec2 v_texCoord;
 out vec4 v_color;
 #ifdef LIT
 out highp vec3 v_worldNormal;
-// The full position, not just the plane's: a tangent frame is derived from how
-// it changes across a fragment, which xy alone cannot say for a tilted surface.
+
+
 out highp vec3 v_worldPos;
 #endif
 #ifdef SHADOW_DEPTH
-// The clip position, and not the depth it divides down to. z/w is not affine across a
-// triangle, so a stage that divides here hands the fragment an interpolation of the
-// corners' quotients rather than the quotient at the fragment — off by more, the wider
-// the depth range one triangle spans. An orthographic map never showed it (w is 1
-// throughout), and a cube face looking along a floor is the case that does: the error
-// there is worth several world units, which shadows the caster against itself.
+
+
+
+
+
+
 out highp vec4 v_shadowClip;
 #endif
 
 void main() {
 #ifdef SKINNED
-    // The four bones this vertex is bound to, blended by their weights. The
-    // result is world-space, so no model matrix follows it.
+
+
     mat4 skin = a_weights.x * u_bones[a_joints.x]
               + a_weights.y * u_bones[a_joints.y]
               + a_weights.z * u_bones[a_joints.z]
@@ -469,7 +469,7 @@ void main() {
 #elif defined(MESH_NORMALS)
     v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
 #else
-    // A surface with no normal channel faces the viewer, exactly as a sprite does.
+
     v_worldNormal = vec3(0.0, 0.0, 1.0);
 #endif
     v_worldPos = world.xyz;
@@ -499,9 +499,9 @@ out vec4 fragColor;
 
 void main() {
 #ifdef SHADOW_DEPTH
-    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
-    // same matrix and at the same point: whatever each backend's clip z means, both
-    // sides mean it alike.
+
+
+
     fragColor = vec4(packDepth(clamp(v_shadowClip.z / v_shadowClip.w * 0.5 + 0.5,
                                      0.0, 1.0)), 1.0);
 #else
@@ -511,10 +511,10 @@ void main() {
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v_worldPos, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
 #endif
-    // A rough dielectric, and the position it really has: a shadow is cast on a
-    // point in space, and xy is not one. Specular stays ON — switching it off is
-    // not a cheaper PBR, it is a different surface, and a mesh whose material
-    // says nothing must still be lit the way the same mesh out of a glTF is.
+
+
+
+
     fragColor = vec4(applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
                                       0.0, 1.0, 1.0, 1.0), base.a);
 #else
@@ -564,15 +564,15 @@ struct VSOut {
     @location(3) v_worldPos : vec3f,
 #endif
 #ifdef SHADOW_DEPTH
-    // The clip position, not the depth it divides down to — see the GLSL twin.
+
     @location(4) v_shadowClip : vec4f,
 #endif
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
 #ifdef SKINNED
-    // The four bones this vertex is bound to, blended by their weights. The
-    // result is world-space, so no model matrix follows it.
+
+
     let pose = v.a_weights.x * skin.bones[v.a_joints.x]
              + v.a_weights.y * skin.bones[v.a_joints.y]
              + v.a_weights.z * skin.bones[v.a_joints.z]
@@ -598,7 +598,7 @@ struct VSOut {
     out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
 #endif
 #else
-    // A surface with no normal channel faces the viewer, exactly as a sprite does.
+
     out.v_worldNormal = vec3f(0.0, 0.0, 1.0);
 #endif
     out.v_worldPos = world.xyz;
@@ -615,20 +615,20 @@ struct VSOut {
 @group(1) @binding(9) var s1 : sampler;
 #endif
 #ifdef ES_RECEIVE_SHADOW
-// The shadow map, on the slot the injected header samples. A fragment-only twin
-// gets these from the batch texture contract; one that writes its own says so.
+
+
 @group(1) @binding(2) var t2 : texture_2d<f32>;
 @group(1) @binding(10) var s2 : sampler;
 #endif
 #ifdef ES_ENV_MAP
-// The environment's reflection, one slot on. Same reason as above — and without
-// it the injected sampler names an identifier this twin never declared, which
-// reaches anyone as an invalid pipeline that does not mention a shader.
+
+
+
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
 #endif
-// The 2D shadow mask, on the top slot. Unconditional, because the injected
-// lighting reads it for every Lit shader rather than behind a feature.
+
+
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
 
@@ -647,9 +647,9 @@ struct VSOut {
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
 #ifdef SHADOW_DEPTH
-    // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
-    // same matrix and at the same point: whatever each backend's clip z means, both
-    // sides mean it alike.
+
+
+
     return vec4f(packDepth(clamp(v.v_shadowClip.z / v.v_shadowClip.w * 0.5 + 0.5,
                                  0.0, 1.0)), 1.0);
 #else
@@ -659,10 +659,10 @@ struct VSOut {
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v.v_worldPos, v.v_texCoord, sampleNormal(t1, s1, v.v_texCoord));
 #endif
-    // A rough dielectric, and the position it really has: a shadow is cast on a
-    // point in space, and xy is not one. Specular stays ON — switching it off is
-    // not a cheaper PBR, it is a different surface, and a mesh whose material
-    // says nothing must still be lit the way the same mesh out of a glTF is.
+
+
+
+
     return vec4f(applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
                                   0.0, 1.0, 1.0, 1.0), base.a);
 #else
@@ -676,10 +676,10 @@ struct VSOut {
 inline constexpr const char* PARTICLE = R"esshader(#pragma shader "ParticleInstance"
 #pragma version 300 es
 
-// Fragment-only, on the engine's canonical vertex stage under the PARTICLE
-// feature: what turns instance data into a billboarded quad is the same stage a
-// material is compiled against, so a custom particle material and this one are
-// posed by one piece of arithmetic rather than two kept in step.
+
+
+
+
 #pragma fragment
 precision mediump float;
 
@@ -696,8 +696,8 @@ void main() {
 }
 #pragma end
 
-// VSOut and the t0/s0 texture contract are injected for a twin on the engine's
-// vertex stage — declaring them here would declare them twice.
+
+
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
@@ -709,14 +709,14 @@ void main() {
 inline constexpr const char* SHADOW2D = R"esshader(#pragma shader "Shadow2D"
 #pragma version 300 es
 
-// The 2D shadow mask: one channel per light that casts, drawn as the region each
-// occluder's silhouette hides from it. The pass ADDS, which is what makes a
-// source with width soft: its silhouette is drawn once per sample across the
-// source, and a fragment collects a share for every sample hidden from it.
-//
-// `a_shadow` is the share this piece of geometry hides. `a_channel` is the
-// light's own channel as a one-hot vector, which lets every light ride in one
-// draw: the channels a vertex does not name receive zero.
+
+
+
+
+
+
+
+
 
 #pragma vertex
 layout(location = 0) in vec2 a_position;
@@ -904,13 +904,13 @@ inline constexpr const char* SKY = R"esshader(#pragma shader "Sky"
 #pragma version 300 es
 #pragma domain Lit
 
-// The background half of an environment. The reflection in a metal ball and the
-// sky behind it are the same baked panorama; without this only one of them was
-// ever visible, and a scene lit by a sky sat in front of a flat clear colour.
-//
-// Geometry is a quad on the far plane, so the vertex stage needs no matrix of its
-// own — the fragment's direction is the one from the eye through it, which is
-// what viewDirection() already answers (negated: it points AT the viewer).
+
+
+
+
+
+
+
 
 #pragma vertex
 layout(location = 0) in vec3 a_position;
@@ -930,8 +930,8 @@ in highp vec3 v_worldPos;
 out vec4 fragColor;
 
 void main() {
-    // Mip 0: the sharpest level of the prefiltered atlas is the sky as it was
-    // photographed. The rougher ones exist to be reflected, not to be looked at.
+
+
     fragColor = vec4(envSampleMip(-viewDirection(v_worldPos), 0.0), 1.0);
 }
 #pragma end
@@ -954,21 +954,21 @@ struct VSOut {
 #pragma end
 
 #pragma fragment wgsl
-// Slot 0 is bound and never read — a draw fills it so the walk that pins the
-// atlas one slot on has somewhere to start. The atlas itself is on 3, and
-// without these two the injected sampler names identifiers this twin never
-// declared: an invalid pipeline that does not mention a shader.
+
+
+
+
 @group(1) @binding(0) var t0 : texture_2d<f32>;
 @group(1) @binding(8) var s0 : sampler;
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
-// The 2D shadow mask, which the injected lighting reads for every Lit shader.
+
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
 
-// Declared again: each WGSL block is compiled on its own, so a struct defined in
-// the vertex one is an undeclared name here — and that reaches anyone as an
-// invalid pipeline with nothing in the log about a shader.
+
+
+
 struct VSOut {
     @builtin(position) pos : vec4f,
     @location(0) v_worldPos : vec3f,

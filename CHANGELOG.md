@@ -39,143 +39,27 @@ published separately; it ships inside the editor.
   All three default to what the engine already did, so every scene renders as it did;
   the criterion that says so runs beside the three that change one field each.
 
-### Fixed
+- **A `.psd` file imports.** A layered document is how 2D art is actually authored, and
+  the engine could read none of it: the way across was Photoshop's own export, a folder
+  of PNGs whose arrangement nothing records, so a character came back as a pile of parts
+  to be placed by hand again every time the art changed. A PSD now becomes ordinary
+  project files — a PNG per layer and the `.esprefab` that assembles them — so nothing
+  downstream has to learn what a PSD is. The parsing is ag-psd's; what the engine owns
+  is the translation, the same division the FBX import draws.
 
-- **A WGSL twin no longer declares the engine's own texture bindings.** A twin that
-  writes its own vertex stage had to spell out every `tN`/`sN` it touched — a convention
-  the engine owns, where forgetting one is an invalid pipeline that mentions no shader.
-  The assembler now completes the set from what the stage reaches, leaving anything the
-  twin declared itself alone, so a cooked (`wgsl full`) shader assembles unchanged.
+- **A sprite states where it sits inside its sorting layer.** A painter layer already
+  ordered by transform z, so within one layer the answer was "move it in Z". A
+  **Y-sorted** layer drops z from the key entirely, and there the hole had no workaround
+  at all: nothing an author could write kept a shadow under its owner or a weapon over
+  the hand holding it, except moving the sprite in Y and lying about where it stands.
+  `Sprite.order` is the explicit answer and it outranks both — layer, then order, then
+  stage, then depth or world Y.
 
-  The rule had been copied into three places — the assembler's emitters, the WebGPU
-  backend's bind-group reflection, and the twin generator. The unit→binding convention
-  and the two source scans are one header now (`rhi/WgslBindings.hpp`), which the
-  assembler emits from and the backend reads back with.
-
-  `check-wgsl-twin` asked twins for those declarations; that question cannot fail any
-  more, so it stopped asking and lost eighty lines. What it still holds is the varying
-  struct, which is nobody else's to supply.
-
-- **A shader that fails to compile says why.** `ResourceManager` asked the device to
-  build a program, got a reason back, and logged "Failed to create shader from source"
-  without it — so the one thing that could have named the problem was the one thing
-  dropped. It prints the device's own log now, for both backends.
-
-  And on WebGPU the device refuses a WGSL stage that reaches a `tN`/`sN` binding it does
-  not declare, naming it. That is an unresolved identifier, which WebGPU reports as an
-  invalid *pipeline* with no shader named anywhere in it — an error that costs an hour to
-  place and reads as a renderer bug. The repo's own shaders are held to the same rule by
-  `check-wgsl-twin` before a push; this is what answers for a material somebody else
-  wrote, where no gate of ours runs at all.
-
-- **A 2D shadow caster can carry its own outline.** Every occluder was a box, so a
-  round prop threw a rectangle and a wall that was not rectangular threw the wrong
-  wall. `ShadowCaster2D.path` is the shape itself — three points or more in the
-  entity's own space, placed and turned by its Transform, and the box stands where
-  there is none. The shadow pass already drew rings rather than boxes, so a polygon
-  costs what its point count costs and nothing else.
-
-  The editor's **Trace Sprite** button produces one: the same silhouette trace the
-  polygon collider has had, now writing into whichever ring is asked for. The one
-  thing the two do not share is units — a collider speaks physics metres, a caster
-  the world's own — so the target states which, and an editor check measures a
-  traced disc's rim to hold it.
-
-  What it needed was a boundary that can carry a point list. One now crosses to the
-  web as a JS array and to a native host through a generated pair of bindings — its
-  storage is a pointer, so it can never travel in the zero-copy component buffer the
-  rest of a component's fields cross in. A field type the boundary cannot carry is
-  refused at generation time instead of failing when a scene adds the component.
-
-- **A 2D shadow caster turns with the entity it is on.** Its box was built from the
-  entity's world position and its own size, and from nothing else: a wall laid at an angle
-  cast the shadow of an upright wall, and turning the wall changed nothing on screen. The
-  box now turns the way a collider on the same entity does — the size stays the caster's
-  own, so scaling the entity still does not resize the occluder. The editor's shadow
-  extent turns with it, or it would draw a box that is not the one casting.
-
-- **A camera drawing half the screen now keeps to its half.** A camera states the rect it
-  draws into when it opens its frame; the engine took that rect back off the DEVICE later,
-  after the collect, where it was whatever the last thing to touch the device had left
-  behind. So a second camera covered the first, and split screen — two cameras with half
-  the frame each — drew one of them over the whole of it. What it looked like was the
-  second camera's view at full size, which reads as a camera that was never set up rather
-  than as a viewport that was ignored.
-
-  The rect is now taken where it is stated, and a zero size still means the whole target.
-  Two criteria cover it: two cameras with a half each, and the same split with 2D shadows
-  in it — the mask is screen space, so what a fragment reads has to be the part of it its
-  own camera filled.
-
-### Changed
-
-- **2D shadows are drawn, not solved.** A 2D shadow used to be an analytic test inside
-  every lit fragment: eight axis-aligned boxes rode in the lighting block, and each one
-  was intersected against the segment from the pixel to the light — for every pixel, for
-  every light. Eight is a room with two walls in it, and the way to raise the number was
-  to make every pixel on the screen pay for it. The engine's own lighting example capped
-  the obstacles a player could place at six and said so in its README.
-
-  The shadow is now rasterised. Each frame the engine takes every enabled
-  `ShadowCaster2D`, finds the silhouette each casting light sees it by, and draws the
-  region behind it into a screen-sized mask that a lit surface reads one texel of. So the
-  occluder count is a vertex count rather than a shader constant — a scene may hold as
-  many walls as it has — and an occluder's SHAPE stops being a constraint of the test,
-  because the shadow is geometry.
-
-  What is capped now is how many lights cast at once: the mask has four channels, so the
-  first four casting lights get one each and a light past that lights the scene without
-  shadowing it. That is a failure a 2D scene can look at and understand, which "some of
-  the walls stopped casting" was not.
-
-  Softness is the same knob and a better shadow: a source with width is sampled across,
-  each sample throws the silhouette it sees at its own share of the strength, and the
-  shares add — so the penumbra is whole where the whole source is hidden and a fraction
-  where only part of it is. A directional light's `shadowDistance` is now how far its
-  shadows are CARRIED rather than how far a fragment searched back for an occluder.
-
-  The engine's Lit shaders spend their top texture unit on the mask while one exists,
-  which costs a sprite batch one merge slot in a scene that has 2D shadows and nothing at
-  all in one that does not.
-
-
-  The mask is a target the frame renders and then samples, and the two backends store
-  the rows of one in opposite order — so the height in the lighting block carries a
-  SIGN saying which. It cannot be a compile-time branch: one shader source serves both
-  backends, because the WGSL a material runs is translated from the GLSL. Read upside
-  down the effect is invisible in any scene that is symmetric about its middle, which
-  every criterion here was until one of them stopped being.
-
-- **One curve, sampled by everything that has one.** A timeline channel carried keys
-  with tangents and six interpolations, drawn by an editor that understood them; a
-  particle's size-over-life carried `{t, v}` pairs joined by straight lines; and the
-  Inspector's curve control carried a third copy of the second. Three shapes for "a
-  value that changes over a span", and the seam between them was invisible because each
-  half worked — a particle curve simply could not be told to ease, and nothing said so.
-
-  `math/keyframes` now owns the shape and the sampler. `evaluateChannel` is one call
-  into it, `bakeCurve` is another, and `TimelineTypes` re-exports rather than restates.
-  A particle curve gains tangents and all six interpolations by arriving; where `time`
-  runs stays the caller's — seconds for a timeline, 0..1 of a life for a particle.
-
-  The editor's curve control now DRAWS through the same sampler instead of connecting
-  its points with straight lines. An eased or hermite segment used to look straight
-  while bending in the game; what an author sees is now what the sim bakes, by
-  construction rather than by keeping two renderings in step. Its selected key gained
-  an interpolation picker, which is the field the old shape had nowhere to put.
-
-  BREAKING (`@beta`): `ParticleEmitterData.sizeCurve` keys are
-  `{ time, value, inTangent, outTangent, interpolation? }` rather than `{ t, v }`.
-  Nothing exported the old type, so a curve could only be written as a literal; the two
-  fixture scenes that held one are migrated. A curve whose keys are not finite is now
-  REFUSED with a warning rather than baked — the old shape read as `NaN`, and a particle
-  sized `NaN` does not draw, so the emitter vanished with nothing said. Falling back to
-  start/end size is wrong, but it is visible.
-
-  `GradientStop` is deliberately NOT folded in: a colour stop is not a scalar key, and
-  one shape for both would be a name over two things.
-
-### Added
+- **A polygon collider takes any ring, concave and unbounded.** Box2D builds only convex
+  polygons of at most eight vertices, and that was the COLLIDER's limit too: an authored
+  notch was filled in by the hull and a ninth vertex was dropped in silence — the limit
+  of a shape standing in for the limit of what an author may draw. A ring is now split
+  into convex pieces that each fit, every piece a shape on the same body.
 
 - **An `.aseprite` file imports.** Aseprite is where most pixel art is drawn, and its
   documents are frames and tags — "walk is 1 to 6, and it ping-pongs" — where a PSD is
@@ -305,7 +189,162 @@ published separately; it ships inside the editor.
   first written (a stated order outranks both depth and world Y, so it cannot be what
   makes two layer rules disagree) and were rebuilt until sabotage reddened them.
 
+### Fixed
 
+- **Opening a project no longer strands the loading overlay.** Two callers arm the
+  project-open gate — the entry seam that reveals the shell, and the effect that runs the
+  work — and only one of them joined an attempt already in flight. Open a project and
+  then enter the editor, the order automation uses, and the gate was left on a ticket
+  nobody owned: nothing could settle it, and the only safety timer belonged to the
+  attempt it had replaced. The overlay never lifted.
+
+- **A shader's comments stay out of the binary.** A third of the engine's embedded
+  shader source was comment — ten kilobytes of prose riding into every game, and into a
+  playable's single file where the budget is 2MB. Comment lines are emptied at embed
+  time rather than removed, so a shader's diagnostics still name the line they came from.
+
+- **A WGSL twin no longer declares the engine's own texture bindings.** A twin that
+  writes its own vertex stage had to spell out every `tN`/`sN` it touched — a convention
+  the engine owns, where forgetting one is an invalid pipeline that mentions no shader.
+  The assembler now completes the set from what the stage reaches, leaving anything the
+  twin declared itself alone, so a cooked (`wgsl full`) shader assembles unchanged.
+
+  The rule had been copied into three places — the assembler's emitters, the WebGPU
+  backend's bind-group reflection, and the twin generator. The unit→binding convention
+  and the two source scans are one header now (`rhi/WgslBindings.hpp`), which the
+  assembler emits from and the backend reads back with.
+
+  `check-wgsl-twin` asked twins for those declarations; that question cannot fail any
+  more, so it stopped asking and lost eighty lines. What it still holds is the varying
+  struct, which is nobody else's to supply.
+
+- **A shader that fails to compile says why.** `ResourceManager` asked the device to
+  build a program, got a reason back, and logged "Failed to create shader from source"
+  without it — so the one thing that could have named the problem was the one thing
+  dropped. It prints the device's own log now, for both backends.
+
+  And on WebGPU the device refuses a WGSL stage that reaches a `tN`/`sN` binding it does
+  not declare, naming it. That is an unresolved identifier, which WebGPU reports as an
+  invalid *pipeline* with no shader named anywhere in it — an error that costs an hour to
+  place and reads as a renderer bug. The repo's own shaders are held to the same rule by
+  `check-wgsl-twin` before a push; this is what answers for a material somebody else
+  wrote, where no gate of ours runs at all.
+
+- **A 2D shadow caster can carry its own outline.** Every occluder was a box, so a
+  round prop threw a rectangle and a wall that was not rectangular threw the wrong
+  wall. `ShadowCaster2D.path` is the shape itself — three points or more in the
+  entity's own space, placed and turned by its Transform, and the box stands where
+  there is none. The shadow pass already drew rings rather than boxes, so a polygon
+  costs what its point count costs and nothing else.
+
+  The editor's **Trace Sprite** button produces one: the same silhouette trace the
+  polygon collider has had, now writing into whichever ring is asked for. The one
+  thing the two do not share is units — a collider speaks physics metres, a caster
+  the world's own — so the target states which, and an editor check measures a
+  traced disc's rim to hold it.
+
+  What it needed was a boundary that can carry a point list. One now crosses to the
+  web as a JS array and to a native host through a generated pair of bindings — its
+  storage is a pointer, so it can never travel in the zero-copy component buffer the
+  rest of a component's fields cross in. A field type the boundary cannot carry is
+  refused at generation time instead of failing when a scene adds the component.
+
+- **A 2D shadow caster turns with the entity it is on.** Its box was built from the
+  entity's world position and its own size, and from nothing else: a wall laid at an angle
+  cast the shadow of an upright wall, and turning the wall changed nothing on screen. The
+  box now turns the way a collider on the same entity does — the size stays the caster's
+  own, so scaling the entity still does not resize the occluder. The editor's shadow
+  extent turns with it, or it would draw a box that is not the one casting.
+
+- **A camera drawing half the screen now keeps to its half.** A camera states the rect it
+  draws into when it opens its frame; the engine took that rect back off the DEVICE later,
+  after the collect, where it was whatever the last thing to touch the device had left
+  behind. So a second camera covered the first, and split screen — two cameras with half
+  the frame each — drew one of them over the whole of it. What it looked like was the
+  second camera's view at full size, which reads as a camera that was never set up rather
+  than as a viewport that was ignored.
+
+  The rect is now taken where it is stated, and a zero size still means the whole target.
+  Two criteria cover it: two cameras with a half each, and the same split with 2D shadows
+  in it — the mask is screen space, so what a fragment reads has to be the part of it its
+  own camera filled.
+
+- **A polygon collider is drawn as the polygon it collides as.** The overlay drew the
+  authored ring while the solver saw the pieces it was split into, so the two disagreed
+  exactly where an author would look to find out why.
+
+- **A ring of more than eight points keeps its collider.** A twelve-point ring whose
+  first eight are collinear — what the editor's insert makes of one edge subdivided
+  repeatedly — decomposed into no pieces at all, and the collider silently ceased to
+  exist.
+
+### Changed
+
+- **2D shadows are drawn, not solved.** A 2D shadow used to be an analytic test inside
+  every lit fragment: eight axis-aligned boxes rode in the lighting block, and each one
+  was intersected against the segment from the pixel to the light — for every pixel, for
+  every light. Eight is a room with two walls in it, and the way to raise the number was
+  to make every pixel on the screen pay for it. The engine's own lighting example capped
+  the obstacles a player could place at six and said so in its README.
+
+  The shadow is now rasterised. Each frame the engine takes every enabled
+  `ShadowCaster2D`, finds the silhouette each casting light sees it by, and draws the
+  region behind it into a screen-sized mask that a lit surface reads one texel of. So the
+  occluder count is a vertex count rather than a shader constant — a scene may hold as
+  many walls as it has — and an occluder's SHAPE stops being a constraint of the test,
+  because the shadow is geometry.
+
+  What is capped now is how many lights cast at once: the mask has four channels, so the
+  first four casting lights get one each and a light past that lights the scene without
+  shadowing it. That is a failure a 2D scene can look at and understand, which "some of
+  the walls stopped casting" was not.
+
+  Softness is the same knob and a better shadow: a source with width is sampled across,
+  each sample throws the silhouette it sees at its own share of the strength, and the
+  shares add — so the penumbra is whole where the whole source is hidden and a fraction
+  where only part of it is. A directional light's `shadowDistance` is now how far its
+  shadows are CARRIED rather than how far a fragment searched back for an occluder.
+
+  The engine's Lit shaders spend their top texture unit on the mask while one exists,
+  which costs a sprite batch one merge slot in a scene that has 2D shadows and nothing at
+  all in one that does not.
+
+
+  The mask is a target the frame renders and then samples, and the two backends store
+  the rows of one in opposite order — so the height in the lighting block carries a
+  SIGN saying which. It cannot be a compile-time branch: one shader source serves both
+  backends, because the WGSL a material runs is translated from the GLSL. Read upside
+  down the effect is invisible in any scene that is symmetric about its middle, which
+  every criterion here was until one of them stopped being.
+
+- **One curve, sampled by everything that has one.** A timeline channel carried keys
+  with tangents and six interpolations, drawn by an editor that understood them; a
+  particle's size-over-life carried `{t, v}` pairs joined by straight lines; and the
+  Inspector's curve control carried a third copy of the second. Three shapes for "a
+  value that changes over a span", and the seam between them was invisible because each
+  half worked — a particle curve simply could not be told to ease, and nothing said so.
+
+  `math/keyframes` now owns the shape and the sampler. `evaluateChannel` is one call
+  into it, `bakeCurve` is another, and `TimelineTypes` re-exports rather than restates.
+  A particle curve gains tangents and all six interpolations by arriving; where `time`
+  runs stays the caller's — seconds for a timeline, 0..1 of a life for a particle.
+
+  The editor's curve control now DRAWS through the same sampler instead of connecting
+  its points with straight lines. An eased or hermite segment used to look straight
+  while bending in the game; what an author sees is now what the sim bakes, by
+  construction rather than by keeping two renderings in step. Its selected key gained
+  an interpolation picker, which is the field the old shape had nowhere to put.
+
+  BREAKING (`@beta`): `ParticleEmitterData.sizeCurve` keys are
+  `{ time, value, inTangent, outTangent, interpolation? }` rather than `{ t, v }`.
+  Nothing exported the old type, so a curve could only be written as a literal; the two
+  fixture scenes that held one are migrated. A curve whose keys are not finite is now
+  REFUSED with a warning rather than baked — the old shape read as `NaN`, and a particle
+  sized `NaN` does not draw, so the emitter vanished with nothing said. Falling back to
+  start/end size is wrong, but it is visible.
+
+  `GradientStop` is deliberately NOT folded in: a colour stop is not a scalar key, and
+  one shape for both would be a name over two things.
 ## [0.63.0] - 2026-09-10
 
 ### Added

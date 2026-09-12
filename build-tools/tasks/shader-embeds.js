@@ -13,6 +13,16 @@ function toCppIdentifier(filename) {
         .replace(/[^A-Z0-9]/g, '_');
 }
 
+/**
+ * A whole-line comment carries nothing a player's GPU can use, and a third of the
+ * engine's shader source is comment — bytes that ride the binary into every game.
+ * Emptied, not removed: diagnostics are remapped to `.esshader` line numbers, so
+ * dropping a line would move every error message after it.
+ */
+function stripComments(source) {
+    return source.split('\n').map((line) => (line.trimStart().startsWith('//') ? '' : line)).join('\n');
+}
+
 export async function generateShaderEmbeds() {
     const rootDir = config.paths.root;
     const shadersDir = path.join(rootDir, 'src/esengine/data/shaders');
@@ -39,7 +49,7 @@ export async function generateShaderEmbeds() {
     for (const file of files) {
         const content = await readFile(path.join(shadersDir, file), 'utf-8');
         const id = toCppIdentifier(file);
-        lines.push(`inline constexpr const char* ${id} = R"esshader(${content})esshader";`);
+        lines.push(`inline constexpr const char* ${id} = R"esshader(${stripComments(content)})esshader";`);
         lines.push('');
     }
 
