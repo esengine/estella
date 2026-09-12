@@ -74,6 +74,10 @@ export const EXT_TO_TYPE = Object.freeze({
     // prefab that stacks them, and those are what a scene references.
     '.psd': 'layered',
     '.psb': 'layered',
+    // Its animated cousin: an Aseprite document is frames and tags, so it
+    // produces a sprite sheet plus one clip per tag instead of a stack.
+    '.aseprite': 'animated',
+    '.ase': 'animated',
     '.esenv': 'environment',
     '.esmesh': 'mesh',
     '.esanim': 'animclip',

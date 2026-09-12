@@ -24,6 +24,10 @@ For the general asset system (refs, groups, the manifest), see [Assets](/docs/as
 | `.bmp` | Uncompressed; works, but rarely what you want to ship. |
 | `.ktx2` | Basis Universal, already GPU-compressed. What the cook step **produces** — you can also author one directly. |
 
+An `.aseprite` / `.ase` file is not a texture — importing one **produces** a sheet
+`.png` (plus a clip per tag) and that is what a scene references. See
+[Sprite animation](/animation/overview/#from-an-aseprite-file).
+
 `.png`, `.jpg` and `.webp` are the ones to author in. A build's cook step turns them
 into `.ktx2` when compression is on (see [Import settings](#import-settings)).
 

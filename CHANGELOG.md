@@ -47,6 +47,31 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **An `.aseprite` file imports.** Aseprite is where most pixel art is drawn, and its
+  documents are frames and tags — "walk is 1 to 6, and it ping-pongs" — where a PSD is
+  a stack. Bringing one into a project meant exporting a sheet by hand, typing the cell
+  size into the texture's settings, and then re-typing each tag's range as a clip; three
+  transcriptions of facts the file already carried, all of them stale the next time the
+  artist added a frame.
+
+  Dropping one in now writes the composited sheet and one `.esanim` per tag beside it,
+  with each frame's own duration, the direction the tag states (a ping-pong turns around
+  on its ends rather than repeating them), and the anchor of a slice that carries a
+  pivot. Re-importing is the same door, so an edited file reaches the game by saving it.
+
+  The frame composite is the artwork: layers exist so the artist can work, and what
+  plays is what they see — so the stack collapses at import, with every blend mode the
+  format can store, the group switches that hide what is inside them, and linked cels
+  resolved. A tilemap layer is drawn from a tileset rather than from pixels and says so
+  instead of arriving blank.
+
+  The sheet arrives asking for `nearest` filtering and no GPU compression, which is the
+  one kind of image where both defaults are wrong: a bilinear filter blurs the pixels
+  the artist placed, and a lossy format invents colours a small palette does not have.
+  Its cell grid is re-derived on every import — a resized canvas that kept the old cell
+  size would leave every cell index in the project pointing at the wrong pixels — while
+  the filter and the compression stay whatever the project set them to.
+
 - **A polygon collider can take the sprite's own silhouette.** Drawing a collider
   around art by hand is the one authoring step where the answer is already in the
   file: the artist drew the shape, and every vertex placed by eye is a chance to

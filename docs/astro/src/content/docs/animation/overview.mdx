@@ -121,6 +121,28 @@ The **frame under the playhead** has its own section in the Details inspector �
 duration, size, offset, anchor — alongside the clip's fps, loop mode, and the
 two switches below.
 
+### From an Aseprite file
+
+Drop a `.aseprite` (or `.ase`) into the project and the import writes the products
+for you: the composited sheet as a `.png` beside it, and one `.esanim` per tag —
+`hero_walk.esanim`, `hero_jump.esanim` — carrying each frame's own duration and the
+direction the tag plays in. A tag with no repeat count loops; one that counts its
+plays does not. A file with no tags gets a single clip over every frame.
+
+What is composited is what the artist sees: every layer they left visible, with its
+blend mode and opacity, and nothing from a group they switched off. A tilemap layer
+is drawn from a tileset rather than from pixels and is reported instead of silently
+arriving blank.
+
+The sheet's texture arrives set to **nearest** filtering with compression off —
+the two settings pixel art always wants and never gets by default — and with its
+cell grid filled in, so a `Sprite` can pick a frame of it straight away. Change
+either setting and it stays changed; the grid is re-derived on every import,
+because it is the source's canvas size rather than a preference.
+
+Editing the file and saving it re-imports it in place: same uuids, same refs, new
+pixels. Right-click → **Reimport** does the same on demand.
+
 ### Per-frame sizes and offsets
 
 A sheet's cells are all the same size, so one `Sprite.size` fits every frame of
