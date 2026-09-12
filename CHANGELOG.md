@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Play always reaches a stage you can read.** Pressing 运行 could sit at "启动中"
+  with no error, no game, and nothing to do but restart the editor (#57). Three
+  independent causes, each enough on its own: two of the boot's three legs had no
+  deadline while the third did, so a hung leg was indistinguishable from a slow cold
+  project; the effect that runs the boot was keyed on a projection of the stage, so an
+  attempt could exist that nothing would ever settle; and `start()` resolved when the
+  realm had been HANDED the scene, so the toolbar said "running" while the Game panel
+  still said "正在启动游戏…".
+
+  Every leg carries a deadline and names itself when it gives up, the boot is keyed on
+  the attempt, and a session is "running" when the realm reports ready — or failed,
+  with what stopped it.
+
 - **Multi-touch: two on-screen buttons can be held at once.** On a packaged Android
   or iOS game, pressing a second button let go of the first — "the last press cancels
   the others" (#56). Two layers were single-finger.
