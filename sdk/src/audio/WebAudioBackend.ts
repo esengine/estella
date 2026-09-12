@@ -139,6 +139,7 @@ function decodedBytes(buf: AudioBuffer): number {
 
 export class WebAudioBackend implements PlatformAudioBackend {
     readonly name = 'WebAudio';
+    readonly delivery = 'bytes' as const;
 
     private context_: AudioContext | null = null;
     private mixer_: AudioMixer | null = null;

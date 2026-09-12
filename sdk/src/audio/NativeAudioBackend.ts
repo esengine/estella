@@ -61,6 +61,7 @@ class NativeAudioHandle implements AudioHandle {
 
 export class NativeAudioBackend implements PlatformAudioBackend {
     readonly name = 'native';
+    readonly delivery = 'bytes' as const;
     readonly mixer: AudioMixer | null = null;
     readonly isReady = true;
 

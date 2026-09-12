@@ -53,7 +53,7 @@ function createAudioBackend(): MockAudioBackend {
         isPlaying: false, currentTime: 0, duration: 1,
     };
     const backend: MockAudioBackend = {
-        name: 'mock', mixer: null, isReady: true,
+        name: 'mock', mixer: null, isReady: true, delivery: 'bytes',
         decodes: [], unloaded: [],
         initialize: async () => {},
         ensureResumed: async () => {},

@@ -42,9 +42,6 @@
   "tests/assets-invalidate-event.test.ts": {
     "TS2673|Constructor of class 'Assets' is private and only accessible within the class declaration.": 1
   },
-  "tests/audio-api.test.ts": {
-    "TS2739|Type '{ name: string; initialize: Mock<Procedure>; ensureResumed: Mock<Procedure>; loadBuffer: Mock<Procedure>; loadBufferFromData: Mock<...>; ... 4 more ...; dispose: Mock<...>; }' is missing the following properties from type 'PlatformAudioBackend': mixer, isReady": 1
-  },
   "tests/audio-backend-factory.test.ts": {
     "TS18048|'platform.createAudioBackend' is possibly 'undefined'.": 3,
     "TS2722|Cannot invoke an object which is possibly 'undefined'.": 3,

@@ -19,4 +19,4 @@ export { AttenuationModel, calculateAttenuation, calculatePanning, spatialDistan
 export { WebAudioBackend } from './WebAudioBackend';
 export { MiniGameAudioBackend } from './MiniGameAudioBackend';
 export { NativeAudioBackend } from './NativeAudioBackend';
-export type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
+export type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions, AudioDelivery } from './PlatformAudioBackend';

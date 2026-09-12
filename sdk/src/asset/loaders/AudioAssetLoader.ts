@@ -23,9 +23,15 @@ export class AudioAssetLoader implements AssetLoader<AudioResult> {
         if (audio.retainBuffer(path)) {
             return { bufferId: path };
         }
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const buffer = await ctx.loadBinary(buildPath);
-        await audio.preloadFromData(path, buffer);
+        // A `url` backend (a mini-game player) streams the file itself: fetching
+        // it here reads the whole clip into memory to drop it, and its source
+        // comes from the ref resolver rather than from this loader.
+        if (audio.delivery === 'url') {
+            await audio.preload(path);
+        } else {
+            const buildPath = ctx.catalog.getBuildPath(path);
+            await audio.preloadFromData(path, await ctx.loadBinary(buildPath));
+        }
         audio.retainBuffer(path);
         return { bufferId: path };
     }

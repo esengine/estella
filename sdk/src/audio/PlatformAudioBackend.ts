@@ -45,14 +45,26 @@ export interface AudioBackendInitOptions {
     mixerConfig?: AudioMixerConfig;
 }
 
+/**
+ * What a backend needs in order to play a clip: `bytes` decodes a buffer the
+ * caller fetched, `url` hands the host a source it fetches itself (a mini-game's
+ * InnerAudioContext). A `url` backend given a cache KEY rather than a resolved
+ * source plays a file the package does not carry.
+ */
+export type AudioDelivery = 'bytes' | 'url';
+
 export interface PlatformAudioBackend {
     readonly name: string;
     readonly mixer: AudioMixer | null;
     readonly isReady: boolean;
+    /** See {@link AudioDelivery}. */
+    readonly delivery: AudioDelivery;
     initialize(options?: AudioBackendInitOptions): Promise<void>;
     ensureResumed(): Promise<void>;
-    loadBuffer(url: string): Promise<AudioBufferHandle>;
-    loadBufferFromData(url: string, data: ArrayBuffer): Promise<AudioBufferHandle>;
+    /** @param src a RESOLVED source the host can fetch — never a cache key. */
+    loadBuffer(src: string): Promise<AudioBufferHandle>;
+    /** @param src as {@link loadBuffer}; `bytes` backends use `data` and ignore it. */
+    loadBufferFromData(src: string, data: ArrayBuffer): Promise<AudioBufferHandle>;
     unloadBuffer(handle: AudioBufferHandle): void;
     play(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle;
     suspend(): void;

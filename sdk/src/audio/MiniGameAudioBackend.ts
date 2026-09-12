@@ -96,6 +96,8 @@ class MiniGameAudioHandle implements AudioHandle {
 
 export class MiniGameAudioBackend implements PlatformAudioBackend {
     readonly name: string;
+    // The host owns the fetch: a player is handed a `src` and streams it.
+    readonly delivery = 'url' as const;
 
     private readonly g_: MiniGameGlobal;
     private contexts_ = new Map<number, MiniGameInnerAudioContext>();
@@ -123,14 +125,16 @@ export class MiniGameAudioBackend implements PlatformAudioBackend {
         // Mini-game hosts do not gate playback on a user gesture
     }
 
-    async loadBuffer(url: string): Promise<AudioBufferHandle> {
+    async loadBuffer(src: string): Promise<AudioBufferHandle> {
         const id = ++this.nextId_;
-        this.urlCache_.set(id, url);
+        this.urlCache_.set(id, src);
         return { id, duration: 0 };
     }
 
-    async loadBufferFromData(url: string, _data: ArrayBuffer): Promise<AudioBufferHandle> {
-        return this.loadBuffer(url);
+    /** No decoder here — the player streams from `src`, and the bytes are dropped.
+     *  Callers avoid the wasted fetch by reading {@link delivery} first. */
+    async loadBufferFromData(src: string, _data: ArrayBuffer): Promise<AudioBufferHandle> {
+        return this.loadBuffer(src);
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {

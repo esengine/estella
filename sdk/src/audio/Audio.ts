@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig } from './PlatformAudioBackend';
+import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig, AudioDelivery } from './PlatformAudioBackend';
 import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../ecs/resource';
@@ -129,6 +129,13 @@ export class AudioAPI {
     constructor(backend: PlatformAudioBackend, mixer: AudioMixer | null = null) {
         this.backend_ = backend;
         this.mixer_ = mixer;
+    }
+
+    /** What this platform's backend needs in order to play a clip — asked by the
+     *  asset loader, so a `url` backend is not made to wait on a fetch whose
+     *  bytes it then drops. See {@link AudioDelivery}. */
+    get delivery(): AudioDelivery {
+        return this.backend_.delivery;
     }
 
     // =========================================================================
@@ -324,8 +331,14 @@ export class AudioAPI {
         await Promise.all(urls.map(url => this.preload(url)));
     }
 
+    /**
+     * Cache `url`'s clip from bytes the caller already holds. `url` is the
+     * AUTHORED path this API is addressed by (the key `retainBuffer` and
+     * `getBufferHandle` take); the backend is handed the RESOLVED source, which
+     * for a `url`-delivery backend is the only thing it plays.
+     */
     async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
-        await this.ensureBuffer_(url, () => this.backend_.loadBufferFromData(url, data));
+        await this.ensureBuffer_(url, () => this.backend_.loadBufferFromData(this.resolveUrl_(url), data));
     }
 
     /**

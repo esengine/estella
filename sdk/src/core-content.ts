@@ -551,6 +551,7 @@ export {
     type AudioBufferHandle,
     type PlayConfig,
     type PlatformAudioBackend,
+    type AudioDelivery,
     type AudioBackendInitOptions,
     type AudioPluginConfig,
     type AudioBusConfig,

@@ -28,6 +28,9 @@ class NullAudioHandle implements AudioHandle {
 }
 
 export class NullAudioBackend implements PlatformAudioBackend {
+    // Nothing is decoded here, so asking a caller to fetch bytes for it would be
+    // pure waste — a clip reaches this backend as a source it never opens.
+    readonly delivery = 'url' as const;
     readonly name = 'null';
     readonly mixer: AudioMixer | null = null;
     readonly isReady = true;

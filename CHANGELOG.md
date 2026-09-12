@@ -14,6 +14,18 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A cooked mini-game plays its sound effects.** The cook re-encodes `tap.wav` to
+  `assets/<hash>.mp3`, and a mini-game player is handed a URL rather than bytes — but
+  the asset loader handed it the AUTHORED path, which is the cache key, not a file the
+  package carries. Every preloaded clip pointed at a name that no longer existed, so an
+  uploaded WeChat build was silent (#59).
+
+  A backend now declares what it needs to play a clip (`PlatformAudioBackend.delivery`:
+  `bytes` or `url`), the resolved source is what reaches it, and a `url` backend is no
+  longer made to wait on a fetch whose bytes it then drops.
+
 ## [0.64.0] - 2026-09-12
 
 ### Added

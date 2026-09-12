@@ -26,6 +26,7 @@ function createMockBackend(bytesPerBuffer = 100): MockBackend {
     };
     const backend: MockBackend = {
         name: 'mock',
+        delivery: 'bytes',
         mixer: null,
         isReady: true,
         loads: [],

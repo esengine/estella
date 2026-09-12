@@ -37,6 +37,9 @@ function createMockBus(name: string): AudioBus {
 function createMockBackend(): PlatformAudioBackend {
     return {
         name: 'MockBackend',
+        delivery: 'bytes',
+        mixer: null,
+        isReady: true,
         initialize: vi.fn().mockResolvedValue(undefined),
         ensureResumed: vi.fn().mockResolvedValue(undefined),
         loadBuffer: vi.fn().mockResolvedValue({ id: 1, duration: 2.0 }),
