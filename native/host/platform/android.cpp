@@ -32,6 +32,7 @@
 
 #include "Host.hpp"
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "platform/touch_stream.hpp"
 
 #define LOG_TAG "EstellaSDK"
 
@@ -432,21 +433,35 @@ void attachTextEditor(ANativeActivity* activity) {
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "text editor: soft keyboard up (IME)");
 }
 
+// The decoder's own copies of the MotionEvent constants, held against the NDK's
+// so a test that cannot include <android/input.h> is still testing this ABI.
+static_assert(eshost::input::kMotionActionMask == AMOTION_EVENT_ACTION_MASK);
+static_assert(eshost::input::kMotionPointerIndexMask == AMOTION_EVENT_ACTION_POINTER_INDEX_MASK);
+static_assert(eshost::input::kMotionPointerIndexShift == AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static_assert(eshost::input::kMotionActionDown == AMOTION_EVENT_ACTION_DOWN);
+static_assert(eshost::input::kMotionActionUp == AMOTION_EVENT_ACTION_UP);
+static_assert(eshost::input::kMotionActionMove == AMOTION_EVENT_ACTION_MOVE);
+static_assert(eshost::input::kMotionActionCancel == AMOTION_EVENT_ACTION_CANCEL);
+static_assert(eshost::input::kMotionActionPointerDown == AMOTION_EVENT_ACTION_POINTER_DOWN);
+static_assert(eshost::input::kMotionActionPointerUp == AMOTION_EVENT_ACTION_POINTER_UP);
+
+// One finger is one id, for the whole gesture: Android's own pointer id is that
+// identity, and the coordinates come from the pointer the action names — reading
+// index 0 reports every finger at the first one's position.
 int32_t onInput(android_app*, AInputEvent* ev) {
     if (!eshost::booted() || AInputEvent_getType(ev) != AINPUT_EVENT_TYPE_MOTION) return 0;
-    const int32_t action = AMotionEvent_getAction(ev) & AMOTION_EVENT_ACTION_MASK;
-    const float x = AMotionEvent_getX(ev, 0);
-    const float y = AMotionEvent_getY(ev, 0);
-    int type;
-    switch (action) {
-        case AMOTION_EVENT_ACTION_DOWN:
-        case AMOTION_EVENT_ACTION_POINTER_DOWN: type = 0; break;
-        case AMOTION_EVENT_ACTION_MOVE:         type = 1; break;
-        case AMOTION_EVENT_ACTION_UP:
-        case AMOTION_EVENT_ACTION_POINTER_UP:   type = 2; break;
-        default:                                type = 3; break;
+    const eshost::input::MotionAction act = eshost::input::decodeMotion(AMotionEvent_getAction(ev));
+    if (!act.handled) return 0;
+    const size_t count = AMotionEvent_getPointerCount(ev);
+    const auto send = [&](size_t index) {
+        eshost::touch(act.phase, AMotionEvent_getPointerId(ev, index),
+                      AMotionEvent_getX(ev, index), AMotionEvent_getY(ev, index));
+    };
+    if (act.allPointers) {
+        for (size_t i = 0; i < count; ++i) send(i);
+    } else if (static_cast<size_t>(act.index) < count) {
+        send(static_cast<size_t>(act.index));
     }
-    eshost::touch(type, 0, x, y);
     return 1;
 }
 

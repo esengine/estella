@@ -24,7 +24,7 @@ describe('GestureDetector', () => {
             input.clearFrameState();
 
             input.touches.delete(0);
-            input.touchesEnded.add(0);
+            input.touchesEnded.set(0, { id: 0, x: 0, y: 0 });
             gesture.update(0.016);
 
             expect(onTap).toHaveBeenCalledWith(100, 100);
@@ -45,7 +45,7 @@ describe('GestureDetector', () => {
             input.clearFrameState();
 
             input.touches.delete(0);
-            input.touchesEnded.add(0);
+            input.touchesEnded.set(0, { id: 0, x: 0, y: 0 });
             gesture.update(0.016);
 
             expect(onTap).not.toHaveBeenCalled();
@@ -67,7 +67,7 @@ describe('GestureDetector', () => {
             input.clearFrameState();
 
             input.touches.delete(0);
-            input.touchesEnded.add(0);
+            input.touchesEnded.set(0, { id: 0, x: 0, y: 0 });
             gesture.update(0.016);
 
             expect(onSwipe).toHaveBeenCalledWith('right', expect.any(Number));

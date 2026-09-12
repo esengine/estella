@@ -91,7 +91,9 @@ export class InputState {
 
     touches = new Map<number, TouchPoint>();
     touchesStarted = new Map<number, TouchPoint>();
-    touchesEnded = new Set<number>();
+    /** Fingers lifted this frame, at the position they lifted AT — a release is
+     *  hit-tested where it happened, and the live `touches` no longer hold it. */
+    touchesEnded = new Map<number, TouchPoint>();
 
     // — Fixed-timestep edge mirrors —
     // The render edges above are cleared once per rendered frame (Schedule.Last),
@@ -186,6 +188,24 @@ export class InputState {
 
     isTouchActive(id: number): boolean {
         return this.touches.has(id);
+    }
+
+    /** Fingers that went down this frame. */
+    getTouchesStarted(): TouchPoint[] {
+        return [...this.touchesStarted.values()];
+    }
+
+    /** Fingers that came up this frame, at the position they came up at. */
+    getTouchesEnded(): TouchPoint[] {
+        return [...this.touchesEnded.values()];
+    }
+
+    /** Retire a live touch, keeping where it was — the write door `onTouchEnd`
+     *  and `onTouchCancel` share, so the two cannot record an end differently. */
+    endTouch(id: number): void {
+        const point = this.touches.get(id);
+        this.touches.delete(id);
+        this.touchesEnded.set(id, point ?? { id, x: 0, y: 0 });
     }
 
     // — Virtual (an on-screen control, or anything else that decides to be input) —
@@ -426,13 +446,11 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         },
         onTouchEnd(id) {
             if (inputRouter.dispatchTouchEnd(id)) return;
-            state.touches.delete(id);
-            state.touchesEnded.add(id);
+            state.endTouch(id);
         },
         onTouchCancel(id) {
             if (inputRouter.dispatchTouchCancel(id)) return;
-            state.touches.delete(id);
-            state.touchesEnded.add(id);
+            state.endTouch(id);
         },
     };
 }

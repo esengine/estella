@@ -16,6 +16,25 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Multi-touch: two on-screen buttons can be held at once.** On a packaged Android
+  or iOS game, pressing a second button let go of the first — "the last press cancels
+  the others" (#56). Two layers were single-finger.
+
+  The hosts collapsed every finger onto one id: Android read pointer index 0 whatever
+  the event was about, and iOS set `multipleTouchEnabled = NO` and dispatched
+  `anyObject`. Both now feed one id per finger, alive from its start to its end, over
+  the contract in `native/host/platform/touch_stream.hpp` that a test holds off-device.
+
+  Above them the UI hit-test read the synthesized mouse, so only the primary finger
+  could press anything. It now tracks one pointer per finger: each holds and releases
+  its own control, a control two fingers hold stays pressed until the last lifts, and
+  a finger that slides off before letting go releases without clicking. Gestures —
+  drag, scroll, sliders — stay on the primary pointer.
+
+  `InputState.touchesEnded` is a `Map<number, TouchPoint>` rather than a `Set<number>`
+  (`@beta`): a release is hit-tested where the finger lifted, and the live `touches`
+  no longer hold it.
+
 - **A WeChat 分包 is a directory the package carries.** A folder marked *subpackage*
   in the editor staged its assets where they were authored (`assets/level2/`), while
   `game.json` declared the root `subpackages/level2` — a directory that was never

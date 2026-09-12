@@ -87,7 +87,7 @@ export class GestureDetector {
     }
 
     private processEnds_(): void {
-        for (const id of this.input_.touchesEnded) {
+        for (const id of this.input_.touchesEnded.keys()) {
             const track = this.tracks_.get(id);
             if (!track) continue;
 

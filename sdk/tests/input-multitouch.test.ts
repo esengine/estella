@@ -51,7 +51,7 @@ describe('InputState multi-touch', () => {
         input.touches.set(1, { id: 1, x: 30, y: 40 });
 
         input.touches.delete(0);
-        input.touchesEnded.add(0);
+        input.touchesEnded.set(0, { id: 0, x: 0, y: 0 });
 
         expect(input.getTouchCount()).toBe(1);
         expect(input.isTouchActive(0)).toBe(false);
@@ -60,7 +60,7 @@ describe('InputState multi-touch', () => {
 
     it('should clear per-frame touch state', () => {
         input.touchesStarted.set(0, { id: 0, x: 10, y: 20 });
-        input.touchesEnded.add(1);
+        input.touchesEnded.set(1, { id: 1, x: 0, y: 0 });
         input.touches.set(0, { id: 0, x: 10, y: 20 });
 
         input.clearFrameState();

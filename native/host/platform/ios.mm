@@ -25,6 +25,7 @@
 
 #include "Host.hpp"
 #include "platform/apple_common.hpp"   // Core Text + NSURLSession, shared with macOS
+#include "platform/touch_stream.hpp"
 
 using esengine::u32;
 using esengine::u8;
@@ -183,6 +184,7 @@ IOSPlatform g_platform;
 
 @implementation EstellaViewController {
     CADisplayLink* _displayLink;
+    eshost::input::TouchIdTable _touchIds;
     BOOL _booted;
     UITextView* _editor;
     BOOL _multiline;
@@ -191,7 +193,7 @@ IOSPlatform g_platform;
 
 - (void)loadView {
     self.view = [[EstellaMetalView alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    self.view.multipleTouchEnabled = NO;   // the host feeds one touch id, as Android does
+    self.view.multipleTouchEnabled = YES;  // one id per finger — see touch_stream.hpp
 }
 
 - (void)viewDidLoad {
@@ -248,26 +250,33 @@ IOSPlatform g_platform;
 }
 
 // UIKit touches are in points, top-left origin; the host contract is surface
-// pixels with the same origin (as on the web), so scale them here.
-- (void)dispatchTouches:(NSSet<UITouch*>*)touches type:(int)type {
-    UITouch* t = touches.anyObject;
-    if (!t) return;
-    const CGPoint p = [t locationInView:self.view];
+// pixels with the same origin (as on the web), so scale them here. Every touch
+// in the set is dispatched under its OWN id: UIKit identifies a finger by the
+// UITouch object, which the table turns into the small stable id the engine
+// tracks a finger by.
+- (void)dispatchTouches:(NSSet<UITouch*>*)touches phase:(eshost::input::Phase)phase {
     const CGFloat scale = self.view.contentScaleFactor;
-    eshost::touch(type, 0, (float)(p.x * scale), (float)(p.y * scale));
+    const bool ending = phase == eshost::input::kTouchEnd || phase == eshost::input::kTouchCancel;
+    for (UITouch* t in touches) {
+        const void* key = (__bridge const void*)t;
+        const int touchId = ending ? _touchIds.release(key) : _touchIds.acquire(key);
+        if (touchId < 0) continue;   // an end for a finger we never started, or past kMaxTouches
+        const CGPoint p = [t locationInView:self.view];
+        eshost::touch(phase, touchId, (float)(p.x * scale), (float)(p.y * scale));
+    }
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-    [self dispatchTouches:touches type:0];
+    [self dispatchTouches:touches phase:eshost::input::kTouchStart];
 }
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-    [self dispatchTouches:touches type:1];
+    [self dispatchTouches:touches phase:eshost::input::kTouchMove];
 }
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-    [self dispatchTouches:touches type:2];
+    [self dispatchTouches:touches phase:eshost::input::kTouchEnd];
 }
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-    [self dispatchTouches:touches type:3];
+    [self dispatchTouches:touches phase:eshost::input::kTouchCancel];
 }
 
 - (BOOL)prefersStatusBarHidden { return YES; }

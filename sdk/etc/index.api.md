@@ -4185,6 +4185,7 @@ beginFixedStep: () => void
 clearFrameState: () => void
 clearVirtual: () => void
 endFixedStep: () => void
+endTouch: (id: number) => void
 gamepadButtonThreshold: number
 gamepadDeadzone: number
 gamepads: Map<number, PadState>
@@ -4196,6 +4197,8 @@ getScrollDelta: () => { x: number; y: number; }
 getTouch: (id: number) => TouchPoint | null
 getTouchCount: () => number
 getTouches: () => TouchPoint[]
+getTouchesEnded: () => TouchPoint[]
+getTouchesStarted: () => TouchPoint[]
 getVirtual: (id: string) => Vec2
 injectGamepad: (snapshot: GamepadSnapshot) => void
 isGamepadButtonDown: (button: number, pad?: number) => boolean
@@ -4233,7 +4236,7 @@ scrollDeltaY: number
 setVirtual: (id: string, x: number, y?: number) => void
 touchAvailable: boolean
 touches: Map<number, TouchPoint>
-touchesEnded: Set<number>
+touchesEnded: Map<number, TouchPoint>
 touchesStarted: Map<number, TouchPoint>
 updateGamepads: (snapshots: GamepadSnapshot[]) => void
 static new (): InputState

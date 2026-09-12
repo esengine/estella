@@ -24,6 +24,7 @@ import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { CppRegistry } from '../../wasm';
 import { engineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
+import { UiPointerBook, uiPointersOf, type UiPointerSample } from './pointerBook';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
 
@@ -60,12 +61,12 @@ export class UIInteractionPlugin implements Plugin {
         // included) — shared with every other producer, not owned by the UI.
         const events = ensureEntityEvents(app);
 
-        let hoveredEntity: Entity | null = null;
-        let pressedEntity: Entity | null = null;
-        let lastPointerX = NaN;
-        let lastPointerY = NaN;
-        let lastWorldPointerX = NaN;
-        let lastWorldPointerY = NaN;
+        // The press policy lives in UiPointerBook; this system is its projection
+        // onto the world — a raycast per pointer, and the writes its verdicts
+        // imply. Gestures (drag, scroll, slider) stay on the primary pointer.
+        const book = new UiPointerBook();
+        /** Where each pointer last hit, so a settled pointer skips the raycast. */
+        const lastHit = new Map<number, { x: number; y: number; entity: Entity | null }>();
         let lastLayoutGen = -1;
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
@@ -90,101 +91,97 @@ export class UIInteractionPlugin implements Plugin {
                 if (!camera.valid && !overlay.active) { input.pointerOverUI = false; return; }
 
                 const dpr = platformDevicePixelRatio();
-                const mouseGLX = input.mouseX * dpr;
                 const surfaceH = overlay.active ? overlay.surfaceH : camera.screenH;
-                const mouseGLY = surfaceH - input.mouseY * dpr;
-
-                // The pointer, once per domain. Neither is derived from the
-                // other: each is the inverse of the projection that domain is
-                // drawn with, which is what keeps a click where the pixel is.
-                const worldMouse = camera.valid
-                    ? screenToUiWorld(camera, mouseGLX, mouseGLY)
-                    : { x: 0, y: 0 };
-                camera.worldMouseX = worldMouse.x;
-                camera.worldMouseY = worldMouse.y;
-
-                const layoutMouse = overlay.active
-                    ? screenToUiLayout(overlay, mouseGLX, mouseGLY)
-                    : worldMouse;
-                overlay.pointerX = layoutMouse.x;
-                overlay.pointerY = layoutMouse.y;
-
-                const mouseDown = input.isMouseButtonDown(0);
-                const mousePressed = input.isMouseButtonPressed(0);
-                const mouseReleased = input.isMouseButtonReleased(0);
-
-                const pointerMoved = layoutMouse.x !== lastPointerX || layoutMouse.y !== lastPointerY
-                                  || worldMouse.x !== lastWorldPointerX
-                                  || worldMouse.y !== lastWorldPointerY;
+                const pointers = uiPointersOf(input);
                 const layoutChanged = layoutGen.generation !== lastLayoutGen;
-                const hasMouseEvent = mousePressed || mouseReleased;
-                const needsHitTest = pointerMoved || layoutChanged || hasMouseEvent;
-
-                lastPointerX = layoutMouse.x;
-                lastPointerY = layoutMouse.y;
-                lastWorldPointerX = worldMouse.x;
-                lastWorldPointerY = worldMouse.y;
                 lastLayoutGen = layoutGen.generation;
 
-                let hitEntity: Entity | null = hoveredEntity;
-                if (needsHitTest) {
-                    // With no camera there is no world ray: inverting a projection
-                    // never written yields NaN, which answers "no" by accident.
-                    // The screen's ray stands in — nothing is in the world.
-                    const screenRay = overlay.active
-                        ? uiLayoutRay(overlay, mouseGLX, mouseGLY) : undefined;
-                    const worldRay = camera.valid
-                        ? uiPointerRay(camera, mouseGLX, mouseGLY)
-                        : screenRay!;
-                    hitEntity = uiHitTestWorld(world, worldRay, screenRay);
+                // The single-pointer resources every other consumer reads are the
+                // PRIMARY pointer's: the mouse, or the oldest finger on the glass.
+                let primaryWritten = false;
+                let overUI = false;
+
+                const hit = (pointer: UiPointerSample): Entity | null => {
+                    const glX = pointer.x * dpr;
+                    const glY = surfaceH - pointer.y * dpr;
+                    // The pointer, once per domain. Neither is derived from the
+                    // other: each is the inverse of the projection that domain is
+                    // drawn with, which is what keeps a click where the pixel is.
+                    const worldPointer = camera.valid ? screenToUiWorld(camera, glX, glY) : { x: 0, y: 0 };
+                    const layoutPointer = overlay.active ? screenToUiLayout(overlay, glX, glY) : worldPointer;
+                    if (!primaryWritten) {
+                        primaryWritten = true;
+                        camera.worldMouseX = worldPointer.x;
+                        camera.worldMouseY = worldPointer.y;
+                        overlay.pointerX = layoutPointer.x;
+                        overlay.pointerY = layoutPointer.y;
+                    }
+                    const cached = lastHit.get(pointer.id);
+                    const edge = pointer.pressed || pointer.released;
+                    const settled = cached !== undefined
+                        && cached.x === layoutPointer.x && cached.y === layoutPointer.y;
+                    let entity: Entity | null;
+                    if (settled && !layoutChanged && !edge) {
+                        entity = cached.entity !== null && world.valid(cached.entity) ? cached.entity : null;
+                    } else {
+                        // With no camera there is no world ray: inverting a projection
+                        // never written yields NaN, which answers "no" by accident.
+                        // The screen's ray stands in — nothing is in the world.
+                        const screenRay = overlay.active ? uiLayoutRay(overlay, glX, glY) : undefined;
+                        const worldRay = camera.valid ? uiPointerRay(camera, glX, glY) : screenRay!;
+                        entity = uiHitTestWorld(world, worldRay, screenRay);
+                        lastHit.set(pointer.id, { x: layoutPointer.x, y: layoutPointer.y, entity });
+                    }
+                    if (entity !== null) overUI = true;
+                    return entity;
+                };
+
+                const wasPressed = new Set(book.pressed);
+                for (const event of book.step(pointers, hit, (e) => world.valid(e))) {
+                    switch (event.kind) {
+                        case 'hoverEnter':
+                            ensureComponent(world, event.entity, UIInteraction);
+                            events.emit(event.entity, UIEventType.HoverEnter);
+                            break;
+                        case 'hoverExit':
+                            events.emit(event.entity, UIEventType.HoverExit);
+                            break;
+                        case 'press':
+                            ensureComponent(world, event.entity, UIInteraction);
+                            emitWithBubbling(world, events, event.entity, UIEventType.Press);
+                            break;
+                        case 'release':
+                            emitWithBubbling(world, events, event.entity, UIEventType.Release);
+                            break;
+                        case 'click':
+                            emitWithBubbling(world, events, event.entity, UIEventType.Click);
+                            break;
+                    }
                 }
 
-                if (hoveredEntity !== null && !world.valid(hoveredEntity)) {
-                    hoveredEntity = null;
+                // `hovered` and `pressed` are facts about the ENTITY: true while
+                // any pointer is over or holding it, false once none is.
+                const hovered = book.hovered;
+                const pressed = book.pressed;
+                const touched = new Set<Entity>([...interactionEntities, ...hovered, ...pressed, ...wasPressed]);
+                for (const entity of touched) {
+                    if (!world.valid(entity) || !world.has(entity, UIInteraction)) continue;
+                    const data = world.get(entity, UIInteraction) as UIInteractionData;
+                    const isHovered = hovered.has(entity);
+                    const isPressed = pressed.has(entity);
+                    const justPressed = data.justPressed || (isPressed && !wasPressed.has(entity));
+                    const justReleased = data.justReleased || (!isPressed && wasPressed.has(entity));
+                    if (data.hovered === isHovered && data.pressed === isPressed
+                        && data.justPressed === justPressed && data.justReleased === justReleased) continue;
+                    data.hovered = isHovered;
+                    data.pressed = isPressed;
+                    data.justPressed = justPressed;
+                    data.justReleased = justReleased;
+                    world.insert(entity, UIInteraction, data);
                 }
 
                 // Gameplay reads this (Update) to skip input the UI claimed.
-                input.pointerOverUI = hitEntity !== null;
-
-                if (hoveredEntity !== hitEntity) {
-                    if (hoveredEntity !== null && world.valid(hoveredEntity) && world.has(hoveredEntity, UIInteraction)) {
-                        const prev = world.get(hoveredEntity, UIInteraction) as UIInteractionData;
-                        prev.hovered = false;
-                        world.insert(hoveredEntity, UIInteraction, prev);
-                        events.emit(hoveredEntity, UIEventType.HoverExit);
-                    }
-                    if (hitEntity !== null) {
-                        ensureComponent(world, hitEntity, UIInteraction);
-                        const curr = world.get(hitEntity, UIInteraction) as UIInteractionData;
-                        curr.hovered = true;
-                        world.insert(hitEntity, UIInteraction, curr);
-                        events.emit(hitEntity, UIEventType.HoverEnter);
-                    }
-                    hoveredEntity = hitEntity;
-                }
-
-                if (mousePressed && hitEntity !== null) {
-                    const interaction = world.get(hitEntity, UIInteraction) as UIInteractionData;
-                    interaction.pressed = true;
-                    interaction.justPressed = true;
-                    world.insert(hitEntity, UIInteraction, interaction);
-                    pressedEntity = hitEntity;
-                    emitWithBubbling(world, events, hitEntity, UIEventType.Press);
-                }
-
-                if (mouseReleased && pressedEntity !== null) {
-                    if (world.valid(pressedEntity) && world.has(pressedEntity, UIInteraction)) {
-                        const interaction = world.get(pressedEntity, UIInteraction) as UIInteractionData;
-                        interaction.pressed = false;
-                        interaction.justReleased = true;
-                        world.insert(pressedEntity, UIInteraction, interaction);
-                        emitWithBubbling(world, events, pressedEntity, UIEventType.Release);
-                        if (pressedEntity === hoveredEntity) {
-                            emitWithBubbling(world, events, pressedEntity, UIEventType.Click);
-                        }
-                    }
-                    pressedEntity = null;
-                }
+                input.pointerOverUI = overUI;
             },
             { name: 'UIInteractionSystem' }
         ), { runAfter: [SystemLabel.UILayout], runIf: playModeOnly });

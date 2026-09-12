@@ -24,6 +24,15 @@ add_executable(test_particle
 target_link_libraries(test_particle PRIVATE esengine)
 add_test(NAME test_particle COMMAND test_particle)
 
+# The native touch stream: header-only, so it builds without an NDK or an SDK and
+# the ONE contract both mobile hosts feed is tested off-device (see
+# native/host/platform/touch_stream.hpp).
+add_executable(test_touch_stream
+    input/test_touch_stream.cpp
+)
+target_include_directories(test_touch_stream PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_touch_stream COMMAND test_touch_stream)
+
 # Tilemap system tests
 add_executable(test_tilemap
     tilemap/test_tilemap.cpp

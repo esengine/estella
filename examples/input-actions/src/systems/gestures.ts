@@ -69,8 +69,7 @@ function moveTouch(id: number, x: number, y: number): void {
 }
 
 function endTouch(id: number): void {
-    padInput.touches.delete(id);
-    padInput.touchesEnded.add(id);
+    padInput.endTouch(id);
 }
 
 export const gestureSystem = defineSystem(
@@ -90,7 +89,7 @@ export const gestureSystem = defineSystem(
             const live = input.touches.get(id);
             if (live) moveTouch(id, live.x, live.y);
         }
-        for (const id of input.touchesEnded) {
+        for (const id of input.touchesEnded.keys()) {
             if (padTouchIds.delete(id)) endTouch(id);
         }
 
