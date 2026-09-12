@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A folder that is no longer a 分包 stops being declared as one.** A group is a
+  name plus a delivery, and the name outlives the delivery: a folder marked
+  *always include* keeps its group after its mode goes back to local. The WeChat
+  export read the name and declared `subpackages/<name>` for it, so a project with
+  no subpackages at all could still fail to open with `["subPackages"][0]["root"]
+  不存在`. Only lazy delivery is a 分包 now.
+
 - **Play always reaches a stage you can read.** Pressing 运行 could sit at "启动中"
   with no error, no game, and nothing to do but restart the editor (#57). Three
   independent causes, each enough on its own: two of the boot's three legs had no

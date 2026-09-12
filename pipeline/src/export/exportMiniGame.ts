@@ -82,9 +82,9 @@ function stripUuidRefs(v: unknown): unknown {
 
 /**
  * The vendor subPackage roots this package actually carries, read off the STAGED
- * paths: a root the package lacks fails the whole game at load ("root 不存在"),
- * so the declaration comes from the files rather than from the group names beside
- * them. Remote (CDN / hot-update) groups are not 分包 and are skipped.
+ * paths: a root the package lacks fails the whole game at load ("root 不存在").
+ * Only LAZY delivery is a 分包 — a group's name outlives its delivery, so a
+ * project that once had one still carries the name of one.
  */
 function subPackagesOf(
   entries: CookManifest['entries'],
@@ -93,7 +93,7 @@ function subPackagesOf(
   const carried = new Set<string>();
   const strays: string[] = [];
   for (const e of entries) {
-    if (!e.group || e.group === 'main' || e.groupMode === 'remote') continue;
+    if (!e.group || e.group === 'main' || e.groupMode !== 'lazy') continue;
     const root = `${subpackageDir}/${e.group}`;
     if (e.path === root || e.path.startsWith(`${root}/`)) carried.add(e.group);
     else strays.push(`${e.sourcePath} is in 分包 '${e.group}' but ships at ${e.path}, outside ${root}/`);

@@ -85,6 +85,61 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
     }
   }, 120_000);
 
+  it('is not fooled by a named group that ships in the main package', async () => {
+    // `alwaysInclude` keeps a folder's group alive after its delivery goes back
+    // to local, so a project that ONCE had a 分包 still carries the name. Only
+    // lazy delivery is a 分包; a local group is main-package content with a label.
+    const root2 = mkdtempSync(path.join(tmpdir(), 'estella-wechat-localgroup-'));
+    try {
+      mkdirSync(path.join(root2, 'assets', 'level2'), { recursive: true });
+      writeFileSync(path.join(root2, 'assets', 'level2', 'extra.png'), 'PNG2DATA');
+      writeFileSync(path.join(root2, 'assets', 'level2', 'extra.png.meta'), meta(LAZY, 'texture'));
+      mkdirSync(path.join(root2, '.esengine'), { recursive: true });
+      writeFileSync(
+        path.join(root2, '.esengine', 'asset-groups.json'),
+        JSON.stringify({
+          version: '1.0',
+          groups: { level2: { folder: 'assets/level2', mode: 'local', alwaysInclude: true } },
+        }),
+      );
+      mkdirSync(path.join(root2, 'scenes'), { recursive: true });
+      writeFileSync(
+        path.join(root2, 'scenes', 'main.esscene'),
+        JSON.stringify({ version: '1.0', name: 'Main', entities: [] }),
+      );
+      writeFileSync(path.join(root2, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
+      mkdirSync(path.join(root2, '_sdk'), { recursive: true });
+      writeFileSync(path.join(root2, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+      mkdirSync(path.join(root2, '_wxwasm'), { recursive: true });
+      writeFileSync(path.join(root2, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+      writeFileSync(path.join(root2, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
+      const out2 = path.join(root2, 'dist-wechat');
+
+      const res = await exportGame({
+        root: root2,
+        entryScene: 'scenes/main.esscene',
+        gameHostEntry: 'unused-for-wechat',
+        sdkDistDir: path.join(root2, '_sdk'),
+        wasmDir: path.join(root2, '_wxwasm'),
+        outDir: out2,
+        title: 'Local Group',
+        platform: 'wechat',
+        wechatAppid: 'wxTEST0123456789',
+        orientation: 'landscape',
+        runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+      });
+      expect(res.ok).toBe(true);
+
+      const gjson = JSON.parse(readFileSync(path.join(out2, 'game.json'), 'utf8'));
+      expect(gjson.subPackages).toBeUndefined();
+      // Nor a warning: nothing about this project is a 分包 that went wrong.
+      expect(res.warnings.filter((w) => w.includes('分包'))).toEqual([]);
+      expect(existsSync(path.join(out2, 'assets', 'level2', 'extra.png'))).toBe(true);
+    } finally {
+      rmSync(root2, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  }, 120_000);
+
   it('never declares a root nothing was staged under', async () => {
     // A scene keeps its logical path in every layout, so a group made of one
     // cannot be delivered — the declaration must follow the files, not the group.
