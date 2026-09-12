@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
   there is none. The shadow pass already drew rings rather than boxes, so a polygon
   costs what its point count costs and nothing else.
 
+  The editor's **Trace Sprite** button produces one: the same silhouette trace the
+  polygon collider has had, now writing into whichever ring is asked for. The one
+  thing the two do not share is units — a collider speaks physics metres, a caster
+  the world's own — so the target states which, and an editor check measures a
+  traced disc's rim to hold it.
+
   What it needed was a boundary that can carry a point list. One now crosses to the
   web as a JS array and to a native host through a generated pair of bindings — its
   storage is a pointer, so it can never travel in the zero-copy component buffer the
