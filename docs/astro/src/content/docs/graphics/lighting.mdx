@@ -290,6 +290,13 @@ saying something about its art direction; the fix is to turn shadows off (`shado
 of 0 on a sun, or a smaller `radius` that takes a light out of view) on the ones whose
 shadows nobody looks at.
 
+### Known gaps
+
+- **WebGPU, more than one casting light.** On the WebGPU backend a scene with two or
+  more shadow-casting lights loses the shadows of some of them; the lights still light
+  it. One casting light is correct on both backends, and WebGL2 is correct throughout.
+  The criterion that shows it (`shadow2d-light-cap`) runs on WebGL2 only, and says so.
+
 ## Linear color space
 
 By default the engine renders **gamma-space** — colors blend as-authored, the way 2D

@@ -1,0 +1,3105 @@
+{
+  "version": 4,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 600,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Floor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 2400,
+              "y": 2400
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "/scenes/mat-lit/lit.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Light0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0.4,
+              "g": 1,
+              "b": 0.4,
+              "a": 1
+            },
+            "intensity": 0.8,
+            "radius": 1800,
+            "shadowSoftness": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Light1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0.4,
+              "g": 1,
+              "b": 0.4,
+              "a": 1
+            },
+            "intensity": 0.8,
+            "radius": 1800,
+            "shadowSoftness": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Light2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0.4,
+              "g": 1,
+              "b": 0.4,
+              "a": 1
+            },
+            "intensity": 0.8,
+            "radius": 1800,
+            "shadowSoftness": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Light3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0.4,
+              "g": 1,
+              "b": 0.4,
+              "a": 1
+            },
+            "intensity": 0.8,
+            "radius": 1800,
+            "shadowSoftness": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Wall0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Wall1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Wall2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Wall3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Wall4",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Wall5",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Wall6",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Wall7",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Wall8",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Wall9",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": -900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Wall10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Wall11",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Wall12",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Wall13",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Wall14",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Wall15",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Wall16",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "Wall17",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Wall18",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "Wall19",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": -700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "Wall20",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "Wall21",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "Wall22",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "Wall23",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "Wall24",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "Wall25",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "Wall26",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "Wall27",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "Wall28",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "Wall29",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "Wall30",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "Wall31",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "Wall32",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "name": "Wall33",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "Wall34",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "Wall35",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "Wall36",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "Wall37",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "Wall38",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "Wall39",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": -300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "Wall40",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "Wall41",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "Wall42",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "Wall43",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "Wall44",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "Wall45",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "Wall46",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "Wall47",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "name": "Wall48",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "name": "Wall49",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": -100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "name": "Wall50",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "name": "Wall51",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "name": "Wall52",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "name": "Wall53",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "name": "Wall54",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "name": "Wall55",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "name": "Wall56",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "name": "Wall57",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "name": "Wall58",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "name": "Wall59",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 100,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 66,
+      "name": "Wall60",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 67,
+      "name": "Wall61",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "name": "Wall62",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 69,
+      "name": "Wall63",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "name": "Wall64",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "name": "Wall65",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "name": "Wall66",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "name": "Wall67",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 74,
+      "name": "Wall68",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "name": "Wall69",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 300,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 76,
+      "name": "Wall70",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "name": "Wall71",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "name": "Wall72",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "name": "Wall73",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "name": "Wall74",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "name": "Wall75",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "name": "Wall76",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "name": "Wall77",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 84,
+      "name": "Wall78",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 85,
+      "name": "Wall79",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 86,
+      "name": "Wall80",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 87,
+      "name": "Wall81",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "name": "Wall82",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "name": "Wall83",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "name": "Wall84",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 91,
+      "name": "Wall85",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 92,
+      "name": "Wall86",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 93,
+      "name": "Wall87",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 94,
+      "name": "Wall88",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "name": "Wall89",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 700,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "name": "Wall90",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -900,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "name": "Wall91",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 98,
+      "name": "Wall92",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "name": "Wall93",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "name": "Wall94",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -100,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "name": "Wall95",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 100,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "name": "Wall96",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "name": "Wall97",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 500,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "name": "Wall98",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 700,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "name": "Wall99",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 900,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 40
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

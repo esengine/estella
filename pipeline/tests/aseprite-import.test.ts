@@ -65,6 +65,28 @@ describe('importAseprite', () => {
     expect(sheetPixels(importAseprite(doc, 'x').sheet.bytes).at(0, 0)).toEqual([128, 128, 128, 255]);
   });
 
+  // Each pair is chosen so the answer differs from source-over: a mode agreeing with
+  // plain stacking on its inputs is a case that would pass unimplemented.
+  it.each([
+    ['multiply', 1, 128, 128, [64, 64, 64]],
+    ['screen', 2, 128, 128, [192, 192, 192]],
+    ['difference', 10, 128, 128, [0, 0, 0]],
+    ['addition', 16, 128, 128, [255, 255, 255]],
+    ['darken', 4, 64, 200, [64, 64, 64]],
+    ['lighten', 5, 200, 64, [200, 200, 200]],
+  ])('composites a %s layer the way the editor does', (_name, blend, back, front, want) => {
+    const doc = writeAseprite({
+      width: 1, height: 1,
+      layers: [{ name: 'bg' }, { name: 'fg', blend: blend as number }],
+      frames: [{ duration: 100, cels: [
+        { layer: 0, x: 0, y: 0, w: 1, h: 1, pixels: [back, back, back, 255] as number[] },
+        { layer: 1, x: 0, y: 0, w: 1, h: 1, pixels: [front, front, front, 255] as number[] },
+      ] }],
+    });
+    const px = sheetPixels(importAseprite(doc, 'x').sheet.bytes).at(0, 0);
+    expect([px[0], px[1], px[2]]).toEqual(want);
+  });
+
   it('hides everything inside a group the artist turned off', () => {
     const doc = writeAseprite({
       width: 1, height: 1,

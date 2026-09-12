@@ -14,6 +14,7 @@
 #include "../../ecs/components/ShadowCaster2D.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
+#include "../../core/FrameProfiler.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -172,7 +173,12 @@ inline glm::vec2 extrude(const glm::vec2& p, const glm::vec2& from, f32 reach) {
 }  // namespace
 
 void RenderFrame::buildShadow2DGeometry() {
+    ES_PROFILE_SCOPE("render.shadow2d.geometry");
     shadow_2d_vertices_.clear();
+    // One silhouette is two triangles, and the worst case is every ring seen by every
+    // sample of every light. Reserved once so the frame's growth is not a re-alloc.
+    shadow_2d_vertices_.reserve(shadow_rings_2d_.size() * shadow_2d_lights_.size()
+                                * kSoftSamples * 6 * kShadow2DFloats);
 
     auto vertex = [this](const glm::vec2& p, f32 shadow, u32 channel) {
         shadow_2d_vertices_.push_back(p.x);
@@ -207,6 +213,19 @@ void RenderFrame::buildShadow2DGeometry() {
             glm::vec2 centre{0.0f};
             for (u32 i = 0; i < ring.count; ++i) centre += pts[i];
             centre /= static_cast<f32>(ring.count);
+
+            // What a light cannot reach it cannot be hidden from: past its own reach it
+            // contributes nothing, so an occluder out there has no shadow to draw. Costs
+            // one distance per ring and saves every triangle behind it.
+            if (!light.directional) {
+                f32 radius = 0.0f;
+                for (u32 i = 0; i < ring.count; ++i) {
+                    radius = std::max(radius, glm::distance(pts[i], centre));
+                }
+                if (glm::distance(centre, light.pos) > light.reach + light.softness + radius) {
+                    continue;
+                }
+            }
 
             for (u32 s = 0; s < samples; ++s) {
                 const f32 t = offsetOf(s);
@@ -277,7 +296,14 @@ void RenderFrame::executeShadow2DPass() {
     if (shadow_2d_resource_ == rg::kNoResource) return;
     if (!ensureShadow2DShader()) return;
 
+    ES_PROFILE_SCOPE("render.shadow2d");
     buildShadow2DGeometry();
+    // What the mask cost, in the unit it is spent in: a shadow is triangles now, and
+    // neither the count nor the occluders behind it shows in a pixel.
+    ES_PROFILE_COUNTER("render.shadow2d.triangles",
+                       static_cast<u32>(shadow_2d_vertices_.size() / (kShadow2DFloats * 3)));
+    ES_PROFILE_COUNTER("render.shadow2d.occluders", static_cast<u32>(shadow_rings_2d_.size()));
+    ES_PROFILE_COUNTER("render.shadow2d.lights", static_cast<u32>(shadow_2d_lights_.size()));
     if (shadow_2d_vertices_.empty()) return;
 
     const u32 bytes = static_cast<u32>(shadow_2d_vertices_.size() * sizeof(f32));

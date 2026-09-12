@@ -60,6 +60,11 @@ published separately; it ships inside the editor.
   which costs a sprite batch one merge slot in a scene that has 2D shadows and nothing at
   all in one that does not.
 
+  KNOWN GAP: on the WebGPU backend a scene with more than one casting light loses the
+  shadows of some of them — the lights still light it, and one casting light is correct
+  on both backends. WebGL2 is correct throughout. Documented under the lighting guide's
+  Known gaps; the criterion that shows it runs on WebGL2 only and says why.
+
 - **One curve, sampled by everything that has one.** A timeline channel carried keys
   with tangents and six interpolations, drawn by an editor that understood them; a
   particle's size-over-life carried `{t, v}` pairs joined by straight lines; and the
