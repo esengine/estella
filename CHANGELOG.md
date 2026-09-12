@@ -36,6 +36,12 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The audio demo authors its beat's clip on an `AudioSource`.** Which sound the
+  beat is now comes from the scene rather than a path in code, so the asset system
+  brings the clip in with the scene the way a game's own audio arrives. No example
+  or template scene used `AudioSource` at all — the engine's own audio component had
+  no coverage in the shipped corpus, which is the door #59's silence came in by.
+
 - **The hot-update demo now ships a real 分包.** Its two groups take the two modes
   their flows need: `cdn` stays remote, because a hot update has to replace it after
   the game shipped, and `pack` — the DLC tile strip the *下载资源包* button pulls on

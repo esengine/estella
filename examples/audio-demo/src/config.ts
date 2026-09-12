@@ -6,13 +6,10 @@ export const PADS = [
     { name: 'Clap', url: 'assets/audio/clap.wav' },
 ];
 
-// The looping beat runs on the music bus. There's no dedicated music track in
-// this example, so a kick loop stands in — enough to show playBGM's loop + fade
-// + music-bus routing.
-export const BEAT_URL = 'assets/audio/kick.wav';
-
-// Everything to preload up front so the first hit is latency-free.
-export const ALL_URLS = [...PADS.map((p) => p.url), BEAT_URL];
+// Everything to preload up front so the first hit is latency-free. The beat's
+// clip is not here: it is authored on the BeatBtn's AudioSource, so the scene
+// brings it in and `beatSystem` reads which sound it is off the component.
+export const ALL_URLS = PADS.map((p) => p.url);
 
 // Bus volumes cycle through these steps on each click.
 export const VOLUME_STEPS = [1, 0.66, 0.33, 0];
