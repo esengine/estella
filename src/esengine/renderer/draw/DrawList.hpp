@@ -26,6 +26,15 @@ public:
     // (hence the pool, whose staging it rewrites; call before upload()).
     void finalize(TransientBufferPool& pool);
 
+    /// Whether the frame keeps its top texture unit for a 2D shadow mask. Set BEFORE
+    /// finalize: the merge spends slots there, and the mask's own texture does not
+    /// exist until the pass that draws it has run.
+    void reserveShadow2DSlot(bool reserved) { shadow_2d_reserved_ = reserved; }
+
+    /// The mask itself, which every draw then binds on that unit. Zero leaves the unit
+    /// filled with white, which reads as "nothing shadows anything".
+    void setShadow2DTexture(u32 textureId) { shadow_2d_texture_ = textureId; }
+
     // Each merged command resolves to an immutable pipeline (program + layout + blend +
     // depth + stencil + cull) bound via GfxDevice::setPipeline; per-draw dynamic state
     // (scissor, stencil ref, textures) is applied directly. Per-frame constants come from
@@ -166,6 +175,10 @@ private:
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()
+    /// @see setShadow2DTexture
+    u32 shadow_2d_texture_ = 0;
+    /// @see reserveShadow2DSlot
+    bool shadow_2d_reserved_ = false;
     u32 merged_draw_calls_ = 0;
     /// Members of a SortingGroup, by entity id — empty in the common frame.
     std::unordered_map<u32, GroupIdentity> group_identities_;

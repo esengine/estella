@@ -81,8 +81,9 @@ struct Light {
 
     /** @brief Shadow penumbra softness = the light source's half-extent in world units; 0 is a
      *         hard edge (default). It widens a penumbra the way a bigger source does, and the edge
-     *         sharpens as a caster nears what it falls on. Read by the 2D occluder boxes of every
-     *         type, and by a mesh shadow map only where the light HAS a position (Point/Spot). */
+     *         sharpens as a caster nears what it falls on. Read by the 2D shadow pass, which
+     *         draws the shadow once per sample across a source that has width, and by a mesh
+     *         shadow map only where the light HAS a position (Point/Spot). */
     ES_PROPERTY(animatable, min=0, shown_when=type:Point|Directional|Spot,
                 tooltip="Shadow softness (light-source size); 0 = hard edge.")
     f32 shadowSoftness{0.0f};
@@ -95,20 +96,17 @@ struct Light {
                 tooltip="Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).")
     f32 sourceAngle{0.0f};
 
-    /** @brief Directional-light shadow reach in world units: how far back toward the light a
-     *         fragment searches for an occluder. 0 = a Directional light casts no shadow (default).
-     *         Ignored by Point/Spot, which shadow along the segment to the light position. */
+    /** @brief Directional-light shadow reach in world units: how far its shadows are carried
+     *         from whatever cast them. 0 = a Directional light casts no 2D shadow (default).
+     *         Ignored by Point/Spot, whose shadows reach as far as their own radius. */
     ES_PROPERTY(animatable, min=0, advanced, shown_when=type:Directional,
                 tooltip="Directional shadow distance; 0 = no directional shadow.")
     f32 shadowDistance{0.0f};
 
-    /** @brief Casts a shadow map over 3D meshes. Every type but Ambient can: a
-     *         Directional light's map is a set of cascades over the view, a Spot's is its
-     *         cone, and a Point's is the six faces of a cube around it. Separate from
-     *         @ref shadowDistance, which shadows 2D ShadowCaster2D boxes in the XY plane:
-     *         one light can do both, and a 2.5D scene often wants exactly that. Lights
-     *         that stand somewhere claim their tiles first and one sun takes what is left,
-     *         so a crowded frame costs the sun its farthest cascade rather than a map. */
+    /** @brief Casts a shadow map over 3D meshes. Every type but Ambient can: a sun's map
+     *         is cascades over the view, a Spot's its cone, a Point's a cube. Separate from
+     *         @ref shadowDistance, which shadows ShadowCaster2D edges in the plane — one
+     *         light can do both. Lights that stand somewhere claim tiles first. */
     ES_PROPERTY(shown_when=type:Point|Directional|Spot,
                 tooltip="Cast a shadow map over 3D meshes (Directional, Spot, Point).")
     bool meshShadows{false};

@@ -274,6 +274,22 @@ Shadow **quality** is controlled on the light, not the caster:
 - **`shadowDistance`** — for a **Directional** light, how far its shadows extend; `0`
   leaves a directional light shadow-free.
 
+### How many, and what it costs
+
+Shadows are **drawn**, not solved per pixel: each frame the engine takes the edges of
+every enabled caster, draws what they hide from each casting light into a screen-sized
+mask, and a lit surface reads one texel of it. So the number of occluders is a number
+of triangles rather than a shader constant — a room may have as many walls as it needs,
+and adding one costs a few triangles rather than a test on every pixel of the screen.
+
+What IS capped is how many lights cast at once: the mask has **four channels**, so the
+first four casting lights get one each. A light past that still lights the scene and
+stops shadowing — the room stays lit, and what is missing is a shadow rather than the
+light. A scene with more than four shadow-casting lights in view at once is usually
+saying something about its art direction; the fix is to turn shadows off (`shadowDistance`
+of 0 on a sun, or a smaller `radius` that takes a light out of view) on the ones whose
+shadows nobody looks at.
+
 ## Linear color space
 
 By default the engine renders **gamma-space** — colors blend as-authored, the way 2D

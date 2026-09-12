@@ -8,8 +8,25 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ],
       "visible": true
     },
@@ -19,12 +36,29 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
         {
           "type": "Sprite",
           "data": {
-            "size": { "x": 400, "y": 400 },
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "size": {
+              "x": 400,
+              "y": 400
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "material": "/scenes/mat-lit/lit.esmaterial"
           }
         }
@@ -37,14 +71,33 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.3826834,
+              "z": 0,
+              "w": 0.9238795
+            }
+          }
+        },
         {
           "type": "Light",
           "data": {
             "type": 1,
-            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
             "intensity": 1,
-            "direction": { "x": 1, "y": 0 },
             "shadowDistance": 600,
             "shadowSoftness": 0
           }
@@ -58,8 +111,26 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "ShadowCaster2D", "data": { "size": { "x": 40, "y": 120 }, "enabled": true } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ShadowCaster2D",
+          "data": {
+            "size": {
+              "x": 40,
+              "y": 120
+            },
+            "enabled": true
+          }
+        }
       ],
       "visible": true
     }

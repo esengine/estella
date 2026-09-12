@@ -276,6 +276,10 @@ struct VSOut {
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
 #endif
+// The 2D shadow mask, on the top slot. Unconditional, because the injected
+// lighting reads it for every Lit shader rather than behind a feature.
+@group(1) @binding(7) var t7 : texture_2d<f32>;
+@group(1) @binding(15) var s7 : sampler;
 
 struct VSOut {
     @builtin(position) pos : vec4f,

@@ -17,11 +17,11 @@ export const PLACED_LIGHT_SOFTNESS = 10;
 // Box occluder placed by a right-click (world units, centered on the cursor).
 export const OBSTACLE_SIZE = { x: 84, y: 84 };
 
-// The GPU packs at most 16 lights and 8 occluders per frame; the scene already
-// spends a torch + ambient + two pillars, so we cap the interactive placements
-// well under those limits and fade the oldest out when the cap is reached.
+// The frame packs at most 16 lights, and the first four that cast get a channel of
+// the 2D shadow mask — past that a light lights the room without shadowing it.
+// Occluders are geometry and have no such cap; this limit only keeps the demo tidy.
 export const MAX_LIGHTS = 10;
-export const MAX_OBSTACLES = 6;
+export const MAX_OBSTACLES = 40;
 
 // Seconds an evicted / cleared entity takes to fade its light and sprite to zero
 // before it despawns.

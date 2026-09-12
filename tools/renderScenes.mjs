@@ -386,11 +386,16 @@ export const SCENES = [
   // light reaches, dark where the box is in the way.
   { id: "shadow2d-point", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
   { id: "shadow2d-hard", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-hard.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-hard.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
-  { id: "shadow2d-soft", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-soft.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-soft.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
-  // This scene names its light's aim as `direction`, so the criterion covers the
-  // light-aim migration in a real frame too. Lit at 180, not 255: a directional
-  // light carries its Lambert term.
+  // Two probes inside the penumbra, where a hard shadow reads 0 and an unshadowed
+  // surface reads 166: a soft edge is the only thing that lands between them.
+  { id: "shadow2d-soft", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-soft.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-soft.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.75,\"y\":0.30,\"rgb\":[0,44,0],\"tol\":22},{\"x\":0.75,\"y\":0.70,\"rgb\":[0,52,0],\"tol\":22}]" } },
+  // The sun is aimed by its Transform, a quarter turn short of face-on: its forward
+  // has a component in the plane to cast along and one out of it to light with. Lit
+  // at 180 rather than 255 because a directional light carries its Lambert term.
   { id: "shadow2d-directional", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-dir.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-dir.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,180,0],\"tol\":40},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // Twelve occluders, the twelfth being the one the probes are about — a cap on how
+  // many a frame carries drops whichever it collected last.
+  { id: "shadow2d-many-occluders", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-many.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-many.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
   // The same red-over-blue image as a PNG and as a KTX2, side by side: a
   // transcode that arrives upside down swaps the KTX2 pair and nothing else,
   // which a criterion probing only one half — or only the colours — cannot see.
@@ -555,6 +560,9 @@ export const SCENES = [
   // material sampler — so a recovered material sampling every texture from unit
   // 0 looked exactly like one with no normal map, and nothing could tell.
   { id: "device-loss-material", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },
+  // The mask again after the device it was drawn on went away: the pass owns a
+  // buffer, a layout and a shader, and one kept across a loss names nothing.
+  { id: "device-loss-shadow2d", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-many.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-many.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
   { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
   // The textures above prove content comes back; a mesh proves IDENTITY does —
   // the handles the world points at are the ones re-realized, not new ones the

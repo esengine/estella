@@ -186,6 +186,7 @@ void RenderFrame::shutdown() {
     pool_.shutdown();
     shadow_pool_.shutdown();
     releaseShadowFrameUbos();
+    releaseShadow2DResources();
     releaseFrameTargets();
     target_pool_.clear();
 
@@ -206,6 +207,14 @@ void RenderFrame::recreateGpuResources() {
     // as it needs. Kept here rather than recreated eagerly: how many is a property
     // of the frame that has not been collected yet.
     releaseShadowFrameUbos();
+    // The mask's buffer and layout died with the device too, and its shader has to be
+    // compiled again against the new one. Forgotten rather than deleted: the handles
+    // name nothing now, and the next frame that needs a mask makes its own.
+    shadow_2d_vbo_ = BufferHandle::Invalid;
+    shadow_2d_vbo_bytes_ = 0;
+    shadow_2d_layout_ = VertexLayoutHandle::Invalid;
+    shadow_2d_shader_ = {};
+    shadow_2d_shader_tried_ = false;
     target_manager_.recreateGpuResources();
     // The framebuffers the pool is holding died with the device: the loans go
     // back and the memory behind them goes with it, or the next frame would draw
@@ -251,6 +260,21 @@ void RenderFrame::resize(u32 width, u32 height) {
 // viewport; this is the draw and the constants it needs current.
 void RenderFrame::drawScene() {
     context_.updateCameraConstants(view_projection_);
+    // Where THIS camera's pixels sit inside the 2D shadow mask. Per camera because the
+    // mask is screen space: two cameras drew into two parts of one target, and a
+    // fragment has to read the part its own camera filled.
+    if (shadow2DActive() && width_ > 0 && height_ > 0) {
+        const f32 w = static_cast<f32>(width_);
+        const f32 h = static_cast<f32>(height_);
+        context_.lights().setShadow2DRect(glm::vec4(
+            static_cast<f32>(std::max(scene_viewport_.x, 0)) / w,
+            static_cast<f32>(std::max(scene_viewport_.y, 0)) / h,
+            static_cast<f32>(scene_viewport_.w) / w,
+            static_cast<f32>(scene_viewport_.h) / h));
+    } else {
+        context_.lights().setShadow2DRect(glm::vec4(0.0f));
+    }
+    draw_list_.setShadow2DTexture(shadow_2d_texture_id_);
     // Here and not in flush(): the shadow pass runs before this one and decides
     // which atlas tile each light reads, so the block has to go up after it.
     context_.lights().uploadAndBind();
@@ -480,6 +504,9 @@ void RenderFrame::flush() {
         // upload afterwards is its own clock and cannot be read off this one.
         {
             ES_PROFILE_SCOPE("render.finalize.drawList");
+            // Before the merge, which spends texture slots: the mask needs the top one
+            // and does not exist yet — its own pass has not run.
+            draw_list_.reserveShadow2DSlot(shadow_2d_resource_ != rg::kNoResource);
             draw_list_.finalize(pool_);
         }
         {
@@ -553,6 +580,11 @@ void RenderFrame::end() {
         // not spend a texture unit on it.
         if (shadow_resource_ != rg::kNoResource) {
             scene.dependencies.push_back(shadow_resource_);
+        }
+        // The same terms for the 2D mask: every Lit draw samples it through a pinned
+        // unit, so the graph owes the scene its ordering and its lifetime, not a bind.
+        if (shadow_2d_resource_ != rg::kNoResource) {
+            scene.dependencies.push_back(shadow_2d_resource_);
         }
         scene.execute = [this](const rg::PassContext&) {
             drawScene();
@@ -1192,20 +1224,9 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         lights.addLight(collected[slot].gpu);
     }
 
-    // Shadow occluders: each enabled ShadowCaster2D becomes a world-space AABB (centered on its
-    // Transform, `size` wide/tall). The injected shadowFactor2D blocks point/spot light at any
-    // fragment whose segment to the light crosses a box. Past the cap are silently dropped.
-    auto occluders = registry.view<ecs::Transform, ecs::ShadowCaster2D>();
-    for (auto entity : occluders) {
-        const auto& caster = occluders.get<ecs::ShadowCaster2D>(entity);
-        if (!caster.enabled) continue;
-        auto& transform = occluders.get<ecs::Transform>(entity);
-        transform.ensureDecomposed();
-        const glm::vec3 p = transform.worldPosition;
-        const f32 hx = caster.size.x * 0.5f;
-        const f32 hy = caster.size.y * 0.5f;
-        lights.addOccluder(glm::vec4(p.x - hx, p.y - hy, p.x + hx, p.y + hy));
-    }
+    // Last, because which lights the mask can carry is a question about the array the
+    // loop above just filled.
+    collectShadow2D(registry);
 }
 
 bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale) {
@@ -1776,6 +1797,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // between them, and a pass opened here would swallow them.
     { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
+    { ES_PROFILE_SCOPE("render.collect.shadow2dDeclare"); declareShadow2DPass(); }
 
     auto ctx = makeContext();
 

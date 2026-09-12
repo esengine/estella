@@ -45,12 +45,23 @@ inline constexpr u32 ENV_MAP_TEXTURE_UNIT = 3;
 inline constexpr u32 MAX_LIGHTS = 16;
 
 /**
- * @brief Max 2D shadow occluders packed into the UBO (axis-aligned boxes in world space).
- *        The injected applyLighting2D loops up to the active count; 0 occluders = no
- *        shadowing (identity), so the feature is inert until the render path feeds boxes.
- *        Must match the `u_occluders[..]` array size in ShaderParser's injected GLSL.
+ * @brief The 2D shadow mask, and the texture unit every Lit shader samples it from.
+ * @details One screen-sized RGBA8 target, a channel per casting light: the shadow pass
+ *          draws what each occluder hides and a Lit fragment reads its own channel at
+ *          its own pixel. Unit 7 is the top of the batch stream's eight, taken from it
+ *          only while a mask exists — so a scene with no 2D shadows pays no merge slot.
  */
-inline constexpr u32 MAX_OCCLUDERS_2D = 8;
+inline constexpr const char* SHADOW_2D_SAMPLER = "u_shadow2D";
+inline constexpr u32 SHADOW_2D_TEXTURE_UNIT = 7;
+
+/**
+ * @brief Lights whose 2D shadows one frame can carry — the mask's four channels.
+ * @details A cap on CASTERS, not on lights: past it a light still lights the scene and
+ *          stops shadowing, which is the failure a 2D scene can look at and understand.
+ *          Four because an RGBA8 target has four channels and a fifth would be a second
+ *          target, a second bind and a second sample for a case 2D art rarely reaches.
+ */
+inline constexpr u32 MAX_SHADOW_2D_LIGHTS = 4;
 
 /**
  * @brief Slices one directional shadow map is split into, each covering a stretch
@@ -98,12 +109,10 @@ struct GpuLight {
     glm::vec4 color{0.0f};
     glm::vec4 spot{0.0f};
     glm::vec4 shadow{0.0f};
-    /// x = this light's first tile in the shadow atlas, y = how many it owns; w unused.
-    /// y = 0 is a light with no map, which is every light that did not ask for one.
-    /// z = how wide its source is where its own map cannot measure a distance to divide
-    /// by: the tangent of the angle it subtends, which is what a directional light has
-    /// instead of a half-extent. Zero for a light that stands somewhere.
-    glm::vec4 shadowMap{0.0f};
+    /// x = first atlas tile, y = how many it owns (0 = no map); z = the tangent of the
+    /// angle its source subtends, where the map has no distance to divide by (0 for a
+    /// light that stands somewhere); w = its 2D mask channel, -1 for one casting none.
+    glm::vec4 shadowMap{0.0f, 0.0f, 0.0f, -1.0f};
 };
 
 /**
@@ -115,13 +124,10 @@ struct GpuLight {
 struct LightConstants {
     glm::vec4 ambient{0.0f};
     GpuLight lights[MAX_LIGHTS];
-    /// x = active occluder count; yzw unused. Appended after `lights` so existing std140
-    /// offsets (ambient, lights) are unchanged — old Lit shaders keep reading the same bytes.
-    glm::vec4 occluderCount{0.0f};
-    /// World-space AABBs: (minX, minY, maxX, maxY). A light is shadowed at a fragment when the
-    /// fragment→light segment (or, for directional, the fragment→far-along-light-dir segment)
-    /// crosses any box.
-    glm::vec4 occluders[MAX_OCCLUDERS_2D];
+    /// Where the CAMERA NOW DRAWING lands in the 2D shadow mask: xy = its low corner,
+    /// zw = its size, as fractions of the mask; zero width = no mask this frame. Per
+    /// camera, because the mask is screen space and two cameras own two parts of it.
+    glm::vec4 shadow2DRect{0.0f};
     /// World -> tile i's clip space. Identity where a tile is unclaimed; which tiles
     /// a light may read are the ones its own `shadowMap` names.
     glm::mat4 shadowMatrix[MAX_SHADOW_TILES];
@@ -147,7 +153,7 @@ struct LightConstants {
 };
 
 static_assert(sizeof(GpuLight) == 80, "GpuLight must be std140-tight (five vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS + 16 + 16 * MAX_OCCLUDERS_2D
+static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");

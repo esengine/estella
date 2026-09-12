@@ -60,6 +60,9 @@ struct VSOut {
 @group(1) @binding(8) var s0 : sampler;
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
+// The 2D shadow mask, which the injected lighting reads for every Lit shader.
+@group(1) @binding(7) var t7 : texture_2d<f32>;
+@group(1) @binding(15) var s7 : sampler;
 
 // Declared again: each WGSL block is compiled on its own, so a struct defined in
 // the vertex one is an undeclared name here — and that reaches anyone as an

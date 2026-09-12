@@ -3,10 +3,11 @@
 /**
  * @file    ShadowCaster2D.hpp
  * @brief   Marks an entity as a 2D shadow occluder for the Lit lighting path.
- * @details The render collect path turns each enabled caster into a world-space AABB (centered
- *          on the entity's Transform, `size` wide/tall) and feeds it to LightStore as an occluder.
- *          A point/spot light is then blocked at any fragment whose segment to the light crosses
- *          the box (see ShaderParser's injected shadowFactor2D). Carries no geometry of its own.
+ * @details The render collect path turns each enabled caster into the four world-space edges
+ *          of a box centred on its Transform, and the 2D shadow pass DRAWS what those edges
+ *          hide from each casting light into a screen-space mask. A Lit fragment then reads
+ *          its light's channel of that mask. Drawn rather than solved per pixel, which is what
+ *          lets a scene hold as many occluders as it has walls.
  *
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.

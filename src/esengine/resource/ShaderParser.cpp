@@ -832,8 +832,7 @@ const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, sp
 struct LightConstants {
     u_ambient : vec4f,
     u_lights : array<Light, 16>,
-    u_occluderCount : vec4f,
-    u_occluders : array<vec4f, 8>,
+    u_shadow2DRect : vec4f,
     u_shadowMatrix : array<mat4x4f, 16>,
     u_shadowTile : array<vec4f, 16>,
     u_shadowParams : vec4f,
@@ -1005,52 +1004,25 @@ fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f)
     let invmax = inverseSqrt(m);
     return normalize(mat3x3f(T * invmax, B * invmax, N) * tangentNormal);
 }
-fn segHitsBox(p0 : vec2f, p1 : vec2f, box : vec4f) -> f32 {
-    if (p0.x >= box.x && p0.y >= box.y && p0.x <= box.z && p0.y <= box.w) { return 0.0; }
-    let d = p1 - p0;
-    var tmin = 0.0;
-    var tmax = 1.0;
-    for (var a = 0; a < 2; a++) {
-        let da = select(d.y, d.x, a == 0);
-        let p0a = select(p0.y, p0.x, a == 0);
-        let lo = select(box.y, box.x, a == 0) - p0a;
-        let hi = select(box.w, box.z, a == 0) - p0a;
-        if (abs(da) < 1e-5) {
-            if (lo > 0.0 || hi < 0.0) { return 0.0; }
-        } else {
-            let t1 = lo / da;
-            let t2 = hi / da;
-            tmin = max(tmin, min(t1, t2));
-            tmax = min(tmax, max(t1, t2));
-            if (tmin > tmax) { return 0.0; }
-        }
-    }
-    return 1.0;
-}
-fn shadowFactor2D(worldPos : vec2f, aim : vec2f, softness : f32) -> f32 {
-    let n = i32(lc.u_occluderCount.x);
-    if (n <= 0) { return 1.0; }
-    if (softness < 1e-4) {
-        for (var i = 0; i < 8; i++) {
-            if (i >= n) { break; }
-            if (segHitsBox(worldPos, aim, lc.u_occluders[i]) > 0.5) { return 0.0; }
-        }
-        return 1.0;
-    }
-    let dir = aim - worldPos;
-    let dl = length(dir);
-    var perp = vec2f(1.0, 0.0);
-    if (dl > 1e-4) { perp = vec2f(-dir.y, dir.x) / dl; }
-    var blocked = 0.0;
-    for (var s = 0; s < 5; s++) {
-        let t = f32(s) / 4.0 * 2.0 - 1.0;
-        let tp = aim + perp * (t * softness);
-        for (var i = 0; i < 8; i++) {
-            if (i >= n) { break; }
-            if (segHitsBox(worldPos, tp, lc.u_occluders[i]) > 0.5) { blocked += 1.0; break; }
-        }
-    }
-    return 1.0 - blocked / 5.0;
+// What the frame's 2D shadow mask says about this fragment, for the light holding
+// `channel` (negative = a light that casts none). Where a world point lands in the
+// mask is where this same camera puts it, measured on the plane the occluders are in.
+fn shadowFactor2D(channel : f32, worldPos : vec2f) -> f32 {
+    if (channel < 0.0 || lc.u_shadow2DRect.z <= 0.0) { return 1.0; }
+    let clip = frame.projection * vec4f(worldPos, 0.0, 1.0);
+    if (clip.w <= 0.0) { return 1.0; }
+    // The ONE place the twins must not agree: v = 0 samples the bottom of a texture in
+    // GL and the top here, and the rect arrives in GL's terms — so the camera's corner
+    // and the point inside it are both turned over.
+    let ndc = clip.xy / clip.w * 0.5 + 0.5;
+    let base = vec2f(lc.u_shadow2DRect.x, 1.0 - lc.u_shadow2DRect.y - lc.u_shadow2DRect.w);
+    let uv = base + vec2f(ndc.x, 1.0 - ndc.y) * lc.u_shadow2DRect.zw;
+    let m = textureSampleLevel(t7, s7, uv, 0.0);
+    var hidden = m.a;
+    if (channel < 0.5) { hidden = m.r; }
+    else if (channel < 1.5) { hidden = m.g; }
+    else if (channel < 2.5) { hidden = m.b; }
+    return 1.0 - min(hidden, 1.0);
 }
 )"
 // Split, not restructured: MSVC caps ONE string literal at 16380 bytes
@@ -1197,7 +1169,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
             atten *= spotCone(sp, sh, toL, dist);
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
-            atten *= shadowFactor2D(worldPos.xy, aim, sh.x);
+            atten *= shadowFactor2D(lc.u_lights[i].shadowMap.w, worldPos.xy);
         }
         let sm = lc.u_lights[i].shadowMap;
         if (sm.y > 0.0 && atten > 0.0) {
@@ -1534,8 +1506,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    Light u_lights[16];\n"
-            "    highp vec4 u_occluderCount;\n"   // x = active occluder count
-            "    highp vec4 u_occluders[8];\n"    // world AABBs (minX,minY,maxX,maxY)
+            "    highp vec4 u_shadow2DRect;\n"    // xy = this camera's corner of the mask, zw its size
             "    highp mat4 u_shadowMatrix[16];\n"  // world -> each atlas tile's clip
             "    highp vec4 u_shadowTile[16];\n"  // xy = origin, z = side, w = bias
             "    highp vec4 u_shadowParams;\n"    // x = has map, y = one atlas texel
@@ -1552,6 +1523,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#ifdef ES_ENV_MAP\n"
             "uniform highp sampler2D u_envMap;\n"
             "#endif\n"
+            // The 2D shadow mask, on the top slot of the batch stream's eight. Declared
+            // for every Lit shader: a sprite receives 2D shadows, and a mesh standing in
+            // the same scene receives the same ones.
+            "uniform highp sampler2D u_shadow2D;\n"
             // 24 bits of depth across RGB — an 8-bit target is what both backends have
             // in common, and a metre of world depth does not survive 8 of them. The
             // pair lives together: two files would be two chances to disagree.
@@ -1724,65 +1699,27 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float invmax = inversesqrt(m);\n"
             "    return normalize(mat3(T * invmax, B * invmax, N) * tangentNormal);\n"
             "}\n"
-            // 2D hard shadows: a slab test of the fragment->light segment against a world AABB.
-            // Returns 1.0 when the segment crosses the box's interior, else 0.0. The [0,1] param
-            // clamp means boxes behind the fragment or beyond the light don't occlude. A box
-            // occludes the world OUTSIDE it, never a fragment inside itself — so a lit sprite
-            // that is also a ShadowCaster2D casts shadows without blacking out its own pixels
-            // (and geometry overlapping an occluder isn't spuriously darkened by it).
-            "highp float segHitsBox(in highp vec2 p0, in highp vec2 p1, in highp vec4 box) {\n"
-            "    if (p0.x >= box.x && p0.y >= box.y && p0.x <= box.z && p0.y <= box.w) return 0.0;\n"
-            "    highp vec2 d = p1 - p0;\n"
-            "    highp float tmin = 0.0;\n"
-            "    highp float tmax = 1.0;\n"
-            "    for (int a = 0; a < 2; ++a) {\n"
-            "        highp float da = (a == 0) ? d.x : d.y;\n"
-            "        highp float p0a = (a == 0) ? p0.x : p0.y;\n"
-            "        highp float lo = ((a == 0) ? box.x : box.y) - p0a;\n"
-            "        highp float hi = ((a == 0) ? box.z : box.w) - p0a;\n"
-            "        if (abs(da) < 1e-5) {\n"
-            "            if (lo > 0.0 || hi < 0.0) return 0.0;\n"
-            "        } else {\n"
-            "            highp float t1 = lo / da;\n"
-            "            highp float t2 = hi / da;\n"
-            "            tmin = max(tmin, min(t1, t2));\n"
-            "            tmax = min(tmax, max(t1, t2));\n"
-            "            if (tmin > tmax) return 0.0;\n"
-            "        }\n"
-            "    }\n"
-            "    return 1.0;\n"
-            "}\n"
-            // Soft 2D shadows: averages occlusion of K rays cast from the fragment toward points
-            // spread across the light's apparent size (softness = source half-extent, world units).
-            // softness 0 collapses to the single hard-edged centre ray — bit-identical to the prior
-            // behaviour; larger softness widens the penumbra the way an area light's shadow does.
-            // `target` is the point the rays aim at — the light position for point/spot, or a far
-            // point along the light direction for directional — so one primitive shadows every type.
-            // No occluders (count 0) -> always 1.0, inert until the render path feeds boxes.
-            "highp float shadowFactor2D(in highp vec2 worldPos, in highp vec2 target, in highp float softness) {\n"
-            "    int n = int(u_occluderCount.x);\n"
-            "    if (n <= 0) return 1.0;\n"
-            "    if (softness < 1e-4) {\n"
-            "        for (int i = 0; i < 8; ++i) {\n"
-            "            if (i >= n) break;\n"
-            "            if (segHitsBox(worldPos, target, u_occluders[i]) > 0.5) return 0.0;\n"
-            "        }\n"
-            "        return 1.0;\n"
-            "    }\n"
-            "    highp vec2 dir = target - worldPos;\n"
-            "    highp float dl = length(dir);\n"
-            "    highp vec2 perp = (dl > 1e-4) ? vec2(-dir.y, dir.x) / dl : vec2(1.0, 0.0);\n"
-            "    const int K = 5;\n"
-            "    highp float blocked = 0.0;\n"
-            "    for (int s = 0; s < K; ++s) {\n"
-            "        highp float t = float(s) / float(K - 1) * 2.0 - 1.0;\n"
-            "        highp vec2 tp = target + perp * (t * softness);\n"
-            "        for (int i = 0; i < 8; ++i) {\n"
-            "            if (i >= n) break;\n"
-            "            if (segHitsBox(worldPos, tp, u_occluders[i]) > 0.5) { blocked += 1.0; break; }\n"
-            "        }\n"
-            "    }\n"
-            "    return 1.0 - blocked / float(K);\n"
+            // What the frame's 2D shadow mask says about this fragment, for the light
+            // holding `channel` (negative = a light that casts none). The rect is this
+            // camera's own part of the mask, which is what serves a second camera.
+            "highp float shadowFactor2D(in highp float channel, in highp vec2 worldPos) {\n"
+            "    if (channel < 0.0 || u_shadow2DRect.z <= 0.0) return 1.0;\n"
+            // Measured on the Z = 0 plane, which is the plane a 2D occluder hides
+            // things in — and drawn through this same camera, so the landing agrees.
+            "    highp vec4 clip = u_projection * vec4(worldPos, 0.0, 1.0);\n"
+            "    if (clip.w <= 0.0) return 1.0;\n"
+            "    highp vec2 uv = u_shadow2DRect.xy\n"
+            "        + (clip.xy / clip.w * 0.5 + 0.5) * u_shadow2DRect.zw;\n"
+            // An explicit level, not an implicit one: this is read inside the light loop,
+            // where a twin's WGSL forbids a sampled derivative — and the mask has no
+            // mip chain for one to choose from anyway.
+            "    highp vec4 m = textureLod(u_shadow2D, uv, 0.0);\n"
+            // The mask holds how much of this light is hidden, summed over the samples
+            // that make a source soft — clamped, because two walls over one pixel add
+            // past one and a light cannot be hidden more than entirely.
+            "    highp float hidden = (channel < 0.5) ? m.r\n"
+            "        : (channel < 1.5) ? m.g : (channel < 2.5) ? m.b : m.a;\n"
+            "    return 1.0 - min(hidden, 1.0);\n"
             "}\n"
             // The microfacet terms: GGX distribution, Smith geometry (the direct-light k,
             // off perceptual roughness), Schlick fresnel. Guarded denominators, because a
@@ -1956,10 +1893,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            L = towardLight(toL, N);\n"
             "            atten *= spotCone(sp, sh, toL, dist);\n"
             "        }\n"
-            // Only pay for the shadow test when the light actually reaches this fragment (skips the
-            // zeroed/inactive slots and unlit fragments — cheaper than the old unconditional call).
+            // Only pay for the mask read when the light actually reaches this fragment (skips
+            // the zeroed/inactive slots and unlit fragments).
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor2D(worldPos.xy, target, sh.x);\n"
+            "            atten *= shadowFactor2D(u_lights[i].shadowMap.w, worldPos.xy);\n"
             "        }\n"
             // The tiles this light rendered into, which are its own: a fragment
             // tested against every map in the atlas would be darkened by geometry

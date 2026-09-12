@@ -211,9 +211,11 @@ Key facts:
   to migrate by. Shadows are a tiled atlas (`ShadowAtlas`, `MAX_SHADOW_TILES`):
   a spot resolves one cone, a point light six faces (`SHADOW_CUBE_FACES`), a sun
   up to `MAX_SHADOW_CASCADES` = 4 cascades, with a real penumbra from
-  `Light.shadowSoftness` / `sourceAngle`. `MAX_OCCLUDERS_2D` = 8 AABB occluders
-  (`ShadowCaster2D`) shadow content that has no mesh to rasterize — a sprite —
-  which is complementary to the maps, not a second strategy.
+  `Light.shadowSoftness` / `sourceAngle`. 2D shadows are a second target, not a
+  tile: the edges of every `ShadowCaster2D` are drawn as what they hide from each
+  casting light into a screen-sized mask, one channel per light
+  (`MAX_SHADOW_2D_LIGHTS` = 4), and a lit fragment reads its own channel. Drawn
+  rather than solved, so a scene holds as many occluders as it has walls.
 
 ### Resource pipeline (`resource/`)
 

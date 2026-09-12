@@ -24,6 +24,7 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/renderer/graph/RenderGraph.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrame.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameMask.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameShadow2D.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameOverlay.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderFrameSubmit.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/FrameCapture.cpp

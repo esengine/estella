@@ -14,9 +14,12 @@ shadows**.
 | Right-click    | Drop a box obstacle that blocks light and casts a shadow       |
 | `C`            | Clear everything you placed                                    |
 
-Placed lights are capped at 10 and obstacles at 6; when you exceed a cap the
-oldest one fades out and is removed, keeping the scene inside the GPU's 16-light
-/ 8-occluder budget.
+Placed lights are capped at 10 and obstacles at 40; when you exceed a cap the
+oldest one fades out and is removed. The light cap is the frame's (16 fit in the
+lighting block); the obstacle one is only to keep the demo tidy — occluders are
+drawn as geometry, so a scene may hold as many as it has walls. What IS capped
+is how many lights cast at once: the first four get a channel of the 2D shadow
+mask, and any beyond that light the room without shadowing it.
 
 ## How it works
 

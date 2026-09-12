@@ -610,6 +610,36 @@ private:
     /// see and draw them. The graph has bound and cleared the atlas.
     void executeShadowPass(ecs::Registry& registry);
 
+    /**
+     * @brief Gathers the frame's 2D occluders and hands the casting lights a mask channel.
+     *
+     * @details Runs inside collectLights, where nothing may touch the GPU: it turns each
+     *          enabled ShadowCaster2D into world-space edges and picks which lights the
+     *          mask can carry. A light past the cap keeps lighting the scene and stops
+     *          shadowing — said out loud in the plan rather than silently.
+     */
+    void collectShadow2D(ecs::Registry& registry);
+
+    /// Declares the pass that draws the mask, ahead of the scene that samples it.
+    void declareShadow2DPass();
+
+    /// The mask pass's body: the shadow each edge casts from each light, drawn with MIN
+    /// blending so a fragment keeps the darkest claim on it. The graph cleared the target.
+    void executeShadow2DPass();
+
+    /// Fills @ref shadow_2d_vertices_ with the geometry the mask pass draws.
+    void buildShadow2DGeometry();
+
+    /// Frees the mask's own GPU objects. Called while the device is still valid.
+    void releaseShadow2DResources();
+
+    /// Compiles the mask shader on first use, and says whether it is usable.
+    bool ensureShadow2DShader();
+
+    /// Whether this frame drew a mask — what the batch's slot budget and the sampler
+    /// binding both key off.
+    bool shadow2DActive() const { return shadow_2d_texture_id_ != 0; }
+
     /// Grows the per-view frame-constant buffers to @p count and no further.
     void ensureShadowFrameUbos(u32 count);
 
@@ -684,6 +714,51 @@ private:
     FramebufferHandle scene_fbo_ = FramebufferHandle::Default;
     /// The camera's rect within its target; the scene pass carries it.
     GfxDevice::Viewport scene_viewport_{};
+    /**
+     * @brief One occluder's outline in @ref shadow_points_2d_ — what a shadow is cast from.
+     *
+     * @details A ring rather than loose edges: a shadow is thrown by the SILHOUETTE —
+     *          the two points of the outline a light sees the edges of — and what lies
+     *          behind it is one shadow. Per edge, the shadows of one box overlap, and
+     *          the overlap is a question a ring never raises.
+     */
+    struct ShadowRing2D {
+        u32 first = 0;
+        u32 count = 0;
+    };
+
+    /** @brief A light whose 2D shadows the frame draws, and the mask channel it owns. */
+    struct Shadow2DLight {
+        /// Where it stands. A directional light has no position and uses @ref dir.
+        glm::vec2 pos{0.0f};
+        /// The way a directional light's rays travel; zero for the others.
+        glm::vec2 dir{0.0f};
+        /// How far its shadows reach: a point/spot light's radius, a directional
+        /// light's march distance. Past it the light contributes nothing to shadow.
+        f32 reach = 0.0f;
+        /// Half-extent of the source, in world units — what widens the penumbra.
+        f32 softness = 0.0f;
+        /// Its slot in the light array, which is what the channel is recorded against.
+        u32 slot = 0;
+        bool directional = false;
+    };
+
+    std::vector<glm::vec2> shadow_points_2d_;
+    std::vector<ShadowRing2D> shadow_rings_2d_;
+    std::vector<Shadow2DLight> shadow_2d_lights_;
+    /// The mask as a graph resource: the 2D shadow pass writes it, the scene reads it
+    /// through a pinned sampler unit rather than a graph-bound one.
+    rg::ResourceId shadow_2d_resource_ = rg::kNoResource;
+    u32 shadow_2d_texture_id_ = 0;
+    /// Interleaved (x, y, shadow, channel.rgba) — built on the CPU each frame, because
+    /// the geometry is a function of where every light stands.
+    std::vector<f32> shadow_2d_vertices_;
+    BufferHandle shadow_2d_vbo_ = BufferHandle::Invalid;
+    u32 shadow_2d_vbo_bytes_ = 0;
+    VertexLayoutHandle shadow_2d_layout_ = VertexLayoutHandle::Invalid;
+    resource::ShaderHandle shadow_2d_shader_{};
+    bool shadow_2d_shader_tried_ = false;
+
     /// The atlas as a graph resource: the shadow pass writes it and the scene names
     /// it, which is what orders the two. Borrowed from the pool every other target
     /// comes from. kNoResource = no map this frame.

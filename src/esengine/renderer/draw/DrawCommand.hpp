@@ -280,12 +280,15 @@ struct DrawCommand {
     }
 
     /** @brief Finds @p texId in this command's texture set, adds it (returns its slot), or
-     *         -1 if the set is full. Used by the merge to assign per-vertex sampler slots. */
-    i32 addTextureSlot(u32 texId) {
+     *         -1 if the set is full. Used by the merge to assign per-vertex sampler slots.
+     *         @p limit is how many slots the merge may spend: a frame with a 2D shadow
+     *         mask keeps the top one for it, and a merge that took it would bind a
+     *         sprite where every Lit fragment reads its shadow. */
+    i32 addTextureSlot(u32 texId, u8 limit = MAX_CMD_TEXTURE_SLOTS) {
         for (u8 i = 0; i < texture_count; ++i) {
             if (texture_ids[i] == texId) return static_cast<i32>(i);
         }
-        if (texture_count >= MAX_CMD_TEXTURE_SLOTS) return -1;
+        if (texture_count >= limit) return -1;
         texture_ids[texture_count] = texId;
         return static_cast<i32>(texture_count++);
     }

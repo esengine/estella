@@ -123,7 +123,9 @@ void DrawList::finalize(TransientBufferPool& pool) {
                 if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
                     // Multi-texture: give this command's texture a slot in the head's set
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
-                    i32 slot = head.addTextureSlot(commands_[i].texture_ids[0]);
+                    const u8 slotBudget = static_cast<u8>(
+                        shadow_2d_reserved_ ? MAX_CMD_TEXTURE_SLOTS - 1 : MAX_CMD_TEXTURE_SLOTS);
+                    i32 slot = head.addTextureSlot(commands_[i].texture_ids[0], slotBudget);
                     if (slot >= 0) {
                         // Staging verts default to texIndex 0, so only a non-zero slot
                         // needs the per-vertex rewrite; a same-texture merge reuses
@@ -237,7 +239,12 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // any pass. The fill is a STABLE white, so unused units cost no rebind.
         if (cmd.texture_count > 0) {
             for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
-                u32 tex = (slot < cmd.texture_count) ? cmd.texture_ids[slot] : white_texture_id;
+                // The top unit is the frame's 2D shadow mask wherever one exists — the
+                // merge was kept off it, so what a draw holds there is the fill.
+                const bool masked = shadow_2d_reserved_ && slot == MAX_CMD_TEXTURE_SLOTS - 1;
+                u32 tex = masked ? (shadow_2d_texture_ != 0 ? shadow_2d_texture_ : white_texture_id)
+                                 : ((slot < cmd.texture_count) ? cmd.texture_ids[slot]
+                                                               : white_texture_id);
                 device.bindTexture(slot, TextureHandle{tex});
             }
         }

@@ -551,6 +551,10 @@ struct VSOut {
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
 #endif
+// The 2D shadow mask, on the top slot. Unconditional, because the injected
+// lighting reads it for every Lit shader rather than behind a feature.
+@group(1) @binding(7) var t7 : texture_2d<f32>;
+@group(1) @binding(15) var s7 : sampler;
 
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -622,6 +626,80 @@ void main() {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     return texColor * v.v_color;
+}
+#pragma end
+)esshader";
+
+inline constexpr const char* SHADOW2D = R"esshader(#pragma shader "Shadow2D"
+#pragma version 300 es
+
+// The 2D shadow mask: one channel per light that casts, drawn as the region each
+// occluder's silhouette hides from it. The pass ADDS, which is what makes a
+// source with width soft: its silhouette is drawn once per sample across the
+// source, and a fragment collects a share for every sample hidden from it.
+//
+// `a_shadow` is the share this piece of geometry hides. `a_channel` is the
+// light's own channel as a one-hot vector, which lets every light ride in one
+// draw: the channels a vertex does not name receive zero.
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+layout(location = 1) in float a_shadow;
+layout(location = 2) in vec4 a_channel;
+
+out float v_shadow;
+out vec4 v_channel;
+
+void main() {
+    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+    v_shadow = a_shadow;
+    v_channel = a_channel;
+}
+#pragma end
+
+#pragma fragment
+precision highp float;
+
+in float v_shadow;
+in vec4 v_channel;
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = v_channel * v_shadow;
+}
+#pragma end
+
+#pragma vertex wgsl
+struct VSIn {
+    @location(0) a_position : vec2f,
+    @location(1) a_shadow : f32,
+    @location(2) a_channel : vec4f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_shadow : f32,
+    @location(1) v_channel : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
+    out.v_shadow = v.a_shadow;
+    out.v_channel = v.a_channel;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_shadow : f32,
+    @location(1) v_channel : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return v.v_channel * v.v_shadow;
 }
 #pragma end
 )esshader";
@@ -808,6 +886,9 @@ struct VSOut {
 @group(1) @binding(8) var s0 : sampler;
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
+// The 2D shadow mask, which the injected lighting reads for every Lit shader.
+@group(1) @binding(7) var t7 : texture_2d<f32>;
+@group(1) @binding(15) var s7 : sampler;
 
 // Declared again: each WGSL block is compiled on its own, so a struct defined in
 // the vertex one is an undeclared name here — and that reaches anyone as an

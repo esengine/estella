@@ -63,6 +63,27 @@ function helperBindings(source) {
 
 const HELPERS = helperBindings(injected);
 
+/**
+ * The bindings a Lit twin must declare whether or not anything in it reads them: a
+ * stage is one WGSL module, so a name any injected helper mentions has to resolve even
+ * where nothing calls it. What sits behind an `#ifdef` is the exception — only a stage
+ * asking for the feature has that text, or binds it.
+ */
+function unconditionalBindings(source) {
+    const out = new Set();
+    let depth = 0;
+    for (const line of source.split('\n')) {
+        if (/^\s*#\s*if/.test(line)) { depth++; continue; }
+        if (/^\s*#\s*endif/.test(line)) { depth = Math.max(0, depth - 1); continue; }
+        if (/^\s*#\s*(else|elif)/.test(line)) continue;
+        if (depth > 0) continue;
+        for (const m of line.matchAll(/\b([ts]\d+)\b/g)) out.add(m[1]);
+    }
+    return out;
+}
+
+const ALWAYS_INJECTED = unconditionalBindings(injected);
+
 /** Everything calling `name` can end up sampling, following calls transitively. */
 function bindingsReachedBy(name, seen = new Set()) {
     if (seen.has(name)) return new Set();
@@ -133,10 +154,15 @@ for (const { label: file, text } of sources) {
             + ' — its own vertex stage means nothing injects one');
     }
 
-    // Textures it samples itself, plus the ones the injected helpers it calls do.
+    // Textures it samples itself, the ones the injected helpers it calls do, and the
+    // ones every injected helper mentions unconditionally — those are in the module
+    // whether or not this stage ever calls them.
     const needed = new Set([...frag.matchAll(/\b([ts]\d+)\b/g)].map((m) => m[1]));
     for (const [, call] of frag.matchAll(/\b(\w+)\s*\(/g)) {
         for (const n of bindingsReachedBy(call)) needed.add(n);
+    }
+    if (/#pragma\s+domain\s+Lit\b/.test(text)) {
+        for (const n of ALWAYS_INJECTED) needed.add(n);
     }
     for (const name of [...needed].sort()) {
         if (declaredBindings.has(name)) continue;

@@ -10,8 +10,7 @@ import {
 } from '../config';
 
 // FIFO records of what the player has placed. When a list exceeds its cap the
-// oldest entity is tagged Fading (the fade system dims and despawns it), so the
-// scene stays within the GPU's light/occluder budget.
+// oldest entity is tagged Fading (the fade system dims and despawns it).
 const lights: number[] = [];
 const obstacles: number[] = [];
 let nextColor = 0;

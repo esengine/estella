@@ -58,11 +58,13 @@ const BLOCK_BINDINGS = {
   TimeConstants: 3,
 };
 
-// The samplers the Lit-2D header declares, on the units it pins them to — the
-// same two mesh.esshader's hand-written twin names.
+// The samplers the Lit-2D header declares, on the units it pins them to. Mirrors
+// LightConstants.hpp, which is where a unit is decided: a twin generated against a
+// stale copy binds the wrong texture and says nothing.
 const ENGINE_SAMPLERS = [
   { name: 'u_shadowMap', unit: 2 },
   { name: 'u_envMap', unit: 3 },
+  { name: 'u_shadow2D', unit: 7 },
 ];
 
 // Group-1 unit map — mirrors WebGPUMappings textureBindingForUnit/samplerBindingForUnit.

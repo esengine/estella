@@ -16,6 +16,35 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **2D shadows are drawn, not solved.** A 2D shadow used to be an analytic test inside
+  every lit fragment: eight axis-aligned boxes rode in the lighting block, and each one
+  was intersected against the segment from the pixel to the light — for every pixel, for
+  every light. Eight is a room with two walls in it, and the way to raise the number was
+  to make every pixel on the screen pay for it. The engine's own lighting example capped
+  the obstacles a player could place at six and said so in its README.
+
+  The shadow is now rasterised. Each frame the engine takes every enabled
+  `ShadowCaster2D`, finds the silhouette each casting light sees it by, and draws the
+  region behind it into a screen-sized mask that a lit surface reads one texel of. So the
+  occluder count is a vertex count rather than a shader constant — a scene may hold as
+  many walls as it has — and an occluder's SHAPE stops being a constraint of the test,
+  because the shadow is geometry.
+
+  What is capped now is how many lights cast at once: the mask has four channels, so the
+  first four casting lights get one each and a light past that lights the scene without
+  shadowing it. That is a failure a 2D scene can look at and understand, which "some of
+  the walls stopped casting" was not.
+
+  Softness is the same knob and a better shadow: a source with width is sampled across,
+  each sample throws the silhouette it sees at its own share of the strength, and the
+  shares add — so the penumbra is whole where the whole source is hidden and a fraction
+  where only part of it is. A directional light's `shadowDistance` is now how far its
+  shadows are CARRIED rather than how far a fragment searched back for an occluder.
+
+  The engine's Lit shaders spend their top texture unit on the mask while one exists,
+  which costs a sprite batch one merge slot in a scene that has 2D shadows and nothing at
+  all in one that does not.
+
 - **One curve, sampled by everything that has one.** A timeline channel carried keys
   with tangents and six interpolations, drawn by an editor that understood them; a
   particle's size-over-life carried `{t, v}` pairs joined by straight lines; and the

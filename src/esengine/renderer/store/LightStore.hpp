@@ -111,13 +111,20 @@ public:
 
     bool hasEnvironment() const { return hasEnvironment_; }
 
-    /// Appends a world-space AABB occluder (minX, minY, maxX, maxY). Silently drops past
-    /// MAX_OCCLUDERS_2D. With no occluders added, the injected shader shadow test is a no-op.
-    void addOccluder(const glm::vec4& box) {
-        const u32 n = static_cast<u32>(data_.occluderCount.x);
-        if (n >= MAX_OCCLUDERS_2D) return;
-        data_.occluders[n] = box;
-        data_.occluderCount.x = static_cast<f32>(n + 1);
+    /// Gives light @p slot a channel of the frame's 2D shadow mask, and says the mask
+    /// exists. A slot nobody names keeps the -1 it was collected with, which is a light
+    /// that lights without shadowing.
+    void setLightShadow2DChannel(u32 slot, u32 channel) {
+        if (slot >= count_ || channel >= MAX_SHADOW_2D_LIGHTS) return;
+        data_.lights[slot].shadowMap.w = static_cast<f32>(channel);
+        dirty_ = true;
+    }
+
+    /// Where the camera about to draw sits inside the mask (xy = low corner, zw = size,
+    /// as fractions of it). A zero size says the frame has no mask; set per camera,
+    /// because two cameras read two different parts of one screen-space target.
+    void setShadow2DRect(const glm::vec4& rect) {
+        data_.shadow2DRect = rect;
         dirty_ = true;
     }
 
