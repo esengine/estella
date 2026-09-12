@@ -118,6 +118,18 @@ export function untrackedFiles(root) {
   return out.split('\n').filter(Boolean).map((f) => (root.prefix ? `${root.prefix}/${f}` : f));
 }
 
+/**
+ * Every file in `root` a scan is entitled to say it looked at: tracked and
+ * untracked-but-not-ignored, in one list. A scan that lists only tracked files
+ * answers "clean" about the file most likely to be wrong — the one just written,
+ * which is why both halves live here rather than in each caller.
+ */
+export function sourceFiles(root, match = null) {
+  const all = [...trackedFiles(root), ...untrackedFiles(root)];
+  const seen = new Set();
+  return all.filter((f) => (match && !match.test(f) ? false : !seen.has(f) && seen.add(f)));
+}
+
 /** `git diff` output for what `root` has added since it left the remote. */
 export function addedDiff(root, args) {
   if (!root.present) return '';

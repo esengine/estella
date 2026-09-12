@@ -8,8 +8,11 @@
  * inside one. Every scan that judged "the repository" judged half of it.
  */
 import { describe, it, expect } from 'vitest';
+import { writeFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
 // @ts-expect-error — a repo tool, shipped as .mjs with no declarations
-import { corpusRoots, censusFindings, trackedFiles } from '../lib/sourceCensus.mjs';
+import { corpusRoots, censusFindings, trackedFiles, untrackedFiles, sourceFiles, ROOT }
+    from '../lib/sourceCensus.mjs';
 
 type Root = { prefix: string; present: boolean };
 
@@ -62,5 +65,30 @@ describe('the source census spans this repository and the submodules that hold o
         }
         expect(files.length).toBeGreaterThan(100);
         expect(files.every((f) => f.startsWith('desktop/'))).toBe(true);
+    });
+
+    // A tracked-only scan answers "clean" about the file most likely to be wrong: the
+    // one just written. The probe is written HERE because a clean tree has no untracked
+    // file, and the assertion would pass by having nothing to say.
+    it('offers tracked and untracked as one list, deduplicated', () => {
+        const root = roots.find((r) => (r as { present: boolean }).present)!;
+        const dir = path.join(ROOT, (root as { prefix: string }).prefix);
+        const name = `census-probe-${process.pid}.esshader`;
+        const probe = path.join(dir, name);
+        writeFileSync(probe, '#pragma shader "Probe"\n');
+        try {
+            const rel = [(root as { prefix: string }).prefix, name].filter(Boolean).join('/');
+            expect(trackedFiles(root)).not.toContain(rel);
+            expect(untrackedFiles(root)).toContain(rel);
+            const all: string[] = sourceFiles(root);
+            expect(all).toContain(rel);
+            expect(all.length).toBe(new Set(all).size);
+            // And it filters where a caller asks, so a scan says which corpus it took.
+            const shaders: string[] = sourceFiles(root, /\.esshader$/);
+            expect(shaders).toContain(rel);
+            expect(shaders.every((f) => f.endsWith('.esshader'))).toBe(true);
+        } finally {
+            rmSync(probe, { force: true });
+        }
     });
 });

@@ -14,17 +14,20 @@
  * The two halves of a file therefore do NOT have the same powers, which is the
  * kind of asymmetry nothing else would state.
  */
-import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import { corpusRoots, censusFindings, sourceFiles } from './lib/sourceCensus.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const files = execFileSync('git', ['ls-files', '*.esshader'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter(Boolean);
-
 const problems = [];
+// The census, which spans the submodules holding our source and the files not yet
+// tracked: a shader that is NEW is the one whose conditionals nobody has read.
+const ROOTS = corpusRoots();
+for (const finding of censusFindings(ROOTS)) problems.push(`census: ${finding}`);
+const files = ROOTS.flatMap((r) => sourceFiles(r, /\.esshader$/))
+    .filter((f) => existsSync(path.join(ROOT, f)));
 let wgslBlocks = 0;
 for (const file of files) {
     const text = readFileSync(path.join(ROOT, file), 'utf8');

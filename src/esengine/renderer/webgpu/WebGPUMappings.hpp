@@ -408,6 +408,33 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
 }
 
 /**
+ * @brief The engine's `tN` / `sN` group-1 names a WGSL source REACHES, by unit.
+ * @details The other half of {@link scanWGSLBindingMask}: what a stage names, as
+ *          against what it declares. A name reached and not declared is an
+ *          unresolved identifier, and WebGPU reports that as an invalid PIPELINE
+ *          with no shader named anywhere in it.
+ */
+inline void scanWGSLReachedUnits(const char* source, u32& textures, u32& samplers) {
+    textures = 0;
+    samplers = 0;
+    if (!source) return;
+    const auto isIdent = [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    };
+    for (const char* p = source; *p; ++p) {
+        if (*p != 't' && *p != 's') continue;
+        if (p != source && isIdent(p[-1])) continue;
+        char* end = nullptr;
+        const unsigned long unit = std::strtoul(p + 1, &end, 10);
+        if (end == p + 1 || isIdent(*end)) continue;
+        if (unit < 16) {
+            (*p == 't' ? textures : samplers) |= (1u << unit);
+        }
+        p = end - 1;
+    }
+}
+
+/**
  * @brief Bit mask of the group's bindings a WGSL source declares as DEPTH textures.
  * @details A `texture_depth_2d` binding needs `sampleType = Depth` in its layout
  *          entry and a depth-aspect view under it; bound as an ordinary float

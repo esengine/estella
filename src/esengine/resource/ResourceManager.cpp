@@ -102,12 +102,15 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
         }
     }
 
-    auto shader = Shader::create(*device_, vertSrc, fragSrc, language);
-    if (!shader) {
-        ES_LOG_ERROR("Failed to create shader from source");
+    // Through createEx for the LOG: the device already answers why it refused, and a
+    // caller that drops it leaves "failed to create" as the only thing anybody sees.
+    auto outcome = Shader::createEx(*device_, vertSrc, fragSrc, {}, language);
+    if (!outcome.shader) {
+        ES_LOG_ERROR("Failed to create shader from source: {}",
+                     outcome.log.empty() ? "no reason given by the device" : outcome.log.c_str());
         return ShaderHandle();
     }
-    return shaders_.add(std::move(shader));
+    return shaders_.add(std::move(outcome.shader));
 }
 
 ShaderHandle ResourceManager::createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,

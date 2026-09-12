@@ -288,11 +288,13 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
 ShaderCompileOutcome Shader::createEx(GfxDevice& device,
                                       const std::string& vertexSrc,
                                       const std::string& fragmentSrc,
-                                      std::initializer_list<AttribBinding> bindings) {
+                                      std::initializer_list<AttribBinding> bindings,
+                                      GfxShaderLanguage language) {
     ShaderCompileOutcome outcome;
     auto shader = makeUnique<Shader>();
     shader->device_ = &device;
-    if (!shader->compile(vertexSrc, fragmentSrc, bindings, &outcome.log, &outcome.failedStage)) {
+    if (!shader->compile(vertexSrc, fragmentSrc, bindings, &outcome.log, &outcome.failedStage,
+                         language)) {
         return outcome;
     }
     outcome.shader = std::move(shader);

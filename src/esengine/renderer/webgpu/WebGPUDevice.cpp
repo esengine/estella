@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace esengine {
@@ -1028,6 +1029,39 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
     if (!device_) {
         if (outLog) *outLog = "no WGPUDevice";
         ES_LOG_ERROR("WebGPUDevice::createProgram: no device");
+        return ShaderHandle::Invalid;
+    }
+
+    // A stage that names `tN`/`sN` without declaring it cannot compile, and WebGPU says
+    // so as an invalid PIPELINE naming no shader — so the refusal is here, where the
+    // source is still in hand. check-wgsl-twin holds the repo's own to the same rule.
+    const auto undeclared = [&](const char* src, const char* stage) -> bool {
+        u32 reachedTex = 0;
+        u32 reachedSam = 0;
+        scanWGSLReachedUnits(src, reachedTex, reachedSam);
+        const u32 declared = scanWGSLBindingMask(src, 1);
+        for (u32 unit = 0; unit < 16; ++unit) {
+            const bool tex = (reachedTex & (1u << unit)) != 0
+                             && (declared & (1u << textureBindingForUnit(unit))) == 0;
+            const bool sam = (reachedSam & (1u << unit)) != 0
+                             && (declared & (1u << samplerBindingForUnit(unit))) == 0;
+            if (!tex && !sam) continue;
+            if (outLog) {
+                *outLog = std::string("the ") + stage + " stage reaches "
+                        + (tex ? "t" : "s") + std::to_string(unit) + " and declares no binding for it";
+            }
+            ES_LOG_ERROR("WebGPUDevice::createProgram: the {} stage reaches {}{} and declares "
+                         "no binding for it", stage, tex ? "t" : "s", unit);
+            return true;
+        }
+        return false;
+    };
+    if (undeclared(source.vertexSrc, "vertex")) {
+        if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
+        return ShaderHandle::Invalid;
+    }
+    if (undeclared(source.fragmentSrc, "fragment")) {
+        if (outFailedStage) *outFailedStage = GfxShaderStage::Fragment;
         return ShaderHandle::Invalid;
     }
 

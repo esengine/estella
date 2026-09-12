@@ -20,8 +20,8 @@
  * Not every dual-language shader is a file. The SDK writes some of its own into
  * template literals, and those reach the same parser and the same backend.
  */
-import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import { corpusRoots, censusFindings, sourceFiles } from './lib/sourceCensus.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -97,13 +97,6 @@ function bindingsReachedBy(name, seen = new Set()) {
     return out;
 }
 
-// git grep exits 1 when nothing matches, which is an answer and not a failure.
-const listed = (args) => {
-    try {
-        return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
-    } catch { return []; }
-};
-
 /** Every template literal in `text` that carries shader source, labelled by line. */
 function embedded(file, text) {
     const out = [];
@@ -120,15 +113,19 @@ function embedded(file, text) {
     return out;
 }
 
+const problems = [];
 const sources = [];
-// --others: a shader that is NEW is the one most likely to be missing a binding, and
-// a listing of only tracked files answers "clean" about the file nobody has read.
-for (const file of listed(['ls-files', '--cached', '--others', '--exclude-standard',
-                           '*.esshader'])) {
-    sources.push({ label: file, text: readFileSync(path.join(ROOT, file), 'utf8') });
-}
-for (const file of listed(['grep', '-l', '-F', '#pragma fragment wgsl', '--', '*.ts'])) {
-    sources.push(...embedded(file, readFileSync(path.join(ROOT, file), 'utf8')));
+// The census rather than a listing of this repo: it spans the submodules that hold our
+// source AND the files not yet tracked, and a shader that is NEW is the one most likely
+// to be missing a binding.
+const ROOTS = corpusRoots();
+for (const finding of censusFindings(ROOTS)) problems.push(`census: ${finding}`);
+for (const file of ROOTS.flatMap((r) => sourceFiles(r, /\.(esshader|ts)$/))) {
+    const full = path.join(ROOT, file);
+    if (!existsSync(full)) continue;
+    const text = readFileSync(full, 'utf8');
+    if (file.endsWith('.esshader')) sources.push({ label: file, text });
+    else if (text.includes('#pragma fragment wgsl')) sources.push(...embedded(file, text));
 }
 
 /** `#pragma <stage> wgsl` … `#pragma end` for one stage, or null. */
@@ -137,7 +134,6 @@ function wgslStage(text, stage) {
     return m ? m[1] : null;
 }
 
-const problems = [];
 let checked = 0;
 
 for (const { label: file, text } of sources) {

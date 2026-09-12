@@ -142,7 +142,8 @@ public:
     static ShaderCompileOutcome createEx(GfxDevice& device,
                                          const std::string& vertexSrc,
                                          const std::string& fragmentSrc,
-                                         std::initializer_list<AttribBinding> bindings = {});
+                                         std::initializer_list<AttribBinding> bindings = {},
+                                         GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
 
     // =========================================================================
     // Operations

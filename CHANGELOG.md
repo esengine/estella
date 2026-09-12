@@ -41,6 +41,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A shader that fails to compile says why.** `ResourceManager` asked the device to
+  build a program, got a reason back, and logged "Failed to create shader from source"
+  without it — so the one thing that could have named the problem was the one thing
+  dropped. It prints the device's own log now, for both backends.
+
+  And on WebGPU the device refuses a WGSL stage that reaches a `tN`/`sN` binding it does
+  not declare, naming it. That is an unresolved identifier, which WebGPU reports as an
+  invalid *pipeline* with no shader named anywhere in it — an error that costs an hour to
+  place and reads as a renderer bug. The repo's own shaders are held to the same rule by
+  `check-wgsl-twin` before a push; this is what answers for a material somebody else
+  wrote, where no gate of ours runs at all.
+
 - **A 2D shadow caster can carry its own outline.** Every occluder was a box, so a
   round prop threw a rectangle and a wall that was not rectangular threw the wrong
   wall. `ShadowCaster2D.path` is the shape itself — three points or more in the
