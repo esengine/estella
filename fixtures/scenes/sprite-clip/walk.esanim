@@ -1,0 +1,21 @@
+{
+  "version": "1.5",
+  "type": "animation-clip",
+  "fps": 10,
+  "loop": true,
+  "sheet": {
+    "texture": "/scenes/sprite-clip/sheet.png",
+    "cellWidth": 16,
+    "cellHeight": 16,
+    "margin": 0,
+    "spacing": 0,
+    "pageWidth": 32,
+    "pageHeight": 32
+  },
+  "frames": [
+    { "cell": 0 },
+    { "cell": 1 },
+    { "cell": 2 },
+    { "cell": 3 }
+  ]
+}

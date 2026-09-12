@@ -1,0 +1,29 @@
+{
+  "version": 4,
+  "name": "SpriteClip",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 64, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Walker",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 64, "y": 64 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "layer": 0, "order": 0, "enabled": true } },
+        { "type": "SpriteAnimator", "data": { "clip": "/scenes/sprite-clip/walk.esanim", "speed": 1, "playing": true, "loop": true, "enabled": true } }
+      ],
+      "visible": true
+    }
+  ]
+}
