@@ -47,6 +47,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A polygon collider can take the sprite's own silhouette.** Drawing a collider
+  around art by hand is the one authoring step where the answer is already in the
+  file: the artist drew the shape, and every vertex placed by eye is a chance to
+  disagree with it. Trace Collider From Sprite — on the component and in the palette
+  — traces the outer boundary of the opaque region, simplifies it, and writes the
+  ring. What Box2D does with a concave ring was settled when polygon colliders
+  learned to partition; this only had to produce one.
+
+  Holes and separate islands are deliberately not traced. They are not a coarser
+  version of this answer but a different component count, which is the author's
+  decision rather than a trace's.
+
 - **A texture's geometry is one picture.** The 9-slice border had a canvas in the
   asset inspector — drag the guides on the sprite — and the sheet grid, added
   alongside it, had four numbers in a list. A grid is the case where numbers are
