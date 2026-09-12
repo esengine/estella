@@ -3,8 +3,9 @@
 /**
  * @file    ShadowCaster2D.hpp
  * @brief   Marks an entity as a 2D shadow occluder for the Lit lighting path.
- * @details The render collect path turns each enabled caster into the four world-space edges
- *          of a box placed by its Transform, and the 2D shadow pass DRAWS what those edges
+ * @details The render collect path turns each enabled caster into a world-space ring — its
+ *          own outline, or the four edges of a box — placed by its Transform, and the 2D
+ *          shadow pass DRAWS what that ring
  *          hide from each casting light into a screen-space mask. A Lit fragment then reads
  *          its light's channel of that mask. Drawn rather than solved per pixel, which is what
  *          lets a scene hold as many occluders as it has walls.
@@ -18,6 +19,8 @@
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
+#include <vector>
+
 namespace esengine::ecs {
 
 /**
@@ -26,9 +29,20 @@ namespace esengine::ecs {
  */
 ES_COMPONENT(renderable=enabled)
 struct ShadowCaster2D {
-    /** @brief Occluder box size in world units (full width/height; centered on the Transform). */
-    ES_PROPERTY(animatable, min=0, tooltip="Occluder box size in world units (centred on the entity, turning with it).")
+    /** @brief Occluder box size in world units (full width/height; centered on the Transform).
+     *         Ignored by a caster that carries a @ref path. */
+    ES_PROPERTY(animatable, min=0, tooltip="Occluder box size in world units (centred on the entity, turning with it). Unused when the caster has an outline.")
     glm::vec2 size{32.0f, 32.0f};
+
+    /**
+     * @brief The occluder's outline in local units, or empty for @ref size's box.
+     * @details Three points or more, in order round the shape; where it sits and how
+     *          it is turned is the Transform's, exactly as the box's is. Traced from
+     *          the sprite's own alpha in the editor, which is where a shape that
+     *          matches the artwork comes from.
+     */
+    ES_PROPERTY()
+    std::vector<glm::vec2> path;
 
     /** @brief Disabled casters are skipped during collection. */
     ES_PROPERTY()

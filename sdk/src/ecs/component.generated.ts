@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '73a4e6e098cc7a9b';
+export const ABI_LAYOUT_HASH = 'f8b3b5501ea0afe4';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -67,6 +67,14 @@ export interface ComponentMetaEntry {
     assetFields: AssetFieldMeta[];
     skeletal?: SkeletalFieldMeta;
     entityFields: string[];
+    /**
+     * Fields whose value is a LIST, which has no place in the zero-copy
+     * component buffer a native host writes through — its storage is a
+     * pointer. Each crosses as its own generated
+     * `es_<Component>_<field>_get/_set` pair. Entity lists predate this
+     * and keep the hand-written pair the registry wires them by.
+     */
+    listFields?: string[];
     colorFields: string[];
     animatableFields: string[];
     /**
@@ -760,15 +768,17 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     ShadowCaster2D: {
         defaults: {
             size: { x: 32, y: 32 },
+            path: [],
             enabled: true,
         },
         renderableField: 'enabled',
         assetFields: [],
         entityFields: [],
+        listFields: ['path'],
         colorFields: [],
         animatableFields: ['size.x', 'size.y'],
         fields: {
-            size: { min: 0, tooltip: "Occluder box size in world units (centred on the entity, turning with it)." },
+            size: { min: 0, tooltip: "Occluder box size in world units (centred on the entity, turning with it). Unused when the caster has an outline." },
         },
     },
     ShapeRenderer: {
@@ -1491,6 +1501,7 @@ export interface SegmentCollider2DData {
 
 export interface ShadowCaster2DData {
     size: Vec2;
+    path: Vec2[];
     enabled: boolean;
 }
 

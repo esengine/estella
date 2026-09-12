@@ -25,6 +25,12 @@ import { convertForWasm, convertFromWasm } from './BuiltinBridge';
 type BufferFn = (entity: number) => ArrayBuffer | null | undefined;
 type HasFn = (entity: number) => boolean;
 type RemoveFn = (entity: number) => void;
+/** The generated pair a list field crosses by — see COMPONENT_META.listFields. */
+interface ListFieldBinding {
+    field: string;
+    get: (entity: number) => unknown;
+    set: (entity: number, value: unknown) => void;
+}
 
 function views(buf: ArrayBuffer): [Float32Array, Uint32Array, Uint8Array] {
     // Float32Array/Uint32Array require a byteLength that is a multiple of 4, but a
@@ -162,6 +168,18 @@ export function createNativeRegistry(
             continue;
         }
         const colorFields = (COMPONENT_META[cppName]?.colorFields ?? []) as readonly string[];
+        // A list field's storage is a pointer, so it is absent from the buffer the
+        // accessors write through: it crosses as its own generated pair, and a host
+        // without them keeps none of the field rather than half of it.
+        const listFields = ((COMPONENT_META[cppName]?.listFields ?? []) as readonly string[])
+            .map((field) => ({
+                field,
+                get: scope[`es_${cppName}_${field}_get`] as ((e: Entity) => unknown) | undefined,
+                set: scope[`es_${cppName}_${field}_set`] as
+                    ((e: Entity, v: unknown) => void) | undefined,
+            }))
+            .filter((l): l is ListFieldBinding =>
+                typeof l.get === 'function' && typeof l.set === 'function');
 
         // add: emplace (the buffer binding getOrEmplaces) + write every field. The
         // SDK hands embind-shape data ({x,y,z,w} colors); ptrAccessors want
@@ -172,6 +190,7 @@ export function createNativeRegistry(
             const ptrData = colorFields.length ? convertFromWasm(data, colorFields) : data;
             const [f32, u32, u8] = views(buf);
             accessor.write(f32, u32, u8, 0, ptrData);
+            for (const l of listFields) l.set(entity, (data as Record<string, unknown>)[l.field] ?? []);
         };
 
         // get: read into a fresh object (embind returns fresh, so callers may
@@ -186,6 +205,7 @@ export function createNativeRegistry(
                     accessor.fill(f32, u32, u8, 0, out);
                 }
             }
+            for (const l of listFields) out[l.field] = l.get(entity);
             return colorFields.length ? convertForWasm(out, colorFields) : out;
         };
 

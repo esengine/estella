@@ -84,19 +84,26 @@ class TypeSystem:
         return m.group(1).strip() if m else None
 
     def is_struct_vector(self, cpp_type: str) -> bool:
-        """`std::vector<S>` where S is a registered CUSTOM_STRUCT (REARCH_GUI F5).
-        Marshalled via embind register_vector<S> + value_object<S>; never
-        pointer-accessed."""
+        """`std::vector<S>` where S is an element the boundary converts one at a
+        time — a registered CUSTOM_STRUCT, or a glm vector, both of which embind
+        knows as value_objects. Carried as a JS array; never pointer-accessed.
+        """
         elem = self.vector_elem(cpp_type)
-        return elem is not None and elem in self.CUSTOM_STRUCTS
+        return elem is not None and (elem in self.CUSTOM_STRUCTS or elem in self.GLM_TYPES)
+
+    def vector_elem_cpp(self, cpp_type: str) -> str:
+        """The element type as generated C++ must SPELL it: a custom struct lives in
+        esengine::, a glm one names its own namespace."""
+        elem = self.vector_elem(cpp_type)
+        return elem if elem in self.GLM_TYPES else f'esengine::{elem}'
+
+    def vector_elem_ts(self, cpp_type: str) -> str:
+        """The element's TypeScript name — `Vec2`, not `glm::vec2`."""
+        elem = self.vector_elem(cpp_type)
+        return self.CPP_TO_TS.get(elem, elem)
 
     def is_any_vector(self, cpp_type: str) -> bool:
         return self.is_vector(cpp_type) or self.is_struct_vector(cpp_type)
-
-    def struct_vector_js_name(self, cpp_type: str) -> str:
-        """embind register_vector binding name for a struct-vector, e.g.
-        std::vector<Foo> -> VectorFoo."""
-        return f'Vector{self.vector_elem(cpp_type)}'
 
     def is_skip(self, cpp_type: str) -> bool:
         t = self.clean_type(cpp_type)
@@ -183,7 +190,7 @@ class TypeSystem:
         if t in self.VECTOR_TYPES:
             return self.VECTOR_TYPES[t][2]
         if self.is_struct_vector(t):
-            return f'{self.vector_elem(t)}[]'
+            return f'{self.vector_elem_ts(t)}[]'
         if t in self.CUSTOM_STRUCTS:
             return t  # the struct name is its own TS interface name
         return 'unknown'

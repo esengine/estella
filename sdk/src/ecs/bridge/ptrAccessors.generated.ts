@@ -1443,7 +1443,7 @@ export function fillShadowCaster2D(
     ptr: number, out: ShadowCaster2DPtrData,
 ): void {
     const size_ = out.size; size_.x = f32[ptr >> 2]; size_.y = f32[(ptr >> 2) + 1];
-    out.enabled = u8[ptr + 8] !== 0;
+    out.enabled = u8[ptr + 20] !== 0;
 }
 
 export function writeShadowCaster2D(
@@ -1451,7 +1451,7 @@ export function writeShadowCaster2D(
     ptr: number, data: ShadowCaster2DPtrData,
 ): void {
     f32[ptr >> 2] = data.size.x; f32[(ptr >> 2) + 1] = data.size.y;
-    u8[ptr + 8] = data.enabled ? 1 : 0;
+    u8[ptr + 20] = data.enabled ? 1 : 0;
 }
 
 export function createShadowCaster2DData(): ShadowCaster2DPtrData {

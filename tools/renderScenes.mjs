@@ -401,6 +401,10 @@ export const SCENES = [
   // light's line is inside an UNTURNED box's shadow and outside this one's,
   // and a turn the other way would put it back in.
   { id: "shadow2d-turned", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-turned.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-turned.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.75,\"y\":0.7332,\"rgb\":[0,149,0],\"tol\":60}]" } },
+  // An occluder with an OUTLINE of its own: a triangle whose shadow reaches where
+  // the box beside it (20 units, and still authored) never could. The lower probe
+  // is the discriminating one — lit the moment the outline stops being read.
+  { id: "shadow2d-outline", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-outline.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-outline.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.7332,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.5833,\"y\":0.25,\"rgb\":[0,175,0],\"tol\":60}]" } },
   // Two probes inside the penumbra, where a hard shadow reads 0 and an unshadowed
   // surface reads 166: a soft edge is the only thing that lands between them.
   { id: "shadow2d-soft", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-soft.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-soft.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.75,\"y\":0.30,\"rgb\":[0,44,0],\"tol\":22},{\"x\":0.75,\"y\":0.70,\"rgb\":[0,52,0],\"tol\":22}]" } },

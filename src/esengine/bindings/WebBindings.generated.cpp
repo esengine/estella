@@ -1021,6 +1021,35 @@ RigidBody3DJS rigidbody3dToJS(const esengine::ecs::RigidBody3D& c) {
     return js;
 }
 
+struct ShadowCaster2DJS {
+    glm::vec2 size;
+    emscripten::val path = emscripten::val::array();
+    bool enabled;
+};
+
+void shadowcaster2dApplyJS(esengine::ecs::ShadowCaster2D& c, const ShadowCaster2DJS& js) {
+    c.size = js.size;
+    { const size_t n = js.path["length"].as<size_t>();
+      c.path.clear(); c.path.reserve(n);
+      for (size_t i = 0; i < n; ++i) c.path.push_back(js.path[i].as<glm::vec2>()); }
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::ShadowCaster2D shadowcaster2dFromJS(const ShadowCaster2DJS& js) {
+    esengine::ecs::ShadowCaster2D c;
+    shadowcaster2dApplyJS(c, js);
+    return c;
+}
+
+ShadowCaster2DJS shadowcaster2dToJS(const esengine::ecs::ShadowCaster2D& c) {
+    ShadowCaster2DJS js;
+    js.size = c.size;
+    js.path = emscripten::val::array();
+    for (size_t i = 0; i < c.path.size(); ++i) js.path.set(i, emscripten::val(c.path[i]));
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct SpriteJS {
     u32 texture;
     glm::vec4 color;
@@ -1708,9 +1737,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::SegmentCollider2D::categoryBits)
         .field("maskBits", &esengine::ecs::SegmentCollider2D::maskBits);
 
-    value_object<esengine::ecs::ShadowCaster2D>("ShadowCaster2D")
-        .field("size", &esengine::ecs::ShadowCaster2D::size)
-        .field("enabled", &esengine::ecs::ShadowCaster2D::enabled);
+    value_object<ShadowCaster2DJS>("ShadowCaster2D")
+        .field("size", &ShadowCaster2DJS::size)
+        .field("path", &ShadowCaster2DJS::path)
+        .field("enabled", &ShadowCaster2DJS::enabled);
 
     value_object<esengine::ecs::ShapeRenderer>("ShapeRenderer")
         .field("shapeType", &esengine::ecs::ShapeRenderer::shapeType)
@@ -2488,16 +2518,19 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("hasShadowCaster2D", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ShadowCaster2D>(static_cast<Entity>(e));
         }))
-        .function("getShadowCaster2D", optional_override([](Registry& r, u32 e) -> esengine::ecs::ShadowCaster2D& {
+        .function("getShadowCaster2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
-            static esengine::ecs::ShadowCaster2D s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::ShadowCaster2D>(entity)) return s_dummy;
-            return r.get<esengine::ecs::ShadowCaster2D>(entity);
-        }), allow_raw_pointers())
-        .function("addShadowCaster2D", optional_override([](Registry& r, u32 e, const esengine::ecs::ShadowCaster2D& c) {
+            if (!r.valid(entity) || !r.has<esengine::ecs::ShadowCaster2D>(entity)) return ShadowCaster2DJS{};
+            return shadowcaster2dToJS(r.get<esengine::ecs::ShadowCaster2D>(entity));
+        }))
+        .function("addShadowCaster2D", optional_override([](Registry& r, u32 e, const ShadowCaster2DJS& js) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::ShadowCaster2D>(entity, c);
+            if (auto* existing = r.tryGet<esengine::ecs::ShadowCaster2D>(entity)) {
+                shadowcaster2dApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::ShadowCaster2D>(entity, shadowcaster2dFromJS(js));
         }))
         .function("removeShadowCaster2D", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
@@ -3157,7 +3190,7 @@ static_assert(offsetof(esengine::ecs::SegmentCollider2D, enabled) == 29, "ABI of
 static_assert(offsetof(esengine::ecs::SegmentCollider2D, categoryBits) == 32, "ABI offset drift: esengine::ecs::SegmentCollider2D.categoryBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::SegmentCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::SegmentCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::ShadowCaster2D, size) == 0, "ABI offset drift: esengine::ecs::ShadowCaster2D.size (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::ShadowCaster2D, enabled) == 8, "ABI offset drift: esengine::ecs::ShadowCaster2D.enabled (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::ShadowCaster2D, enabled) == 20, "ABI offset drift: esengine::ecs::ShadowCaster2D.enabled (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, shapeType) == 0, "ABI offset drift: esengine::ecs::ShapeRenderer.shapeType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, color) == 4, "ABI offset drift: esengine::ecs::ShapeRenderer.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, size) == 20, "ABI offset drift: esengine::ecs::ShapeRenderer.size (EHT expected 20)");
@@ -3294,7 +3327,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "73a4e6e098cc7a9b";
+static const char* kEsAbiLayoutHash = "f8b3b5501ea0afe4";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

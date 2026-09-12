@@ -269,7 +269,7 @@ class MetadataGenerator:
         if self.types.is_entity_vector(t):
             return 'Entity[]'
         if self.types.is_struct_vector(t):
-            return f'{self.types.vector_elem(t)}[]'
+            return f'{self.types.vector_elem_ts(t)}[]'
         if self.types.is_handle(t):
             return 'number'
         if 'entity_ref' in prop.annotations or self.types.is_entity(t):
@@ -423,6 +423,14 @@ class MetadataGenerator:
             '    assetFields: AssetFieldMeta[];',
             '    skeletal?: SkeletalFieldMeta;',
             '    entityFields: string[];',
+            '    /**',
+            '     * Fields whose value is a LIST, which has no place in the zero-copy',
+            '     * component buffer a native host writes through — its storage is a',
+            '     * pointer. Each crosses as its own generated',
+            '     * `es_<Component>_<field>_get/_set` pair. Entity lists predate this',
+            '     * and keep the hand-written pair the registry wires them by.',
+            '     */',
+            '    listFields?: string[];',
             '    colorFields: string[];',
             '    animatableFields: string[];',
             '    /**',
@@ -498,6 +506,12 @@ class MetadataGenerator:
                 lines.append(f'        entityFields: [{parts}],')
             else:
                 lines.append('        entityFields: [],')
+
+            list_fields = [p.name for p in comp.properties
+                           if self.types.is_struct_vector(p.cpp_type)]
+            if list_fields:
+                parts = ', '.join(f"'{f}'" for f in list_fields)
+                lines.append(f'        listFields: [{parts}],')
 
             if color_fields:
                 parts = ', '.join(f"'{f}'" for f in color_fields)

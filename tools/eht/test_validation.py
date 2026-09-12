@@ -251,7 +251,9 @@ carries('a primitive crosses', 'ES_PROPERTY()\n    float x = 0.0f;', uncarried=0
 carries('glm::vec2 crosses', 'ES_PROPERTY()\n    glm::vec2 size;', uncarried=0)
 carries('a handle crosses', 'ES_PROPERTY(asset=texture)\n    resource::TextureHandle tex;', uncarried=0)
 carries('std::vector<Entity> crosses', 'ES_PROPERTY()\n    std::vector<Entity> entities;', uncarried=0)
-carries('a point list does NOT', 'ES_PROPERTY()\n    std::vector<glm::vec2> path;', uncarried=1)
+carries('a point list crosses', 'ES_PROPERTY()\n    std::vector<glm::vec2> path;', uncarried=0)
+carries('a list of an unknown element does NOT',
+        'ES_PROPERTY()\n    std::vector<SomeThing> things;', uncarried=1)
 carries('an unknown struct does NOT', 'ES_PROPERTY()\n    SomeThing thing;', uncarried=1)
 
 if _failures:

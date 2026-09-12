@@ -693,6 +693,7 @@ export interface SegmentCollider2D {
 
 export interface ShadowCaster2D {
     size: Vec2;
+    path: Vec2[];
     enabled: boolean;
 }
 

@@ -387,7 +387,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         ptrFn: 'getShadowCaster2DPtr',
         fields: [
             { name: 'size', type: 'vec2', offset: 0 },
-            { name: 'enabled', type: 'bool', offset: 8 },
+            { name: 'enabled', type: 'bool', offset: 20 },
         ],
     },
     ShapeRenderer: {

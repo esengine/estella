@@ -55,7 +55,71 @@ class NativeBindingsGenerator:
             # id returned by a resource binding (es_createTexture); reconstruct it.
             return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
                     f'c.{n} = decltype(c.{n})(static_cast<esengine::u32>(static_cast<long long>(_v))); }}')
+        if self.types.is_struct_vector(ct):
+            return f'    // {n}: a list, carried by its own _set/_get pair'
         return f'    // skip {n}: {t} (entity / vector / struct — needs a bespoke binding)'
+
+
+    def _list_fields(self, comp):
+        """(property, [member names]) for every field carried as a JS array.
+
+        A variable-length field has no place in the zero-copy component buffer the
+        ptr accessors write through — its storage is a pointer — so it crosses as
+        its own pair of bindings. Entity lists predate this and keep the
+        hand-written pair the registry wires them by (MeshSkin, Children).
+        """
+        out = []
+        for prop in comp.properties:
+            t = self.types.clean_type(prop.cpp_type)
+            if not self.types.is_struct_vector(t):
+                continue
+            elem = self.types.vector_elem(t)
+            members = ([m for m, _ in self.types.CUSTOM_STRUCTS[elem]]
+                       if elem in self.types.CUSTOM_STRUCTS
+                       else ['x', 'y', 'z', 'w'][:_GLM_ARITY[elem]])
+            out.append((prop, members))
+        return out
+
+    def _list_binding(self, comp, full, prop, members) -> List[str]:
+        get_name = f'es_{comp.name}_{prop.name}_get'
+        set_name = f'es_{comp.name}_{prop.name}_set'
+        out = [f'static JSValue {get_name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
+               '    JSValue arr = JS_NewArray(ctx);',
+               '    if (argc < 1) return arr;',
+               f'    const auto* c = esn_reg().tryGet<{full}>(esn_entity(ctx, argv[0]));',
+               '    if (!c) return arr;',
+               '    uint32_t i = 0;',
+               f'    for (const auto& v : c->{prop.name}) {{',
+               '        JSValue o = JS_NewObject(ctx);']
+        for m in members:
+            out.append(f'        JS_SetPropertyStr(ctx, o, "{m}", JS_NewFloat64(ctx, v.{m}));')
+        out += ['        JS_SetPropertyUint32(ctx, arr, i++, o);',
+                '    }',
+                '    return arr;',
+                '}',
+                f'static JSValue {set_name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
+                '    if (argc < 2) return JS_UNDEFINED;',
+                f'    auto& c = esn_reg().getOrEmplace<{full}>(esn_entity(ctx, argv[0]));',
+                f'    c.{prop.name}.clear();',
+                '    uint32_t len = 0;',
+                '    JSValue lenv = JS_GetPropertyStr(ctx, argv[1], "length");',
+                '    JS_ToUint32(ctx, &len, lenv);',
+                '    JS_FreeValue(ctx, lenv);',
+                f'    c.{prop.name}.reserve(len);',
+                '    for (uint32_t i = 0; i < len; ++i) {',
+                '        JSValue e = JS_GetPropertyUint32(ctx, argv[1], i);',
+                f'        decltype(c.{prop.name})::value_type v{{}};',
+                '        double n = 0;']
+        for m in members:
+            out += [f'        {{ JSValue f = JS_GetPropertyStr(ctx, e, "{m}");',
+                    f'          if (JS_ToFloat64(ctx, &n, f) == 0) v.{m} = static_cast<decltype(v.{m})>(n);',
+                    '          JS_FreeValue(ctx, f); }']
+        out += [f'        c.{prop.name}.push_back(v);',
+                '        JS_FreeValue(ctx, e);',
+                '    }',
+                '    return JS_UNDEFINED;',
+                '}']
+        return out
 
     def _component(self, comp: Component) -> List[str]:
         full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
@@ -97,6 +161,8 @@ class NativeBindingsGenerator:
         out.append(f'    if (esn_reg().has<{full}>(e)) esn_reg().remove<{full}>(e);')
         out.append('    return JS_UNDEFINED;')
         out.append('}')
+        for prop, members in self._list_fields(comp):
+            out.extend(self._list_binding(comp, full, prop, members))
         out.append('')
         return out
 
@@ -137,6 +203,11 @@ class NativeBindingsGenerator:
                          f'JS_NewCFunction(ctx, {has}, "{has}", 1));')
             lines.append(f'    JS_SetPropertyStr(ctx, global, "{remove}", '
                          f'JS_NewCFunction(ctx, {remove}, "{remove}", 1));')
+            for prop, _members in self._list_fields(comp):
+                for fn, arity in ((f'es_{comp.name}_{prop.name}_get', 1),
+                                  (f'es_{comp.name}_{prop.name}_set', 2)):
+                    lines.append(f'    JS_SetPropertyStr(ctx, global, "{fn}", '
+                                 f'JS_NewCFunction(ctx, {fn}, "{fn}", {arity}));')
         lines.append('}')
         lines.append('')
         return '\n'.join(lines)

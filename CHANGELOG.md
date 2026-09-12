@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A 2D shadow caster can carry its own outline.** Every occluder was a box, so a
+  round prop threw a rectangle and a wall that was not rectangular threw the wrong
+  wall. `ShadowCaster2D.path` is the shape itself — three points or more in the
+  entity's own space, placed and turned by its Transform, and the box stands where
+  there is none. The shadow pass already drew rings rather than boxes, so a polygon
+  costs what its point count costs and nothing else.
+
+  What it needed was a boundary that can carry a point list. One now crosses to the
+  web as a JS array and to a native host through a generated pair of bindings — its
+  storage is a pointer, so it can never travel in the zero-copy component buffer the
+  rest of a component's fields cross in. A field type the boundary cannot carry is
+  refused at generation time instead of failing when a scene adds the component.
+
 - **A 2D shadow caster turns with the entity it is on.** Its box was built from the
   entity's world position and its own size, and from nothing else: a wall laid at an angle
   cast the shadow of an upright wall, and turning the wall changed nothing on screen. The

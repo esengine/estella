@@ -178,6 +178,34 @@ describe('createNativeRegistry', () => {
         expect((reg.getMeshSkin(4) as { joints: number[] }).joints).toEqual([]);
     });
 
+    it('a list field crosses by its own pair, beside the buffer the rest goes through', () => {
+        // ShadowCaster2D is the first component with BOTH a POD field the accessors
+        // write into the zero-copy buffer and one whose storage is a pointer. Skip
+        // the pair and a native game's polygon walls silently become boxes.
+        const paths = new Map<number, unknown>();
+        const buffers = new Map<number, ArrayBuffer>();
+        const scope: Record<string, unknown> = {
+            es_ShadowCaster2D_buffer: (e: number) => {
+                let b = buffers.get(e);
+                if (!b) { b = new ArrayBuffer(64); buffers.set(e, b); }
+                return b;
+            },
+            es_ShadowCaster2D_has: (e: number) => buffers.has(e),
+            es_ShadowCaster2D_remove: (e: number) => { buffers.delete(e); paths.delete(e); },
+            es_ShadowCaster2D_path_set: (e: number, v: unknown) => { paths.set(e, v); },
+            es_ShadowCaster2D_path_get: (e: number) => paths.get(e) ?? [],
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        const outline = [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 0, y: 2 }];
+        reg.addShadowCaster2D(3, { size: { x: 20, y: 20 }, path: outline, enabled: true });
+        const got = reg.getShadowCaster2D(3) as { size: { x: number }; path: unknown };
+        expect(got.path).toEqual(outline);
+        expect(got.size.x).toBe(20);
+        // A caster authored with no outline says so, rather than keeping the last one.
+        reg.addShadowCaster2D(3, { size: { x: 20, y: 20 }, enabled: true });
+        expect((reg.getShadowCaster2D(3) as { path: unknown }).path).toEqual([]);
+    });
+
     it('getChildren.entities is iterable (for...of) as well as vector-shaped', () => {
         // The timeline/animator child-path resolver walks children with a for-of and
         // types the field `Entity[]`; the VectorEntity shim must answer Symbol.iterator

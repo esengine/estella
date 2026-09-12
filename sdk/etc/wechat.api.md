@@ -7839,6 +7839,7 @@ BuiltinComponentDef<ShadowCaster2DData>
 ## ShadowCaster2DData — interface @experimental
 ```
 enabled: boolean
+path: Vec2[]
 size: Vec2
 ```
 

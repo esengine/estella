@@ -55,22 +55,31 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
         auto& transform = casters.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
         const glm::vec3 p = transform.worldPosition;
-        const f32 hx = caster.size.x * 0.5f;
-        const f32 hy = caster.size.y * 0.5f;
-        if (hx <= 0.0f || hy <= 0.0f) continue;
-        // The box turns with the entity, the way a collider on it does — a wall laid
+        // The shape turns with the entity, the way a collider on it does — a wall laid
         // at an angle casts the shadow of a wall at that angle. Its SIZE is its own,
         // also like a collider's: scaling the entity does not resize the occluder.
         const glm::vec2 turn = flatTurnZ(transform.worldRotation);
-        const auto corner = [&](f32 sx, f32 sy) {
-            return glm::vec2{p.x + sx * hx * turn.x - sy * hy * turn.y,
-                             p.y + sx * hx * turn.y + sy * hy * turn.x};
+        const auto place = [&](f32 lx, f32 ly) {
+            return glm::vec2{p.x + lx * turn.x - ly * turn.y, p.y + lx * turn.y + ly * turn.x};
         };
+        // An outline of its own, or the box. Two points enclose nothing, so a path
+        // short of a triangle is not a shape and the box stands.
+        if (caster.path.size() >= 3) {
+            shadow_rings_2d_.push_back({static_cast<u32>(shadow_points_2d_.size()),
+                                        static_cast<u32>(caster.path.size())});
+            for (const glm::vec2& local : caster.path) {
+                shadow_points_2d_.push_back(place(local.x, local.y));
+            }
+            continue;
+        }
+        const f32 hx = caster.size.x * 0.5f;
+        const f32 hy = caster.size.y * 0.5f;
+        if (hx <= 0.0f || hy <= 0.0f) continue;
         shadow_rings_2d_.push_back({static_cast<u32>(shadow_points_2d_.size()), 4});
-        shadow_points_2d_.push_back(corner(-1.0f, -1.0f));
-        shadow_points_2d_.push_back(corner(1.0f, -1.0f));
-        shadow_points_2d_.push_back(corner(1.0f, 1.0f));
-        shadow_points_2d_.push_back(corner(-1.0f, 1.0f));
+        shadow_points_2d_.push_back(place(-hx, -hy));
+        shadow_points_2d_.push_back(place(hx, -hy));
+        shadow_points_2d_.push_back(place(hx, hy));
+        shadow_points_2d_.push_back(place(-hx, hy));
     }
     if (shadow_rings_2d_.empty()) return;
 

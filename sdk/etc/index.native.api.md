@@ -5,7 +5,7 @@ Symbols: 114 public · 99 beta · 1700 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"73a4e6e098cc7a9b"
+"f8b3b5501ea0afe4"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -8030,6 +8030,7 @@ BuiltinComponentDef<ShadowCaster2DData>
 ## ShadowCaster2DData — interface @experimental
 ```
 enabled: boolean
+path: Vec2[]
 size: Vec2
 ```
 

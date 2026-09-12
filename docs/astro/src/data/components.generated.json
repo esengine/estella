@@ -3497,8 +3497,13 @@
           "key": "size",
           "type": "Vec2",
           "default": "(32, 32)",
-          "doc": "Occluder box size in world units (centred on the entity, turning with it).",
+          "doc": "Occluder box size in world units (centred on the entity, turning with it). Unused when the caster has an outline.",
           "range": "≥ 0"
+        },
+        {
+          "key": "path",
+          "type": "array",
+          "default": "empty"
         },
         {
           "key": "enabled",

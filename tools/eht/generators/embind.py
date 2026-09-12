@@ -216,10 +216,10 @@ class EmbindGenerator:
                     lines.append(f'    c.{prop.name}.reserve(js.{prop.name}.size());')
                     lines.append(f'    for (auto v : js.{prop.name}) c.{prop.name}.push_back(Entity(v));')
                 elif self.types.is_struct_vector(t):
-                    elem = self.types.vector_elem(t)
+                    elem = self.types.vector_elem_cpp(t)
                     lines.append(f'    {{ const size_t n = js.{prop.name}["length"].as<size_t>();')
                     lines.append(f'      c.{prop.name}.clear(); c.{prop.name}.reserve(n);')
-                    lines.append(f'      for (size_t i = 0; i < n; ++i) c.{prop.name}.push_back(js.{prop.name}[i].as<esengine::{elem}>()); }}')
+                    lines.append(f'      for (size_t i = 0; i < n; ++i) c.{prop.name}.push_back(js.{prop.name}[i].as<{elem}>()); }}')
                 else:
                     lines.append(f'    c.{prop.name} = js.{prop.name};')
             lines.append('}')
