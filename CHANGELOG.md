@@ -60,10 +60,13 @@ published separately; it ships inside the editor.
   which costs a sprite batch one merge slot in a scene that has 2D shadows and nothing at
   all in one that does not.
 
-  KNOWN GAP: on the WebGPU backend a scene with more than one casting light loses the
-  shadows of some of them — the lights still light it, and one casting light is correct
-  on both backends. WebGL2 is correct throughout. Documented under the lighting guide's
-  Known gaps; the criterion that shows it runs on WebGL2 only and says why.
+
+  The mask is a target the frame renders and then samples, and the two backends store
+  the rows of one in opposite order — so the height in the lighting block carries a
+  SIGN saying which. It cannot be a compile-time branch: one shader source serves both
+  backends, because the WGSL a material runs is translated from the GLSL. Read upside
+  down the effect is invisible in any scene that is symmetric about its middle, which
+  every criterion here was until one of them stopped being.
 
 - **One curve, sampled by everything that has one.** A timeline channel carried keys
   with tangents and six interpolations, drawn by an editor that understood them; a

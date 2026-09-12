@@ -148,6 +148,9 @@ public:
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::WGSL;
     }
+
+    /// WebGPU stores a texture from the top down.
+    bool textureOriginTopLeft() const override { return true; }
     ShaderHandle createProgram(const GfxShaderSource& source,
                                const GfxAttribBinding* bindings, u32 bindingCount,
                                std::string* outLog, GfxShaderStage* outFailedStage) override;

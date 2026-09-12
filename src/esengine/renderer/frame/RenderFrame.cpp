@@ -266,11 +266,15 @@ void RenderFrame::drawScene() {
     if (shadow2DActive() && width_ > 0 && height_ > 0) {
         const f32 w = static_cast<f32>(width_);
         const f32 h = static_cast<f32>(height_);
+        // The height's SIGN carries which way this backend stores the rows it just drew.
+        // One shader source serves both backends — the WGSL a material runs is translated
+        // from the GLSL — so the convention travels as data rather than a #ifdef.
+        const f32 rows = device_.textureOriginTopLeft() ? -1.0f : 1.0f;
         context_.lights().setShadow2DRect(glm::vec4(
             static_cast<f32>(std::max(scene_viewport_.x, 0)) / w,
             static_cast<f32>(std::max(scene_viewport_.y, 0)) / h,
             static_cast<f32>(scene_viewport_.w) / w,
-            static_cast<f32>(scene_viewport_.h) / h));
+            static_cast<f32>(scene_viewport_.h) / h * rows));
     } else {
         context_.lights().setShadow2DRect(glm::vec4(0.0f));
     }

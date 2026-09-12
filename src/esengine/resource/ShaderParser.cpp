@@ -1011,12 +1011,11 @@ fn shadowFactor2D(channel : f32, worldPos : vec2f) -> f32 {
     if (channel < 0.0 || lc.u_shadow2DRect.z <= 0.0) { return 1.0; }
     let clip = frame.projection * vec4f(worldPos, 0.0, 1.0);
     if (clip.w <= 0.0) { return 1.0; }
-    // The ONE place the twins must not agree: v = 0 samples the bottom of a texture in
-    // GL and the top here, and the rect arrives in GL's terms — so the camera's corner
-    // and the point inside it are both turned over.
+    // A negative height is the backend saying its texture rows run the other way.
     let ndc = clip.xy / clip.w * 0.5 + 0.5;
-    let base = vec2f(lc.u_shadow2DRect.x, 1.0 - lc.u_shadow2DRect.y - lc.u_shadow2DRect.w);
-    let uv = base + vec2f(ndc.x, 1.0 - ndc.y) * lc.u_shadow2DRect.zw;
+    let v = select(ndc.y, 1.0 - ndc.y, lc.u_shadow2DRect.w < 0.0);
+    let uv = lc.u_shadow2DRect.xy
+        + vec2f(ndc.x * lc.u_shadow2DRect.z, v * abs(lc.u_shadow2DRect.w));
     let m = textureSampleLevel(t7, s7, uv, 0.0);
     var hidden = m.a;
     if (channel < 0.5) { hidden = m.r; }
@@ -1708,8 +1707,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // things in — and drawn through this same camera, so the landing agrees.
             "    highp vec4 clip = u_projection * vec4(worldPos, 0.0, 1.0);\n"
             "    if (clip.w <= 0.0) return 1.0;\n"
+            // A negative height is the backend saying its texture rows run the other way.
+            "    highp vec2 ndc = clip.xy / clip.w * 0.5 + 0.5;\n"
+            "    highp float v = u_shadow2DRect.w < 0.0 ? 1.0 - ndc.y : ndc.y;\n"
             "    highp vec2 uv = u_shadow2DRect.xy\n"
-            "        + (clip.xy / clip.w * 0.5 + 0.5) * u_shadow2DRect.zw;\n"
+            "        + vec2(ndc.x * u_shadow2DRect.z, v * abs(u_shadow2DRect.w));\n"
             // An explicit level, not an implicit one: this is read inside the light loop,
             // where a twin's WGSL forbids a sampled derivative — and the mask has no
             // mip chain for one to choose from anyway.

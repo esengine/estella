@@ -421,6 +421,16 @@ public:
     /** @brief Whether this backend compiles @p language (GL: GLSL ES 300; WebGPU: WGSL). */
     virtual bool supportsShaderLanguage(GfxShaderLanguage language) const = 0;
 
+    /**
+     * @brief Whether texel (0,0) of a rendered texture is its TOP-left corner.
+     *
+     * @details GL stores a framebuffer bottom-up and WebGPU top-down, so one geometry
+     *          through one matrix lands in opposite rows. A shader sampling a target
+     *          this frame rendered cannot ask — one source serves both backends — so
+     *          the answer travels as data.
+     */
+    virtual bool textureOriginTopLeft() const = 0;
+
     /** @brief Deletes a shader program */
     virtual void deleteProgram(ShaderHandle program) = 0;
 

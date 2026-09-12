@@ -199,6 +199,10 @@ struct MockGfxDevice final : GfxDevice {
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300 || (wgslSupported && language == GfxShaderLanguage::WGSL);
     }
+
+    /// Answers as GL does; a test that cares sets it.
+    bool originTopLeft = false;
+    bool textureOriginTopLeft() const override { return originTopLeft; }
     ShaderHandle createProgram(const GfxShaderSource& source, const GfxAttribBinding*, u32,
                                std::string*, GfxShaderStage* stage) override {
         ++createProgramCalls;

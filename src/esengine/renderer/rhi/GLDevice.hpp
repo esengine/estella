@@ -85,6 +85,9 @@ public:
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300;
     }
+
+    /// GL reads a framebuffer from the bottom up.
+    bool textureOriginTopLeft() const override { return false; }
     ShaderHandle createProgram(const GfxShaderSource& source,
                                const GfxAttribBinding* bindings, u32 bindingCount,
                                std::string* outLog, GfxShaderStage* outFailedStage) override;
