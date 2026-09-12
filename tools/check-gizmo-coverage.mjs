@@ -75,6 +75,7 @@ const DISPOSITION = {
   'CharacterController3D.halfHeight': 'extent',
   'Camera.orthoSize': 'extent',
   'Light.radius': 'extent',
+  'Light.innerRadius': 'extent',
   'MeleeAttack.radius': 'extent',
   'NavAgent.radius': 'extent',
   'NavAgent.arriveRadius': 'extent',
