@@ -337,10 +337,6 @@ struct VSOut {
 #pragma end
 
 #pragma fragment wgsl
-// The cookie, on the draw's own first slot — this pass binds one texture per light.
-@group(1) @binding(0) var t0 : texture_2d<f32>;
-@group(1) @binding(8) var s0 : sampler;
-
 struct VSOut {
     @builtin(position) pos : vec4f,
     @location(0) v_texCoord : vec2f,
@@ -635,9 +631,6 @@ struct VSOut {
 // lighting reads it for every Lit shader rather than behind a feature.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
-// The light-shape mask, one unit below it, on the same terms.
-@group(1) @binding(6) var t6 : texture_2d<f32>;
-@group(1) @binding(14) var s6 : sampler;
 
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -972,9 +965,6 @@ struct VSOut {
 // The 2D shadow mask, which the injected lighting reads for every Lit shader.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
-// The light-shape mask, one unit below it, on the same terms.
-@group(1) @binding(6) var t6 : texture_2d<f32>;
-@group(1) @binding(14) var s6 : sampler;
 
 // Declared again: each WGSL block is compiled on its own, so a struct defined in
 // the vertex one is an undeclared name here — and that reaches anyone as an

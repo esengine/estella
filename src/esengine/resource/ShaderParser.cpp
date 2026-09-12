@@ -14,6 +14,7 @@
 #include "ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../renderer/store/MaterialConstants.hpp"
+#include "../renderer/rhi/WgslBindings.hpp"
 
 #include <sstream>
 #include <algorithm>
@@ -794,10 +795,40 @@ std::string wgslBatchTextureDecls(bool postProcess) {
     return src;
 }
 
-// #pragma param texture uniforms: material units (>= 8) extend group 1 at
-// texture bindings unit+8 (16..23) with samplers at unit+16 (24..31) — the
-// WebGPUMappings unit→binding convention. The sampler rides the param's name
-// with an _s suffix: textureSampleLevel(u_mask, u_mask_s, uv, 0.0).
+/**
+ * The `tN` / `sN` bindings a stage NAMES and has not declared for itself. The engine
+ * owns what `tN` means, so it completes the set rather than asking a twin to repeat the
+ * convention — an unresolved name is an invalid pipeline that mentions no shader. An
+ * already-declared unit is left alone, so a cooked twin assembles unchanged.
+ */
+std::string wgslReachedTextureDecls(const std::string& source, bool postProcess) {
+    u32 reachedTex = 0;
+    u32 reachedSam = 0;
+    scanWGSLReachedUnits(source.c_str(), reachedTex, reachedSam);
+    const u32 declared = scanWGSLBindingMask(source.c_str(), 1);
+    std::string src;
+    for (u32 unit = 0; unit < WGSL_MAX_TEXTURE_UNITS; ++unit) {
+        const std::string n = std::to_string(unit);
+        if ((reachedTex & (1u << unit)) != 0
+            && (declared & (1u << textureBindingForUnit(unit))) == 0) {
+            // A fullscreen pass reads the scene's DEPTH at the top engine unit, and a
+            // depth texture is its own WGSL type with no sampler under it.
+            src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var t" + n
+                 + (postProcess && unit == kSceneDepthUnit ? " : texture_depth_2d;\n"
+                                                           : " : texture_2d<f32>;\n");
+        }
+        if ((reachedSam & (1u << unit)) != 0
+            && (declared & (1u << samplerBindingForUnit(unit))) == 0) {
+            src += "@group(1) @binding(" + std::to_string(samplerBindingForUnit(unit)) + ") var s" + n
+                 + " : sampler;\n";
+        }
+    }
+    return src;
+}
+
+// #pragma param texture uniforms: material units (>= 8) take the unit→binding
+// convention in rhi/WgslBindings.hpp, and the sampler rides the param's own name with
+// an _s suffix: textureSampleLevel(u_mask, u_mask_s, uv, 0.0).
 std::string wgslMaterialTextureDecls(const ParsedShader& parsed) {
     std::string src;
     for (const auto& p : parsed.properties) {
@@ -1385,6 +1416,9 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         if (lit) inject(kLitHeaderWGSL);
         inject(kColorHelpersWGSL);
     }
+    // Last, so it sees every declaration made above as well as the body's own.
+    inject(wgslReachedTextureDecls(assembled.str() + bodyIt->second,
+                                   parsed.domain == "PostProcess"));
 
     assembled << bodyIt->second;
 

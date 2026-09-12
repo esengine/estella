@@ -280,9 +280,6 @@ struct VSOut {
 // lighting reads it for every Lit shader rather than behind a feature.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
 @group(1) @binding(15) var s7 : sampler;
-// The light-shape mask, one unit below it, on the same terms.
-@group(1) @binding(6) var t6 : texture_2d<f32>;
-@group(1) @binding(14) var s6 : sampler;
 
 struct VSOut {
     @builtin(position) pos : vec4f,

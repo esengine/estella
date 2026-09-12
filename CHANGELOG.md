@@ -41,6 +41,21 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WGSL twin no longer declares the engine's own texture bindings.** A twin that
+  writes its own vertex stage had to spell out every `tN`/`sN` it touched — a convention
+  the engine owns, where forgetting one is an invalid pipeline that mentions no shader.
+  The assembler now completes the set from what the stage reaches, leaving anything the
+  twin declared itself alone, so a cooked (`wgsl full`) shader assembles unchanged.
+
+  The rule had been copied into three places — the assembler's emitters, the WebGPU
+  backend's bind-group reflection, and the twin generator. The unit→binding convention
+  and the two source scans are one header now (`rhi/WgslBindings.hpp`), which the
+  assembler emits from and the backend reads back with.
+
+  `check-wgsl-twin` asked twins for those declarations; that question cannot fail any
+  more, so it stopped asking and lost eighty lines. What it still holds is the varying
+  struct, which is nobody else's to supply.
+
 - **A shader that fails to compile says why.** `ResourceManager` asked the device to
   build a program, got a reason back, and logged "Failed to create shader from source"
   without it — so the one thing that could have named the problem was the one thing

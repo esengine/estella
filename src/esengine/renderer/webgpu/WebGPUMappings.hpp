@@ -23,6 +23,7 @@
 #include "../rhi/GfxEnums.hpp"
 #include "../draw/BlendMode.hpp"
 #include "../rhi/PipelineState.hpp"
+#include "../rhi/WgslBindings.hpp"
 
 #include <webgpu/webgpu.h>
 
@@ -353,86 +354,11 @@ inline WGPUCullMode toWGPUCullMode(bool enabled, bool front) {
 // Group-1 binding convention (texture units → bindings)
 // =============================================================================
 
-/**
- * @brief Texture units the group-1 convention spans: engine units 0..7 (the
- *        batch's u_textures[8]) plus material-param units 8..15 (the GL
- *        MATERIAL_TEXTURE_UNIT_BASE range).
- */
-inline constexpr u32 kGroup1TextureUnits = 16;
+/** @brief Texture units the group-1 convention spans — see WGSL_MAX_TEXTURE_UNITS. */
+inline constexpr u32 kGroup1TextureUnits = WGSL_MAX_TEXTURE_UNITS;
 
-/**
- * @brief Group-1 binding of a texture unit's texture_2d.
- * @details Engine units 0..7 sit at bindings 0..7 with their samplers at 8..15
- *          (GL's combined texture+sampler state de-combined); material units
- *          8..15 extend the group at bindings 16..23 with samplers at 24..31.
- *          The two maps are disjoint and together cover bits 0..31 exactly, so
- *          one u32 mask describes a whole group.
- */
-inline constexpr u32 textureBindingForUnit(u32 unit) { return unit < 8 ? unit : unit + 8; }
-
-/** @brief Group-1 binding of a texture unit's sampler (see textureBindingForUnit). */
-inline constexpr u32 samplerBindingForUnit(u32 unit) { return unit < 8 ? unit + 8 : unit + 16; }
-
-// =============================================================================
-// WGSL binding reflection (source scan)
-// =============================================================================
-
-/**
- * @brief Bit mask of the `@group(N) @binding(i)` indices a WGSL source declares.
- * @details Declarations drive the device's EXPLICIT bind-group layouts: every
- *          declared binding gets a layout entry and a bind-group entry (bound
- *          resource or dummy backfill), so declared-but-unused bindings are as
- *          legal as they are in GLSL. A source scan stands in for real
- *          reflection until the Phase 3 emitter carries binding metadata.
- *          Bindings ≥ 32 are ignored (the group-1 convention tops out at 31).
- */
-inline u32 scanWGSLBindingMask(const char* source, u32 group) {
-    if (!source) return 0;
-    u32 mask = 0;
-    for (const char* p = source; (p = std::strstr(p, "@group(")) != nullptr;) {
-        p += 7;
-        char* end = nullptr;
-        const unsigned long g = std::strtoul(p, &end, 10);
-        if (end == p) continue;
-        p = end;
-        if (g != group) continue;
-        const char* b = std::strstr(p, "@binding(");
-        if (!b) break;
-        b += 9;
-        const unsigned long idx = std::strtoul(b, &end, 10);
-        if (end == b) continue;
-        p = end;
-        if (idx < 32) mask |= (1u << idx);
-    }
-    return mask;
-}
-
-/**
- * @brief The engine's `tN` / `sN` group-1 names a WGSL source REACHES, by unit.
- * @details The other half of {@link scanWGSLBindingMask}: what a stage names, as
- *          against what it declares. A name reached and not declared is an
- *          unresolved identifier, and WebGPU reports that as an invalid PIPELINE
- *          with no shader named anywhere in it.
- */
-inline void scanWGSLReachedUnits(const char* source, u32& textures, u32& samplers) {
-    textures = 0;
-    samplers = 0;
-    if (!source) return;
-    const auto isIdent = [](char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
-    };
-    for (const char* p = source; *p; ++p) {
-        if (*p != 't' && *p != 's') continue;
-        if (p != source && isIdent(p[-1])) continue;
-        char* end = nullptr;
-        const unsigned long unit = std::strtoul(p + 1, &end, 10);
-        if (end == p + 1 || isIdent(*end)) continue;
-        if (unit < 16) {
-            (*p == 't' ? textures : samplers) |= (1u << unit);
-        }
-        p = end - 1;
-    }
-}
+// The unit -> binding convention and the two source scans live in rhi/WgslBindings.hpp:
+// the shader assembler EMITS what this backend reads back, so one of them owns the rule.
 
 /**
  * @brief Bit mask of the group's bindings a WGSL source declares as DEPTH textures.

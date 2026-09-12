@@ -2,20 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  check-wgsl-twin.mjs — a WGSL twin that writes its own vertex stage
- *        declares everything its fragment stage names.
+ *        declares the structs its fragment stage names.
  *
- * A fragment-only twin is assembled with the domain's canonical vertex stage,
- * and the engine injects the matching `VSOut` and the eight batch texture
- * bindings alongside it. **A twin that writes its own vertex stage gets neither**
- * — the engine cannot know what interface that stage produces — so its fragment
- * stage has to declare the varying struct and every texture it reaches, its own
- * and the ones the injected lighting helpers sample through it.
+ * A fragment-only twin is assembled with the domain's canonical vertex stage and
+ * gets the matching `VSOut` with it. **A twin that writes its own vertex stage
+ * gets neither** — the engine cannot know what interface that stage produces —
+ * so its fragment stage has to declare the varying struct itself.
  *
  * Miss one and nothing says so. The stage is not an error to the parser, and it
  * reaches whoever runs the second backend as "Invalid RenderPipeline", with the
- * log carrying no mention of a shader at all. That has now happened four times:
- * a mesh twin without `t3`, an environment atlas nobody declared, a shadow map
- * the same, and a sky twin that named the `VSOut` from its own vertex block.
+ * log carrying no mention of a shader at all — which is how a sky twin naming the
+ * `VSOut` of its own vertex block cost an afternoon.
+ *
+ * TEXTURES are not this file's question: a stage's `tN`/`sN` are completed by the
+ * assembler from what it reaches, and the backend refuses by name what it cannot
+ * complete. See ShaderParser's wgslReachedTextureDecls, WebGPUDevice::createProgram.
  *
  * Not every dual-language shader is a file. The SDK writes some of its own into
  * template literals, and those reach the same parser and the same backend.
@@ -26,77 +27,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PARSER = path.join('src', 'esengine', 'resource', 'ShaderParser.cpp');
-
-const parser = readFileSync(path.join(ROOT, PARSER), 'utf8');
-
-/** The injected WGSL, as the shader receives it: raw strings plus literal runs. */
-function injectedWgsl() {
-    const raws = [...parser.matchAll(/const char\* k\w*WGSL\s*=\s*R"\(([\s\S]*?)\)";/g)].map((m) => m[1]);
-    const runs = [...parser.matchAll(/const char\* k\w*WGSL\s*=\s*((?:\s*"(?:[^"\\]|\\.)*"\s*)+);/g)]
-        .map((m) => [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)]
-            .map((l) => l[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')).join(''));
-    return [...raws, ...runs].join('\n');
-}
-
-const injected = injectedWgsl();
-
-/** Injected helper → the texture/sampler names its body reaches, directly. */
-function helperBindings(source) {
-    const out = new Map();
-    for (const m of source.matchAll(/\bfn\s+(\w+)\s*\([^)]*\)\s*->[^{]*\{([\s\S]*?)\n\}/g)) {
-        const body = m[2];
-        const names = new Set([...body.matchAll(/\b([ts]\d+)\b/g)].map((b) => b[1]));
-        const calls = new Set([...body.matchAll(/\b(\w+)\s*\(/g)].map((c) => c[1]));
-        const prev = out.get(m[1]);
-        // Several helpers are defined once per feature branch; a caller may reach
-        // either, so what it needs is the union of them.
-        if (prev) {
-            for (const n of names) prev.names.add(n);
-            for (const c of calls) prev.calls.add(c);
-        } else {
-            out.set(m[1], { names, calls });
-        }
-    }
-    return out;
-}
-
-const HELPERS = helperBindings(injected);
-
-/**
- * The bindings a Lit twin must declare whether or not anything in it reads them: a
- * stage is one WGSL module, so a name any injected helper mentions has to resolve even
- * where nothing calls it. What sits behind an `#ifdef` is the exception — only a stage
- * asking for the feature has that text, or binds it.
- */
-function unconditionalBindings(source) {
-    const out = new Set();
-    let depth = 0;
-    for (const line of source.split('\n')) {
-        if (/^\s*#\s*if/.test(line)) { depth++; continue; }
-        if (/^\s*#\s*endif/.test(line)) { depth = Math.max(0, depth - 1); continue; }
-        if (/^\s*#\s*(else|elif)/.test(line)) continue;
-        if (depth > 0) continue;
-        for (const m of line.matchAll(/\b([ts]\d+)\b/g)) out.add(m[1]);
-    }
-    return out;
-}
-
-const ALWAYS_INJECTED = unconditionalBindings(injected);
-
-/** Everything calling `name` can end up sampling, following calls transitively. */
-function bindingsReachedBy(name, seen = new Set()) {
-    if (seen.has(name)) return new Set();
-    seen.add(name);
-    const helper = HELPERS.get(name);
-    if (!helper) return new Set();
-    const out = new Set(helper.names);
-    for (const call of helper.calls) {
-        for (const n of bindingsReachedBy(call, seen)) out.add(n);
-    }
-    return out;
-}
-
 /** Every template literal in `text` that carries shader source, labelled by line. */
 function embedded(file, text) {
     const out = [];
@@ -130,8 +60,11 @@ for (const file of ROOTS.flatMap((r) => sourceFiles(r, /\.(esshader|ts)$/))) {
 
 /** `#pragma <stage> wgsl` … `#pragma end` for one stage, or null. */
 function wgslStage(text, stage) {
-    const m = new RegExp(`^#pragma\\s+${stage}\\s+wgsl\\s*$([\\s\\S]*?)^#pragma\\s+end\\s*$`, 'm').exec(text);
-    return m ? m[1] : null;
+    // `full` included: a self-contained stage is the one the assembler does NOT
+    // complete, so it is the one this file most has to read.
+    const m = new RegExp(`^#pragma\\s+${stage}\\s+wgsl(\\s+full)?\\s*$([\\s\\S]*?)^#pragma\\s+end\\s*$`,
+                         'm').exec(text);
+    return m ? m[2] : null;
 }
 
 let checked = 0;
@@ -153,21 +86,6 @@ for (const { label: file, text } of sources) {
             + ' — its own vertex stage means nothing injects one');
     }
 
-    // Textures it samples itself, the ones the injected helpers it calls do, and the
-    // ones every injected helper mentions unconditionally — those are in the module
-    // whether or not this stage ever calls them.
-    const needed = new Set([...frag.matchAll(/\b([ts]\d+)\b/g)].map((m) => m[1]));
-    for (const [, call] of frag.matchAll(/\b(\w+)\s*\(/g)) {
-        for (const n of bindingsReachedBy(call)) needed.add(n);
-    }
-    if (/#pragma\s+domain\s+Lit\b/.test(text)) {
-        for (const n of ALWAYS_INJECTED) needed.add(n);
-    }
-    for (const name of [...needed].sort()) {
-        if (declaredBindings.has(name)) continue;
-        problems.push(`${file}: the fragment twin reaches \`${name}\` and does not declare it`
-            + ' — an injected helper samples it, and only this stage can bind it');
-    }
 }
 
 if (problems.length > 0) {
@@ -177,5 +95,5 @@ if (problems.length > 0) {
 }
 
 console.log(`check-wgsl-twin: ${checked} of ${sources.length} twin(s) write their own vertex`
-    + ` stage and declare every struct and texture they reach`
-    + ` (${HELPERS.size} injected helpers followed)`);
+    + ' stage and declare every struct they name (their textures are the assembler\'s,'
+    + ' and the backend names what it cannot complete)');
