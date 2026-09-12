@@ -452,10 +452,13 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         return this.profile_.createSocket?.(options) ?? new MiniGameSocket(options, this.g_);
     }
 
+    /** `null` means ABSENT, as on the web — but `getStorageSync` answers an unset
+     *  key with `''`, which readers above take for a stored value and fail to
+     *  parse. The host cannot tell the two apart, so `''` is read as absence. */
     getStorageItem(key: string): string | null {
         try {
             const value = this.g_.getStorageSync(key);
-            return typeof value === 'string' ? value : null;
+            return typeof value === 'string' && value !== '' ? value : null;
         } catch {
             return null;
         }

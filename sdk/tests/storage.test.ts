@@ -177,3 +177,21 @@ describe('Storage', () => {
         });
     });
 });
+
+describe('a mini-game host reports an unset key as an empty string', () => {
+    it('is read as absent, so every accessor answers its default', async () => {
+        // wx.getStorageSync answers `''` for a key that was never set. Taken for a
+        // stored value it reaches JSON.parse, which throws on it — the shipped
+        // symptom was a boot-time warning per JSON key a game had not written yet.
+        const { MiniGamePlatformAdapter } = await import('../src/platform/minigame/adapter');
+        const store = new Map<string, string>([['written', 'kept']]);
+        const g = {
+            getStorageSync: (k: string) => store.get(k) ?? '',
+            setStorageSync: (k: string, v: string) => { store.set(k, v); },
+            removeStorageSync: (k: string) => { store.delete(k); },
+        };
+        const adapter = new MiniGamePlatformAdapter({ id: 'wechat', hostLabel: 'WeChat', global: g } as never);
+        expect(adapter.getStorageItem('never-written')).toBeNull();
+        expect(adapter.getStorageItem('written')).toBe('kept');
+    });
+});

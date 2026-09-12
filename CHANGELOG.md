@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mini-game reads an unset storage key as absent.** `wx.getStorageSync` answers a
+  key that was never written with `''`, and the adapter passed that up as a stored
+  value — so `Storage.getJSON` handed it to `JSON.parse`, which throws on it. A game
+  booted with one warning per JSON key it had not written yet (`Failed to parse JSON
+  for key "achievements"`), and `has()` reported keys that do not exist. `null` means
+  absent, as it does on the web.
+
 - **A WeChat 分包 root carries the entry file the vendor demands.** With the phantom
   roots gone, the export hit the next requirement behind them: devtools refuses to
   compile a package whose subpackage root has no `game.js`, naming the missing file
