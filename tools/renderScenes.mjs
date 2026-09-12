@@ -560,6 +560,10 @@ export const SCENES = [
   // material sampler — so a recovered material sampling every texture from unit
   // 0 looked exactly like one with no normal map, and nothing could tell.
   { id: "device-loss-material", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-normal.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-normal.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.333,\"y\":0.5,\"rgb\":[0,252,0],\"tol\":45},{\"x\":0.667,\"y\":0.5,\"rgb\":[0,36,0],\"tol\":50}]" } },
+  // One light casting BOTH kinds of shadow, which the component says it can: a map
+  // over the mesh on the left, the 2D mask over the sprite on the right. Two
+  // separate paths through one frame, and nothing else asks them to coexist.
+  { id: "shadow-both-kinds", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/shadow-both.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/shadow-both.textures.json", ESTELLA_VERIFY_W: "600", ESTELLA_VERIFY_H: "600", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.10,\"y\":0.50,\"rgb\":[0,0,0],\"tol\":30},{\"x\":0.30,\"y\":0.50,\"rgb\":[153,153,153],\"tol\":40},{\"x\":0.62,\"y\":0.50,\"rgb\":[234,234,234],\"tol\":40},{\"x\":0.78,\"y\":0.50,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // A hundred occluders and four lights with width, which the analytic path could not
   // have held: the counters are the capacity, the criteria above are the correctness.
   // 0.64ms of a frame here against 0.057ms with the casters off.
