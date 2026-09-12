@@ -80,13 +80,28 @@ function stripUuidRefs(v: unknown): unknown {
   return v;
 }
 
-/** Distinct lazy subpackage groups present in the cook, as vendor subPackage roots. */
-function subPackagesOf(entries: CookManifest['entries'], subpackageDir: string): Array<{ name: string; root: string }> {
-  const names = new Set<string>();
-  // Remote (CDN / hot-update) groups are NOT WeChat 分包 — they're fetched from a
-  // remote origin, not packed as a subPackage root.
-  for (const e of entries) if (e.group && e.group !== 'main' && e.groupMode !== 'remote') names.add(e.group);
-  return [...names].map((name) => ({ name, root: `${subpackageDir}/${name}` }));
+/**
+ * The vendor subPackage roots this package actually carries, read off the STAGED
+ * paths: a root the package lacks fails the whole game at load ("root 不存在"),
+ * so the declaration comes from the files rather than from the group names beside
+ * them. Remote (CDN / hot-update) groups are not 分包 and are skipped.
+ */
+function subPackagesOf(
+  entries: CookManifest['entries'],
+  subpackageDir: string,
+): { subPackages: Array<{ name: string; root: string }>; strays: string[] } {
+  const carried = new Set<string>();
+  const strays: string[] = [];
+  for (const e of entries) {
+    if (!e.group || e.group === 'main' || e.groupMode === 'remote') continue;
+    const root = `${subpackageDir}/${e.group}`;
+    if (e.path === root || e.path.startsWith(`${root}/`)) carried.add(e.group);
+    else strays.push(`${e.sourcePath} is in 分包 '${e.group}' but ships at ${e.path}, outside ${root}/`);
+  }
+  return {
+    subPackages: [...carried].map((name) => ({ name, root: `${subpackageDir}/${name}` })),
+    strays,
+  };
 }
 
 /** packOptions.include suffix rules for every custom extension the cook staged.
@@ -413,12 +428,14 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   }
 
   // 5. Entry + config (vendor-specific emission).
+  const subPackages = subPackagesOf(cookEntries, profile.subpackageDir);
+  warnings.push(...subPackages.strays);
   await writeFile(path.join(absOut, 'game.js'), profile.emitEntry({ sideModules, engineGlueFile }));
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',
     orientation: opts.orientation ?? 'portrait',
-    subPackages: subPackagesOf(cookEntries, profile.subpackageDir),
+    subPackages: subPackages.subPackages,
     includeSuffixes: packIncludeSuffixes(cookEntries, profile.nativeSuffixes),
     // Only a bundle that was actually written counts: an entry that failed to
     // build must not leave the config pointing at a directory with no index.js.

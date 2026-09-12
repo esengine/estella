@@ -16,6 +16,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WeChat 分包 is a directory the package carries.** A folder marked *subpackage*
+  in the editor staged its assets where they were authored (`assets/level2/`), while
+  `game.json` declared the root `subpackages/level2` — a directory that was never
+  written. WeChat refuses the whole game for it: `["subPackages"][0]["root"] 不存在` (#58).
+
+  Delivery now decides the layout, so a lazy group's files land under its root whether
+  or not the build content-addresses names; and the `subPackages` list is read off the
+  STAGED paths, so a root the package lacks can no longer be declared. A member that
+  cannot travel in a subpackage — a scene, which every exporter addresses by its
+  logical path — is named in the build warnings instead of silently breaking the load.
+
 - **A cooked mini-game plays its sound effects.** The cook re-encodes `tap.wav` to
   `assets/<hash>.mp3`, and a mini-game player is handed a URL rather than bytes — but
   the asset loader handed it the AUTHORED path, which is the cache key, not a file the

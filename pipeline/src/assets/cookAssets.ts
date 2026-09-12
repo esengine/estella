@@ -129,12 +129,31 @@ export async function loadAssetGroups(root: string): Promise<AssetGroupsConfig |
   }
 }
 
+/**
+ * The directory a non-local group's files live under — `subpackages/<name>` for a
+ * lazy group, `remote/<name>` for a CDN one; null for the main package. A vendor
+ * MOUNTS this root (a WeChat 分包 names it in game.json), so delivery fixes it
+ * rather than the layout: a root the package lacks is refused with "root 不存在".
+ */
+export function groupRoot(name: string, delivery: GroupDelivery): string | null {
+  if (delivery === 'lazy') return `subpackages/${name}`;
+  if (delivery === 'remote') return `remote/${name}`;
+  return null;
+}
+
 /** Content-addressed base dir for a group's delivery: main → `assets`,
  *  lazy → `subpackages/<name>/assets`, remote → `remote/<name>/assets`. */
 function caBaseFor(name: string, delivery: GroupDelivery): string {
-  if (delivery === 'lazy') return `subpackages/${name}/assets`;
-  if (delivery === 'remote') return `remote/${name}/assets`;
-  return 'assets';
+  const root = groupRoot(name, delivery);
+  return root ? `${root}/assets` : 'assets';
+}
+
+/** `rel` moved under its group's root when names are kept. A path already there —
+ *  the `subpackages/<name>/` folder convention — is its own root and stays put. */
+function underGroupRoot(rel: string, name: string, delivery: GroupDelivery): string {
+  const root = groupRoot(name, delivery);
+  if (!root || rel === root || rel.startsWith(`${root}/`)) return rel;
+  return `${root}/${rel}`;
 }
 
 /** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
@@ -540,7 +559,7 @@ export async function cookAssets(
         const caBase = caBaseFor(group, delivery);
         const pageOutRel = contentAddressed
           ? `${caBase}/${pageHash}${pageExt}`
-          : `${dir}.page${n}${pageExt}`;
+          : underGroupRoot(`${dir}.page${n}${pageExt}`, group, delivery);
         const dst = path.join(absOut, pageOutRel);
         if (!staged.has(pageOutRel)) {
           await mkdir(path.dirname(dst), { recursive: true });
@@ -751,9 +770,19 @@ export async function cookAssets(
       // subpackage root (subpackages/<name>/…) so the root maps to a WeChat
       // subPackage — including the content-addressed layout (root/assets/<hash>).
       const { name: group, delivery } = resolveAssetGroup(entry.path, groupsConfig);
+      // Scenes keep their logical path in every layout — they are loaded by name
+      // and the exporters transform them in place, addressed by it — so a scene
+      // cannot travel inside a group root, and says so instead.
       const useCA = contentAddressed && entry.type !== 'scene';
       const caBase = caBaseFor(group, delivery);
-      const outRel = useCA ? `${caBase}/${hash}${ext}` : swapExt(entry.path, ext);
+      const outRel = entry.type === 'scene'
+        ? swapExt(entry.path, ext)
+        : useCA
+          ? `${caBase}/${hash}${ext}`
+          : underGroupRoot(swapExt(entry.path, ext), group, delivery);
+      if (entry.type === 'scene' && groupRoot(group, delivery)) {
+        warnings.push(`${entry.path}: a scene ships in the main package — group '${group}' cannot carry it`);
+      }
       const dst = path.join(absOut, outRel);
       if (!staged.has(outRel)) {
         await mkdir(path.dirname(dst), { recursive: true });

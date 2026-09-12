@@ -335,8 +335,12 @@ export interface ExportGameOptions {
   sdkDistDir: string;
   wasmDir: string;
   outDir: string;
-  /** Content-addressed asset filenames (<hash><ext>) — dedup + immutable/CDN caching.
-   *  Default ON (the modern-bundler standard); set false to keep logical paths. */
+  /**
+   * Content-addressed asset filenames (<hash><ext>) — dedup + immutable/CDN caching.
+   * Default ON for web / desktop / native; the mini-game route keeps logical paths,
+   * where there is no CDN cache to earn an immutable name and the vendor's packer
+   * whitelists by suffix. Explicit `false`/`true` overrides either.
+   */
   contentAddressed?: boolean;
   /** Encode raster textures to GPU-compressed KTX2 at cook time. Default off
    *  (lossy + encode-time cost — opt in per project). */
