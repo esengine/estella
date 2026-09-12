@@ -1,7 +1,7 @@
 """Type classification and C++/TypeScript mapping."""
 
 import re
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from .data import Enum
 
 
@@ -110,6 +110,25 @@ class TypeSystem:
 
     def is_custom_struct(self, cpp_type: str) -> bool:
         return self.clean_type(cpp_type) in self.CUSTOM_STRUCTS
+
+    def carries(self, cpp_type: str) -> bool:
+        """Whether the boundary can marshal an ES_PROPERTY of this type.
+
+        Every generator below asks a question of the form "is it one of these?"
+        and falls through to emitting the field verbatim, so a type none of them
+        knows reaches embind as `.field(&C::x)` on something embind was never
+        told about. That compiles; it fails when a scene ADDS the component.
+        """
+        t = self.clean_type(cpp_type)
+        return (self.is_skip(t) or self.is_primitive(t) or self.is_glm(t)
+                or t == 'std::string' or self.is_enum(t) or self.is_handle(t)
+                or self.is_entity(t) or t in self.VECTOR_TYPES
+                or self.is_struct_vector(t) or self.is_custom_struct(t))
+
+    def uncarried_properties(self, components) -> List[Tuple[str, str, str]]:
+        """Every (component, field, type) the boundary would silently mangle."""
+        return [(c.name, p.name, self.clean_type(p.cpp_type))
+                for c in components for p in c.properties if not self.carries(p.cpp_type)]
 
     def custom_struct_members(self, cpp_type: str):
         """Return the [(member_name, member_cpp_type), ...] list for a custom struct."""

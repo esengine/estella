@@ -231,6 +231,29 @@ component_meta_emits('renderable reaches COMPONENT_META',
 component_meta_emits('transient reaches COMPONENT_META',
                      'transient', FLAG, 'transient: true,')
 
+def carries(name: str, body: str, *, uncarried: int) -> None:
+    """A field type the boundary cannot marshal is refused BEFORE codegen: every
+    generator falls through to emitting an unknown type verbatim, which compiles
+    and then fails when a scene adds the component."""
+    global _failures
+    from eht.type_system import TypeSystem  # noqa: PLC0415
+    p = _parse(body)
+    got = TypeSystem(p.enums).uncarried_properties(p.components)
+    if len(got) != uncarried:
+        _failures += 1
+        print(f"FAIL  {name}")
+        print(f"        uncarried: got {len(got)} want {uncarried} -> {got}")
+    else:
+        print(f"ok    {name}")
+
+
+carries('a primitive crosses', 'ES_PROPERTY()\n    float x = 0.0f;', uncarried=0)
+carries('glm::vec2 crosses', 'ES_PROPERTY()\n    glm::vec2 size;', uncarried=0)
+carries('a handle crosses', 'ES_PROPERTY(asset=texture)\n    resource::TextureHandle tex;', uncarried=0)
+carries('std::vector<Entity> crosses', 'ES_PROPERTY()\n    std::vector<Entity> entities;', uncarried=0)
+carries('a point list does NOT', 'ES_PROPERTY()\n    std::vector<glm::vec2> path;', uncarried=1)
+carries('an unknown struct does NOT', 'ES_PROPERTY()\n    SomeThing thing;', uncarried=1)
+
 if _failures:
     print(f"\n{_failures} case(s) failed")
     raise SystemExit(1)

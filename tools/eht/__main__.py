@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from .parser import CppParser
+from .type_system import TypeSystem
 from .abi import compute_abi_hash
 from .entity_layout import parse_entity_layout, generate_ts as generate_entity_ts
 from .constants import parse_constants, canonical as const_canonical, generate_ts as generate_consts_ts
@@ -146,6 +147,19 @@ def main() -> int:
     if cpp_parser.errors:
         cpp_parser.print_errors()
         print(f"[FAIL] {len(cpp_parser.errors)} annotation error(s); aborting before codegen.")
+        return 1
+
+    # A type no generator recognises is emitted VERBATIM by each of them, so an
+    # ES_PROPERTY the boundary cannot marshal used to compile and then fail when a
+    # scene added the component ("unbound types"), with a TS type of `number` over
+    # it. Refuse it here, where the field still has a name.
+    uncarried = TypeSystem(cpp_parser.enums).uncarried_properties(cpp_parser.components)
+    if uncarried:
+        for comp, prop, cpp_type in uncarried:
+            print(f"[FAIL] {comp}.{prop}: ES_PROPERTY type '{cpp_type}' does not cross the"
+                  " boundary. Either drop the annotation (MeshRenderer's geometry payload is"
+                  " the precedent: un-annotated, set through its own binding), or teach"
+                  " tools/eht/type_system.py to carry the type.")
         return 1
 
     # Emit components/enums in a stable alphabetical order so the generated files
