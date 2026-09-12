@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-09-12
+
 ### Added
 
 - **A 2D light can take the shape of a texture.** Every light was a circle or a cone,
@@ -11739,7 +11741,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.63.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.64.0...HEAD
+[0.64.0]: https://github.com/esengine/estella/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/esengine/estella/compare/v0.62.0...v0.63.0
 [0.62.0]: https://github.com/esengine/estella/compare/v0.61.0...v0.62.0
 [0.61.0]: https://github.com/esengine/estella/compare/v0.60.0...v0.61.0

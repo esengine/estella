@@ -89,6 +89,27 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.64.0 —
+  'A 2D light can take the shape of a texture': { certifies: 'lighting-2d' },
+  'A 2D light can be shaped, and its shadows can be less than total': { certifies: 'lighting-2d' },
+  'A sprite states where it sits inside its sorting layer': { certifies: 'sprite-sorting' },
+  'A subtree can sort as one unit': { certifies: 'sprite-sorting' },
+  'A sprite can be cut by another sprite\'s shape': { certifies: 'sprite-mask' },
+  'A polygon collider takes any ring, concave and unbounded': { certifies: 'physics' },
+  'An `.aseprite` file imports':
+    { notCertifiable: 'an import act: a package holds the sheet and the clips it produced and'
+      + ' never the .aseprite, so what a game can show is animation — the format itself is held'
+      + ' by pipeline/tests/aseprite-import.test.ts and the editor\'s aseprite-import check' },
+  'A `.psd` file imports':
+    { notCertifiable: 'the same shape: a package holds the PNGs and the prefab the import wrote,'
+      + ' never the .psd; the layer stack is held by the pipeline tests and the editor check' },
+  'A polygon collider can take the sprite\'s own silhouette':
+    { notCertifiable: 'an EDITOR act — the ring it writes is an ordinary collider, certified as'
+      + ' physics; the trace itself is held by alpha-outline.test.ts and the collider-trace check' },
+  'A texture\'s geometry is one picture':
+    { notCertifiable: 'an Inspector surface over metadata a package already carries; what it'
+      + ' authors (9-slice borders, sheet cells) is drawn by the sprite capabilities above' },
+
   // — 0.63.0 —
   'One number turns the sky, the irradiance and the reflection': { certifies: 'environment' },
   'A second UV set survives the import boundary':
@@ -241,6 +262,7 @@ export const CAPABILITIES = [
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
   'lighting-2d',
+  'sprite-sorting', 'sprite-mask',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
@@ -270,6 +292,10 @@ export const EVIDENCE = {
   'third-person': /\b(ThirdPersonController|ThirdPersonCamera)\b/,
   particles: /\bParticleEmitter\b/,
   'lighting-2d': /\b(Light2D|ShadowCaster2D)\b/,
+  // A scene that STATES its draw order, rather than leaving it to where things
+  // stand: the field, or the group that takes a subtree's place in the order.
+  'sprite-sorting': /\border:\s*\d|\bSortingGroup\b/,
+  'sprite-mask': /\bSpriteMask\b/,
   // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
   // component, and a pattern that only knew the components read it as unused.
   audio: /\b(AudioSource|AudioListener|AudioAPI|audioPlugin)\b|Res\(Audio\)/,
@@ -373,7 +399,10 @@ export const GOLDEN = [
   },
   {
     id: 'space-shooter',
-    certifies: ['ecs', 'texture-atlas'],
+    // Its hull bar is a sprite cut by another sprite, drawn at an order it states
+    // rather than at the one its position would give it — so the draw order and the
+    // mask are both something a packaged game here actually does.
+    certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
