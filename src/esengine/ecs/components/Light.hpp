@@ -71,6 +71,31 @@ struct Light {
                 tooltip="Falloff reach in world units (Point / Spot).")
     f32 radius{200.0f};
 
+    /** @brief How far the light stays at full strength before it starts falling off,
+     *         in world units. 0 (the default) falls off from the light itself; a
+     *         value at or past @ref radius is a hard-edged disc. Ignored by
+     *         Directional/Ambient, which have no distance to fall off over. */
+    ES_PROPERTY(animatable, min=0, shown_when=type:Point|Spot,
+                tooltip="Radius held at full strength before the falloff starts.")
+    f32 innerRadius{0.0f};
+
+    /** @brief The shape of the falloff between @ref innerRadius and @ref radius, as the
+     *         power the linear ramp is raised to. 1 (the default) IS linear; above it
+     *         the light pools near its centre, below it it reaches further and ends
+     *         abruptly. Ignored by Directional/Ambient. */
+    ES_PROPERTY(animatable, min=0, max=8, shown_when=type:Point|Spot,
+                tooltip="Falloff shape: 1 = linear, higher pools near the light, lower reaches further.")
+    f32 falloff{1.0f};
+
+    /** @brief How much of this light a shadow takes away, 0..1. 1 (the default) is the
+     *         whole of it; 0.7 leaves a shadow that is dark rather than black, which is
+     *         what a 2D scene with bounce light in it looks like. Applies to both kinds
+     *         of shadow this light casts. */
+    ES_PROPERTY(animatable, min=0, max=1, slider,
+                shown_when=type:Point|Directional|Spot,
+                tooltip="How much of this light its shadows remove (1 = all of it).")
+    f32 shadowStrength{1.0f};
+
     /** @brief Spot inner cone angle in degrees (full angle; fully lit inside). */
     ES_PROPERTY(animatable, min=0, max=180, unit="°", advanced, shown_when=type:Spot)
     f32 innerAngle{30.0f};

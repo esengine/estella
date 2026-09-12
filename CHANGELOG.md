@@ -14,6 +14,19 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A 2D light can be shaped, and its shadows can be less than total.** A Point or Spot
+  light faded from its own centre to nothing at `radius`, in a straight line, and there
+  was no other line available. `innerRadius` holds it at full strength out to a radius of
+  its own and fades over the band that is left; `falloff` is the power that ramp is
+  raised to — above 1 the light pools near its source, below it the light reaches further
+  and then ends. `shadowStrength` says how much of the light a shadow takes away, because
+  real shade is lit by everything that bounced and 1 is the only value that cannot be.
+
+  All three default to what the engine already did, so every scene renders as it did;
+  the criterion that says so runs beside the three that change one field each.
+
 ### Fixed
 
 - **A 2D shadow caster can carry its own outline.** Every occluder was a box, so a

@@ -392,6 +392,18 @@ export const SCENES = [
   { id: "material-instance", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-instance.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-instance.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   { id: "material-texture", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-tex.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-tex.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
   { id: "material-switch", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-sw.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-sw.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":50},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":50}]" } },
+  // What a light's reach LOOKS like on the way out. One fixture, one light, three
+  // probes along its radius; each gate changes exactly the field it is named for,
+  // and the first changes nothing — the linear ramp every scene was written against.
+  { id: "light-falloff-linear", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/light-falloff.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/light-falloff.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5833,\"y\":0.5,\"rgb\":[0,186,0],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[0,114,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,51,0],\"tol\":20}]" } },
+  // A core held at full strength: the ramp starts AT the inner radius, so the first
+  // two probes are only the surface's own angle to the light and the third, half
+  // way out the band, keeps half where the linear ramp had it at a quarter.
+  { id: "light-falloff-inner", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/light-falloff.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/light-falloff.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Light\",\"key\":\"innerRadius\",\"value\":100}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5833,\"y\":0.5,\"rgb\":[0,247,0],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[0,228,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,102,0],\"tol\":20}]" } },
+  // The same reach, pooled: squaring the ramp darkens every point on it and moves
+  // none of them, so a gate that only read the edge could not tell the two apart.
+  { id: "light-falloff-curve", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/light-falloff.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/light-falloff.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Light\",\"key\":\"falloff\",\"value\":2}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5833,\"y\":0.5,\"rgb\":[0,139,0],\"tol\":20},{\"x\":0.6667,\"y\":0.5,\"rgb\":[0,57,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,13,0],\"tol\":15}]" } },
+
   // 2D shadows: a ShadowCaster2D box between a light and a lit surface. The
   // probes sit either side of the wall on the light's axis — lit where the
   // light reaches, dark where the box is in the way.
@@ -401,6 +413,10 @@ export const SCENES = [
   // light's line is inside an UNTURNED box's shadow and outside this one's,
   // and a turn the other way would put it back in.
   { id: "shadow2d-turned", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-turned.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-turned.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.75,\"y\":0.7332,\"rgb\":[0,149,0],\"tol\":60}]" } },
+  // A shadow that takes only half the light. The same scene as shadow2d-hard, whose
+  // shadowed probe is black — half of it is the whole point, and 0 there would mean
+  // the strength never reached the light.
+  { id: "shadow2d-strength", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-hard.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-hard.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":2,\"component\":\"Light\",\"key\":\"shadowStrength\",\"value\":0.5}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,75,0],\"tol\":25}]" } },
   // An occluder with an OUTLINE of its own: a triangle whose shadow reaches where
   // the box beside it (20 units, and still authored) never could. The lower probe
   // is the discriminating one — lit the moment the outline stops being read.

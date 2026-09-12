@@ -46,6 +46,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `color` | `{1,1,1,1}` | Light color, RGBA 0..1. |
 | `intensity` | `1` | Brightness multiplier. |
 | `radius` | `200` | Falloff reach in world units (Point / Spot). |
+| `innerRadius` | `0` | Radius held at full strength before the falloff starts (Point / Spot). |
+| `falloff` | `1` | Falloff shape: `1` is linear, higher pools near the light, lower reaches further. |
+| `shadowStrength` | `1` | How much of this light its shadows remove; `0.6` leaves a shadow that is dark rather than black. |
 | `innerAngle` | `30` | Spot cone inner angle, degrees (full brightness inside). |
 | `outerAngle` | `45` | Spot cone outer angle, degrees (falls to zero by here). |
 | `shadowSoftness` | `0` | Shadow edge softness (light-source size); `0` = hard edge. |
@@ -74,6 +77,29 @@ const addSun = defineSystem([Commands()], (cmds) => {
 // A dim ambient fill so nothing is fully black
 .insert(Light, { type: LightType.Ambient, intensity: 0.25 });
 ```
+
+## Shaping the falloff
+
+A Point or Spot light fades from its own centre to nothing at `radius`, in a straight
+line. Two fields bend that line, and neither moves where the light ends:
+
+- **`innerRadius`** holds the light at full strength out to a radius of its own, and the
+  fade happens in the band that is left. A lamp with a bright core is `innerRadius` most
+  of the way to `radius`; a light with none is the straight line it always was.
+- **`falloff`** is the power the remaining ramp is raised to. `1` is linear. Above it the
+  light pools near its source and the outer reach dims quickly — closer to how light
+  actually behaves. Below it the light stays bright most of the way out and then ends,
+  which is the look a stylised 2D scene often wants.
+
+```ts
+// A lantern: a bright core, then a quick fade.
+entity.insert(Light, {
+    type: LightType.Point, radius: 400, innerRadius: 120, falloff: 2.5, intensity: 1.4,
+});
+```
+
+Both default to the straight line, so a scene written before them renders exactly as it
+did.
 
 ## Making a renderer receive light
 
@@ -273,6 +299,9 @@ Shadow **quality** is controlled on the light, not the caster:
   give a soft penumbra (a bigger, closer light casts softer shadows).
 - **`shadowDistance`** — for a **Directional** light, how far its shadows extend; `0`
   leaves a directional light shadow-free.
+- **`shadowStrength`** — how much of the light a shadow takes away, `0..1`. A 2D scene
+  usually wants less than all of it: real shade is lit by everything that bounced, and
+  `1` is the only value that cannot be.
 
 ### How many, and what it costs
 

@@ -5,7 +5,7 @@ Symbols: 114 public · 94 beta · 1681 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"f8b3b5501ea0afe4"
+"e2362078463a35b5"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -4456,7 +4456,9 @@ drawEnvironment: boolean
 enabled: boolean
 environment: number
 environmentRotation: number
+falloff: number
 innerAngle: number
+innerRadius: number
 intensity: number
 meshShadows: boolean
 outerAngle: number
@@ -4464,6 +4466,7 @@ radius: number
 shadowDistance: number
 shadowExtent: number
 shadowSoftness: number
+shadowStrength: number
 sourceAngle: number
 type: LightType
 ```

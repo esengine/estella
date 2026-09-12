@@ -4451,7 +4451,9 @@ drawEnvironment: boolean
 enabled: boolean
 environment: number
 environmentRotation: number
+falloff: number
 innerAngle: number
+innerRadius: number
 intensity: number
 meshShadows: boolean
 outerAngle: number
@@ -4459,6 +4461,7 @@ radius: number
 shadowDistance: number
 shadowExtent: number
 shadowSoftness: number
+shadowStrength: number
 sourceAngle: number
 type: LightType
 ```

@@ -802,6 +802,9 @@ export interface LightPtrData {
     color: Color;
     intensity: number;
     radius: number;
+    innerRadius: number;
+    falloff: number;
+    shadowStrength: number;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;
@@ -823,17 +826,20 @@ export function fillLight(
     const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
     out.intensity = f32[(ptr + 20) >> 2];
     out.radius = f32[(ptr + 24) >> 2];
-    out.innerAngle = f32[(ptr + 28) >> 2];
-    out.outerAngle = f32[(ptr + 32) >> 2];
-    out.shadowSoftness = f32[(ptr + 36) >> 2];
-    out.sourceAngle = f32[(ptr + 40) >> 2];
-    out.shadowDistance = f32[(ptr + 44) >> 2];
-    out.meshShadows = u8[ptr + 48] !== 0;
-    out.shadowExtent = f32[(ptr + 52) >> 2];
-    out.environment = u32[(ptr + 56) >> 2];
-    out.environmentRotation = f32[(ptr + 60) >> 2];
-    out.drawEnvironment = u8[ptr + 64] !== 0;
-    out.enabled = u8[ptr + 65] !== 0;
+    out.innerRadius = f32[(ptr + 28) >> 2];
+    out.falloff = f32[(ptr + 32) >> 2];
+    out.shadowStrength = f32[(ptr + 36) >> 2];
+    out.innerAngle = f32[(ptr + 40) >> 2];
+    out.outerAngle = f32[(ptr + 44) >> 2];
+    out.shadowSoftness = f32[(ptr + 48) >> 2];
+    out.sourceAngle = f32[(ptr + 52) >> 2];
+    out.shadowDistance = f32[(ptr + 56) >> 2];
+    out.meshShadows = u8[ptr + 60] !== 0;
+    out.shadowExtent = f32[(ptr + 64) >> 2];
+    out.environment = u32[(ptr + 68) >> 2];
+    out.environmentRotation = f32[(ptr + 72) >> 2];
+    out.drawEnvironment = u8[ptr + 76] !== 0;
+    out.enabled = u8[ptr + 77] !== 0;
 }
 
 export function writeLight(
@@ -844,17 +850,20 @@ export function writeLight(
     f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
     f32[(ptr + 20) >> 2] = data.intensity;
     f32[(ptr + 24) >> 2] = data.radius;
-    f32[(ptr + 28) >> 2] = data.innerAngle;
-    f32[(ptr + 32) >> 2] = data.outerAngle;
-    f32[(ptr + 36) >> 2] = data.shadowSoftness;
-    f32[(ptr + 40) >> 2] = data.sourceAngle;
-    f32[(ptr + 44) >> 2] = data.shadowDistance;
-    u8[ptr + 48] = data.meshShadows ? 1 : 0;
-    f32[(ptr + 52) >> 2] = data.shadowExtent;
-    u32[(ptr + 56) >> 2] = data.environment;
-    f32[(ptr + 60) >> 2] = data.environmentRotation;
-    u8[ptr + 64] = data.drawEnvironment ? 1 : 0;
-    u8[ptr + 65] = data.enabled ? 1 : 0;
+    f32[(ptr + 28) >> 2] = data.innerRadius;
+    f32[(ptr + 32) >> 2] = data.falloff;
+    f32[(ptr + 36) >> 2] = data.shadowStrength;
+    f32[(ptr + 40) >> 2] = data.innerAngle;
+    f32[(ptr + 44) >> 2] = data.outerAngle;
+    f32[(ptr + 48) >> 2] = data.shadowSoftness;
+    f32[(ptr + 52) >> 2] = data.sourceAngle;
+    f32[(ptr + 56) >> 2] = data.shadowDistance;
+    u8[ptr + 60] = data.meshShadows ? 1 : 0;
+    f32[(ptr + 64) >> 2] = data.shadowExtent;
+    u32[(ptr + 68) >> 2] = data.environment;
+    f32[(ptr + 72) >> 2] = data.environmentRotation;
+    u8[ptr + 76] = data.drawEnvironment ? 1 : 0;
+    u8[ptr + 77] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -863,6 +872,9 @@ export function createLightData(): LightPtrData {
         color: { r: 0, g: 0, b: 0, a: 0 },
         intensity: 0,
         radius: 0,
+        innerRadius: 0,
+        falloff: 0,
+        shadowStrength: 0,
         innerAngle: 0,
         outerAngle: 0,
         shadowSoftness: 0,

@@ -828,7 +828,7 @@ fn acesFilmic(x : vec3f) -> vec3f {
 }
 )";
 
-const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f };
+const char* kLitHeaderWGSL = R"(struct Light { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f, shadowMap : vec4f, falloff : vec4f };
 struct LightConstants {
     u_ambient : vec4f,
     u_lights : array<Light, 16>,
@@ -1132,6 +1132,13 @@ fn towardLight(toLight : vec3f, N : vec3f) -> vec3f {
     if (dot(toLight, toLight) > 1e-8) { return normalize(toLight); }
     return N;
 }
+// The ramp from a light's reach down to nothing. fo.x holds it at full out to its own
+// radius; fo.y shapes what is left. The exponent is floored because pow(0, 0) is 1 —
+// a light that reaches nowhere would light everything.
+fn distanceFalloff(dist : f32, reach : f32, fo : vec4f) -> f32 {
+    let ramp = clamp((reach - dist) / max(reach - fo.x, 1e-4), 0.0, 1.0);
+    return pow(ramp, max(fo.y, 1e-3));
+}
 fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
     let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
@@ -1143,6 +1150,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         let pd = lc.u_lights[i].posDir;
         let col = lc.u_lights[i].color;
         let sh = lc.u_lights[i].shadow;
+        let fo = lc.u_lights[i].falloff;
         var L : vec3f;
         var atten : f32;
         var aim = pd.xy;
@@ -1150,7 +1158,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         if (pd.z < 0.5) {
             let toL = lightVector(pd, sh, worldPos);
             let dist = lightDistance(toL);
-            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
+            atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);
             L = towardLight(toL, N);
         } else if (pd.z < 1.5) {
             atten = 1.0;
@@ -1163,16 +1171,18 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
             let sp = lc.u_lights[i].spot;
             let toL = lightVector(pd, sh, worldPos);
             let dist = lightDistance(toL);
-            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
+            atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);
             L = towardLight(toL, N);
             atten *= spotCone(sp, sh, toL, dist);
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
-            atten *= shadowFactor2D(lc.u_lights[i].shadowMap.w, worldPos.xy);
+            atten *= mix(1.0, shadowFactor2D(lc.u_lights[i].shadowMap.w, worldPos.xy), fo.z);
         }
         let sm = lc.u_lights[i].shadowMap;
         if (sm.y > 0.0 && atten > 0.0) {
-            atten *= shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y));
+            atten *= mix(1.0,
+                         shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y)),
+                         fo.z);
         }
         let ndotl = max(dot(N, L), 0.0);
         let radiance = col.rgb * (col.a * ndotl * atten);
@@ -1501,7 +1511,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     if (stage == ShaderStage::Fragment && parsed.domain == "Lit") {
         static const char* kLitHeader =
             "struct Light { highp vec4 posDir; highp vec4 color; highp vec4 spot; highp vec4 shadow;"
-            " highp vec4 shadowMap; };\n"
+            " highp vec4 shadowMap; highp vec4 falloff; };\n"
             "layout(std140) uniform LightConstants {\n"
             "    highp vec4 u_ambient;\n"
             "    Light u_lights[16];\n"
@@ -1847,6 +1857,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp vec3 towardLight(in highp vec3 toLight, in highp vec3 N) {\n"
             "    return dot(toLight, toLight) > 1e-8 ? normalize(toLight) : N;\n"
             "}\n"
+            // The ramp from a light's reach down to nothing: fo.x holds it at full out to
+            // its own radius, fo.y shapes what is left. The exponent is floored because
+            // pow(0, 0) is 1 — a light that reaches nowhere would light everything.
+            "highp float distanceFalloff(in highp float dist, in highp float reach,\n"
+            "                            in highp vec4 fo) {\n"
+            "    highp float ramp = clamp((reach - dist) / max(reach - fo.x, 1e-4), 0.0, 1.0);\n"
+            "    return pow(ramp, max(fo.y, 1e-3));\n"
+            "}\n"
             // The lighting model in its general form; a lit 2D surface is its zero
             // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
             // what this engine has always drawn), so there is one model and not two.
@@ -1869,6 +1887,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp vec4 pd = u_lights[i].posDir;\n"
             "        highp vec4 col = u_lights[i].color;\n"
             "        highp vec4 sh = u_lights[i].shadow;\n"  // x = penumbra softness, y = directional distance
+            "        highp vec4 fo = u_lights[i].falloff;\n"  // x = inner radius, y = exponent, z = shadow strength
             "        highp vec3 L;\n"
             "        highp float atten;\n"
             "        highp vec2 target = pd.xy;\n"           // shadow-ray aim point (light position by default)
@@ -1876,7 +1895,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        if (pd.z < 0.5) {\n"
             "            highp vec3 toL = lightVector(pd, sh, worldPos);\n"
             "            highp float dist = lightDistance(toL);\n"
-            "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
+            "            atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);\n"
             "            L = towardLight(toL, N);\n"
             "        } else if (pd.z < 1.5) {\n"
             "            atten = 1.0;\n"
@@ -1891,22 +1910,22 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp vec4 sp = u_lights[i].spot;\n"
             "            highp vec3 toL = lightVector(pd, sh, worldPos);\n"
             "            highp float dist = lightDistance(toL);\n"
-            "            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));\n"
+            "            atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);\n"
             "            L = towardLight(toL, N);\n"
             "            atten *= spotCone(sp, sh, toL, dist);\n"
             "        }\n"
             // Only pay for the mask read when the light actually reaches this fragment (skips
             // the zeroed/inactive slots and unlit fragments).
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor2D(u_lights[i].shadowMap.w, worldPos.xy);\n"
+            "            atten *= mix(1.0, shadowFactor2D(u_lights[i].shadowMap.w, worldPos.xy), fo.z);\n"
             "        }\n"
             // The tiles this light rendered into, which are its own: a fragment
             // tested against every map in the atlas would be darkened by geometry
             // seen from somewhere no light reaching it is standing.
             "        highp vec4 sm = u_lights[i].shadowMap;\n"
             "        if (sm.y > 0.0 && atten > 0.0) {\n"
-            "            atten *= shadowFactor3D(worldPos, N, L, vec2(sh.x, sm.z),\n"
-            "                                    int(sm.x), int(sm.y));\n"
+            "            atten *= mix(1.0, shadowFactor3D(worldPos, N, L, vec2(sh.x, sm.z),\n"
+            "                                             int(sm.x), int(sm.y)), fo.z);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             "        highp vec3 radiance = col.rgb * (col.a * ndotl * atten);\n"

@@ -88,38 +88,39 @@ inline constexpr u32 SHADOW_CUBE_FACES = 6;
 inline constexpr u32 MAX_SHADOW_TILES = 16;
 
 /**
- * @brief One 2D light, std140-packed (five vec4s, 80 bytes, 16-aligned).
- * @details posDir: xy = world position (point/spot) or aim direction (directional); z = type
- *          (0 = point, 1 = directional, 2 = spot); w = falloff radius in world units for
- *          point/spot, and the aim's third component for directional — the two never share
- *          a use for it, which is what lets a sun be aimed out of the plane.
- *          color: rgb = light color, a = intensity.
- *          spot: xy = normalized cone axis, z = cos(innerHalfAngle), w = cos(outerHalfAngle)
- *          (spot only; zero for other types). Ambient lights are folded into
- *          LightConstants::ambient instead of occupying a slot.
- *          shadowMap: x = first atlas tile, y = tile count (0 = casts no map).
- *          shadow: x = penumbra softness (light-source half-extent in world units; 0 = hard,
- *          backward-compatible); y = directional shadow march distance (world units; 0 = a
- *          directional light casts no shadow); z = a point/spot light's world height, which
- *          only a surface with real geometry measures against (MESH_NORMALS); w = a spot's
- *          cone-axis third component. Read by shadowFactor2D and lightVector/spotCone.
+ * @brief One 2D light, std140-packed (six vec4s, 96 bytes, 16-aligned).
+ * @details Every lane is spoken for; each field says which. An Ambient light occupies no
+ *          slot at all — it folds into LightConstants::ambient.
  */
 struct GpuLight {
+    /// xy = world position (point/spot) or aim direction (directional); z = the type
+    /// (0 point, 1 directional, 2 spot); w = the falloff radius, or a directional aim's
+    /// third component — never both, which is what lets a sun aim out of the plane.
     glm::vec4 posDir{0.0f};
+    /// rgb = colour, a = intensity.
     glm::vec4 color{0.0f};
+    /// Spot only, zero otherwise: xy = the cone axis in the plane, z = cos(inner half
+    /// angle), w = cos(outer half angle).
     glm::vec4 spot{0.0f};
+    /// x = penumbra softness (the source's half-extent in world units; 0 = hard); y = a
+    /// directional light's shadow march distance (0 = it casts none); z = a positional
+    /// light's world height, measured against only by real geometry; w = a spot axis' z.
     glm::vec4 shadow{0.0f};
     /// x = first atlas tile, y = how many it owns (0 = no map); z = the tangent of the
-    /// angle its source subtends, where the map has no distance to divide by (0 for a
-    /// light that stands somewhere); w = its 2D mask channel, -1 for one casting none.
+    /// angle its source subtends, for the map with no distance to divide by (0 for a
+    /// light that stands somewhere); w = its 2D mask channel, -1 for none.
     glm::vec4 shadowMap{0.0f, 0.0f, 0.0f, -1.0f};
+    /// How the light ENDS, as opposed to where: x = the radius it holds full strength
+    /// out to, y = the power its ramp is raised to (1 = linear), z = how much of it a
+    /// shadow removes (1 = all). The defaults ARE the old linear ramp. w unused.
+    glm::vec4 falloff{0.0f, 1.0f, 1.0f, 0.0f};
 };
 
 /**
  * @brief CPU mirror of the GLSL LightConstants block (std140).
  * @details ambient: rgb = summed ambient color, a = active light count (informational).
- *          std140 array-of-struct stride is 80 (each GpuLight is five 16-aligned vec4s), so
- *          lights start at offset 16 and the lights array spans 80*MAX_LIGHTS bytes.
+ *          std140 array-of-struct stride is 96 (each GpuLight is six 16-aligned vec4s), so
+ *          lights start at offset 16 and the lights array spans 96*MAX_LIGHTS bytes.
  */
 struct LightConstants {
     glm::vec4 ambient{0.0f};
@@ -152,8 +153,8 @@ struct LightConstants {
     glm::vec4 envTint{0.0f};
 };
 
-static_assert(sizeof(GpuLight) == 80, "GpuLight must be std140-tight (five vec4s)");
-static_assert(sizeof(LightConstants) == 16 + 80 * MAX_LIGHTS + 16
+static_assert(sizeof(GpuLight) == 96, "GpuLight must be std140-tight (six vec4s)");
+static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");

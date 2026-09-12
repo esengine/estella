@@ -1935,6 +1935,27 @@
           "range": "≥ 0"
         },
         {
+          "key": "innerRadius",
+          "type": "number",
+          "default": "0",
+          "doc": "Radius held at full strength before the falloff starts.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "falloff",
+          "type": "number",
+          "default": "1",
+          "doc": "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.",
+          "range": "0–8"
+        },
+        {
+          "key": "shadowStrength",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of this light its shadows remove (1 = all of it).",
+          "range": "0–1"
+        },
+        {
           "key": "innerAngle",
           "type": "number",
           "default": "30",
@@ -2016,6 +2037,9 @@
         "color.a",
         "intensity",
         "radius",
+        "innerRadius",
+        "falloff",
+        "shadowStrength",
         "innerAngle",
         "outerAngle",
         "shadowSoftness",

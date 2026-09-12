@@ -545,6 +545,9 @@ export interface Light {
     color: Vec4;
     intensity: number;
     radius: number;
+    innerRadius: number;
+    falloff: number;
+    shadowStrength: number;
     innerAngle: number;
     outerAngle: number;
     shadowSoftness: number;

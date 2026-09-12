@@ -1138,6 +1138,12 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
         gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
                                std::max(light.shadowDistance, 0.0f), 0.0f, 0.0f);
+        // Clamped where it is PACKED: a shader given a negative exponent lights the far
+        // side of the radius, and a fragment cannot say who authored it. The shader
+        // floors the exponent too — pow(0, 0) is 1, which lights the whole screen.
+        gpu.falloff = glm::vec4(std::max(light.innerRadius, 0.0f),
+                                std::max(light.falloff, 0.0f),
+                                std::clamp(light.shadowStrength, 0.0f, 1.0f), 0.0f);
         if (type == ecs::LightType::Directional) {
             // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
             // component, which only a directional light has a use for — point and spot spend
