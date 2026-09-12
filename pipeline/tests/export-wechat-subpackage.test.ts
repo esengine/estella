@@ -82,6 +82,10 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       const dir = path.join(out, sp.root);
       expect(existsSync(dir), `${sp.root} missing from the package`).toBe(true);
       expect(readdirSync(dir, { recursive: true }).length, `${sp.root} is empty`).toBeGreaterThan(0);
+      // …and its entry. Devtools refuses to compile a 分包 root without one:
+      // "未找到 ["subPackages"][0]["root"] 对应的 /subpackages/pack/game.js 文件".
+      // A root of pure assets is not a subpackage to WeChat.
+      expect(existsSync(path.join(dir, 'game.js')), `${sp.root} has no game.js entry`).toBe(true);
     }
   }, 120_000);
 

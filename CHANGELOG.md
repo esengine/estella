@@ -14,6 +14,19 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A WeChat 分包 root carries the entry file the vendor demands.** With the phantom
+  roots gone, the export hit the next requirement behind them: devtools refuses to
+  compile a package whose subpackage root has no `game.js`, naming the missing file
+  rather than the rule (`未找到 ["subPackages"][0]["root"] 对应的
+  /subpackages/pack/game.js 文件`). A root of pure assets is not a subpackage to
+  WeChat. The profile declares what its vendor wants there and the export writes it,
+  so a criterion can hold every declared root to it.
+
+  Nothing could have found this before a real root existed — the check never got far
+  enough to run.
+
 ### Changed
 
 - **The hot-update demo now ships a real 分包.** Its two groups take the two modes

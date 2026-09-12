@@ -162,6 +162,9 @@ export const MINIGAME_PROFILE_DEFAULTS = {
   nativeSuffixes: new Set(['.js', '.json']) as ReadonlySet<string>,
   binRestageExts: [] as readonly string[],
   subpackageDir: 'subpackages',
+  // Most vendors take a root of assets as a subpackage; the ones that want an
+  // entry script in it say so (WeChat: game.js).
+  subpackageEntry: undefined as string | undefined,
   emitEntry: defaultMiniGameEntry,
 };
 

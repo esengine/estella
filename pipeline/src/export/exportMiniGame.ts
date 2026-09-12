@@ -430,6 +430,19 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // 5. Entry + config (vendor-specific emission).
   const subPackages = subPackagesOf(cookEntries, profile.subpackageDir);
   warnings.push(...subPackages.strays);
+  // A vendor that wants an entry in every subpackage root refuses the package
+  // without one, naming the missing file rather than the rule. These roots hold
+  // assets the runtime reads by path, so the entry has nothing to do but exist.
+  if (profile.subpackageEntry) {
+    for (const sp of subPackages.subPackages) {
+      await writeFile(
+        path.join(absOut, sp.root, profile.subpackageEntry),
+        `// Entry for the "${sp.name}" subpackage, which ${profile.id} requires in every\n`
+        + '// subpackage root. This one carries assets the runtime loads by path, so it\n'
+        + '// has nothing to run.\n',
+      );
+    }
+  }
   await writeFile(path.join(absOut, 'game.js'), profile.emitEntry({ sideModules, engineGlueFile }));
   const configFiles = profile.emitConfigFiles({
     title,

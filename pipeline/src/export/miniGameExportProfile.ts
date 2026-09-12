@@ -105,6 +105,13 @@ export interface MiniGameExportProfile {
     readonly binRestageExts: readonly string[];
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
+    /**
+     * The entry script a subpackage root must carry, or absent when the vendor
+     * asks for none. WeChat refuses to compile a 分包 whose root has no
+     * `game.js` — a root full of assets and no entry is not a subpackage to it,
+     * and the message names the missing FILE rather than the rule.
+     */
+    readonly subpackageEntry?: string;
 
     /**
      * What this host refuses to accept — the main package cap, the all-in cap.
@@ -162,6 +169,7 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // WeChat's code-package suffix whitelist has no ktx2/esv; restage to *.bin.
     binRestageExts: ['ktx2', 'esv'],
     subpackageDir: 'subpackages',
+    subpackageEntry: 'game.js',
 
     emitConfigFiles(ctx) {
         const gameCfg: Record<string, unknown> = {
