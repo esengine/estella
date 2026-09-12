@@ -12,6 +12,7 @@
 #include "../../core/Log.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
+#include "../RenderTypePlugin.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../core/FrameProfiler.hpp"
@@ -57,13 +58,19 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
         const f32 hx = caster.size.x * 0.5f;
         const f32 hy = caster.size.y * 0.5f;
         if (hx <= 0.0f || hy <= 0.0f) continue;
-        const glm::vec2 lo(p.x - hx, p.y - hy);
-        const glm::vec2 hi(p.x + hx, p.y + hy);
+        // The box turns with the entity, the way a collider on it does — a wall laid
+        // at an angle casts the shadow of a wall at that angle. Its SIZE is its own,
+        // also like a collider's: scaling the entity does not resize the occluder.
+        const glm::vec2 turn = flatTurnZ(transform.worldRotation);
+        const auto corner = [&](f32 sx, f32 sy) {
+            return glm::vec2{p.x + sx * hx * turn.x - sy * hy * turn.y,
+                             p.y + sx * hx * turn.y + sy * hy * turn.x};
+        };
         shadow_rings_2d_.push_back({static_cast<u32>(shadow_points_2d_.size()), 4});
-        shadow_points_2d_.push_back({lo.x, lo.y});
-        shadow_points_2d_.push_back({hi.x, lo.y});
-        shadow_points_2d_.push_back({hi.x, hi.y});
-        shadow_points_2d_.push_back({lo.x, hi.y});
+        shadow_points_2d_.push_back(corner(-1.0f, -1.0f));
+        shadow_points_2d_.push_back(corner(1.0f, -1.0f));
+        shadow_points_2d_.push_back(corner(1.0f, 1.0f));
+        shadow_points_2d_.push_back(corner(-1.0f, 1.0f));
     }
     if (shadow_rings_2d_.empty()) return;
 

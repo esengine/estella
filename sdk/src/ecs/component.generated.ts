@@ -768,7 +768,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: ['size.x', 'size.y'],
         fields: {
-            size: { min: 0, tooltip: "Occluder box size in world units (centered on the entity)." },
+            size: { min: 0, tooltip: "Occluder box size in world units (centred on the entity, turning with it)." },
         },
     },
     ShapeRenderer: {

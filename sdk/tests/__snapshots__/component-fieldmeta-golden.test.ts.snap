@@ -871,7 +871,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
   "ShadowCaster2D": {
     "size": {
       "min": 0,
-      "tooltip": "Occluder box size in world units (centered on the entity).",
+      "tooltip": "Occluder box size in world units (centred on the entity, turning with it).",
     },
   },
   "ShapeRenderer": {

@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A 2D shadow caster turns with the entity it is on.** Its box was built from the
+  entity's world position and its own size, and from nothing else: a wall laid at an angle
+  cast the shadow of an upright wall, and turning the wall changed nothing on screen. The
+  box now turns the way a collider on the same entity does — the size stays the caster's
+  own, so scaling the entity still does not resize the occluder. The editor's shadow
+  extent turns with it, or it would draw a box that is not the one casting.
+
 - **A camera drawing half the screen now keeps to its half.** A camera states the rect it
   draws into when it opens its frame; the engine took that rect back off the DEVICE later,
   after the collect, where it was whatever the last thing to touch the device had left
