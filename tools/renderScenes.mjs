@@ -563,6 +563,9 @@ export const SCENES = [
   // The mask again after the device it was drawn on went away: the pass owns a
   // buffer, a layout and a shader, and one kept across a loss names nothing.
   { id: "device-loss-shadow2d", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-many.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-many.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
+  // The same mask through the EDITOR's host, which draws into a target of its own
+  // rather than the surface — a different path to the same frame.
+  { id: "shadow2d-editor", tier: "pr", host: "editor", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-shadow-many.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-shadow-many.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":60},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":40}]" } },
   { id: "device-loss", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/tilemap-flip.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/tilemap-flip.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.40,\"y\":0.36,\"rgb\":[255,0,0]},{\"x\":0.60,\"y\":0.36,\"rgb\":[0,255,0]},{\"x\":0.40,\"y\":0.58,\"rgb\":[0,0,255]},{\"x\":0.60,\"y\":0.58,\"rgb\":[255,255,0]}]" } },
   // The textures above prove content comes back; a mesh proves IDENTITY does —
   // the handles the world points at are the ones re-realized, not new ones the
