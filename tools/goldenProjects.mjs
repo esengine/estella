@@ -89,6 +89,38 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.65.0 —
+  'A spatial source you can hear in the audio demo.': { certifies: 'audio' },
+  'A ScrollView scrolls where the editor drops it.': { certifies: 'ui-widgets' },
+  'The UI controls demo authors its widgets instead of building them.': { certifies: 'ui-widgets' },
+  'A 3D body is the shape its collider names.': { certifies: 'physics-3d' },
+  'Every 3D collider shape and joint, authored in a scene.': { certifies: 'physics-3d' },
+  'Every 2D collider shape and joint, authored in a scene.': { certifies: 'physics' },
+  'A sorting group in the sprite demo.': { certifies: 'sprite-sorting' },
+  'Six components a shipped scene now authors.': { certifies: 'sprite-mask' },
+  'The starfield drifts by `Velocity`.': { certifies: 'velocity-motion' },
+  'A spatial source\'s reach is drawn.':
+    { notCertifiable: 'a shape in the EDITOR viewport — a game draws no gizmos, so no package'
+      + ' can show it; check-gizmo-coverage holds that the extent is drawn at all and'
+      + ' gizmo-chrome measures the ink in a real editor' },
+  'The outliner switches an entity off.':
+    { notCertifiable: 'an editor panel over the tag; what the tag DOES is the entry below,'
+      + ' and the entity-disable check drives this door end to end' },
+  'A disabled entity is actually skipped.':
+    { notCertifiable: 'no certified project switches anything off — the one scene that does is'
+      + ' enemy-ai-3d, which is not one. Held by sdk/tests/disabled-entities.test.ts and the'
+      + ' entity-disable editor check, which watches a query answer without the subtree' },
+  'A joint\'s anchors say whose body they are on.':
+    { notCertifiable: 'Inspector prose over fields a package already carries; what the anchors'
+      + ' place is certified as physics and physics-3d' },
+  'A bitmap font is an asset the editor knows.':
+    { notCertifiable: 'an editor type, and the corpus\'s only bitmap font is the pixel-RPG'
+      + ' TEMPLATE\'s — a template is not a certified project. check-asset-vocabulary holds the'
+      + ' type against what an import writes' },
+  'A build keeps the page a bitmap font names.':
+    { notCertifiable: 'as above: the font that proves it lives in a template, so no certified'
+      + ' package carries one. pipeline/tests/document-ref-cook-deps.test.ts holds the edge' },
+
   // — 0.64.0 —
   'A 2D light can take the shape of a texture': { certifies: 'lighting-2d' },
   'A 2D light can be shaped, and its shadows can be less than total': { certifies: 'lighting-2d' },
@@ -262,7 +294,7 @@ export const CAPABILITIES = [
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
   'lighting-2d',
-  'sprite-sorting', 'sprite-mask',
+  'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
@@ -297,6 +329,13 @@ export const EVIDENCE = {
   // (`"order": 0`) as well as one set in code.
   'sprite-sorting': /\border"?:\s*\d|\bSortingGroup\b/,
   'sprite-mask': /\bSpriteMask\b/,
+  // The composite controls, as opposed to the boxes they are laid out in: a
+  // scene that carries one has taken the editor's Create → UI path.
+  'ui-widgets': /\b(UIToggle|UISlider|UIDropdown|UIDialog|UIScroll)\b/,
+  // Motion with no physics body behind it. `\b` keeps `linearVelocity` out —
+  // a body's own speed is physics, and this is the component that moves a
+  // transform without one.
+  'velocity-motion': /\bVelocity\b/,
   // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
   // component, and a pattern that only knew the components read it as unused.
   audio: /\b(AudioSource|AudioListener|AudioAPI|audioPlugin)\b|Res\(Audio\)/,
@@ -407,7 +446,7 @@ export const GOLDEN = [
     // Its hull bar is a sprite cut by another sprite, drawn at an order it states
     // rather than at the one its position would give it — so the draw order and the
     // mask are both something a packaged game here actually does.
-    certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask'],
+    certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask', 'velocity-motion'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
@@ -512,7 +551,7 @@ export const GOLDEN = [
   },
   {
     id: 'ui-controls',
-    certifies: ['ui-layout', 'text'],
+    certifies: ['ui-layout', 'text', 'ui-widgets'],
     targets: ['web', 'desktop'],
     tier: 'pr',
     // Opens the modal — a whole-panel change, so the response is unmistakable.
@@ -567,8 +606,8 @@ export const GOLDEN = [
   {
     id: 'video-puzzle',
     // `startup-size` was a declared gap while the runtime floor (2.8MB) exceeded
-    // the 2MB cap; it is 1.38MB empty now and this packages at 1.78MB — the
-    // biggest playable in the corpus, not the smallest thing that would pass.
+    // the 2MB cap; this packages at 1.56MB — the biggest playable in the corpus,
+    // not the smallest thing that would pass.
     certifies: ['single-file', 'startup-size'],
     targets: ['playable', 'web'],
     tier: 'nightly',

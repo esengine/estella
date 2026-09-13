@@ -14,7 +14,17 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-09-13
+
 ### Added
+
+- **A spatial source's reach is drawn.** `AudioSource.minDistance` and
+  `maxDistance` each declared a sphere and the viewport drew neither, so how far
+  a sound carries was two numbers in the Inspector with nothing on screen to
+  measure them against. Two spheres rather than one: full volume inside the
+  first, inaudible past the second, and the fall-off between them is all either
+  number means. A source that is not spatial gets none, the way a global
+  PostProcessVolume gets no box — it is heard the same everywhere.
 
 - **The outliner switches an entity off.** Right-click → Disable writes the
   engine's `Disabled` tag onto that entity, and the row is struck through — the
@@ -132,6 +142,30 @@ published separately; it ships inside the editor.
   authors the clip, the distances and `playOnAwake`, and the code only moves the
   entity.
 
+### Changed
+
+- **A playable ships its game deflated.** The engine's glue and its wasm already
+  travelled compressed; the game's own bundle — the largest span in the page —
+  travelled as source, and against the 2MB cap the strictest network enforces
+  that is the difference between fitting and not. The corpus's biggest playable
+  had crossed it, at 2.10MB. The bundle packs like everything else now, and a 3KB
+  loader starts it through the same blob script the engine module already needs,
+  so a page that can boot a playable at all can boot this one — nothing new to
+  allow, no `eval`. That playable is 1.56MB.
+
+- **The audio demo authors its beat's clip on an `AudioSource`.** Which sound the
+  beat is now comes from the scene rather than a path in code, so the asset system
+  brings the clip in with the scene the way a game's own audio arrives. No example
+  or template scene used `AudioSource` at all — the engine's own audio component had
+  no coverage in the shipped corpus, which is the door #59's silence came in by.
+
+- **The hot-update demo now ships a real 分包.** Its two groups take the two modes
+  their flows need: `cdn` stays remote, because a hot update has to replace it after
+  the game shipped, and `pack` — the DLC tile strip the *下载资源包* button pulls on
+  demand — is a subpackage, which is what shipping optional content inside a
+  mini-game package means. Nothing in the corpus delivered a group lazily before, so
+  no project produced a subPackage root for anyone to check.
+
 ### Removed
 
 - **`CacheAsBitmap` and the bitmap-cache helpers.** The component, `CacheBitmap`,
@@ -143,7 +177,6 @@ published separately; it ships inside the editor.
   documented; caching a subtree by hand goes through it. All four of
   check-component-fields' declared gaps were this component's fields, and that
   list is now empty.
-
 
 ### Fixed
 
@@ -193,23 +226,6 @@ published separately; it ships inside the editor.
 
   Nothing could have found this before a real root existed — the check never got far
   enough to run.
-
-### Changed
-
-- **The audio demo authors its beat's clip on an `AudioSource`.** Which sound the
-  beat is now comes from the scene rather than a path in code, so the asset system
-  brings the clip in with the scene the way a game's own audio arrives. No example
-  or template scene used `AudioSource` at all — the engine's own audio component had
-  no coverage in the shipped corpus, which is the door #59's silence came in by.
-
-- **The hot-update demo now ships a real 分包.** Its two groups take the two modes
-  their flows need: `cdn` stays remote, because a hot update has to replace it after
-  the game shipped, and `pack` — the DLC tile strip the *下载资源包* button pulls on
-  demand — is a subpackage, which is what shipping optional content inside a
-  mini-game package means. Nothing in the corpus delivered a group lazily before, so
-  no project produced a subPackage root for anyone to check.
-
-### Fixed
 
 - **A folder that is no longer a 分包 stops being declared as one.** A group is a
   name plus a delivery, and the name outlives the delivery: a folder marked
@@ -11998,7 +12014,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.64.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.65.0...HEAD
+[0.65.0]: https://github.com/esengine/estella/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/esengine/estella/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/esengine/estella/compare/v0.62.0...v0.63.0
 [0.62.0]: https://github.com/esengine/estella/compare/v0.61.0...v0.62.0
