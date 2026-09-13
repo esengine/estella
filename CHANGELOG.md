@@ -70,6 +70,21 @@ published separately; it ships inside the editor.
   that rig touches, answering the same `attack` trigger the base machine does —
   so the mask is observable rather than merely configured.
 
+- **One clip drives rigs that do not share its bone names.** A clip addresses
+  what it animates by the name whoever exported the model chose, so two
+  characters rigged by two people share no clip at all — an enemy has to be
+  rigged with the names its clips already use. A `.esavatar` is the translation,
+  and it belongs to the **rig**: one controller drives many characters, and what
+  each calls its left hand is each of their own business. The New menu creates a
+  blank one and an Animator takes it like any other asset reference.
+
+  It applies at the one place a path becomes an entity — no retarget stage and no
+  rewritten clip, because a clip is data several rigs read at once and rewriting
+  it on load would make a copy per rig. Everything a controller says about a rig
+  goes through that seam: the clip's tracks, a constraint's joints, and a layer's
+  mask. An entry mapping a name to itself is dropped when the file is read, that
+  being what having no entry already means.
+
 - **The posed skeleton can be made to reach something.** A clip states where a
   foot goes; the ground states where it belongs, and nothing could reconcile the
   two. Two constraints land: **two-bone**, which puts a limb's tip on a target,
