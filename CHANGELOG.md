@@ -14,6 +14,77 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A controller is a stack of machines, not one.** One state machine can say a
+  character is running or that it is waving, never both. A `.esanimator` now
+  carries layers over its base one — each a machine with its own clock, its own
+  transitions and its own active state — and what the entity ends up as is the
+  whole stack, written once. The editor's rail picks which machine the canvas
+  edits, top of the list being the top of the stack.
+
+  Composition is **ordered**, and that is the point. The pose mixer a crossfade
+  and a blend tree share is a weighted average that commutes, which is why its
+  answer cannot depend on sample order. A stack must not: an aim layer at weight
+  0.3 is three tenths of the way from whatever is under it to what it says, and
+  swapping two layers is a different character. A gate runs the same pair in both
+  orders and demands two answers, so the two cannot quietly collapse into one.
+
+  A field the layer wrote and nothing under it did still interpolates, against
+  the world's own value — mixing gives a lone writer its field whole, a layer
+  never does. An **additive** layer adds what its clip departed from its own
+  first frame rather than from the layer below, so one lean clip means the same
+  thing over a walk and over a run. Where the character *goes* keeps one author:
+  root motion is the base layer's alone. A trigger is one event every layer is
+  told about, spent after all of them have been asked rather than by whichever
+  was stepped first.
+
+- **A layer writes the part of the rig it was given.** A mask needs no vocabulary
+  of its own: a rig's joints are its entity hierarchy and a clip already names
+  them by `childPath`, so a mask is a set of those same paths, each standing for
+  the subtree under it. Outside the mask the layer is *absent*, not quiet — the
+  gate demands the joints below arrive as the same number the layer under them
+  wrote. Having no mask and having an empty one are different and do not read the
+  same: no mask writes the whole rig, an empty one writes nothing.
+
+- **A blend mixes its neighbours instead of picking one.** A 1D blend stated
+  values and then selected: at 0.5 between walk and run the character walked, and
+  crossed to run the instant the threshold did. It mixes now, at a shared PHASE
+  rather than a shared second — a 2s idle and a 0.6s run share a clock only once
+  each is measured against its own length, and without that the faster clip's
+  feet slide. The blend's own duration is those lengths interpolated, which is
+  what an exit-time transition now waits for. A motion that can only be *switched*
+  to still picks, a sprite sheet having nothing to be halfway between.
+
+- **A blend over a plane.** `blend2d` places its stops where two parameters put
+  them and shares the result among the ones that reach it, which is the only way
+  to state a locomotion that turns — forward speed and strafe stacked as two 1D
+  blends makes the character pick a direction and a speed independently and land
+  between the clips describing neither. Gradient-band weights, so a sample
+  standing on a clip plays that clip alone and one outside the hull is held by its
+  nearest edge instead of falling to nothing. It adds no second way to blend: the
+  phase rule, the pose mixer and the picks-versus-mixes split are the 1D blend's.
+
+- **The third-person rig runs and swings at the same time.** The shipped
+  controller carries an upper-body layer masked to the one joint no other clip in
+  that rig touches, answering the same `attack` trigger the base machine does —
+  so the mask is observable rather than merely configured.
+
+### Changed
+
+- **`.esanimator` carries a format version**, and the guard that matters is the
+  upward one: a file from a later build is refused rather than read for the parts
+  this one recognises, because layers it cannot see would animate a visibly wrong
+  character and nothing would say so. A file written before layers existed reads
+  as a stack of one.
+
+### Fixed
+
+- **`check-animator-parameters` could not see into a layer.** A parameter
+  consumed only by a layer read as a dead knob. It also states something new: a
+  mask admitting no track of its own layer's clips poses nothing, and in the
+  editor that looks exactly like a layer that works.
+
 ## [0.65.0] - 2026-09-13
 
 ### Added
