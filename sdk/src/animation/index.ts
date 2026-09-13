@@ -142,6 +142,11 @@ export {
 } from './AnimClipLoader';
 
 export {
+    MaskReach,
+    type AnimatorMask,
+} from './animatorMask';
+
+export {
     migrateAnimatorController,
     type AnimatorMigration,
 } from './animatorMigrate';

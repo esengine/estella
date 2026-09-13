@@ -31,6 +31,7 @@ import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 import { Pose } from './pose';
 import { mixPoses } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
+import { MaskReach, type AnimatorMask } from './animatorMask';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
 import { Transform, type TransformData } from '../ecs/component';
@@ -168,6 +169,8 @@ export interface AnimatorLayer extends AnimatorScope {
     /** 0 leaves the layers below untouched, 1 states this layer whole. */
     weight?: number;
     blend?: AnimatorLayerBlend;
+    /** Which part of the rig this layer may write; absent is all of it. */
+    mask?: AnimatorMask;
 }
 
 /** What a `.esanimator` this build writes claims. */
@@ -817,8 +820,9 @@ export class AnimatorControllerAPI {
         }
         const layer = def.layers![index - 1]!;
         const weight = layer.weight ?? 1;
+        const reach = this.reachFor(world, ctx.entity, rt.layers[index]!, layer.mask);
         if (layer.blend !== 'additive') {
-            overlayPose(rt.composed, pose, weight, world, null);
+            overlayPose(rt.composed, pose, weight, world, reach);
             return;
         }
         rt.rest.reset();
@@ -826,7 +830,7 @@ export class AnimatorControllerAPI {
         // The clip's own first frame is its rest: an additive clip says "from
         // where this motion starts", so nothing else has to be authored for it.
         if (ctx.sample(motion, 0, rt.rest)) {
-            addPoseOver(rt.composed, pose, rt.rest, weight, world, null);
+            addPoseOver(rt.composed, pose, rt.rest, weight, world, reach);
         }
     }
 
@@ -920,6 +924,16 @@ export class AnimatorControllerAPI {
         rt.fadeFromTime += dt;
         rt.fadeElapsed += dt;
         if (rt.fadeElapsed >= rt.fadeDuration) rt.fadeFrom = null;
+    }
+
+    /** This layer's mask against this rig, or null where it writes all of it. */
+    private reachFor(
+        world: World, entity: Entity, rt: LayerRuntime, mask: AnimatorMask | undefined,
+    ): MaskReach | null {
+        if (!mask) return null;
+        const reach = rt.reach ?? (rt.reach = new MaskReach());
+        reach.resolve(world, entity, mask);
+        return reach;
     }
 
     /**
@@ -1039,6 +1053,8 @@ interface LayerRuntime {
     poseFrom: Pose;
     poseTo: Pose;
     mixed: Pose;
+    /** This layer's mask, resolved against the rig it is running on. */
+    reach?: MaskReach;
 }
 
 const EMPTY_PARAMS: ReadonlyMap<string, number | boolean> = new Map();

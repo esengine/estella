@@ -24,6 +24,8 @@ export const TimelineEventType = {
     ActivationSet: 4,
 } as const;
 
+export { resolveChildEntity } from '../ecs/childPath';
+
 export function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
     const parts = path.split('.');
     let target = obj;
@@ -37,40 +39,7 @@ export function setNestedProperty(obj: Record<string, any>, path: string, value:
     return true;
 }
 
-export function resolveChildEntity(world: Pick<World, 'tryGet'>, rootEntity: Entity, childPath: string): Entity | null {
-    if (!childPath) return rootEntity;
 
-    const Children = getComponent('Children');
-    const Name = getComponent('Name');
-    if (!Children || !Name) return null;
-
-    let current: Entity = rootEntity;
-    const segments = childPath.split('/');
-
-    for (const segment of segments) {
-        const childrenData = world.tryGet(current, Children);
-        if (!childrenData) return null;
-
-        const childEntities: Entity[] = childrenData.entities || [];
-        let found: Entity | null = null;
-        for (const childId of childEntities) {
-            const nameData = world.tryGet(childId, Name);
-            if (nameData && nameData.value === segment) {
-                found = childId;
-                break;
-            }
-        }
-        if (found === null) return null;
-        current = found;
-    }
-
-    return current;
-}
-
-/**
- * Apply ONE timeline event to the world (component mutations / audio). Called by
- * the pure-TS runtime (TimelineDrive) with edge-detected events.
- */
 export function applyTimelineEvent(
     world: any, audio: AudioAPI | null,
     type: number, entity: Entity,

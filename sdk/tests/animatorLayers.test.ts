@@ -13,7 +13,7 @@ import {
 } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
-import { defineComponent } from '../src/ecs/component';
+import { defineComponent, Name, Children, Parent } from '../src/ecs/component';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 
 const E = 1;
@@ -384,5 +384,107 @@ describe('the controller format guard', () => {
         expect(() => migrateAnimatorController({ ...v1(), layers: [{ name: 'arms' }] }))
             .toThrow(/layer/);
         expect(() => migrateAnimatorController({ ...v1(), layers: {} })).toThrow(/layers/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// What a layer is allowed to touch
+// ---------------------------------------------------------------------------
+
+/**
+ * A rig: root → `hips` → `legs`, root → `chest` → `arms`. Names are what a
+ * childPath resolves through, so the mask and the clips address it the same way.
+ */
+function rig(world: any): Record<string, number> {
+    const ids = { root: E, hips: 2, legs: 3, chest: 4, arms: 5 };
+    const link = (parent: number, child: number, name: string) => {
+        world.insert(child, Name, { value: name });
+        world.insert(child, Parent, { entity: parent });
+        const held = world.tryGet(parent, Children) as { entities: number[] } | null;
+        world.insert(parent, Children, { entities: [...(held?.entities ?? []), child] });
+        world.insert(child, probe(), { lift: 0, turn: 0, rot: { w: 1, x: 0, y: 0, z: 0 } });
+    };
+    world.insert(ids.root, Name, { value: 'root' });
+    link(ids.root, ids.hips, 'hips');
+    link(ids.hips, ids.legs, 'legs');
+    link(ids.root, ids.chest, 'chest');
+    link(ids.chest, ids.arms, 'arms');
+    return ids;
+}
+
+/** A clip writing `lift` on every joint of the rig. */
+function wholeBody(lift: number): TimelineAsset {
+    const channel = (childPath: string) => ({
+        type: TrackType.Property, component: 'LayerProbe', childPath, name: childPath || 'root',
+        channels: [{
+            property: 'lift',
+            keyframes: [{
+                time: 0, value: lift, inTangent: 0, outTangent: 0,
+                interpolation: InterpType.Linear,
+            }],
+        }],
+    });
+    return {
+        version: '1.2', type: 'timeline', duration: 10, wrapMode: WrapMode.Loop,
+        tracks: ['', 'hips', 'hips/legs', 'chest', 'chest/arms'].map(channel),
+    } as TimelineAsset;
+}
+
+describe('a masked layer', () => {
+    const assets = {
+        'base.estimeline': wholeBody(10),
+        'upper.estimeline': wholeBody(90),
+    };
+    const liftAt = (world: any, e: number) => (world.get(e, probe()) as { lift: number }).lift;
+
+    function run(mask: { paths: string[] } | undefined, weight = 1) {
+        const world = seedWorld();
+        const ids = rig(world);
+        const ctrl = build(assets, 'base.estimeline',
+                           [over('upper.estimeline', { mask, weight })]);
+        attach(world);
+        ctrl.update(world, 0.016);
+        return { world, ids };
+    }
+
+    it('writes the subtree it names, root included', () => {
+        const { world, ids } = run({ paths: ['chest'] });
+        expect(liftAt(world, ids.chest)).toBeCloseTo(90, 4);
+        expect(liftAt(world, ids.arms)).toBeCloseTo(90, 4);
+    });
+
+    it('leaves everything outside it exactly as the layer below left it', () => {
+        // Not "close to" the base value — the same number. A mask that merely
+        // reduced the weight outside itself would still read as nearly right.
+        const { world, ids } = run({ paths: ['chest'] });
+        expect(liftAt(world, ids.hips)).toBe(10);
+        expect(liftAt(world, ids.legs)).toBe(10);
+        expect(liftAt(world, ids.root)).toBe(10);
+    });
+
+    it('carries the layer weight inside the mask and nothing outside it', () => {
+        const { world, ids } = run({ paths: ['chest'] }, 0.5);
+        expect(liftAt(world, ids.arms)).toBeCloseTo(50, 4);
+        expect(liftAt(world, ids.legs)).toBe(10);
+    });
+
+    it('writes the whole rig when there is no mask', () => {
+        const { world, ids } = run(undefined);
+        expect(liftAt(world, ids.legs)).toBeCloseTo(90, 4);
+        expect(liftAt(world, ids.arms)).toBeCloseTo(90, 4);
+    });
+
+    it('writes nothing for a mask that names nothing', () => {
+        // An empty path list is a layer switched off, which is different from
+        // having no mask — and the two must not read the same.
+        const { world, ids } = run({ paths: [] });
+        expect(liftAt(world, ids.legs)).toBe(10);
+        expect(liftAt(world, ids.arms)).toBe(10);
+    });
+
+    it('ignores a path that names no joint on this rig', () => {
+        const { world, ids } = run({ paths: ['chest', 'tail'] });
+        expect(liftAt(world, ids.arms)).toBeCloseTo(90, 4);
+        expect(liftAt(world, ids.legs)).toBe(10);
     });
 });

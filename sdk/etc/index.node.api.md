@@ -535,6 +535,7 @@ send: (event: AnimatorEventPayload) => void
 anyStateTransitions: AnimatorTransition[] | undefined
 blend: AnimatorLayerBlend | undefined
 initialState: string
+mask: AnimatorMask | undefined
 name: string
 states: AnimatorState[]
 weight: number | undefined
