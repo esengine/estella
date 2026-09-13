@@ -5530,6 +5530,39 @@
           }
         }
       ]
+    },
+    {
+      "id": 142,
+      "name": "AirDrift",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 260,
+              "z": -1600
+            }
+          }
+        },
+        {
+          "type": "ParticleForceField",
+          "data": {
+            "type": 0,
+            "strength": 16,
+            "radius": 900,
+            "direction": {
+              "x": 1,
+              "y": 0.15,
+              "z": 0.3
+            },
+            "falloff": true
+          }
+        }
+      ]
     }
   ]
 }

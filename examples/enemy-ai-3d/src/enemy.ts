@@ -1,26 +1,45 @@
 import {
-    defineSystem, Query, Mut, GetWorld, Transform, NavAgent, Perception,
+    defineSystem, Query, Mut, GetWorld, Transform, Marker, NavAgent, Perception,
     setNavDestination, stopNavAgent,
 } from 'esengine';
+import type { Vec3 } from 'esengine';
 
 /**
- * Chase what was seen, in three dimensions.
+ * Chase what was seen; hold a post when nothing is.
  *
- * `Perception` reports where the target IS, on all three axes — a hunter on the
- * ground and a player on the terrace are not in the same place, and a chase that
- * dropped the third axis would send it to the spot below.
+ * `Perception` reports the target on all three axes — a hunter on the ground and
+ * a player on the terrace are not in the same place. The posts are scene-placed
+ * `Marker`s, and one switched off is not in this query at all.
  */
 export const chaseSystem = defineSystem(
-    [Query(Perception, NavAgent), GetWorld()],
-    (hunters, world) => {
+    [Query(Perception, NavAgent), Query(Marker, Transform), GetWorld()],
+    (hunters, markers, world) => {
+        const posts: Vec3[] = [];
+        for (const [, marker, at] of markers) {
+            if (marker.type === 'patrol') posts.push(at.position);
+        }
+
         for (const [entity, sight] of hunters) {
             if (sight.visible) {
                 setNavDestination(world, entity, {
                     x: sight.targetX, y: sight.targetY, z: sight.targetZ,
                 });
-            } else {
-                stopNavAgent(world, entity);
+                continue;
             }
+            if (posts.length === 0) {
+                stopNavAgent(world, entity);
+                continue;
+            }
+            // The nearest post, so three hunters spread over them rather than
+            // queueing at one.
+            const here = world.get(entity, Transform).position;
+            let best = posts[0];
+            let bestD = Infinity;
+            for (const p of posts) {
+                const d = (p.x - here.x) ** 2 + (p.z - here.z) ** 2;
+                if (d < bestD) { bestD = d; best = p; }
+            }
+            setNavDestination(world, entity, best);
         }
     },
     { name: 'ChaseSystem' },

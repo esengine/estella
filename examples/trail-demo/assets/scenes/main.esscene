@@ -216,6 +216,189 @@
           }
         }
       ]
+    },
+    {
+      "id": 5,
+      "name": "Comet",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -330,
+              "y": 20,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 22,
+              "y": 22
+            },
+            "color": {
+              "r": 1,
+              "g": 0.85,
+              "b": 0.55,
+              "a": 1
+            },
+            "layer": 3
+          }
+        },
+        {
+          "type": "TrailRenderer",
+          "data": {
+            "time": 1.4,
+            "minVertexDistance": 4,
+            "startWidth": 26,
+            "endWidth": 0,
+            "startColor": {
+              "r": 1,
+              "g": 0.72,
+              "b": 0.3,
+              "a": 0.9
+            },
+            "endColor": {
+              "r": 1,
+              "g": 0.2,
+              "b": 0.1,
+              "a": 0
+            },
+            "blendMode": 1,
+            "layer": 2
+          }
+        },
+        {
+          "type": "Comet",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Follower",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 16,
+              "y": 16
+            },
+            "color": {
+              "r": 0.55,
+              "g": 0.95,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 3
+          }
+        },
+        {
+          "type": "TrailRenderer",
+          "data": {
+            "startWidth": 14,
+            "endWidth": 2,
+            "startColor": {
+              "r": 0.45,
+              "g": 0.9,
+              "b": 1,
+              "a": 0.85
+            },
+            "endColor": {
+              "r": 0.15,
+              "g": 0.35,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 2
+          }
+        },
+        {
+          "type": "Follower",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Dasher",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 330,
+              "y": -140,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 30,
+              "y": 30
+            },
+            "color": {
+              "r": 0.85,
+              "g": 0.7,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 3
+          }
+        },
+        {
+          "type": "TrailRenderer",
+          "data": {
+            "time": 0.25,
+            "minVertexDistance": 2,
+            "startWidth": 44,
+            "endWidth": 6,
+            "startColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0.95
+            },
+            "endColor": {
+              "r": 0.6,
+              "g": 0.3,
+              "b": 1,
+              "a": 0
+            },
+            "blendMode": 1,
+            "layer": 2
+          }
+        },
+        {
+          "type": "Dasher",
+          "data": {}
+        }
+      ]
     }
   ]
 }

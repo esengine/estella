@@ -3,7 +3,9 @@
 A tour of the engine's **built-in trail renderer** — the `TrailRenderer`
 component records an entity's world-space path and draws it as a tapering,
 fading ribbon, entirely engine-side. Three emitters run distinct configs side
-by side:
+by side, each one authored in the scene: a sprite plus the tuned
+`TrailRenderer` beside it, which is the whole of setting a trail up. The
+project's systems only move them.
 
 - **Comet** — rides a Lissajous figure with a long additive streak
   (1.4 s lifetime, 26 px head tapering to 0, warm → transparent gradient).

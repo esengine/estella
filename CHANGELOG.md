@@ -24,6 +24,15 @@ published separately; it ships inside the editor.
   it runs, so switching a boss back on cannot un-switch a prop that was switched
   off on its own. `set_entity_active` is the same door for automation.
 
+- **Six components a shipped scene now authors.** The hull bar's mask in
+  space-shooter, all three trails in trail-demo, a crosswind through the
+  third-person demo's ambient motes, a costly patch of mud in the 3D AI example,
+  and that example's patrol posts — `Marker` entities the scene places, so where
+  a hunter waits is level design rather than a number in a system. One of those
+  posts ships switched off, which is the first thing in the corpus to use
+  `Disabled` and the only place it can be watched working: a query answers with
+  three of the scene's four posts, and no hunter is ever sent to the fourth.
+
 - **A disabled entity is actually skipped.** `Disabled`'s doc promised that "the
   engine's systems skip it" and nothing read the tag: `setEntityActive` returned,
   every query went on answering with the entity, and the only record of this was

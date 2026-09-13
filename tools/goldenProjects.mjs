@@ -292,9 +292,10 @@ export const EVIDENCE = {
   'third-person': /\b(ThirdPersonController|ThirdPersonCamera)\b/,
   particles: /\bParticleEmitter\b/,
   'lighting-2d': /\b(Light2D|ShadowCaster2D)\b/,
-  // A scene that STATES its draw order, rather than leaving it to where things
-  // stand: the field, or the group that takes a subtree's place in the order.
-  'sprite-sorting': /\border:\s*\d|\bSortingGroup\b/,
+  // A scene that STATES its draw order: the field, or the group that takes a
+  // subtree's place in it. The optional quote matches a field set in a SCENE
+  // (`"order": 0`) as well as one set in code.
+  'sprite-sorting': /\border"?:\s*\d|\bSortingGroup\b/,
   'sprite-mask': /\bSpriteMask\b/,
   // Components OR the resource: audio-demo takes Res(Audio) and never inserts a
   // component, and a pattern that only knew the components read it as unused.

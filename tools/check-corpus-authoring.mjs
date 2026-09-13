@@ -120,12 +120,6 @@ const DISPOSITION = {
 
 
   BitmapText: ['owed', 'Create > Bitmap Text exists; every corpus scene uses Text instead, so the pixel-font path ships unwitnessed'],
-  SpriteMask: ['owed', 'space-shooter masks from code; masking is authored geometry and belongs in a scene'],
-  TrailRenderer: ['owed', 'Create > Trail exists and trail-demo builds its trail in code'],
-  ParticleForceField: ['owed', 'particle-demo adds force fields from code, and the field has a radius gizmo the Inspector already draws'],
-  NavArea: ['owed', 'cost-modifying nav regions (mud, road) never appear; enemy-ai-3d authors NavVolume, NavLink and NavObstacle but no area'],
-  Marker: ['owed', 'Create > Marker and Create > Trigger Area are one click each, and not one project places either — the converged target for .tmj object groups has no hand-authored instance'],
-  Disabled: ['owed', 'queries skip it and the outliner switches it now; what is missing is a scene that ships something switched off — a boss gate, a tutorial-only prop'],
   Velocity: ['owed', 'motion without a physics body — the cheapest thing in the engine, authored nowhere'],
 };
 

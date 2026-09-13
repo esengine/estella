@@ -456,6 +456,170 @@
         }
       ],
       "visible": true
+    },
+    {
+      "id": 16,
+      "name": "HullBarBack",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -110,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 220,
+              "y": 14
+            },
+            "pivot": {
+              "x": 0,
+              "y": 0.5
+            },
+            "layer": 10,
+            "order": 0,
+            "color": {
+              "r": 0.1,
+              "g": 0.12,
+              "b": 0.18,
+              "a": 0.85
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "HullBarMask",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -110,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 220,
+              "y": 14
+            },
+            "pivot": {
+              "x": 0,
+              "y": 0.5
+            },
+            "layer": 10,
+            "order": 1
+          }
+        },
+        {
+          "type": "SpriteMask",
+          "data": {}
+        },
+        {
+          "type": "HullBarMask",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "HullBarFill",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -110,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 220,
+              "y": 14
+            },
+            "pivot": {
+              "x": 0,
+              "y": 0.5
+            },
+            "layer": 10,
+            "order": 2,
+            "color": {
+              "r": 0.35,
+              "g": 0.95,
+              "b": 0.6,
+              "a": 1
+            },
+            "maskInteraction": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "HullBarLost",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -110,
+              "y": -500,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 220,
+              "y": 14
+            },
+            "pivot": {
+              "x": 0,
+              "y": 0.5
+            },
+            "layer": 10,
+            "order": 3,
+            "color": {
+              "r": 0.85,
+              "g": 0.22,
+              "b": 0.28,
+              "a": 1
+            },
+            "maskInteraction": 2
+          }
+        }
+      ]
     }
   ]
 }

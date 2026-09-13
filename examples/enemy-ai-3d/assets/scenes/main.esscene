@@ -449,6 +449,145 @@
           }
         }
       ]
+    },
+    {
+      "id": 12,
+      "name": "Mud",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 20,
+              "z": -150
+            }
+          }
+        },
+        {
+          "type": "NavArea",
+          "data": {
+            "halfExtents": {
+              "x": 260,
+              "y": 40,
+              "z": 200
+            },
+            "cost": 4,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Post West",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -250,
+              "y": 80,
+              "z": -180
+            }
+          }
+        },
+        {
+          "type": "Marker",
+          "data": {
+            "type": "patrol",
+            "properties": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Post East",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 250,
+              "y": 80,
+              "z": -180
+            }
+          }
+        },
+        {
+          "type": "Marker",
+          "data": {
+            "type": "patrol",
+            "properties": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Post North",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 80,
+              "z": -260
+            }
+          }
+        },
+        {
+          "type": "Marker",
+          "data": {
+            "type": "patrol",
+            "properties": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Post Far",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -600,
+              "y": 80,
+              "z": -620
+            }
+          }
+        },
+        {
+          "type": "Marker",
+          "data": {
+            "type": "patrol",
+            "properties": {}
+          }
+        },
+        {
+          "type": "Disabled",
+          "data": {}
+        }
+      ]
     }
   ]
 }

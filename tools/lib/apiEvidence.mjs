@@ -112,6 +112,10 @@ export function declarationsOf(wanted, program, checker) {
 
 export { createSdkProgram };
 
+/** Frozen, and its only users write it into a scene rather than importing it —
+ *  so the corpus holds MORE of it than before and `exercised` sees none. */
+const AUTHORED_INSTEAD = (what) => `${what} — the corpus writes it in scenes, which \`exercised\` does not read`;
+
 /**
  * Symbols the evidence above cannot see, and why. Each is handed to a system body
  * by a declared parameter, or built by the engine on a game's behalf: a golden
@@ -130,10 +134,11 @@ export const BLIND = {
     // game reads it and every golden project's layout walks it every frame, but
     // nothing imports the name.
     Children: 'engine-maintained from Parent — walked every frame, named in no import list',
-    // A newer blindness: `exercised` reads a project's TypeScript, and this unit
-    // is what a SCENE writes as `unit: 1`. The one golden project that laid UI
-    // out in code now authors that panel, so the evidence moved out of reach.
-    percent: 'the code spelling of a unit every authored UINode carries — the corpus writes it in scenes, which `exercised` does not read',
+    // A newer blindness, and one that grows as the corpus moves from building
+    // things in code to AUTHORING them: `exercised` reads a golden project's
+    // TypeScript, and a scene writes these as plain numbers.
+    percent: AUTHORED_INSTEAD('the code spelling of a unit every authored UINode carries'),
+    SpriteMaskInteraction: AUTHORED_INSTEAD("the enum behind Sprite.maskInteraction, which space-shooter's hull bar now sets in its scene"),
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,
