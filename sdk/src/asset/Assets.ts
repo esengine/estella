@@ -2159,7 +2159,24 @@ export class Assets {
         // short of it.
         const remote = this.remoteAssetPath_(ref);
         if (remote != null) return remote;
-        return this.assetIdentity_(ref);
+        // Deliberately NOT assetIdentity_: for a remote-group asset that answers
+        // with the ADDRESS, and the package carries the STAGED name. Where the
+        // bytes are is the realm's question, so its resolver gets it.
+        const resolved = this.assetRefResolver_?.(ref) ?? ref;
+        return this.catalog.resolve(resolved);
+    }
+
+    /** CDN url of `ref` when it names a `remote`-group asset AND a remote root is
+     *  set; null otherwise (caller falls back to the normal resolver). */
+    private remoteAssetPath_(ref: string): string | null {
+        if (!this.remoteRoot_) return null;
+        const model = this.manifestModel_;
+        if (!model) return null;
+        const key = ref.startsWith(UUID_REF_PREFIX)
+            ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
+            : ref;
+        const path = model.remoteAssetPath(key) ?? model.remoteAssetPath(ref);
+        return path != null ? this.remoteUrlFor_(path) : null;
     }
 
     /**
@@ -2178,19 +2195,6 @@ export class Assets {
         if (named != null) return named;
         const resolved = this.assetRefResolver_?.(ref) ?? ref;
         return this.catalog.resolve(resolved);
-    }
-
-    /** CDN url of `ref` when it names a `remote`-group asset AND a remote root is
-     *  set; null otherwise (caller falls back to the normal resolver). */
-    private remoteAssetPath_(ref: string): string | null {
-        if (!this.remoteRoot_) return null;
-        const model = this.manifestModel_;
-        if (!model) return null;
-        const key = ref.startsWith(UUID_REF_PREFIX)
-            ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
-            : ref;
-        const path = model.remoteAssetPath(key) ?? model.remoteAssetPath(ref);
-        return path != null ? this.remoteUrlFor_(path) : null;
     }
 
     // =========================================================================

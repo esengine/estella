@@ -107,6 +107,59 @@ describe('Assets.loadGroup — remote group', () => {
     });
 });
 
+describe('a remote group with no CDN root ships inside the package', () => {
+    // The cook staged the bytes under `remote/<group>/…` and there is no origin
+    // to fetch from, so where they are is the REALM's question — the manifest's
+    // address is the authored name, which the package does not carry.
+    const PACKAGED: AddressableManifest = {
+        version: '2.0',
+        revision: 'rev-1',
+        groups: {
+            cdn: {
+                bundleMode: 'remote',
+                labels: [],
+                assets: {
+                    'uuid-1': {
+                        path: 'remote/cdn/assets/cdn/art.ktx2.bin',
+                        address: 'assets/cdn/art.png',
+                        type: 'texture', size: 10, labels: [],
+                    },
+                },
+            },
+        },
+    } as AddressableManifest;
+
+    /** What every packaged realm installs: any spelling → the staged path. */
+    const packagedResolver = (ref: string): string => {
+        const key = ref.replace(/^@uuid:/, '');
+        return key === 'uuid-1' || key === 'assets/cdn/art.png'
+            ? 'remote/cdn/assets/cdn/art.ktx2.bin'
+            : ref;
+    };
+
+    it('loads the staged path, whichever spelling names it', () => {
+        const assets = createAssets(backendServing());
+        assets.setManifest(PACKAGED);
+        assets.setAssetRefResolver(packagedResolver);
+        // No setRemoteRoot: this build ships the bytes and has no CDN.
+
+        // The scene's field is rewritten to the authored path at load, so this is
+        // the spelling the texture actually asks for on a device.
+        expect(assets.resolveLoadPath('assets/cdn/art.png')).toBe('remote/cdn/assets/cdn/art.ktx2.bin');
+        expect(assets.resolveLoadPath('@uuid:uuid-1')).toBe('remote/cdn/assets/cdn/art.ktx2.bin');
+    });
+
+    it('still goes to the CDN once a root is set', () => {
+        const assets = createAssets(backendServing());
+        assets.setManifest(PACKAGED);
+        assets.setAssetRefResolver(packagedResolver);
+        assets.setRemoteRoot('https://cdn.example.com');
+
+        expect(assets.resolveLoadPath('assets/cdn/art.png'))
+            .toBe('https://cdn.example.com/remote/cdn/assets/cdn/art.ktx2.bin');
+    });
+});
+
 /** A cdn manifest whose one asset is REF-BOUND — a slot, not a handle. */
 function cdnSlotManifest(hash: string, revision: string): AddressableManifest {
     return {

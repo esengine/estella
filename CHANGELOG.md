@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A remote group with no CDN root loads from the package.** Its bytes ship inside
+  the build (editor Play, a mini-game with no CDN), but the load path fell through to
+  the asset's IDENTITY, which for a remote group is its authored address — a name the
+  package does not carry. A hot-update demo exported to WeChat could not draw its own
+  remote texture: `Failed to load image: assets/cdn/art.png`, while the file beside it
+  was `remote/cdn/assets/cdn/art.ktx2.bin`. Where the bytes are is the realm's
+  question, so its resolver answers it.
+
+
 - **A mini-game reads an unset storage key as absent.** `wx.getStorageSync` answers a
   key that was never written with `''`, and the adapter passed that up as a stored
   value — so `Storage.getJSON` handed it to `JSON.parse`, which throws on it. A game
