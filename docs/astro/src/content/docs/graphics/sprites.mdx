@@ -476,49 +476,6 @@ matrix and a viewport rectangle) for code that manages its own camera math — t
 interactive **UI**, don't hand-roll any of this: `Interactable` + `UIEvents` do
 picking for you (see [UI](/docs/ui/overview/)).
 
-## Cache as bitmap
-
-**`CacheAsBitmap`** supports rendering an entity's expensive content **once** into
-an offscreen texture and drawing that single quad afterwards — the classic
-cache-as-bitmap trade: GPU memory (`width × height` RGBA) for per-frame draw cost.
-It pays when content is costly to draw every frame (many vector paths, lots of
-text or shapes) but **rarely changes**; it does nothing for you if the content
-changes every frame — you'd re-render the cache each time *and* pay the extra blit.
-
-| Field | Default | Description |
-|---|---|---|
-| `enabled` | `true` | Whether caching is active for this entity. |
-| `dirty` | `true` | Set `true` to request a re-render of the cache. |
-| `width` / `height` | `256` | Cache texture size in pixels. |
-
-The component is the **bookkeeping half** — the SDK does not ship a system that
-walks the scene and caches subtrees automatically. You drive the refresh with the
-exported helpers: a per-entity cache store (`getCacheForEntity`,
-`setCacheForEntity`, `removeCacheForEntity`, `clearAllCaches`) and `CacheBitmap`,
-a thin render-target wrapper (`create`, `beginDraw`/`endDraw`, `resize`,
-`release`):
-
-```typescript
-import { CacheBitmap, getCacheForEntity, setCacheForEntity, Draw } from 'esengine';
-
-// Refresh (only when dirty):
-let cache = getCacheForEntity(entity);
-if (!cache) {
-  cache = CacheBitmap.create(512, 256);
-  setCacheForEntity(entity, cache);
-}
-CacheBitmap.beginDraw(cache, viewProjection);   // an ortho matrix framing the content
-// … draw the expensive content once, with Draw / Graphics …
-CacheBitmap.endDraw();
-
-// Every frame thereafter: one textured quad instead of the whole redraw.
-Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
-```
-
-`cache.textureId` is an ordinary texture handle — it also works as a
-`Sprite.texture`. Under the hood this is a [RenderTexture](/docs/graphics/drawing/)
-without a depth buffer.
-
 ## In the editor
 
 - **Create → Sprite** adds a sprite entity, or **drag an image** from the Content

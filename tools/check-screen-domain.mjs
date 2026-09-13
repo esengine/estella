@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { listTrackedSources } from './lib/sourceRoots.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIELD = /\b(?:worldLeft|worldRight|worldTop|worldBottom)\b/;
@@ -42,8 +42,10 @@ const DECLARED = new Map([
     ['sdk/src/camera/Camera.ts', 'getWorldBounds is a camera query, not a UI one'],
 ]);
 
-const files = execFileSync('git', ['ls-files', 'sdk/src'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n').filter((f) => f.endsWith('.ts'));
+// Through the shared lister: `git ls-files` answers from the INDEX, so a file
+// deleted and not yet staged is still named, and reading it throws. That is
+// already handled there — handling it again here is the second copy that drifts.
+const files = listTrackedSources(['sdk/src']).files.filter((f) => f.endsWith('.ts'));
 
 const found = [];
 for (const file of files) {

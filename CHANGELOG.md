@@ -79,6 +79,19 @@ published separately; it ships inside the editor.
   authors the clip, the distances and `playOnAwake`, and the code only moves the
   entity.
 
+### Removed
+
+- **`CacheAsBitmap` and the bitmap-cache helpers.** The component, `CacheBitmap`,
+  and the per-entity cache store had exactly one consumer between them: their own
+  two test files. Nothing in any render path read them, no scene in the corpus
+  carried one, and the component sat in Add Component offering a performance
+  trade it could not make — its `dirty` flag was runtime state in an authored
+  document. `RenderTexture`, which is what the helpers wrapped, is unchanged and
+  documented; caching a subtree by hand goes through it. All four of
+  check-component-fields' declared gaps were this component's fields, and that
+  list is now empty.
+
+
 ### Fixed
 
 - **A spatial source is heard where it IS.** Audio read `Transform.position` —

@@ -424,44 +424,6 @@ const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hul
 交互式 **UI**,别手写这些:`Interactable` + `UIEvents` 会替你做拾取(见
 [UI](/docs/zh-cn/ui/overview/))。
 
-## 位图缓存(Cache as bitmap)
-
-**`CacheAsBitmap`** 支持把实体上昂贵的内容**渲染一次**进离屏纹理,之后只画这一个
-四边形——经典的 cache-as-bitmap 交换:用 GPU 内存(`width × height` RGBA)换每帧
-绘制开销。当内容每帧都画很贵(大量矢量路径、很多形状或文字)但**很少变化**时划算;
-内容每帧都变则毫无收益——你每次都得重渲缓存,*还*多付一次贴图开销。
-
-| 字段 | 默认 | 说明 |
-|---|---|---|
-| `enabled` | `true` | 该实体的缓存是否生效。 |
-| `dirty` | `true` | 设为 `true` 请求重新渲染缓存。 |
-| `width` / `height` | `256` | 缓存纹理的像素尺寸。 |
-
-这个组件是**记账的一半**——SDK 不内置自动遍历场景缓存子树的系统。刷新由你用导出的
-辅助函数驱动:逐实体缓存仓库(`getCacheForEntity`、`setCacheForEntity`、
-`removeCacheForEntity`、`clearAllCaches`)加 `CacheBitmap`——一个轻薄的渲染目标
-包装(`create`、`beginDraw`/`endDraw`、`resize`、`release`):
-
-```typescript
-import { CacheBitmap, getCacheForEntity, setCacheForEntity, Draw } from 'esengine';
-
-// 刷新(仅在 dirty 时):
-let cache = getCacheForEntity(entity);
-if (!cache) {
-  cache = CacheBitmap.create(512, 256);
-  setCacheForEntity(entity, cache);
-}
-CacheBitmap.beginDraw(cache, viewProjection);   // 一个框住内容的正交矩阵
-// … 用 Draw / Graphics 把昂贵内容画一次 …
-CacheBitmap.endDraw();
-
-// 此后每帧:画一个贴图四边形,而不是整套重绘。
-Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
-```
-
-`cache.textureId` 是普通的纹理句柄——也可以直接当 `Sprite.texture` 用。底层就是一个
-不带深度缓冲的 [RenderTexture](/docs/zh-cn/graphics/drawing/)。
-
 ## 在编辑器里
 
 - **创建 → 精灵** 添加一个精灵实体,或从内容浏览器**把图拖**进视口,生成一个已带纹理的精灵。

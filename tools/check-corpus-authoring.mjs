@@ -119,7 +119,6 @@ const DISPOSITION = {
   //   Each reason names where the coverage belongs. —
 
 
-  CacheAsBitmap: ['owed', 'flattening a static subtree into one texture is a performance decision with no example showing when to take it'],
   BitmapText: ['owed', 'Create > Bitmap Text exists; every corpus scene uses Text instead, so the pixel-font path ships unwitnessed'],
   SpriteMask: ['owed', 'space-shooter masks from code; masking is authored geometry and belongs in a scene'],
   TrailRenderer: ['owed', 'Create > Trail exists and trail-demo builds its trail in code'],

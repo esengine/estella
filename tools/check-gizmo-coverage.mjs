@@ -134,8 +134,6 @@ const DISPOSITION = {
 
   // Not a length in world space at all.
   'Canvas.matchWidthOrHeight': ['not-world', 'a 0..1 blend between two fits, not a length'],
-  'CacheAsBitmap.width': ['not-world', 'the cache texture\'s pixel size'],
-  'CacheAsBitmap.height': ['not-world', 'the cache texture\'s pixel size'],
   'UIDropdown.optionHeight': ['not-world', 'a row height inside a laid-out box, resolved by layout rather than placed'],
   'SpriteMask.rangeEndOrder': ['not-world', 'the last draw ORDER a mask reaches, not a distance it reaches over'],
   'LODGroup.lod1Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],

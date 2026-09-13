@@ -339,36 +339,6 @@
       ]
     },
     {
-      "name": "CacheAsBitmap",
-      "source": "ts",
-      "fields": [
-        {
-          "key": "enabled",
-          "type": "boolean",
-          "default": "true"
-        },
-        {
-          "key": "dirty",
-          "type": "boolean",
-          "default": "true"
-        },
-        {
-          "key": "width",
-          "type": "number",
-          "default": "256"
-        },
-        {
-          "key": "height",
-          "type": "number",
-          "default": "256"
-        }
-      ],
-      "animatable": [
-        "width",
-        "height"
-      ]
-    },
-    {
       "name": "Camera",
       "source": "cpp",
       "fields": [
